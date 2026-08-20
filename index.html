@@ -1,79 +1,283 @@
 <!DOCTYPE html>
-<html lang="ug">
+<html lang="ug" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kutadgu Bilig Kitabevi</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f7f5f0;
-            color: #222;
-            text-align: center;
-        }
+  <title>Kutadgu Bilig Kitabevi</title>
 
-        header {
-            background: #111;
-            color: white;
-            padding: 30px 20px;
-        }
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-        h1 {
-            margin: 0;
-            font-size: 36px;
-        }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f5f0;
+      color: #222;
+      line-height: 1.8;
+    }
 
-        .hero {
-            padding: 80px 20px;
-        }
+    header {
+      background: #111;
+      color: white;
+      padding: 20px 6%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-        .hero h2 {
-            font-size: 32px;
-            margin-bottom: 15px;
-        }
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+    }
 
-        .hero p {
-            font-size: 18px;
-            color: #555;
-        }
+    nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 25px;
+      font-size: 15px;
+    }
 
-        .button {
-            display: inline-block;
-            margin-top: 25px;
-            padding: 14px 28px;
-            background: #111;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-        }
+    nav a:hover {
+      opacity: 0.7;
+    }
 
-        footer {
-            margin-top: 80px;
-            padding: 25px;
-            background: #111;
-            color: white;
-        }
-    </style>
+    .hero {
+      min-height: 520px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 70px 20px;
+      background: #f7f5f0;
+    }
+
+    .hero-content {
+      max-width: 800px;
+    }
+
+    .hero h1 {
+      font-size: 50px;
+      margin-bottom: 18px;
+    }
+
+    .hero p {
+      font-size: 21px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .button {
+      display: inline-block;
+      background: #111;
+      color: white;
+      text-decoration: none;
+      padding: 13px 32px;
+      border-radius: 8px;
+      transition: 0.2s;
+    }
+
+    .button:hover {
+      background: #333;
+      transform: translateY(-2px);
+    }
+
+    .section {
+      padding: 75px 6%;
+      text-align: center;
+    }
+
+    .section h2 {
+      font-size: 32px;
+      margin-bottom: 40px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 25px;
+      max-width: 1100px;
+      margin: auto;
+    }
+
+    .card {
+      background: white;
+      padding: 38px 25px;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      transition: 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+    }
+
+    .card .icon {
+      font-size: 42px;
+      margin-bottom: 12px;
+    }
+
+    .card h3 {
+      margin-bottom: 10px;
+      font-size: 21px;
+    }
+
+    .card p {
+      color: #666;
+    }
+
+    .about {
+      background: #111;
+      color: white;
+    }
+
+    .about p {
+      max-width: 750px;
+      margin: auto;
+      color: #ddd;
+      font-size: 18px;
+    }
+
+    .contact {
+      background: white;
+    }
+
+    footer {
+      background: #000;
+      color: #aaa;
+      text-align: center;
+      padding: 25px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 700px) {
+      header {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      nav a {
+        margin: 0 8px;
+      }
+
+      .hero h1 {
+        font-size: 35px;
+      }
+
+      .hero p {
+        font-size: 17px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-    <header>
-        <h1>Kutadgu Bilig Kitabevi</h1>
-    </header>
+  <header>
+    <div class="logo">Kutadgu Bilig Kitabevi</div>
 
-    <section class="hero">
-        <h2>خۇش كەلدىڭىز!</h2>
-        <p>Kutadgu Bilig Kitabevi — كىتاب ۋە مەدەنىيەت دۇنياسى</p>
+    <nav>
+      <a href="#home">باش بەت</a>
+      <a href="#books">كىتابلار</a>
+      <a href="#about">بىز ھەققىدە</a>
+      <a href="#contact">ئالاقە</a>
+    </nav>
+  </header>
 
-        <a href="#" class="button">كىتابلارنى كۆرۈش</a>
-    </section>
 
-    <footer>
-        © 2026 Kutadgu Bilig Kitabevi
-    </footer>
+  <section class="hero" id="home">
+    <div class="hero-content">
+
+      <h1>خوش كەلدىڭىز!</h1>
+
+      <p>
+        Kutadgu Bilig Kitabevi — كىتاب ۋە ئوقۇش دۇنياسى
+      </p>
+
+      <a href="#books" class="button">
+        كىتابلارنى كۆرۈش
+      </a>
+
+    </div>
+  </section>
+
+
+  <section class="section" id="books">
+
+    <h2>كىتاب تۈرلىرى</h2>
+
+    <div class="cards">
+
+      <div class="card">
+        <div class="icon">📚</div>
+        <h3>ئۇيغۇرچە كىتابلار</h3>
+        <p>
+          ھەر خىل ساھەلەردىكى ئۇيغۇرچە كىتابلار.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="icon">🕌</div>
+        <h3>دىنىي كىتابلار</h3>
+        <p>
+          قۇرئان، ھەدىس، تەپسىر ۋە ئىسلامىي ئەسەرلەر.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="icon">📖</div>
+        <h3>ئەدەبىي كىتابلار</h3>
+        <p>
+          رومان، ھېكايە ۋە تۈرلۈك ئەدەبىي ئەسەرلەر.
+        </p>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <section class="section about" id="about">
+
+    <h2>بىز ھەققىدە</h2>
+
+    <p>
+      Kutadgu Bilig Kitabevi كىتاب ئوقۇشنى ياخشى كۆرىدىغان
+      ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان
+      كىتابخانا.
+    </p>
+
+  </section>
+
+
+  <section class="section contact" id="contact">
+
+    <h2>بىز بىلەن ئالاقىلىشىڭ</h2>
+
+    <p style="margin-bottom: 25px;">
+      كىتابلار ۋە مەھسۇلاتلار ھەققىدە مەلۇمات ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
+    </p>
+
+    <a href="#" class="button">
+      ئالاقىلىشىش
+    </a>
+
+  </section>
+
+
+  <footer>
+    © 2026 Kutadgu Bilig Kitabevi — بارلىق ھوقۇقلار قوغدالغان.
+  </footer>
 
 </body>
 </html>
