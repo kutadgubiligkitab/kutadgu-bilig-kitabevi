@@ -5,9 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>ئەدەبىيات — قۇتادغۇبىلىك كىتابخانىسى</title>
+    <title>قۇتادغۇبىلىك كىتابخانىسى</title>
 
     <style>
+
+        /* =========================
+           ئاساسىي تەڭشەكلەر
+        ========================= */
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -15,451 +20,486 @@
         }
 
         body {
-            font-family: Arial, "Noto Sans Arabic", sans-serif;
+            font-family: Arial, sans-serif;
             background: #f7f5f0;
             color: #222;
             line-height: 1.8;
         }
 
-        nav {
-            height: 64px;
+
+        /* =========================
+           ئۈستىدىكى Header
+        ========================= */
+
+        header {
             background: #111;
             color: white;
-
+            padding: 20px 6%;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-
-            padding: 0 7%;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
         .logo {
-            color: white;
-            text-decoration: none;
-            font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
         }
 
-        .nav-links {
+        nav {
             display: flex;
-            gap: 30px;
+            align-items: center;
         }
 
-        .nav-links a {
+        nav a {
             color: white;
             text-decoration: none;
+            margin-right: 25px;
             font-size: 15px;
+            transition: 0.2s;
         }
 
-        .nav-links a:hover {
-            color: #ccc;
+        nav a:hover {
+            opacity: 0.7;
         }
 
-        .page-header {
+
+        /* =========================
+           باش بەت
+        ========================= */
+
+        .hero {
+            min-height: 520px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             text-align: center;
-            padding: 80px 20px 45px;
+            padding: 70px 20px;
+            background: #f7f5f0;
         }
 
-        .page-header .icon {
-            font-size: 55px;
-            margin-bottom: 10px;
+        .hero-content {
+            max-width: 800px;
         }
 
-        .page-header h1 {
-            font-size: 38px;
-            margin-bottom: 12px;
+        .hero h1 {
+            font-size: 50px;
+            margin-bottom: 18px;
         }
 
-        .page-header p {
-            color: #777;
-            font-size: 16px;
+        .hero p {
+            font-size: 21px;
+            color: #666;
+            margin-bottom: 30px;
         }
 
-        .back-container {
-            text-align: center;
-            margin-bottom: 50px;
-        }
 
-        .back-button {
+        /* =========================
+           كۇنۇپكا
+        ========================= */
+
+        .button {
             display: inline-block;
             background: #111;
             color: white;
             text-decoration: none;
-
-            padding: 10px 28px;
-            border-radius: 7px;
-
-            font-size: 14px;
+            padding: 13px 32px;
+            border-radius: 8px;
             transition: 0.2s;
         }
 
-        .back-button:hover {
+        .button:hover {
             background: #333;
             transform: translateY(-2px);
         }
 
-        .books-section {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 20px 100px;
+
+        /* =========================
+           كىتاب تۈرلىرى
+        ========================= */
+
+        .section {
+            padding: 75px 6%;
+            text-align: center;
         }
 
-        .books-grid {
+        .section h2 {
+            font-size: 32px;
+            margin-bottom: 40px;
+        }
+
+
+        /* =========================
+           كىتاب كارتىلىرى
+        ========================= */
+
+        .cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 25px;
+            max-width: 1100px;
+            margin: auto;
         }
 
-        .book-card {
+        .card {
             background: white;
-            border-radius: 12px;
-            overflow: hidden;
-
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
-
-            transition: 0.25s;
+            padding: 38px 25px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            transition: 0.2s;
+            min-height: 210px;
         }
 
-        .book-card:hover {
+        .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
         }
 
-        .book-image {
-            width: 100%;
-            height: 300px;
+        .card .icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+        }
 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .card h3 {
+            margin-bottom: 10px;
+            font-size: 21px;
+        }
 
-            background: #eee;
-            color: #999;
+        .card p {
+            color: #666;
             font-size: 15px;
         }
 
-        .book-info {
-            padding: 22px;
-            text-align: center;
+
+        /* =========================
+           بالىلار كىتابلىرى
+           ئىككىنچى قۇردا ئوتتۇرىدا
+        ========================= */
+
+        .card.children-book {
+            grid-column: 2;
         }
 
-        .book-info h2 {
-            font-size: 19px;
-            margin-bottom: 8px;
-        }
 
-        .book-info p {
-            color: #888;
-            font-size: 14px;
-            margin-bottom: 15px;
-        }
+        /* =========================
+           بىز ھەققىدە
+        ========================= */
 
-        .price {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-
-        .details-button {
-            display: inline-block;
-
+        .about {
             background: #111;
             color: white;
-            text-decoration: none;
+            text-align: center;
+            padding: 75px 6%;
+        }
 
-            padding: 8px 22px;
-            border-radius: 6px;
+        .about h2 {
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
 
+        .about p {
+            max-width: 750px;
+            margin: auto;
+            color: #ddd;
+            font-size: 18px;
+        }
+
+
+        /* =========================
+           ئالاقە
+        ========================= */
+
+        .contact {
+            background: white;
+            text-align: center;
+            padding: 75px 6%;
+        }
+
+        .contact h2 {
+            font-size: 32px;
+            margin-bottom: 25px;
+        }
+
+        .contact p {
+            font-size: 18px;
+            color: #555;
+        }
+
+
+        /* =========================
+           Footer
+        ========================= */
+
+        footer {
+            background: #000;
+            color: #aaa;
+            text-align: center;
+            padding: 25px;
             font-size: 14px;
         }
 
-        .details-button:hover {
-            background: #333;
-        }
 
-        footer {
-            background: #080808;
-            color: #aaa;
-            text-align: center;
-            padding: 22px;
-            font-size: 13px;
-        }
+        /* =========================
+           تېلېفونغا ماسلاشتۇرۇش
+        ========================= */
 
-        @media (max-width: 800px) {
+        @media (max-width: 700px) {
 
-            nav {
-                padding: 0 20px;
-            }
-
-            .nav-links {
+            header {
+                flex-direction: column;
                 gap: 12px;
             }
 
-            .nav-links a {
-                font-size: 12px;
+            nav {
+                flex-wrap: wrap;
+                justify-content: center;
             }
 
-            .page-header {
-                padding: 60px 20px 40px;
+            nav a {
+                margin: 0 8px;
             }
 
-            .page-header h1 {
-                font-size: 30px;
+            .hero h1 {
+                font-size: 35px;
             }
 
-            .books-grid {
+            .hero p {
+                font-size: 17px;
+            }
+
+            .cards {
                 grid-template-columns: 1fr;
             }
 
-            .book-image {
-                height: 330px;
+            .card.children-book {
+                grid-column: auto;
             }
+
+            .section {
+                padding: 55px 20px;
+            }
+
         }
+
     </style>
+
 </head>
+
 
 <body>
 
-    <nav>
 
-        <a href="index.html" class="logo">
+    <!-- =========================
+         ئۈستىدىكى بۆلەك
+    ========================== -->
+
+    <header>
+
+        <div class="logo">
             قۇتادغۇبىلىك كىتابخانىسى
-        </a>
+        </div>
 
-        <div class="nav-links">
+        <nav>
 
-            <a href="index.html">
-                باش بەت
-            </a>
+            <a href="#home">باش بەت</a>
 
-            <a href="index.html#about">
-                بىز ھەققىدە
-            </a>
+            <a href="#books">كىتابلار</a>
 
-            <a href="index.html#contact">
-                ئالاقە
+            <a href="#about">بىز ھەققىدە</a>
+
+            <a href="#contact">ئالاقە</a>
+
+        </nav>
+
+    </header>
+
+
+
+    <!-- =========================
+         باش بەت
+    ========================== -->
+
+    <section class="hero" id="home">
+
+        <div class="hero-content">
+
+            <h1>خوش كەلدىڭىز!</h1>
+
+            <p>
+                قۇتادغۇبىلىك كىتابخانىسى — كىتاب ۋە ئوقۇش دۇنياسى
+            </p>
+
+            <a href="#books" class="button">
+                كىتابلارنى كۆرۈش
             </a>
 
         </div>
 
-    </nav>
+    </section>
 
 
-    <section class="page-header">
 
-        <div class="icon">
-            📖
+    <!-- =========================
+         كىتاب تۈرلىرى
+    ========================== -->
+
+    <section class="section" id="books">
+
+        <h2>كىتاب تۈرلىرى</h2>
+
+
+        <div class="cards">
+
+
+            <!-- 1 -->
+            <div class="card">
+
+                <div class="icon">📖</div>
+
+                <h3>ئەدەبىيات</h3>
+
+                <p>
+                    ئەدەبى ئەسەرلەر، رومان ۋە ھېكايىلەر.
+                </p>
+
+            </div>
+
+
+            <!-- 2 -->
+            <div class="card">
+
+                <div class="icon">📚</div>
+
+                <h3>ئۇنىۋېرسال ئەسەرلەر</h3>
+
+                <p>
+                    ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 3 -->
+            <div class="card">
+
+                <div class="icon">🩺</div>
+
+                <h3>تېبابەت ۋە ساغلاملىق</h3>
+
+                <p>
+                    تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 4 -->
+            <div class="card">
+
+                <div class="icon">📘</div>
+
+                <h3>دەرسلىك كىتابلار</h3>
+
+                <p>
+                    ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرسلىك كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 5 -->
+            <div class="card">
+
+                <div class="icon">👨‍👩‍👧‍👦</div>
+
+                <h3>پەرزەنت تەربىيەسى</h3>
+
+                <p>
+                    پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 6 -->
+            <div class="card">
+
+                <div class="icon">🕌</div>
+
+                <h3>دىنىي كىتابلار</h3>
+
+                <p>
+                    ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 7 -->
+            <div class="card children-book">
+
+                <div class="icon">🧒</div>
+
+                <h3>بالىلار كىتابلىرى</h3>
+
+                <p>
+                    بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار.
+                </p>
+
+            </div>
+
+
         </div>
 
-        <h1>
-            ئەدەبىيات
-        </h1>
+    </section>
+
+
+
+    <!-- =========================
+         بىز ھەققىدە
+    ========================== -->
+
+    <section class="about" id="about">
+
+        <h2>بىز ھەققىدە</h2>
 
         <p>
-            ئەدەبىي ئەسەرلەر، رومان، ھېكايە ۋە شېئىرلار
+            قۇتادغۇبىلىك كىتابخانىسى
+            ياخشى كىتاب ۋە بىلىم ئىزدەيدىغان ئوقۇرمەنلەر ئۈچۈن
+            تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.
         </p>
 
     </section>
 
 
-    <div class="back-container">
 
-        <a href="index.html" class="back-button">
-            ← باش بەتكە قايتىش
-        </a>
+    <!-- =========================
+         ئالاقە
+    ========================== -->
 
-    </div>
+    <section class="contact" id="contact">
 
+        <h2>ئالاقە</h2>
 
-    <section class="books-section">
-
-        <div class="books-grid">
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 1
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        150 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 2
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        180 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 3
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        200 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 4
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        175 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 5
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        220 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            <div class="book-card">
-
-                <div class="book-image">
-                    كىتاب مۇقاۋىسى
-                </div>
-
-                <div class="book-info">
-
-                    <h2>
-                        ئەدەبىيات كىتابى 6
-                    </h2>
-
-                    <p>
-                        ئاپتور: ئاپتور ئىسمى
-                    </p>
-
-                    <div class="price">
-                        190 ₺
-                    </div>
-
-                    <a href="#" class="details-button">
-                        تەپسىلات
-                    </a>
-
-                </div>
-
-            </div>
-
-
-        </div>
+        <p>
+            كىتابلار ۋە باشقا سوئاللار ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
+        </p>
 
     </section>
 
+
+
+    <!-- =========================
+         ئاستىدىكى بۆلەك
+    ========================== -->
 
     <footer>
 
         © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
     </footer>
+
 
 </body>
 
