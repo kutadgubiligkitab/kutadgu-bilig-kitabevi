@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ئۇنىۋېرسال ئەسەرلەر - قۇتادغۇبىلىك كىتابخانىسى</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, "Noto Sans Arabic", sans-serif;
+            background: #f7f5f0;
+            color: #222;
+            line-height: 1.8;
+        }
+
+        /* NAVBAR */
+
+        nav {
+            height: 64px;
+            background: #111;
+            color: white;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            padding: 0 7%;
+        }
+
+        .logo {
+            color: white;
+            text-decoration: none;
+
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 28px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-size: 15px;
+        }
+
+        .nav-links a:hover {
+            color: #ccc;
+        }
+
+
+        /* HEADER */
+
+        .hero {
+            text-align: center;
+
+            padding: 75px 20px 45px;
+        }
+
+        .hero h1 {
+            font-size: 42px;
+
+            margin-bottom: 12px;
+        }
+
+        .hero p {
+            color: #777;
+
+            font-size: 16px;
+        }
+
+
+        /* BACK */
+
+        .back-area {
+            text-align: center;
+
+            margin-bottom: 45px;
+        }
+
+        .back-button {
+            display: inline-block;
+
+            background: #111;
+            color: white;
+
+            text-decoration: none;
+
+            padding: 11px 28px;
+
+            border-radius: 7px;
+
+            font-size: 14px;
+
+            transition: 0.2s;
+        }
+
+        .back-button:hover {
+            background: #333;
+
+            transform: translateY(-2px);
+        }
+
+
+        /* BOOK SECTION */
+
+        .books-section {
+            width: 90%;
+            max-width: 1200px;
+
+            margin: auto;
+
+            padding-bottom: 90px;
+        }
+
+        .section-title {
+            text-align: center;
+
+            font-size: 30px;
+
+            margin-bottom: 40px;
+        }
+
+
+        /* GRID */
+
+        .books-grid {
+            display: grid;
+
+            grid-template-columns: repeat(3, 1fr);
+
+            gap: 24px;
+        }
+
+
+        /* CARD */
+
+        .book-card {
+            background: white;
+
+            border-radius: 14px;
+
+            padding: 30px 24px;
+
+            text-align: center;
+
+            min-height: 260px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            box-shadow:
+                0 5px 20px rgba(0,0,0,0.06);
+
+            transition: 0.25s;
+        }
+
+        .book-card:hover {
+            transform: translateY(-5px);
+
+            box-shadow:
+                0 10px 28px rgba(0,0,0,0.10);
+        }
+
+
+        .book-icon {
+            font-size: 50px;
+
+            margin-bottom: 15px;
+        }
+
+
+        .book-card h3 {
+            font-size: 20px;
+
+            margin-bottom: 9px;
+        }
+
+
+        .book-card p {
+            color: #777;
+
+            font-size: 14px;
+
+            max-width: 300px;
+        }
+
+
+        /* BUTTON */
+
+        .book-button {
+            display: inline-block;
+
+            margin-top: 17px;
+
+            background: #111;
+
+            color: white;
+
+            text-decoration: none;
+
+            padding: 8px 21px;
+
+            border-radius: 6px;
+
+            font-size: 14px;
+        }
+
+        .book-button:hover {
+            background: #333;
+        }
+
+
+        /* INFO */
+
+        .info {
+            background: #111;
+
+            color: white;
+
+            text-align: center;
+
+            padding: 60px 20px;
+        }
+
+        .info h2 {
+            font-size: 26px;
+
+            margin-bottom: 15px;
+        }
+
+        .info p {
+            max-width: 750px;
+
+            margin: auto;
+
+            color: #ddd;
+
+            font-size: 15px;
+        }
+
+
+        /* FOOTER */
+
+        footer {
+            background: #000;
+
+            color: #aaa;
+
+            text-align: center;
+
+            padding: 22px;
+
+            font-size: 13px;
+        }
+
+
+        /* MOBILE */
+
+        @media (max-width: 900px) {
+
+            .books-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+        }
+
+
+        @media (max-width: 600px) {
+
+            nav {
+                height: auto;
+
+                padding: 15px 20px;
+
+                flex-direction: column;
+
+                gap: 10px;
+            }
+
+            .nav-links {
+                gap: 15px;
+
+                flex-wrap: wrap;
+
+                justify-content: center;
+            }
+
+            .hero h1 {
+                font-size: 32px;
+            }
+
+            .books-grid {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- NAVBAR -->
+
+    <nav>
+
+        <a href="index.html" class="logo">
+            قۇتادغۇبىلىك كىتابخانىسى
+        </a>
+
+        <div class="nav-links">
+
+            <a href="index.html">
+                باش بەت
+            </a>
+
+            <a href="index.html#books">
+                كىتابلار
+            </a>
+
+            <a href="index.html#about">
+                بىز ھەققىدە
+            </a>
+
+            <a href="index.html#contact">
+                ئالاقە
+            </a>
+
+        </div>
+
+    </nav>
+
+
+
+    <!-- HEADER -->
+
+    <section class="hero">
+
+        <h1>
+            ئۇنىۋېرسال ئەسەرلەر
+        </h1>
+
+        <p>
+            قۇتادغۇبىلىك كىتابخانىسىدىكى ئۇنىۋېرسال كىتابلار
+        </p>
+
+    </section>
+
+
+
+    <!-- BACK BUTTON -->
+
+    <div class="back-area">
+
+        <a href="index.html" class="back-button">
+            ← باش بەتكە قايتىش
+        </a>
+
+    </div>
+
+
+
+    <!-- BOOKS -->
+
+    <section class="books-section">
+
+        <h2 class="section-title">
+            ئۇنىۋېرسال ئەسەرلەر
+        </h2>
+
+
+        <div class="books-grid">
+
+
+            <!-- BOOK 1 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📚
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 1
+                </h3>
+
+                <p>
+                    ھەر خىل ساھەلەرگە مۇناسىۋەتلىك ئەسەر.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- BOOK 2 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📘
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 2
+                </h3>
+
+                <p>
+                    بىلىم ۋە تەتقىقاتقا ئائىت كىتاب.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- BOOK 3 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📗
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 3
+                </h3>
+
+                <p>
+                    ھەر خىل تېمىلاردىكى تاللانغان ئەسەر.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- BOOK 4 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📕
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 4
+                </h3>
+
+                <p>
+                    ئوقۇرمەنلەر ئۈچۈن پايدىلىق كىتاب.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- BOOK 5 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📙
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 5
+                </h3>
+
+                <p>
+                    ئومۇمىي بىلىمگە ئائىت ئەسەر.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- BOOK 6 -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📖
+                </div>
+
+                <h3>
+                    ئۇنىۋېرسال ئەسەر 6
+                </h3>
+
+                <p>
+                    تۈرلۈك ساھەلەرگە ئائىت كىتاب.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+
+    <!-- INFO -->
+
+    <section class="info">
+
+        <h2>
+            قۇتادغۇبىلىك كىتابخانىسى
+        </h2>
+
+        <p>
+            ھەر خىل ساھەلەردىكى كىتابلارنى بىر يەردىن تاپالايسىز.
+        </p>
+
+    </section>
+
+
+
+    <!-- FOOTER -->
+
+    <footer>
+
+        © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+
+    </footer>
+
+
+</body>
+
+</html>
