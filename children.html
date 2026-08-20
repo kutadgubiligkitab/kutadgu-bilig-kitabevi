@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>بالىلار كىتابلىرى — قۇتادغۇبىلىك كىتابخانىسى</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, "Noto Sans Arabic", sans-serif;
+            background: #f7f5f0;
+            color: #222;
+            line-height: 1.8;
+        }
+
+        /* NAVBAR */
+        nav {
+            height: 64px;
+            background: #111;
+            color: white;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            padding: 0 7%;
+        }
+
+        .logo {
+            color: white;
+            text-decoration: none;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-size: 15px;
+        }
+
+        .nav-links a:hover {
+            color: #ccc;
+        }
+
+        /* PAGE HEADER */
+        .page-header {
+            text-align: center;
+            padding: 80px 20px 50px;
+        }
+
+        .page-header h1 {
+            font-size: 38px;
+            margin-bottom: 15px;
+        }
+
+        .page-header p {
+            color: #777;
+            font-size: 16px;
+        }
+
+        /* BACK BUTTON */
+        .back-container {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: #111;
+            color: white;
+            text-decoration: none;
+
+            padding: 10px 28px;
+            border-radius: 7px;
+
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .back-button:hover {
+            background: #333;
+            transform: translateY(-2px);
+        }
+
+        /* BOOKS */
+        .books-section {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px 100px;
+        }
+
+        .books-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+
+        /* BOOK CARD */
+        .book-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+
+            transition: 0.25s;
+        }
+
+        .book-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
+        }
+
+        /* BOOK IMAGE */
+        .book-image {
+            width: 100%;
+            height: 300px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background: #eee;
+            color: #999;
+            font-size: 15px;
+        }
+
+        .book-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* BOOK INFO */
+        .book-info {
+            padding: 22px;
+            text-align: center;
+        }
+
+        .book-info h2 {
+            font-size: 19px;
+            margin-bottom: 8px;
+        }
+
+        .book-info p {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .price {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .details-button {
+            display: inline-block;
+
+            background: #111;
+            color: white;
+            text-decoration: none;
+
+            padding: 8px 22px;
+            border-radius: 6px;
+
+            font-size: 14px;
+        }
+
+        .details-button:hover {
+            background: #333;
+        }
+
+        /* FOOTER */
+        footer {
+            background: #080808;
+            color: #aaa;
+
+            text-align: center;
+
+            padding: 22px;
+
+            font-size: 13px;
+        }
+
+        /* MOBILE */
+        @media (max-width: 800px) {
+
+            nav {
+                padding: 0 20px;
+            }
+
+            .nav-links {
+                gap: 12px;
+            }
+
+            .nav-links a {
+                font-size: 12px;
+            }
+
+            .page-header {
+                padding: 60px 20px 40px;
+            }
+
+            .page-header h1 {
+                font-size: 30px;
+            }
+
+            .books-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .book-image {
+                height: 330px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <nav>
+
+        <a href="index.html" class="logo">
+            قۇتادغۇبىلىك كىتابخانىسى
+        </a>
+
+        <div class="nav-links">
+
+            <a href="index.html">
+                باش بەت
+            </a>
+
+            <a href="index.html#about">
+                بىز ھەققىدە
+            </a>
+
+            <a href="index.html#contact">
+                ئالاقە
+            </a>
+
+        </div>
+
+    </nav>
+
+
+    <!-- PAGE HEADER -->
+    <section class="page-header">
+
+        <h1>
+            بالىلار كىتابلىرى
+        </h1>
+
+        <p>
+            بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار
+        </p>
+
+    </section>
+
+
+    <!-- BACK BUTTON -->
+    <div class="back-container">
+
+        <a href="index.html" class="back-button">
+            ← باش بەتكە قايتىش
+        </a>
+
+    </div>
+
+
+    <!-- BOOKS -->
+    <section class="books-section">
+
+        <div class="books-grid">
+
+
+            <!-- BOOK 1 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 1
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        150 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- BOOK 2 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 2
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        180 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- BOOK 3 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 3
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        200 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- BOOK 4 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 4
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        175 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- BOOK 5 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 5
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        220 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- BOOK 6 -->
+            <div class="book-card">
+
+                <div class="book-image">
+                    كىتاب مۇقاۋىسى
+                </div>
+
+                <div class="book-info">
+
+                    <h2>
+                        بالىلار كىتابى 6
+                    </h2>
+
+                    <p>
+                        بالىلار ئۈچۈن قىزىقارلىق كىتاب
+                    </p>
+
+                    <div class="price">
+                        190 ₺
+                    </div>
+
+                    <a href="#" class="details-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer>
+
+        © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+
+    </footer>
+
+</body>
+
+</html>
