@@ -8,7 +8,6 @@
     <title>قۇتادغۇبىلىك كىتابخانىسى</title>
 
     <style>
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -25,10 +24,6 @@
             color: #222;
             line-height: 1.8;
         }
-
-        /* =========================
-           ئۈستىدىكى Header
-        ========================= */
 
         header {
             background: #111;
@@ -58,11 +53,6 @@
             opacity: 0.7;
         }
 
-
-        /* =========================
-           باش بۆلەك
-        ========================= */
-
         .hero {
             min-height: 520px;
             display: flex;
@@ -70,7 +60,6 @@
             align-items: center;
             text-align: center;
             padding: 70px 20px;
-            background: #f7f5f0;
         }
 
         .hero-content {
@@ -103,11 +92,6 @@
             transform: translateY(-2px);
         }
 
-
-        /* =========================
-           كىتاب تۈرلىرى
-        ========================= */
-
         .section {
             padding: 75px 6%;
             text-align: center;
@@ -125,11 +109,6 @@
             max-width: 1100px;
             margin: auto;
         }
-
-
-        /* =========================
-           كىتاب كارتىسى
-        ========================= */
 
         .card-link {
             text-decoration: none;
@@ -165,54 +144,10 @@
             color: #666;
         }
 
-
-        /* =========================
-           بالىلار كىتابلىرىنى ئوتتۇرىغا قويۇش
-        ========================= */
-
+        /* بالىلار كىتابلىرى ئوتتۇرىدا */
         .children-book {
             grid-column: 2;
         }
-
-
-        /* =========================
-           تۈر بۆلەكلىرى
-        ========================= */
-
-        .category-section {
-            padding: 70px 6%;
-            background: white;
-            text-align: center;
-            scroll-margin-top: 90px;
-        }
-
-        .category-section:nth-child(even) {
-            background: #f7f5f0;
-        }
-
-        .category-section h2 {
-            font-size: 30px;
-            margin-bottom: 15px;
-        }
-
-        .category-section p {
-            color: #666;
-            max-width: 700px;
-            margin: auto;
-        }
-
-        .back-top {
-            display: inline-block;
-            margin-top: 25px;
-            color: #111;
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-
-        /* =========================
-           بىز ھەققىدە
-        ========================= */
 
         .about {
             background: #111;
@@ -233,11 +168,6 @@
             font-size: 18px;
         }
 
-
-        /* =========================
-           ئالاقە
-        ========================= */
-
         .contact {
             background: white;
             text-align: center;
@@ -253,11 +183,6 @@
             color: #666;
         }
 
-
-        /* =========================
-           Footer
-        ========================= */
-
         footer {
             background: #000;
             color: #aaa;
@@ -265,11 +190,6 @@
             padding: 25px;
             font-size: 14px;
         }
-
-
-        /* =========================
-           تېلېفونغا ماسلاشتۇرۇش
-        ========================= */
 
         @media (max-width: 700px) {
 
@@ -280,10 +200,6 @@
 
             nav a {
                 margin: 0 8px;
-            }
-
-            .hero {
-                min-height: 450px;
             }
 
             .hero h1 {
@@ -301,27 +217,11 @@
             .children-book {
                 grid-column: auto;
             }
-
-            .section {
-                padding: 55px 5%;
-            }
-
-            .card {
-                padding: 30px 20px;
-            }
-
         }
-
     </style>
 </head>
 
-
 <body>
-
-
-    <!-- =========================
-         ئۈستىدىكى بۆلەك
-    ========================= -->
 
     <header>
 
@@ -330,7 +230,7 @@
         </div>
 
         <nav>
-            <a href="#home">باش بەت</a>
+            <a href="index.html">باش بەت</a>
             <a href="#books">كىتابلار</a>
             <a href="#about">بىز ھەققىدە</a>
             <a href="#contact">ئالاقە</a>
@@ -339,12 +239,7 @@
     </header>
 
 
-
-    <!-- =========================
-         باش بەت
-    ========================= -->
-
-    <section class="hero" id="home">
+    <section class="hero">
 
         <div class="hero-content">
 
@@ -363,22 +258,14 @@
     </section>
 
 
-
-    <!-- =========================
-         كىتاب تۈرلىرى
-    ========================= -->
-
     <section class="section" id="books">
 
         <h2>كىتاب تۈرلىرى</h2>
 
-
         <div class="cards">
 
 
-            <!-- 1. ئەدەبىيات -->
-
-            <a href="#adabiyat" class="card-link">
+            <a href="#" class="card-link">
 
                 <div class="card">
 
@@ -395,19 +282,16 @@
             </a>
 
 
-
-            <!-- 2. كۆپ ئوقۇلىدىغان -->
-
-            <a href="#popular" class="card-link">
+            <a href="#" class="card-link">
 
                 <div class="card">
 
                     <div class="icon">📚</div>
 
-                    <h3>كۆپ ئوقۇلىدىغان</h3>
+                    <h3>ئۇنىۋېرسال ئەسەرلەر</h3>
 
                     <p>
-                        ھەر خىل ساھەلەردىكى مۇناسىۋەتلىك كىتابلار.
+                        ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.
                     </p>
 
                 </div>
@@ -415,19 +299,16 @@
             </a>
 
 
-
-            <!-- 3. تەپەككۇر ۋە سالامەتلىك -->
-
-            <a href="#health" class="card-link">
+            <a href="#" class="card-link">
 
                 <div class="card">
 
                     <div class="icon">🩺</div>
 
-                    <h3>تەپەككۇر ۋە سالامەتلىك</h3>
+                    <h3>تېبابەت ۋە ساغلاملىق</h3>
 
                     <p>
-                        تەپەككۇر، سالامەتلىك ۋە پەرۋىش ھەققىدىكى كىتابلار.
+                        تېبابەت ۋە ساغلاملىق ھەققىدىكى كىتابلار.
                     </p>
 
                 </div>
@@ -435,19 +316,16 @@
             </a>
 
 
-
-            <!-- 4. دەرستىلىك كىتابلار -->
-
-            <a href="#school" class="card-link">
+            <a href="#" class="card-link">
 
                 <div class="card">
 
                     <div class="icon">📘</div>
 
-                    <h3>دەرستىلىك كىتابلار</h3>
+                    <h3>دەرسلىك كىتابلار</h3>
 
                     <p>
-                        ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرستىلىك كىتابلار.
+                        ئوقۇغۇچىلار ئۈچۈن دەرسلىك كىتابلار.
                     </p>
 
                 </div>
@@ -455,10 +333,24 @@
             </a>
 
 
+            <a href="#" class="card-link">
 
-            <!-- 5. دىنىي كىتابلار -->
+                <div class="card">
 
-            <a href="#religious" class="card-link">
+                    <div class="icon">👨‍👩‍👧‍👦</div>
+
+                    <h3>پەرزەنت تەربىيەسى</h3>
+
+                    <p>
+                        پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.
+                    </p>
+
+                </div>
+
+            </a>
+
+
+            <a href="#" class="card-link">
 
                 <div class="card">
 
@@ -467,7 +359,7 @@
                     <h3>دىنىي كىتابلار</h3>
 
                     <p>
-                        ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار.
+                        ئىسلام دىنى ۋە ئەخلاق ھەققىدىكى كىتابلار.
                     </p>
 
                 </div>
@@ -475,30 +367,8 @@
             </a>
 
 
-
-            <!-- 6. پەرزەنت تەربىيىسى -->
-
-            <a href="#parenting" class="card-link">
-
-                <div class="card">
-
-                    <div class="icon">👨‍👩‍👧‍👦</div>
-
-                    <h3>پەرزەنت تەربىيىسى</h3>
-
-                    <p>
-                        پەرزەنت تەربىيىسى ۋە ئائىلە ھەققىدىكى كىتابلار.
-                    </p>
-
-                </div>
-
-            </a>
-
-
-
-            <!-- 7. بالىلار كىتابلىرى -->
-
-            <a href="#children" class="card-link children-book">
+            <!-- بالىلار كىتابلىرى -->
+            <a href="children.html" class="card-link children-book">
 
                 <div class="card">
 
@@ -520,114 +390,6 @@
     </section>
 
 
-
-    <!-- =========================
-         تۈرلەرنىڭ بۆلەكلىرى
-    ========================= -->
-
-
-    <section class="category-section" id="adabiyat">
-
-        <h2>📖 ئەدەبىيات</h2>
-
-        <p>
-            بۇ يەردە ئەدەبىي ئەسەرلەر، رومانلار، ھېكايىلەر ۋە باشقا ئەدەبىيات كىتابلىرى كۆرۈنىدۇ.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="popular">
-
-        <h2>📚 كۆپ ئوقۇلىدىغان كىتابلار</h2>
-
-        <p>
-            بۇ يەردە ئوقۇرمەنلەر ئەڭ كۆپ تاللىغان ۋە ئوقۇغان كىتابلار كۆرۈنىدۇ.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="health">
-
-        <h2>🩺 تەپەككۇر ۋە سالامەتلىك</h2>
-
-        <p>
-            سالامەتلىك، ئۆزىنى تەرەققىي قىلدۇرۇش ۋە تەپەككۇر ھەققىدىكى كىتابلار.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="school">
-
-        <h2>📘 دەرستىلىك كىتابلار</h2>
-
-        <p>
-            مەكتەپ ئوقۇغۇچىلىرى ۋە ئوقۇتقۇچىلار ئۈچۈن دەرستىلىك ۋە ئۆگىنىش كىتابلىرى.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="religious">
-
-        <h2>🕌 دىنىي كىتابلار</h2>
-
-        <p>
-            قۇرئان، ھەدىس، ئىسلام تارىخى، ئەخلاق ۋە باشقا دىنىي كىتابلار.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="parenting">
-
-        <h2>👨‍👩‍👧‍👦 پەرزەنت تەربىيىسى</h2>
-
-        <p>
-            بالىلارنى تەربىيەلەش، ئائىلە مۇناسىۋىتى ۋە پەرزەنت تەربىيىسى ھەققىدىكى كىتابلار.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <section class="category-section" id="children">
-
-        <h2>👦 بالىلار كىتابلىرى</h2>
-
-        <p>
-            بالىلار ئۈچۈن تەييارلانغان ھېكايە، تەربىيىۋى، رەسىملىك ۋە ئۆگىنىش كىتابلىرى.
-        </p>
-
-        <a href="#books" class="back-top">↑ كىتاب تۈرلىرىگە قايتىش</a>
-
-    </section>
-
-
-
-    <!-- =========================
-         بىز ھەققىدە
-    ========================= -->
-
     <section class="about" id="about">
 
         <h2>بىز ھەققىدە</h2>
@@ -640,11 +402,6 @@
     </section>
 
 
-
-    <!-- =========================
-         ئالاقە
-    ========================= -->
-
     <section class="contact" id="contact">
 
         <h2>ئالاقە</h2>
@@ -653,26 +410,14 @@
             كىتابلار ۋە زاكازلار ھەققىدە بىز بىلەن ئالاقىلىشىڭ.
         </p>
 
-        <br>
-
-        <a href="tel:+905000000000" class="button">
-            بىزگە تېلېفون قىلىڭ
-        </a>
-
     </section>
 
-
-
-    <!-- =========================
-         Footer
-    ========================= -->
 
     <footer>
 
         © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
     </footer>
-
 
 </body>
 
