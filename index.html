@@ -1,302 +1,491 @@
 <!DOCTYPE html>
 <html lang="ug" dir="rtl">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Kutadgu Bilig Kitabevi</title>
+    <title>Kutadgu Bilig Kitabevi</title>
 
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    <style>
 
-    body {
-      font-family: Arial, sans-serif;
-      background: #f7f5f0;
-      color: #222;
-      line-height: 1.8;
-    }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    header {
-      background: #111;
-      color: white;
-      padding: 20px 6%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f5f0;
+            color: #222;
+            line-height: 1.8;
+        }
 
-    .logo {
-      font-size: 24px;
-      font-weight: bold;
-    }
+        /* =========================
+           HEADER
+        ========================= */
 
-    nav a {
-      color: white;
-      text-decoration: none;
-      margin-right: 25px;
-      font-size: 15px;
-    }
+        header {
+            background: #111;
+            color: white;
+            padding: 20px 6%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
 
-    nav a:hover {
-      opacity: 0.7;
-    }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
 
-    .hero {
-      min-height: 520px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      padding: 70px 20px;
-      background: #f7f5f0;
-    }
+        nav {
+            display: flex;
+            align-items: center;
+        }
 
-    .hero-content {
-      max-width: 800px;
-    }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-right: 25px;
+            font-size: 15px;
+            transition: 0.2s;
+        }
 
-    .hero h1 {
-      font-size: 50px;
-      margin-bottom: 18px;
-    }
+        nav a:hover {
+            opacity: 0.7;
+        }
 
-    .hero p {
-      font-size: 21px;
-      color: #666;
-      margin-bottom: 30px;
-    }
+        /* =========================
+           HERO
+        ========================= */
 
-    .button {
-      display: inline-block;
-      background: #111;
-      color: white;
-      text-decoration: none;
-      padding: 13px 32px;
-      border-radius: 8px;
-      transition: 0.2s;
-    }
+        .hero {
+            min-height: 520px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 70px 20px;
+            background: #f7f5f0;
+        }
 
-    .button:hover {
-      background: #333;
-      transform: translateY(-2px);
-    }
+        .hero-content {
+            max-width: 800px;
+        }
 
-    .section {
-      padding: 75px 6%;
-      text-align: center;
-    }
+        .hero h1 {
+            font-size: 50px;
+            margin-bottom: 18px;
+        }
 
-    .section h2 {
-      font-size: 32px;
-      margin-bottom: 40px;
-    }
+        .hero p {
+            font-size: 21px;
+            color: #666;
+            margin-bottom: 30px;
+        }
 
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 25px;
-      max-width: 1100px;
-      margin: auto;
-    }
-.card.children-book {
-       grid-column: 2;
-    }
-}
+        /* =========================
+           BUTTON
+        ========================= */
 
-.card {
-    background: white;
-    padding: 38px 25px;
-    border-radius: 14px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-    transition: 0.2s;
-}
+        .button {
+            display: inline-block;
+            background: #111;
+            color: white;
+            text-decoration: none;
+            padding: 13px 32px;
+            border-radius: 8px;
+            transition: 0.2s;
+        }
 
-.card:hover {
-    transform: translateY(-5px);
-}
+        .button:hover {
+            background: #333;
+            transform: translateY(-2px);
+        }
 
-    .card .icon {
-      font-size: 42px;
-      margin-bottom: 12px;
-    }
+        /* =========================
+           BOOK SECTION
+        ========================= */
 
-    .card h3 {
-      margin-bottom: 10px;
-      font-size: 21px;
-    }
+        .section {
+            padding: 75px 6%;
+            text-align: center;
+        }
 
-    .card p {
-      color: #666;
-    }
+        .section h2 {
+            font-size: 32px;
+            margin-bottom: 40px;
+        }
 
-    .about {
-      background: #111;
-      color: white;
-    }
+        /* =========================
+           CARDS
+        ========================= */
 
-    .about p {
-      max-width: 750px;
-      margin: auto;
-      color: #ddd;
-      font-size: 18px;
-    }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            max-width: 1100px;
+            margin: auto;
+        }
 
-    .contact {
-      background: white;
-    }
+        .card {
+            background: white;
+            padding: 38px 25px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            transition: 0.2s;
+            min-height: 210px;
+        }
 
-    footer {
-      background: #000;
-      color: #aaa;
-      text-align: center;
-      padding: 25px;
-      font-size: 14px;
-    }
+        .card:hover {
+            transform: translateY(-5px);
+        }
 
-    @media (max-width: 700px) {
-      header {
-        flex-direction: column;
-        gap: 12px;
-      }
+        .card .icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+        }
 
-      nav a {
-        margin: 0 8px;
-      }
+        .card h3 {
+            margin-bottom: 10px;
+            font-size: 21px;
+        }
 
-      .hero h1 {
-        font-size: 35px;
-      }
+        .card p {
+            color: #666;
+            font-size: 15px;
+        }
 
-      .hero p {
-        font-size: 17px;
-      }
+        /* =========================
+           CHILDREN BOOK
+           CENTER OF SECOND ROW
+        ========================= */
 
-      .cards {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+        .card.children-book {
+            grid-column: 2;
+        }
+
+        /* =========================
+           ABOUT
+        ========================= */
+
+        .about {
+            background: #111;
+            color: white;
+            text-align: center;
+            padding: 75px 6%;
+        }
+
+        .about h2 {
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+
+        .about p {
+            max-width: 750px;
+            margin: auto;
+            color: #ddd;
+            font-size: 18px;
+        }
+
+        /* =========================
+           CONTACT
+        ========================= */
+
+        .contact {
+            background: white;
+            text-align: center;
+            padding: 75px 6%;
+        }
+
+        .contact h2 {
+            font-size: 32px;
+            margin-bottom: 25px;
+        }
+
+        .contact p {
+            font-size: 18px;
+            color: #555;
+        }
+
+        /* =========================
+           FOOTER
+        ========================= */
+
+        footer {
+            background: #000;
+            color: #aaa;
+            text-align: center;
+            padding: 25px;
+            font-size: 14px;
+        }
+
+        /* =========================
+           MOBILE
+        ========================= */
+
+        @media (max-width: 700px) {
+
+            header {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            nav a {
+                margin: 0 8px;
+            }
+
+            .hero h1 {
+                font-size: 35px;
+            }
+
+            .hero p {
+                font-size: 17px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .card.children-book {
+                grid-column: auto;
+            }
+
+            .section {
+                padding: 55px 20px;
+            }
+
+        }
+
+    </style>
 </head>
+
 
 <body>
 
-  <header>
-    <div class="logo">Kutadgu Bilig Kitabevi</div>
+    <!-- =========================
+         HEADER
+    ========================== -->
 
-    <nav>
-      <a href="#home">باش بەت</a>
-      <a href="#books">كىتابلار</a>
-      <a href="#about">بىز ھەققىدە</a>
-      <a href="#contact">ئالاقە</a>
-    </nav>
-  </header>
+    <header>
 
+        <div class="logo">
+            Kutadgu Bilig Kitabevi
+        </div>
 
-  <section class="hero" id="home">
-    <div class="hero-content">
+        <nav>
 
-      <h1>خوش كەلدىڭىز!</h1>
+            <a href="#home">باش بەت</a>
 
-      <p>
-        Kutadgu Bilig Kitabevi — كىتاب ۋە ئوقۇش دۇنياسى
-      </p>
+            <a href="#books">كىتابلار</a>
 
-      <a href="#books" class="button">
-        كىتابلارنى كۆرۈش
-      </a>
+            <a href="#about">بىز ھەققىدە</a>
 
-    </div>
-  </section>
+            <a href="#contact">ئالاقە</a>
+
+        </nav>
+
+    </header>
 
 
-  <section class="section" id="books">
+    <!-- =========================
+         HERO
+    ========================== -->
 
-  <h2>كىتاب تۈرلىرى</h2>
+    <section class="hero" id="home">
 
-<div class="cards">
+        <div class="hero-content">
 
-    <div class="card">
-        <div class="icon">📖</div>
-        <h3>ئەدەبىيات</h3>
-        <p>ئەدەبىي ئەسەرلەر، رومان ۋە ھېكايىلەر.</p>
-    </div>
+            <h1>خوش كەلدىڭىز!</h1>
 
-    <div class="card">
-        <div class="icon">📚</div>
-        <h3>ئۇنىۋېرسال ئەسەرلەر</h3>
-        <p>ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.</p>
-    </div>
+            <p>
+                Kutadgu Bilig Kitabevi — كىتاب ۋە ئۇقۇش دۇنياسى
+            </p>
 
-    <div class="card">
-        <div class="icon">🩺</div>
-        <h3>تېبابەت ۋە ساغلاملىق</h3>
-        <p>تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار.</p>
-    </div>
+            <a href="#books" class="button">
+                كىتابلارنى كۆرۈش
+            </a>
 
-    <div class="card">
-        <div class="icon">📘</div>
-        <h3>دەرسلىك كىتابلار</h3>
-        <p>ئوقۇغۇچىلار ۋە ئوقۇتۇش ئۈچۈن دەرسلىك كىتابلار.</p>
-    </div>
+        </div>
 
-    <div class="card">
-        <div class="icon">👨‍👩‍👧‍👦</div>
-        <h3>پەرزەنت تەربىيەسى</h3>
-        <p>پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.</p>
-    </div>
-
-    <div class="card">
-        <div class="icon">🕌</div>
-        <h3>دىننىي كىتابلار</h3>
-        <p>ئىسلام دىنى، ئەقىدە، ئىبادەت ۋە ئەخلاق ھەققىدىكى كىتابلار.</p>
-    </div>
-
-    <div class="card children-book">
-        <div class="icon">🧒</div>
-        <h3>بالىلار كىتابلىرى</h3>
-        <p>بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار.</p>
-    </div>
-
-</div>
-
-  <section class="section about" id="about">
-
-    <h2>بىز ھەققىدە</h2>
-
-    <p>
-      Kutadgu Bilig Kitabevi كىتاب ئوقۇشنى ياخشى كۆرىدىغان
-      ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان
-      كىتابخانا.
-    </p>
-
-  </section>
+    </section>
 
 
-  <section class="section contact" id="contact">
+    <!-- =========================
+         BOOKS
+    ========================== -->
 
-    <h2>بىز بىلەن ئالاقىلىشىڭ</h2>
+    <section class="section" id="books">
 
-    <p style="margin-bottom: 25px;">
-      كىتابلار ۋە مەھسۇلاتلار ھەققىدە مەلۇمات ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
-    </p>
-
-    <a href="#" class="button">
-      ئالاقىلىشىش
-    </a>
-
-  </section>
+        <h2>كىتاب تۈرلىرى</h2>
 
 
-  <footer>
-    © 2026 Kutadgu Bilig Kitabevi — بارلىق ھوقۇقلار قوغدالغان.
-  </footer>
+        <div class="cards">
+
+
+            <!-- 1. ئەدەبىيات -->
+
+            <div class="card">
+
+                <div class="icon">📖</div>
+
+                <h3>ئەدەبىيات</h3>
+
+                <p>
+                    ئەدەبىي ئەسەرلەر، رومان ۋە ھېكايىلەر.
+                </p>
+
+            </div>
+
+
+            <!-- 2. ئۇنىۋېرسال ئەسەرلەر -->
+
+            <div class="card">
+
+                <div class="icon">📚</div>
+
+                <h3>ئۇنىۋېرسال ئەسەرلەر</h3>
+
+                <p>
+                    ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 3. تېبابەت ۋە ساغلاملىق -->
+
+            <div class="card">
+
+                <div class="icon">🩺</div>
+
+                <h3>تېبابەت ۋە ساغلاملىق</h3>
+
+                <p>
+                    تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 4. دەرسلىك كىتابلار -->
+
+            <div class="card">
+
+                <div class="icon">📘</div>
+
+                <h3>دەرسلىك كىتابلار</h3>
+
+                <p>
+                    ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرسلىك كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 5. پەرزەنت تەربىيەسى -->
+
+            <div class="card">
+
+                <div class="icon">👨‍👩‍👧‍👦</div>
+
+                <h3>پەرزەنت تەربىيەسى</h3>
+
+                <p>
+                    پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 6. دىنىي كىتابلار -->
+
+            <div class="card">
+
+                <div class="icon">🕌</div>
+
+                <h3>دىنىي كىتابلار</h3>
+
+                <p>
+                    ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار.
+                </p>
+
+            </div>
+
+
+            <!-- 7. بالىلار كىتابلىرى -->
+
+            <div class="card children-book">
+
+                <div class="icon">🧒</div>
+
+                <h3>بالىلار كىتابلىرى</h3>
+
+                <p>
+                    بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار.
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         ABOUT
+    ========================== -->
+
+    <section class="about" id="about">
+
+        <h2>بىز ھەققىدە</h2>
+
+        <p>
+            Kutadgu Bilig Kitabevi
+            ياخشى كۆرىدىغان ئوقۇرمەنلەر ئۈچۈن
+            تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.
+        </p>
+
+    </section>
+
+
+    <!-- =========================
+         CONTACT
+    ========================== -->
+
+    <section class="contact" id="contact">
+
+        <h2>ئالاقە</h2>
+
+        <p>
+            كىتابلار ۋە باشقا سوئاللار ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
+        </p>
+
+    </section>
+
+
+    <!-- =========================
+         FOOTER
+    ========================== -->
+
+    <footer>
+
+        © 2026 Kutadgu Bilig Kitabevi — بارلىق ھوقۇقلار قوغدىلىدۇ.
+
+    </footer>
+
 
 </body>
 </html>
