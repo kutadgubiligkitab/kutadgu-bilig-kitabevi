@@ -2,7 +2,6 @@
 <html lang="ug" dir="rtl">
 
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,38 +9,65 @@
 
 <style>
 
-/* =========================
-   UKIJ CJK FONT
-========================= */
-
 @font-face {
     font-family: "UKIJ CJK";
     src: url("UKIJCJK.ttf") format("truetype");
     font-display: swap;
 }
 
-
 /* =========================
-   COLOR SYSTEM
+   رەڭ ئۆلچىمى
 ========================= */
 
 :root {
-    --cream: #f6f0e5;
-    --cream-light: #fbf8f2;
 
-    --brown-dark: #4b3327;
-    --brown: #70503d;
-    --brown-light: #a98262;
+    --bg: #f6f0e5;
+    --bg-soft: #fbf8f2;
 
-    --gold: #b99555;
-    --gold-light: #e2c98d;
+    --header: #4b3327;
 
     --text: #44352d;
-    --text-light: #806f62;
+    --text-soft: #806f62;
 
-    --white-warm: #fffdf9;
+    --card: #fffdf9;
+
+    --button: #70503d;
+    --button-hover: #5b4030;
 
     --border: #e8dccb;
+
+    --about: #4b3327;
+    --footer: #39261d;
+
+    --shadow: rgba(75, 51, 39, 0.08);
+}
+
+
+/* =========================
+   KECHILIK HALITI
+========================= */
+
+body.dark-mode {
+
+    --bg: #211b18;
+    --bg-soft: #29221e;
+
+    --header: #171311;
+
+    --text: #f1e7da;
+    --text-soft: #bcae9f;
+
+    --card: #302824;
+
+    --button: #8d6b52;
+    --button-hover: #a27d61;
+
+    --border: #4a3b33;
+
+    --about: #171311;
+    --footer: #100e0d;
+
+    --shadow: rgba(0, 0, 0, 0.25);
 }
 
 
@@ -60,15 +86,20 @@ html {
 }
 
 body {
+
     font-family: "UKIJ CJK", Arial, sans-serif;
 
-    background: var(--cream);
+    background: var(--bg);
 
     color: var(--text);
 
     line-height: 1.8;
 
     direction: rtl;
+
+    transition:
+        background-color 0.3s ease,
+        color 0.3s ease;
 }
 
 a {
@@ -82,13 +113,14 @@ a {
 ========================= */
 
 header {
+
     width: 100%;
 
     min-height: 70px;
 
-    background: var(--brown-dark);
+    background: var(--header);
 
-    color: #fffaf2;
+    color: white;
 
     display: flex;
 
@@ -98,13 +130,13 @@ header {
 
     padding: 0 7%;
 
-    box-shadow:
-        0 3px 15px rgba(75, 51, 39, 0.15);
+    transition:
+        background-color 0.3s ease;
 }
 
-
 .logo {
-    color: #fffaf2;
+
+    color: white;
 
     font-size: 21px;
 
@@ -113,17 +145,17 @@ header {
     white-space: nowrap;
 }
 
-
 nav {
+
     display: flex;
 
     align-items: center;
 
-    gap: 30px;
+    gap: 25px;
 }
 
-
 nav a {
+
     color: #fffaf2;
 
     font-size: 15px;
@@ -131,9 +163,49 @@ nav a {
     transition: 0.2s;
 }
 
-
 nav a:hover {
-    color: var(--gold-light);
+
+    color: #e2c98d;
+}
+
+
+/* =========================
+   DAY / NIGHT BUTTON
+========================= */
+
+.theme-button {
+
+    border: 1px solid rgba(255,255,255,0.25);
+
+    background: rgba(255,255,255,0.08);
+
+    color: white;
+
+    width: 42px;
+    height: 42px;
+
+    border-radius: 50%;
+
+    cursor: pointer;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    font-size: 20px;
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.theme-button:hover {
+
+    background: rgba(255,255,255,0.18);
+
+    transform: scale(1.05);
 }
 
 
@@ -142,6 +214,7 @@ nav a:hover {
 ========================= */
 
 .hero {
+
     min-height: 430px;
 
     display: flex;
@@ -154,35 +227,31 @@ nav a:hover {
 
     padding: 70px 20px;
 
-    background:
-        linear-gradient(
-            180deg,
-            var(--cream-light) 0%,
-            var(--cream) 100%
-        );
+    background: var(--bg);
+
+    transition:
+        background-color 0.3s ease;
 }
 
-
 .hero-content {
+
     max-width: 800px;
 }
 
-
 .hero h1 {
+
     font-size: 48px;
 
     font-weight: bold;
 
     margin-bottom: 20px;
-
-    color: var(--brown-dark);
 }
 
-
 .hero p {
+
     font-size: 18px;
 
-    color: var(--text-light);
+    color: var(--text-soft);
 
     margin-bottom: 30px;
 }
@@ -193,11 +262,12 @@ nav a:hover {
 ========================= */
 
 .button {
+
     display: inline-block;
 
-    background: var(--brown-dark);
+    background: var(--button);
 
-    color: #fffaf2;
+    color: white;
 
     padding: 13px 32px;
 
@@ -205,15 +275,14 @@ nav a:hover {
 
     font-size: 16px;
 
-    transition: 0.2s;
-
-    box-shadow:
-        0 4px 12px rgba(75, 51, 39, 0.12);
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
 }
 
-
 .button:hover {
-    background: var(--brown);
+
+    background: var(--button-hover);
 
     transform: translateY(-2px);
 }
@@ -224,6 +293,7 @@ nav a:hover {
 ========================= */
 
 .section {
+
     width: 100%;
 
     max-width: 1150px;
@@ -233,15 +303,13 @@ nav a:hover {
     padding: 45px 25px 100px;
 }
 
-
 .section h2 {
+
     text-align: center;
 
     font-size: 32px;
 
     margin-bottom: 45px;
-
-    color: var(--brown-dark);
 }
 
 
@@ -250,6 +318,7 @@ nav a:hover {
 ========================= */
 
 .cards {
+
     display: grid;
 
     grid-template-columns: repeat(3, 1fr);
@@ -258,10 +327,17 @@ nav a:hover {
 }
 
 
+/* =========================
+   CARD
+========================= */
+
 .card {
-    background: var(--white-warm);
+
+    background: var(--card);
 
     min-height: 220px;
+
+    border: 1px solid var(--border);
 
     border-radius: 14px;
 
@@ -277,29 +353,27 @@ nav a:hover {
 
     justify-content: flex-start;
 
-    border: 1px solid var(--border);
-
     box-shadow:
-        0 5px 20px rgba(75, 51, 39, 0.06);
+        0 5px 20px var(--shadow);
 
     transition:
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        color 0.3s ease,
         transform 0.2s ease,
-        box-shadow 0.2s ease,
-        border-color 0.2s ease;
+        box-shadow 0.2s ease;
 }
 
-
 .card:hover {
+
     transform: translateY(-6px);
 
     box-shadow:
-        0 12px 28px rgba(75, 51, 39, 0.13);
-
-    border-color: var(--gold-light);
+        0 12px 28px var(--shadow);
 }
 
-
 .card .icon {
+
     font-size: 42px;
 
     line-height: 1;
@@ -307,30 +381,31 @@ nav a:hover {
     margin-bottom: 22px;
 }
 
-
 .card h3 {
+
     font-size: 21px;
 
     margin-bottom: 10px;
 
-    color: var(--brown-dark);
+    color: var(--text);
 }
 
-
 .card p {
+
     font-size: 14px;
 
-    color: var(--text-light);
+    color: var(--text-soft);
 
     line-height: 1.9;
 }
 
 
 /* =========================
-   7TH CARD CENTER
+   7-چى كارتا
 ========================= */
 
 .card:last-child {
+
     grid-column: 2;
 }
 
@@ -340,33 +415,35 @@ nav a:hover {
 ========================= */
 
 .about {
+
     width: 100%;
 
-    background: var(--brown-dark);
+    background: var(--about);
 
-    color: #fffaf2;
+    color: white;
 
     text-align: center;
 
     padding: 75px 25px;
+
+    transition:
+        background-color 0.3s ease;
 }
 
-
 .about h2 {
+
     font-size: 31px;
 
     margin-bottom: 22px;
-
-    color: #fffaf2;
 }
 
-
 .about p {
+
     max-width: 850px;
 
     margin: 0 auto;
 
-    color: #eadfd2;
+    color: #eee;
 
     font-size: 16px;
 
@@ -379,29 +456,29 @@ nav a:hover {
 ========================= */
 
 .contact {
+
     width: 100%;
 
-    background: var(--cream-light);
+    background: var(--bg-soft);
 
     text-align: center;
 
     padding: 60px 25px;
 
-    border-top: 1px solid var(--border);
+    transition:
+        background-color 0.3s ease;
 }
 
-
 .contact h2 {
+
     font-size: 29px;
 
     margin-bottom: 15px;
-
-    color: var(--brown-dark);
 }
 
-
 .contact p {
-    color: var(--text-light);
+
+    color: var(--text-soft);
 
     font-size: 15px;
 }
@@ -412,11 +489,12 @@ nav a:hover {
 ========================= */
 
 footer {
+
     width: 100%;
 
-    background: #39261d;
+    background: var(--footer);
 
-    color: #d8c8b8;
+    color: #c8b9aa;
 
     text-align: center;
 
@@ -433,6 +511,7 @@ footer {
 @media (max-width: 850px) {
 
     header {
+
         padding: 18px 5%;
 
         flex-direction: column;
@@ -440,39 +519,38 @@ footer {
         gap: 15px;
     }
 
-
     nav {
-        gap: 20px;
+
+        gap: 15px;
 
         flex-wrap: wrap;
 
         justify-content: center;
     }
 
-
     .hero {
+
         min-height: 360px;
     }
 
-
     .hero h1 {
+
         font-size: 38px;
     }
 
-
     .cards {
+
         grid-template-columns: repeat(2, 1fr);
     }
 
-
     .card:last-child {
+
         grid-column: 1 / -1;
 
         width: calc(50% - 11px);
 
         justify-self: center;
     }
-
 }
 
 
@@ -483,69 +561,79 @@ footer {
 @media (max-width: 550px) {
 
     header {
+
         padding: 16px 4%;
     }
 
-
     .logo {
+
         font-size: 18px;
     }
 
-
     nav {
-        gap: 13px;
+
+        gap: 12px;
     }
 
-
     nav a {
+
         font-size: 13px;
     }
 
+    .theme-button {
+
+        width: 38px;
+
+        height: 38px;
+
+        font-size: 18px;
+    }
 
     .hero {
+
         min-height: 330px;
 
         padding: 55px 20px;
     }
 
-
     .hero h1 {
+
         font-size: 31px;
     }
 
-
     .hero p {
+
         font-size: 14px;
     }
 
-
     .button {
+
         font-size: 14px;
 
         padding: 11px 26px;
     }
 
-
     .section {
+
         padding: 35px 15px 70px;
     }
 
-
     .section h2 {
+
         font-size: 26px;
 
         margin-bottom: 30px;
     }
 
-
     .cards {
+
         grid-template-columns: 1fr;
 
         gap: 17px;
     }
 
-
     .card {
+
         min-height: 190px;
 
         width: 100% !important;
@@ -553,36 +641,35 @@ footer {
         grid-column: auto !important;
     }
 
-
     .card h3 {
+
         font-size: 19px;
     }
 
-
     .card p {
+
         font-size: 13px;
     }
 
-
     .about {
+
         padding: 55px 20px;
     }
 
-
     .about h2 {
+
         font-size: 26px;
     }
 
-
     .contact {
+
         padding: 45px 20px;
     }
 
-
     .contact h2 {
+
         font-size: 25px;
     }
-
 }
 
 </style>
@@ -603,7 +690,6 @@ footer {
         قۇتادغۇبىلىك كىتابخانىسى
     </a>
 
-
     <nav>
 
         <a href="#home">
@@ -621,6 +707,17 @@ footer {
         <a href="#contact">
             ئالاقە
         </a>
+
+        <!-- كۈندۈز / كېچە -->
+
+        <button
+            class="theme-button"
+            id="themeButton"
+            type="button"
+            aria-label="كۈندۈز ۋە كېچە ھالىتى"
+        >
+            🌙
+        </button>
 
     </nav>
 
@@ -761,7 +858,7 @@ footer {
         </a>
 
 
-        <!-- دىننىي -->
+        <!-- دىنىي -->
 
         <a href="dini.html" class="card">
 
@@ -770,7 +867,7 @@ footer {
             </div>
 
             <h3>
-                دىننىي كىتابلار
+                دىنىي كىتابلار
             </h3>
 
             <p>
@@ -848,6 +945,58 @@ footer {
     © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
 </footer>
+
+
+<script>
+
+/* =========================
+   كۈندۈز / كېچە ھالىتى
+========================= */
+
+const themeButton = document.getElementById("themeButton");
+
+const savedTheme = localStorage.getItem("theme");
+
+
+/* ساقلانغان ھالەتنى ئەسلىگە كەلتۈرۈش */
+
+if (savedTheme === "dark") {
+
+    document.body.classList.add("dark-mode");
+
+    themeButton.textContent = "☀️";
+
+}
+
+
+/* كۇنۇپكىنى باسقاندا */
+
+themeButton.addEventListener("click", function () {
+
+    document.body.classList.toggle("dark-mode");
+
+
+    const isDark =
+        document.body.classList.contains("dark-mode");
+
+
+    if (isDark) {
+
+        themeButton.textContent = "☀️";
+
+        localStorage.setItem("theme", "dark");
+
+    } else {
+
+        themeButton.textContent = "🌙";
+
+        localStorage.setItem("theme", "light");
+
+    }
+
+});
+
+</script>
 
 
 </body>
