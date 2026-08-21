@@ -22,7 +22,7 @@
 }
 
 html {
-    direction: rtl;
+    scroll-behavior: smooth;
 }
 
 body {
@@ -30,6 +30,7 @@ body {
     background: #f7f5f0;
     color: #222;
     line-height: 1.8;
+    direction: rtl;
 }
 
 a {
@@ -44,6 +45,7 @@ a {
 
 header {
     width: 100%;
+    min-height: 70px;
     background: #111;
     color: white;
 
@@ -51,120 +53,246 @@ header {
     align-items: center;
     justify-content: space-between;
 
-    padding: 15px 7%;
+    padding: 0 7%;
 }
 
 .logo {
-    font-family: "UKIJ CJK", Arial, sans-serif;
     color: white;
     font-size: 21px;
     font-weight: bold;
+    white-space: nowrap;
 }
 
 nav {
     display: flex;
-    gap: 25px;
+    align-items: center;
+    gap: 30px;
 }
 
 nav a {
     color: white;
-    font-family: "UKIJ CJK", Arial, sans-serif;
     font-size: 15px;
+    transition: 0.2s;
+}
+
+nav a:hover {
+    color: #ccc;
 }
 
 
 /* =========================
-   WELCOME
+   HERO
 ========================= */
 
-.welcome {
-    text-align: center;
-    padding: 65px 20px 35px;
-}
-
-.welcome h1 {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    font-size: 38px;
-    font-weight: bold;
-    margin-bottom: 12px;
-}
-
-.welcome p {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    color: #777;
-    font-size: 16px;
-}
-
-
-/* =========================
-   CATEGORY SECTION
-========================= */
-
-.categories {
-    max-width: 1200px;
-    margin: auto;
-    padding: 20px 25px 80px;
-}
-
-.category-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 25px;
-}
-
-
-/* =========================
-   CATEGORY CARD
-========================= */
-
-.category {
-    background: white;
-    border-radius: 15px;
-    overflow: hidden;
-
-    min-height: 260px;
+.hero {
+    min-height: 430px;
 
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
 
     text-align: center;
 
-    box-shadow:
-        0 5px 20px rgba(0,0,0,0.07);
-
-    transition: 0.25s;
+    padding: 70px 20px;
 }
 
-.category:hover {
-    transform: translateY(-5px);
-
-    box-shadow:
-        0 12px 28px rgba(0,0,0,0.12);
+.hero-content {
+    max-width: 800px;
 }
 
-.category-icon {
-    font-size: 58px;
+.hero h1 {
+    font-size: 48px;
+    font-weight: bold;
     margin-bottom: 20px;
 }
 
-.category h2 {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-
-    font-size: 24px;
-    font-weight: bold;
-
-    margin-bottom: 8px;
+.hero p {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 30px;
 }
 
-.category p {
-    font-family: "UKIJ CJK", Arial, sans-serif;
+.button {
+    display: inline-block;
 
-    color: #888;
+    background: #111;
+    color: white;
+
+    padding: 13px 32px;
+
+    border-radius: 7px;
+
+    font-size: 16px;
+
+    transition: 0.2s;
+}
+
+.button:hover {
+    background: #333;
+}
+
+
+/* =========================
+   BOOK SECTION
+========================= */
+
+.section {
+    width: 100%;
+    max-width: 1150px;
+
+    margin: 0 auto;
+
+    padding: 45px 25px 100px;
+}
+
+.section h2 {
+    text-align: center;
+
+    font-size: 32px;
+
+    margin-bottom: 45px;
+}
+
+
+/* =========================
+   BOOK CARDS
+========================= */
+
+.cards {
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+
+    gap: 22px;
+}
+
+
+/* ھەر بىر كىتاب كارتىسى */
+
+.card {
+    background: white;
+
+    min-height: 220px;
+
+    border-radius: 14px;
+
+    padding: 32px 25px;
+
+    text-align: center;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+
+    box-shadow:
+        0 5px 20px rgba(0, 0, 0, 0.06);
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-6px);
+
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.11);
+}
+
+.card .icon {
+    font-size: 42px;
+
+    line-height: 1;
+
+    margin-bottom: 22px;
+}
+
+.card h3 {
+    font-size: 21px;
+
+    margin-bottom: 10px;
+
+    color: #111;
+}
+
+.card p {
     font-size: 14px;
 
-    padding: 0 20px;
+    color: #777;
+
+    line-height: 1.9;
+}
+
+
+/* =========================
+   7-چى كارتنى ئوتتۇرىغا قويۇش
+========================= */
+
+.card:last-child {
+    grid-column: 2;
+}
+
+
+/* =========================
+   ABOUT
+========================= */
+
+.about {
+    width: 100%;
+
+    background: #111;
+
+    color: white;
+
+    text-align: center;
+
+    padding: 75px 25px;
+}
+
+.about h2 {
+    font-size: 31px;
+
+    margin-bottom: 22px;
+}
+
+.about p {
+    max-width: 850px;
+
+    margin: 0 auto;
+
+    color: #eee;
+
+    font-size: 16px;
+
+    line-height: 2;
+}
+
+
+/* =========================
+   CONTACT
+========================= */
+
+.contact {
+    width: 100%;
+
+    background: white;
+
+    text-align: center;
+
+    padding: 60px 25px;
+}
+
+.contact h2 {
+    font-size: 29px;
+
+    margin-bottom: 15px;
+}
+
+.contact p {
+    color: #666;
+
+    font-size: 15px;
 }
 
 
@@ -173,12 +301,13 @@ nav a {
 ========================= */
 
 footer {
+    width: 100%;
+
     background: #111;
+
     color: #aaa;
 
     text-align: center;
-
-    font-family: "UKIJ CJK", Arial, sans-serif;
 
     padding: 20px;
 
@@ -190,16 +319,45 @@ footer {
    TABLET
 ========================= */
 
-@media (max-width: 900px) {
+@media (max-width: 850px) {
 
     header {
-        padding: 15px 5%;
+        padding: 18px 5%;
+
         flex-direction: column;
-        gap: 12px;
+
+        gap: 15px;
     }
 
-    .category-grid {
+    nav {
+        gap: 20px;
+
+        flex-wrap: wrap;
+
+        justify-content: center;
+    }
+
+    .hero {
+        min-height: 360px;
+    }
+
+    .hero h1 {
+        font-size: 38px;
+    }
+
+    .cards {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    /*
+       2 ستونلۇق ئېكراندا ئاخىرقى كارتا
+       ئوتتۇرىدا تۇرۇشى ئۈچۈن
+    */
+
+    .card:last-child {
+        grid-column: 1 / -1;
+        width: calc(50% - 11px);
+        justify-self: center;
     }
 
 }
@@ -212,7 +370,7 @@ footer {
 @media (max-width: 550px) {
 
     header {
-        padding: 15px 4%;
+        padding: 16px 4%;
     }
 
     .logo {
@@ -220,62 +378,77 @@ footer {
     }
 
     nav {
-        gap: 15px;
+        gap: 13px;
     }
 
     nav a {
         font-size: 13px;
     }
 
-    .welcome {
-        padding: 50px 20px 30px;
+    .hero {
+        min-height: 330px;
+
+        padding: 55px 20px;
     }
 
-    .welcome h1 {
-        font-size: 30px;
+    .hero h1 {
+        font-size: 31px;
     }
 
-    .welcome p {
+    .hero p {
         font-size: 14px;
     }
 
-    .categories {
-        padding: 15px;
+    .button {
+        font-size: 14px;
+
+        padding: 11px 26px;
     }
 
-    .category-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
+    .section {
+        padding: 35px 15px 70px;
     }
 
-    .category {
-        min-height: 230px;
+    .section h2 {
+        font-size: 26px;
+
+        margin-bottom: 30px;
     }
 
-    .category-icon {
-        font-size: 48px;
-    }
-
-    .category h2 {
-        font-size: 18px;
-    }
-
-    .category p {
-        font-size: 12px;
-        padding: 0 10px;
-    }
-
-}
-
-
-/* =========================
-   VERY SMALL PHONE
-========================= */
-
-@media (max-width: 380px) {
-
-    .category-grid {
+    .cards {
         grid-template-columns: 1fr;
+
+        gap: 17px;
+    }
+
+    .card {
+        min-height: 190px;
+        width: 100% !important;
+        grid-column: auto !important;
+    }
+
+    .card h3 {
+        font-size: 19px;
+    }
+
+    .card p {
+        font-size: 13px;
+    }
+
+    .about {
+        padding: 55px 20px;
+    }
+
+    .about h2 {
+        font-size: 26px;
+    }
+
+    .contact {
+        padding: 45px 20px;
+    }
+
+    .contact h2 {
+        font-size: 25px;
     }
 
 }
@@ -288,186 +461,258 @@ footer {
 <body>
 
 
+<!-- =========================
+     HEADER
+========================= -->
+
 <header>
 
-<a href="index.html" class="logo">
-قۇتادغۇبىلىك كىتابخانىسى
-</a>
+    <a href="index.html" class="logo">
+        قۇتادغۇبىلىك كىتابخانىسى
+    </a>
 
-<nav>
+    <nav>
 
-<a href="index.html">
-باش بەت
-</a>
+        <a href="#home">
+            باش بەت
+        </a>
 
-<a href="#books">
-كىتاب تۈرلىرى
-</a>
+        <a href="#books">
+            كىتابلار
+        </a>
 
-</nav>
+        <a href="#about">
+            بىز ھەققىدە
+        </a>
+
+        <a href="#contact">
+            ئالاقە
+        </a>
+
+    </nav>
 
 </header>
 
 
-<section class="welcome">
+<!-- =========================
+     HERO
+========================= -->
 
-<h1>
-خۇش كەلدىڭىز!
-</h1>
+<section class="hero" id="home">
 
-<p>
-قۇتادغۇبىلىك كىتابخانىسى — كىتاب ۋە بىلىم دۇنياسى
-</p>
+    <div class="hero-content">
+
+        <h1>
+            خوش كەلدىڭىز!
+        </h1>
+
+        <p>
+            قۇتادغۇبىلىك كىتابخانىسى — كىتاب ۋە ئوقۇش دۇنياسى
+        </p>
+
+        <a href="#books" class="button">
+            كىتابلارنى كۆرۈش
+        </a>
+
+    </div>
+
+</section>
+
+
+<!-- =========================
+     BOOK CATEGORIES
+========================= -->
+
+<section class="section" id="books">
+
+    <h2>
+        كىتاب تۈرلىرى
+    </h2>
+
+
+    <div class="cards">
+
+
+        <!-- ئەدەبىيات -->
+
+        <a href="adabiyat.html" class="card">
+
+            <div class="icon">
+                📖
+            </div>
+
+            <h3>
+                ئەدەبىيات
+            </h3>
+
+            <p>
+                ئەدەبى ئەسەرلەر، رومان ۋە ھېكايىلەر.
+            </p>
+
+        </a>
+
+
+        <!-- ئۇنىۋېرسال ئەسەرلەر -->
+
+        <a href="universal.html" class="card">
+
+            <div class="icon">
+                📚
+            </div>
+
+            <h3>
+                ئۇنىۋېرسال ئەسەرلەر
+            </h3>
+
+            <p>
+                ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.
+            </p>
+
+        </a>
+
+
+        <!-- تېبابەت -->
+
+        <a href="tibb.html" class="card">
+
+            <div class="icon">
+                🩺
+            </div>
+
+            <h3>
+                تېبابەت ۋە ساغلاملىق
+            </h3>
+
+            <p>
+                تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار.
+            </p>
+
+        </a>
+
+
+        <!-- دەرسلىك -->
+
+        <a href="derslik.html" class="card">
+
+            <div class="icon">
+                📘
+            </div>
+
+            <h3>
+                دەرسلىك كىتابلار
+            </h3>
+
+            <p>
+                ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرسلىك كىتابلار.
+            </p>
+
+        </a>
+
+
+        <!-- پەرزەنت تەربىيەسى -->
+
+        <a href="terbiye.html" class="card">
+
+            <div class="icon">
+                👨‍👩‍👧‍👦
+            </div>
+
+            <h3>
+                پەرزەنت تەربىيەسى
+            </h3>
+
+            <p>
+                پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.
+            </p>
+
+        </a>
+
+
+        <!-- دىننىي -->
+
+        <a href="dini.html" class="card">
+
+            <div class="icon">
+                🕌
+            </div>
+
+            <h3>
+                دىننىي كىتابلار
+            </h3>
+
+            <p>
+                ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار.
+            </p>
+
+        </a>
+
+
+        <!-- بالىلار -->
+
+        <a href="children.html" class="card">
+
+            <div class="icon">
+                🧒
+            </div>
+
+            <h3>
+                بالىلار كىتابلىرى
+            </h3>
+
+            <p>
+                بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار.
+            </p>
+
+        </a>
+
+
+    </div>
 
 </section>
 
 
-<section class="categories" id="books">
+<!-- =========================
+     ABOUT
+========================= -->
 
-<div class="category-grid">
+<section class="about" id="about">
 
+    <h2>
+        بىز ھەققىدە
+    </h2>
 
-<!-- 1. ئەدەبىيات -->
-
-<a href="adabiyat.html" class="category">
-
-<div class="category-icon">
-📖
-</div>
-
-<h2>
-ئەدەبىيات
-</h2>
-
-<p>
-ئەدەبىي ئەسەرلەر، رومان ۋە ھېكايىلەر
-</p>
-
-</a>
-
-
-<!-- 2. ئۇنىۋېرسال ئەسەرلەر -->
-
-<a href="universal.html" class="category">
-
-<div class="category-icon">
-📚
-</div>
-
-<h2>
-ئۇنىۋېرسال ئەسەرلەر
-</h2>
-
-<p>
-ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار
-</p>
-
-</a>
-
-
-<!-- 3. تېبابەت ۋە ساغلاملىق -->
-
-<a href="tebabet.html" class="category">
-
-<div class="category-icon">
-🩺
-</div>
-
-<h2>
-تېبابەت ۋە ساغلاملىق
-</h2>
-
-<p>
-تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار
-</p>
-
-</a>
-
-
-<!-- 4. دەرسلىك كىتابلار -->
-
-<a href="derslik.html" class="category">
-
-<div class="category-icon">
-📘
-</div>
-
-<h2>
-دەرسلىك كىتابلار
-</h2>
-
-<p>
-ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرسلىك كىتابلار
-</p>
-
-</a>
-
-
-<!-- 5. پەرزەنت تەربىيەسى -->
-
-<a href="perzent.html" class="category">
-
-<div class="category-icon">
-👨‍👩‍👧‍👦
-</div>
-
-<h2>
-پەرزەنت تەربىيەسى
-</h2>
-
-<p>
-پەرزەنت تەربىيەسى ۋە ئائىلىگە مۇناسىۋەتلىك كىتابلار
-</p>
-
-</a>
-
-
-<!-- 6. دىنىي كىتابلار -->
-
-<a href="diniy.html" class="category">
-
-<div class="category-icon">
-🕌
-</div>
-
-<h2>
-دىنىي كىتابلار
-</h2>
-
-<p>
-ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار
-</p>
-
-</a>
-
-
-<!-- 7. بالىلار كىتابلىرى -->
-
-<a href="balilar.html" class="category">
-
-<div class="category-icon">
-👦
-</div>
-
-<h2>
-بالىلار كىتابلىرى
-</h2>
-
-<p>
-بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار
-</p>
-
-</a>
-
-
-</div>
+    <p>
+        قۇتادغۇبىلىك كىتابخانىسى ياخشى كىتاب ۋە بىلىم ئىزدەيدىغان
+        ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.
+    </p>
 
 </section>
 
+
+<!-- =========================
+     CONTACT
+========================= -->
+
+<section class="contact" id="contact">
+
+    <h2>
+        ئالاقە
+    </h2>
+
+    <p>
+        كىتابلار ۋە باشقا سوئاللار ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
+    </p>
+
+</section>
+
+
+<!-- =========================
+     FOOTER
+========================= -->
 
 <footer>
 
-© 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
 </footer>
 
