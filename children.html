@@ -9,12 +9,6 @@
 
 <style>
 
-@font-face {
-    font-family: "UKIJ CJK";
-    src: url("UKIJ CJK.ttf") format("truetype");
-    font-display: swap;
-}
-
 :root {
     --cream: #f6f0e5;
     --cream-light: #fbf8f2;
@@ -41,7 +35,10 @@ html {
 body {
     background: var(--cream);
     color: var(--text);
-    font-family: "UKIJ CJK", Arial, sans-serif;
+
+    /* index.html بىلەن ئوخشاش فونت */
+    font-family: Arial, "Noto Sans Arabic", sans-serif;
+
     line-height: 1.8;
 }
 
@@ -81,6 +78,7 @@ nav {
 nav a {
     color: #fffaf2;
     font-size: 14px;
+
     transition: color 0.2s;
 }
 
@@ -95,6 +93,7 @@ nav a:hover {
 
 .page-header {
     text-align: center;
+
     padding: 55px 20px 35px;
 }
 
@@ -105,13 +104,16 @@ nav a:hover {
 
 .page-header h1 {
     color: var(--brown-dark);
+
     font-size: 36px;
     font-weight: bold;
+
     margin-bottom: 8px;
 }
 
 .page-header p {
     color: var(--text-light);
+
     font-size: 15px;
 }
 
@@ -131,7 +133,9 @@ nav a:hover {
 
 .books-grid {
     display: grid;
+
     grid-template-columns: repeat(3, 1fr);
+
     gap: 28px;
 }
 
@@ -202,6 +206,7 @@ nav a:hover {
 
 .book-info {
     padding: 18px 18px 21px;
+
     text-align: center;
 }
 
@@ -245,6 +250,7 @@ nav a:hover {
     display: inline-block;
 
     background: var(--brown-dark);
+
     color: white;
 
     padding: 8px 25px;
@@ -271,6 +277,7 @@ nav a:hover {
 
 .back-area {
     text-align: center;
+
     padding: 0 20px 55px;
 }
 
@@ -358,6 +365,7 @@ nav a:hover {
 
     .books-grid {
         grid-template-columns: repeat(2, 1fr);
+
         gap: 15px;
     }
 
@@ -383,6 +391,7 @@ nav a:hover {
 
     .book-button {
         padding: 7px 17px;
+
         font-size: 12px;
     }
 
@@ -413,7 +422,9 @@ nav a:hover {
 <body>
 
 
-<!-- HEADER -->
+<!-- =========================
+     HEADER
+========================= -->
 
 <header>
 
@@ -436,7 +447,9 @@ nav a:hover {
 </header>
 
 
-<!-- PAGE HEADER -->
+<!-- =========================
+     PAGE HEADER
+========================= -->
 
 <section class="page-header">
 
@@ -455,7 +468,9 @@ nav a:hover {
 </section>
 
 
-<!-- BOOKS -->
+<!-- =========================
+     BOOKS
+========================= -->
 
 <section class="books-section">
 
@@ -683,7 +698,9 @@ nav a:hover {
 </section>
 
 
-<!-- BACK -->
+<!-- =========================
+     BACK
+========================= -->
 
 <div class="back-area">
 
