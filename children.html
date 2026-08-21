@@ -2,24 +2,30 @@
 <html lang="ug" dir="rtl">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>بالىلار كىتابلىرى | قۇتادغۇبىلىك كىتابخانىسى</title>
+<title>بالىلار كىتابلىرى - قۇتادغۇبىلىك كىتابخانىسى</title>
 
 <style>
 
-:root {
-    --cream: #f6f0e5;
-    --cream-light: #fbf8f2;
-    --brown-dark: #4b3327;
-    --brown: #70503d;
-    --gold-light: #e2c98d;
-    --text: #44352d;
-    --text-light: #806f62;
-    --white-warm: #fffdf9;
-    --border: #e8dccb;
+/* =========================
+   UKIJ CJK FONT
+========================= */
+
+@font-face {
+    font-family: "UKIJ CJK";
+    src: url("UKIJCJK.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
 }
+
+
+/* =========================
+   RESET
+========================= */
 
 * {
     box-sizing: border-box;
@@ -33,12 +39,9 @@ html {
 }
 
 body {
-    background: var(--cream);
-    color: var(--text);
-
-    /* index.html بىلەن ئوخشاش فونت */
-    font-family: Arial, "Noto Sans Arabic", sans-serif;
-
+    font-family: "UKIJ CJK", Arial, sans-serif;
+    background: #f6f0e5;
+    color: #44352d;
     line-height: 1.8;
 }
 
@@ -53,37 +56,45 @@ a {
 ========================= */
 
 header {
-    background: var(--brown-dark);
-    color: white;
+    height: 64px;
 
-    padding: 18px 7%;
+    background: #4b3327;
+    color: white;
 
     display: flex;
     align-items: center;
     justify-content: space-between;
 
+    padding: 0 7%;
+
     box-shadow: 0 3px 15px rgba(75,51,39,0.15);
 }
 
 .logo {
-    font-size: 21px;
+    color: white;
+    text-decoration: none;
+
+    font-size: 20px;
     font-weight: bold;
 }
 
 nav {
     display: flex;
-    gap: 25px;
+    align-items: center;
+    gap: 28px;
 }
 
 nav a {
-    color: #fffaf2;
-    font-size: 14px;
+    color: white;
+    text-decoration: none;
 
-    transition: color 0.2s;
+    font-size: 15px;
+
+    transition: 0.2s;
 }
 
 nav a:hover {
-    color: var(--gold-light);
+    color: #e2c98d;
 }
 
 
@@ -94,25 +105,25 @@ nav a:hover {
 .page-header {
     text-align: center;
 
-    padding: 55px 20px 35px;
+    padding: 60px 20px 40px;
 }
 
 .page-icon {
-    font-size: 46px;
+    font-size: 45px;
     margin-bottom: 10px;
 }
 
 .page-header h1 {
-    color: var(--brown-dark);
+    color: #4b3327;
 
-    font-size: 36px;
+    font-size: 38px;
     font-weight: bold;
 
     margin-bottom: 8px;
 }
 
 .page-header p {
-    color: var(--text-light);
+    color: #806f62;
 
     font-size: 15px;
 }
@@ -123,20 +134,25 @@ nav a:hover {
 ========================= */
 
 .books-section {
-    width: 100%;
+    width: 90%;
     max-width: 1200px;
 
     margin: 0 auto;
 
-    padding: 15px 25px 70px;
+    padding-bottom: 90px;
 }
+
+
+/* =========================
+   BOOK GRID
+========================= */
 
 .books-grid {
     display: grid;
 
     grid-template-columns: repeat(3, 1fr);
 
-    gap: 28px;
+    gap: 24px;
 }
 
 
@@ -145,11 +161,11 @@ nav a:hover {
 ========================= */
 
 .book-card {
-    background: var(--white-warm);
+    background: #fffdf9;
 
-    border: 1px solid var(--border);
+    border: 1px solid #e8dccb;
 
-    border-radius: 16px;
+    border-radius: 14px;
 
     overflow: hidden;
 
@@ -179,7 +195,7 @@ nav a:hover {
     width: 100%;
     height: 310px;
 
-    background: var(--cream-light);
+    background: #fbf8f2;
 
     overflow: hidden;
 }
@@ -205,13 +221,13 @@ nav a:hover {
 ========================= */
 
 .book-info {
-    padding: 18px 18px 21px;
+    padding: 18px;
 
     text-align: center;
 }
 
 .book-title {
-    color: var(--brown-dark);
+    color: #4b3327;
 
     font-size: 20px;
     font-weight: bold;
@@ -220,11 +236,11 @@ nav a:hover {
 }
 
 .book-author {
-    color: var(--text-light);
+    color: #806f62;
 
     font-size: 14px;
 
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 
@@ -233,7 +249,7 @@ nav a:hover {
 ========================= */
 
 .price {
-    color: var(--brown-dark);
+    color: #4b3327;
 
     font-size: 18px;
     font-weight: bold;
@@ -249,8 +265,7 @@ nav a:hover {
 .book-button {
     display: inline-block;
 
-    background: var(--brown-dark);
-
+    background: #4b3327;
     color: white;
 
     padding: 8px 25px;
@@ -259,15 +274,11 @@ nav a:hover {
 
     font-size: 13px;
 
-    transition:
-        background 0.2s,
-        transform 0.2s;
+    transition: 0.2s;
 }
 
 .book-button:hover {
-    background: var(--brown);
-
-    transform: translateY(-1px);
+    background: #70503d;
 }
 
 
@@ -278,14 +289,13 @@ nav a:hover {
 .back-area {
     text-align: center;
 
-    padding: 0 20px 55px;
+    padding-bottom: 50px;
 }
 
 .back-button {
     display: inline-block;
 
-    background: var(--brown);
-
+    background: #70503d;
     color: white;
 
     padding: 11px 28px;
@@ -293,10 +303,12 @@ nav a:hover {
     border-radius: 8px;
 
     font-size: 14px;
+
+    transition: 0.2s;
 }
 
 .back-button:hover {
-    background: var(--brown-dark);
+    background: #4b3327;
 }
 
 
@@ -307,7 +319,7 @@ nav a:hover {
 @media (max-width: 900px) {
 
     header {
-        padding: 16px 5%;
+        padding: 0 5%;
     }
 
     .books-grid {
@@ -324,11 +336,13 @@ nav a:hover {
 @media (max-width: 600px) {
 
     header {
+        height: auto;
+
         padding: 15px 4%;
 
         flex-direction: column;
 
-        gap: 9px;
+        gap: 8px;
     }
 
     .logo {
@@ -344,7 +358,7 @@ nav a:hover {
     }
 
     .page-header {
-        padding: 40px 15px 28px;
+        padding: 40px 15px 30px;
     }
 
     .page-icon {
@@ -360,12 +374,12 @@ nav a:hover {
     }
 
     .books-section {
-        padding: 10px 15px 55px;
+        width: 94%;
+        padding-bottom: 60px;
     }
 
     .books-grid {
         grid-template-columns: repeat(2, 1fr);
-
         gap: 15px;
     }
 
@@ -391,7 +405,6 @@ nav a:hover {
 
     .book-button {
         padding: 7px 17px;
-
         font-size: 12px;
     }
 
@@ -399,7 +412,7 @@ nav a:hover {
 
 
 /* =========================
-   VERY SMALL PHONE
+   SMALL PHONE
 ========================= */
 
 @media (max-width: 380px) {
@@ -454,7 +467,7 @@ nav a:hover {
 <section class="page-header">
 
     <div class="page-icon">
-        📚
+        🧒
     </div>
 
     <h1>
@@ -462,7 +475,7 @@ nav a:hover {
     </h1>
 
     <p>
-        بالىلار ئۈچۈن قىزىقارلىق ۋە تەربىيەلىك كىتابلار
+        بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار
     </p>
 
 </section>
