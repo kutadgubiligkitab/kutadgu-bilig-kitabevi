@@ -2,17 +2,32 @@
 <html lang="ug" dir="rtl">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>پەرزەنت تەربىيەسى - قۇتادغۇبىلىك كىتابخانىسى</title>
+<title>پەرزەنت تەربىيەسى | قۇتادغۇبىلىك كىتابخانىسى</title>
 
 <style>
 
 @font-face {
     font-family: "UKIJ CJK";
-    src: url("UKIJCJK.ttf") format("truetype");
+    src: url("UKIJ CJK.ttf") format("truetype");
     font-display: swap;
+}
+
+:root {
+    --cream: #f6f0e5;
+    --cream-light: #fbf8f2;
+    --brown-dark: #4b3327;
+    --brown: #70503d;
+    --brown-light: #a98262;
+    --gold: #b99555;
+    --gold-light: #e2c98d;
+    --text: #44352d;
+    --text-light: #806f62;
+    --white-warm: #fffdf9;
+    --border: #e8dccb;
 }
 
 * {
@@ -21,12 +36,16 @@
     padding: 0;
 }
 
-body {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    background: #f7f5f0;
-    color: #222;
-    line-height: 1.8;
+html {
     direction: rtl;
+    scroll-behavior: smooth;
+}
+
+body {
+    background: var(--cream);
+    color: var(--text);
+    font-family: "UKIJ CJK", Arial, sans-serif;
+    line-height: 1.8;
 }
 
 a {
@@ -40,33 +59,36 @@ a {
 ========================= */
 
 header {
-    width: 100%;
-    min-height: 70px;
-
-    background: #111;
+    background: var(--brown-dark);
     color: white;
+
+    padding: 18px 7%;
 
     display: flex;
     align-items: center;
     justify-content: space-between;
 
-    padding: 0 7%;
+    box-shadow: 0 3px 15px rgba(75,51,39,0.15);
 }
 
 .logo {
-    color: white;
     font-size: 21px;
     font-weight: bold;
 }
 
 nav {
     display: flex;
-    gap: 30px;
+    gap: 25px;
 }
 
 nav a {
-    color: white;
-    font-size: 15px;
+    color: #fffaf2;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+nav a:hover {
+    color: var(--gold-light);
 }
 
 
@@ -76,44 +98,48 @@ nav a {
 
 .page-header {
     text-align: center;
-
-    padding: 70px 20px 45px;
+    padding: 55px 20px 35px;
 }
 
-.page-header .icon {
-    font-size: 55px;
-    margin-bottom: 15px;
+.page-icon {
+    font-size: 46px;
+    margin-bottom: 10px;
 }
 
 .page-header h1 {
-    font-size: 38px;
-    margin-bottom: 12px;
+    color: var(--brown-dark);
+
+    font-size: 36px;
+    font-weight: bold;
+
+    margin-bottom: 8px;
 }
 
 .page-header p {
-    color: #777;
-    font-size: 16px;
+    color: var(--text-light);
+    font-size: 15px;
 }
 
 
 /* =========================
-   BOOK AREA
+   BOOK SECTION
 ========================= */
 
 .books-section {
-    max-width: 1150px;
+    width: 100%;
+    max-width: 1200px;
 
     margin: 0 auto;
 
-    padding: 20px 25px 100px;
+    padding: 15px 25px 70px;
 }
 
-.books {
+.books-grid {
     display: grid;
 
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
 
-    gap: 25px;
+    gap: 28px;
 }
 
 
@@ -121,26 +147,28 @@ nav a {
    BOOK CARD
 ========================= */
 
-.book {
-    background: white;
+.book-card {
+    background: var(--white-warm);
 
-    border-radius: 14px;
+    border: 1px solid var(--border);
+
+    border-radius: 16px;
 
     overflow: hidden;
 
     box-shadow:
-        0 5px 20px rgba(0,0,0,0.06);
+        0 5px 18px rgba(75,51,39,0.07);
 
-    transition: 0.2s;
-
-    text-align: center;
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
 }
 
-.book:hover {
-    transform: translateY(-6px);
+.book-card:hover {
+    transform: translateY(-5px);
 
     box-shadow:
-        0 12px 28px rgba(0,0,0,0.12);
+        0 12px 28px rgba(75,51,39,0.13);
 }
 
 
@@ -149,25 +177,31 @@ nav a {
 ========================= */
 
 .book-cover {
+    display: block;
+
     width: 100%;
-    height: 300px;
+    height: 310px;
 
-    background: #eee;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: var(--cream-light);
 
     overflow: hidden;
+
+    position: relative;
 }
 
 .book-cover img {
     width: 100%;
     height: 100%;
 
-    object-fit: cover;
+    object-fit: contain;
 
     display: block;
+
+    transition: transform 0.3s ease;
+}
+
+.book-card:hover .book-cover img {
+    transform: scale(1.025);
 }
 
 
@@ -176,23 +210,40 @@ nav a {
 ========================= */
 
 .book-info {
-    padding: 20px 15px 23px;
+    padding: 18px 18px 21px;
+
+    text-align: center;
 }
 
-.book-info h3 {
-    font-size: 19px;
+.book-title {
+    color: var(--brown-dark);
 
-    margin-bottom: 8px;
+    font-size: 20px;
+    font-weight: bold;
 
-    color: #111;
+    margin-bottom: 5px;
 }
 
-.book-info p {
-    font-size: 13px;
+.book-author {
+    color: var(--text-light);
 
-    color: #777;
+    font-size: 14px;
 
-    margin-bottom: 15px;
+    margin-bottom: 12px;
+}
+
+
+/* =========================
+   PRICE
+========================= */
+
+.price {
+    color: var(--brown-dark);
+
+    font-size: 18px;
+    font-weight: bold;
+
+    margin-bottom: 13px;
 }
 
 
@@ -203,15 +254,24 @@ nav a {
 .book-button {
     display: inline-block;
 
-    background: #111;
-
+    background: var(--brown-dark);
     color: white;
 
-    padding: 8px 22px;
+    padding: 8px 25px;
 
-    border-radius: 6px;
+    border-radius: 7px;
 
     font-size: 13px;
+
+    transition:
+        background 0.2s,
+        transform 0.2s;
+}
+
+.book-button:hover {
+    background: var(--brown);
+
+    transform: translateY(-1px);
 }
 
 
@@ -222,38 +282,25 @@ nav a {
 .back-area {
     text-align: center;
 
-    padding: 0 20px 70px;
+    padding: 0 20px 55px;
 }
 
 .back-button {
     display: inline-block;
 
-    background: #111;
+    background: var(--brown);
 
     color: white;
 
-    padding: 12px 30px;
+    padding: 11px 28px;
 
-    border-radius: 7px;
+    border-radius: 8px;
 
-    font-size: 15px;
+    font-size: 14px;
 }
 
-
-/* =========================
-   FOOTER
-========================= */
-
-footer {
-    background: #111;
-
-    color: #aaa;
-
-    text-align: center;
-
-    padding: 20px;
-
-    font-size: 13px;
+.back-button:hover {
+    background: var(--brown-dark);
 }
 
 
@@ -264,18 +311,10 @@ footer {
 @media (max-width: 900px) {
 
     header {
-        padding: 18px 5%;
-
-        flex-direction: column;
-
-        gap: 15px;
+        padding: 16px 5%;
     }
 
-    nav {
-        gap: 20px;
-    }
-
-    .books {
+    .books-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -286,10 +325,14 @@ footer {
    PHONE
 ========================= */
 
-@media (max-width: 550px) {
+@media (max-width: 600px) {
 
     header {
-        padding: 16px 4%;
+        padding: 15px 4%;
+
+        flex-direction: column;
+
+        gap: 9px;
     }
 
     .logo {
@@ -297,7 +340,7 @@ footer {
     }
 
     nav {
-        gap: 13px;
+        gap: 18px;
     }
 
     nav a {
@@ -305,24 +348,27 @@ footer {
     }
 
     .page-header {
-        padding: 50px 20px 30px;
+        padding: 40px 15px 28px;
+    }
+
+    .page-icon {
+        font-size: 40px;
     }
 
     .page-header h1 {
-        font-size: 30px;
+        font-size: 29px;
     }
 
     .page-header p {
-        font-size: 14px;
+        font-size: 13px;
     }
 
     .books-section {
-        padding: 15px 15px 60px;
+        padding: 10px 15px 55px;
     }
 
-    .books {
-        grid-template-columns: 1fr 1fr;
-
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
         gap: 15px;
     }
 
@@ -331,38 +377,41 @@ footer {
     }
 
     .book-info {
-        padding: 15px 10px 18px;
+        padding: 13px 10px 16px;
     }
 
-    .book-info h3 {
-        font-size: 16px;
+    .book-title {
+        font-size: 17px;
     }
 
-    .book-info p {
+    .book-author {
         font-size: 12px;
+    }
+
+    .price {
+        font-size: 15px;
     }
 
     .book-button {
+        padding: 7px 17px;
         font-size: 12px;
-
-        padding: 7px 15px;
     }
 
 }
 
 
 /* =========================
-   SMALL PHONE
+   VERY SMALL PHONE
 ========================= */
 
 @media (max-width: 380px) {
 
-    .books {
+    .books-grid {
         grid-template-columns: 1fr;
     }
 
     .book-cover {
-        height: 320px;
+        height: 300px;
     }
 
 }
@@ -375,9 +424,7 @@ footer {
 <body>
 
 
-<!-- =========================
-     HEADER
-========================= -->
+<!-- HEADER -->
 
 <header>
 
@@ -400,13 +447,11 @@ footer {
 </header>
 
 
-<!-- =========================
-     PAGE TITLE
-========================= -->
+<!-- PAGE HEADER -->
 
 <section class="page-header">
 
-    <div class="icon">
+    <div class="page-icon">
         👨‍👩‍👧‍👦
     </div>
 
@@ -421,96 +466,243 @@ footer {
 </section>
 
 
-<!-- =========================
-     BOOKS
-========================= -->
+<!-- BOOKS -->
 
 <section class="books-section">
 
-    <div class="books">
+<div class="books-grid">
 
 
-        <!-- 1 -->
+<!-- BOOK 1 -->
 
-        <div class="book">
+<article class="book-card">
 
-            <div class="book-cover">
-                <span style="font-size:50px;">👨‍👩‍👧‍👦</span>
-            </div>
+    <a href="book.html" class="book-cover">
 
-            <div class="book-info">
+        <img
+            src="images/terbiye-1.jpg"
+            alt="پەرزەنت تەربىيەسى 1"
+        >
 
-                <h3>
-                    پەرزەنت تەربىيەسى
-                </h3>
+    </a>
 
-                <p>
-                    بۇ يەرگە كىتابنىڭ قىسقىچە مەزمۇنى يېزىلىدۇ.
-                </p>
+    <div class="book-info">
 
-                <a href="#" class="book-button">
-                    تەپسىلات
-                </a>
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 1
+        </h2>
 
-            </div>
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
 
+        <div class="price">
+            200 ₺
         </div>
 
-
-        <!-- 2 -->
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span style="font-size:50px;">📚</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئائىلە ۋە پەرزەنت
-                </h3>
-
-                <p>
-                    بۇ يەرگە كىتابنىڭ قىسقىچە مەزمۇنى يېزىلىدۇ.
-                </p>
-
-                <a href="#" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-        </div>
-
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
 
     </div>
+
+</article>
+
+
+<!-- BOOK 2 -->
+
+<article class="book-card">
+
+    <a href="book.html" class="book-cover">
+
+        <img
+            src="images/terbiye-2.jpg"
+            alt="پەرزەنت تەربىيەسى 2"
+        >
+
+    </a>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 2
+        </h2>
+
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
+
+        <div class="price">
+            180 ₺
+        </div>
+
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
+
+    </div>
+
+</article>
+
+
+<!-- BOOK 3 -->
+
+<article class="book-card">
+
+    <a href="book.html" class="book-cover">
+
+        <img
+            src="images/terbiye-3.jpg"
+            alt="پەرزەنت تەربىيەسى 3"
+        >
+
+    </a>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 3
+        </h2>
+
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
+
+        <div class="price">
+            150 ₺
+        </div>
+
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
+
+    </div>
+
+</article>
+
+
+<!-- BOOK 4 -->
+
+<article class="book-card">
+
+    <a href="book.html" class="book-cover">
+
+        <img
+            src="images/terbiye-4.jpg"
+            alt="پەرزەنت تەربىيەسى 4"
+        >
+
+    </a>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 4
+        </h2>
+
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
+
+        <div class="price">
+            220 ₺
+        </div>
+
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
+
+    </div>
+
+</article>
+
+
+<!-- BOOK 5 -->
+
+<article class="book-card">
+
+    <a href="book.html" class="book-cover">
+
+        <img
+            src="images/terbiye-5.jpg"
+            alt="پەرزەنت تەربىيەسى 5"
+        >
+
+    </a>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 5
+        </h2>
+
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
+
+        <div class="price">
+            190 ₺
+        </div>
+
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
+
+    </div>
+
+</article>
+
+
+<!-- BOOK 6 -->
+
+<article class="book-card">
+
+    <a href="book.html" class="book-cover">
+
+        <img
+            src="images/terbiye-6.jpg"
+            alt="پەرزەنت تەربىيەسى 6"
+        >
+
+    </a>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            پەرزەنت تەربىيەسى 6
+        </h2>
+
+        <p class="book-author">
+            ئاپتور ئىسمى
+        </p>
+
+        <div class="price">
+            175 ₺
+        </div>
+
+        <a href="book.html" class="book-button">
+            كىتاب تەپسىلاتى
+        </a>
+
+    </div>
+
+</article>
+
+
+</div>
 
 </section>
 
 
-<!-- =========================
-     BACK
-========================= -->
+<!-- BACK -->
 
 <div class="back-area">
 
-    <a href="index.html" class="back-button">
+    <a href="index.html#books" class="back-button">
         ← كىتاب تۈرلىرىگە قايتىش
     </a>
 
 </div>
-
-
-<!-- =========================
-     FOOTER
-========================= -->
-
-<footer>
-
-    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
-
-</footer>
 
 
 </body>
