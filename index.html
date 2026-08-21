@@ -2,6 +2,7 @@
 <html lang="ug" dir="rtl">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -9,11 +10,44 @@
 
 <style>
 
+/* =========================
+   UKIJ CJK FONT
+========================= */
+
 @font-face {
     font-family: "UKIJ CJK";
     src: url("UKIJCJK.ttf") format("truetype");
     font-display: swap;
 }
+
+
+/* =========================
+   COLOR SYSTEM
+========================= */
+
+:root {
+    --cream: #f6f0e5;
+    --cream-light: #fbf8f2;
+
+    --brown-dark: #4b3327;
+    --brown: #70503d;
+    --brown-light: #a98262;
+
+    --gold: #b99555;
+    --gold-light: #e2c98d;
+
+    --text: #44352d;
+    --text-light: #806f62;
+
+    --white-warm: #fffdf9;
+
+    --border: #e8dccb;
+}
+
+
+/* =========================
+   GENERAL
+========================= */
 
 * {
     box-sizing: border-box;
@@ -27,9 +61,13 @@ html {
 
 body {
     font-family: "UKIJ CJK", Arial, sans-serif;
-    background: #f7f5f0;
-    color: #222;
+
+    background: var(--cream);
+
+    color: var(--text);
+
     line-height: 1.8;
+
     direction: rtl;
 }
 
@@ -45,38 +83,57 @@ a {
 
 header {
     width: 100%;
+
     min-height: 70px;
-    background: #111;
-    color: white;
+
+    background: var(--brown-dark);
+
+    color: #fffaf2;
 
     display: flex;
+
     align-items: center;
+
     justify-content: space-between;
 
     padding: 0 7%;
+
+    box-shadow:
+        0 3px 15px rgba(75, 51, 39, 0.15);
 }
 
+
 .logo {
-    color: white;
+    color: #fffaf2;
+
     font-size: 21px;
+
     font-weight: bold;
+
     white-space: nowrap;
 }
 
+
 nav {
     display: flex;
+
     align-items: center;
+
     gap: 30px;
 }
 
+
 nav a {
-    color: white;
+    color: #fffaf2;
+
     font-size: 15px;
+
     transition: 0.2s;
 }
 
+
 nav a:hover {
-    color: #ccc;
+    color: var(--gold-light);
 }
 
 
@@ -88,35 +145,59 @@ nav a:hover {
     min-height: 430px;
 
     display: flex;
+
     align-items: center;
+
     justify-content: center;
 
     text-align: center;
 
     padding: 70px 20px;
+
+    background:
+        linear-gradient(
+            180deg,
+            var(--cream-light) 0%,
+            var(--cream) 100%
+        );
 }
+
 
 .hero-content {
     max-width: 800px;
 }
 
+
 .hero h1 {
     font-size: 48px;
+
     font-weight: bold;
+
     margin-bottom: 20px;
+
+    color: var(--brown-dark);
 }
+
 
 .hero p {
     font-size: 18px;
-    color: #666;
+
+    color: var(--text-light);
+
     margin-bottom: 30px;
 }
+
+
+/* =========================
+   MAIN BUTTON
+========================= */
 
 .button {
     display: inline-block;
 
-    background: #111;
-    color: white;
+    background: var(--brown-dark);
+
+    color: #fffaf2;
 
     padding: 13px 32px;
 
@@ -125,10 +206,16 @@ nav a:hover {
     font-size: 16px;
 
     transition: 0.2s;
+
+    box-shadow:
+        0 4px 12px rgba(75, 51, 39, 0.12);
 }
 
+
 .button:hover {
-    background: #333;
+    background: var(--brown);
+
+    transform: translateY(-2px);
 }
 
 
@@ -138,6 +225,7 @@ nav a:hover {
 
 .section {
     width: 100%;
+
     max-width: 1150px;
 
     margin: 0 auto;
@@ -145,12 +233,15 @@ nav a:hover {
     padding: 45px 25px 100px;
 }
 
+
 .section h2 {
     text-align: center;
 
     font-size: 32px;
 
     margin-bottom: 45px;
+
+    color: var(--brown-dark);
 }
 
 
@@ -167,10 +258,8 @@ nav a:hover {
 }
 
 
-/* ھەر بىر كىتاب كارتىسى */
-
 .card {
-    background: white;
+    background: var(--white-warm);
 
     min-height: 220px;
 
@@ -181,24 +270,34 @@ nav a:hover {
     text-align: center;
 
     display: flex;
+
     flex-direction: column;
+
     align-items: center;
+
     justify-content: flex-start;
 
+    border: 1px solid var(--border);
+
     box-shadow:
-        0 5px 20px rgba(0, 0, 0, 0.06);
+        0 5px 20px rgba(75, 51, 39, 0.06);
 
     transition:
         transform 0.2s ease,
-        box-shadow 0.2s ease;
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
 }
+
 
 .card:hover {
     transform: translateY(-6px);
 
     box-shadow:
-        0 12px 28px rgba(0, 0, 0, 0.11);
+        0 12px 28px rgba(75, 51, 39, 0.13);
+
+    border-color: var(--gold-light);
 }
+
 
 .card .icon {
     font-size: 42px;
@@ -208,25 +307,27 @@ nav a:hover {
     margin-bottom: 22px;
 }
 
+
 .card h3 {
     font-size: 21px;
 
     margin-bottom: 10px;
 
-    color: #111;
+    color: var(--brown-dark);
 }
+
 
 .card p {
     font-size: 14px;
 
-    color: #777;
+    color: var(--text-light);
 
     line-height: 1.9;
 }
 
 
 /* =========================
-   7-چى كارتنى ئوتتۇرىغا قويۇش
+   7TH CARD CENTER
 ========================= */
 
 .card:last-child {
@@ -241,27 +342,31 @@ nav a:hover {
 .about {
     width: 100%;
 
-    background: #111;
+    background: var(--brown-dark);
 
-    color: white;
+    color: #fffaf2;
 
     text-align: center;
 
     padding: 75px 25px;
 }
 
+
 .about h2 {
     font-size: 31px;
 
     margin-bottom: 22px;
+
+    color: #fffaf2;
 }
+
 
 .about p {
     max-width: 850px;
 
     margin: 0 auto;
 
-    color: #eee;
+    color: #eadfd2;
 
     font-size: 16px;
 
@@ -276,21 +381,27 @@ nav a:hover {
 .contact {
     width: 100%;
 
-    background: white;
+    background: var(--cream-light);
 
     text-align: center;
 
     padding: 60px 25px;
+
+    border-top: 1px solid var(--border);
 }
+
 
 .contact h2 {
     font-size: 29px;
 
     margin-bottom: 15px;
+
+    color: var(--brown-dark);
 }
 
+
 .contact p {
-    color: #666;
+    color: var(--text-light);
 
     font-size: 15px;
 }
@@ -303,9 +414,9 @@ nav a:hover {
 footer {
     width: 100%;
 
-    background: #111;
+    background: #39261d;
 
-    color: #aaa;
+    color: #d8c8b8;
 
     text-align: center;
 
@@ -329,6 +440,7 @@ footer {
         gap: 15px;
     }
 
+
     nav {
         gap: 20px;
 
@@ -337,26 +449,27 @@ footer {
         justify-content: center;
     }
 
+
     .hero {
         min-height: 360px;
     }
+
 
     .hero h1 {
         font-size: 38px;
     }
 
+
     .cards {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    /*
-       2 ستونلۇق ئېكراندا ئاخىرقى كارتا
-       ئوتتۇرىدا تۇرۇشى ئۈچۈن
-    */
 
     .card:last-child {
         grid-column: 1 / -1;
+
         width: calc(50% - 11px);
+
         justify-self: center;
     }
 
@@ -373,17 +486,21 @@ footer {
         padding: 16px 4%;
     }
 
+
     .logo {
         font-size: 18px;
     }
+
 
     nav {
         gap: 13px;
     }
 
+
     nav a {
         font-size: 13px;
     }
+
 
     .hero {
         min-height: 330px;
@@ -391,13 +508,16 @@ footer {
         padding: 55px 20px;
     }
 
+
     .hero h1 {
         font-size: 31px;
     }
 
+
     .hero p {
         font-size: 14px;
     }
+
 
     .button {
         font-size: 14px;
@@ -405,9 +525,11 @@ footer {
         padding: 11px 26px;
     }
 
+
     .section {
         padding: 35px 15px 70px;
     }
+
 
     .section h2 {
         font-size: 26px;
@@ -415,37 +537,47 @@ footer {
         margin-bottom: 30px;
     }
 
+
     .cards {
         grid-template-columns: 1fr;
 
         gap: 17px;
     }
 
+
     .card {
         min-height: 190px;
+
         width: 100% !important;
+
         grid-column: auto !important;
     }
+
 
     .card h3 {
         font-size: 19px;
     }
 
+
     .card p {
         font-size: 13px;
     }
+
 
     .about {
         padding: 55px 20px;
     }
 
+
     .about h2 {
         font-size: 26px;
     }
 
+
     .contact {
         padding: 45px 20px;
     }
+
 
     .contact h2 {
         font-size: 25px;
@@ -470,6 +602,7 @@ footer {
     <a href="index.html" class="logo">
         قۇتادغۇبىلىك كىتابخانىسى
     </a>
+
 
     <nav>
 
