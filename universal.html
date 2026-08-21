@@ -5,13 +5,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>ئۇنىۋېرسال ئەسەرلەر - قۇتادغۇبىلىك كىتابخانىسى</title>
+<title>ئۇنىۋېرسال ئەسەرلەر</title>
 
 <style>
 
 @font-face {
     font-family: "UKIJ CJK";
-    src: url("UKIJCJK.ttf") format("truetype");
+    src: url("UKIJ CJK.ttf") format("truetype");
     font-display: swap;
 }
 
@@ -21,15 +21,14 @@
     padding: 0;
 }
 
-html,
-body {
+html {
     direction: rtl;
 }
 
 body {
-    font-family: "UKIJ CJK", Arial, sans-serif;
     background: #f7f5f0;
     color: #222;
+    font-family: "UKIJ CJK", Arial, sans-serif;
     line-height: 1.8;
 }
 
@@ -40,66 +39,28 @@ a {
 
 
 /* =========================
-   HEADER
-========================= */
-
-header {
-    width: 100%;
-    min-height: 70px;
-    background: #111;
-    color: #fff;
-
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    padding: 0 7%;
-}
-
-.logo {
-    color: #fff;
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    font-size: 21px;
-    font-weight: bold;
-}
-
-nav {
-    display: flex;
-    gap: 30px;
-}
-
-nav a {
-    color: #fff;
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    font-size: 15px;
-}
-
-
-/* =========================
    PAGE HEADER
 ========================= */
 
 .page-header {
     text-align: center;
-    padding: 65px 20px 40px;
+    padding: 45px 20px 35px;
 }
 
-.page-header .icon {
-    font-size: 55px;
+.page-icon {
+    font-size: 52px;
     margin-bottom: 15px;
 }
 
 .page-header h1 {
-    font-family: "UKIJ CJK", Arial, sans-serif;
     font-size: 38px;
     font-weight: bold;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .page-header p {
-    font-family: "UKIJ CJK", Arial, sans-serif;
     color: #777;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 
@@ -108,12 +69,12 @@ nav a {
 ========================= */
 
 .books-section {
-    max-width: 1200px;
+    max-width: 1180px;
     margin: 0 auto;
-    padding: 20px 25px 80px;
+    padding: 20px 25px 70px;
 }
 
-.books {
+.books-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 25px;
@@ -124,24 +85,19 @@ nav a {
    BOOK CARD
 ========================= */
 
-.book {
+.book-card {
     background: #fff;
     border-radius: 15px;
     overflow: hidden;
 
-    box-shadow:
-        0 5px 20px rgba(0,0,0,0.07);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.07);
 
     transition: 0.25s;
-
-    text-align: center;
 }
 
-.book:hover {
+.book-card:hover {
     transform: translateY(-5px);
-
-    box-shadow:
-        0 12px 28px rgba(0,0,0,0.12);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
 }
 
 
@@ -151,9 +107,9 @@ nav a {
 
 .book-cover {
     width: 100%;
-    height: 330px;
+    height: 300px;
 
-    background: #eee;
+    background: #eeeeee;
 
     display: flex;
     align-items: center;
@@ -165,14 +121,12 @@ nav a {
 .book-cover img {
     width: 100%;
     height: 100%;
-
     object-fit: cover;
-
     display: block;
 }
 
 .book-cover span {
-    font-size: 55px;
+    font-size: 58px;
 }
 
 
@@ -181,40 +135,40 @@ nav a {
 ========================= */
 
 .book-info {
-    padding: 18px 15px 22px;
+    padding: 18px 18px 22px;
+    text-align: right;
 }
 
-.book-info h3 {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    font-size: 20px;
+.book-title {
+    font-size: 21px;
     font-weight: bold;
-
-    color: #111;
-
-    margin-bottom: 7px;
+    text-align: center;
+    margin-bottom: 15px;
 }
 
-.book-info p {
-    font-family: "UKIJ CJK", Arial, sans-serif;
-    color: #888;
+.book-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail {
     font-size: 14px;
-
-    margin-bottom: 12px;
+    color: #555;
 }
 
-
-/* =========================
-   PRICE
-========================= */
+.detail strong {
+    color: #222;
+    font-weight: bold;
+}
 
 .price {
-    font-family: "UKIJ CJK", Arial, sans-serif;
+    text-align: center;
 
-    font-size: 17px;
+    font-size: 18px;
     font-weight: bold;
 
-    color: #111;
-
+    margin-top: 14px;
     margin-bottom: 12px;
 }
 
@@ -223,19 +177,22 @@ nav a {
    BUTTON
 ========================= */
 
+.book-button-area {
+    text-align: center;
+}
+
 .book-button {
     display: inline-block;
 
     background: #111;
     color: #fff;
 
-    font-family: "UKIJ CJK", Arial, sans-serif;
-
-    padding: 8px 24px;
+    padding: 8px 25px;
 
     border-radius: 7px;
 
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: bold;
 }
 
 .book-button:hover {
@@ -249,7 +206,7 @@ nav a {
 
 .back-area {
     text-align: center;
-    padding: 0 20px 70px;
+    padding: 0 20px 60px;
 }
 
 .back-button {
@@ -258,31 +215,15 @@ nav a {
     background: #111;
     color: #fff;
 
-    font-family: "UKIJ CJK", Arial, sans-serif;
-
     padding: 12px 30px;
 
-    border-radius: 7px;
+    border-radius: 8px;
 
     font-size: 15px;
 }
 
-
-/* =========================
-   FOOTER
-========================= */
-
-footer {
-    background: #111;
-    color: #aaa;
-
-    text-align: center;
-
-    font-family: "UKIJ CJK", Arial, sans-serif;
-
-    padding: 20px;
-
-    font-size: 13px;
+.back-button:hover {
+    background: #333;
 }
 
 
@@ -292,17 +233,7 @@ footer {
 
 @media (max-width: 900px) {
 
-    header {
-        padding: 18px 5%;
-        flex-direction: column;
-        gap: 15px;
-    }
-
-    nav {
-        gap: 20px;
-    }
-
-    .books {
+    .books-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -313,26 +244,10 @@ footer {
    PHONE
 ========================= */
 
-@media (max-width: 550px) {
-
-    header {
-        padding: 16px 4%;
-    }
-
-    .logo {
-        font-size: 18px;
-    }
-
-    nav {
-        gap: 13px;
-    }
-
-    nav a {
-        font-size: 13px;
-    }
+@media (max-width: 600px) {
 
     .page-header {
-        padding: 50px 20px 30px;
+        padding: 35px 15px 25px;
     }
 
     .page-header h1 {
@@ -340,58 +255,49 @@ footer {
     }
 
     .page-header p {
-        font-size: 14px;
+        font-size: 13px;
     }
 
     .books-section {
-        padding: 15px 15px 60px;
+        padding: 15px;
     }
 
-    .books {
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
+    .books-grid {
+        grid-template-columns: 1fr;
+        gap: 18px;
     }
 
     .book-cover {
-        height: 240px;
+        height: 280px;
     }
 
     .book-info {
-        padding: 14px 8px 18px;
+        padding: 16px;
     }
 
-    .book-info h3 {
-        font-size: 16px;
-    }
-
-    .book-info p {
-        font-size: 12px;
-    }
-
-    .price {
-        font-size: 15px;
-    }
-
-    .book-button {
-        font-size: 12px;
-        padding: 7px 15px;
+    .book-title {
+        font-size: 19px;
     }
 
 }
 
 
 /* =========================
-   VERY SMALL PHONE
+   SMALL PHONE
 ========================= */
 
 @media (max-width: 380px) {
 
-    .books {
-        grid-template-columns: 1fr;
+    .book-cover {
+        height: 240px;
     }
 
-    .book-cover {
-        height: 320px;
+    .book-title {
+        font-size: 18px;
+    }
+
+    .detail {
+        font-size: 13px;
     }
 
 }
@@ -404,30 +310,13 @@ footer {
 <body>
 
 
-<header>
-
-    <a href="index.html" class="logo">
-        قۇتادغۇبىلىك كىتابخانىسى
-    </a>
-
-    <nav>
-
-        <a href="index.html">
-            باش بەت
-        </a>
-
-        <a href="index.html#books">
-            كىتاب تۈرلىرى
-        </a>
-
-    </nav>
-
-</header>
-
+<!-- =========================
+     PAGE HEADER
+========================= -->
 
 <section class="page-header">
 
-    <div class="icon">
+    <div class="page-icon">
         📚
     </div>
 
@@ -442,204 +331,248 @@ footer {
 </section>
 
 
+
+<!-- =========================
+     BOOKS
+========================= -->
+
 <section class="books-section">
 
-    <div class="books">
+<div class="books-grid">
 
 
-        <div class="book">
+<!-- =========================
+     BOOK 1
+========================= -->
 
-            <div class="book-cover">
-                <span>📚</span>
-            </div>
+<div class="book-card">
 
-            <div class="book-info">
+    <div class="book-cover">
 
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 1
-                </h3>
+        <!-- كىتاب مۇقاۋىسىنى بۇ يەرگە قويۇڭ -->
 
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span>📖</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 2
-                </h3>
-
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span>📘</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 3
-                </h3>
-
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span>📕</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 4
-                </h3>
-
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span>📗</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 5
-                </h3>
-
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
-
-        <div class="book">
-
-            <div class="book-cover">
-                <span>📙</span>
-            </div>
-
-            <div class="book-info">
-
-                <h3>
-                    ئۇنىۋېرسال ئەسەر 6
-                </h3>
-
-                <p>
-                    ئاپتور ئىسمى
-                </p>
-
-                <div class="price">
-                    باھاسى: 200 ₺
-                </div>
-
-                <a href="#" class="book-button">
-                    باھاسى
-                </a>
-
-            </div>
-
-        </div>
-
+        <span>📚</span>
 
     </div>
 
-</section>
+    <div class="book-info">
 
+        <h2 class="book-title">
+            ئۇنىۋېرسال ئەسەر 1
+        </h2>
 
-<div class="back-area">
+        <div class="book-details">
 
-    <a href="index.html" class="back-button">
-        ← كىتاب تۈرلىرىگە قايتىش
-    </a>
+            <div class="detail">
+                <strong>كاتېگورىيە:</strong>
+                ئۇنىۋېرسال ئەسەرلەر
+            </div>
+
+            <div class="detail">
+                <strong>ئاپتور:</strong>
+                ئاپتور ئىسمى
+            </div>
+
+            <div class="detail">
+                <strong>بەت سانى:</strong>
+                320
+            </div>
+
+            <!-- تەرجىمە قىلغۇچى بولمىسا بۇ div نىلا ئۆچۈرۈۋېتىمىز -->
+
+            <div class="detail">
+                <strong>تەرجىمە قىلغۇچى:</strong>
+                تەرجىمان ئىسمى
+            </div>
+
+            <div class="detail">
+                <strong>تىلى:</strong>
+                ئۇيغۇرچە
+            </div>
+
+            <div class="detail">
+                <strong>نەشر قىلىنغان ۋاقتى:</strong>
+                2026
+            </div>
+
+            <div class="detail">
+                <strong>نەشرىيات:</strong>
+                قۇتادغۇبىلىك نەشرىياتى
+            </div>
+
+        </div>
+
+        <div class="price">
+            باھاسى: 200 ₺
+        </div>
+
+        <div class="book-button-area">
+
+            <a href="#" class="book-button">
+                كىتاب تەپسىلاتى
+            </a>
+
+        </div>
+
+    </div>
 
 </div>
 
 
-<footer>
 
-    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+<!-- =========================
+     BOOK 2
+========================= -->
 
-</footer>
+<div class="book-card">
+
+    <div class="book-cover">
+        <span>📖</span>
+    </div>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            ئۇنىۋېرسال ئەسەر 2
+        </h2>
+
+        <div class="book-details">
+
+            <div class="detail">
+                <strong>كاتېگورىيە:</strong>
+                ئۇنىۋېرسال ئەسەرلەر
+            </div>
+
+            <div class="detail">
+                <strong>ئاپتور:</strong>
+                ئاپتور ئىسمى
+            </div>
+
+            <div class="detail">
+                <strong>بەت سانى:</strong>
+                280
+            </div>
+
+            <div class="detail">
+                <strong>تىلى:</strong>
+                ئۇيغۇرچە
+            </div>
+
+            <div class="detail">
+                <strong>نەشر قىلىنغان ۋاقتى:</strong>
+                2026
+            </div>
+
+            <div class="detail">
+                <strong>نەشرىيات:</strong>
+                نەشرىيات ئىسمى
+            </div>
+
+        </div>
+
+        <div class="price">
+            باھاسى: 180 ₺
+        </div>
+
+        <div class="book-button-area">
+
+            <a href="#" class="book-button">
+                كىتاب تەپسىلاتى
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- =========================
+     BOOK 3
+========================= -->
+
+<div class="book-card">
+
+    <div class="book-cover">
+        <span>📘</span>
+    </div>
+
+    <div class="book-info">
+
+        <h2 class="book-title">
+            ئۇنىۋېرسال ئەسەر 3
+        </h2>
+
+        <div class="book-details">
+
+            <div class="detail">
+                <strong>كاتېگورىيە:</strong>
+                ئۇنىۋېرسال ئەسەرلەر
+            </div>
+
+            <div class="detail">
+                <strong>ئاپتور:</strong>
+                ئاپتور ئىسمى
+            </div>
+
+            <div class="detail">
+                <strong>بەت سانى:</strong>
+                250
+            </div>
+
+            <div class="detail">
+                <strong>تىلى:</strong>
+                ئۇيغۇرچە
+            </div>
+
+            <div class="detail">
+                <strong>نەشر قىلىنغان ۋاقتى:</strong>
+                2026
+            </div>
+
+            <div class="detail">
+                <strong>نەشرىيات:</strong>
+                نەشرىيات ئىسمى
+            </div>
+
+        </div>
+
+        <div class="price">
+            باھاسى: 150 ₺
+        </div>
+
+        <div class="book-button-area">
+
+            <a href="#" class="book-button">
+                كىتاب تەپسىلاتى
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+</div>
+
+</section>
+
+
+
+<!-- =========================
+     BACK
+========================= -->
+
+<div class="back-area">
+
+    <a href="index.html#books" class="back-button">
+        ← كىتاب تۈرلىرىگە قايتىش
+    </a>
+
+</div>
 
 
 </body>
