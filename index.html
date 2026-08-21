@@ -674,6 +674,7 @@ footer {
 
 </style>
 
+    <link rel="stylesheet" href="theme.css?v=2">
 </head>
 
 
@@ -947,58 +948,7 @@ footer {
 </footer>
 
 
-<script>
-
-/* =========================
-   كۈندۈز / كېچە ھالىتى
-========================= */
-
-const themeButton = document.getElementById("themeButton");
-
-const savedTheme = localStorage.getItem("theme");
-
-
-/* ساقلانغان ھالەتنى ئەسلىگە كەلتۈرۈش */
-
-if (savedTheme === "dark") {
-
-    document.body.classList.add("dark-mode");
-
-    themeButton.textContent = "☀️";
-
-}
-
-
-/* كۇنۇپكىنى باسقاندا */
-
-themeButton.addEventListener("click", function () {
-
-    document.body.classList.toggle("dark-mode");
-
-
-    const isDark =
-        document.body.classList.contains("dark-mode");
-
-
-    if (isDark) {
-
-        themeButton.textContent = "☀️";
-
-        localStorage.setItem("theme", "dark");
-
-    } else {
-
-        themeButton.textContent = "🌙";
-
-        localStorage.setItem("theme", "light");
-
-    }
-
-});
-
-</script>
-
-
+    <script src="theme.js?v=2"></script>
 </body>
 
 </html>

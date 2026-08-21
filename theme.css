@@ -1,250 +1,204 @@
-/* =========================================
-   قۇتادغۇبىلىك كىتابخانىسى
-   كۈندۈز / كېچە ئورتاق رەڭ سىستېمىسى
-========================================= */
+/* =========================================================
+   ئۇيغۇرچە فونت — بارلىق بەت ۋە تېلېفونلار
+========================================================= */
+@font-face {
+    font-family: "UKIJ CJK";
+    src: url("./UKIJCJK.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+html,
+body,
+body * {
+    font-family: "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif !important;
+}
+
+input,
+button,
+textarea,
+select {
+    font-family: "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif !important;
+}
+
+/* =========================================================
+   قۇتادغۇبىلىك كىتابخانىسى — ئورتاق كۈندۈز / كېچە لايىھىسى
+   بۇ ھۆججەتنى ھەممە HTML بەت بىرلىكتە ئىشلىتىدۇ.
+========================================================= */
 
 :root {
     --site-bg: #f6f0e5;
     --site-bg-soft: #fbf8f2;
-
+    --site-card: #fffdf9;
     --site-text: #44352d;
     --site-text-soft: #806f62;
-
-    --site-card: #fffdf9;
-
     --site-brown-dark: #4b3327;
     --site-brown: #70503d;
-    --site-gold: #e2c98d;
-
     --site-border: #e8dccb;
-
+    --site-gold: #e2c98d;
     --site-footer: #39261d;
+    --site-shadow: rgba(75, 51, 39, 0.08);
 }
-
-
-/* =========================================
-   KECHILIK HALITI
-========================================= */
 
 body.dark-mode {
-
     --site-bg: #211b18;
     --site-bg-soft: #29221e;
-
+    --site-card: #302824;
     --site-text: #f1e7da;
     --site-text-soft: #bcae9f;
-
-    --site-card: #302824;
-
     --site-brown-dark: #171311;
     --site-brown: #8d6b52;
-    --site-gold: #e2c98d;
-
     --site-border: #4a3b33;
-
+    --site-gold: #e2c98d;
     --site-footer: #100e0d;
+    --site-shadow: rgba(0, 0, 0, 0.28);
 }
 
-
-/* =========================================
-   ئاساسىي بەت رەڭلىرى
-========================================= */
-
-body {
-
+html, body {
     background-color: var(--site-bg) !important;
     color: var(--site-text) !important;
-
-    transition:
-        background-color 0.3s ease,
-        color 0.3s ease;
 }
 
-
-/* =========================================
-   ئورتاق ئاق رەڭلىك كارتىلار
-========================================= */
-
-.card,
-.book-card {
-
-    background-color: var(--site-card) !important;
-
-    border-color: var(--site-border) !important;
-
-    color: var(--site-text) !important;
+body {
+    transition: background-color .3s ease, color .3s ease;
 }
 
-
-/* =========================================
-   ئاساسىي بەتنىڭ بۆلەكلىرى
-========================================= */
-
+/* Main backgrounds */
 .hero,
 .section,
 .books-section,
-.contact {
-
+.contact,
+.info-section {
     background-color: var(--site-bg) !important;
-
     color: var(--site-text) !important;
 }
 
+/* Header / top areas */
+header,
+.navbar,
+.site-header {
+    background-color: var(--site-brown-dark) !important;
+    color: #fff !important;
+}
 
-/* =========================================
-   كىتاب بۆلۈمىنىڭ تېكىستلىرى
-========================================= */
-
+/* Typography */
 .hero h1,
-.page-header h1,
-.section h2,
+.hero h2,
 .section-title,
-.book-card h3,
-.book-title {
-
+.page-header h1,
+.page-header h2,
+.books-section h2,
+.book-title,
+.book-card h3 {
     color: var(--site-text) !important;
 }
-
 
 .hero p,
 .page-header p,
-.book-card p,
 .book-author,
-.contact p {
-
+.book-price,
+.book-info p,
+.books-section p {
     color: var(--site-text-soft) !important;
 }
 
-
-/* =========================================
-   Header / Navigation
-========================================= */
-
-header,
-nav {
-
-    background-color: var(--site-brown-dark) !important;
+/* Cards */
+.card,
+.book-card {
+    background-color: var(--site-card) !important;
+    color: var(--site-text) !important;
+    border-color: var(--site-border) !important;
+    box-shadow: 0 5px 20px var(--site-shadow) !important;
 }
 
+/* Images / cover areas */
+.book-image,
+.book-cover {
+    background-color: var(--site-bg-soft) !important;
+    border-color: var(--site-border) !important;
+}
 
-/* =========================================
-   Button
-========================================= */
-
+/* Buttons */
 .button,
 .book-button,
 .back-button,
 .detail-button {
-
     background-color: var(--site-brown) !important;
-
-    color: #ffffff !important;
+    color: #fff !important;
 }
-
 
 .button:hover,
 .book-button:hover,
 .back-button:hover,
 .detail-button:hover {
-
     background-color: var(--site-brown-dark) !important;
 }
 
-
-/* =========================================
-   About / Info
-========================================= */
-
-.about,
-.info-section {
-
+/* About / information */
+.about {
     background-color: var(--site-brown-dark) !important;
-
-    color: #ffffff !important;
+    color: #fff !important;
 }
 
+.about h2,
+.about p {
+    color: #fff !important;
+}
 
-/* =========================================
-   Footer
-========================================= */
-
+/* Footer */
 footer {
-
     background-color: var(--site-footer) !important;
-
     color: #d8c8b8 !important;
 }
 
+/* Theme button */
+.theme-toggle,
+.theme-button {
+    position: fixed !important;
+    top: 18px !important;
+    left: 18px !important;
+    z-index: 99999 !important;
 
-/* =========================================
-   كۈندۈز / كېچە كۇنۇپكىسى
-========================================= */
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
 
-.theme-toggle {
+    padding: 0 !important;
+    margin: 0 !important;
 
-    width: 40px;
-    height: 40px;
+    border: 1px solid rgba(255,255,255,.25) !important;
+    border-radius: 50% !important;
 
-    border: 1px solid rgba(255,255,255,0.25);
+    background: var(--site-brown-dark) !important;
+    color: #fff !important;
 
-    border-radius: 50%;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 
-    background: rgba(255,255,255,0.10);
+    cursor: pointer !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
 
-    color: #ffffff;
-
-    cursor: pointer;
-
-    display: inline-flex;
-
-    align-items: center;
-    justify-content: center;
-
-    font-size: 19px;
-
-    transition: 0.2s ease;
-
-    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(0,0,0,.15) !important;
+    transition: transform .2s ease, background-color .3s ease !important;
 }
 
-
-.theme-toggle:hover {
-
-    background: rgba(255,255,255,0.20);
-
-    transform: scale(1.05);
+.theme-toggle:hover,
+.theme-button:hover {
+    transform: scale(1.06) !important;
 }
 
-
-/* =========================================
-   رەسىم ئارقا كۆرۈنۈشى
-========================================= */
-
-.book-image {
-
-    background-color: var(--site-bg-soft) !important;
-}
-
-
-/* =========================================
-   ئۆزگىرىش ئۈنۈمى
-========================================= */
-
-header,
-nav,
-body,
-.hero,
-.section,
-.books-section,
-.contact,
-.card,
-.book-card,
-.about,
-.info-section,
-footer {
-
-    transition:
-        background-color 0.3s ease,
-        color 0.3s ease,
-        border-color 0.3s ease;
+/* Mobile */
+@media (max-width: 600px) {
+    .theme-toggle,
+    .theme-button {
+        top: 12px !important;
+        left: 12px !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        font-size: 18px !important;
+    }
 }
