@@ -1,0 +1,250 @@
+/* =========================================
+   قۇتادغۇبىلىك كىتابخانىسى
+   كۈندۈز / كېچە ئورتاق رەڭ سىستېمىسى
+========================================= */
+
+:root {
+    --site-bg: #f6f0e5;
+    --site-bg-soft: #fbf8f2;
+
+    --site-text: #44352d;
+    --site-text-soft: #806f62;
+
+    --site-card: #fffdf9;
+
+    --site-brown-dark: #4b3327;
+    --site-brown: #70503d;
+    --site-gold: #e2c98d;
+
+    --site-border: #e8dccb;
+
+    --site-footer: #39261d;
+}
+
+
+/* =========================================
+   KECHILIK HALITI
+========================================= */
+
+body.dark-mode {
+
+    --site-bg: #211b18;
+    --site-bg-soft: #29221e;
+
+    --site-text: #f1e7da;
+    --site-text-soft: #bcae9f;
+
+    --site-card: #302824;
+
+    --site-brown-dark: #171311;
+    --site-brown: #8d6b52;
+    --site-gold: #e2c98d;
+
+    --site-border: #4a3b33;
+
+    --site-footer: #100e0d;
+}
+
+
+/* =========================================
+   ئاساسىي بەت رەڭلىرى
+========================================= */
+
+body {
+
+    background-color: var(--site-bg) !important;
+    color: var(--site-text) !important;
+
+    transition:
+        background-color 0.3s ease,
+        color 0.3s ease;
+}
+
+
+/* =========================================
+   ئورتاق ئاق رەڭلىك كارتىلار
+========================================= */
+
+.card,
+.book-card {
+
+    background-color: var(--site-card) !important;
+
+    border-color: var(--site-border) !important;
+
+    color: var(--site-text) !important;
+}
+
+
+/* =========================================
+   ئاساسىي بەتنىڭ بۆلەكلىرى
+========================================= */
+
+.hero,
+.section,
+.books-section,
+.contact {
+
+    background-color: var(--site-bg) !important;
+
+    color: var(--site-text) !important;
+}
+
+
+/* =========================================
+   كىتاب بۆلۈمىنىڭ تېكىستلىرى
+========================================= */
+
+.hero h1,
+.page-header h1,
+.section h2,
+.section-title,
+.book-card h3,
+.book-title {
+
+    color: var(--site-text) !important;
+}
+
+
+.hero p,
+.page-header p,
+.book-card p,
+.book-author,
+.contact p {
+
+    color: var(--site-text-soft) !important;
+}
+
+
+/* =========================================
+   Header / Navigation
+========================================= */
+
+header,
+nav {
+
+    background-color: var(--site-brown-dark) !important;
+}
+
+
+/* =========================================
+   Button
+========================================= */
+
+.button,
+.book-button,
+.back-button,
+.detail-button {
+
+    background-color: var(--site-brown) !important;
+
+    color: #ffffff !important;
+}
+
+
+.button:hover,
+.book-button:hover,
+.back-button:hover,
+.detail-button:hover {
+
+    background-color: var(--site-brown-dark) !important;
+}
+
+
+/* =========================================
+   About / Info
+========================================= */
+
+.about,
+.info-section {
+
+    background-color: var(--site-brown-dark) !important;
+
+    color: #ffffff !important;
+}
+
+
+/* =========================================
+   Footer
+========================================= */
+
+footer {
+
+    background-color: var(--site-footer) !important;
+
+    color: #d8c8b8 !important;
+}
+
+
+/* =========================================
+   كۈندۈز / كېچە كۇنۇپكىسى
+========================================= */
+
+.theme-toggle {
+
+    width: 40px;
+    height: 40px;
+
+    border: 1px solid rgba(255,255,255,0.25);
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,0.10);
+
+    color: #ffffff;
+
+    cursor: pointer;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    font-size: 19px;
+
+    transition: 0.2s ease;
+
+    flex-shrink: 0;
+}
+
+
+.theme-toggle:hover {
+
+    background: rgba(255,255,255,0.20);
+
+    transform: scale(1.05);
+}
+
+
+/* =========================================
+   رەسىم ئارقا كۆرۈنۈشى
+========================================= */
+
+.book-image {
+
+    background-color: var(--site-bg-soft) !important;
+}
+
+
+/* =========================================
+   ئۆزگىرىش ئۈنۈمى
+========================================= */
+
+header,
+nav,
+body,
+.hero,
+.section,
+.books-section,
+.contact,
+.card,
+.book-card,
+.about,
+.info-section,
+footer {
+
+    transition:
+        background-color 0.3s ease,
+        color 0.3s ease,
+        border-color 0.3s ease;
+}
