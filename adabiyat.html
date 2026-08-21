@@ -23,6 +23,25 @@
         }
 
 
+        /* =========================
+           COLORS
+        ========================= */
+
+        :root {
+            --cream: #f6f0e5;
+            --cream-light: #fbf8f2;
+            --brown-dark: #4b3327;
+            --brown: #70503d;
+            --brown-light: #a98262;
+            --gold: #b99555;
+            --gold-light: #e2c98d;
+            --text: #44352d;
+            --text-light: #806f62;
+            --white-warm: #fffdf9;
+            --border: #e8dccb;
+        }
+
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -32,8 +51,11 @@
 
         body {
             font-family: "UKIJ CJK", sans-serif;
-            background: #f7f5f0;
-            color: #222;
+
+            background: var(--cream);
+
+            color: var(--text);
+
             line-height: 1.8;
         }
 
@@ -44,7 +66,9 @@
 
         nav {
             height: 64px;
-            background: #111;
+
+            background: var(--brown-dark);
+
             color: white;
 
             display: flex;
@@ -52,34 +76,44 @@
             justify-content: space-between;
 
             padding: 0 7%;
+
+            box-shadow: 0 3px 15px rgba(75, 51, 39, 0.15);
         }
 
 
         .logo {
-            color: white;
+            color: #fffaf2;
+
             text-decoration: none;
+
             font-size: 20px;
+
             font-weight: bold;
         }
 
 
         .nav-links {
             display: flex;
+
             gap: 28px;
+
             align-items: center;
         }
 
 
         .nav-links a {
-            color: white;
+            color: #fffaf2;
+
             text-decoration: none;
+
             font-size: 15px;
+
             transition: 0.2s;
         }
 
 
         .nav-links a:hover {
-            color: #ccc;
+            color: var(--gold-light);
         }
 
 
@@ -89,19 +123,25 @@
 
         .hero {
             text-align: center;
+
             padding: 75px 20px 45px;
         }
 
 
         .hero h1 {
             font-size: 42px;
+
             margin-bottom: 12px;
+
             font-weight: 700;
+
+            color: var(--brown-dark);
         }
 
 
         .hero p {
-            color: #777;
+            color: var(--text-light);
+
             font-size: 16px;
         }
 
@@ -112,6 +152,7 @@
 
         .back-area {
             text-align: center;
+
             margin-bottom: 45px;
         }
 
@@ -119,7 +160,8 @@
         .back-button {
             display: inline-block;
 
-            background: #111;
+            background: var(--brown-dark);
+
             color: white;
 
             text-decoration: none;
@@ -131,11 +173,14 @@
             font-size: 15px;
 
             transition: 0.25s;
+
+            box-shadow: 0 3px 10px rgba(75, 51, 39, 0.12);
         }
 
 
         .back-button:hover {
-            background: #333;
+            background: var(--brown);
+
             transform: translateY(-2px);
         }
 
@@ -146,6 +191,7 @@
 
         .books-section {
             width: 90%;
+
             max-width: 1200px;
 
             margin: 0 auto;
@@ -160,6 +206,8 @@
             font-size: 30px;
 
             margin-bottom: 40px;
+
+            color: var(--brown-dark);
         }
 
 
@@ -181,7 +229,9 @@
         ========================= */
 
         .book-card {
-            background: white;
+            background: var(--white-warm);
+
+            border: 1px solid var(--border);
 
             border-radius: 14px;
 
@@ -189,15 +239,18 @@
 
             text-align: center;
 
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 5px 20px rgba(75, 51, 39, 0.06);
 
             transition: 0.25s;
 
             min-height: 250px;
 
             display: flex;
+
             flex-direction: column;
+
             align-items: center;
+
             justify-content: center;
         }
 
@@ -205,7 +258,9 @@
         .book-card:hover {
             transform: translateY(-5px);
 
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+            box-shadow: 0 10px 28px rgba(75, 51, 39, 0.12);
+
+            border-color: var(--gold-light);
         }
 
 
@@ -220,11 +275,13 @@
             font-size: 21px;
 
             margin-bottom: 10px;
+
+            color: var(--brown-dark);
         }
 
 
         .book-card p {
-            color: #777;
+            color: var(--text-light);
 
             font-size: 14px;
 
@@ -245,7 +302,7 @@
 
             border-radius: 6px;
 
-            background: #111;
+            background: var(--brown);
 
             color: white;
 
@@ -254,11 +311,13 @@
             font-size: 14px;
 
             transition: 0.2s;
+
+            box-shadow: 0 2px 7px rgba(75, 51, 39, 0.10);
         }
 
 
         .book-button:hover {
-            background: #333;
+            background: var(--brown-dark);
         }
 
 
@@ -267,7 +326,7 @@
         ========================= */
 
         .info-section {
-            background: #111;
+            background: var(--brown-dark);
 
             color: white;
 
@@ -281,11 +340,13 @@
             font-size: 25px;
 
             margin-bottom: 15px;
+
+            color: #fffaf2;
         }
 
 
         .info-section p {
-            color: #ddd;
+            color: #eadfd2;
 
             max-width: 750px;
 
@@ -300,9 +361,9 @@
         ========================= */
 
         footer {
-            background: #000;
+            background: #39261d;
 
-            color: #aaa;
+            color: #d8c8b8;
 
             text-align: center;
 
@@ -334,6 +395,7 @@
 
             nav {
                 padding: 0 20px;
+
                 height: auto;
 
                 min-height: 64px;
@@ -345,6 +407,7 @@
                 gap: 10px;
 
                 padding-top: 12px;
+
                 padding-bottom: 12px;
             }
 
