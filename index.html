@@ -1061,12 +1061,42 @@ footer {
 ========================= */
 
 const kitabSearchData = [
-    { title: "رومان", category: "ئەدەبىيات", url: "romanlar.html" },
-    { title: "تارىخىي رومان", category: "ئەدەبىيات", url: "tarihiromanlar.html" },
-    { title: "شېئىرلار", category: "ئەدەبىيات", url: "siirler.html" },
-    { title: "ھېكايىلەر", category: "ئەدەبىيات", url: "hikayeler.html" },
-    { title: "داستانلار", category: "ئەدەبىيات", url: "destanlar.html" },
-    { title: "دۇنيا ئەدەبىياتى", category: "ئەدەبىيات", url: "dunyaedebiyati.html" }
+    {
+        title: "ئۆزىمىزنى ئېتىراپ قىلايلى",
+        author: "ئەختەم ئۆمەر",
+        category: "رومان",
+        url: "ozumuzni-etirap-qilayli.html"
+    },
+    {
+        title: "رومان كىتابى 2",
+        author: "ئاپتور ئىسمى",
+        category: "رومان",
+        url: "book-2.html"
+    },
+    {
+        title: "رومان كىتابى 3",
+        author: "ئاپتور ئىسمى",
+        category: "رومان",
+        url: "book-3.html"
+    },
+    {
+        title: "رومان كىتابى 4",
+        author: "ئاپتور ئىسمى",
+        category: "رومان",
+        url: "book-4.html"
+    },
+    {
+        title: "رومان كىتابى 5",
+        author: "ئاپتور ئىسمى",
+        category: "رومان",
+        url: "book-5.html"
+    },
+    {
+        title: "رومان كىتابى 6",
+        author: "ئاپتور ئىسمى",
+        category: "رومان",
+        url: "book-6.html"
+    }
 ];
 
 function normalizeSearchText(text) {
@@ -1103,7 +1133,7 @@ function searchKitaplar() {
     results.innerHTML = matches.map(item => `
         <a class="search-result" href="${item.url}">
             <div class="search-result-title">${item.title}</div>
-            <div class="search-result-author">${item.author ? "ئاپتورى: " + item.author : ""}</div>
+            <div class="search-result-author">ئاپتورى: ${item.author}</div>
             <div class="search-result-category">${item.category}</div>
         </a>
     `).join("");
