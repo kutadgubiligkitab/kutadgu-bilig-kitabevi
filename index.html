@@ -723,14 +723,32 @@ footer {
 }
 
 .search-result {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 14px;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 14px 18px;
+    padding: 10px 14px;
     margin-bottom: 10px;
     color: var(--text);
     transition: 0.2s ease;
+}
+
+.search-result-image {
+    width: 58px;
+    height: 78px;
+    flex: 0 0 58px;
+    object-fit: contain;
+    object-position: center;
+    background: #eee9e1;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+}
+
+.search-result-content {
+    min-width: 0;
+    flex: 1;
 }
 
 .search-result:hover {
@@ -1065,37 +1083,43 @@ const kitabSearchData = [
         title: "ئۆزىمىزنى ئېتىراپ قىلايلى",
         author: "ئەختەم ئۆمەر",
         category: "رومان",
-        url: "ozumuzni-etirap-qilayli.html"
+        url: "ozumuzni-etirap-qilayli.html",
+        image: "ozumuzni-etirap-qilayli.jpeg"
     },
     {
         title: "رومان كىتابى 2",
         author: "ئاپتور ئىسمى",
         category: "رومان",
-        url: "book-2.html"
+        url: "book-2.html",
+        image: "images/roman-2.jpg"
     },
     {
         title: "رومان كىتابى 3",
         author: "ئاپتور ئىسمى",
         category: "رومان",
-        url: "book-3.html"
+        url: "book-3.html",
+        image: "images/roman-3.jpg"
     },
     {
         title: "رومان كىتابى 4",
         author: "ئاپتور ئىسمى",
         category: "رومان",
-        url: "book-4.html"
+        url: "book-4.html",
+        image: "images/roman-4.jpg"
     },
     {
         title: "رومان كىتابى 5",
         author: "ئاپتور ئىسمى",
         category: "رومان",
-        url: "book-5.html"
+        url: "book-5.html",
+        image: "images/roman-5.jpg"
     },
     {
         title: "رومان كىتابى 6",
         author: "ئاپتور ئىسمى",
         category: "رومان",
-        url: "book-6.html"
+        url: "book-6.html",
+        image: "images/roman-6.jpg"
     }
 ];
 
@@ -1132,9 +1156,12 @@ function searchKitaplar() {
 
     results.innerHTML = matches.map(item => `
         <a class="search-result" href="${item.url}">
-            <div class="search-result-title">${item.title}</div>
-            <div class="search-result-author">ئاپتورى: ${item.author}</div>
-            <div class="search-result-category">${item.category}</div>
+            <img class="search-result-image" src="${item.image}" alt="${item.title}">
+            <div class="search-result-content">
+                <div class="search-result-title">${item.title}</div>
+                <div class="search-result-author">ئاپتورى: ${item.author}</div>
+                <div class="search-result-category">${item.category}</div>
+            </div>
         </a>
     `).join("");
 }
