@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>دىننىي كىتابلار - قۇتادغۇبىلىك كىتابخانىسى</title>
+
+<style>
+
+@font-face {
+    font-family: "UKIJ CJK";
+    src: url("UKIJCJK.ttf") format("truetype");
+    font-display: swap;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "UKIJ CJK", Arial, sans-serif;
+    background: #f7f5f0;
+    color: #222;
+    line-height: 1.8;
+    direction: rtl;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+header {
+    width: 100%;
+    min-height: 70px;
+
+    background: #111;
+    color: white;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 7%;
+}
+
+.logo {
+    color: white;
+    font-size: 21px;
+    font-weight: bold;
+}
+
+nav {
+    display: flex;
+    gap: 30px;
+}
+
+nav a {
+    color: white;
+    font-size: 15px;
+}
+
+
+/* =========================
+   PAGE HEADER
+========================= */
+
+.page-header {
+    text-align: center;
+
+    padding: 70px 20px 45px;
+}
+
+.page-header .icon {
+    font-size: 55px;
+    margin-bottom: 15px;
+}
+
+.page-header h1 {
+    font-size: 38px;
+    margin-bottom: 12px;
+}
+
+.page-header p {
+    color: #777;
+    font-size: 16px;
+}
+
+
+/* =========================
+   BOOK AREA
+========================= */
+
+.books-section {
+    max-width: 1150px;
+
+    margin: 0 auto;
+
+    padding: 20px 25px 100px;
+}
+
+.books {
+    display: grid;
+
+    grid-template-columns: repeat(4, 1fr);
+
+    gap: 25px;
+}
+
+
+/* =========================
+   BOOK CARD
+========================= */
+
+.book {
+    background: white;
+
+    border-radius: 14px;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 5px 20px rgba(0,0,0,0.06);
+
+    transition: 0.2s;
+
+    text-align: center;
+}
+
+.book:hover {
+    transform: translateY(-6px);
+
+    box-shadow:
+        0 12px 28px rgba(0,0,0,0.12);
+}
+
+
+/* =========================
+   BOOK COVER
+========================= */
+
+.book-cover {
+    width: 100%;
+    height: 300px;
+
+    background: #eee;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.book-cover img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    display: block;
+}
+
+
+/* =========================
+   BOOK INFO
+========================= */
+
+.book-info {
+    padding: 20px 15px 23px;
+}
+
+.book-info h3 {
+    font-size: 19px;
+
+    margin-bottom: 8px;
+
+    color: #111;
+}
+
+.book-info p {
+    font-size: 13px;
+
+    color: #777;
+
+    margin-bottom: 15px;
+}
+
+
+/* =========================
+   BUTTON
+========================= */
+
+.book-button {
+    display: inline-block;
+
+    background: #111;
+
+    color: white;
+
+    padding: 8px 22px;
+
+    border-radius: 6px;
+
+    font-size: 13px;
+}
+
+
+/* =========================
+   BACK BUTTON
+========================= */
+
+.back-area {
+    text-align: center;
+
+    padding: 0 20px 70px;
+}
+
+.back-button {
+    display: inline-block;
+
+    background: #111;
+
+    color: white;
+
+    padding: 12px 30px;
+
+    border-radius: 7px;
+
+    font-size: 15px;
+}
+
+
+/* =========================
+   FOOTER
+========================= */
+
+footer {
+    background: #111;
+
+    color: #aaa;
+
+    text-align: center;
+
+    padding: 20px;
+
+    font-size: 13px;
+}
+
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
+
+    header {
+        padding: 18px 5%;
+
+        flex-direction: column;
+
+        gap: 15px;
+    }
+
+    nav {
+        gap: 20px;
+    }
+
+    .books {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+
+/* =========================
+   PHONE
+========================= */
+
+@media (max-width: 550px) {
+
+    header {
+        padding: 16px 4%;
+    }
+
+    .logo {
+        font-size: 18px;
+    }
+
+    nav {
+        gap: 13px;
+    }
+
+    nav a {
+        font-size: 13px;
+    }
+
+    .page-header {
+        padding: 50px 20px 30px;
+    }
+
+    .page-header h1 {
+        font-size: 30px;
+    }
+
+    .page-header p {
+        font-size: 14px;
+    }
+
+    .books-section {
+        padding: 15px 15px 60px;
+    }
+
+    .books {
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+
+    .book-cover {
+        height: 240px;
+    }
+
+    .book-info {
+        padding: 15px 10px 18px;
+    }
+
+    .book-info h3 {
+        font-size: 16px;
+    }
+
+    .book-info p {
+        font-size: 12px;
+    }
+
+    .book-button {
+        font-size: 12px;
+        padding: 7px 15px;
+    }
+
+}
+
+
+/* =========================
+   SMALL PHONE
+========================= */
+
+@media (max-width: 380px) {
+
+    .books {
+        grid-template-columns: 1fr;
+    }
+
+    .book-cover {
+        height: 320px;
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<header>
+
+    <a href="index.html" class="logo">
+        قۇتادغۇبىلىك كىتابخانىسى
+    </a>
+
+    <nav>
+
+        <a href="index.html">
+            باش بەت
+        </a>
+
+        <a href="index.html#books">
+            كىتاب تۈرلىرى
+        </a>
+
+    </nav>
+
+</header>
+
+
+
+<section class="page-header">
+
+    <div class="icon">
+        🕌
+    </div>
+
+    <h1>
+        دىننىي كىتابلار
+    </h1>
+
+    <p>
+        ئىسلام دىنى، قۇرئان، ھەدىس، ئەقىدە ۋە ئەخلاق ھەققىدىكى كىتابلار
+    </p>
+
+</section>
+
+
+
+<section class="books-section">
+
+    <div class="books">
+
+
+        <!-- 1 -->
+
+        <div class="book">
+
+            <div class="book-cover">
+                <span style="font-size:50px;">🕌</span>
+            </div>
+
+            <div class="book-info">
+
+                <h3>
+                    دىننىي كىتاب
+                </h3>
+
+                <p>
+                    بۇ يەرگە كىتابنىڭ قىسقىچە مەزمۇنى يېزىلىدۇ.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </div>
+
+
+        <!-- 2 -->
+
+        <div class="book">
+
+            <div class="book-cover">
+                <span style="font-size:50px;">📖</span>
+            </div>
+
+            <div class="book-info">
+
+                <h3>
+                    ئىسلام دىنى
+                </h3>
+
+                <p>
+                    بۇ يەرگە كىتابنىڭ قىسقىچە مەزمۇنى يېزىلىدۇ.
+                </p>
+
+                <a href="#" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+</section>
+
+
+
+<div class="back-area">
+
+    <a href="index.html" class="back-button">
+        ← كىتاب تۈرلىرىگە قايتىش
+    </a>
+
+</div>
+
+
+
+<footer>
+
+    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+
+</footer>
+
+
+</body>
+
+</html>
