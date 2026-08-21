@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>رومانلار - قۇتادغۇبىلىك كىتابخانىسى</title>
+
+<style>
+
+/* =========================
+   FONT
+========================= */
+
+@font-face {
+    font-family: "UKIJ CJK";
+    src: url("UKIJCJK.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+
+/* =========================
+   RESET
+========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    direction: rtl;
+}
+
+body {
+    font-family: "UKIJ CJK", Arial, sans-serif;
+    background: #f6f0e5;
+    color: #4b3327;
+    line-height: 1.8;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+header {
+    width: 100%;
+    padding: 20px 7%;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    background: transparent;
+}
+
+.logo {
+    font-size: 18px;
+    font-weight: bold;
+    color: #806553;
+}
+
+.home-link {
+    background: #5a3b2b;
+    color: white;
+
+    padding: 10px 22px;
+
+    border-radius: 8px;
+
+    font-size: 14px;
+
+    box-shadow: 0 4px 12px rgba(90,59,43,0.15);
+
+    transition: 0.2s;
+}
+
+.home-link:hover {
+    background: #704b36;
+}
+
+
+/* =========================
+   PAGE TITLE
+========================= */
+
+.page-header {
+    text-align: center;
+
+    padding: 35px 20px 45px;
+}
+
+.page-header h1 {
+    font-size: 38px;
+    color: #4b3327;
+
+    margin-bottom: 8px;
+}
+
+.page-header p {
+    color: #8b7768;
+    font-size: 15px;
+}
+
+
+/* =========================
+   BOOK AREA
+========================= */
+
+.books-container {
+    width: 90%;
+    max-width: 1200px;
+
+    margin: auto;
+
+    padding-bottom: 70px;
+}
+
+
+/* =========================
+   BOOK GRID
+========================= */
+
+.books-grid {
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+
+    gap: 25px;
+}
+
+
+/* =========================
+   BOOK CARD
+========================= */
+
+.book-card {
+    background: #fffdf9;
+
+    border: 1px solid #eadfce;
+
+    border-radius: 14px;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 5px 18px rgba(75,51,39,0.07);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.book-card:hover {
+    transform: translateY(-5px);
+
+    box-shadow:
+        0 12px 28px rgba(75,51,39,0.13);
+}
+
+
+/* =========================
+   BOOK IMAGE
+========================= */
+
+.book-image {
+    width: 100%;
+    height: 350px;
+
+    background: #eee9e1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.book-image img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    transition: transform 0.3s ease;
+}
+
+.book-card:hover .book-image img {
+    transform: scale(1.025);
+}
+
+
+/* =========================
+   BOOK INFO
+========================= */
+
+.book-info {
+    background: #fffdf9;
+
+    text-align: center;
+
+    padding: 18px 15px 20px;
+}
+
+.book-title {
+    color: #4b3327;
+
+    font-size: 20px;
+    font-weight: bold;
+
+    margin-bottom: 4px;
+}
+
+.book-author {
+    color: #8b7768;
+
+    font-size: 14px;
+
+    margin-bottom: 10px;
+}
+
+.book-price {
+    color: #4b3327;
+
+    font-size: 18px;
+    font-weight: bold;
+
+    margin-bottom: 13px;
+}
+
+
+/* =========================
+   DETAIL BUTTON
+========================= */
+
+.detail-button {
+    display: inline-block;
+
+    background: #70503d;
+
+    color: white;
+
+    padding: 8px 25px;
+
+    border-radius: 7px;
+
+    font-size: 13px;
+
+    transition: 0.2s;
+}
+
+.detail-button:hover {
+    background: #4b3327;
+}
+
+
+/* =========================
+   BACK BUTTON
+========================= */
+
+.back-area {
+    text-align: center;
+
+    padding: 5px 20px 60px;
+}
+
+.back-button {
+    display: inline-block;
+
+    background: #5a3b2b;
+
+    color: white;
+
+    padding: 11px 28px;
+
+    border-radius: 8px;
+
+    font-size: 14px;
+
+    box-shadow: 0 4px 12px rgba(90,59,43,0.15);
+
+    transition: 0.2s;
+}
+
+.back-button:hover {
+    background: #704b36;
+}
+
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
+
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 600px) {
+
+    header {
+        padding: 18px 5%;
+    }
+
+    .logo {
+        font-size: 15px;
+    }
+
+    .home-link {
+        padding: 8px 15px;
+        font-size: 12px;
+    }
+
+    .page-header {
+        padding: 25px 15px 30px;
+    }
+
+    .page-header h1 {
+        font-size: 29px;
+    }
+
+    .page-header p {
+        font-size: 13px;
+    }
+
+    .books-container {
+        width: 94%;
+    }
+
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+
+    .book-image {
+        height: 240px;
+    }
+
+    .book-info {
+        padding: 13px 8px 16px;
+    }
+
+    .book-title {
+        font-size: 16px;
+    }
+
+    .book-author {
+        font-size: 12px;
+    }
+
+    .book-price {
+        font-size: 15px;
+    }
+
+    .detail-button {
+        padding: 7px 15px;
+        font-size: 11px;
+    }
+
+}
+
+
+/* =========================
+   VERY SMALL SCREEN
+========================= */
+
+@media (max-width: 380px) {
+
+    .books-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .book-image {
+        height: 320px;
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<!-- =========================
+     HEADER
+========================= -->
+
+<header>
+
+    <div class="logo">
+        قۇتادغۇبىلىك كىتابخانىسى
+    </div>
+
+    <a href="index.html" class="home-link">
+        ← باش بەتكە قايتىش
+    </a>
+
+</header>
+
+
+<!-- =========================
+     PAGE TITLE
+========================= -->
+
+<section class="page-header">
+
+    <h1>
+        رومانلار
+    </h1>
+
+    <p>
+        رومانلار بۆلۈمىدىكى كىتابلار
+    </p>
+
+</section>
+
+
+<!-- =========================
+     BOOKS
+========================= -->
+
+<section class="books-container">
+
+    <div class="books-grid">
+
+
+        <!-- ================= BOOK 1 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-1.jpg"
+                    alt="رومان 1"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 1
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <!-- ================= BOOK 2 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-2.jpg"
+                    alt="رومان 2"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 2
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <!-- ================= BOOK 3 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-3.jpg"
+                    alt="رومان 3"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 3
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <!-- ================= BOOK 4 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-4.jpg"
+                    alt="رومان 4"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 4
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <!-- ================= BOOK 5 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-5.jpg"
+                    alt="رومان 5"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 5
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <!-- ================= BOOK 6 ================= -->
+
+        <article class="book-card">
+
+            <a href="book.html" class="book-image">
+
+                <img
+                    src="images/roman-6.jpg"
+                    alt="رومان 6"
+                >
+
+            </a>
+
+            <div class="book-info">
+
+                <h2 class="book-title">
+                    رومان 6
+                </h2>
+
+                <p class="book-author">
+                    ئاپتور ئىسمى
+                </p>
+
+                <div class="book-price">
+                    200 ₺
+                </div>
+
+                <a href="book.html" class="detail-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+        </article>
+
+
+    </div>
+
+</section>
+
+
+<!-- =========================
+     BACK
+========================= -->
+
+<div class="back-area">
+
+    <a href="adabiyat.html" class="back-button">
+        ← ئەدەبىيات بۆلىمىگە قايتىش
+    </a>
+
+</div>
+
+
+</body>
+
+</html>
