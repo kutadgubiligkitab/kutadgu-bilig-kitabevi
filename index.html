@@ -672,6 +672,99 @@ footer {
     }
 }
 
+
+/* =========================
+   KITAP SEARCH
+========================= */
+
+.search-box {
+    max-width: 720px;
+    margin: 0 auto 30px;
+    display: flex;
+    gap: 10px;
+}
+
+.search-box input {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--card);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 16px;
+    outline: none;
+}
+
+.search-box input:focus {
+    border-color: var(--button);
+}
+
+.search-box button {
+    border: 0;
+    background: var(--button);
+    color: #fff;
+    padding: 0 24px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.search-box button:hover {
+    background: var(--button-hover);
+}
+
+.search-results {
+    max-width: 720px;
+    margin: 0 auto 35px;
+}
+
+.search-result {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    color: var(--text);
+    transition: 0.2s ease;
+}
+
+.search-result:hover {
+    transform: translateY(-2px);
+    border-color: var(--button);
+}
+
+.search-result-title {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.search-result-author,
+.search-result-category {
+    color: var(--text-soft);
+    font-size: 13px;
+}
+
+.search-empty {
+    text-align: center;
+    color: var(--text-soft);
+    padding: 18px;
+}
+
+@media (max-width: 550px) {
+    .search-box {
+        flex-direction: column;
+    }
+
+    .search-box button {
+        min-height: 46px;
+    }
+}
+
 </style>
 
     <link rel="stylesheet" href="theme.css?v=2">
@@ -759,6 +852,19 @@ footer {
     <h2>
         كىتاب تۈرلىرى
     </h2>
+
+    <!-- كىتاب ئىزدەش -->
+    <div class="search-box">
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."
+            autocomplete="off"
+        >
+        <button type="button" id="searchButton">🔎 ئىزدەش</button>
+    </div>
+
+    <div id="searchResults" class="search-results"></div>
 
 
     <div class="cards">
@@ -947,6 +1053,70 @@ footer {
 
 </footer>
 
+
+
+<script>
+/* =========================
+   KITAP SEARCH DATA
+========================= */
+
+const kitabSearchData = [
+    { title: "رومان", category: "ئەدەبىيات", url: "romanlar.html" },
+    { title: "تارىخىي رومان", category: "ئەدەبىيات", url: "tarihiromanlar.html" },
+    { title: "شېئىرلار", category: "ئەدەبىيات", url: "siirler.html" },
+    { title: "ھېكايىلەر", category: "ئەدەبىيات", url: "hikayeler.html" },
+    { title: "داستانلار", category: "ئەدەبىيات", url: "destanlar.html" },
+    { title: "دۇنيا ئەدەبىياتى", category: "ئەدەبىيات", url: "dunyaedebiyati.html" }
+];
+
+function normalizeSearchText(text) {
+    return String(text || "")
+        .toLocaleLowerCase("ug")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function searchKitaplar() {
+    const input = document.getElementById("searchInput");
+    const results = document.getElementById("searchResults");
+    const query = normalizeSearchText(input.value);
+
+    if (!query) {
+        results.innerHTML = "";
+        return;
+    }
+
+    const matches = kitabSearchData.filter(item => {
+        const title = normalizeSearchText(item.title);
+        const category = normalizeSearchText(item.category);
+        const author = normalizeSearchText(item.author || "");
+        return title.includes(query) ||
+               category.includes(query) ||
+               author.includes(query);
+    });
+
+    if (!matches.length) {
+        results.innerHTML = '<div class="search-empty">بۇ ئىزدەش بويىچە كىتاب تېپىلمىدى.</div>';
+        return;
+    }
+
+    results.innerHTML = matches.map(item => `
+        <a class="search-result" href="${item.url}">
+            <div class="search-result-title">${item.title}</div>
+            <div class="search-result-author">${item.author ? "ئاپتورى: " + item.author : ""}</div>
+            <div class="search-result-category">${item.category}</div>
+        </a>
+    `).join("");
+}
+
+document.getElementById("searchButton").addEventListener("click", searchKitaplar);
+
+document.getElementById("searchInput").addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+        searchKitaplar();
+    }
+});
+</script>
 
     <script src="theme.js?v=2"></script>
 </body>
