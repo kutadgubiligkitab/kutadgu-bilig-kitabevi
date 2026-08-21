@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ئۆزىمىزنى ئېتىراپ قىلايلى</title>
+    <link rel="stylesheet" href="theme.css?v=2">
+
+    <style>
+        .book-detail-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 55px 20px 80px;
+        }
+
+        .book-detail-top {
+            display: grid;
+            grid-template-columns: minmax(280px, 390px) 1fr;
+            gap: 55px;
+            align-items: start;
+        }
+
+        .book-cover-box {
+            background: var(--site-card);
+            border: 1px solid var(--site-border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 10px 30px var(--site-shadow);
+        }
+
+        .book-cover-box img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        .book-detail-info {
+            background: var(--site-card);
+            border: 1px solid var(--site-border);
+            border-radius: 18px;
+            padding: 38px 34px;
+            box-shadow: 0 10px 30px var(--site-shadow);
+        }
+
+        .book-detail-info h1 {
+            margin: 0 0 14px;
+            color: var(--site-text);
+            font-size: clamp(28px, 4vw, 44px);
+            line-height: 1.35;
+        }
+
+        .book-author {
+            font-size: 20px;
+            margin-bottom: 30px;
+            color: var(--site-text-soft);
+        }
+
+        .book-meta {
+            display: grid;
+            gap: 0;
+            border-top: 1px solid var(--site-border);
+        }
+
+        .book-meta-row {
+            display: grid;
+            grid-template-columns: 170px 1fr;
+            gap: 20px;
+            padding: 17px 0;
+            border-bottom: 1px solid var(--site-border);
+        }
+
+        .book-meta-label {
+            font-weight: 700;
+            color: var(--site-text);
+        }
+
+        .book-meta-value {
+            color: var(--site-text-soft);
+        }
+
+        .back-link {
+            display: inline-flex;
+            margin-bottom: 28px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            background: var(--site-brown);
+            color: #fff !important;
+            text-decoration: none;
+        }
+
+        @media (max-width: 760px) {
+            .book-detail-page {
+                padding: 35px 14px 60px;
+            }
+
+            .book-detail-top {
+                grid-template-columns: 1fr;
+                gap: 25px;
+            }
+
+            .book-cover-box {
+                max-width: 430px;
+                margin: 0 auto;
+            }
+
+            .book-detail-info {
+                padding: 28px 20px;
+            }
+
+            .book-meta-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="book-detail-page">
+
+        <a class="back-link" href="adabiyat.html">← كەينىگە قايتىش</a>
+
+        <section class="book-detail-top">
+
+            <div class="book-cover-box">
+                <img src="ozumuzni-etirap-qilayli.jpeg" alt="ئۆزىمىزنى ئېتىراپ قىلايلى كىتاب مۇقاۋىسى">
+            </div>
+
+            <div class="book-detail-info">
+                <h1>ئۆزىمىزنى ئېتىراپ قىلايلى</h1>
+
+                <div class="book-author">
+                    ئاپتورى: ئەختەم ئۆمەر
+                </div>
+
+                <div class="book-meta">
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">ئاپتورى</div>
+                        <div class="book-meta-value">ئەختەم ئۆمەر</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشر قىلىنغان يىلى</div>
+                        <div class="book-meta-value">2001-يىل</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشر ۋاقتى</div>
+                        <div class="book-meta-value">2001-يىل 3-ئاي</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشرى</div>
+                        <div class="book-meta-value">1-نەشرى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">بېسىلىشى</div>
+                        <div class="book-meta-value">1-بېسىلىشى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشرىيات</div>
+                        <div class="book-meta-value">شىنجاڭ خەلق نەشرىياتى</div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script src="theme.js?v=2"></script>
+</body>
+</html>
