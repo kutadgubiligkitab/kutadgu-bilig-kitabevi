@@ -141,21 +141,20 @@
     width: 100%;
     height: 350px;
     background: #eee9e1;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     overflow: hidden;
     padding: 12px;
 }
 
 .book-image img {
-  width: auto;
-height: 100%;
+    width: auto;
+    height: 100%;
+    max-width: 100%;
     object-fit: contain;
+    object-position: center;
     display: block;
-
     transition: transform 0.3s ease;
 }
         /* =========================
@@ -260,6 +259,11 @@ height: 100%;
             .books-grid {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 15px;
+            }
+
+            .book-image {
+                height: 300px;
+                padding: 10px;
             }
 
             .book-info {
@@ -555,7 +559,7 @@ height: 100%;
                     </p>
 
                     <div class="book-price">
-                        200 ₺
+                        265 ₺
                     </div>
 
                     <a href="book-6.html" class="detail-button">
@@ -587,23 +591,3 @@ height: 100%;
 </body>
 
 </html>
-/* BOOK COVER FIX */
-.book-image {
-    height: 350px !important;
-    padding: 10px !important;
-    overflow: hidden !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-sizing: border-box !important;
-}
-
-.book-image img {
-    width: auto !important;
-    height: 100% !important;
-    max-width: 100% !important;
-    max-height: 100% !important;
-    object-fit: contain !important;
-    object-position: center center !important;
-    display: block !important;
-}
