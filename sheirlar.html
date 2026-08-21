@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>شېئىرلار - قۇتادغۇبىلىك كىتابخانىسى</title>
+
+    <style>
+
+        @font-face {
+            font-family: "UKIJ CJK";
+            src: url("UKIJCJK.ttf") format("truetype");
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        :root {
+            --cream: #f6f0e5;
+            --brown-dark: #4b3327;
+            --brown: #70503d;
+            --text: #44352d;
+            --text-light: #806f62;
+            --white-warm: #fffdf9;
+            --border: #e8dccb;
+            --gold-light: #e2c98d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "UKIJ CJK", sans-serif;
+            background: var(--cream);
+            color: var(--text);
+            line-height: 1.8;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* =========================
+           TITLE
+        ========================= */
+
+        .hero {
+            text-align: center;
+            padding: 50px 20px 30px;
+        }
+
+        .hero h1 {
+            font-size: 40px;
+            color: var(--brown-dark);
+            margin-bottom: 8px;
+        }
+
+        .hero p {
+            color: var(--text-light);
+            font-size: 15px;
+        }
+
+        /* =========================
+           BACK BUTTON
+        ========================= */
+
+        .back-area {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: var(--brown-dark);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 7px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .back-button:hover {
+            background: var(--brown);
+        }
+
+        /* =========================
+           BOOK AREA
+        ========================= */
+
+        .books-section {
+            width: 90%;
+            max-width: 1200px;
+            margin: auto;
+            padding-bottom: 80px;
+        }
+
+        .books-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+
+        /* =========================
+           BOOK CARD
+        ========================= */
+
+        .book-card {
+            background: var(--white-warm);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+
+            box-shadow:
+                0 5px 18px rgba(75, 51, 39, 0.07);
+
+            transition:
+                transform 0.25s ease,
+                box-shadow 0.25s ease;
+        }
+
+        .book-card:hover {
+            transform: translateY(-5px);
+
+            box-shadow:
+                0 12px 28px rgba(75, 51, 39, 0.13);
+
+            border-color: var(--gold-light);
+        }
+
+        /* =========================
+           BOOK IMAGE
+        ========================= */
+
+        .book-image {
+            width: 100%;
+            height: 350px;
+
+            background: #eee9e1;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+        }
+
+        .book-image img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: contain;
+
+            display: block;
+
+            transition: transform 0.3s ease;
+        }
+
+        .book-card:hover .book-image img {
+            transform: scale(1.025);
+        }
+
+        /* =========================
+           BOOK INFO
+        ========================= */
+
+        .book-info {
+            text-align: center;
+            padding: 17px 15px 20px;
+        }
+
+        .book-title {
+            color: var(--brown-dark);
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .book-author {
+            color: var(--text-light);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .book-price {
+            color: var(--brown-dark);
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        /* =========================
+           DETAIL BUTTON
+        ========================= */
+
+        .detail-button {
+            display: inline-block;
+
+            background: var(--brown);
+
+            color: white;
+
+            padding: 8px 24px;
+
+            border-radius: 7px;
+
+            font-size: 13px;
+
+            transition: 0.2s;
+        }
+
+        .detail-button:hover {
+            background: var(--brown-dark);
+        }
+
+        /* =========================
+           FOOTER
+        ========================= */
+
+        footer {
+            background: #39261d;
+            color: #d8c8b8;
+            text-align: center;
+            padding: 20px;
+            font-size: 13px;
+        }
+
+        /* =========================
+           TABLET
+        ========================= */
+
+        @media (max-width: 900px) {
+
+            .books-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .hero h1 {
+                font-size: 34px;
+            }
+
+        }
+
+        /* =========================
+           MOBILE
+        ========================= */
+
+        @media (max-width: 600px) {
+
+            .hero {
+                padding-top: 40px;
+            }
+
+            .hero h1 {
+                font-size: 30px;
+            }
+
+            .books-section {
+                width: 94%;
+            }
+
+            .books-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+
+            .book-image {
+                height: 240px;
+            }
+
+            .book-info {
+                padding: 13px 8px 16px;
+            }
+
+            .book-title {
+                font-size: 16px;
+            }
+
+            .book-author {
+                font-size: 12px;
+            }
+
+            .book-price {
+                font-size: 15px;
+            }
+
+            .detail-button {
+                padding: 7px 15px;
+                font-size: 11px;
+            }
+
+        }
+
+        /* =========================
+           VERY SMALL SCREEN
+        ========================= */
+
+        @media (max-width: 380px) {
+
+            .books-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .book-image {
+                height: 320px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================
+         TITLE
+    ========================= -->
+
+    <section class="hero">
+
+        <h1>
+            شېئىرلار
+        </h1>
+
+        <p>
+            قۇتادغۇبىلىك كىتابخانىسىدىكى شېئىرلار
+        </p>
+
+    </section>
+
+
+    <!-- =========================
+         BACK
+    ========================= -->
+
+    <div class="back-area">
+
+        <a href="adabiyat.html" class="back-button">
+            ← ئەدەبىيات بۆلىمىگە قايتىش
+        </a>
+
+    </div>
+
+
+    <!-- =========================
+         BOOKS
+    ========================= -->
+
+    <section class="books-section">
+
+        <div class="books-grid">
+
+
+            <!-- =========================
+                 BOOK 1
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-1.html" class="book-image">
+
+                    <img
+                        src="images/sheir-1.jpg"
+                        alt="شېئىر كىتابى 1"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 1
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-1.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+            <!-- =========================
+                 BOOK 2
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-2.html" class="book-image">
+
+                    <img
+                        src="images/sheir-2.jpg"
+                        alt="شېئىر كىتابى 2"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 2
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-2.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+            <!-- =========================
+                 BOOK 3
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-3.html" class="book-image">
+
+                    <img
+                        src="images/sheir-3.jpg"
+                        alt="شېئىر كىتابى 3"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 3
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-3.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+            <!-- =========================
+                 BOOK 4
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-4.html" class="book-image">
+
+                    <img
+                        src="images/sheir-4.jpg"
+                        alt="شېئىر كىتابى 4"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 4
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-4.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+            <!-- =========================
+                 BOOK 5
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-5.html" class="book-image">
+
+                    <img
+                        src="images/sheir-5.jpg"
+                        alt="شېئىر كىتابى 5"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 5
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-5.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+            <!-- =========================
+                 BOOK 6
+            ========================= -->
+
+            <article class="book-card">
+
+                <a href="sheir-book-6.html" class="book-image">
+
+                    <img
+                        src="images/sheir-6.jpg"
+                        alt="شېئىر كىتابى 6"
+                    >
+
+                </a>
+
+                <div class="book-info">
+
+                    <h2 class="book-title">
+                        شېئىر كىتابى 6
+                    </h2>
+
+                    <p class="book-author">
+                        ئاپتور ئىسمى
+                    </p>
+
+                    <div class="book-price">
+                        200 ₺
+                    </div>
+
+                    <a href="sheir-book-6.html" class="detail-button">
+                        تەپسىلات
+                    </a>
+
+                </div>
+
+            </article>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         FOOTER
+    ========================= -->
+
+    <footer>
+
+        © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+
+    </footer>
+
+
+</body>
+
+</html>
