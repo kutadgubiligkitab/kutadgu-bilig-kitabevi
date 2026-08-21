@@ -18,12 +18,8 @@
 
         :root {
             --cream: #f6f0e5;
-            --cream-light: #fbf8f2;
             --brown-dark: #4b3327;
             --brown: #70503d;
-            --brown-light: #a98262;
-            --gold: #b99555;
-            --gold-light: #e2c98d;
             --text: #44352d;
             --text-light: #806f62;
             --white-warm: #fffdf9;
@@ -43,8 +39,6 @@
             line-height: 1.8;
         }
 
-        /* HERO */
-
         .hero {
             text-align: center;
             padding: 55px 20px 35px;
@@ -61,8 +55,6 @@
             color: var(--text-light);
             font-size: 16px;
         }
-
-        /* BACK BUTTON */
 
         .back-area {
             text-align: center;
@@ -86,8 +78,6 @@
             transform: translateY(-2px);
         }
 
-        /* BOOK SECTION */
-
         .books-section {
             width: 90%;
             max-width: 1200px;
@@ -102,15 +92,11 @@
             color: var(--brown-dark);
         }
 
-        /* GRID */
-
         .books-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 24px;
         }
-
-        /* CARD */
 
         .book-card {
             background: var(--white-warm);
@@ -131,7 +117,7 @@
         .book-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 28px rgba(75, 51, 39, 0.12);
-            border-color: var(--gold-light);
+            border-color: #e2c98d;
         }
 
         .book-icon {
@@ -151,8 +137,6 @@
             max-width: 300px;
         }
 
-        /* BUTTON */
-
         .book-button {
             display: inline-block;
             margin-top: 18px;
@@ -169,8 +153,6 @@
         .book-button:hover {
             background: var(--brown-dark);
         }
-
-        /* INFO */
 
         .info-section {
             background: var(--brown-dark);
@@ -192,8 +174,6 @@
             font-size: 15px;
         }
 
-        /* FOOTER */
-
         footer {
             background: #39261d;
             color: #d8c8b8;
@@ -201,8 +181,6 @@
             padding: 20px;
             font-size: 13px;
         }
-
-        /* MOBILE */
 
         @media (max-width: 900px) {
             .books-grid {
@@ -236,13 +214,9 @@
 
 <body>
 
-    <!-- باش بەت -->
-
     <section class="hero">
 
-        <h1>
-            ئەدەبىيات
-        </h1>
+        <h1>ئەدەبىيات</h1>
 
         <p>
             قۇتادغۇبىلىك كىتابخانىسىدىكى ئەدەبىيات كىتابلىرى
@@ -250,8 +224,6 @@
 
     </section>
 
-
-    <!-- قايتىش -->
 
     <div class="back-area">
 
@@ -261,8 +233,6 @@
 
     </div>
 
-
-    <!-- ئەدەبىيات بۆلۈملىرى -->
 
     <section class="books-section">
 
@@ -274,7 +244,30 @@
         <div class="books-grid">
 
 
-            <!-- 1. تارىخىي رومانلار -->
+            <!-- 1. رومان -->
+
+            <div class="book-card">
+
+                <div class="book-icon">
+                    📘
+                </div>
+
+                <h3>
+                    رومان
+                </h3>
+
+                <p>
+                    ھەر خىل رومان ۋە ئەدەبىي رومانلار.
+                </p>
+
+                <a href="romanlar.html" class="book-button">
+                    تەپسىلات
+                </a>
+
+            </div>
+
+
+            <!-- 2. تارىخىي رومان -->
 
             <div class="book-card">
 
@@ -283,7 +276,7 @@
                 </div>
 
                 <h3>
-                    تارىخىي رومانلار
+                    تارىخىي رومان
                 </h3>
 
                 <p>
@@ -297,7 +290,7 @@
             </div>
 
 
-            <!-- 2. شېئىرلار -->
+            <!-- 3. شېئىرلار -->
 
             <div class="book-card">
 
@@ -320,7 +313,7 @@
             </div>
 
 
-            <!-- 3. ھېكايىلەر -->
+            <!-- 4. ھېكايىلەر -->
 
             <div class="book-card">
 
@@ -343,7 +336,7 @@
             </div>
 
 
-            <!-- 4. داستانلار -->
+            <!-- 5. داستانلار -->
 
             <div class="book-card">
 
@@ -366,7 +359,7 @@
             </div>
 
 
-            <!-- 5. دۇنيا ئەدەبىياتى -->
+            <!-- 6. دۇنيا ئەدەبىياتى -->
 
             <div class="book-card">
 
@@ -394,8 +387,6 @@
     </section>
 
 
-    <!-- تۆۋەنكى قىسمى -->
-
     <section class="info-section">
 
         <h2>
@@ -409,8 +400,6 @@
 
     </section>
 
-
-    <!-- Footer -->
 
     <footer>
 
