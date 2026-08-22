@@ -227,3 +227,69 @@
     .checkout-actions{display:grid;grid-template-columns:1fr}
     .checkout-primary,.checkout-secondary{width:100%}
 }
+
+
+/* ===== زاكاز فورمىسى — سول/ئوڭ بوشلۇق تۈزىتىشى ===== */
+.checkout-form{
+    padding-inline: 10px;
+}
+
+@media(max-width:650px){
+    .checkout-form{
+        padding-inline: 4px;
+    }
+}
+
+
+/* ===== زاكاز فورمىسى — رامكا كەڭلىكىنى توغرىلاش ===== */
+.checkout-form label{
+    min-width: 0;
+}
+
+.checkout-form input,
+.checkout-form textarea,
+.checkout-form select{
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+
+/* ===== زاكاز فورمىسى — ئاخىرقى رامكا/بوشلۇق تۈزىتىشى ===== */
+#checkoutCard{
+    box-sizing:border-box;
+    overflow:hidden;
+}
+
+#checkoutForm{
+    width:100%;
+    max-width:100%;
+    box-sizing:border-box;
+    padding-left:14px;
+    padding-right:14px;
+}
+
+#checkoutForm > label{
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+}
+
+#checkoutForm input,
+#checkoutForm textarea,
+#checkoutForm select{
+    display:block;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+    margin:0;
+}
+
+@media(max-width:650px){
+    #checkoutForm{
+        padding-left:10px;
+        padding-right:10px;
+    }
+}
