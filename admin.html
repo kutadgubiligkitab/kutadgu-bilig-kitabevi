@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>باشقۇرۇش - قۇتادغۇبىلىك كىتابخانىسى</title>
+  <link rel="stylesheet" href="admin.css?v=1">
+</head>
+<body>
+<div class="admin-shell">
+  <header class="admin-topbar">
+    <div class="admin-brand">🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى</div>
+    <div class="admin-top-actions">
+      <a href="index.html">🏠 تور بەت</a>
+      <button id="adminLogout" type="button" hidden>چىقىش</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <section id="setupPanel" class="admin-card admin-login" hidden>
+      <h1>🔧 ئالدى بىلەن بىخەتەر مۇلازىمەتنى ئۇلاش كېرەك</h1>
+      <div class="admin-status warn">
+        Admin كىرىشنى ئاددىي HTML پارولى بىلەن قىلمايمىز. بۇ بىخەتەر ئەمەس.
+        بۇ نۇسخا Supabase Auth + Database + Storage ئۈچۈن تەييارلانغان.
+      </div>
+      <p>`supabase-config.js` تېخى تولدۇرۇلمىغان. Supabase نى بىر قېتىم ئۇلىغاندىن كېيىن، پەقەت سىز كىرىپ كىتاب قوشالايسىز.</p>
+      <p class="admin-help">ZIP ئىچىدە <b>SUPABASE_SETUP.sql</b> ۋە <b>STEP5_ADMIN_SETUP.md</b> تەييار. كود ئىزدەشنىڭ ھاجىتى يوق.</p>
+    </section>
+
+    <section id="loginPanel" class="admin-card admin-login" hidden>
+      <h1>🔐 Admin كىرىش</h1>
+      <div id="loginStatus" class="admin-status">پەقەت باشقۇرغۇچى ھېساباتى كىرەلەيدۇ.</div>
+      <form id="loginForm" class="admin-form">
+        <label class="admin-wide"><span>Email</span><input id="adminEmail" type="email" autocomplete="username" required></label>
+        <label class="admin-wide"><span>پارول</span><input id="adminPassword" type="password" autocomplete="current-password" required></label>
+        <button class="admin-primary admin-wide" type="submit">كىرىش</button>
+      </form>
+    </section>
+
+    <section id="dashboardPanel" hidden>
+      <div id="adminStatus" class="admin-status ok">Admin ھالىتى تەييار.</div>
+
+      <section class="admin-stats">
+        <div class="admin-stat"><strong id="statAll">0</strong><span>Database دىكى كىتاب</span></div>
+        <div class="admin-stat"><strong id="statActive">0</strong><span>كۆرۈنىدىغان كىتاب</span></div>
+        <div class="admin-stat"><strong id="statRecommended">0</strong><span>تەۋسىيە قىلىنغان</span></div>
+        <div class="admin-stat"><strong id="statStock">0</strong><span>جەمئىي ئامبار سانى</span></div>
+      </section>
+
+      <section class="admin-card">
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-group">
+            <button class="admin-primary" id="newBookBtn" type="button">➕ يېڭى كىتاب قوشۇش</button>
+            <button class="admin-secondary" id="importStaticBtn" type="button">📥 ھازىرقى كىتابلارنى Database قا كىرگۈزۈش</button>
+          </div>
+          <input id="adminSearch" class="admin-search" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ...">
+        </div>
+        <p class="admin-help">«ھازىرقى كىتابلارنى Database قا كىرگۈزۈش» كۇنۇپكىسىنى تۇنجى قېتىم بىرلا قېتىم بېسىش يېتەرلىك.</p>
+        <div id="adminBookList" class="admin-book-list"></div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div id="bookModal" class="admin-modal" hidden>
+  <div class="admin-modal-card">
+    <div class="admin-modal-head">
+      <h2 id="bookModalTitle">يېڭى كىتاب</h2>
+      <button id="closeBookModal" type="button">✕</button>
+    </div>
+
+    <form id="bookForm" class="admin-form">
+      <input id="bookId" type="hidden">
+
+      <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required></label>
+      <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
+
+      <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
+      <label><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
+
+      <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
+      <label><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
+
+      <label><span>تەرجىمانى</span><input id="bookTranslator"></label>
+      <label><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
+
+      <label><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
+      <label><span>نەشرىيات</span><input id="bookPublisher"></label>
+
+      <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="bookDescription" rows="4"></textarea></label>
+
+      <label class="admin-wide"><span>مۇقاۋا رەسىمى</span><input id="bookCover" type="file" accept="image/*"></label>
+      <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">رەسىم تاللانمىدى</span></div>
+
+      <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
+      <label class="admin-check"><input id="bookIsNew" type="checkbox" checked><span>يېڭى قوشۇلغان</span></label>
+      <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
+
+      <div class="admin-wide admin-toolbar-group">
+        <button class="admin-primary" type="submit">💾 ساقلاش</button>
+        <button class="admin-secondary" id="cancelBookEdit" type="button">بىكار قىلىش</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="supabase-config.js?v=1"></script>
+<script src="catalog.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="admin.js?v=1"></script>
+</body>
+</html>
