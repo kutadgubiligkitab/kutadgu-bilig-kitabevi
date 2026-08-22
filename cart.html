@@ -1,1 +1,89 @@
-<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>سېۋەت - قۇتادغۇبىلىك كىتابخانىسى</title><link rel="stylesheet" href="theme.css?v=2"><link rel="stylesheet" href="shop.css?v=2"></head><body><main class="cart-page"><a class="back-link" href="index.html">← باش بەتكە قايتىش</a><h1 style="margin:25px 0">🛒 سېۋىتىم</h1><div id="cartItems"></div></main><script src="theme.js?v=2"></script><script src="catalog.js"></script><script src="shop.js?v=2"></script></body></html>
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سېۋەت ۋە زاكاز - قۇتادغۇبىلىك كىتابخانىسى</title>
+    <link rel="stylesheet" href="theme.css?v=2">
+    <link rel="stylesheet" href="shop.css?v=3">
+</head>
+<body>
+
+<main class="cart-page">
+
+    <div class="cart-page-top">
+        <a class="back-link" href="javascript:history.back()">← كەينىگە قايتىش</a>
+        <a class="continue-shopping" href="index.html#books">📚 كىتاب كۆرۈش</a>
+    </div>
+
+    <h1 class="cart-page-title">🛒 سېۋىتىم</h1>
+
+    <div id="cartItems"></div>
+
+    <section class="checkout-card" id="checkoutCard">
+        <div class="checkout-heading">
+            <div>
+                <h2>📦 زاكاز ئۇچۇرلىرى</h2>
+                <p>سېۋەتتىكى كىتابلارنى زاكاز قىلىش ئۈچۈن تۆۋەندىكى ئۇچۇرلارنى تولدۇرۇڭ.</p>
+            </div>
+        </div>
+
+        <form id="checkoutForm" class="checkout-form">
+            <label>
+                <span>ئىسمى-فامىلىسى *</span>
+                <input id="customerName" name="name" type="text" autocomplete="name" required placeholder="ئىسمىڭىزنى كىرگۈزۈڭ">
+            </label>
+
+            <label>
+                <span>تېلېفون نومۇرى *</span>
+                <input id="customerPhone" name="phone" type="tel" autocomplete="tel" required placeholder="تېلېفون نومۇرىڭىز">
+            </label>
+
+            <label>
+                <span>شەھەر / رايون</span>
+                <input id="customerCity" name="city" type="text" autocomplete="address-level2" placeholder="شەھەر ياكى رايون">
+            </label>
+
+            <label class="checkout-wide">
+                <span>يەتكۈزۈش ئادرېسى *</span>
+                <textarea id="customerAddress" name="address" rows="3" autocomplete="street-address" required placeholder="تولۇق ئادرېسنى يېزىڭ"></textarea>
+            </label>
+
+            <label>
+                <span>يەتكۈزۈش ئۇسۇلى</span>
+                <select id="deliveryMethod" name="delivery">
+                    <option value="كارگو ئارقىلىق">كارگو ئارقىلىق</option>
+                    <option value="دۇكاندىن ئېلىش">دۇكاندىن ئېلىش</option>
+                    <option value="كېيىن بېكىتىش">كېيىن بېكىتىش</option>
+                </select>
+            </label>
+
+            <label class="checkout-wide">
+                <span>قوشۇمچە ئىزاھات</span>
+                <textarea id="customerNote" name="note" rows="2" placeholder="بار بولسا قوشۇمچە ئىزاھات يېزىڭ"></textarea>
+            </label>
+        </form>
+
+        <div class="checkout-actions">
+            <button type="button" class="checkout-primary" id="prepareOrder">✅ زاكاز ئۇچۇرىنى تەييارلاش</button>
+            <button type="button" class="checkout-secondary" id="copyOrder">📋 زاكازنى كۆچۈرۈش</button>
+            <button type="button" class="checkout-secondary" id="shareOrder">📤 زاكازنى ھەمبەھىرلەش</button>
+        </div>
+
+        <div class="order-preview-wrap" id="orderPreviewWrap" hidden>
+            <h3>زاكاز خۇلاسىسى</h3>
+            <pre id="orderPreview" class="order-preview"></pre>
+            <p class="checkout-note">
+                بۇ باسقۇچتا زاكاز تور مۇلازىمېتىرىغا ئاپتوماتىك ئەۋەتىلمەيدۇ؛
+                «كۆچۈرۈش» ياكى «ھەمبەھىرلەش» ئارقىلىق تەييار زاكاز ئۇچۇرىنى يوللىيالايسىز.
+            </p>
+        </div>
+    </section>
+
+</main>
+
+<script src="theme.js?v=2"></script>
+<script src="catalog.js"></script>
+<script src="shop.js?v=3"></script>
+</body>
+</html>

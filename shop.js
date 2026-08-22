@@ -1,7 +1,7 @@
 (function(){
 "use strict";
 const C=window.KITAP_CATALOG||[];
-const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1";
+const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const set=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const find=id=>C.find(x=>x.id===id);
@@ -93,10 +93,222 @@ function searchEnhance(){
   input.addEventListener("input",()=>{if(!input.value.trim())res.innerHTML="";else run()});
   function run(){let q=input.value.trim().toLocaleLowerCase("ug");let matches=C.filter(b=>[b.title,b.author,b.category].join(" ").toLocaleLowerCase("ug").includes(q));let sort=document.querySelector("#searchSort")?.value||"new";if(sort==="priceLow")matches.sort((a,b)=>(a.price||999999)-(b.price||999999));if(sort==="priceHigh")matches.sort((a,b)=>(b.price||0)-(a.price||0));if(sort==="title")matches.sort((a,b)=>a.title.localeCompare(b.title,"ug"));res.innerHTML=matches.length?`<div class="search-tools"><span>${matches.length} نەتىجە</span><select id="searchSort"><option value="new">تەرتىپى</option><option value="title">ئىسىم بويىچە</option><option value="priceLow">ئەرزانىدىن</option><option value="priceHigh">قىممىتىدىن</option></select></div>`+matches.map(b=>`<a class="search-result" href="${b.href}"><img class="search-result-image" src="${b.image}" alt="${b.title}" onerror="this.style.display='none'"><div class="search-result-content"><div class="search-result-title">${b.title}</div><div class="search-result-author">ئاپتورى: ${b.author}</div><div class="search-result-category">${b.category}</div><div class="search-result-category">${money(b.price)}</div></div></a>`).join(""):"<div class='search-empty'>بۇ ئىزدەش بويىچە كىتاب تېپىلمىدى.</div>";let s=document.querySelector("#searchSort");if(s)s.onchange=run}
 }
-function cartPage(){let host=document.querySelector("#cartItems");if(!host)return;let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);host.innerHTML=items.length?items.map(x=>`<div class="cart-item"><img src="${x.b.image}" alt="${x.b.title}" onerror="this.style.visibility='hidden'"><div><div class="cart-title">${x.b.title}</div><div class="cart-meta">${x.b.author} · ${x.b.category}</div></div><div class="qty-control"><button type="button" data-minus="${x.b.id}">−</button><span>${x.qty}</span><button type="button" data-plus="${x.b.id}">+</button></div><div class="cart-line-price">${money((x.b.price||0)*x.qty)}</div><button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button></div>`).join("")+`<div class="cart-summary"><div class="cart-total">جەمئىي: ${money(total)}</div><button type="button" class="add-to-cart" id="copyOrder">📋 زاكاز ئۇچۇرىنى كۆچۈرۈش</button></div>`:`<div class="empty-state">🛒 سېۋەت ھازىرچە بوش.<br><a href="index.html#books">كىتاب كۆرۈش →</a></div>`;host.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.plus,1));host.querySelectorAll("[data-minus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.minus,-1));host.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{remove(b.dataset.remove);cartPage()});let order=document.querySelector("#copyOrder");if(order)order.onclick=copyOrder}
-function changeQty(id,d){let a=cart(),x=a.find(i=>i.id===id);if(!x)return;x.qty=Math.max(1,x.qty+d);set(CART_KEY,a);cartPage();updateBadge()}
-async function copyOrder(){let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);let lines=["قۇتادغۇبىلىك كىتابخانىسى — سېۋەت زاكازى",""];items.forEach(x=>lines.push(`${x.b.title} × ${x.qty} — ${money((x.b.price||0)*x.qty)}`));let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);lines.push("",`جەمئىي: ${money(total)}`);try{if(navigator.clipboard)await navigator.clipboard.writeText(lines.join("\n"));else throw new Error();toast("زاكاز ئۇچۇرى كۆچۈرۈلدى 📋")}catch(e){alert(lines.join("\n"))}}
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();renderHomeSections();cartPage()}
+function cartPage(){
+  let host=document.querySelector("#cartItems");if(!host)return;
+  let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);
+  let totalQty=items.reduce((s,x)=>s+x.qty,0);
+  let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
+  let checkout=document.querySelector("#checkoutCard");
+
+  if(!items.length){
+    host.innerHTML=`<div class="empty-state">🛒 سېۋەت ھازىرچە بوش.<br><a href="index.html#books">كىتاب كۆرۈش →</a></div>`;
+    if(checkout)checkout.hidden=true;
+    updateBadge();
+    return;
+  }
+
+  if(checkout)checkout.hidden=false;
+
+  host.innerHTML=items.map(x=>`<div class="cart-item">
+      <img src="${x.b.image||''}" alt="${x.b.title}" onerror="this.style.visibility='hidden'">
+      <div>
+        <div class="cart-title">${x.b.title}</div>
+        <div class="cart-meta">${x.b.author} · ${x.b.category}</div>
+      </div>
+      <div class="qty-control">
+        <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}">−</button>
+        <span>${x.qty}</span>
+        <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}">+</button>
+      </div>
+      <div class="cart-line-price">${money((x.b.price||0)*x.qty)}</div>
+      <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
+    </div>`).join("")+
+    `<div class="cart-summary">
+       <div class="cart-summary-meta">
+         <span>📚 جەمئىي كىتاب سانى: ${totalQty}</span>
+         <span>💰 ئومۇمىي باھا: ${money(total)}</span>
+       </div>
+       <div class="cart-total">جەمئىي: ${money(total)}</div>
+       <div class="cart-summary-actions">
+         <button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>
+         <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
+       </div>
+     </div>`;
+
+  host.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.plus,1));
+  host.querySelectorAll("[data-minus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.minus,-1));
+  host.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{remove(b.dataset.remove);cartPage()});
+
+  let clear=document.querySelector("#clearCart");
+  if(clear)clear.onclick=()=>{
+    if(confirm("سېۋەتتىكى بارلىق كىتابلارنى ئۆچۈرەمسىز؟")){
+      set(CART_KEY,[]);
+      cartPage();
+      toast("سېۋەت تازىلاندى");
+    }
+  };
+
+  let scroll=document.querySelector("#scrollCheckout");
+  if(scroll)scroll.onclick=()=>document.querySelector("#checkoutCard")?.scrollIntoView({behavior:"smooth",block:"start"});
+
+  setupCheckout();
+  updateBadge();
+}
+
+function changeQty(id,d){
+  let a=cart(),x=a.find(i=>i.id===id);if(!x)return;
+  x.qty=Math.max(1,x.qty+d);
+  set(CART_KEY,a);
+  cartPage();
+  updateBadge();
+}
+
+function customerData(){
+  let d=get(CUSTOMER_KEY,{});
+  return d&&typeof d==="object"&&!Array.isArray(d)?d:{};
+}
+
+function saveCustomerData(){
+  let data={
+    name:document.querySelector("#customerName")?.value.trim()||"",
+    phone:document.querySelector("#customerPhone")?.value.trim()||"",
+    city:document.querySelector("#customerCity")?.value.trim()||"",
+    address:document.querySelector("#customerAddress")?.value.trim()||"",
+    delivery:document.querySelector("#deliveryMethod")?.value||"",
+    note:document.querySelector("#customerNote")?.value.trim()||""
+  };
+  set(CUSTOMER_KEY,data);
+  return data;
+}
+
+function loadCustomerData(){
+  let d=customerData();
+  let map={
+    customerName:d.name,
+    customerPhone:d.phone,
+    customerCity:d.city,
+    customerAddress:d.address,
+    deliveryMethod:d.delivery,
+    customerNote:d.note
+  };
+  Object.entries(map).forEach(([id,val])=>{
+    let el=document.querySelector("#"+id);
+    if(el&&val)el.value=val;
+  });
+}
+
+function makeOrderId(){
+  let now=new Date();
+  let y=String(now.getFullYear()).slice(-2);
+  let m=String(now.getMonth()+1).padStart(2,"0");
+  let d=String(now.getDate()).padStart(2,"0");
+  let r=Math.floor(1000+Math.random()*9000);
+  return `KB-${y}${m}${d}-${r}`;
+}
+
+function buildOrderText(requireCustomer=true){
+  let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);
+  if(!items.length){toast("سېۋەت بوش");return null}
+
+  let form=document.querySelector("#checkoutForm");
+  if(requireCustomer&&form&&!form.reportValidity())return null;
+
+  let c=saveCustomerData();
+  let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
+  let totalQty=items.reduce((s,x)=>s+x.qty,0);
+  let orderId=makeOrderId();
+
+  let lines=[
+    "قۇتادغۇبىلىك كىتابخانىسى — زاكاز",
+    `زاكاز نومۇرى: ${orderId}`,
+    ""
+  ];
+
+  items.forEach((x,i)=>{
+    lines.push(`${i+1}. ${x.b.title}`);
+    lines.push(`   ${x.b.author} · ${x.qty} دانە · ${money((x.b.price||0)*x.qty)}`);
+  });
+
+  lines.push(
+    "",
+    `جەمئىي كىتاب سانى: ${totalQty}`,
+    `ئومۇمىي باھا: ${money(total)}`,
+    "",
+    "خېرىدار ئۇچۇرى:",
+    `ئىسمى: ${c.name||"-"}`,
+    `تېلېفون: ${c.phone||"-"}`,
+    `شەھەر / رايون: ${c.city||"-"}`,
+    `ئادرېس: ${c.address||"-"}`,
+    `يەتكۈزۈش: ${c.delivery||"-"}`,
+    `ئىزاھات: ${c.note||"-"}`
+  );
+
+  return {text:lines.join("\n"),orderId,total,totalQty};
+}
+
+function showOrderPreview(){
+  let o=buildOrderText(true);if(!o)return null;
+  let wrap=document.querySelector("#orderPreviewWrap");
+  let pre=document.querySelector("#orderPreview");
+  if(wrap&&pre){
+    pre.textContent=o.text;
+    wrap.hidden=false;
+    wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
+  }
+  toast("زاكاز ئۇچۇرى تەييار بولدى ✅");
+  return o;
+}
+
+async function copyOrder(){
+  let o=buildOrderText(true);if(!o)return;
+  try{
+    if(navigator.clipboard)await navigator.clipboard.writeText(o.text);
+    else throw new Error();
+    toast("زاكاز ئۇچۇرى كۆچۈرۈلدى 📋");
+  }catch(e){
+    let ta=document.createElement("textarea");
+    ta.value=o.text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    toast("زاكاز ئۇچۇرى كۆچۈرۈلدى 📋");
+  }
+}
+
+async function shareOrder(){
+  let o=buildOrderText(true);if(!o)return;
+  try{
+    if(navigator.share){
+      await navigator.share({title:"قۇتادغۇبىلىك كىتابخانىسى — زاكاز",text:o.text});
+      toast("زاكاز ھەمبەھىرلەندى 📤");
+    }else{
+      await copyOrder();
+      toast("ھەمبەھىرلەش يوق؛ زاكاز كۆچۈرۈلدى 📋");
+    }
+  }catch(e){}
+}
+
+function setupCheckout(){
+  let form=document.querySelector("#checkoutForm");if(!form||form.dataset.ready==="1")return;
+  form.dataset.ready="1";
+  loadCustomerData();
+
+  form.querySelectorAll("input,textarea,select").forEach(el=>{
+    el.addEventListener("change",saveCustomerData);
+    el.addEventListener("blur",saveCustomerData);
+  });
+
+  let prepare=document.querySelector("#prepareOrder");
+  let copy=document.querySelector("#copyOrder");
+  let share=document.querySelector("#shareOrder");
+
+  if(prepare)prepare.onclick=showOrderPreview;
+  if(copy)copy.onclick=copyOrder;
+  if(share)share.onclick=shareOrder;
+}
+
+function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();renderHomeSections();cartPage();setupCheckout()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
-window.kutadguShop={add,remove,toggleFav,cart,shareBook};
+window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};
 })();
