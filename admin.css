@@ -55,3 +55,50 @@ button{cursor:pointer}
 .admin-empty{text-align:center;padding:35px;color:#806f62}
 @media(max-width:850px){.admin-stats{grid-template-columns:repeat(2,1fr)}.admin-form{grid-template-columns:1fr}.admin-wide{grid-column:auto}.admin-book-row{grid-template-columns:48px 1fr}.admin-book-actions{grid-column:1/-1}.admin-book-row img{width:48px;height:64px}}
 @media(max-width:520px){.admin-topbar{align-items:flex-start;flex-direction:column}.admin-stats{grid-template-columns:1fr 1fr}.admin-card{padding:15px}.admin-main{width:92%}.admin-toolbar{align-items:stretch;flex-direction:column}.admin-search{min-width:0;width:100%}}
+
+/* ===== Admin logo / topbar fix ===== */
+.admin-brand{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.admin-brand .kutadgu-site-logo{
+  display:block;
+  width:40px !important;
+  height:40px !important;
+  min-width:40px !important;
+  min-height:40px !important;
+  max-width:40px !important;
+  max-height:40px !important;
+  object-fit:contain !important;
+  flex:0 0 40px;
+  margin:0 !important;
+  padding:0 !important;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.22));
+}
+.admin-brand .kutadgu-brand-text{
+  display:inline-block;
+  white-space:nowrap;
+  line-height:1.35;
+}
+.admin-topbar{
+  min-height:68px;
+  overflow:visible;
+}
+@media(max-width:520px){
+  .admin-brand{gap:8px;}
+  .admin-brand .kutadgu-site-logo{
+    width:34px !important;
+    height:34px !important;
+    min-width:34px !important;
+    min-height:34px !important;
+    max-width:34px !important;
+    max-height:34px !important;
+    flex-basis:34px;
+  }
+  .admin-brand .kutadgu-brand-text{
+    white-space:normal;
+    font-size:16px;
+  }
+}
