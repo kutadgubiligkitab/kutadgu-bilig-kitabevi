@@ -1821,6 +1821,37 @@ header > .container{
     }
 }
 
+
+/* =========================================================
+   كىتاب تۈرلىرى — 7 كارتا كەسپىي 4 + 3 رەت
+   ========================================================= */
+@media (min-width:1101px){
+    .home-main-section .cards{
+        display:grid !important;
+        grid-template-columns:repeat(8,minmax(0,1fr)) !important;
+        gap:16px !important;
+        max-width:1400px !important;
+        margin-inline:auto !important;
+    }
+    .home-main-section .cards .card{
+        grid-column:span 2 !important;
+        width:100% !important;
+        min-width:0 !important;
+        min-height:148px !important;
+    }
+
+    /* 5-، 6-، 7- كارتا ئىككىنچى قۇرغا تەڭ مەركەزلەشتۈرۈلىدۇ */
+    .home-main-section .cards .card:nth-child(5){
+        grid-column:2 / span 2 !important;
+    }
+    .home-main-section .cards .card:nth-child(6){
+        grid-column:4 / span 2 !important;
+    }
+    .home-main-section .cards .card:nth-child(7){
+        grid-column:6 / span 2 !important;
+    }
+}
+
 </style>
 
     <link rel="stylesheet" href="theme.css?v=4">
