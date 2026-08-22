@@ -194,14 +194,34 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}"><img src="${b.image||''}" alt="${b.title}" loading="lazy" onerror="this.style.visibility='hidden'"><div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions"><button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
+
+function recommendedBooks(limit=12){
+  let groups=new Map();
+  C.forEach(b=>{
+    let key=b.category||"باشقا";
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(b);
+  });
+  let lists=[...groups.values()];
+  let out=[],i=0;
+  while(out.length<limit && lists.some(a=>i<a.length)){
+    for(const a of lists){
+      if(a[i] && !out.some(x=>x.id===a[i].id))out.push(a[i]);
+      if(out.length>=limit)break;
+    }
+    i++;
+  }
+  return out;
+}
+
 function renderHomeSections(){
   let host=document.querySelector("#homeShopSections");if(!host)return;
   let rec=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
   let fav=favs().map(find).filter(Boolean).slice(0,6);
   let newest=C.slice(0,8);
-  let recommended=C.slice(0,6);
+  let recommended=recommendedBooks(8);
   let data={newest:["🆕 يېڭى قوشۇلغان كىتابلار",newest],recommended:["⭐ تەۋسىيە قىلىنغان كىتابلار",recommended],recent:["🕘 يېقىندا كۆرۈلگەن كىتابلار",rec],favorites:["❤️ ياقتۇرغان كىتابلار",fav]};
-  host.innerHTML=`<div class="shop-selector"><button type="button" class="shop-selector-button" id="shopSelectorButton">📚 كىتابلارنى تاللاش <span>⌄</span></button><div class="shop-selector-menu" id="shopSelectorMenu"><button type="button" data-shop-tab="newest">🆕 يېڭى قوشۇلغان كىتابلار</button><button type="button" data-shop-tab="recommended">⭐ تەۋسىيە قىلىنغان كىتابلار</button><button type="button" data-shop-tab="recent">🕘 يېقىندا كۆرۈلگەن كىتابلار</button><button type="button" data-shop-tab="favorites">❤️ ياقتۇرغان كىتابلار</button></div></div><div id="shopSelectedContent" class="shop-selected-content"></div>`;
+  host.innerHTML=`<div class="shop-selector"><button type="button" class="shop-selector-button" id="shopSelectorButton">📚 كىتابلارنى تاللاش <span>⌄</span></button><div class="shop-selector-menu" id="shopSelectorMenu"><button type="button" data-shop-tab="newest">🆕 يېڭى قوشۇلغان كىتابلار</button><button type="button" data-shop-tab="recommended">⭐ تەۋسىيە قىلىنغان كىتابلار</button><button type="button" data-shop-tab="recent">🕘 يېقىندا كۆرۈلگەن كىتابلار</button><button type="button" data-shop-tab="favorites">❤️ ياقتۇرغان كىتابلار</button><a class="shop-selector-all-link" href="my-books.html">📚 مېنىڭ كىتابلىرىم — ھەممىسىنى بىر يەردە كۆرۈش</a></div></div><div id="shopSelectedContent" class="shop-selected-content"></div>`;
   const btn=host.querySelector("#shopSelectorButton"),menu=host.querySelector("#shopSelectorMenu"),content=host.querySelector("#shopSelectedContent");
   function show(key){let [title,arr]=data[key];content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2>${arr.length?`<div class="shop-grid">${arr.map(miniCard).join("")}</div>`:`<div class="empty-state shop-section-empty">${key==='favorites'?"❤️ ھازىرچە ياقتۇرغان كىتاب يوق.":key==='recent'?"🕘 ھازىرچە يېقىندا كۆرۈلگەن كىتاب يوق.":"كىتابلار تېخى قوشۇلمىغان."}</div>`}</section>`;content.querySelectorAll("[data-cart-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();add(b.dataset.cartId)});content.querySelectorAll("[data-fav-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();toggleFav(b.dataset.favId)});content.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});renderFavButtons()}
   btn.onclick=()=>menu.classList.toggle("is-open");
@@ -353,6 +373,131 @@ function setupCatalogFilters(){
   reset.onclick=()=>{text.value="";minEl.value="";maxEl.value="";sortEl.value="new";apply()};
   apply();
 }
+
+function myBooksData(){
+  return {
+    newest:C.slice(0,12),
+    recommended:recommendedBooks(12),
+    recent:get(REC_KEY,[]).map(find).filter(Boolean).slice(0,12),
+    favorites:favs().map(find).filter(Boolean)
+  };
+}
+
+function renderMyBooks(){
+  let host=document.querySelector("#myBooksApp");if(!host)return;
+  let active=host.dataset.activeTab||"newest";
+
+  function tabMeta(data){
+    return {
+      newest:["🆕","يېڭى قوشۇلغانلار",data.newest.length],
+      recommended:["⭐","تەۋسىيە قىلىنغانلار",data.recommended.length],
+      recent:["🕘","يېقىندا كۆرگەنلىرىم",data.recent.length],
+      favorites:["❤️","ياقتۇرغانلىرىم",data.favorites.length]
+    };
+  }
+
+  function emptyText(key){
+    if(key==="favorites")return "❤️ ھازىرچە ياقتۇرغان كىتاب يوق. كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز.";
+    if(key==="recent")return "🕘 ھازىرچە كۆرۈش تارىخى يوق. بىر كىتابنىڭ تەپسىلات بېتىنى ئاچسىڭىز بۇ يەردە كۆرۈنىدۇ.";
+    return "كىتابلار تېخى قوشۇلمىغان.";
+  }
+
+  function draw(key,scroll=false){
+    let data=myBooksData();
+    let meta=tabMeta(data);
+    let arr=data[key]||[];
+    active=key;
+    host.dataset.activeTab=key;
+
+    host.querySelectorAll("[data-mybooks-tab]").forEach(btn=>{
+      btn.classList.toggle("is-active",btn.dataset.mybooksTab===key);
+      btn.setAttribute("aria-selected",btn.dataset.mybooksTab===key?"true":"false");
+    });
+
+    let content=host.querySelector("#myBooksContent");
+    content.innerHTML=`
+      <div class="mybooks-section-head">
+        <div>
+          <span class="mybooks-kicker">${meta[key][0]} مېنىڭ كىتابلىرىم</span>
+          <h2>${meta[key][1]}</h2>
+        </div>
+        <span class="mybooks-result-count">${arr.length} دانە</span>
+      </div>
+      ${arr.length
+        ? `<div class="shop-grid mybooks-grid">${arr.map(miniCard).join("")}</div>`
+        : `<div class="empty-state mybooks-empty">${emptyText(key)}</div>`
+      }`;
+
+    bindDynamicActions(content);
+
+    // Favorite changes should refresh counts and the favorite tab immediately.
+    content.querySelectorAll("[data-fav-id]").forEach(btn=>{
+      const old=btn.onclick;
+      btn.onclick=e=>{
+        if(old)old(e);
+        setTimeout(()=>renderMyBooks(),0);
+      };
+    });
+
+    updateMyBooksCounts();
+    if(scroll)content.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  function updateMyBooksCounts(){
+    let data=myBooksData(),meta=tabMeta(data);
+    Object.keys(meta).forEach(key=>{
+      let badge=host.querySelector(`[data-mybooks-count="${key}"]`);
+      if(badge)badge.textContent=meta[key][2];
+    });
+    let total=host.querySelector("#myBooksTotal");
+    let cartNum=host.querySelector("#myBooksCartCount");
+    if(total)total.textContent=C.length;
+    if(cartNum)cartNum.textContent=cart().reduce((s,x)=>s+(x.qty||1),0);
+  }
+
+  let data=myBooksData(),meta=tabMeta(data);
+  host.innerHTML=`
+    <section class="mybooks-summary">
+      <div class="mybooks-summary-card">
+        <span>📚</span>
+        <strong id="myBooksTotal">${C.length}</strong>
+        <small>بارلىق كىتاب</small>
+      </div>
+      <div class="mybooks-summary-card">
+        <span>❤️</span>
+        <strong data-mybooks-count="favorites">${data.favorites.length}</strong>
+        <small>ياقتۇرغان</small>
+      </div>
+      <div class="mybooks-summary-card">
+        <span>🕘</span>
+        <strong data-mybooks-count="recent">${data.recent.length}</strong>
+        <small>يېقىندا كۆرگەن</small>
+      </div>
+      <a href="cart.html" class="mybooks-summary-card mybooks-summary-link">
+        <span>🛒</span>
+        <strong id="myBooksCartCount">${cart().reduce((s,x)=>s+(x.qty||1),0)}</strong>
+        <small>سېۋەتتىكى كىتاب</small>
+      </a>
+    </section>
+
+    <div class="mybooks-tabs" role="tablist" aria-label="مېنىڭ كىتابلىرىم">
+      ${Object.entries(meta).map(([key,m])=>`
+        <button type="button" role="tab" data-mybooks-tab="${key}" aria-selected="${key===active?"true":"false"}" class="${key===active?"is-active":""}">
+          <span>${m[0]} ${m[1]}</span>
+          <b data-mybooks-count="${key}">${m[2]}</b>
+        </button>`).join("")}
+    </div>
+
+    <section id="myBooksContent" class="mybooks-content"></section>
+  `;
+
+  host.querySelectorAll("[data-mybooks-tab]").forEach(btn=>{
+    btn.onclick=()=>draw(btn.dataset.mybooksTab,true);
+  });
+
+  draw(active,false);
+}
+
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
   let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);
@@ -568,7 +713,7 @@ function setupCheckout(){
   if(share)share.onclick=shareOrder;
 }
 
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeSections();cartPage();setupCheckout()}
+function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};
 })();

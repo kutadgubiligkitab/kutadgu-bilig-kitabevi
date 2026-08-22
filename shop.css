@@ -657,3 +657,241 @@
         grid-template-columns:1fr;
     }
 }
+
+
+/* =========================================================
+   4-باسقۇچ — «مېنىڭ كىتابلىرىم» مەركىزىي بۆلىكى
+   ========================================================= */
+
+.shop-selector-all-link{
+    grid-column:1/-1;
+    display:block;
+    padding:11px 10px;
+    border-radius:8px;
+    background:var(--site-brown,#70503d);
+    color:#fff;
+    text-align:center;
+    font-size:13px;
+    font-weight:700;
+}
+
+.shop-selector-all-link:hover{
+    opacity:.92;
+}
+
+.mybooks-page{
+    width:min(94%,1180px);
+    margin:0 auto;
+    padding:42px 0 90px;
+}
+
+.mybooks-page-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    margin-bottom:24px;
+}
+
+.mybooks-page-top h1{
+    margin:0;
+    color:var(--site-text,#44352d);
+    font-size:clamp(30px,4vw,43px);
+}
+
+.mybooks-page-intro{
+    margin:8px 0 0;
+    color:var(--site-text-soft,#806f62);
+}
+
+.mybooks-summary{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:13px;
+    margin:26px 0;
+}
+
+.mybooks-summary-card{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    grid-template-rows:auto auto;
+    align-items:center;
+    gap:2px 10px;
+    padding:16px;
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:13px;
+    background:var(--site-card,#fffdf9);
+    color:var(--site-text,#44352d);
+    box-shadow:0 5px 18px rgba(75,51,39,.05);
+}
+
+.mybooks-summary-card > span{
+    grid-row:1/3;
+    font-size:27px;
+}
+
+.mybooks-summary-card strong{
+    font-size:23px;
+    line-height:1.2;
+}
+
+.mybooks-summary-card small{
+    color:var(--site-text-soft,#806f62);
+}
+
+.mybooks-summary-link{
+    text-decoration:none;
+    transition:.2s;
+}
+
+.mybooks-summary-link:hover{
+    transform:translateY(-2px);
+    border-color:var(--site-brown,#70503d);
+}
+
+.mybooks-tabs{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:9px;
+    margin:22px 0;
+    padding:8px;
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:14px;
+    background:var(--site-card,#fffdf9);
+}
+
+.mybooks-tabs button{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    min-height:46px;
+    padding:9px 12px;
+    border:1px solid transparent;
+    border-radius:9px;
+    background:transparent;
+    color:var(--site-text,#44352d);
+    font-family:inherit;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.mybooks-tabs button:hover{
+    background:var(--site-bg-soft,#fbf8f2);
+}
+
+.mybooks-tabs button.is-active{
+    background:var(--site-brown,#70503d);
+    color:#fff;
+}
+
+.mybooks-tabs button b{
+    display:inline-flex;
+    min-width:24px;
+    height:24px;
+    padding:0 6px;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    background:var(--site-bg-soft,#fbf8f2);
+    color:var(--site-text,#44352d);
+    font-size:11px;
+}
+
+.mybooks-tabs button.is-active b{
+    background:rgba(255,255,255,.18);
+    color:#fff;
+}
+
+.mybooks-content{
+    min-height:240px;
+    scroll-margin-top:18px;
+}
+
+.mybooks-section-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:14px;
+    margin:26px 0 18px;
+}
+
+.mybooks-section-head h2{
+    margin:3px 0 0;
+    color:var(--site-text,#44352d);
+    font-size:clamp(23px,3vw,31px);
+}
+
+.mybooks-kicker{
+    color:var(--site-text-soft,#806f62);
+    font-size:12px;
+}
+
+.mybooks-result-count{
+    flex:0 0 auto;
+    padding:6px 10px;
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:999px;
+    background:var(--site-bg-soft,#fbf8f2);
+    color:var(--site-text-soft,#806f62);
+    font-size:12px;
+}
+
+.mybooks-empty{
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:13px;
+    background:var(--site-card,#fffdf9);
+}
+
+@media(max-width:850px){
+    .mybooks-summary{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+
+    .mybooks-tabs{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+}
+
+@media(max-width:650px){
+    .mybooks-page{
+        width:92%;
+        padding-top:28px;
+    }
+
+    .mybooks-page-top{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .mybooks-summary{
+        gap:9px;
+    }
+
+    .mybooks-summary-card{
+        padding:12px;
+    }
+
+    .mybooks-summary-card > span{
+        font-size:23px;
+    }
+
+    .mybooks-summary-card strong{
+        font-size:19px;
+    }
+
+    .mybooks-tabs{
+        grid-template-columns:1fr;
+    }
+
+    .mybooks-section-head{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+}
+
+@media(max-width:390px){
+    .mybooks-summary{
+        grid-template-columns:1fr;
+    }
+}
