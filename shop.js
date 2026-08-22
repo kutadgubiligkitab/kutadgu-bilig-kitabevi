@@ -103,7 +103,7 @@ function decorateCards(){
   document.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});
   renderFavButtons();
 }
-function renderFavButtons(){let a=favs();document.querySelectorAll("[data-fav-id]").forEach(b=>{let yes=a.includes(b.dataset.favId);b.classList.toggle("is-favorite",yes);if(b.classList.contains("mini-heart"))b.textContent=yes?"♥":"♡";else if(b.textContent.includes("ياقتۇرۇش")||b.textContent.includes("♡")||b.textContent.includes("♥"))b.textContent=yes?"♥ ياقتۇرۇلدى":"♡ ياقتۇرۇش"})}
+function renderFavButtons(){let a=favs();document.querySelectorAll("[data-fav-id]").forEach(b=>{let yes=a.includes(b.dataset.favId);b.classList.toggle("is-favorite",yes);if(b.classList.contains("mini-heart")||b.classList.contains("home-feature-heart")){b.textContent=yes?"♥":"♡";b.setAttribute("aria-pressed",yes?"true":"false");b.setAttribute("aria-label",yes?"ياقتۇرۇلدى":"ياقتۇرۇش");}else if(b.textContent.includes("ياقتۇرۇش")||b.textContent.includes("♡")||b.textContent.includes("♥"))b.textContent=yes?"♥ ياقتۇرۇلدى":"♡ ياقتۇرۇش"})}
 function getDetailBook(){
   let id=document.body.dataset.bookId;
   let b=find(id); if(b)return b;
@@ -347,11 +347,12 @@ function renderHomeFeaturedBooks(){
 
   function card(b){
     return `<article class="home-feature-card">
-      <button type="button" class="home-feature-heart favorite-button" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
+      <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a href="${b.href}">
         <div class="home-feature-cover">
-          <span class="home-feature-placeholder">📕</span>
-          ${b.image?`<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.remove()">`:""}
+          <div class="home-feature-cover-frame">
+            ${b.image?`<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.remove();this.parentElement.classList.add('is-placeholder');this.parentElement.innerHTML='<span class=\"home-feature-placeholder\">📕</span>'">`:`<span class="home-feature-placeholder">📕</span>`}
+          </div>
         </div>
         <div class="home-feature-info">
           <div class="home-feature-title">${b.title}</div>
