@@ -136,13 +136,16 @@ header,
 }
 
 /* About / information */
-.about {
+.about,
+.info-section {
     background-color: var(--site-brown-dark) !important;
     color: #fff !important;
 }
 
 .about h2,
-.about p {
+.about p,
+.info-section h2,
+.info-section p {
     color: #fff !important;
 }
 

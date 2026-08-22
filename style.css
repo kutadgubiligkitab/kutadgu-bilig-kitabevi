@@ -22,39 +22,3 @@ body {
     color: #222;
     line-height: 1.8;
 }
-/* كىتاب مۇقاۋىلىرىنىڭ ئورتاق تەڭشىكى */
-.book-image {
-    padding: 12px 12px 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.book-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    object-position: top center;
-    display: block;
-}
-/* بارلىق كىتاب مۇقاۋىلىرىنى تولۇق كۆرسىتىش */
-.book-image {
-    height: auto !important;
-    min-height: 300px !important;
-    padding: 15px !important;
-    overflow: visible !important;
-    display: flex !important;
-    align-items: flex-start !important;
-    justify-content: center !important;
-}
-
-.book-image img {
-    width: auto !important;
-    height: auto !important;
-    max-width: 100% !important;
-    max-height: 500px !important;
-    object-fit: contain !important;
-    object-position: center top !important;
-    display: block !important;
-}
