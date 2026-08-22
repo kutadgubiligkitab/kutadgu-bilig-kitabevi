@@ -2100,6 +2100,19 @@ body.dark-mode section.home-bookstore-hero{
     top: 10px !important;
     left: 10px !important;
     z-index: 3 !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    text-indent: 0 !important;
 }
 
 .home-feature-cover{
@@ -2113,11 +2126,24 @@ body.dark-mode section.home-bookstore-hero{
         linear-gradient(180deg, rgba(112,80,61,.05), rgba(112,80,61,.02)) !important;
 }
 
+.home-feature-cover::before{
+    content: "" !important;
+    position: absolute !important;
+    width: 104px !important;
+    height: 150px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(112,80,61,.18) !important;
+    background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.88)) !important;
+    box-shadow: 0 10px 20px rgba(0,0,0,.05), inset 0 0 0 1px rgba(255,255,255,.7) !important;
+}
+
 .home-feature-cover img{
+    position: relative !important;
+    z-index: 1 !important;
     width: auto !important;
     height: auto !important;
-    max-width: 84px !important;
-    max-height: 128px !important;
+    max-width: 90px !important;
+    max-height: 136px !important;
     object-fit: contain !important;
     display: block !important;
     margin: 0 auto !important;
@@ -2125,9 +2151,11 @@ body.dark-mode section.home-bookstore-hero{
 }
 
 .home-feature-placeholder{
-    position: absolute !important;
-    inset: 0 !important;
-    display: flex !important;
+    position: relative !important;
+    z-index: 1 !important;
+    width: 90px !important;
+    height: 136px !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     font-size: 58px !important;
@@ -2180,9 +2208,17 @@ body.dark-mode section.home-bookstore-hero{
         min-height: 175px !important;
         padding-top: 14px !important;
     }
+    .home-feature-cover::before{
+        width: 96px !important;
+        height: 140px !important;
+    }
     .home-feature-cover img{
-        max-width: 78px !important;
-        max-height: 118px !important;
+        max-width: 84px !important;
+        max-height: 124px !important;
+    }
+    .home-feature-placeholder{
+        width: 84px !important;
+        height: 124px !important;
     }
 }
 
