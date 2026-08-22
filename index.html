@@ -1852,10 +1852,38 @@ header > .container{
     }
 }
 
+
+/* ===== HERO دىكى كىتاب مۇقاۋىسىنىڭ ئورنىغا ماركا لوگوسى ===== */
+.real-cover-wrap{
+    height:94px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+}
+.real-cover-wrap > img.hero-scene-logo{
+    display:block !important;
+    width:78px !important;
+    height:78px !important;
+    max-width:78px !important;
+    max-height:78px !important;
+    object-fit:contain !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    filter:drop-shadow(0 4px 7px rgba(0,0,0,.14)) !important;
+}
+@media (max-width:700px){
+    .real-cover-wrap > img.hero-scene-logo{
+        width:66px !important;
+        height:66px !important;
+        max-width:66px !important;
+        max-height:66px !important;
+    }
+}
+
 </style>
 
-    <link rel="stylesheet" href="theme.css?v=4">
-<link rel="stylesheet" href="shop.css?v=10">
+    <link rel="stylesheet" href="theme.css?v=5">
+<link rel="stylesheet" href="shop.css?v=11">
 </head>
 
 
@@ -1959,7 +1987,7 @@ header > .container{
 
                 <div class="store-display">
                     <div class="real-cover-wrap">
-                        <img src="ozumuzni-etirap-qilayli.jpeg" alt="" loading="eager">
+                        <img src="hero-brand-logo.png?v=1" alt="قۇتادغۇبىلىك لوگوسى" class="hero-scene-logo" loading="eager">
                     </div>
                     <div class="book-stack">
                         <span></span><span></span><span></span>
@@ -2212,7 +2240,7 @@ header > .container{
 
 <!-- ئىزدەش سىستېمىسى catalog.js + shop.js ئارقىلىق باشقۇرۇلىدۇ -->
 
-    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=13"></script>
+    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=14"></script>
 </body>
 
 </html>
