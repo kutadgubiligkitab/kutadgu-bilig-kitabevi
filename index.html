@@ -97,6 +97,10 @@ body {
 
     direction: rtl;
 
+    background-image:
+        radial-gradient(rgba(139,110,80,0.05) 1px, transparent 1px);
+    background-size: 3px 3px;
+
     transition:
         background-color 0.3s ease,
         color 0.3s ease;
@@ -118,7 +122,8 @@ header {
 
     min-height: 70px;
 
-    background: var(--header);
+    background: linear-gradient(180deg, var(--header) 0%, color-mix(in srgb, var(--header) 88%, black) 100%);
+    border-bottom: 3px solid #8a6047;
 
     color: white;
 
@@ -129,6 +134,8 @@ header {
     justify-content: space-between;
 
     padding: 0 7%;
+
+    box-shadow: 0 4px 16px var(--shadow);
 
     transition:
         background-color 0.3s ease;
@@ -333,11 +340,14 @@ nav a:hover {
 
 .card {
 
+    position: relative;
+
     background: var(--card);
 
     min-height: 220px;
 
     border: 1px solid var(--border);
+    border-top: 4px solid #8a6047;
 
     border-radius: 14px;
 
@@ -363,6 +373,13 @@ nav a:hover {
         transform 0.2s ease,
         box-shadow 0.2s ease;
 }
+
+.card:nth-child(6n+1){ border-top-color:#8f4d3e; }
+.card:nth-child(6n+2){ border-top-color:#476b67; }
+.card:nth-child(6n+3){ border-top-color:#b48b43; }
+.card:nth-child(6n+4){ border-top-color:#665687; }
+.card:nth-child(6n+5){ border-top-color:#46729a; }
+.card:nth-child(6n+6){ border-top-color:#9d6b55; }
 
 .card:hover {
 
@@ -906,7 +923,9 @@ footer {
     padding: 12px 14px 15px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: var(--bg-soft);
+    background:
+        repeating-linear-gradient(180deg, rgba(139,96,71,.05) 0px, rgba(139,96,71,.05) 2px, transparent 2px, transparent 26px),
+        var(--bg-soft);
 }
 
 .store-shelf{
@@ -917,6 +936,7 @@ footer {
     gap: 5px;
     padding: 0 8px 5px;
     border-bottom: 7px solid #8a6047;
+    box-shadow: 0 3px 4px rgba(0,0,0,.12);
 }
 
 .book-spine{
@@ -1108,9 +1128,28 @@ footer {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 58px;
-    opacity: .72;
 }
+
+.home-feature-placeholder::before{
+    content:"";
+    display:block;
+    width:60px;
+    height:86px;
+    border-radius:3px 7px 7px 3px;
+    background:
+        linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px),
+        linear-gradient(135deg,#8f4d3e,#b4674f);
+    box-shadow:
+        6px 10px 16px rgba(0,0,0,.16),
+        inset -3px 0 0 rgba(255,255,255,.14);
+}
+
+.home-feature-card:nth-child(6n+1) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#8f4d3e,#b4674f)}
+.home-feature-card:nth-child(6n+2) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#476b67,#6d9089)}
+.home-feature-card:nth-child(6n+3) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#b48b43,#d4ab63)}
+.home-feature-card:nth-child(6n+4) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#665687,#8672a8)}
+.home-feature-card:nth-child(6n+5) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#46729a,#6893ba)}
+.home-feature-card:nth-child(6n+6) .home-feature-placeholder::before{background:linear-gradient(90deg, rgba(0,0,0,.16) 0 6px, transparent 6px), linear-gradient(135deg,#9d6b55,#bd8b73)}
 
 .home-feature-cover img{
     position: relative;
@@ -1818,37 +1857,6 @@ header > .container{
     }
     .home-main-section .cards{
         grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    }
-}
-
-
-/* =========================================================
-   كىتاب تۈرلىرى — 7 كارتا كەسپىي 4 + 3 رەت
-   ========================================================= */
-@media (min-width:1101px){
-    .home-main-section .cards{
-        display:grid !important;
-        grid-template-columns:repeat(8,minmax(0,1fr)) !important;
-        gap:16px !important;
-        max-width:1400px !important;
-        margin-inline:auto !important;
-    }
-    .home-main-section .cards .card{
-        grid-column:span 2 !important;
-        width:100% !important;
-        min-width:0 !important;
-        min-height:148px !important;
-    }
-
-    /* 5-، 6-، 7- كارتا ئىككىنچى قۇرغا تەڭ مەركەزلەشتۈرۈلىدۇ */
-    .home-main-section .cards .card:nth-child(5){
-        grid-column:2 / span 2 !important;
-    }
-    .home-main-section .cards .card:nth-child(6){
-        grid-column:4 / span 2 !important;
-    }
-    .home-main-section .cards .card:nth-child(7){
-        grid-column:6 / span 2 !important;
     }
 }
 
