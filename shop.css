@@ -35,3 +35,24 @@
 .empty-state{text-align:center;padding:55px 20px;color:var(--site-text-soft,#806f62)}
 @media(max-width:900px){.shop-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:650px){.shop-floating{left:10px;bottom:10px}.shop-grid{grid-template-columns:repeat(2,1fr)}.shop-mini-card img{height:180px}.cart-item{grid-template-columns:65px 1fr}.cart-item img{width:60px;height:80px}.cart-item .qty-control,.cart-item .cart-line-price,.cart-item .remove-cart{grid-column:2}.detail-price{margin-left:0}}
+
+/* ===== يېڭى كىتاب ھەرىكەت كۇنۇپكىلىرى ===== */
+.book-actions{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:10px}
+.book-actions .detail-button,.book-actions .add-to-cart,.book-actions .favorite-button,.book-actions .share-button{margin:0;white-space:nowrap}
+.book-actions .detail-button{padding:9px 15px}
+.book-actions .add-to-cart,.book-actions .favorite-button,.book-actions .share-button{padding:8px 12px}
+.mini-actions{display:flex;gap:7px;align-items:center;margin-top:9px}
+.mini-actions .add-to-cart{flex:1;margin:0!important}
+.mini-actions .share-button{width:42px;padding:8px 0}
+.shop-selector{position:relative;width:min(92%,720px);margin:5px auto 18px;text-align:center;z-index:20}
+.shop-selector-button{border:1px solid var(--site-border,#e8dccb);background:var(--site-brown,#70503d);color:#fff;border-radius:10px;padding:11px 20px;font-family:inherit;font-size:15px;cursor:pointer;box-shadow:0 5px 16px rgba(75,51,39,.10)}
+.shop-selector-button span{margin-right:7px;font-size:17px}
+.shop-selector-menu{display:none;position:absolute;top:calc(100% + 7px);right:50%;transform:translateX(50%);width:min(100%,520px);padding:8px;background:var(--site-card,#fffdf9);border:1px solid var(--site-border,#e8dccb);border-radius:12px;box-shadow:0 12px 30px rgba(75,51,39,.15)}
+.shop-selector-menu.is-open{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.shop-selector-menu button{border:1px solid var(--site-border,#e8dccb);background:var(--site-bg-soft,#fbf8f2);color:var(--site-text,#44352d);border-radius:8px;padding:10px 8px;font-family:inherit;cursor:pointer;font-size:13px}
+.shop-selector-menu button:hover{background:var(--site-brown,#70503d);color:#fff}
+.shop-selected-content{min-height:0}
+.shop-section-selected{margin-bottom:28px}
+.shop-section-empty{background:var(--site-card,#fffdf9);border:1px solid var(--site-border,#e8dccb);border-radius:12px}
+@media(max-width:650px){.book-actions{gap:6px}.book-actions .detail-button,.book-actions .add-to-cart,.book-actions .favorite-button,.book-actions .share-button{font-size:12px;padding:8px 9px}.shop-selector-menu.is-open{grid-template-columns:1fr}.mini-actions .add-to-cart{font-size:12px}.mini-actions .share-button{width:38px}}
+.shop-select-hint{width:min(92%,720px);margin:0 auto 25px;padding:18px;text-align:center;color:var(--site-text-soft,#806f62);background:var(--site-card,#fffdf9);border:1px solid var(--site-border,#e8dccb);border-radius:12px}
