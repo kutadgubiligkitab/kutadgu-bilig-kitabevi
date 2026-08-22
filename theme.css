@@ -277,3 +277,90 @@ body.dark-mode section.info-section h2 {
 body.dark-mode section.info-section p {
     color: var(--site-text-soft) !important;
 }
+
+
+/* ===== قۇتادغۇبىلىك لوگوسى ===== */
+.kutadgu-site-logo{
+    width:48px;
+    height:48px;
+    object-fit:contain;
+    flex:0 0 auto;
+    filter:drop-shadow(0 3px 5px rgba(0,0,0,.22));
+}
+.kutadgu-brand-text{
+    display:inline-block;
+}
+.logo,.brand,.site-title,.kutadgu-brand-fallback{
+    display:inline-flex!important;
+    align-items:center;
+    gap:10px;
+}
+.kutadgu-brand-fallback{
+    color:inherit;
+    text-decoration:none;
+    margin-inline-end:14px;
+}
+@media (max-width:650px){
+    .kutadgu-site-logo{
+        width:38px;
+        height:38px;
+    }
+    .logo,.brand,.site-title,.kutadgu-brand-fallback{
+        gap:7px;
+    }
+}
+
+
+/* ===== لوگو چوڭلۇق ئاخىرقى تۈزىتىشى ===== */
+header{
+    min-height:64px !important;
+    height:auto !important;
+    overflow:visible !important;
+}
+header .logo{
+    display:inline-flex !important;
+    align-items:center !important;
+    gap:9px !important;
+    width:auto !important;
+    height:54px !important;
+    max-height:54px !important;
+    overflow:hidden !important;
+    flex:0 0 auto !important;
+}
+header .logo img.kutadgu-site-logo{
+    display:block !important;
+    width:38px !important;
+    height:38px !important;
+    min-width:38px !important;
+    min-height:38px !important;
+    max-width:38px !important;
+    max-height:38px !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    margin:0 !important;
+    padding:0 !important;
+    flex:0 0 38px !important;
+}
+header .kutadgu-brand-text{
+    display:inline-block !important;
+    line-height:1.25 !important;
+    white-space:nowrap !important;
+}
+@media (max-width:850px){
+    header{
+        min-height:auto !important;
+    }
+    header .logo{
+        height:46px !important;
+        max-height:46px !important;
+    }
+    header .logo img.kutadgu-site-logo{
+        width:32px !important;
+        height:32px !important;
+        min-width:32px !important;
+        min-height:32px !important;
+        max-width:32px !important;
+        max-height:32px !important;
+        flex-basis:32px !important;
+    }
+}
