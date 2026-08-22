@@ -337,6 +337,48 @@ function recommendedBooks(limit=12){
   return out;
 }
 
+
+function renderHomeFeaturedBooks(){
+  const host=document.querySelector("#homeFeaturedBooks");
+  if(!host)return;
+
+  const marked=C.filter(b=>b.isNew===true);
+  const books=(marked.length?marked:C).slice(0,4);
+
+  function card(b){
+    return `<article class="home-feature-card">
+      <button type="button" class="home-feature-heart favorite-button" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
+      <a href="${b.href}">
+        <div class="home-feature-cover">
+          <span class="home-feature-placeholder">📕</span>
+          ${b.image?`<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.remove()">`:""}
+        </div>
+        <div class="home-feature-info">
+          <div class="home-feature-title">${b.title}</div>
+          <div class="home-feature-author">${b.author||"—"}</div>
+          <div class="home-feature-bottom">
+            <span class="home-feature-price">${money(b.price)}</span>
+            <button type="button" class="add-to-cart home-feature-cart" data-cart-id="${b.id}" aria-label="سېۋەتكە قوشۇش">🛒</button>
+          </div>
+        </div>
+      </a>
+    </article>`;
+  }
+
+  host.innerHTML=`<section class="home-featured-section">
+    <div class="home-featured-head">
+      <div>
+        <h3>🆕 يېڭى كىتابلار</h3>
+        <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
+      </div>
+      <a class="home-featured-all" href="my-books.html">ھەممىسىنى كۆرۈش ←</a>
+    </div>
+    <div class="home-featured-grid">${books.map(card).join("")}</div>
+  </section>`;
+
+  bindDynamicActions(host);
+}
+
 function renderHomeSections(){
   let host=document.querySelector("#homeShopSections");if(!host)return;
   let rec=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
@@ -858,7 +900,7 @@ function setupCheckout(){
   if(share)share.onclick=shareOrder;
 }
 
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
+function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
 async function boot(){await loadRemoteCatalog();init()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};
