@@ -911,3 +911,4 @@
     background:var(--site-bg-soft,#fbf8f2);
     color:var(--site-text-soft,#806f62);
 }
+\n/* Featured cards: favorite is icon-only */\n.home-feature-heart.favorite-button{\n  width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;\n  padding:0!important;border-radius:50%!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;\n  font-size:18px!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;\n}\n

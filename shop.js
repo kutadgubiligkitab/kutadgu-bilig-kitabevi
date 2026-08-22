@@ -350,8 +350,8 @@ function renderHomeFeaturedBooks(){
       <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a href="${b.href}">
         <div class="home-feature-cover">
-          <div class="home-feature-cover-frame">
-            ${b.image?`<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.remove();this.parentElement.classList.add('is-placeholder');this.parentElement.innerHTML='<span class=\"home-feature-placeholder\">📕</span>'">`:`<span class="home-feature-placeholder">📕</span>`}
+          <div class="home-feature-cover-frame${b.image?"":" is-placeholder"}">
+            ${b.image?`<img src="${b.image}" alt="" loading="lazy" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.add('is-placeholder')"><span class="home-feature-placeholder" hidden>📕</span>`:`<span class="home-feature-placeholder">📕</span>`}
           </div>
         </div>
         <div class="home-feature-info">

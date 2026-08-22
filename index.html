@@ -2113,50 +2113,61 @@ body.dark-mode section.home-bookstore-hero{
     text-indent:0 !important;
 }
 
-/* مۇقاۋا رايونى */
+/* مۇقاۋا رايونى — پاكىز ۋە بىردەك */
 .home-feature-cover{
     height:190px !important;
     min-height:190px !important;
-    padding:18px 12px 10px !important;
+    padding:16px 12px 10px !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    background:linear-gradient(180deg,rgba(112,80,61,.035),rgba(112,80,61,.012)) !important;
+    background:transparent !important;
 }
 
-/* كىتاب مۇقاۋىسىنىڭ ئۆزىگە رامكا — نە بەك چوڭ، نە بەك كىچىك */
+/* مۇقاۋا رامكىسى: كىتابقا يېقىن نىسبەت، ئارتۇق ئاق بوشلۇق يوق */
 .home-feature-cover-frame{
-    width:112px !important;
-    height:158px !important;
+    width:108px !important;
+    height:152px !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    padding:8px !important;
-    border:1px solid var(--border) !important;
-    border-radius:11px !important;
-    background:var(--card) !important;
-    box-shadow:0 7px 18px rgba(0,0,0,.055) !important;
+    padding:5px !important;
+    border:1px solid rgba(112,80,61,.20) !important;
+    border-radius:8px !important;
+    background:rgba(255,255,255,.34) !important;
+    box-shadow:0 5px 12px rgba(0,0,0,.045) !important;
     overflow:hidden !important;
+}
+body.dark-mode .home-feature-cover-frame{
+    background:rgba(255,255,255,.025) !important;
+    border-color:var(--border) !important;
 }
 .home-feature-cover-frame img{
     display:block !important;
-    width:auto !important;
-    height:auto !important;
-    max-width:94px !important;
-    max-height:140px !important;
+    width:100% !important;
+    height:100% !important;
+    max-width:98px !important;
+    max-height:142px !important;
     object-fit:contain !important;
+    object-position:center !important;
     margin:0 auto !important;
-    filter:none !important;
+    border-radius:4px !important;
+}
+.home-feature-cover-frame.is-placeholder{
+    background:rgba(112,80,61,.035) !important;
+    border-style:dashed !important;
 }
 .home-feature-placeholder{
-    width:94px !important;
-    height:140px !important;
+    width:100% !important;
+    height:100% !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    font-size:55px !important;
-    opacity:.38 !important;
+    font-size:48px !important;
+    line-height:1 !important;
+    opacity:.46 !important;
 }
+.home-feature-placeholder[hidden]{display:none !important;}
 
 .home-feature-info{
     display:flex !important;
@@ -2184,8 +2195,8 @@ body.dark-mode section.home-bookstore-hero{
 @media(max-width:700px){
     .home-feature-card{min-height:300px !important;}
     .home-feature-cover{height:175px !important;min-height:175px !important;padding-top:14px !important;}
-    .home-feature-cover-frame{width:104px !important;height:148px !important;padding:7px !important;}
-    .home-feature-cover-frame img{max-width:88px !important;max-height:132px !important;}
+    .home-feature-cover-frame{width:100px !important;height:142px !important;padding:5px !important;}
+    .home-feature-cover-frame img{max-width:90px !important;max-height:132px !important;}
     .home-feature-placeholder{width:88px !important;height:132px !important;font-size:52px !important;}
 }
 
