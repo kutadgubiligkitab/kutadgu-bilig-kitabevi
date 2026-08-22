@@ -343,7 +343,7 @@ function renderHomeFeaturedBooks(){
   if(!host)return;
 
   const marked=C.filter(b=>b.isNew===true);
-  const books=(marked.length?marked:C).slice(0,4);
+  const books=(marked.length?marked:C).slice(0,6);
 
   function card(b){
     return `<article class="home-feature-card">
