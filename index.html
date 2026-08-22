@@ -1880,10 +1880,172 @@ header > .container{
     }
 }
 
+
+
+/* ===== HERO LOGO UI FIX — 2026-08-22 ===== */
+/* Hero نىڭ ئوڭ تەرىپىدىكى پەرقلىق رەڭلىك چەمبەرنى يوقىتىش */
+.bookstore-scene::after{
+    display:none !important;
+    content:none !important;
+}
+
+/* Hero دىكى logo رايونى باشقا يەر بىلەن ئوخشاش كۆرۈنسۇن */
+.real-cover-wrap{
+    background:transparent !important;
+}
+.real-cover-wrap > img.hero-scene-logo{
+    background:transparent !important;
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.12)) !important;
+}
+
+/* ياقتۇرغانلىرىم يۈرەك ئايكونىنى theme كۇنۇپكىدىن يىراقلاشتۇرۇش */
+header nav a[href="favorites.html"]{
+    margin-left:24px !important;
+}
+@media (max-width: 700px){
+    header nav a[href="favorites.html"]{
+        margin-left:18px !important;
+    }
+}
+
+
+
+/* ===== HOME HEADER POLISH — 2026-08-22 ===== */
+/* Header نى تېخىمۇ مۇكەممەل، رەتلىك ۋە بىرخىل ئۇسلۇبتا قىلىش */
+header{
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 26px rgba(0,0,0,.10);
+}
+
+header nav{
+    gap: 14px !important;
+    flex-wrap: wrap;
+    padding-left: 82px; /* سول تەرەپتىكى fixed theme button ئۈچۈن بوش ئورۇن */
+}
+
+header nav a{
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+/* سېۋەت ۋە ياقتۇرغانلىرىم — icon pill style */
+header nav a[href="cart.html"],
+header nav a[href="favorites.html"]{
+    height: 36px;
+    min-width: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+header nav a[href="cart.html"]{
+    gap: 6px;
+}
+
+header nav a[href="favorites.html"]{
+    justify-content: center;
+    min-width: 40px;
+    padding: 0 10px;
+    margin-left: 10px !important;
+}
+
+header nav a[href="cart.html"]:hover,
+header nav a[href="favorites.html"]:hover{
+    background: rgba(255,255,255,.15);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* theme button نى باشقا icon لار بىلەن ماسلاشتۇرۇش */
+.theme-button{
+    top: 14px !important;
+    left: 14px !important;
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    border-color: rgba(226,201,141,.45) !important;
+    box-shadow:
+        0 8px 24px rgba(0,0,0,.20),
+        inset 0 0 0 1px rgba(255,255,255,.05) !important;
+}
+
+/* كۈندۈزلۈك ۋە كېچىلىك ھالەتتە logo رايونى رەڭ پەرقلىق بولماسۇن */
+.bookstore-scene,
+.store-window,
+.real-cover-wrap{
+    background-clip: padding-box;
+}
+
+@media (max-width: 980px){
+    header{
+        padding: 14px 16px !important;
+        min-height: auto;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .logo{
+        font-size: 18px;
+    }
+    header nav{
+        width: 100%;
+        justify-content: flex-start;
+        row-gap: 10px;
+        column-gap: 12px !important;
+        padding-left: 70px;
+    }
+}
+
+@media (max-width: 600px){
+    header nav{
+        padding-left: 58px;
+        gap: 10px !important;
+    }
+    header nav a{
+        font-size: 14px;
+    }
+    header nav a[href="cart.html"],
+    header nav a[href="favorites.html"]{
+        height: 34px;
+        min-width: 34px;
+        padding: 0 10px;
+    }
+    header nav a[href="favorites.html"]{
+        min-width: 36px;
+        margin-left: 8px !important;
+    }
+}
+
+
+/* ===== HERO ئارقا رەڭ ئاخىرقى تۈزىتىشى ===== */
+/* كۈندۈز / كېچە ھەر ئىككى ھالەتتە Hero ئارقا كۆرۈنۈشى
+   پۈتۈن بەت بىلەن دەل بىر رەڭ بولىدۇ */
+.home-bookstore-hero,
+section.home-bookstore-hero,
+body.dark-mode .home-bookstore-hero,
+body.dark-mode section.home-bookstore-hero{
+    background: var(--bg) !important;
+    background-color: var(--bg) !important;
+    background-image: none !important;
+}
+
+/* Hero ئاستى-ئۈستىدە يوشۇرۇن gradient ياكى glow قالماسۇن */
+.home-bookstore-hero::before,
+.home-bookstore-hero::after{
+    content: none !important;
+    display: none !important;
+}
+
 </style>
 
-    <link rel="stylesheet" href="theme.css?v=5">
-<link rel="stylesheet" href="shop.css?v=11">
+    <link rel="stylesheet" href="theme.css?v=8">
+<link rel="stylesheet" href="shop.css?v=14">
 </head>
 
 
