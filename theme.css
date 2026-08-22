@@ -225,21 +225,55 @@ footer {
     color: #f1e7da !important;
 }
 
-/* FINAL CONTRAST FIX: footer and all footer children */
-footer,
-footer *,
-footer p,
-footer span,
-footer a,
-footer strong,
-footer small {
-    color: #f5eadc !important;
-    text-shadow: 0 1px 2px rgba(0,0,0,.35) !important;
+/* =========================================================
+   INFO SECTION CONTRAST FIX — 2026-08-22
+   تۆۋەندىكى «قۇتادغۇبىلىك كىتابخانىسى» بۆلىكىدىكى خەتلەر
+   كۈندۈز ھالىتىدە ئاق رەڭ بولۇپ ئارقا كۆرۈنۈش بىلەن تالىشىپ قالماسۇن.
+========================================================= */
+.info-section,
+section.info-section {
+    background-color: var(--site-bg) !important;
+    color: var(--site-text) !important;
 }
-footer a:hover {
-    color: #ffffff !important;
+
+.info-section h2,
+.info-section p,
+section.info-section h2,
+section.info-section p {
+    color: var(--site-text) !important;
+    opacity: 1 !important;
 }
-body.dark-mode footer,
-body.dark-mode footer * {
-    color: #fff4e8 !important;
+
+body.dark-mode .info-section,
+body.dark-mode section.info-section {
+    background-color: var(--site-bg) !important;
+    color: var(--site-text) !important;
+}
+
+body.dark-mode .info-section h2,
+body.dark-mode .info-section p,
+body.dark-mode section.info-section h2,
+body.dark-mode section.info-section p {
+    color: var(--site-text) !important;
+}
+
+
+/* FINAL INFO SECTION CONTRAST — 2026-08-22 */
+html body section.info-section {
+    background: var(--site-bg) !important;
+    color: var(--site-text) !important;
+}
+html body section.info-section h2 {
+    color: var(--site-text) !important;
+    opacity: 1 !important;
+}
+html body section.info-section p {
+    color: var(--site-text-soft) !important;
+    opacity: 1 !important;
+}
+body.dark-mode section.info-section h2 {
+    color: var(--site-text) !important;
+}
+body.dark-mode section.info-section p {
+    color: var(--site-text-soft) !important;
 }
