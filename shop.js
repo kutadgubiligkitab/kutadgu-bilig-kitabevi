@@ -86,12 +86,149 @@ function renderHomeSections(){
   document.addEventListener("click",e=>{if(!host.contains(e.target))menu.classList.remove("is-open")});
   content.innerHTML=`<div class="shop-select-hint">📚 ئۈستىدىكى «كىتابلارنى تاللاش» كۇنۇپكىسىنى بېسىپ، كۆرۈشنى خالايدىغان تۈرنى تاللاڭ.</div>`;
 }
+function normalizeText(v){
+  return String(v||"").toLocaleLowerCase("ug").replace(/\s+/g," ").trim();
+}
+function uniqueCategories(){
+  let seen=new Set(),out=[];
+  C.forEach(b=>{let v=(b.category||"").trim();if(v&&!seen.has(v)){seen.add(v);out.push(v)}});
+  return out;
+}
+function pricePass(b,min,max){
+  let p=Number(b.price);
+  if(Number.isFinite(min)&&(!Number.isFinite(p)||p<min))return false;
+  if(Number.isFinite(max)&&(!Number.isFinite(p)||p>max))return false;
+  return true;
+}
+function sortBooks(items,mode){
+  let arr=[...items];
+  if(mode==="priceLow")arr.sort((a,b)=>(Number(a.price)||999999999)-(Number(b.price)||999999999));
+  else if(mode==="priceHigh")arr.sort((a,b)=>(Number(b.price)||0)-(Number(a.price)||0));
+  else if(mode==="title")arr.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"ug"));
+  else if(mode==="author")arr.sort((a,b)=>String(a.author||"").localeCompare(String(b.author||""),"ug"));
+  else arr.sort((a,b)=>C.indexOf(a)-C.indexOf(b));
+  return arr;
+}
+function bindDynamicActions(scope){
+  if(!scope)return;
+  scope.querySelectorAll("[data-cart-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();add(b.dataset.cartId)});
+  scope.querySelectorAll("[data-fav-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();toggleFav(b.dataset.favId)});
+  scope.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});
+  renderFavButtons();
+}
+function searchResultCard(b){
+  return `<article class="advanced-search-result">
+    <a class="advanced-search-cover" href="${b.href}"><img src="${b.image||''}" alt="${b.title}" loading="lazy" onerror="this.style.visibility='hidden'"></a>
+    <div class="advanced-search-info">
+      <a class="advanced-search-title" href="${b.href}">${b.title}</a>
+      <div class="advanced-search-meta">ئاپتورى: ${b.author||"—"}</div>
+      <div class="advanced-search-meta">${b.category||""}</div>
+      <div class="advanced-search-price">${money(b.price)}</div>
+      <div class="advanced-search-actions">
+        <a class="detail-button" href="${b.href}">تەپسىلات</a>
+        <button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە</button>
+        <button type="button" class="favorite-button" data-fav-id="${b.id}">♡ ياقتۇرۇش</button>
+        <button type="button" class="share-button" data-share-id="${b.id}">🔗</button>
+      </div>
+    </div>
+  </article>`;
+}
 function searchEnhance(){
   let input=document.querySelector("#searchInput"),res=document.querySelector("#searchResults");if(!input||!res)return;
   let btn=document.querySelector("#searchButton");
+  let box=input.closest(".search-box")||input.parentElement;
+  if(!document.querySelector("#advancedSearchPanel")){
+    let panel=document.createElement("div");
+    panel.id="advancedSearchPanel";
+    panel.className="advanced-search-panel";
+    panel.innerHTML=`
+      <div class="advanced-search-field">
+        <label for="searchCategory">كىتاب تۈرى</label>
+        <select id="searchCategory"><option value="">بارلىق تۈرلەر</option>${uniqueCategories().map(x=>`<option value="${x}">${x}</option>`).join("")}</select>
+      </div>
+      <div class="advanced-search-field">
+        <label for="searchMinPrice">ئەڭ تۆۋەن باھا</label>
+        <input id="searchMinPrice" type="number" min="0" inputmode="numeric" placeholder="0 ₺">
+      </div>
+      <div class="advanced-search-field">
+        <label for="searchMaxPrice">ئەڭ يۇقىرى باھا</label>
+        <input id="searchMaxPrice" type="number" min="0" inputmode="numeric" placeholder="مەسىلەن 500 ₺">
+      </div>
+      <div class="advanced-search-field">
+        <label for="searchSort">تەرتىپلەش</label>
+        <select id="searchSort">
+          <option value="new">يېڭى قوشۇلغان تەرتىپ</option>
+          <option value="title">كىتاب نامى بويىچە</option>
+          <option value="author">ئاپتور بويىچە</option>
+          <option value="priceLow">باھاسى ئەرزاندىن</option>
+          <option value="priceHigh">باھاسى قىممەتتىن</option>
+        </select>
+      </div>
+      <button type="button" class="advanced-search-reset" id="searchReset">↺ تازىلاش</button>`;
+    (box||res).insertAdjacentElement("afterend",panel);
+  }
+  let category=document.querySelector("#searchCategory"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
+  function hasFilter(){return !!(input.value.trim()||category?.value||minEl?.value||maxEl?.value)}
+  function run(){
+    let q=normalizeText(input.value),cat=category?.value||"";
+    let min=minEl?.value!==""?Number(minEl.value):NaN,max=maxEl?.value!==""?Number(maxEl.value):NaN;
+    if(!hasFilter()){
+      res.innerHTML='<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+      return;
+    }
+    let matches=C.filter(b=>{
+      let hay=normalizeText([b.title,b.author,b.category,b.publisher,b.language].filter(Boolean).join(" "));
+      return (!q||hay.includes(q))&&(!cat||b.category===cat)&&pricePass(b,min,max);
+    });
+    matches=sortBooks(matches,sortEl?.value||"new");
+    res.innerHTML=`<div class="advanced-search-summary"><strong>${matches.length}</strong> دانە كىتاب تېپىلدى</div>`+
+      (matches.length?`<div class="advanced-search-results-grid">${matches.map(searchResultCard).join("")}</div>`:'<div class="search-empty">بۇ شەرتكە ماس كىتاب تېپىلمىدى.</div>');
+    bindDynamicActions(res);
+  }
   if(btn)btn.onclick=run;
-  input.addEventListener("input",()=>{if(!input.value.trim())res.innerHTML="";else run()});
-  function run(){let q=input.value.trim().toLocaleLowerCase("ug");let matches=C.filter(b=>[b.title,b.author,b.category].join(" ").toLocaleLowerCase("ug").includes(q));let sort=document.querySelector("#searchSort")?.value||"new";if(sort==="priceLow")matches.sort((a,b)=>(a.price||999999)-(b.price||999999));if(sort==="priceHigh")matches.sort((a,b)=>(b.price||0)-(a.price||0));if(sort==="title")matches.sort((a,b)=>a.title.localeCompare(b.title,"ug"));res.innerHTML=matches.length?`<div class="search-tools"><span>${matches.length} نەتىجە</span><select id="searchSort"><option value="new">تەرتىپى</option><option value="title">ئىسىم بويىچە</option><option value="priceLow">ئەرزانىدىن</option><option value="priceHigh">قىممىتىدىن</option></select></div>`+matches.map(b=>`<a class="search-result" href="${b.href}"><img class="search-result-image" src="${b.image}" alt="${b.title}" onerror="this.style.display='none'"><div class="search-result-content"><div class="search-result-title">${b.title}</div><div class="search-result-author">ئاپتورى: ${b.author}</div><div class="search-result-category">${b.category}</div><div class="search-result-category">${money(b.price)}</div></div></a>`).join(""):"<div class='search-empty'>بۇ ئىزدەش بويىچە كىتاب تېپىلمىدى.</div>";let s=document.querySelector("#searchSort");if(s)s.onchange=run}
+  input.addEventListener("input",run);
+  [category,minEl,maxEl,sortEl].forEach(el=>el&&el.addEventListener("change",run));
+  [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",run));
+  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run()};
+  res.innerHTML='<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+}
+function setupCatalogFilters(){
+  let file=(location.pathname.split("/").pop()||"").split(/[?#]/)[0]||"index.html";
+  let pageBooks=C.filter(b=>b.source===file);
+  let grid=document.querySelector(".books-grid");
+  if(!grid||!pageBooks.length||document.querySelector("#catalogFilterBar"))return;
+
+  let mapped=[...grid.querySelectorAll(".book-card")].map((card,order)=>({card,id:cardId(card),order})).filter(x=>x.id&&pageBooks.some(b=>b.id===x.id));
+  if(!mapped.length)return;
+
+  let bar=document.createElement("div");
+  bar.id="catalogFilterBar";
+  bar.className="catalog-filter-bar";
+  bar.innerHTML=`
+    <div class="catalog-filter-search"><label for="catalogFilterText">🔎 بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
+    <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
+    <div class="catalog-filter-field"><label for="catalogMaxPrice">ئەڭ يۇقىرى باھا</label><input id="catalogMaxPrice" type="number" min="0" placeholder="500 ₺"></div>
+    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort"><option value="new">ئەسلى تەرتىپ</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option></select></div>
+    <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
+    <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
+  grid.parentElement.insertBefore(bar,grid);
+  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.textContent="بۇ شەرتكە ماس كىتاب تېپىلمىدى.";grid.insertAdjacentElement("afterend",empty);
+
+  let text=bar.querySelector("#catalogFilterText"),minEl=bar.querySelector("#catalogMinPrice"),maxEl=bar.querySelector("#catalogMaxPrice"),sortEl=bar.querySelector("#catalogSort"),count=bar.querySelector("#catalogFilterCount"),reset=bar.querySelector("#catalogFilterReset");
+  function apply(){
+    let q=normalizeText(text.value),min=minEl.value!==""?Number(minEl.value):NaN,max=maxEl.value!==""?Number(maxEl.value):NaN;
+    let matches=mapped.filter(x=>{let b=find(x.id);if(!b)return false;let hay=normalizeText([b.title,b.author,b.category].join(" "));return (!q||hay.includes(q))&&pricePass(b,min,max)});
+    let sorted=sortBooks(matches.map(x=>find(x.id)),sortEl.value);
+    let matchIds=new Set(sorted.map(b=>b.id));
+    mapped.forEach(x=>x.card.hidden=!matchIds.has(x.id));
+    sorted.forEach(b=>{let x=mapped.find(m=>m.id===b.id);if(x)grid.appendChild(x.card)});
+    count.textContent=`${matches.length} / ${mapped.length} كىتاب`;
+    empty.hidden=matches.length!==0;
+  }
+  [text,minEl,maxEl].forEach(el=>el.addEventListener("input",apply));
+  sortEl.addEventListener("change",apply);
+  reset.onclick=()=>{text.value="";minEl.value="";maxEl.value="";sortEl.value="new";apply()};
+  apply();
 }
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
@@ -308,7 +445,7 @@ function setupCheckout(){
   if(share)share.onclick=shareOrder;
 }
 
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();renderHomeSections();cartPage();setupCheckout()}
+function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeSections();cartPage();setupCheckout()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};
 })();

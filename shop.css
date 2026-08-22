@@ -293,3 +293,79 @@
         padding-right:10px;
     }
 }
+
+
+/* ===== 2-باسقۇچ: مۇكەممەل ئىزدەش / سۈزۈش / تەرتىپلەش ===== */
+.advanced-search-panel,
+.catalog-filter-bar{
+  max-width:1050px;
+  margin:0 auto 24px;
+  padding:16px;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)) auto;
+  gap:12px;
+  align-items:end;
+  background:var(--site-card,#fffdf9);
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:14px;
+  box-shadow:0 5px 18px rgba(75,51,39,.06);
+}
+.advanced-search-field,
+.catalog-filter-field,
+.catalog-filter-search{display:grid;gap:6px;min-width:0}
+.catalog-filter-search{grid-column:span 2}
+.advanced-search-field label,
+.catalog-filter-field label,
+.catalog-filter-search label{font-size:12px;font-weight:700;color:var(--site-text,#44352d)}
+.advanced-search-panel input,
+.advanced-search-panel select,
+.catalog-filter-bar input,
+.catalog-filter-bar select{
+  width:100%;min-width:0;max-width:100%;box-sizing:border-box;
+  height:44px;padding:8px 11px;border:1px solid var(--site-border,#e8dccb);border-radius:9px;
+  background:var(--site-bg-soft,#fbf8f2);color:var(--site-text,#44352d);font-family:inherit;outline:none
+}
+.advanced-search-panel input:focus,
+.advanced-search-panel select:focus,
+.catalog-filter-bar input:focus,
+.catalog-filter-bar select:focus{border-color:var(--site-brown,#70503d);box-shadow:0 0 0 3px rgba(112,80,61,.10)}
+.advanced-search-reset,.catalog-filter-reset{
+  height:44px;padding:0 15px;border:1px solid var(--site-border,#e8dccb);border-radius:9px;
+  background:var(--site-bg-soft,#fbf8f2);color:var(--site-text,#44352d);font-family:inherit;cursor:pointer;white-space:nowrap
+}
+.advanced-search-reset:hover,.catalog-filter-reset:hover{border-color:var(--site-brown,#70503d)}
+.advanced-search-hint{max-width:900px;margin:0 auto 22px;text-align:center;color:var(--site-text-soft,#806f62);padding:13px}
+.advanced-search-summary{max-width:1050px;margin:0 auto 12px;color:var(--site-text-soft,#806f62);font-size:14px}
+.advanced-search-results-grid{max-width:1050px;margin:0 auto 30px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.advanced-search-result{
+  display:grid;grid-template-columns:105px minmax(0,1fr);gap:14px;padding:12px;
+  background:var(--site-card,#fffdf9);border:1px solid var(--site-border,#e8dccb);border-radius:12px;min-width:0
+}
+.advanced-search-cover{height:145px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:8px;background:#eee9e1}
+.advanced-search-cover img{display:block;width:100%;height:100%;object-fit:contain}
+.advanced-search-info{min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:right}
+.advanced-search-title{font-size:17px;font-weight:700;color:var(--site-text,#44352d);margin-bottom:4px}
+.advanced-search-meta{font-size:12px;color:var(--site-text-soft,#806f62);line-height:1.7}
+.advanced-search-price{font-size:16px;font-weight:700;color:var(--site-text,#44352d);margin-top:5px}
+.advanced-search-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:9px}
+.advanced-search-actions .detail-button,
+.advanced-search-actions button{font-family:inherit;font-size:11px;padding:7px 9px;border-radius:7px;white-space:nowrap}
+.catalog-filter-count{grid-column:1/-1;text-align:left;color:var(--site-text-soft,#806f62);font-size:12px}
+.catalog-filter-empty{margin:20px auto 50px;text-align:center;padding:25px;color:var(--site-text-soft,#806f62);background:var(--site-card,#fffdf9);border:1px dashed var(--site-border,#e8dccb);border-radius:12px}
+.book-card[hidden]{display:none!important}
+@media(max-width:900px){
+  .advanced-search-panel,.catalog-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .catalog-filter-search{grid-column:span 2}
+  .advanced-search-reset,.catalog-filter-reset{width:100%}
+  .advanced-search-results-grid{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .advanced-search-panel,.catalog-filter-bar{grid-template-columns:1fr;padding:12px;margin-left:auto;margin-right:auto}
+  .catalog-filter-search{grid-column:auto}
+  .advanced-search-results-grid{gap:10px}
+  .advanced-search-result{grid-template-columns:82px minmax(0,1fr);gap:10px;padding:10px}
+  .advanced-search-cover{height:118px}
+  .advanced-search-title{font-size:14px}
+  .advanced-search-actions{gap:5px}
+  .advanced-search-actions .detail-button,.advanced-search-actions button{font-size:10px;padding:6px 7px}
+}
