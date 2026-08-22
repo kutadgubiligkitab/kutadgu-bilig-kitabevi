@@ -97,6 +97,10 @@ body {
 
     direction: rtl;
 
+    background-image:
+        radial-gradient(rgba(139,110,80,0.05) 1px, transparent 1px);
+    background-size: 3px 3px;
+
     transition:
         background-color 0.3s ease,
         color 0.3s ease;
@@ -118,7 +122,8 @@ header {
 
     min-height: 70px;
 
-    background: var(--header);
+    background: linear-gradient(180deg, var(--header) 0%, color-mix(in srgb, var(--header) 88%, black) 100%);
+    border-bottom: 3px solid #8a6047;
 
     color: white;
 
@@ -129,6 +134,8 @@ header {
     justify-content: space-between;
 
     padding: 0 7%;
+
+    box-shadow: 0 4px 16px var(--shadow);
 
     transition:
         background-color 0.3s ease;
@@ -333,11 +340,14 @@ nav a:hover {
 
 .card {
 
+    position: relative;
+
     background: var(--card);
 
     min-height: 220px;
 
     border: 1px solid var(--border);
+    border-top: 4px solid #8a6047;
 
     border-radius: 14px;
 
@@ -363,6 +373,13 @@ nav a:hover {
         transform 0.2s ease,
         box-shadow 0.2s ease;
 }
+
+.card:nth-child(6n+1){ border-top-color:#8f4d3e; }
+.card:nth-child(6n+2){ border-top-color:#476b67; }
+.card:nth-child(6n+3){ border-top-color:#b48b43; }
+.card:nth-child(6n+4){ border-top-color:#665687; }
+.card:nth-child(6n+5){ border-top-color:#46729a; }
+.card:nth-child(6n+6){ border-top-color:#9d6b55; }
 
 .card:hover {
 
@@ -906,7 +923,9 @@ footer {
     padding: 12px 14px 15px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: var(--bg-soft);
+    background:
+        repeating-linear-gradient(180deg, rgba(139,96,71,.05) 0px, rgba(139,96,71,.05) 2px, transparent 2px, transparent 26px),
+        var(--bg-soft);
 }
 
 .store-shelf{
@@ -917,6 +936,7 @@ footer {
     gap: 5px;
     padding: 0 8px 5px;
     border-bottom: 7px solid #8a6047;
+    box-shadow: 0 3px 4px rgba(0,0,0,.12);
 }
 
 .book-spine{
@@ -1281,9 +1301,549 @@ footer {
     }
 }
 
+
+/* ===== لوگو چوڭلۇق ئاخىرقى تۈزىتىشى ===== */
+header{
+    min-height:64px !important;
+    height:auto !important;
+    overflow:visible !important;
+}
+header .logo{
+    display:inline-flex !important;
+    align-items:center !important;
+    gap:9px !important;
+    width:auto !important;
+    height:54px !important;
+    max-height:54px !important;
+    overflow:hidden !important;
+    flex:0 0 auto !important;
+}
+header .logo img.kutadgu-site-logo{
+    display:block !important;
+    width:38px !important;
+    height:38px !important;
+    min-width:38px !important;
+    min-height:38px !important;
+    max-width:38px !important;
+    max-height:38px !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    margin:0 !important;
+    padding:0 !important;
+    flex:0 0 38px !important;
+}
+header .kutadgu-brand-text{
+    display:inline-block !important;
+    line-height:1.25 !important;
+    white-space:nowrap !important;
+}
+@media (max-width:850px){
+    header{
+        min-height:auto !important;
+    }
+    header .logo{
+        height:46px !important;
+        max-height:46px !important;
+    }
+    header .logo img.kutadgu-site-logo{
+        width:32px !important;
+        height:32px !important;
+        min-width:32px !important;
+        min-height:32px !important;
+        max-width:32px !important;
+        max-height:32px !important;
+        flex-basis:32px !important;
+    }
+}
+
+
+/* =========================================================
+   PROFESSIONAL COMPACT HOME — ئاخىرقى كەڭ/رەتلىك باش بەت
+   ========================================================= */
+
+/* Header */
+header{
+    position:sticky;
+    top:0;
+    z-index:900;
+    min-height:62px !important;
+    padding:0 clamp(18px,4vw,62px) !important;
+    box-shadow:0 4px 18px rgba(35,22,16,.12);
+}
+header .logo{
+    height:52px !important;
+    max-height:52px !important;
+}
+header nav{
+    gap:18px;
+}
+header nav a{
+    font-size:14px;
+    font-weight:700;
+}
+
+/* Hero — shorter + wider */
+.home-bookstore-hero{
+    min-height:260px !important;
+    padding:24px clamp(22px,5vw,74px) 26px !important;
+    background:
+        radial-gradient(circle at 15% 25%, rgba(226,201,141,.18), transparent 30%),
+        linear-gradient(180deg,var(--bg-soft),var(--bg)) !important;
+}
+.home-hero-inner{
+    width:min(1320px,100%) !important;
+    grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr) !important;
+    gap:42px !important;
+}
+.home-hero-copy{
+    max-width:720px !important;
+}
+.home-hero-symbols{
+    font-size:25px !important;
+    margin-bottom:5px !important;
+}
+.home-hero-eyebrow{
+    font-size:13px !important;
+    margin-bottom:3px !important;
+}
+.home-bookstore-hero h1{
+    font-size:clamp(34px,3.6vw,48px) !important;
+    margin-bottom:5px !important;
+}
+.home-bookstore-hero p{
+    margin-bottom:15px !important;
+    font-size:15px !important;
+}
+.home-hero-actions .button,
+.home-hero-secondary{
+    min-height:42px !important;
+    padding:8px 20px !important;
+    font-size:14px !important;
+}
+.bookstore-scene{
+    min-height:205px !important;
+    padding:12px !important;
+    border-radius:16px !important;
+    box-shadow:0 12px 32px var(--shadow) !important;
+}
+.store-scene-top{
+    height:37px !important;
+}
+.store-icon{
+    font-size:23px !important;
+}
+.store-window{
+    margin-top:8px !important;
+    padding:8px 12px 10px !important;
+}
+.store-shelf{
+    height:33px !important;
+}
+.store-display{
+    height:83px !important;
+}
+.real-cover-wrap{
+    height:76px !important;
+}
+.real-cover-wrap img{
+    max-height:76px !important;
+    max-width:58px !important;
+}
+.store-cart{
+    font-size:34px !important;
+}
+.store-shelf.lower{
+    height:29px !important;
+}
+
+/* Main layout */
+.section.home-main-section{
+    width:min(1320px,calc(100% - 40px)) !important;
+    max-width:1320px !important;
+    padding:30px 0 64px !important;
+}
+.home-search-heading,
+.home-category-heading{
+    max-width:1120px !important;
+    margin:0 auto 12px !important;
+}
+.home-search-heading h2,
+.home-category-heading h2{
+    font-size:25px !important;
+}
+.home-search-heading p,
+.home-category-heading p{
+    font-size:12px !important;
+}
+.home-heading-icon{
+    font-size:27px !important;
+}
+
+/* Search area wider */
+.home-main-section .search-box{
+    max-width:980px !important;
+    width:100% !important;
+    margin:0 auto 8px !important;
+}
+.home-main-section .search-box input{
+    min-height:48px !important;
+}
+.home-main-section .search-box button{
+    min-width:120px !important;
+}
+#advancedSearchPanel{
+    width:min(1120px,100%) !important;
+    max-width:1120px !important;
+    margin:8px auto 14px !important;
+    padding:12px !important;
+}
+.advanced-search-panel{
+    box-shadow:0 7px 20px var(--shadow) !important;
+}
+
+/* Remove unnecessary vertical gaps */
+#searchResults{
+    margin-top:8px !important;
+}
+#homeShopSections{
+    margin:12px auto 0 !important;
+    max-width:1120px !important;
+}
+.home-category-heading{
+    margin-top:24px !important;
+}
+
+/* Featured books — full professional strip */
+.home-featured-section{
+    width:100% !important;
+    max-width:1180px !important;
+    margin:20px auto 18px !important;
+    padding:18px !important;
+    border-radius:14px !important;
+    box-shadow:0 8px 24px var(--shadow) !important;
+}
+.home-featured-head{
+    margin-bottom:12px !important;
+}
+.home-featured-head h3{
+    font-size:21px !important;
+}
+.home-featured-grid{
+    grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+    gap:11px !important;
+}
+.home-feature-card{
+    border-radius:10px !important;
+}
+.home-feature-cover{
+    height:160px !important;
+}
+.home-feature-info{
+    padding:9px 9px 10px !important;
+}
+.home-feature-title{
+    min-height:42px !important;
+    font-size:13px !important;
+}
+.home-feature-author{
+    font-size:10px !important;
+}
+.home-feature-price{
+    font-size:13px !important;
+}
+.home-feature-heart{
+    width:30px !important;
+    height:30px !important;
+    top:6px !important;
+    left:6px !important;
+}
+.home-feature-cart{
+    width:32px !important;
+    height:32px !important;
+}
+
+/* Categories — compact visual tiles */
+.home-main-section .cards{
+    width:min(1180px,100%) !important;
+    margin:0 auto !important;
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:14px !important;
+}
+.home-main-section .card{
+    min-height:155px !important;
+    padding:20px 16px !important;
+    border-radius:12px !important;
+    box-shadow:0 5px 16px var(--shadow) !important;
+    justify-content:center !important;
+}
+.home-main-section .card .icon{
+    font-size:34px !important;
+    margin-bottom:12px !important;
+}
+.home-main-section .card h3{
+    font-size:17px !important;
+    margin-bottom:5px !important;
+}
+.home-main-section .card p{
+    font-size:11px !important;
+    line-height:1.7 !important;
+}
+
+/* About/contact/footer: less empty */
+.about,
+.contact{
+    padding-top:52px !important;
+    padding-bottom:52px !important;
+}
+footer{
+    padding-top:28px !important;
+    padding-bottom:28px !important;
+}
+
+/* Tablet */
+@media (max-width:1050px){
+    .home-hero-inner{
+        grid-template-columns:1fr 360px !important;
+        gap:24px !important;
+    }
+    .home-featured-grid{
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    }
+    .home-main-section .cards{
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    }
+}
+
+/* Mobile */
+@media (max-width:700px){
+    header{
+        position:relative;
+        padding:8px 14px !important;
+    }
+    header nav{
+        gap:10px !important;
+    }
+    .home-bookstore-hero{
+        padding:22px 16px 20px !important;
+    }
+    .home-hero-inner{
+        grid-template-columns:1fr !important;
+        gap:16px !important;
+    }
+    .bookstore-scene{
+        width:min(100%,390px) !important;
+        min-height:190px !important;
+    }
+    .section.home-main-section{
+        width:min(100% - 24px,1320px) !important;
+        padding-top:20px !important;
+    }
+    .home-main-section .cards{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+        gap:10px !important;
+    }
+    .home-featured-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    .home-feature-cover{
+        height:145px !important;
+    }
+}
+
+@media (max-width:420px){
+    .home-main-section .card{
+        min-height:140px !important;
+        padding:16px 10px !important;
+    }
+    .home-main-section .card p{
+        display:none;
+    }
+}
+
+
+/* =========================================================
+   WIDE PROFESSIONAL HOME — كەڭ، زىچ، كەسپىي باش بەت
+   ========================================================= */
+
+:root{
+    --home-max: 1540px;
+}
+
+/* Header نى كەڭ ئېكرانغا ياخشى تارقىتىش */
+header{
+    padding-left: clamp(22px, 3vw, 56px) !important;
+    padding-right: clamp(22px, 3vw, 56px) !important;
+}
+header .header-inner,
+header .nav-inner,
+header > .container{
+    width:min(var(--home-max),100%) !important;
+    max-width:var(--home-max) !important;
+    margin-inline:auto !important;
+}
+
+/* Hero: بەك تار مەركەز ئەمەس */
+.home-bookstore-hero{
+    padding:22px clamp(24px,3.5vw,64px) 22px !important;
+    min-height:245px !important;
+}
+.home-hero-inner{
+    width:min(var(--home-max),100%) !important;
+    max-width:var(--home-max) !important;
+    grid-template-columns:minmax(460px,1fr) minmax(430px,560px) !important;
+    gap:72px !important;
+}
+.home-hero-copy{
+    max-width:780px !important;
+}
+.bookstore-scene{
+    width:100% !important;
+    max-width:560px !important;
+    justify-self:start !important;
+}
+
+/* ئاساسىي مەزمۇن: 1540px كەڭلىك */
+.section.home-main-section{
+    width:min(var(--home-max),calc(100% - 48px)) !important;
+    max-width:var(--home-max) !important;
+    padding-top:24px !important;
+    padding-bottom:48px !important;
+}
+
+/* Search + filter */
+.home-search-heading{
+    max-width:1260px !important;
+    margin-bottom:10px !important;
+}
+.home-main-section .search-box{
+    max-width:1180px !important;
+}
+#advancedSearchPanel,
+.advanced-search-panel{
+    width:min(1280px,100%) !important;
+    max-width:1280px !important;
+}
+.advanced-search-panel{
+    grid-template-columns:1.15fr 1fr 1fr 1.15fr auto !important;
+    align-items:end !important;
+    gap:10px !important;
+}
+
+/* يېڭى كىتابلار — تېخىمۇ كەڭ */
+.home-featured-section{
+    max-width:1380px !important;
+    width:100% !important;
+    margin:18px auto 14px !important;
+    padding:18px 20px !important;
+}
+.home-featured-grid{
+    grid-template-columns:repeat(6,minmax(0,1fr)) !important;
+    gap:14px !important;
+}
+.home-feature-cover{
+    height:185px !important;
+}
+.home-feature-title{
+    font-size:14px !important;
+}
+.home-feature-info{
+    padding:10px 11px 11px !important;
+}
+
+/* كىتاب تاللاش / Home sections */
+#homeShopSections{
+    width:min(1360px,100%) !important;
+    max-width:1360px !important;
+    margin:10px auto 0 !important;
+}
+
+/* Category */
+.home-category-heading{
+    max-width:1300px !important;
+    margin-top:18px !important;
+    margin-bottom:14px !important;
+}
+.home-main-section .cards{
+    width:min(1400px,100%) !important;
+    max-width:1400px !important;
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:16px !important;
+}
+.home-main-section .card{
+    min-height:145px !important;
+    padding:18px 16px !important;
+}
+
+/* Footer/about/contact كىچىك بوشلۇق */
+.about,
+.contact{
+    padding-top:42px !important;
+    padding-bottom:42px !important;
+}
+
+/* چوڭ ئېكراندا ئىككى يان بوشلۇقنى تېخىمۇ ئازايتىش */
+@media (min-width:1600px){
+    .section.home-main-section{
+        width:min(1600px,calc(100% - 56px)) !important;
+        max-width:1600px !important;
+    }
+    .home-hero-inner{
+        width:min(1600px,100%) !important;
+        max-width:1600px !important;
+    }
+    .home-featured-section{
+        max-width:1450px !important;
+    }
+    .home-main-section .cards{
+        max-width:1480px !important;
+    }
+}
+
+/* Tablet */
+@media (max-width:1100px){
+    .home-hero-inner{
+        grid-template-columns:1fr 390px !important;
+        gap:28px !important;
+    }
+    .advanced-search-panel{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    .home-featured-grid{
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    }
+    .home-main-section .cards{
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    }
+}
+
+/* Mobile */
+@media (max-width:700px){
+    .section.home-main-section{
+        width:min(100% - 22px,1540px) !important;
+        padding-top:18px !important;
+    }
+    .home-hero-inner{
+        grid-template-columns:1fr !important;
+        gap:16px !important;
+    }
+    .bookstore-scene{
+        max-width:430px !important;
+        justify-self:center !important;
+    }
+    .advanced-search-panel{
+        grid-template-columns:1fr !important;
+    }
+    .home-featured-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    .home-main-section .cards{
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+}
+
 </style>
 
-    <link rel="stylesheet" href="theme.css?v=3">
+    <link rel="stylesheet" href="theme.css?v=4">
 <link rel="stylesheet" href="shop.css?v=10">
 </head>
 
@@ -1641,7 +2201,7 @@ footer {
 
 <!-- ئىزدەش سىستېمىسى catalog.js + shop.js ئارقىلىق باشقۇرۇلىدۇ -->
 
-    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=12"></script>
+    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=13"></script>
 </body>
 
 </html>
