@@ -672,9 +672,121 @@ footer {
     }
 }
 
+
+/* =========================
+   KITAP SEARCH
+========================= */
+
+.search-box {
+    max-width: 720px;
+    margin: 0 auto 30px;
+    display: flex;
+    gap: 10px;
+}
+
+.search-box input {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--card);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 16px;
+    outline: none;
+}
+
+.search-box input:focus {
+    border-color: var(--button);
+}
+
+.search-box button {
+    border: 0;
+    background: var(--button);
+    color: #fff;
+    padding: 0 24px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.search-box button:hover {
+    background: var(--button-hover);
+}
+
+.search-results {
+    max-width: 720px;
+    margin: 0 auto 35px;
+}
+
+.search-result {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    color: var(--text);
+    transition: 0.2s ease;
+}
+
+.search-result-image {
+    width: 58px;
+    height: 78px;
+    flex: 0 0 58px;
+    object-fit: contain;
+    object-position: center;
+    background: #eee9e1;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+}
+
+.search-result-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.search-result:hover {
+    transform: translateY(-2px);
+    border-color: var(--button);
+}
+
+.search-result-title {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.search-result-author,
+.search-result-category {
+    color: var(--text-soft);
+    font-size: 13px;
+}
+
+.search-empty {
+    text-align: center;
+    color: var(--text-soft);
+    padding: 18px;
+}
+
+@media (max-width: 550px) {
+    .search-box {
+        flex-direction: column;
+    }
+
+    .search-box button {
+        min-height: 46px;
+    }
+}
+
 </style>
 
     <link rel="stylesheet" href="theme.css?v=2">
+<link rel="stylesheet" href="shop.css?v=2">
 </head>
 
 
@@ -720,7 +832,8 @@ footer {
             🌙
         </button>
 
-    </nav>
+    <a href="cart.html">🛒 سېۋەت</a><a href="favorites.html">❤️</a>
+</nav>
 
 </header>
 
@@ -759,6 +872,21 @@ footer {
     <h2>
         كىتاب تۈرلىرى
     </h2>
+
+    <!-- كىتاب ئىزدەش -->
+    <div class="search-box">
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."
+            autocomplete="off"
+        >
+        <button type="button" id="searchButton">🔎 ئىزدەش</button>
+    </div>
+
+    <div id="searchResults" class="search-results"></div>
+
+    <div id="homeShopSections"></div>
 
 
     <div class="cards">
@@ -948,7 +1076,578 @@ footer {
 </footer>
 
 
-    <script src="theme.js?v=2"></script>
+
+<script>
+/* =========================
+   KITAP SEARCH DATA
+========================= */
+
+const kitabSearchData = [
+    {
+        "title": "ئۆزىمىزنى ئېتىراپ قىلايلى",
+        "author": "ئەختەم ئۆمەر",
+        "category": "رومان",
+        "url": "ozumuzni-etirap-qilayli.html",
+        "image": "ozumuzni-etirap-qilayli.jpeg"
+    },
+    {
+        "title": "رومان كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "رومان",
+        "url": "romanlar.html",
+        "image": "images/roman-2.jpg"
+    },
+    {
+        "title": "رومان كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "رومان",
+        "url": "romanlar.html",
+        "image": "images/roman-3.jpg"
+    },
+    {
+        "title": "رومان كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "رومان",
+        "url": "romanlar.html",
+        "image": "images/roman-4.jpg"
+    },
+    {
+        "title": "رومان كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "رومان",
+        "url": "romanlar.html",
+        "image": "images/roman-5.jpg"
+    },
+    {
+        "title": "رومان كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "رومان",
+        "url": "romanlar.html",
+        "image": "images/roman-6.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-1.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-2.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-3.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-4.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-5.jpg"
+    },
+    {
+        "title": "تارىخىي رومان 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "تارىخىي رومان",
+        "url": "tarikhiy-romanlar.html",
+        "image": "images/tarikhiy-roman-6.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-1.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-2.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-3.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-4.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-5.jpg"
+    },
+    {
+        "title": "شېئىر كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "شېئىرلار",
+        "url": "sheirlar.html",
+        "image": "images/sheir-6.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-1.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-2.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-3.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-4.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-5.jpg"
+    },
+    {
+        "title": "ھېكايە كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "ھېكايىلەر",
+        "url": "hekayiler.html",
+        "image": "images/hekaye-6.jpg"
+    },
+    {
+        "title": "داستان كىتابى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-1.jpg"
+    },
+    {
+        "title": "داستان كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-2.jpg"
+    },
+    {
+        "title": "داستان كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-3.jpg"
+    },
+    {
+        "title": "داستان كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-4.jpg"
+    },
+    {
+        "title": "داستان كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-5.jpg"
+    },
+    {
+        "title": "داستان كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "داستانلار",
+        "url": "dastanlar.html",
+        "image": "images/dastan-6.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-1.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-2.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-3.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-4.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-5.jpg"
+    },
+    {
+        "title": "دۇنيا ئەدەبىياتى كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "دۇنيا ئەدەبىياتى",
+        "url": "dunya-edebiyati.html",
+        "image": "images/dunya-edebiyati-6.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-1.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-2.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-3.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-4.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-5.jpg"
+    },
+    {
+        "title": "ئۇنىۋېرسال ئەسەر 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "ئۇنىۋېرسال ئەسەرلەر",
+        "url": "universal.html",
+        "image": "images/universal-6.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-1.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-2.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-3.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-4.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-5.jpg"
+    },
+    {
+        "title": "تېبابەت ۋە ساغلاملىق 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "تېبابەت ۋە ساغلاملىق",
+        "url": "tibb.html",
+        "image": "images/tibb-6.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-1.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-2.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-3.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-4.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-5.jpg"
+    },
+    {
+        "title": "دەرسلىك كىتاب 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "دەرسلىك كىتابلار",
+        "url": "derslik.html",
+        "image": "images/derslik-6.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-1.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-2.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-3.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-4.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-5.jpg"
+    },
+    {
+        "title": "پەرزەنت تەربىيەسى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "پەرزەنت تەربىيەسى",
+        "url": "terbiye.html",
+        "image": "images/terbiye-6.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-1.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-2.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-3.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-4.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-5.jpg"
+    },
+    {
+        "title": "دىنىي كىتاب 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "دىنىي كىتابلار",
+        "url": "dini.html",
+        "image": "images/dini-6.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 1",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-1.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 2",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-2.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 3",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-3.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 4",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-4.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 5",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-5.jpg"
+    },
+    {
+        "title": "بالىلار كىتابى 6",
+        "author": "ئاپتور ئىسمى",
+        "category": "بالىلار كىتابلىرى",
+        "url": "children.html",
+        "image": "images/balilar-6.jpg"
+    }
+];
+
+function normalizeSearchText(text) {
+    return String(text || "")
+        .toLocaleLowerCase("ug")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function searchKitaplar() {
+    const input = document.getElementById("searchInput");
+    const results = document.getElementById("searchResults");
+    const query = normalizeSearchText(input.value);
+
+    if (!query) {
+        results.innerHTML = "";
+        return;
+    }
+
+    const matches = kitabSearchData.filter(item => {
+        const title = normalizeSearchText(item.title);
+        const category = normalizeSearchText(item.category);
+        const author = normalizeSearchText(item.author || "");
+        return title.includes(query) ||
+               category.includes(query) ||
+               author.includes(query);
+    });
+
+    if (!matches.length) {
+        results.innerHTML = '<div class="search-empty">بۇ ئىزدەش بويىچە كىتاب تېپىلمىدى.</div>';
+        return;
+    }
+
+    results.innerHTML = matches.map(item => `
+        <a class="search-result" href="${item.url}">
+            <img
+                class="search-result-image"
+                src="${item.image}"
+                alt="${item.title}"
+                loading="lazy"
+                onerror="this.style.display='none'"
+            >
+            <div class="search-result-content">
+                <div class="search-result-title">${item.title}</div>
+                <div class="search-result-author">ئاپتورى: ${item.author}</div>
+                <div class="search-result-category">${item.category}</div>
+            </div>
+        </a>
+    `).join("");
+}
+
+document.getElementById("searchButton").addEventListener("click", searchKitaplar);
+
+document.getElementById("searchInput").addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+        searchKitaplar();
+    }
+});
+</script>
+
+    <script src="theme.js?v=2"></script><script src="catalog.js"></script><script src="shop.js?v=2"></script>
 </body>
 
 </html>

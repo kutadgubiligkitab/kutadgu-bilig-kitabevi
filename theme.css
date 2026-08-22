@@ -136,16 +136,13 @@ header,
 }
 
 /* About / information */
-.about,
-.info-section {
+.about {
     background-color: var(--site-brown-dark) !important;
     color: #fff !important;
 }
 
 .about h2,
-.about p,
-.info-section h2,
-.info-section p {
+.about p {
     color: #fff !important;
 }
 
@@ -204,4 +201,26 @@ footer {
         min-width: 40px !important;
         font-size: 18px !important;
     }
+}
+
+/* =========================================================
+   ABOUT / FOOTER CONTRAST FIX — 2026-08-22
+   ئاستىدىكى «بىز ھەققىدە» ۋە footer خەتلىرى رەڭ تالىشىپ قالماسۇن
+========================================================= */
+.about,
+section.about {
+    background-color: var(--site-brown-dark) !important;
+    color: #ffffff !important;
+}
+
+.about h2,
+.about p,
+section.about h2,
+section.about p {
+    color: #ffffff !important;
+}
+
+footer {
+    background-color: var(--site-footer) !important;
+    color: #f1e7da !important;
 }
