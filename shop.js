@@ -47,21 +47,144 @@ function getDetailBook(){
   let title=document.querySelector(".book-detail-info h1")?.textContent.trim();
   return title?C.find(x=>x.title===title):null;
 }
+function detailRecommendations(book,limit=4){
+  let same=C.filter(x=>x.id!==book.id && x.category===book.category);
+  let other=C.filter(x=>x.id!==book.id && x.category!==book.category);
+  return [...same,...other].slice(0,limit);
+}
+
+function setupCoverZoom(){
+  let img=document.querySelector(".book-cover-box img");
+  if(!img||img.style.display==="none")return;
+  img.classList.add("detail-cover-zoomable");
+  img.setAttribute("title","مۇقاۋىنى چوڭ كۆرۈش");
+  img.onclick=()=>{
+    let overlay=document.createElement("div");
+    overlay.className="cover-zoom-overlay";
+    overlay.setAttribute("role","dialog");
+    overlay.setAttribute("aria-label","كىتاب مۇقاۋىسىنى چوڭ كۆرۈش");
+    overlay.innerHTML=`<button type="button" class="cover-zoom-close" aria-label="تاقاش">✕</button><img src="${img.src}" alt="${img.alt||""}">`;
+    document.body.appendChild(overlay);
+    let close=()=>overlay.remove();
+    overlay.querySelector(".cover-zoom-close").onclick=close;
+    overlay.onclick=e=>{if(e.target===overlay)close()};
+    document.addEventListener("keydown",function esc(e){if(e.key==="Escape"){close();document.removeEventListener("keydown",esc)}});
+  };
+}
+
+function renderDetailExtras(book){
+  let main=document.querySelector(".book-detail-page");
+  if(!main||main.querySelector(".detail-extra-sections"))return;
+
+  let related=detailRecommendations(book,4);
+  let recentBooks=get(REC_KEY,[])
+    .filter(id=>id!==book.id)
+    .map(find)
+    .filter(Boolean)
+    .slice(0,4);
+
+  let wrap=document.createElement("div");
+  wrap.className="detail-extra-sections";
+
+  let relatedHtml=related.length
+    ? `<section class="detail-extra-section">
+         <div class="detail-section-heading">
+           <div>
+             <span class="detail-section-kicker">📚 يەنە كۆرۈپ بېقىڭ</span>
+             <h2>مۇناسىۋەتلىك كىتابلار</h2>
+           </div>
+           <a href="${book.source||'index.html#books'}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>
+         </div>
+         <div class="shop-grid detail-related-grid">${related.map(miniCard).join("")}</div>
+       </section>`
+    : "";
+
+  let recentHtml=recentBooks.length
+    ? `<section class="detail-extra-section">
+         <div class="detail-section-heading">
+           <div>
+             <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
+             <h2>يېقىندا كۆرگەنلىرىڭىز</h2>
+           </div>
+         </div>
+         <div class="shop-grid detail-related-grid">${recentBooks.map(miniCard).join("")}</div>
+       </section>`
+    : "";
+
+  wrap.innerHTML=relatedHtml+recentHtml;
+  if(wrap.innerHTML.trim()){
+    main.appendChild(wrap);
+    bindDynamicActions(wrap);
+  }
+}
+
 function decorateDetail(){
   let b=getDetailBook(); if(!b)return;
   recent(b.id);
+
   let box=document.querySelector(".book-detail-info");
   if(!box)return;
+  box.classList.add("detail-info-upgraded");
+
+  let title=box.querySelector("h1");
+  if(title&&!box.querySelector(".detail-category-badge")){
+    let badge=document.createElement("div");
+    badge.className="detail-category-badge";
+    badge.textContent=b.category||"كىتاب";
+    title.before(badge);
+  }
+
   let old=box.querySelector(".detail-actions");
   if(old)old.remove();
-  let d=document.createElement("div");d.className="detail-actions";
-  d.innerHTML=`<div class="detail-price">${money(b.price)}</div><button type="button" class="add-to-cart detail-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="favorite-button" data-fav-id="${b.id}">♡ ياقتۇرۇش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗 ھەمبەھىرلەش</button>`;
-  box.appendChild(d);
-  d.querySelector("[data-cart-id]").onclick=()=>add(b.id);
-  d.querySelector("[data-fav-id]").onclick=()=>toggleFav(b.id);
-  d.querySelector("[data-share-id]").onclick=()=>shareBook(b);
+
+  let panel=document.createElement("div");
+  panel.className="detail-purchase-panel";
+  panel.innerHTML=`
+    <div class="detail-price-line">
+      <div>
+        <span class="detail-price-label">كىتاب باھاسى</span>
+        <div class="detail-price">${money(b.price)}</div>
+      </div>
+      <div class="detail-quantity-wrap">
+        <span class="detail-quantity-label">سانى</span>
+        <div class="detail-quantity-control">
+          <button type="button" class="detail-qty-minus" aria-label="سانىنى ئازايتىش">−</button>
+          <span class="detail-qty-value">1</span>
+          <button type="button" class="detail-qty-plus" aria-label="سانىنى كۆپەيتىش">+</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="add-to-cart detail-cart detail-main-cart">🛒 سېۋەتكە قوشۇش</button>
+
+    <div class="detail-secondary-actions">
+      <button type="button" class="favorite-button" data-fav-id="${b.id}">♡ ياقتۇرۇش</button>
+      <button type="button" class="share-button" data-share-id="${b.id}">🔗 ھەمبەھىرلەش</button>
+    </div>
+
+    <div class="detail-order-tip">📦 سېۋەتكە قوشقاندىن كېيىن زاكاز ئۇچۇرلىرىنى تولدۇرالايسىز.</div>
+  `;
+  box.appendChild(panel);
+
+  let qty=1;
+  const qtyText=panel.querySelector(".detail-qty-value");
+  panel.querySelector(".detail-qty-minus").onclick=()=>{
+    qty=Math.max(1,qty-1);
+    qtyText.textContent=qty;
+  };
+  panel.querySelector(".detail-qty-plus").onclick=()=>{
+    qty=Math.min(99,qty+1);
+    qtyText.textContent=qty;
+  };
+  panel.querySelector(".detail-main-cart").onclick=()=>add(b.id,qty);
+  panel.querySelector("[data-fav-id]").onclick=()=>toggleFav(b.id);
+  panel.querySelector("[data-share-id]").onclick=()=>shareBook(b);
+
   renderFavButtons();
+  setupCoverZoom();
+  renderDetailExtras(b);
 }
+
 async function shareBook(b){
   let url=new URL(b.href,location.href).href;
   try{

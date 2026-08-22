@@ -369,3 +369,291 @@
   .advanced-search-actions{gap:5px}
   .advanced-search-actions .detail-button,.advanced-search-actions button{font-size:10px;padding:6px 7px}
 }
+
+
+/* =========================================================
+   3-باسقۇچ — كەسپىي كىتاب تەپسىلات بېتى
+   ========================================================= */
+
+.book-detail-page{
+    width:min(94%,1180px);
+    margin:0 auto;
+}
+
+.book-detail-top{
+    position:relative;
+}
+
+.book-cover-box{
+    overflow:hidden;
+}
+
+.book-cover-box.no-cover{
+    min-height:430px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+.book-cover-box.no-cover::before{
+    content:"📕\A مۇقاۋا رەسىمى تېخى قوشۇلمىغان";
+    white-space:pre-line;
+    text-align:center;
+    color:var(--site-text-soft,#806f62);
+    font-size:15px;
+    line-height:2;
+}
+
+.detail-cover-zoomable{
+    cursor:zoom-in;
+    transition:transform .25s ease;
+}
+
+.detail-cover-zoomable:hover{
+    transform:scale(1.015);
+}
+
+.detail-info-upgraded{
+    position:relative;
+}
+
+.detail-category-badge{
+    display:inline-flex;
+    align-items:center;
+    width:max-content;
+    max-width:100%;
+    margin-bottom:14px;
+    padding:6px 12px;
+    border-radius:999px;
+    background:var(--site-bg-soft,#fbf8f2);
+    border:1px solid var(--site-border,#e8dccb);
+    color:var(--site-brown,#70503d);
+    font-size:13px;
+    font-weight:700;
+}
+
+.detail-purchase-panel{
+    margin-top:28px;
+    padding:20px;
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:14px;
+    background:var(--site-bg-soft,#fbf8f2);
+}
+
+.detail-price-line{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:18px;
+    margin-bottom:16px;
+}
+
+.detail-price-label,
+.detail-quantity-label{
+    display:block;
+    margin-bottom:4px;
+    color:var(--site-text-soft,#806f62);
+    font-size:12px;
+}
+
+.detail-purchase-panel .detail-price{
+    margin:0;
+    font-size:31px;
+    line-height:1.25;
+    font-weight:800;
+    color:var(--site-brown,#70503d);
+}
+
+.detail-quantity-wrap{
+    text-align:center;
+}
+
+.detail-quantity-control{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    direction:ltr;
+    overflow:hidden;
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:9px;
+    background:var(--site-card,#fffdf9);
+}
+
+.detail-quantity-control button{
+    width:40px;
+    height:38px;
+    border:0;
+    background:transparent;
+    color:var(--site-text,#44352d);
+    font-size:20px;
+    cursor:pointer;
+}
+
+.detail-quantity-control button:hover{
+    background:var(--site-bg-soft,#fbf8f2);
+}
+
+.detail-qty-value{
+    min-width:38px;
+    text-align:center;
+    color:var(--site-text,#44352d);
+    font-weight:700;
+}
+
+.detail-main-cart{
+    width:100%;
+    min-height:49px;
+    margin:0;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:700;
+}
+
+.detail-secondary-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:9px;
+    margin-top:9px;
+}
+
+.detail-secondary-actions .favorite-button,
+.detail-secondary-actions .share-button{
+    width:100%;
+    min-height:43px;
+    margin:0;
+}
+
+.detail-order-tip{
+    margin-top:12px;
+    padding-top:11px;
+    border-top:1px dashed var(--site-border,#e8dccb);
+    color:var(--site-text-soft,#806f62);
+    font-size:12px;
+    line-height:1.8;
+}
+
+.detail-extra-sections{
+    margin-top:54px;
+}
+
+.detail-extra-section{
+    margin-top:34px;
+    padding-top:30px;
+    border-top:1px solid var(--site-border,#e8dccb);
+}
+
+.detail-section-heading{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:20px;
+}
+
+.detail-section-heading h2{
+    margin:4px 0 0;
+    color:var(--site-text,#44352d);
+    font-size:clamp(23px,3vw,30px);
+}
+
+.detail-section-kicker{
+    color:var(--site-text-soft,#806f62);
+    font-size:12px;
+}
+
+.detail-section-link{
+    flex:0 0 auto;
+    color:var(--site-brown,#70503d);
+    font-size:13px;
+    font-weight:700;
+}
+
+.detail-related-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.cover-zoom-overlay{
+    position:fixed;
+    inset:0;
+    z-index:20000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:35px;
+    background:rgba(20,15,12,.88);
+    cursor:zoom-out;
+}
+
+.cover-zoom-overlay img{
+    display:block;
+    width:auto;
+    height:auto;
+    max-width:min(92vw,760px);
+    max-height:90vh;
+    object-fit:contain;
+    border-radius:10px;
+    box-shadow:0 20px 70px rgba(0,0,0,.45);
+    cursor:default;
+}
+
+.cover-zoom-close{
+    position:fixed;
+    top:18px;
+    right:18px;
+    width:44px;
+    height:44px;
+    border:1px solid rgba(255,255,255,.35);
+    border-radius:50%;
+    background:rgba(0,0,0,.35);
+    color:#fff;
+    font-size:20px;
+    cursor:pointer;
+}
+
+@media(max-width:900px){
+    .detail-related-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+}
+
+@media(max-width:650px){
+    .book-detail-page{
+        width:100%;
+    }
+
+    .detail-purchase-panel{
+        padding:16px 13px;
+    }
+
+    .detail-price-line{
+        align-items:center;
+    }
+
+    .detail-purchase-panel .detail-price{
+        font-size:27px;
+    }
+
+    .detail-secondary-actions{
+        grid-template-columns:1fr;
+    }
+
+    .detail-section-heading{
+        align-items:flex-start;
+        flex-direction:column;
+    }
+
+    .detail-related-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:12px;
+    }
+
+    .cover-zoom-overlay{
+        padding:18px;
+    }
+}
+
+@media(max-width:390px){
+    .detail-related-grid{
+        grid-template-columns:1fr;
+    }
+}
