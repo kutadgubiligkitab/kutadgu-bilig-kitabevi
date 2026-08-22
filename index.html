@@ -97,10 +97,6 @@ body {
 
     direction: rtl;
 
-    background-image:
-        radial-gradient(rgba(139,110,80,0.05) 1px, transparent 1px);
-    background-size: 3px 3px;
-
     transition:
         background-color 0.3s ease,
         color 0.3s ease;
@@ -122,8 +118,7 @@ header {
 
     min-height: 70px;
 
-    background: linear-gradient(180deg, var(--header) 0%, color-mix(in srgb, var(--header) 88%, black) 100%);
-    border-bottom: 3px solid #8a6047;
+    background: var(--header);
 
     color: white;
 
@@ -134,8 +129,6 @@ header {
     justify-content: space-between;
 
     padding: 0 7%;
-
-    box-shadow: 0 4px 16px var(--shadow);
 
     transition:
         background-color 0.3s ease;
@@ -340,14 +333,11 @@ nav a:hover {
 
 .card {
 
-    position: relative;
-
     background: var(--card);
 
     min-height: 220px;
 
     border: 1px solid var(--border);
-    border-top: 4px solid #8a6047;
 
     border-radius: 14px;
 
@@ -373,13 +363,6 @@ nav a:hover {
         transform 0.2s ease,
         box-shadow 0.2s ease;
 }
-
-.card:nth-child(6n+1){ border-top-color:#8f4d3e; }
-.card:nth-child(6n+2){ border-top-color:#476b67; }
-.card:nth-child(6n+3){ border-top-color:#b48b43; }
-.card:nth-child(6n+4){ border-top-color:#665687; }
-.card:nth-child(6n+5){ border-top-color:#46729a; }
-.card:nth-child(6n+6){ border-top-color:#9d6b55; }
 
 .card:hover {
 
@@ -923,9 +906,7 @@ footer {
     padding: 12px 14px 15px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background:
-        repeating-linear-gradient(180deg, rgba(139,96,71,.05) 0px, rgba(139,96,71,.05) 2px, transparent 2px, transparent 26px),
-        var(--bg-soft);
+    background: var(--bg-soft);
 }
 
 .store-shelf{
@@ -936,7 +917,6 @@ footer {
     gap: 5px;
     padding: 0 8px 5px;
     border-bottom: 7px solid #8a6047;
-    box-shadow: 0 3px 4px rgba(0,0,0,.12);
 }
 
 .book-spine{
