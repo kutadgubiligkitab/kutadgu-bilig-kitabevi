@@ -783,6 +783,504 @@ footer {
     }
 }
 
+
+
+/* =========================================================
+   باش بەت يېڭى لايىھىسى — بوش يەرنى ئازايتىش + كۆرۈنۈشتىنلا كىتابخانا
+   ========================================================= */
+
+.home-bookstore-hero{
+    min-height: 340px;
+    padding: 34px max(5%,20px);
+    text-align: right;
+    background:
+        radial-gradient(circle at 18% 25%, rgba(226,201,141,.22), transparent 32%),
+        var(--bg);
+}
+
+.home-hero-inner{
+    width: min(1180px,100%);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(320px,460px);
+    align-items: center;
+    gap: 52px;
+}
+
+.home-hero-copy{
+    max-width: 650px;
+}
+
+.home-hero-symbols{
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 31px;
+    line-height: 1;
+}
+
+.home-hero-eyebrow{
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--text-soft);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.home-bookstore-hero h1{
+    margin-bottom: 8px;
+    font-size: clamp(36px,5vw,52px);
+    line-height: 1.25;
+}
+
+.home-bookstore-hero p{
+    margin-bottom: 20px;
+    font-size: 17px;
+}
+
+.home-hero-actions{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.home-hero-secondary{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 10px 22px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-weight: 700;
+}
+
+.bookstore-scene{
+    position: relative;
+    min-height: 250px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 18px;
+    background: var(--card);
+    box-shadow: 0 18px 45px var(--shadow);
+    overflow: hidden;
+}
+
+.bookstore-scene::after{
+    content: "";
+    position: absolute;
+    right: -42px;
+    bottom: -58px;
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    background: rgba(226,201,141,.18);
+}
+
+.store-scene-top{
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    border-radius: 12px 12px 7px 7px;
+    background: var(--header);
+    box-shadow: inset 0 -4px rgba(255,255,255,.06);
+}
+
+.store-icon{
+    font-size: 30px;
+    line-height: 1;
+}
+
+.store-icon.open{
+    transform: rotate(-7deg);
+}
+
+.store-window{
+    position: relative;
+    margin-top: 12px;
+    padding: 12px 14px 15px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-soft);
+}
+
+.store-shelf{
+    height: 42px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 8px 5px;
+    border-bottom: 7px solid #8a6047;
+}
+
+.book-spine{
+    display: block;
+    width: 20px;
+    border-radius: 3px 3px 1px 1px;
+    box-shadow: inset -3px 0 rgba(255,255,255,.18);
+}
+
+.b1,.b8{height:28px;background:#8f4d3e}
+.b2,.b10{height:34px;background:#476b67}
+.b3,.b7{height:24px;background:#b48b43}
+.b4,.b12{height:31px;background:#665687}
+.b5,.b9{height:37px;background:#46729a}
+.b6,.b11{height:26px;background:#9d6b55}
+
+.store-display{
+    height: 110px;
+    display: grid;
+    grid-template-columns: 86px 1fr 72px;
+    align-items: center;
+    gap: 15px;
+    padding: 9px 10px 4px;
+}
+
+.real-cover-wrap{
+    height: 94px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.real-cover-wrap img{
+    display: block;
+    max-width: 72px;
+    max-height: 94px;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.16);
+}
+
+.book-stack{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.book-stack span{
+    display: block;
+    height: 16px;
+    border-radius: 3px;
+    box-shadow: inset 0 -3px rgba(0,0,0,.08);
+}
+
+.book-stack span:nth-child(1){width:92px;background:#b48b43}
+.book-stack span:nth-child(2){width:112px;background:#6d8066}
+.book-stack span:nth-child(3){width:82px;background:#8f4d3e}
+
+.store-cart{
+    font-size: 46px;
+    transform: scaleX(-1);
+}
+
+.store-shelf.lower{
+    height: 35px;
+    align-items: flex-end;
+}
+
+.home-main-section{
+    padding-top: 28px;
+    padding-bottom: 72px;
+}
+
+.home-main-section > h2{
+    margin-bottom: 20px;
+}
+
+.home-search-heading,
+.home-category-heading{
+    max-width: 860px;
+    margin: 0 auto 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+}
+
+.home-search-heading h2,
+.home-category-heading h2{
+    margin: 0;
+    font-size: 29px;
+}
+
+.home-search-heading p,
+.home-category-heading p{
+    margin: 2px 0 0;
+    color: var(--text-soft);
+    font-size: 13px;
+}
+
+.home-heading-icon{
+    font-size: 32px;
+    line-height: 1;
+}
+
+.home-main-section .search-box{
+    margin-bottom: 12px;
+}
+
+#advancedSearchPanel{
+    margin-top: 10px !important;
+    margin-bottom: 24px !important;
+}
+
+.home-featured-section{
+    width: 100%;
+    max-width: 980px;
+    margin: 26px auto 28px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: 0 8px 26px var(--shadow);
+}
+
+.home-featured-head{
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.home-featured-head h3{
+    margin: 0;
+    font-size: 23px;
+}
+
+.home-featured-head p{
+    margin: 3px 0 0;
+    color: var(--text-soft);
+    font-size: 12px;
+}
+
+.home-featured-all{
+    color: var(--button);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.home-featured-grid{
+    display: grid;
+    grid-template-columns: repeat(4,minmax(0,1fr));
+    gap: 12px;
+}
+
+.home-feature-card{
+    position: relative;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-soft);
+    transition: transform .2s ease, border-color .2s ease;
+}
+
+.home-feature-card:hover{
+    transform: translateY(-3px);
+    border-color: var(--button);
+}
+
+.home-feature-cover{
+    position: relative;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        linear-gradient(135deg, rgba(112,80,61,.08), transparent 55%),
+        var(--bg-soft);
+    overflow: hidden;
+}
+
+.home-feature-placeholder{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 58px;
+    opacity: .72;
+}
+
+.home-feature-cover img{
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.home-feature-info{
+    padding: 11px 11px 12px;
+}
+
+.home-feature-title{
+    min-height: 45px;
+    font-weight: 800;
+    line-height: 1.55;
+}
+
+.home-feature-author{
+    margin-top: 4px;
+    color: var(--text-soft);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.home-feature-bottom{
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+}
+
+.home-feature-price{
+    font-weight: 800;
+}
+
+.home-feature-cart{
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 16px;
+}
+
+.home-feature-heart{
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 4;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.home-category-heading{
+    margin-top: 34px;
+    margin-bottom: 20px;
+}
+
+.home-main-section .cards{
+    margin-top: 0;
+}
+
+#homeShopSections{
+    margin-top: 20px;
+    margin-bottom: 6px;
+}
+
+@media (max-width: 900px){
+    .home-hero-inner{
+        grid-template-columns: 1fr 340px;
+        gap: 26px;
+    }
+    .home-featured-grid{
+        grid-template-columns: repeat(2,minmax(0,1fr));
+    }
+}
+
+@media (max-width: 700px){
+    .home-bookstore-hero{
+        min-height: auto;
+        padding: 30px 18px 26px;
+    }
+
+    .home-hero-inner{
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .home-hero-copy{
+        text-align: center;
+        margin: 0 auto;
+    }
+
+    .home-hero-symbols,
+    .home-hero-actions{
+        justify-content: center;
+    }
+
+    .bookstore-scene{
+        width: min(100%,430px);
+        min-height: 225px;
+        margin: 0 auto;
+    }
+
+    .home-main-section{
+        padding-top: 22px;
+    }
+}
+
+@media (max-width: 500px){
+    .home-bookstore-hero h1{
+        font-size: 34px;
+    }
+
+    .home-hero-secondary,
+    .home-hero-actions .button{
+        flex: 1 1 140px;
+    }
+
+    .store-display{
+        grid-template-columns: 70px 1fr 55px;
+        gap: 8px;
+    }
+
+    .store-cart{
+        font-size: 38px;
+    }
+
+    .home-featured-section{
+        padding: 13px;
+    }
+
+    .home-featured-grid{
+        grid-template-columns: repeat(2,minmax(0,1fr));
+        gap: 9px;
+    }
+
+    .home-feature-cover{
+        height: 145px;
+    }
+
+    .home-featured-head{
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .home-search-heading,
+    .home-category-heading{
+        align-items: flex-start;
+        text-align: right;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 360px){
+    .home-featured-grid{
+        grid-template-columns: 1fr;
+    }
+}
+
 </style>
 
     <link rel="stylesheet" href="theme.css?v=2">
@@ -839,27 +1337,77 @@ footer {
 
 
 <!-- =========================
-     HERO
+     HERO — كىتابخانا ئىكەنلىكىنى كۆرۈنۈشتىنلا بىلدۈرىدىغان بۆلەك
 ========================= -->
 
-<section class="hero" id="home">
+<section class="hero home-bookstore-hero" id="home">
+    <div class="home-hero-inner">
 
-    <div class="hero-content">
+        <div class="hero-content home-hero-copy">
+            <div class="home-hero-symbols" aria-hidden="true">
+                <span>📚</span>
+                <span>📖</span>
+                <span>🛒</span>
+            </div>
 
-        <h1>
-            خوش كەلدىڭىز!
-        </h1>
+            <div class="home-hero-eyebrow">قۇتادغۇبىلىك كىتابخانىسى</div>
 
-        <p>
-            قۇتادغۇبىلىك كىتابخانىسى — كىتاب ۋە ئوقۇش دۇنياسى
-        </p>
+            <h1>
+                خوش كەلدىڭىز!
+            </h1>
 
-        <a href="#books" class="button">
-            كىتابلارنى كۆرۈش
-        </a>
+            <p>
+                كىتاب تاللاڭ، سېۋەتكە سېلىڭ، زاكاز قىلىڭ.
+            </p>
+
+            <div class="home-hero-actions">
+                <a href="#books" class="button">
+                    📚 كىتابلارنى كۆرۈش
+                </a>
+                <a href="cart.html" class="home-hero-secondary">
+                    🛒 سېۋەت
+                </a>
+            </div>
+        </div>
+
+        <div class="bookstore-scene" aria-hidden="true">
+            <div class="store-scene-top">
+                <span class="store-icon">📚</span>
+                <span class="store-icon open">📖</span>
+            </div>
+
+            <div class="store-window">
+                <div class="store-shelf">
+                    <span class="book-spine b1"></span>
+                    <span class="book-spine b2"></span>
+                    <span class="book-spine b3"></span>
+                    <span class="book-spine b4"></span>
+                    <span class="book-spine b5"></span>
+                    <span class="book-spine b6"></span>
+                </div>
+
+                <div class="store-display">
+                    <div class="real-cover-wrap">
+                        <img src="ozumuzni-etirap-qilayli.jpeg" alt="" loading="eager">
+                    </div>
+                    <div class="book-stack">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="store-cart">🛒</div>
+                </div>
+
+                <div class="store-shelf lower">
+                    <span class="book-spine b7"></span>
+                    <span class="book-spine b8"></span>
+                    <span class="book-spine b9"></span>
+                    <span class="book-spine b10"></span>
+                    <span class="book-spine b11"></span>
+                    <span class="book-spine b12"></span>
+                </div>
+            </div>
+        </div>
 
     </div>
-
 </section>
 
 
@@ -867,11 +1415,15 @@ footer {
      BOOK CATEGORIES
 ========================= -->
 
-<section class="section" id="books">
+<section class="section home-main-section" id="books">
 
-    <h2>
-        كىتاب تۈرلىرى
-    </h2>
+    <div class="home-search-heading">
+        <div class="home-heading-icon" aria-hidden="true">🔎</div>
+        <div>
+            <h2>كىتاب ئىزدەش</h2>
+            <p>كىتاب ئىسمى، ئاپتورى ياكى تۈرى بويىچە تېز تېپىڭ.</p>
+        </div>
+    </div>
 
     <!-- كىتاب ئىزدەش -->
     <div class="search-box">
@@ -886,7 +1438,17 @@ footer {
 
     <div id="searchResults" class="search-results"></div>
 
+    <div id="homeFeaturedBooks"></div>
+
     <div id="homeShopSections"></div>
+
+    <div class="home-category-heading">
+        <div class="home-heading-icon" aria-hidden="true">📚</div>
+        <div>
+            <h2>كىتاب تۈرلىرى</h2>
+            <p>ئۆزىڭىزگە ماس بۆلەكنى تاللاپ كىتابلارنى كۆرۈڭ.</p>
+        </div>
+    </div>
 
 
     <div class="cards">
@@ -1079,7 +1641,7 @@ footer {
 
 <!-- ئىزدەش سىستېمىسى catalog.js + shop.js ئارقىلىق باشقۇرۇلىدۇ -->
 
-    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=10"></script>
+    <script src="theme.js?v=2"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=12"></script>
 </body>
 
 </html>
