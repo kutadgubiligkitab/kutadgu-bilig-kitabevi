@@ -223,6 +223,25 @@ async function importStatic(){
     btn.disabled=false;btn.textContent="📥 ھازىرقى كىتابلارنى Database قا كىرگۈزۈش";
   }
 }
+
+async function requestPasswordReset(){
+  const email=$("#adminEmail").value.trim();
+  if(!email){
+    status($("#loginStatus"),"ئاۋۋال Email ئادرېسىڭىزنى كىرگۈزۈڭ.","warn");
+    $("#adminEmail").focus();
+    return;
+  }
+  status($("#loginStatus"),"پارول يېڭىلاش ئۇلانمىسى ئەۋەتىلىۋاتىدۇ...");
+  const base=location.pathname.replace(/admin\.html.*$/,"");
+  const redirectTo=`${location.origin}${base}reset-password.html`;
+  const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error){
+    status($("#loginStatus"),"ئۇلانما ئەۋەتىش مەغلۇپ بولدى: "+error.message,"error");
+    return;
+  }
+  status($("#loginStatus"),"✅ پارول يېڭىلاش ئۇلانمىسى Email غا ئەۋەتىلدى. Email دىكى ئۇلانمىنى بېسىڭ.","ok");
+}
+
 async function login(e){
   e.preventDefault();
   const email=$("#adminEmail").value.trim();
@@ -247,6 +266,7 @@ function init(){
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
   renderSourceOptions();
   $("#loginForm").addEventListener("submit",login);
+  $("#forgotPasswordBtn").onclick=requestPasswordReset;
   $("#adminLogout").onclick=logout;
   $("#newBookBtn").onclick=openNew;
   $("#closeBookModal").onclick=()=>modal(false);
