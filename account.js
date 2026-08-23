@@ -11,7 +11,8 @@ function clearStatus(el){if(el)el.hidden=true}
 function dateText(value){
   if(!value)return "—";
   const d=new Date(value);if(Number.isNaN(d.getTime()))return "—";
-  return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium",timeStyle:"short"}).format(d);
+  const two=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 function money(value){return `${Number(value||0).toLocaleString("tr-TR")} ₺`}
 function esc(value){return String(value??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -27,7 +28,10 @@ function switchTab(tab){
   document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
     const active=btn.dataset.authTab===tab;btn.classList.toggle("is-active",active);btn.setAttribute("aria-selected",active?"true":"false");
   });
-  $("#loginForm").hidden=tab!=="login";$("#signupForm").hidden=tab!=="signup";clearStatus($("#authStatus"));
+  $("#loginForm").hidden=tab!=="login";$("#signupForm").hidden=tab!=="signup";
+  $("#authTitle").textContent=tab==="signup"?"يېڭى ئەزالىق ئېچىڭ":"ھېسابىڭىزغا كىرىڭ";
+  $("#authSubtitle").textContent=tab==="signup"?"بىر مىنۇتتا ھېساب قۇرۇپ، كىتابلىرىڭىزنى ساقلاڭ.":"ساقلانغان كىتاب، سېۋەت ۋە زاكازلىرىڭىزنى كۆرۈڭ.";
+  clearStatus($("#authStatus"));
 }
 async function renderOrders(){
   const host=$("#orderList");
@@ -83,6 +87,23 @@ async function init(){
       await renderMember();
     }catch(err){showStatus($("#authStatus"),"كىرىش مەغلۇپ بولدى: "+(err.message||err),"error")}
     finally{setBusy(form,false)}
+  });
+
+  $("#googleSignIn").addEventListener("click",async e=>{
+    const button=e.currentTarget;
+    clearStatus($("#authStatus"));
+    if(!button.dataset.label)button.dataset.label=button.innerHTML;
+    button.disabled=true;button.querySelector("span").textContent="Google غا ئۇلىنىۋاتىدۇ...";
+    try{
+      await api().signInWithGoogle();
+    }catch(err){
+      const message=String(err.message||err);
+      const friendly=/provider.*not enabled|unsupported provider/i.test(message)
+        ?"Google ئارقىلىق كىرىش تېخى Supabase تا قوزغىتىلمىدى."
+        :"Google ئارقىلىق كىرىش مەغلۇپ بولدى: "+message;
+      showStatus($("#authStatus"),friendly,"error");
+      button.disabled=false;button.innerHTML=button.dataset.label;
+    }
   });
 
   $("#signupForm").addEventListener("submit",async e=>{

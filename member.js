@@ -16,6 +16,25 @@ function configured(){
 function safeJson(key,fallback){
   try{const value=JSON.parse(localStorage.getItem(key));return value??fallback}catch(e){return fallback}
 }
+function setFieldDirection(field){
+  if(!field?.matches||field.matches('input[type="checkbox"],input[type="radio"],input[type="file"],input[type="button"],input[type="submit"],input[type="range"],input[type="color"]'))return;
+  const type=String(field.getAttribute("type")||"").toLowerCase();
+  const ltr=["email","tel","url","number","password","date","time","datetime-local","month","week"].includes(type);
+  field.setAttribute("dir",ltr?"ltr":"auto");
+  field.style.textAlign="start";
+}
+function applyFieldDirections(root=document){
+  if(root?.matches?.("input,textarea"))setFieldDirection(root);
+  root.querySelectorAll?.("input,textarea").forEach(setFieldDirection);
+}
+function enableSmartFieldDirections(){
+  applyFieldDirections(document);
+  if(!document.body||typeof MutationObserver!=="function")return;
+  const observer=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{
+    if(node?.querySelectorAll||node?.matches)applyFieldDirections(node);
+  })));
+  observer.observe(document.body,{childList:true,subtree:true});
+}
 function emit(name="kutadgu-member-change"){
   document.dispatchEvent(new CustomEvent(name,{detail:{user,profile,blocked,error:initError}}));
 }
@@ -178,6 +197,13 @@ async function signIn({email,password}){
   await queueSession(data.session,{trackLogin:true});
   return data;
 }
+async function signInWithGoogle(){
+  if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
+  const redirectTo=new URL("account.html",location.href).href;
+  const {data,error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
+  if(error)throw error;
+  return data;
+}
 async function signOut(){
   if(db)await db.auth.signOut();
   user=null;profile=null;blocked=false;renderButton();emit();
@@ -239,11 +265,11 @@ const api=window.KutadguMember={
   getProfile:()=>profile,
   isBlocked:()=>blocked,
   refreshProfile:fetchProfile,
-  signUp,signIn,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey
+  signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey
 };
 
 async function init(){
-  ensureStyle();renderButton();
+  enableSmartFieldDirections();ensureStyle();renderButton();
   if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");readyResolve(api);emit();return}
   try{
     await loadSdk();

@@ -16,6 +16,14 @@ function status(el,msg,type=""){
 }
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function money(n){return n!==null&&n!==undefined&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"—"}
+function applyFieldDirections(){
+  document.querySelectorAll("input,textarea").forEach(field=>{
+    if(field.matches('input[type="checkbox"],input[type="radio"],input[type="file"],input[type="button"],input[type="submit"]'))return;
+    const type=String(field.type||"").toLowerCase();
+    field.dir=["email","tel","url","number","password","date","time","datetime-local"].includes(type)?"ltr":"auto";
+    field.style.textAlign="start";
+  });
+}
 function idForNew(){return `book-${Date.now().toString(36)}`}
 function categoryOptions(){
   const map=new Map();
@@ -97,7 +105,8 @@ function renderBooks(){
 function dateText(value){
   if(!value)return "—";
   const d=new Date(value);if(Number.isNaN(d.getTime()))return "—";
-  return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium",timeStyle:"short"}).format(d);
+  const two=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 async function loadMembers(){
   const host=$("#adminMemberList");
@@ -327,6 +336,7 @@ async function login(e){
 async function logout(){await db.auth.signOut();user=null;show("loginPanel");$("#adminLogout").hidden=true}
 
 function init(){
+  applyFieldDirections();
   if(!configured()){
     show("setupPanel");
     return;
