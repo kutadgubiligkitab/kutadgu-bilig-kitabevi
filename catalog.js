@@ -205,7 +205,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-1.html"
   },
   {
@@ -216,7 +216,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-2.html"
   },
   {
@@ -227,7 +227,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-3.html"
   },
   {
@@ -238,7 +238,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-4.html"
   },
   {
@@ -249,7 +249,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-5.html"
   },
   {
@@ -260,7 +260,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "images/hekaye-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-6.html"
   },
   {
