@@ -21,6 +21,20 @@ function setBusy(form,busy,text){
   if(!button.dataset.label)button.dataset.label=button.textContent;
   button.disabled=busy;button.textContent=busy?text:button.dataset.label;
 }
+function setupPasswordToggles(){
+  document.querySelectorAll("[data-password-toggle]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      const input=document.getElementById(button.dataset.passwordToggle);if(!input)return;
+      const visible=input.type==="password";
+      input.type=visible?"text":"password";
+      button.classList.toggle("is-visible",visible);
+      button.setAttribute("aria-pressed",visible?"true":"false");
+      button.setAttribute("aria-label",visible?"پارولنى يوشۇرۇش":"پارولنى كۆرسىتىش");
+      input.focus({preventScroll:true});
+      const end=input.value.length;try{input.setSelectionRange(end,end)}catch(e){}
+    });
+  });
+}
 function showPanel(id){
   ["accountLoading","accountSetup","authPanel","memberPanel"].forEach(name=>{const el=$("#"+name);if(el)el.hidden=name!==id});
 }
@@ -69,6 +83,7 @@ async function renderMember(){
   await renderOrders();
 }
 async function init(){
+  setupPasswordToggles();
   document.querySelectorAll("[data-auth-tab]").forEach(btn=>btn.onclick=()=>switchTab(btn.dataset.authTab));
   try{
     await api().ready;

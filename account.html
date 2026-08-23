@@ -6,7 +6,7 @@
   <title>ھېسابىم - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="theme.css?v=4">
   <link rel="stylesheet" href="member.css?v=1">
-  <link rel="stylesheet" href="account.css?v=3">
+  <link rel="stylesheet" href="account.css?v=4">
 </head>
 <body data-account-page="true">
   <header class="account-topbar">
@@ -55,7 +55,7 @@
 
         <form id="loginForm" class="account-form auth-view" data-auth-view="login">
           <label><span>ئېلخەت ئادرېسى</span><input id="loginEmail" dir="ltr" type="email" autocomplete="email" required placeholder="name@example.com"></label>
-          <label><span>پارول</span><input id="loginPassword" dir="ltr" type="password" autocomplete="current-password" required minlength="8"></label>
+          <label><span>پارول</span><div class="password-field"><input id="loginPassword" dir="ltr" type="password" autocomplete="current-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="loginPassword" aria-label="پارولنى كۆرسىتىش" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></label>
           <button class="account-primary" type="submit">كىرىش</button>
           <button id="forgotPassword" class="account-link-button" type="button">پارولنى ئۇنتۇپ قالدىڭىزمۇ؟</button>
           <div class="auth-switch">ھېسابىڭىز يوقمۇ؟ <button type="button" data-auth-tab="signup">يېڭى ئەزالىق ئېچىڭ</button></div>
@@ -64,8 +64,8 @@
         <form id="signupForm" class="account-form auth-view" data-auth-view="signup" hidden>
           <label><span>ئىسمى-فامىلىسى</span><input id="signupName" dir="auto" type="text" autocomplete="name" required maxlength="100"></label>
           <label><span>ئېلخەت ئادرېسى</span><input id="signupEmail" dir="ltr" type="email" autocomplete="email" required placeholder="name@example.com"></label>
-          <label><span>پارول</span><input id="signupPassword" dir="ltr" type="password" autocomplete="new-password" required minlength="8"><small>كەم دېگەندە 8 ھەرپ ياكى بەلگە</small></label>
-          <label><span>پارولنى قايتا يېزىڭ</span><input id="signupConfirm" dir="ltr" type="password" autocomplete="new-password" required minlength="8"></label>
+          <label><span>پارول</span><div class="password-field"><input id="signupPassword" dir="ltr" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="signupPassword" aria-label="پارولنى كۆرسىتىش" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>كەم دېگەندە 8 ھەرپ ياكى بەلگە</small></label>
+          <label><span>پارولنى قايتا يېزىڭ</span><div class="password-field"><input id="signupConfirm" dir="ltr" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="signupConfirm" aria-label="پارولنى كۆرسىتىش" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></label>
           <p class="auth-privacy-note">ھېساب بىخەتەرلىكى ئۈچۈن تىزىملاتقان ۋاقىت ۋە زىيارەت ئۇچۇرى ساقلىنىدۇ.</p>
           <button class="account-primary" type="submit">ئەزالىق ئېچىش</button>
           <div class="auth-switch">ھېسابىڭىز بارمۇ؟ <button type="button" data-auth-tab="login">كىرىش بېتىگە قايتىڭ</button></div>
@@ -121,6 +121,6 @@
 
   <script src="supabase-config.js?v=1"></script>
   <script src="member.js?v=3"></script>
-  <script src="account.js?v=3"></script>
+  <script src="account.js?v=4"></script>
 </body>
 </html>
