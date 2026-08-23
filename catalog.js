@@ -73,7 +73,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-1.html"
   },
   {
@@ -84,7 +84,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-2.html"
   },
   {
@@ -95,7 +95,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-3.html"
   },
   {
@@ -106,7 +106,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-4.html"
   },
   {
@@ -117,7 +117,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-5.html"
   },
   {
@@ -128,7 +128,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "images/tarikhiy-roman-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-6.html"
   },
   {
