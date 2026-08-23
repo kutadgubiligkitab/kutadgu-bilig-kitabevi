@@ -36,6 +36,8 @@ function normalizeRemoteBook(r){
     stock:r.stock??null,
     isNew:r.is_new!==false,
     isRecommended:r.is_recommended===true,
+    isBestSeller:r.is_bestseller===true,
+    salesCount:Number(r.sales_count??r.sold_count??0)||0,
     isActive:r.is_active!==false,
     createdAt:r.created_at||"",
     updatedAt:r.updated_at||""
@@ -908,48 +910,91 @@ function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
   const dotsHost=document.querySelector("#homeCarouselDots");
+  const tabs=[...document.querySelectorAll("[data-carousel-mode]")];
   if(!host||!viewport||!dotsHost)return;
 
-  const list=(C.filter(b=>b.isNew===true).length?C.filter(b=>b.isNew===true):C).slice(0,20);
-  if(!list.length)return;
   const sampleCover="carousel-sample-cover.png";
-
-  host.innerHTML=list.map(b=>`<article class="home-carousel-card">
-    <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
-    <a href="${b.href}" class="home-carousel-link">
-      <div class="home-carousel-cover"><img src="${b.image||sampleCover}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
-      <div class="home-carousel-info">
-        <div class="home-carousel-title">${b.title||"كىتاب"}</div>
-        <div class="home-carousel-author">${b.author||"—"}</div>
-        <div class="home-carousel-bottom">
-          <span class="home-carousel-price">${money(b.price)}</span>
-          <button type="button" class="home-carousel-cart add-to-cart" data-cart-id="${b.id}" aria-label="سېۋەتكە قوشۇش">🛒</button>
-        </div>
-      </div>
-    </a>
-  </article>`).join("");
-
-  bindDynamicActions(host);
-  renderFavButtons();
-
+  let mode="recommended";
+  let list=[];
   let index=0,timer=null;
-  const gap=14;
+  const gap=10;
+
+  function recommendedList(){
+    const picked=C.filter(b=>b.isRecommended===true);
+    return (picked.length?picked:recommendedBooks(20)).slice(0,20);
+  }
+
+  function bestsellerList(){
+    const marked=C.filter(b=>b.isBestSeller===true || Number(b.salesCount)>0)
+      .sort((a,b)=>(Number(b.salesCount)||0)-(Number(a.salesCount)||0));
+    /* سېتىلىش سانى تېخى كىرگۈزۈلمىگەن بولسا، بەت بوش قالمىسۇن:
+       تەۋسىيەلىك كىتابلار ۋاقىتلىق كۆرسىتىلىدۇ. */
+    return (marked.length?marked:recommendedList()).slice(0,20);
+  }
+
+  function currentList(){
+    return mode==="bestseller"?bestsellerList():recommendedList();
+  }
+
+  function card(b){
+    return `<article class="home-carousel-card">
+      <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
+      <a href="${b.href}" class="home-carousel-link">
+        <div class="home-carousel-cover"><img src="${b.image||sampleCover}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+        <div class="home-carousel-info">
+          <div class="home-carousel-title">${b.title||"كىتاب"}</div>
+          <div class="home-carousel-author">${b.author||"—"}</div>
+          <div class="home-carousel-bottom">
+            <span class="home-carousel-price">${money(b.price)}</span>
+            <button type="button" class="home-carousel-cart add-to-cart" data-cart-id="${b.id}" aria-label="سېۋەتكە قوشۇش">🛒</button>
+          </div>
+        </div>
+      </a>
+    </article>`;
+  }
+
   const visible=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:window.innerWidth<=1100?4:8;
   const maxIndex=()=>Math.max(0,list.length-visible());
 
   function renderDots(){
     const count=maxIndex()+1;
     dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-بەت"></button>`).join("");
-    dotsHost.querySelectorAll("[data-carousel-dot]").forEach(btn=>btn.onclick=()=>{index=Number(btn.dataset.carouselDot)||0;move();restart()});
+    dotsHost.querySelectorAll("[data-carousel-dot]").forEach(btn=>btn.onclick=()=>{
+      index=Number(btn.dataset.carouselDot)||0;
+      move();
+      restart();
+    });
   }
 
   function move(){
     index=Math.max(0,Math.min(index,maxIndex()));
-    const card=host.querySelector(".home-carousel-card");
-    if(!card)return;
-    const step=card.getBoundingClientRect().width+gap;
+    const cardEl=host.querySelector(".home-carousel-card");
+    if(!cardEl)return;
+    const step=cardEl.getBoundingClientRect().width+gap;
     host.style.transform=`translateX(${index*step}px)`;
     dotsHost.querySelectorAll(".home-carousel-dot").forEach((d,i)=>d.classList.toggle("is-active",i===index));
+  }
+
+  function draw(){
+    list=currentList();
+    index=0;
+    host.style.transform="translateX(0)";
+    host.innerHTML=list.map(card).join("");
+    bindDynamicActions(host);
+    renderFavButtons();
+    renderDots();
+    move();
+  }
+
+  function setMode(nextMode){
+    mode=nextMode==="bestseller"?"bestseller":"recommended";
+    tabs.forEach(btn=>{
+      const active=btn.dataset.carouselMode===mode;
+      btn.classList.toggle("is-active",active);
+      btn.setAttribute("aria-selected",active?"true":"false");
+    });
+    draw();
+    restart();
   }
 
   function next(){index=index>=maxIndex()?0:index+1;move()}
@@ -958,6 +1003,7 @@ function setupHomeCarousel(){
   function start(){stop();timer=setInterval(next,3000)}
   function restart(){start()}
 
+  tabs.forEach(btn=>btn.addEventListener("click",()=>setMode(btn.dataset.carouselMode)));
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
   viewport.addEventListener("mouseenter",stop);
@@ -967,9 +1013,7 @@ function setupHomeCarousel(){
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
   window.addEventListener("resize",()=>{index=Math.min(index,maxIndex());renderDots();move()});
 
-  renderDots();
-  move();
-  start();
+  setMode("recommended");
 }
 
 function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}

@@ -1111,32 +1111,46 @@
 }
 
 
-/* ===== CAROUSEL HEADER CLEANUP ===== */
+/* ===== CAROUSEL TABS — RECOMMENDED / BESTSELLER ===== */
 .home-carousel-head{
-  display:grid !important;
-  grid-template-columns:auto minmax(180px,1fr) auto !important;
+  display:flex !important;
   align-items:center !important;
+  justify-content:space-between !important;
   gap:14px !important;
   margin-bottom:10px !important;
 }
 
-.home-carousel-head > div:first-child{
-  min-width:0 !important;
+.home-carousel-tabs{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
 }
 
-.home-carousel-static-note{
-  min-width:0 !important;
-  text-align:center !important;
-  color:var(--site-text-soft,#806f62) !important;
-  font-size:13px !important;
-  line-height:1.5 !important;
-  white-space:nowrap !important;
-  overflow:hidden !important;
-  text-overflow:ellipsis !important;
+.home-carousel-tab{
+  min-height:38px;
+  padding:7px 15px;
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:999px;
+  background:var(--site-bg-soft,#fbf8f2);
+  color:var(--site-text,#44352d);
+  font-family:inherit;
+  font-size:13px;
+  font-weight:800;
+  cursor:pointer;
+  transition:.2s ease;
 }
 
-.home-carousel-head p{
-  display:none !important;
+.home-carousel-tab:hover{
+  border-color:var(--site-brown,#70503d);
+  transform:translateY(-1px);
+}
+
+.home-carousel-tab.is-active{
+  background:var(--site-brown,#70503d);
+  border-color:var(--site-brown,#70503d);
+  color:#fff;
+  box-shadow:0 5px 14px rgba(75,51,39,.12);
 }
 
 .home-carousel-controls{
@@ -1145,15 +1159,14 @@
 
 @media(max-width:700px){
   .home-carousel-head{
-    grid-template-columns:1fr auto !important;
-    gap:10px !important;
+    align-items:flex-start !important;
   }
-
-  .home-carousel-static-note{
-    grid-column:1/-1 !important;
-    grid-row:2 !important;
-    font-size:12px !important;
-    text-align:right !important;
-    white-space:normal !important;
+  .home-carousel-tabs{
+    gap:6px;
+  }
+  .home-carousel-tab{
+    min-height:35px;
+    padding:6px 11px;
+    font-size:12px;
   }
 }
