@@ -3,6 +3,7 @@
 const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])];
 let C=[...STATIC_CATALOG];
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
+const FALLBACK_COVER="sample-book-cover.png";
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const set=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const find=id=>C.find(x=>x.id===id);
@@ -129,15 +130,11 @@ function populateDynamicBookPage(b){
 
   const img=document.querySelector(".book-cover-box img");
   if(img){
-    if(b.image){
-      img.src=b.image;
-      img.alt=`${b.title} كىتاب مۇقاۋىسى`;
-      img.hidden=false;
-      img.onerror=()=>{img.hidden=true;img.parentElement.classList.add("no-cover")};
-    }else{
-      img.hidden=true;
-      img.parentElement.classList.add("no-cover");
-    }
+    img.src=b.image||FALLBACK_COVER;
+    img.alt=`${b.title} كىتاب مۇقاۋىسى`;
+    img.hidden=false;
+    img.parentElement.classList.remove("no-cover");
+    img.onerror=()=>{img.onerror=null;img.src=FALLBACK_COVER};
   }
 
   const info=document.querySelector(".book-detail-info");
@@ -318,9 +315,7 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  const placeholder=`<div class="dynamic-cover-placeholder mini-cover-placeholder"><span aria-hidden="true">📕</span><small>مۇقاۋا رەسىمى قوشۇلمىغان</small></div>`;
-  if(!b.image)return placeholder;
-  return `<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="dynamic-cover-placeholder mini-cover-placeholder" hidden><span aria-hidden="true">📕</span><small>مۇقاۋا رەسىمى قوشۇلمىغان</small></div>`;
+  return `<img src="${b.image||FALLBACK_COVER}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
 }
 
 function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions"><button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
@@ -358,8 +353,8 @@ function renderHomeFeaturedBooks(){
       <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a href="${b.href}">
         <div class="home-feature-cover">
-          <div class="home-feature-cover-frame${b.image?"":" is-placeholder"}">
-            ${b.image?`<img src="${b.image}" alt="" loading="lazy" onload="this.nextElementSibling.hidden=true" onerror="this.hidden=true;this.nextElementSibling.hidden=false;this.parentElement.classList.add('is-placeholder')"><span class="home-feature-placeholder" hidden>📕</span>`:`<span class="home-feature-placeholder">📕</span>`}
+          <div class="home-feature-cover-frame">
+            <img src="${b.image||FALLBACK_COVER}" alt="${b.title} كىتاب مۇقاۋىسى" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
           </div>
         </div>
         <div class="home-feature-info">
@@ -435,7 +430,7 @@ function bindDynamicActions(scope){
 }
 function searchResultCard(b){
   return `<article class="advanced-search-result">
-    <a class="advanced-search-cover" href="${b.href}"><img src="${b.image||''}" alt="${b.title}" loading="lazy" onerror="this.style.visibility='hidden'"></a>
+    <a class="advanced-search-cover" href="${b.href}"><img src="${b.image||FALLBACK_COVER}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${b.href}">${b.title}</a>
       <div class="advanced-search-meta">ئاپتورى: ${b.author||"—"}</div>
@@ -513,7 +508,7 @@ function searchEnhance(){
 function dynamicListingCard(b){
   return `<article class="book-card" data-live-book-id="${b.id}">
     <a class="book-image" href="${b.href}">
-      ${b.image?`<img alt="${b.title}" src="${b.image}" loading="lazy" onerror="this.style.visibility='hidden'">`:"<div class='dynamic-cover-placeholder'>📕</div>"}
+      <img alt="${b.title}" src="${b.image||FALLBACK_COVER}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
     </a>
     <div class="book-info">
       <h2 class="book-title">${b.title}</h2>
@@ -711,7 +706,7 @@ function cartPage(){
   if(checkout)checkout.hidden=false;
 
   host.innerHTML=items.map(x=>`<div class="cart-item">
-      <img src="${x.b.image||''}" alt="${x.b.title}" onerror="this.style.visibility='hidden'">
+      <img src="${x.b.image||FALLBACK_COVER}" alt="${x.b.title}" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
       <div>
         <div class="cart-title">${x.b.title}</div>
         <div class="cart-meta">${x.b.author} · ${x.b.category}</div>
@@ -919,7 +914,7 @@ function setupHomeCarousel(){
   const tabs=[...document.querySelectorAll("[data-carousel-mode]")];
   if(!host||!viewport||!dotsHost)return;
 
-  const sampleCover="carousel-sample-cover.png";
+  const sampleCover=FALLBACK_COVER;
   let mode="recommended";
   let list=[];
   let index=0,timer=null;
