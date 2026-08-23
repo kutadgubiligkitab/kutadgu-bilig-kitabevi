@@ -7,7 +7,10 @@ const FALLBACK_COVER="sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
 const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
-const set=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const set=(k,v)=>{
+  localStorage.setItem(k,JSON.stringify(v));
+  window.KutadguMember?.syncKey?.(k,v);
+};
 const find=id=>C.find(x=>x.id===id);
 
 function supabasePublicConfig(){
@@ -855,6 +858,22 @@ function loadCustomerData(){
   });
 }
 
+function loadMemberProfileIntoCheckout(){
+  const p=window.KutadguMember?.getProfile?.();if(!p)return;
+  const values={
+    customerName:p.full_name,
+    customerPhone:p.phone,
+    customerCity:[p.city,p.country].filter(Boolean).join(" / "),
+    customerAddress:p.address
+  };
+  let changed=false;
+  Object.entries(values).forEach(([id,value])=>{
+    const el=document.querySelector("#"+id);
+    if(el&&!el.value&&value){el.value=value;changed=true}
+  });
+  if(changed)saveCustomerData();
+}
+
 function makeOrderId(){
   let now=new Date();
   let y=String(now.getFullYear()).slice(-2);
@@ -862,6 +881,11 @@ function makeOrderId(){
   let d=String(now.getDate()).padStart(2,"0");
   let r=Math.floor(1000+Math.random()*9000);
   return `KB-${y}${m}${d}-${r}`;
+}
+
+let preparedOrder=null,preparedOrderSignature="";
+function currentOrderSignature(customer){
+  return JSON.stringify({cart:cart(),customer});
 }
 
 function buildOrderText(requireCustomer=true){
@@ -901,11 +925,45 @@ function buildOrderText(requireCustomer=true){
     `ئىزاھات: ${c.note||"-"}`
   );
 
-  return {text:lines.join("\n"),orderId,total,totalQty};
+  return {
+    text:lines.join("\n"),
+    orderId,
+    total,
+    totalQty,
+    customer:c,
+    items:items.map(x=>({
+      book_id:x.b.id,
+      title:x.b.title,
+      author:x.b.author,
+      price:Number(x.b.price)||0,
+      qty:x.qty,
+      line_total:(Number(x.b.price)||0)*x.qty
+    }))
+  };
 }
 
-function showOrderPreview(){
-  let o=buildOrderText(true);if(!o)return null;
+function getOrBuildOrder(requireCustomer=true){
+  const form=document.querySelector("#checkoutForm");
+  if(requireCustomer&&form&&!form.reportValidity())return null;
+  const customer=saveCustomerData();
+  const signature=currentOrderSignature(customer);
+  if(preparedOrder&&preparedOrderSignature===signature)return preparedOrder;
+  const order=buildOrderText(false);if(!order)return null;
+  preparedOrder=order;preparedOrderSignature=signature;
+  return order;
+}
+
+async function savePreparedOrderHistory(order){
+  if(!order)return {saved:false};
+  if(order.historySaved)return {saved:true};
+  if(window.KutadguMember?.ready)await window.KutadguMember.ready;
+  const result=await window.KutadguMember?.saveOrder?.(order);
+  if(result?.saved)order.historySaved=true;
+  return result||{saved:false,reason:"member_unavailable"};
+}
+
+async function showOrderPreview(){
+  let o=getOrBuildOrder(true);if(!o)return null;
   let wrap=document.querySelector("#orderPreviewWrap");
   let pre=document.querySelector("#orderPreview");
   if(wrap&&pre){
@@ -913,12 +971,21 @@ function showOrderPreview(){
     wrap.hidden=false;
     wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
   }
-  toast("زاكاز ئۇچۇرى تەييار بولدى ✅");
+  try{
+    const saved=await savePreparedOrderHistory(o);
+    if(saved?.saved)toast("زاكاز تەييارلاندى ۋە ھېسابىڭىزغا ساقلاندى ✅");
+    else if(saved?.reason==="not_signed_in")toast("زاكاز تەييارلاندى؛ ئەزا بولسىڭىز زاكاز تارىخىغىمۇ ساقلىنىدۇ");
+    else toast("زاكاز ئۇچۇرى تەييار بولدى ✅");
+  }catch(err){
+    console.warn("Order history save failed",err);
+    toast("زاكاز تەييارلاندى؛ تارىخقا ساقلاش ۋاقىتلىق مەغلۇپ بولدى");
+  }
   return o;
 }
 
 async function copyOrder(){
-  let o=buildOrderText(true);if(!o)return;
+  let o=getOrBuildOrder(true);if(!o)return;
+  try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
   try{
     if(navigator.clipboard)await navigator.clipboard.writeText(o.text);
     else throw new Error();
@@ -935,7 +1002,8 @@ async function copyOrder(){
 }
 
 async function shareOrder(){
-  let o=buildOrderText(true);if(!o)return;
+  let o=getOrBuildOrder(true);if(!o)return;
+  try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
   try{
     if(navigator.share){
       await navigator.share({title:"قۇتادغۇبىلىك كىتابخانىسى — زاكاز",text:o.text});
@@ -1079,7 +1147,24 @@ function setupHomeCarousel(){
   setMode("recommended");
 }
 
-function init(){injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
+function loadMemberSystem(){
+  if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
+  const script=document.createElement("script");
+  script.src="member.js?v=1";script.async=true;script.dataset.kutadguMemberScript="1";
+  document.body.appendChild(script);
+}
+function refreshAfterMemberSync(){
+  updateBadge();renderFavButtons();
+  if(document.querySelector("#cartItems"))cartPage();
+  if(document.querySelector("#myBooksApp"))renderMyBooks();
+  loadMemberProfileIntoCheckout();
+}
+function init(){
+  injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout();
+  document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
+  document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
+  loadMemberSystem();
+}
 async function boot(){await loadRemoteCatalog();init()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};

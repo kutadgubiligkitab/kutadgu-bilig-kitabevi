@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>ھېسابىم - قۇتادغۇبىلىك كىتابخانىسى</title>
+  <link rel="stylesheet" href="theme.css?v=4">
+  <link rel="stylesheet" href="member.css?v=1">
+  <link rel="stylesheet" href="account.css?v=1">
+</head>
+<body data-account-page="true">
+  <header class="account-topbar">
+    <a class="account-brand" href="index.html">
+      <img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى">
+      <span>قۇتادغۇبىلىك كىتابخانىسى</span>
+    </a>
+    <a class="account-home" href="index.html">🏠 باش بەت</a>
+  </header>
+
+  <main class="account-main">
+    <section id="accountLoading" class="account-card account-loading">
+      <div class="account-spinner" aria-hidden="true"></div>
+      <p>ھېساب ئۇچۇرى تەكشۈرۈلۈۋاتىدۇ...</p>
+    </section>
+
+    <section id="accountSetup" class="account-card account-message" hidden>
+      <h1>ئەزالىق مۇلازىمىتى تېخى ئېچىلمىدى</h1>
+      <p>باشقۇرغۇچى Supabase ئەزالىق قۇرۇلمىسىنى بىر قېتىم تەييارلىغاندىن كېيىن بۇ يەردىن تىزىملاتقىلى بولىدۇ.</p>
+      <a class="account-primary account-inline-link" href="index.html">باش بەتكە قايتىش</a>
+    </section>
+
+    <section id="authPanel" class="auth-layout" hidden>
+      <div class="auth-intro account-card">
+        <span class="auth-kicker">📚 شەخسىي كىتاب ھېسابىڭىز</span>
+        <h1>كىتابلىرىڭىز ۋە زاكازلىرىڭىز بىر يەردە</h1>
+        <p>ھېساب ئاچقاندىن كېيىن سېۋەت، ياقتۇرغان كىتابلار ۋە زاكاز تارىخىڭىز ساقلىنىدۇ.</p>
+        <ul>
+          <li>❤️ ياقتۇرغان كىتابلارنى ساقلاش</li>
+          <li>🛒 سېۋەتنى ئۈسكۈنىلەر ئارا ساقلاش</li>
+          <li>📦 زاكاز تارىخىنى كۆرۈش</li>
+          <li>🏠 ئادرېسنى قايتا-قايتا يازماسلىق</li>
+        </ul>
+      </div>
+
+      <div class="account-card auth-card">
+        <div class="auth-tabs" role="tablist" aria-label="ھېساب تاللاش">
+          <button type="button" class="is-active" data-auth-tab="login" role="tab" aria-selected="true">كىرىش</button>
+          <button type="button" data-auth-tab="signup" role="tab" aria-selected="false">يېڭى ئەزالىق</button>
+        </div>
+
+        <div id="authStatus" class="account-status" hidden></div>
+
+        <form id="loginForm" class="account-form">
+          <h2>ھېسابىڭىزغا كىرىڭ</h2>
+          <label><span>ئېلخەت ئادرېسى</span><input id="loginEmail" type="email" autocomplete="email" required placeholder="name@example.com"></label>
+          <label><span>پارول</span><input id="loginPassword" type="password" autocomplete="current-password" required minlength="8"></label>
+          <button class="account-primary" type="submit">كىرىش</button>
+          <button id="forgotPassword" class="account-link-button" type="button">پارولنى ئۇنتۇپ قالدىڭىزمۇ؟</button>
+        </form>
+
+        <form id="signupForm" class="account-form" hidden>
+          <h2>يېڭى ھېساب ئېچىڭ</h2>
+          <label><span>ئىسمى-فامىلىسى</span><input id="signupName" type="text" autocomplete="name" required maxlength="100"></label>
+          <label><span>ئېلخەت ئادرېسى</span><input id="signupEmail" type="email" autocomplete="email" required placeholder="name@example.com"></label>
+          <label><span>پارول</span><input id="signupPassword" type="password" autocomplete="new-password" required minlength="8"><small>كەم دېگەندە 8 ھەرپ ياكى بەلگە</small></label>
+          <label><span>پارولنى قايتا يېزىڭ</span><input id="signupConfirm" type="password" autocomplete="new-password" required minlength="8"></label>
+          <p class="auth-privacy-note">ھېساب بىخەتەرلىكى ۋە مۇلازىمەت ئۈچۈن تىزىملاتقان ۋاقىت، ئاخىرقى زىيارەت ۋاقتى ۋە زىيارەت سانى ھېسابتا ساقلىنىدۇ.</p>
+          <button class="account-primary" type="submit">ئەزالىق ئېچىش</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="memberPanel" hidden>
+      <div class="account-welcome account-card">
+        <div>
+          <span class="auth-kicker">👋 خۇش كەلدىڭىز</span>
+          <h1 id="memberWelcome">ھېسابىم</h1>
+          <p id="memberEmail"></p>
+        </div>
+        <button id="memberLogout" class="account-secondary" type="button">چىقىش</button>
+      </div>
+
+      <section class="account-stats" aria-label="ھېساب خۇلاسىسى">
+        <div class="account-stat"><span>📅</span><strong id="memberCreated">—</strong><small>ئەزا بولغان ۋاقىت</small></div>
+        <div class="account-stat"><span>🕘</span><strong id="memberLastSeen">—</strong><small>ئاخىرقى زىيارەت</small></div>
+        <div class="account-stat"><span>👣</span><strong id="memberVisits">0</strong><small>زىيارەت سانى</small></div>
+        <div class="account-stat"><span>📦</span><strong id="memberOrders">0</strong><small>زاكاز سانى</small></div>
+      </section>
+
+      <div class="account-grid">
+        <section class="account-card">
+          <div class="account-section-head"><div><span class="auth-kicker">👤 شەخسىي ئۇچۇر</span><h2>ئارخىپىم</h2></div></div>
+          <div id="profileStatus" class="account-status" hidden></div>
+          <form id="profileForm" class="account-form account-profile-form">
+            <label><span>ئىسمى-فامىلىسى</span><input id="profileName" required maxlength="100" autocomplete="name"></label>
+            <label><span>تېلېفون نومۇرى</span><input id="profilePhone" type="tel" maxlength="40" autocomplete="tel"></label>
+            <label><span>دۆلەت</span><input id="profileCountry" maxlength="80" autocomplete="country-name"></label>
+            <label><span>شەھەر / رايون</span><input id="profileCity" maxlength="100" autocomplete="address-level2"></label>
+            <label class="account-wide"><span>يەتكۈزۈش ئادرېسى</span><textarea id="profileAddress" rows="3" maxlength="500" autocomplete="street-address"></textarea></label>
+            <button class="account-primary account-wide" type="submit">💾 ئارخىپنى ساقلاش</button>
+          </form>
+        </section>
+
+        <section class="account-card">
+          <div class="account-section-head"><div><span class="auth-kicker">📦 سېتىۋېلىش</span><h2>زاكاز تارىخىم</h2></div><a href="cart.html">سېۋەتكە بېرىش</a></div>
+          <div id="orderList" class="member-order-list"><div class="account-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="supabase-config.js?v=1"></script>
+  <script src="member.js?v=1"></script>
+  <script src="account.js?v=1"></script>
+</body>
+</html>

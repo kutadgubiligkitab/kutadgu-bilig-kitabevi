@@ -4,7 +4,7 @@
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
-let db=null,user=null,books=[],editing=null;
+let db=null,user=null,books=[],editing=null,members=[],orders=[];
 
 function configured(){
   return !!(String(cfg.url||"").trim() && String(cfg.anonKey||cfg.publishableKey||"").trim());
@@ -54,7 +54,7 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
-  await loadBooks();
+  await Promise.all([loadBooks(),loadMembers()]);
 }
 async function loadBooks(){
   status($("#adminStatus"),"كىتابلار يۈكلىنىۋاتىدۇ...");
@@ -93,6 +93,79 @@ function renderBooks(){
 
   host.querySelectorAll("[data-edit]").forEach(btn=>btn.onclick=()=>openEdit(btn.dataset.edit));
   host.querySelectorAll("[data-hide]").forEach(btn=>btn.onclick=()=>toggleActive(btn.dataset.hide));
+}
+function dateText(value){
+  if(!value)return "—";
+  const d=new Date(value);if(Number.isNaN(d.getTime()))return "—";
+  return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium",timeStyle:"short"}).format(d);
+}
+async function loadMembers(){
+  const host=$("#adminMemberList");
+  if(host)host.innerHTML='<div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div>';
+  const [profileResult,orderResult]=await Promise.all([
+    db.from("profiles").select("*").order("created_at",{ascending:false}),
+    db.from("orders").select("user_id,total,status,created_at").order("created_at",{ascending:false})
+  ]);
+  if(profileResult.error){
+    if(host)host.innerHTML=`<div class="admin-empty">خېرىدارلارنى ئوقۇش مەغلۇپ بولدى: ${esc(profileResult.error.message)}<br>SUPABASE_SETUP.sql نى ئىجرا قىلغانلىقىڭىزنى تەكشۈرۈڭ.</div>`;
+    return;
+  }
+  members=(profileResult.data||[]).filter(p=>p.id!==user?.id);
+  orders=orderResult.error?[]:(orderResult.data||[]);
+  renderMemberStats();
+  renderMembers();
+}
+function renderMemberStats(){
+  const memberIds=new Set(members.map(m=>m.id));
+  const customerOrders=orders.filter(o=>memberIds.has(o.user_id));
+  $("#statMembers").textContent=members.length;
+  $("#statVisits").textContent=members.reduce((sum,m)=>sum+(Number(m.visit_count)||0),0).toLocaleString("tr-TR");
+  $("#statOrders").textContent=customerOrders.length;
+  $("#statRevenue").textContent=money(customerOrders.filter(o=>o.status!=="cancelled").reduce((sum,o)=>sum+(Number(o.total)||0),0));
+}
+function memberOrderSummary(memberId){
+  const list=orders.filter(o=>o.user_id===memberId);
+  return {
+    count:list.length,
+    total:list.filter(o=>o.status!=="cancelled").reduce((sum,o)=>sum+(Number(o.total)||0),0)
+  };
+}
+function renderMembers(){
+  const host=$("#adminMemberList");if(!host)return;
+  const q=String($("#memberSearch")?.value||"").trim().toLocaleLowerCase("ug");
+  const filtered=members.filter(m=>!q||`${m.full_name||""} ${m.email||""} ${m.phone||""} ${m.country||""} ${m.city||""}`.toLocaleLowerCase("ug").includes(q));
+  if(!filtered.length){host.innerHTML='<div class="admin-empty">ماس خېرىدار تېپىلمىدى.</div>';return}
+  host.innerHTML=filtered.map(m=>{
+    const summary=memberOrderSummary(m.id),suspended=m.status==="suspended";
+    const contact=[m.phone,m.country,m.city].filter(Boolean).join(" · ")||"قوشۇمچە ئالاقە ئۇچۇرى يوق";
+    return `<article class="admin-member-row ${suspended?"is-suspended":""}">
+      <div>
+        <div class="admin-member-name">${esc(m.full_name||"ئىسمى كىرگۈزۈلمىگەن")}</div>
+        <div class="admin-member-email">${esc(m.email||"—")}</div>
+        <div class="admin-member-contact">${esc(contact)}</div>
+      </div>
+      <div class="admin-member-metrics">
+        <div class="admin-member-metric"><span>تىزىملاتقان</span><strong>${dateText(m.created_at)}</strong></div>
+        <div class="admin-member-metric"><span>ئاخىرقى كىرىش</span><strong>${dateText(m.last_login_at)}</strong></div>
+        <div class="admin-member-metric"><span>ئاخىرقى زىيارەت</span><strong>${dateText(m.last_seen_at)}</strong></div>
+        <div class="admin-member-metric"><span>زىيارەت / زاكاز</span><strong>${Number(m.visit_count)||0} / ${summary.count} · ${money(summary.total)}</strong></div>
+      </div>
+      <div class="admin-member-side">
+        <span class="admin-member-badge ${suspended?"is-suspended":""}">${suspended?"⛔ توختىتىلغان":"✅ نورمال"}</span>
+        <button type="button" class="${suspended?"":"member-suspend"}" data-member-status="${esc(m.id)}" data-next-status="${suspended?"active":"suspended"}">${suspended?"♻️ قايتا ئېچىش":"⛔ توختىتىش"}</button>
+      </div>
+      <div class="admin-member-last-page">ئاخىرقى بەت: ${esc(m.last_page||"—")}</div>
+    </article>`;
+  }).join("");
+  host.querySelectorAll("[data-member-status]").forEach(btn=>btn.onclick=()=>toggleMemberStatus(btn.dataset.memberStatus,btn.dataset.nextStatus));
+}
+async function toggleMemberStatus(memberId,nextStatus){
+  const member=members.find(m=>m.id===memberId);if(!member)return;
+  const label=nextStatus==="suspended"?"توختىتىش":"قايتا ئېچىش";
+  if(!confirm(`${member.full_name||member.email||"بۇ خېرىدار"} ھېسابىنى ${label}نى جەزملەشتۈرەمسىز؟`))return;
+  const {error}=await db.rpc("set_member_status",{member_id:memberId,new_status:nextStatus});
+  if(error){alert("ھېساب ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى:\n"+error.message);return}
+  await loadMembers();
 }
 function clearForm(){
   editing=null;
@@ -233,7 +306,7 @@ async function requestPasswordReset(){
   }
   status($("#loginStatus"),"پارول يېڭىلاش ئۇلانمىسى ئەۋەتىلىۋاتىدۇ...");
   const base=location.pathname.replace(/admin\.html.*$/,"");
-  const redirectTo=`${location.origin}${base}reset-password.html`;
+  const redirectTo=`${location.origin}${base}reset-password.html?next=admin`;
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error){
     status($("#loginStatus"),"ئۇلانما ئەۋەتىش مەغلۇپ بولدى: "+error.message,"error");
@@ -274,6 +347,8 @@ function init(){
   $("#bookForm").addEventListener("submit",saveBook);
   $("#importStaticBtn").onclick=importStatic;
   $("#adminSearch").addEventListener("input",renderBooks);
+  $("#memberSearch").addEventListener("input",renderMembers);
+  $("#reloadMembers").onclick=loadMembers;
   $("#bookCover").addEventListener("change",()=>{
     const file=$("#bookCover").files[0];
     if(!file)return;

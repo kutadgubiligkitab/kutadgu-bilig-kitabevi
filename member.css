@@ -1,0 +1,6 @@
+.member-account-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--site-border,#e8dccb);background:var(--site-card,#fffdf9);color:var(--site-text,#44352d);box-shadow:0 8px 25px rgba(0,0,0,.12);border-radius:999px;padding:10px 14px;font-family:inherit;font-size:14px;text-decoration:none;white-space:nowrap;transition:transform .2s ease,box-shadow .2s ease}
+.member-account-button:hover{transform:translateY(-2px);box-shadow:0 11px 28px rgba(0,0,0,.16)}
+.member-account-button.is-blocked{border-color:#d39a90;background:#fff5f3;color:#8b352e}
+.member-standalone-floating{position:fixed;left:18px;bottom:18px;z-index:9998}
+.shop-floating .member-account-button{order:3}
+@media(max-width:650px){.member-standalone-floating{left:10px;bottom:10px}.member-account-button{padding:9px 11px;font-size:12px}.shop-floating{flex-wrap:wrap;max-width:calc(100vw - 20px)}}

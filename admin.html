@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>باشقۇرۇش - قۇتادغۇبىلىك كىتابخانىسى</title>
-  <link rel="stylesheet" href="admin.css?v=3">
+  <link rel="stylesheet" href="admin.css?v=4">
 </head>
 <body>
 <div class="admin-shell">
@@ -46,6 +46,10 @@
         <div class="admin-stat"><strong id="statActive">0</strong><span>كۆرۈنىدىغان كىتاب</span></div>
         <div class="admin-stat"><strong id="statRecommended">0</strong><span>تەۋسىيە قىلىنغان</span></div>
         <div class="admin-stat"><strong id="statStock">0</strong><span>جەمئىي ئامبار سانى</span></div>
+        <div class="admin-stat admin-stat-member"><strong id="statMembers">0</strong><span>تىزىملاتقان خېرىدار</span></div>
+        <div class="admin-stat admin-stat-member"><strong id="statVisits">0</strong><span>جەمئىي زىيارەت</span></div>
+        <div class="admin-stat admin-stat-order"><strong id="statOrders">0</strong><span>زاكاز سانى</span></div>
+        <div class="admin-stat admin-stat-order"><strong id="statRevenue">0 ₺</strong><span>زاكاز ئومۇمىي سوممىسى</span></div>
       </section>
 
       <section class="admin-card">
@@ -58,6 +62,21 @@
         </div>
         <p class="admin-help">«ھازىرقى كىتابلارنى Database قا كىرگۈزۈش» كۇنۇپكىسىنى تۇنجى قېتىم بىرلا قېتىم بېسىش يېتەرلىك.</p>
         <div id="adminBookList" class="admin-book-list"></div>
+      </section>
+
+      <section class="admin-card" id="memberManagement">
+        <div class="admin-toolbar">
+          <div>
+            <span class="admin-section-kicker">👥 ئەزالىق باشقۇرۇش</span>
+            <h2 class="admin-section-title">خېرىدارلار</h2>
+          </div>
+          <div class="admin-toolbar-group">
+            <input id="memberSearch" class="admin-search" type="search" placeholder="ئىسىم، ئېلخەت ياكى تېلېفون ئىزدەڭ...">
+            <button class="admin-secondary" id="reloadMembers" type="button">↻ يېڭىلاش</button>
+          </div>
+        </div>
+        <p class="admin-help">تىزىملاتقان ۋاقىت، ئاخىرقى كىرىش، ئاخىرقى زىيارەت، زىيارەت سانى ۋە زاكاز تارىخى بۇ يەردە كۆرۈنىدۇ.</p>
+        <div id="adminMemberList" class="admin-member-list"><div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div></div>
       </section>
     </section>
   </main>
@@ -108,6 +127,6 @@
 <script src="supabase-config.js?v=1"></script>
 <script src="catalog.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="admin.js?v=2"></script>
+<script src="admin.js?v=3"></script>
 </body>
 </html>

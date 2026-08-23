@@ -6,6 +6,10 @@ const $=s=>document.querySelector(s);
 let db=null;
 let recoveryReady=false;
 
+function returnTarget(){
+  return new URLSearchParams(location.search).get("next")==="admin"?"admin.html":"account.html";
+}
+
 function status(msg,type=""){
   const el=$("#resetStatus");
   if(!el)return;
@@ -76,7 +80,7 @@ async function init(){
       setFormEnabled(true);
       status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
     }else{
-      status("بۇ بەتنى Admin دىكى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
+      status("بۇ بەتنى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
     }
   }catch(err){
     status("پارول يېڭىلاش ئۇلانمىسىنى ئېچىش مەغلۇپ بولدى: "+(err.message||err),"error");
@@ -116,10 +120,10 @@ async function init(){
       return;
     }
 
-    status("✅ پارول مۇۋەپپەقىيەتلىك يېڭىلاندى. ھازىر Admin كىرىش بېتىگە قايتىسىز.","ok");
+    status("✅ پارول مۇۋەپپەقىيەتلىك يېڭىلاندى. ھازىر كىرىش بېتىگە قايتىسىز.","ok");
     await db.auth.signOut();
     authSub?.subscription?.unsubscribe?.();
-    setTimeout(()=>location.replace("admin.html"),1200);
+    setTimeout(()=>location.replace(returnTarget()),1200);
   });
 }
 
