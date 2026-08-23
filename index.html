@@ -2240,6 +2240,86 @@ body.dark-mode .home-feature-cover-frame{
 }
 
 
+/* ===== COMPACT TRUST / SERVICE STRIP ===== */
+.home-trust-strip{
+    width:min(1120px,calc(100% - 44px));
+    margin:14px auto 0;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    box-shadow:0 6px 18px var(--shadow);
+    overflow:hidden;
+}
+
+.home-trust-item{
+    min-width:0;
+    min-height:56px;
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    color:var(--text);
+    text-align:center;
+}
+
+.home-trust-item + .home-trust-item{
+    border-right:1px solid var(--border);
+}
+
+.home-trust-icon{
+    flex:0 0 auto;
+    font-size:22px;
+    line-height:1;
+}
+
+.home-trust-item strong{
+    font-size:13px;
+    line-height:1.65;
+}
+
+.home-trust-strip + .home-book-carousel{
+    margin-top:14px !important;
+}
+
+@media (max-width:900px) and (min-width:701px){
+    .home-trust-item{
+        padding-inline:10px;
+        gap:7px;
+    }
+    .home-trust-icon{
+        font-size:20px;
+    }
+    .home-trust-item strong{
+        font-size:11.5px;
+    }
+}
+
+@media (max-width:700px){
+    .home-trust-strip{
+        width:calc(100% - 32px);
+        margin-top:10px;
+        grid-template-columns:1fr;
+        border-radius:12px;
+    }
+    .home-trust-item{
+        min-height:48px;
+        padding:8px 14px;
+        justify-content:flex-start;
+        text-align:right;
+    }
+    .home-trust-item + .home-trust-item{
+        border-right:0;
+        border-top:1px solid var(--border);
+    }
+    .home-trust-item strong{
+        font-size:12.5px;
+    }
+}
+
+
 /* ===== MOBILE TOUCH: accidental double-tap zoom نى ئازايتىش ===== */
 html,
 body,
@@ -2378,6 +2458,24 @@ label {
             </div>
         </div>
 
+    </div>
+</section>
+
+<!-- =========================
+     ئىشەنچ ۋە مۇلازىمەت بەلۋېغى
+========================= -->
+<section class="home-trust-strip" aria-label="كىتابخانا مۇلازىمەتلىرى">
+    <div class="home-trust-item">
+        <span class="home-trust-icon" aria-hidden="true">🚚</span>
+        <strong>تۈركىيەنىڭ ھەرقايسى جايلىرىغا يەتكۈزۈش</strong>
+    </div>
+    <div class="home-trust-item">
+        <span class="home-trust-icon" aria-hidden="true">💬</span>
+        <strong>WhatsApp ئارقىلىق تېز زاكاز</strong>
+    </div>
+    <div class="home-trust-item">
+        <span class="home-trust-icon" aria-hidden="true">📦</span>
+        <strong>كىتابلار بىخەتەر ئوراپ يوللىنىدۇ</strong>
     </div>
 </section>
 
