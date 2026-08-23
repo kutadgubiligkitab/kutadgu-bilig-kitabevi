@@ -4,41 +4,374 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>كىتاب - قۇتادغۇبىلىك كىتابخانىسى</title>
-  <link rel="stylesheet" href="theme.css?v=4">
+  <link rel="stylesheet" href="theme.css?v=8">
+  <link rel="stylesheet" href="shop.css?v=16">
   <style>
-    .book-detail-page{max-width:1100px;margin:0 auto;padding:55px 20px 80px}
-    .book-detail-top{display:grid;grid-template-columns:minmax(280px,390px) 1fr;gap:55px;align-items:start}
-    .book-cover-box{background:var(--site-card);border:1px solid var(--site-border);border-radius:18px;padding:18px;box-shadow:0 10px 30px var(--site-shadow)}
-    .book-cover-box img{display:block;width:100%;height:auto;border-radius:10px}
-    .book-detail-info{background:var(--site-card);border:1px solid var(--site-border);border-radius:18px;padding:38px 34px;box-shadow:0 10px 30px var(--site-shadow)}
-    .book-detail-info h1{margin:0 0 14px;color:var(--site-text);font-size:clamp(28px,4vw,44px);line-height:1.35}
-    .book-author{font-size:20px;margin-bottom:30px;color:var(--site-text-soft)}
-    .book-meta{display:grid;gap:0;border-top:1px solid var(--site-border)}
-    .book-meta-row{display:grid;grid-template-columns:170px 1fr;gap:20px;padding:17px 0;border-bottom:1px solid var(--site-border)}
-    .book-meta-label{font-weight:700;color:var(--site-text)}
-    .book-meta-value{color:var(--site-text-soft)}
-    .back-link{display:inline-flex;margin-bottom:28px;padding:12px 20px;border-radius:10px;background:var(--site-brown);color:#fff!important;text-decoration:none}
-    .dynamic-book-description{margin-top:24px;padding-top:20px;border-top:1px solid var(--site-border)}
-    .dynamic-book-description h2{margin:0 0 9px;font-size:20px;color:var(--site-text)}
-    .dynamic-book-description p{margin:0;color:var(--site-text-soft);line-height:2}
+    *{box-sizing:border-box}
+
+    body.detail-page-body{
+      min-height:100vh;
+      margin:0;
+      background:var(--site-bg,#f6f0e5);
+      color:var(--site-text,#44352d);
+    }
+
+    .book-detail-page{
+      width:min(1160px,calc(100% - 40px));
+      max-width:1160px;
+      margin:0 auto;
+      padding:28px 0 80px;
+    }
+
+    .detail-topbar{
+      min-height:58px;
+      margin-bottom:22px;
+      padding:8px 10px 8px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:14px;
+      background:var(--site-card,#fffdf9);
+      box-shadow:0 6px 20px var(--site-shadow,rgba(75,51,39,.08));
+    }
+
+    .detail-brand{
+      min-width:0;
+      display:inline-flex;
+      align-items:center;
+      gap:9px;
+      color:var(--site-text,#44352d);
+      font-size:14px;
+      font-weight:800;
+      text-decoration:none;
+    }
+
+    .detail-brand-icon{
+      width:38px;
+      height:38px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      flex:0 0 38px;
+      border-radius:10px;
+      background:var(--site-bg-soft,#fbf8f2);
+      border:1px solid var(--site-border,#e8dccb);
+      font-size:20px;
+    }
+
+    .back-link{
+      min-height:40px;
+      padding:8px 15px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      flex:0 0 auto;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:9px;
+      background:var(--site-bg-soft,#fbf8f2);
+      color:var(--site-brown,#70503d)!important;
+      font-size:13px;
+      font-weight:800;
+      text-decoration:none;
+      transition:.2s ease;
+    }
+
+    .back-link:hover{
+      border-color:var(--site-brown,#70503d);
+      transform:translateY(-1px);
+    }
+
+    .book-detail-top{
+      display:grid;
+      grid-template-columns:minmax(300px,380px) minmax(0,1fr);
+      gap:34px;
+      align-items:start;
+    }
+
+    .book-cover-column{
+      min-width:0;
+      position:sticky;
+      top:22px;
+    }
+
+    .book-cover-box{
+      width:100%;
+      min-height:500px;
+      padding:22px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      background:var(--site-card,#fffdf9);
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:18px;
+      box-shadow:0 12px 34px var(--site-shadow,rgba(75,51,39,.08));
+    }
+
+    .book-cover-box img{
+      display:block;
+      width:100%;
+      height:auto;
+      max-height:500px;
+      object-fit:contain;
+      border-radius:8px;
+      box-shadow:0 8px 24px rgba(45,30,22,.12);
+    }
+
+    .book-cover-box.no-cover{
+      min-height:500px;
+    }
+
+    .cover-view-hint{
+      margin:10px 0 0;
+      color:var(--site-text-soft,#806f62);
+      font-size:11.5px;
+      text-align:center;
+    }
+
+    .book-cover-box.no-cover + .cover-view-hint{
+      display:none;
+    }
+
+    .book-detail-info{
+      min-width:0;
+      padding:32px;
+      background:var(--site-card,#fffdf9);
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:18px;
+      box-shadow:0 12px 34px var(--site-shadow,rgba(75,51,39,.08));
+    }
+
+    .book-detail-info h1{
+      margin:0 0 10px;
+      color:var(--site-text,#44352d);
+      font-size:clamp(29px,3.5vw,43px);
+      line-height:1.4;
+      overflow-wrap:anywhere;
+    }
+
+    .book-author{
+      margin-bottom:22px;
+      color:var(--site-text-soft,#806f62);
+      font-size:17px;
+      line-height:1.8;
+    }
+
+    .detail-service-list{
+      margin:0 0 22px;
+      padding:12px 14px;
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:12px;
+      background:var(--site-bg-soft,#fbf8f2);
+    }
+
+    .detail-service-item{
+      min-width:0;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--site-text,#44352d);
+      font-size:12px;
+      font-weight:700;
+      line-height:1.7;
+    }
+
+    .detail-service-icon{
+      flex:0 0 auto;
+      font-size:19px;
+      line-height:1;
+    }
+
+    .book-meta{
+      display:grid;
+      gap:0;
+      border-top:1px solid var(--site-border,#e8dccb);
+    }
+
+    .book-meta-row{
+      min-width:0;
+      padding:13px 2px;
+      display:grid;
+      grid-template-columns:145px minmax(0,1fr);
+      gap:18px;
+      border-bottom:1px solid var(--site-border,#e8dccb);
+    }
+
+    .book-meta-label{
+      color:var(--site-text,#44352d);
+      font-size:13px;
+      font-weight:800;
+    }
+
+    .book-meta-value{
+      min-width:0;
+      color:var(--site-text-soft,#806f62);
+      font-size:13px;
+      overflow-wrap:anywhere;
+    }
+
+    .dynamic-book-description{
+      margin-top:24px;
+      padding:20px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:13px;
+      background:var(--site-bg-soft,#fbf8f2);
+    }
+
+    .dynamic-book-description h2{
+      margin:0 0 9px;
+      color:var(--site-text,#44352d);
+      font-size:19px;
+    }
+
+    .dynamic-book-description p{
+      margin:0;
+      color:var(--site-text-soft,#806f62);
+      font-size:14px;
+      line-height:2;
+      white-space:pre-line;
+    }
+
+    .book-detail-page .detail-category-badge{
+      margin-bottom:9px;
+    }
+
+    .book-detail-page .detail-purchase-panel{
+      margin-top:24px;
+      border-radius:14px;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);
+    }
+
+    @media(max-width:900px){
+      .book-detail-page{
+        width:min(100% - 28px,920px);
+      }
+      .book-detail-top{
+        grid-template-columns:minmax(270px,330px) minmax(0,1fr);
+        gap:22px;
+      }
+      .book-cover-box,
+      .book-cover-box.no-cover{
+        min-height:440px;
+      }
+      .book-detail-info{
+        padding:25px 22px;
+      }
+      .detail-service-list{
+        grid-template-columns:1fr;
+      }
+    }
+
     @media(max-width:760px){
-      .book-detail-page{padding:35px 14px 60px}
-      .book-detail-top{grid-template-columns:1fr;gap:25px}
-      .book-cover-box{max-width:430px;margin:0 auto}
-      .book-detail-info{padding:28px 20px}
-      .book-meta-row{grid-template-columns:1fr;gap:5px}
+      .book-detail-page{
+        width:calc(100% - 24px);
+        padding:16px 0 62px;
+      }
+      .detail-topbar{
+        margin-bottom:14px;
+        padding:7px;
+      }
+      .detail-brand{
+        font-size:12.5px;
+      }
+      .detail-brand-icon{
+        width:34px;
+        height:34px;
+        flex-basis:34px;
+        font-size:18px;
+      }
+      .back-link{
+        min-height:36px;
+        padding:7px 10px;
+        font-size:11.5px;
+      }
+      .book-detail-top{
+        grid-template-columns:1fr;
+        gap:18px;
+      }
+      .book-cover-column{
+        width:min(100%,410px);
+        margin:0 auto;
+        position:static;
+      }
+      .book-cover-box,
+      .book-cover-box.no-cover{
+        min-height:420px;
+        padding:16px;
+      }
+      .book-cover-box img{
+        max-height:450px;
+      }
+      .book-detail-info{
+        padding:23px 18px;
+      }
+      .book-detail-info h1{
+        font-size:clamp(27px,8vw,36px);
+      }
+      .book-author{
+        margin-bottom:18px;
+        font-size:15px;
+      }
+      .detail-service-list{
+        padding:10px 12px;
+      }
+      .book-meta-row{
+        grid-template-columns:1fr;
+        gap:4px;
+        padding:12px 2px;
+      }
+      .dynamic-book-description{
+        padding:16px 14px;
+      }
+    }
+
+    @media(max-width:390px){
+      .detail-brand span:last-child{
+        display:none;
+      }
+      .book-cover-box,
+      .book-cover-box.no-cover{
+        min-height:360px;
+      }
     }
   </style>
-  <link rel="stylesheet" href="shop.css?v=10">
 </head>
-<body data-dynamic-book="1">
+<body class="detail-page-body" data-dynamic-book="1">
   <main class="book-detail-page">
-    <a class="back-link" href="javascript:history.back()">← كەينىگە قايتىش</a>
+    <nav class="detail-topbar" aria-label="كىتاب تەپسىلاتى يول باشلاش">
+      <a class="detail-brand" href="index.html">
+        <span class="detail-brand-icon" aria-hidden="true">📚</span>
+        <span>قۇتادغۇبىلىك كىتابخانىسى</span>
+      </a>
+      <a class="back-link" href="index.html#books">→ كىتابلارغا قايتىش</a>
+    </nav>
+
     <section class="book-detail-top">
-      <div class="book-cover-box"><img src="" alt="" hidden></div>
+      <div class="book-cover-column">
+        <div class="book-cover-box"><img src="" alt="" hidden></div>
+        <p class="cover-view-hint">مۇقاۋىنى بېسىپ چوڭ كۆرەلەيسىز</p>
+      </div>
+
       <div class="book-detail-info">
         <h1>كىتاب</h1>
         <div class="book-author">ئاپتورى: —</div>
+
+        <div class="detail-service-list" aria-label="يەتكۈزۈش ئۇچۇرى">
+          <div class="detail-service-item">
+            <span class="detail-service-icon" aria-hidden="true">🚚</span>
+            <span>دۇنيانىڭ ھەرقايسى جايلىرىغا كىتاب ئەۋەتىمىز</span>
+          </div>
+          <div class="detail-service-item">
+            <span class="detail-service-icon" aria-hidden="true">📦</span>
+            <span>كىتابلارنى بىخەتەر ئوراپ ئەۋەتىمىز</span>
+          </div>
+        </div>
+
         <div class="book-meta"></div>
         <section class="dynamic-book-description" hidden>
           <h2>كىتاب ھەققىدە</h2>
@@ -50,6 +383,6 @@
   <script src="theme.js?v=2"></script>
   <script src="supabase-config.js?v=1"></script>
   <script src="catalog.js"></script>
-  <script src="shop.js?v=13"></script>
+  <script src="shop.js?v=16"></script>
 </body>
 </html>
