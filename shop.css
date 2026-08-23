@@ -1153,6 +1153,48 @@
   box-shadow:0 5px 14px rgba(75,51,39,.12);
 }
 
+
+/* ===== MINI BOOK COVERS — full image + missing-cover fallback ===== */
+.shop-mini-card img{
+  object-fit:contain !important;
+  object-position:center !important;
+  padding:8px !important;
+  box-sizing:border-box !important;
+}
+
+.mini-cover-placeholder{
+  width:100% !important;
+  height:210px !important;
+  min-height:210px !important;
+  padding:14px !important;
+  flex-direction:column !important;
+  gap:8px !important;
+  border-radius:8px !important;
+  border:1px dashed var(--site-border,#e8dccb) !important;
+  font-size:42px !important;
+  box-sizing:border-box !important;
+}
+
+.mini-cover-placeholder small{
+  color:var(--site-text-soft,#806f62);
+  font-family:inherit;
+  font-size:11px;
+  font-weight:700;
+  line-height:1.7;
+  text-align:center;
+}
+
+.mini-cover-placeholder[hidden]{
+  display:none !important;
+}
+
+@media(max-width:650px){
+  .mini-cover-placeholder{
+    height:180px !important;
+    min-height:180px !important;
+  }
+}
+
 .home-carousel-controls{
   flex:0 0 auto !important;
 }

@@ -317,7 +317,13 @@ async function shareBook(b){
     else{let ta=document.createElement("textarea");ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();toast("كىتاب ئۇلىنىشى كۆچۈرۈلدى 🔗")}
   }catch(e){}
 }
-function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}"><img src="${b.image||''}" alt="${b.title}" loading="lazy" onerror="this.style.visibility='hidden'"><div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions"><button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
+function miniCover(b){
+  const placeholder=`<div class="dynamic-cover-placeholder mini-cover-placeholder"><span aria-hidden="true">📕</span><small>مۇقاۋا رەسىمى قوشۇلمىغان</small></div>`;
+  if(!b.image)return placeholder;
+  return `<img src="${b.image}" alt="${b.title}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="dynamic-cover-placeholder mini-cover-placeholder" hidden><span aria-hidden="true">📕</span><small>مۇقاۋا رەسىمى قوشۇلمىغان</small></div>`;
+}
+
+function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions"><button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
 
 function recommendedBooks(limit=12){
   let pinned=C.filter(b=>b.isRecommended===true);
