@@ -7,7 +7,7 @@ window.KITAP_CATALOG = [
     "priceText": "265 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "ozumuzni-etirap-qilayli.jpeg",
+    "image": "sample-book-cover.png",
     "href": "ozumuzni-etirap-qilayli.html"
   },
   {
@@ -18,7 +18,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "images/roman-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "romanlar-2.html"
   },
   {
@@ -29,7 +29,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "images/roman-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "romanlar-3.html"
   },
   {
@@ -40,7 +40,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "images/roman-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "romanlar-4.html"
   },
   {
@@ -51,7 +51,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "images/roman-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "romanlar-5.html"
   },
   {
@@ -62,7 +62,7 @@ window.KITAP_CATALOG = [
     "priceText": "265 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "images/roman-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "romanlar-6.html"
   },
   {
