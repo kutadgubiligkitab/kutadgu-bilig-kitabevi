@@ -282,6 +282,38 @@
     </style>
 <link href="theme.css?v=4" rel="stylesheet"/>
 <link rel="stylesheet" href="shop.css?v=19">
+
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  width: 100% !important;
+  height: 500px !important;
+  background: #eee9e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 12px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+@media (max-width: 768px) {
+  .book-card .book-image,
+  .book-card .book-cover {
+    height: 300px !important;
+    padding: 10px !important;
+  }
+}
+</style>
 </head>
 <body>
 <!-- باش تېما -->
@@ -305,121 +337,103 @@
 <!-- كىتاب 1 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-1.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 1" src="images/dunya-edebiyati-1.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 1" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 1
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-1.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 1</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-1.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-1">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-1">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-1">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- كىتاب 2 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-2.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 2" src="images/dunya-edebiyati-2.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 2" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 2
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-2.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 2</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-2.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-2">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-2">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-2">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- كىتاب 3 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-3.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 3" src="images/dunya-edebiyati-3.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 3" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 3
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-3.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 3</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-3.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-3">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-3">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-3">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- كىتاب 4 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-4.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 4" src="images/dunya-edebiyati-4.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 4" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 4
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-4.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 4</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-4.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-4">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-4">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-4">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- كىتاب 5 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-5.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 5" src="images/dunya-edebiyati-5.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 5" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 5
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-5.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 5</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-5.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-5">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-5">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-5">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- كىتاب 6 -->
 <article class="book-card">
 <a class="book-image" href="dunya-edebiyati-6.html">
-<img alt="دۇنيا ئەدەبىياتى كىتابى 6" src="images/dunya-edebiyati-6.jpg"/>
+<img alt="دۇنيا ئەدەبىياتى كىتابى 6" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        دۇنيا ئەدەبىياتى كىتابى 6
-                    </h2>
-<p class="book-author">
-                        ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
-<a class="detail-button" href="dunya-edebiyati-6.html">
-                        تەپسىلات
-                    </a>
+<h2 class="book-title">دۇنيا ئەدەبىياتى كىتابى 6</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="dunya-edebiyati-6.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="dunya-edebiyati-6">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="dunya-edebiyati-6">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="dunya-edebiyati-6">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 </div>

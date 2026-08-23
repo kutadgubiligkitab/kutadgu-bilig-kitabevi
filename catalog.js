@@ -14,7 +14,7 @@ window.KITAP_CATALOG = [
     "id": "romanlar-2",
     "title": "رومان كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
@@ -25,7 +25,7 @@ window.KITAP_CATALOG = [
     "id": "romanlar-3",
     "title": "رومان كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
@@ -36,7 +36,7 @@ window.KITAP_CATALOG = [
     "id": "romanlar-4",
     "title": "رومان كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
@@ -47,7 +47,7 @@ window.KITAP_CATALOG = [
     "id": "romanlar-5",
     "title": "رومان كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
@@ -58,7 +58,7 @@ window.KITAP_CATALOG = [
     "id": "romanlar-6",
     "title": "رومان كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 265.0,
+    "price": 265,
     "priceText": "265 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
@@ -69,7 +69,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-1",
     "title": "تارىخىي رومان 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -80,7 +80,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-2",
     "title": "تارىخىي رومان 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -91,7 +91,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-3",
     "title": "تارىخىي رومان 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -102,7 +102,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-4",
     "title": "تارىخىي رومان 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -113,7 +113,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-5",
     "title": "تارىخىي رومان 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -124,7 +124,7 @@ window.KITAP_CATALOG = [
     "id": "tarikhiy-romanlar-6",
     "title": "تارىخىي رومان 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
@@ -135,7 +135,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-1",
     "title": "شېئىر كىتابى 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -146,7 +146,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-2",
     "title": "شېئىر كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -157,7 +157,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-3",
     "title": "شېئىر كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -168,7 +168,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-4",
     "title": "شېئىر كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -179,7 +179,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-5",
     "title": "شېئىر كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -190,7 +190,7 @@ window.KITAP_CATALOG = [
     "id": "sheirlar-6",
     "title": "شېئىر كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
@@ -201,7 +201,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-1",
     "title": "ھېكايە كىتابى 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -212,7 +212,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-2",
     "title": "ھېكايە كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -223,7 +223,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-3",
     "title": "ھېكايە كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -234,7 +234,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-4",
     "title": "ھېكايە كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -245,7 +245,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-5",
     "title": "ھېكايە كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -256,7 +256,7 @@ window.KITAP_CATALOG = [
     "id": "hekayiler-6",
     "title": "ھېكايە كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
@@ -267,264 +267,264 @@ window.KITAP_CATALOG = [
     "id": "dastanlar-1",
     "title": "داستان كىتابى 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-1.html"
   },
   {
     "id": "dastanlar-2",
     "title": "داستان كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-2.html"
   },
   {
     "id": "dastanlar-3",
     "title": "داستان كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-3.html"
   },
   {
     "id": "dastanlar-4",
     "title": "داستان كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-4.html"
   },
   {
     "id": "dastanlar-5",
     "title": "داستان كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-5.html"
   },
   {
     "id": "dastanlar-6",
     "title": "داستان كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "images/dastan-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-6.html"
   },
   {
     "id": "dunya-edebiyati-1",
     "title": "دۇنيا ئەدەبىياتى كىتابى 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-1.html"
   },
   {
     "id": "dunya-edebiyati-2",
     "title": "دۇنيا ئەدەبىياتى كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-2.html"
   },
   {
     "id": "dunya-edebiyati-3",
     "title": "دۇنيا ئەدەبىياتى كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-3.html"
   },
   {
     "id": "dunya-edebiyati-4",
     "title": "دۇنيا ئەدەبىياتى كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-4.html"
   },
   {
     "id": "dunya-edebiyati-5",
     "title": "دۇنيا ئەدەبىياتى كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-5.html"
   },
   {
     "id": "dunya-edebiyati-6",
     "title": "دۇنيا ئەدەبىياتى كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "images/dunya-edebiyati-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-6.html"
   },
   {
     "id": "adabiyat-roman-1",
     "title": "رومان 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-1.html"
   },
   {
     "id": "adabiyat-roman-2",
     "title": "رومان 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-2.html"
   },
   {
     "id": "adabiyat-roman-3",
     "title": "رومان 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-3.html"
   },
   {
     "id": "adabiyat-roman-4",
     "title": "رومان 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-4.html"
   },
   {
     "id": "adabiyat-roman-5",
     "title": "رومان 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-5.html"
   },
   {
     "id": "adabiyat-roman-6",
     "title": "رومان 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "images/roman-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-6.html"
   },
   {
     "id": "uyghur-adabiyati-1",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 1",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-1.html"
   },
   {
     "id": "uyghur-adabiyati-2",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 2",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-2.html"
   },
   {
     "id": "uyghur-adabiyati-3",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 3",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-3.html"
   },
   {
     "id": "uyghur-adabiyati-4",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 4",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-4.html"
   },
   {
     "id": "uyghur-adabiyati-5",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 5",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-5.html"
   },
   {
     "id": "uyghur-adabiyati-6",
     "title": "ئۇيغۇر ئەدەبىياتى كىتابى 6",
     "author": "ئاپتور ئىسمى",
-    "price": 200.0,
+    "price": 200,
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "images/uyghur-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-6.html"
   },
   {
@@ -535,7 +535,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-1.html"
   },
   {
@@ -546,7 +546,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-2.html"
   },
   {
@@ -557,7 +557,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-3.html"
   },
   {
@@ -568,7 +568,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-4.html"
   },
   {
@@ -579,7 +579,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-5.html"
   },
   {
@@ -590,7 +590,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "images/universal-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "universal-6.html"
   },
   {
@@ -601,7 +601,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-1.html"
   },
   {
@@ -612,7 +612,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-2.html"
   },
   {
@@ -623,7 +623,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-3.html"
   },
   {
@@ -634,7 +634,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-4.html"
   },
   {
@@ -645,7 +645,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-5.html"
   },
   {
@@ -656,7 +656,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "images/tibb-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "tibb-6.html"
   },
   {
@@ -667,7 +667,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-1.html"
   },
   {
@@ -678,7 +678,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-2.html"
   },
   {
@@ -689,7 +689,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-3.html"
   },
   {
@@ -700,7 +700,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-4.html"
   },
   {
@@ -711,7 +711,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-5.html"
   },
   {
@@ -722,7 +722,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "images/derslik-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "derslik-6.html"
   },
   {
@@ -733,7 +733,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-1.html"
   },
   {
@@ -744,7 +744,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-2.html"
   },
   {
@@ -755,7 +755,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-3.html"
   },
   {
@@ -766,7 +766,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-4.html"
   },
   {
@@ -777,7 +777,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-5.html"
   },
   {
@@ -788,7 +788,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "images/terbiye-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "terbiye-6.html"
   },
   {
@@ -799,7 +799,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-1.html"
   },
   {
@@ -810,7 +810,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-2.html"
   },
   {
@@ -821,7 +821,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-3.html"
   },
   {
@@ -832,7 +832,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-4.html"
   },
   {
@@ -843,7 +843,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-5.html"
   },
   {
@@ -854,7 +854,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "images/dini-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "dini-6.html"
   },
   {
@@ -865,7 +865,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-1.html"
   },
   {
@@ -876,7 +876,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-2.html"
   },
   {
@@ -887,7 +887,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-3.html"
   },
   {
@@ -898,7 +898,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-4.html"
   },
   {
@@ -909,7 +909,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-5.html"
   },
   {
@@ -920,7 +920,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "images/balilar-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "children-6.html"
   }
 ];

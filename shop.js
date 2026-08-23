@@ -4,6 +4,8 @@ const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])];
 let C=[...STATIC_CATALOG];
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const FALLBACK_COVER="sample-book-cover.png";
+const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
+const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const set=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const find=id=>C.find(x=>x.id===id);
@@ -41,7 +43,8 @@ function normalizeRemoteBook(r){
     salesCount:Number(r.sales_count??r.sold_count??0)||0,
     isActive:r.is_active!==false,
     createdAt:r.created_at||"",
-    updatedAt:r.updated_at||""
+    updatedAt:r.updated_at||"",
+    isRemote:true
   };
 }
 
@@ -84,11 +87,69 @@ function recent(id){if(!find(id))return;let a=get(REC_KEY,[]).filter(x=>x!==id);
 function toast(msg){let t=document.querySelector(".shop-toast");if(!t){t=document.createElement("div");t.className="shop-toast";t.style.cssText="position:fixed;right:18px;bottom:18px;z-index:10000;background:#4b3327;color:#fff;padding:12px 18px;border-radius:9px;box-shadow:0 8px 25px rgba(0,0,0,.2);font-family:inherit;transition:opacity .2s";document.body.appendChild(t)}t.textContent=msg;t.style.opacity="1";clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.opacity="0",1800)}
 function injectFloat(){if(document.querySelector(".shop-floating"))return;let d=document.createElement("div");d.className="shop-floating";d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;document.body.appendChild(d);updateBadge()}
 function cardId(card){
+  const explicit=card.querySelector("[data-cart-id],[data-fav-id],[data-share-id]")?.dataset.cartId||card.querySelector("[data-fav-id]")?.dataset.favId||card.querySelector("[data-share-id]")?.dataset.shareId;
+  if(explicit&&find(explicit))return explicit;
   const hrefs=[...card.querySelectorAll("a.book-image,a.book-cover,.detail-button,.book-button")].map(a=>a.getAttribute("href")).filter(Boolean);
   for(const href of hrefs){const b=C.find(x=>x.href===href);if(b)return b.id}
   const title=card.querySelector(".book-title")?.textContent.trim();
   if(title){const b=C.find(x=>x.title===title);if(b)return b.id}
   return null;
+}
+function syncStaticCards(){
+  document.querySelectorAll(".book-card").forEach(card=>{
+    const id=cardId(card),book=id&&find(id);if(!book)return;
+    const cover=card.querySelector("a.book-image,a.book-cover");
+    const img=cover?.querySelector("img");
+    if(cover&&book.href)cover.href=book.href;
+    if(img){img.src=coverSrc(book);img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;}
+    const detail=card.querySelector(".detail-button,.book-button");if(detail&&book.href)detail.href=book.href;
+    const title=card.querySelector(".book-title");if(title)title.textContent=book.title||"كىتاب";
+    const author=card.querySelector(".book-author");if(author)author.textContent=`ئاپتورى: ${book.author||"—"}`;
+    const price=card.querySelector(".book-price,.price");if(price)price.textContent=money(book.price);
+  });
+}
+function applyStaticCoverFallbacks(scope=document){
+  scope.querySelectorAll(".book-card .book-cover, .book-card .book-image").forEach(cover=>{
+    let img=cover.matches("img")?cover:cover.querySelector("img");
+    if(!img){
+      img=document.createElement("img");
+      const title=cover.closest(".book-card")?.querySelector(".book-title")?.textContent.trim()||"كىتاب";
+      img.alt=`${title} كىتاب مۇقاۋىسى`;
+      img.loading="lazy";
+      cover.querySelectorAll(".dynamic-cover-placeholder,.cover-placeholder").forEach(el=>el.remove());
+      cover.prepend(img);
+    }
+    img.onerror=function(){
+      this.onerror=null;
+      this.hidden=false;
+      this.style.visibility="visible";
+      this.src=FALLBACK_COVER;
+    };
+    const src=(img.getAttribute("src")||"").trim();
+    if(COVER_LAYOUT_TEST_MODE||!src||src==="#")img.src=coverSrc(null);
+  });
+}
+function applyDetailCoverFallback(){
+  const box=document.querySelector(".book-cover-box");
+  if(!box)return;
+  let img=box.querySelector("img");
+  if(!img){
+    img=document.createElement("img");
+    box.prepend(img);
+  }
+  const book=getDetailBook();
+  const current=(img.getAttribute("src")||"").trim();
+  img.alt=img.alt||`${book?.title||"كىتاب"} كىتاب مۇقاۋىسى`;
+  img.hidden=false;
+  img.style.visibility="visible";
+  box.classList.remove("no-cover");
+  img.onerror=function(){
+    this.onerror=null;
+    this.hidden=false;
+    this.style.visibility="visible";
+    this.src=FALLBACK_COVER;
+  };
+  if(COVER_LAYOUT_TEST_MODE||!current||current==="#")img.src=coverSrc(book);
 }
 function decorateCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
@@ -124,13 +185,14 @@ function setDynamicMeta(label,value){
 }
 
 function populateDynamicBookPage(b){
-  if(!document.body.hasAttribute("data-dynamic-book"))return;
+  const dynamic=document.body.hasAttribute("data-dynamic-book");
+  if(!dynamic&&!b.isRemote)return;
   document.body.dataset.bookId=b.id;
   document.title=`${b.title} - قۇتادغۇبىلىك كىتابخانىسى`;
 
   const img=document.querySelector(".book-cover-box img");
   if(img){
-    img.src=b.image||FALLBACK_COVER;
+    img.src=coverSrc(b);
     img.alt=`${b.title} كىتاب مۇقاۋىسى`;
     img.hidden=false;
     img.parentElement.classList.remove("no-cover");
@@ -145,7 +207,7 @@ function populateDynamicBookPage(b){
   if(author)author.textContent=`ئاپتورى: ${b.author||"—"}`;
 
   const meta=info.querySelector(".book-meta");
-  if(meta){
+  if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
       setDynamicMeta("ئاپتورى",b.author),
       setDynamicMeta("كىتاب تۈرى",b.category),
@@ -315,7 +377,7 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  return `<img src="${b.image||FALLBACK_COVER}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
+  return `<img src="${coverSrc(b)}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
 }
 
 function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions"><button type="button" class="add-to-cart" data-cart-id="${b.id}">🛒 سېۋەتكە سېلىش</button><button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
@@ -354,7 +416,7 @@ function renderHomeFeaturedBooks(){
       <a href="${b.href}">
         <div class="home-feature-cover">
           <div class="home-feature-cover-frame">
-            <img src="${b.image||FALLBACK_COVER}" alt="${b.title} كىتاب مۇقاۋىسى" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+            <img src="${coverSrc(b)}" alt="${b.title} كىتاب مۇقاۋىسى" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
           </div>
         </div>
         <div class="home-feature-info">
@@ -430,7 +492,7 @@ function bindDynamicActions(scope){
 }
 function searchResultCard(b){
   return `<article class="advanced-search-result">
-    <a class="advanced-search-cover" href="${b.href}"><img src="${b.image||FALLBACK_COVER}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
+    <a class="advanced-search-cover" href="${b.href}"><img src="${coverSrc(b)}" alt="${b.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${b.href}">${b.title}</a>
       <div class="advanced-search-meta">ئاپتورى: ${b.author||"—"}</div>
@@ -508,7 +570,7 @@ function searchEnhance(){
 function dynamicListingCard(b){
   return `<article class="book-card" data-live-book-id="${b.id}">
     <a class="book-image" href="${b.href}">
-      <img alt="${b.title}" src="${b.image||FALLBACK_COVER}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+      <img alt="${b.title}" src="${coverSrc(b)}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
     </a>
     <div class="book-info">
       <h2 class="book-title">${b.title}</h2>
@@ -706,7 +768,7 @@ function cartPage(){
   if(checkout)checkout.hidden=false;
 
   host.innerHTML=items.map(x=>`<div class="cart-item">
-      <img src="${x.b.image||FALLBACK_COVER}" alt="${x.b.title}" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+      <img src="${coverSrc(x.b)}" alt="${x.b.title}" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
       <div>
         <div class="cart-title">${x.b.title}</div>
         <div class="cart-meta">${x.b.author} · ${x.b.category}</div>
@@ -941,7 +1003,7 @@ function setupHomeCarousel(){
     return `<article class="home-carousel-card">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${b.href}" class="home-carousel-link">
-        <div class="home-carousel-cover"><img src="${b.image||sampleCover}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+        <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
         <div class="home-carousel-info">
           <div class="home-carousel-title">${b.title||"كىتاب"}</div>
           <div class="home-carousel-author">${b.author||"—"}</div>
@@ -1017,7 +1079,7 @@ function setupHomeCarousel(){
   setMode("recommended");
 }
 
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
+function init(){injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
 async function boot(){await loadRemoteCatalog();init()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};

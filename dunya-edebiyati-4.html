@@ -1,1 +1,175 @@
-<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دۇنيا ئەدەبىياتى كىتابى 4 - قۇتادغۇبىلىك كىتابخانىسى</title><link rel="stylesheet" href="theme.css?v=4"><link rel="stylesheet" href="shop.css?v=19"></head><body data-book-id="dunya-edebiyati-4"><main class="book-detail-page"><a class="back-link" href="javascript:history.back()">← كەينىگە قايتىش</a><section class="book-detail-top"><div class="book-cover-box"><img src="images/dunya-edebiyati-4.jpg" alt="دۇنيا ئەدەبىياتى كىتابى 4" onerror="this.style.display='none';this.parentElement.classList.add('no-cover')"></div><div class="book-detail-info"><h1>دۇنيا ئەدەبىياتى كىتابى 4</h1><div class="book-author">ئاپتورى: ئاپتور ئىسمى</div><div class="book-meta"><div class="book-meta-row"><div class="book-meta-label">ئاپتورى</div><div class="book-meta-value">ئاپتور ئىسمى</div></div><div class="book-meta-row"><div class="book-meta-label">بۆلۈمى</div><div class="book-meta-value">دۇنيا ئەدەبىياتى</div></div><div class="book-meta-row"><div class="book-meta-label">باھاسى</div><div class="book-meta-value book-detail-price">200 ₺</div></div></div><div class="detail-actions"><button class="add-to-cart detail-cart">🛒 سېۋەتكە سېلىش</button><button class="favorite-button">♡ ياقتۇرۇش</button><button class="share-button">🔗 ھەمبەھىرلەش</button></div></div></section></main><script src="theme.js?v=5"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=22"></script></body></html>
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دۇنيا ئەدەبىياتى كىتابى 4</title>
+    <link rel="stylesheet" href="theme.css?v=4">
+
+    <style>
+        .book-detail-page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 55px 20px 80px;
+        }
+
+        .book-detail-top {
+            display: grid;
+            grid-template-columns: minmax(280px, 390px) 1fr;
+            gap: 55px;
+            align-items: start;
+        }
+
+        .book-cover-box {
+            background: var(--site-card);
+            border: 1px solid var(--site-border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 10px 30px var(--site-shadow);
+        }
+
+        .book-cover-box img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        .book-detail-info {
+            background: var(--site-card);
+            border: 1px solid var(--site-border);
+            border-radius: 18px;
+            padding: 38px 34px;
+            box-shadow: 0 10px 30px var(--site-shadow);
+        }
+
+        .book-detail-info h1 {
+            margin: 0 0 14px;
+            color: var(--site-text);
+            font-size: clamp(28px, 4vw, 44px);
+            line-height: 1.35;
+        }
+
+        .book-author {
+            font-size: 20px;
+            margin-bottom: 30px;
+            color: var(--site-text-soft);
+        }
+
+        .book-meta {
+            display: grid;
+            gap: 0;
+            border-top: 1px solid var(--site-border);
+        }
+
+        .book-meta-row {
+            display: grid;
+            grid-template-columns: 170px 1fr;
+            gap: 20px;
+            padding: 17px 0;
+            border-bottom: 1px solid var(--site-border);
+        }
+
+        .book-meta-label {
+            font-weight: 700;
+            color: var(--site-text);
+        }
+
+        .book-meta-value {
+            color: var(--site-text-soft);
+        }
+
+        .back-link {
+            display: inline-flex;
+            margin-bottom: 28px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            background: var(--site-brown);
+            color: #fff !important;
+            text-decoration: none;
+        }
+
+        @media (max-width: 760px) {
+            .book-detail-page {
+                padding: 35px 14px 60px;
+            }
+
+            .book-detail-top {
+                grid-template-columns: 1fr;
+                gap: 25px;
+            }
+
+            .book-cover-box {
+                max-width: 430px;
+                margin: 0 auto;
+            }
+
+            .book-detail-info {
+                padding: 28px 20px;
+            }
+
+            .book-meta-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+        }
+    </style>
+<link rel="stylesheet" href="shop.css?v=19">
+</head>
+
+<body data-book-id="dunya-edebiyati-4">
+    <main class="book-detail-page">
+
+        <a class="back-link" href="javascript:history.back()">
+    ← كەينىگە قايتىش
+</a>
+        <section class="book-detail-top">
+
+            <div class="book-cover-box">
+                <img src="sample-book-cover.png" alt="دۇنيا ئەدەبىياتى كىتابى 4 كىتاب مۇقاۋىسى">
+            </div>
+
+            <div class="book-detail-info">
+                <h1>دۇنيا ئەدەبىياتى كىتابى 4</h1>
+
+                <div class="book-author">ئاپتورى: ئاپتور ئىسمى</div>
+
+                <div class="book-meta">
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">ئاپتورى</div>
+                        <div class="book-meta-value">ئاپتور ئىسمى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشر قىلىنغان يىلى</div>
+                        <div class="book-meta-value">تېخى كىرگۈزۈلمىدى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشر ۋاقتى</div>
+                        <div class="book-meta-value">تېخى كىرگۈزۈلمىدى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشرى</div>
+                        <div class="book-meta-value">تېخى كىرگۈزۈلمىدى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">بېسىلىشى</div>
+                        <div class="book-meta-value">تېخى كىرگۈزۈلمىدى</div>
+                    </div>
+
+                    <div class="book-meta-row">
+                        <div class="book-meta-label">نەشرىيات</div>
+                        <div class="book-meta-value">تېخى كىرگۈزۈلمىدى</div>
+                    </div>
+                </div><div class="detail-actions"><div class="detail-price">200 ₺</div><button class="add-to-cart detail-cart">🛒 سېۋەتكە سېلىش</button><button class="favorite-button">♡ ياقتۇرۇش</button><button class="share-button">🔗 ھەمبەھىرلەش</button></div>
+            </div>
+
+        </section>
+    </main>
+
+    <script src="theme.js?v=5"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=22"></script>
+</body>
+</html>

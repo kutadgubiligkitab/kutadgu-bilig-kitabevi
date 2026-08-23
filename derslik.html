@@ -416,6 +416,38 @@ nav a:hover {
 </style>
 <link href="theme.css?v=4" rel="stylesheet"/>
 <link rel="stylesheet" href="shop.css?v=19">
+
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  width: 100% !important;
+  height: 500px !important;
+  background: #eee9e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 12px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+@media (max-width: 768px) {
+  .book-card .book-image,
+  .book-card .book-cover {
+    height: 300px !important;
+    padding: 10px !important;
+  }
+}
+</style>
 </head>
 <body>
 <!-- =========================
@@ -456,121 +488,103 @@ nav a:hover {
 <!-- BOOK 1 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-1.html">
-<img alt="دەرسلىك كىتاب 1" src="images/derslik-1.jpg"/>
+<img alt="دەرسلىك كىتاب 1" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 1
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            200 ₺
-        </div>
-<a class="book-button" href="derslik-1.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 1</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-1.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-1">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-1">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-1">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- BOOK 2 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-2.html">
-<img alt="دەرسلىك كىتاب 2" src="images/derslik-2.jpg"/>
+<img alt="دەرسلىك كىتاب 2" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 2
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            180 ₺
-        </div>
-<a class="book-button" href="derslik-2.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 2</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-2.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-2">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-2">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-2">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- BOOK 3 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-3.html">
-<img alt="دەرسلىك كىتاب 3" src="images/derslik-3.jpg"/>
+<img alt="دەرسلىك كىتاب 3" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 3
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            150 ₺
-        </div>
-<a class="book-button" href="derslik-3.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 3</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-3.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-3">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-3">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-3">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- BOOK 4 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-4.html">
-<img alt="دەرسلىك كىتاب 4" src="images/derslik-4.jpg"/>
+<img alt="دەرسلىك كىتاب 4" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 4
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            220 ₺
-        </div>
-<a class="book-button" href="derslik-4.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 4</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-4.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-4">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-4">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-4">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- BOOK 5 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-5.html">
-<img alt="دەرسلىك كىتاب 5" src="images/derslik-5.jpg"/>
+<img alt="دەرسلىك كىتاب 5" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 5
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            190 ₺
-        </div>
-<a class="book-button" href="derslik-5.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 5</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-5.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-5">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-5">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-5">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- BOOK 6 -->
 <article class="book-card">
 <a class="book-cover" href="derslik-6.html">
-<img alt="دەرسلىك كىتاب 6" src="images/derslik-6.jpg"/>
+<img alt="دەرسلىك كىتاب 6" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            دەرسلىك كىتاب 6
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            175 ₺
-        </div>
-<a class="book-button" href="derslik-6.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">دەرسلىك كىتاب 6</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="derslik-6.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="derslik-6">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="derslik-6">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="derslik-6">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 </div>

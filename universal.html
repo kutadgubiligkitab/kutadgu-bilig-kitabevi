@@ -430,6 +430,38 @@ nav a:hover {
 </style>
 <link href="theme.css?v=4" rel="stylesheet"/>
 <link rel="stylesheet" href="shop.css?v=19">
+
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  width: 100% !important;
+  height: 500px !important;
+  background: #eee9e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 12px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+@media (max-width: 768px) {
+  .book-card .book-image,
+  .book-card .book-cover {
+    height: 300px !important;
+    padding: 10px !important;
+  }
+}
+</style>
 </head>
 <body>
 <!-- =========================
@@ -472,21 +504,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-1.html">
-<img alt="ئۇنىۋېرسال ئەسەر 1" src="images/universal-1.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 1" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 1
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            200 ₺
-        </div>
-<a class="book-button" href="universal-1.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 1</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-1.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-1">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-1">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-1">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -494,21 +523,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-2.html">
-<img alt="ئۇنىۋېرسال ئەسەر 2" src="images/universal-2.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 2" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 2
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            180 ₺
-        </div>
-<a class="book-button" href="universal-2.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 2</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-2.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-2">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-2">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-2">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -516,21 +542,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-3.html">
-<img alt="ئۇنىۋېرسال ئەسەر 3" src="images/universal-3.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 3" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 3
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            150 ₺
-        </div>
-<a class="book-button" href="universal-3.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 3</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-3.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-3">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-3">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-3">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -538,21 +561,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-4.html">
-<img alt="ئۇنىۋېرسال ئەسەر 4" src="images/universal-4.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 4" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 4
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            220 ₺
-        </div>
-<a class="book-button" href="universal-4.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 4</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-4.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-4">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-4">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-4">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -560,21 +580,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-5.html">
-<img alt="ئۇنىۋېرسال ئەسەر 5" src="images/universal-5.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 5" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 5
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            190 ₺
-        </div>
-<a class="book-button" href="universal-5.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 5</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-5.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-5">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-5">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-5">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -582,21 +599,18 @@ nav a:hover {
 ========================= -->
 <article class="book-card">
 <a class="book-cover" href="universal-6.html">
-<img alt="ئۇنىۋېرسال ئەسەر 6" src="images/universal-6.jpg"/>
+<img alt="ئۇنىۋېرسال ئەسەر 6" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۇنىۋېرسال ئەسەر 6
-        </h2>
-<p class="book-author">
-            ئاپتور ئىسمى
-        </p>
-<div class="price">
-            175 ₺
-        </div>
-<a class="book-button" href="universal-6.html">
-            كىتاب تەپسىلاتى
-        </a>
+<h2 class="book-title">ئۇنىۋېرسال ئەسەر 6</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">0 ₺</div>
+<div class="book-actions">
+<a class="detail-button" href="universal-6.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="universal-6">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="universal-6">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="universal-6">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 </div>

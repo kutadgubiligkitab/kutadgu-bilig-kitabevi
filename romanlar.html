@@ -300,6 +300,38 @@
     </style>
 <link href="theme.css?v=4" rel="stylesheet"/>
 <link rel="stylesheet" href="shop.css?v=19">
+
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  width: 100% !important;
+  height: 500px !important;
+  background: #eee9e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 12px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+@media (max-width: 768px) {
+  .book-card .book-image,
+  .book-card .book-cover {
+    height: 300px !important;
+    padding: 10px !important;
+  }
+}
+</style>
 </head>
 <body>
 <!-- =========================
@@ -334,15 +366,9 @@
 <img alt="ئۆزىمىزنى ئېتىراپ قىلايلى" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-            ئۆزىمىزنى ئېتىراپ قىلايلى
-        </h2>
-<p class="book-author">
-            ئاپتورى: ئەختەم ئۆمەر
-        </p>
-<div class="book-price">
-    265 ₺
-</div>
+<h2 class="book-title">ئۆزىمىزنى ئېتىراپ قىلايلى</h2>
+<p class="book-author">ئاپتورى: ئەختەم ئۆمەر</p>
+<div class="book-price">265 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="ozumuzni-etirap-qilayli.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="ozumuzni-etirap-qilayli">🛒 سېۋەتكە سېلىش</button>
@@ -359,15 +385,9 @@
 <img alt="رومان 2" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        رومان كىتابى 2
-                    </h2>
-<p class="book-author">
-                        ئاپتورى: ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
+<h2 class="book-title">رومان كىتابى 2</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="romanlar-2.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="romanlar-2">🛒 سېۋەتكە سېلىش</button>
@@ -384,15 +404,9 @@
 <img alt="رومان 3" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        رومان كىتابى 3
-                    </h2>
-<p class="book-author">
-                        ئاپتورى: ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
+<h2 class="book-title">رومان كىتابى 3</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="romanlar-3.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="romanlar-3">🛒 سېۋەتكە سېلىش</button>
@@ -409,15 +423,9 @@
 <img alt="رومان 4" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        رومان كىتابى 4
-                    </h2>
-<p class="book-author">
-                        ئاپتورى: ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
+<h2 class="book-title">رومان كىتابى 4</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="romanlar-4.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="romanlar-4">🛒 سېۋەتكە سېلىش</button>
@@ -434,15 +442,9 @@
 <img alt="رومان 5" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        رومان كىتابى 5
-                    </h2>
-<p class="book-author">
-                        ئاپتورى: ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        200 ₺
-                    </div>
+<h2 class="book-title">رومان كىتابى 5</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">200 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="romanlar-5.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="romanlar-5">🛒 سېۋەتكە سېلىش</button>
@@ -459,15 +461,9 @@
 <img alt="رومان 6" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
-<h2 class="book-title">
-                        رومان كىتابى 6
-                    </h2>
-<p class="book-author">
-                        ئاپتورى: ئاپتور ئىسمى
-                    </p>
-<div class="book-price">
-                        265 ₺
-                    </div>
+<h2 class="book-title">رومان كىتابى 6</h2>
+<p class="book-author">ئاپتورى: ئاپتور ئىسمى</p>
+<div class="book-price">265 ₺</div>
 <div class="book-actions">
 <a class="detail-button" href="romanlar-6.html">تەپسىلات</a>
 <button type="button" class="add-to-cart" data-cart-id="romanlar-6">🛒 سېۋەتكە سېلىش</button>
