@@ -139,7 +139,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-1.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-1.html"
   },
   {
@@ -150,7 +150,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-2.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-2.html"
   },
   {
@@ -161,7 +161,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-3.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-3.html"
   },
   {
@@ -172,7 +172,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-4.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-4.html"
   },
   {
@@ -183,7 +183,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-5.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-5.html"
   },
   {
@@ -194,7 +194,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "images/sheir-6.jpg",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-6.html"
   },
   {

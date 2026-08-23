@@ -137,25 +137,24 @@
 
         .book-image {
             width: 100%;
-            height: 350px;
-
+            height: 500px;
             background: #eee9e1;
-
             display: flex;
             align-items: center;
             justify-content: center;
-
             overflow: hidden;
+            padding: 12px;
+            box-sizing: border-box;
         }
 
         .book-image img {
-            width: 100%;
+            width: auto;
             height: 100%;
-
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain;
-
+            object-position: center center;
             display: block;
-
             transition: transform 0.3s ease;
         }
 
@@ -268,7 +267,8 @@
             }
 
             .book-image {
-                height: 240px;
+                height: 300px;
+                padding: 10px;
             }
 
             .book-info {
@@ -305,14 +305,15 @@
             }
 
             .book-image {
-                height: 320px;
+                height: 300px;
+                padding: 10px;
             }
 
         }
 
     </style>
 <link href="theme.css?v=4" rel="stylesheet"/>
-<link rel="stylesheet" href="shop.css?v=10">
+<link rel="stylesheet" href="shop.css?v=19">
 </head>
 <body>
 <!-- =========================
@@ -344,21 +345,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-1.html">
-<img alt="شېئىر كىتابى 1" src="images/sheir-1.jpg"/>
+<img alt="شېئىر كىتابى 1" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 1
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-1.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-1.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-1">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-1">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-1">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -366,21 +370,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-2.html">
-<img alt="شېئىر كىتابى 2" src="images/sheir-2.jpg"/>
+<img alt="شېئىر كىتابى 2" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 2
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-2.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-2.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-2">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-2">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-2">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -388,21 +395,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-3.html">
-<img alt="شېئىر كىتابى 3" src="images/sheir-3.jpg"/>
+<img alt="شېئىر كىتابى 3" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 3
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-3.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-3.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-3">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-3">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-3">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -410,21 +420,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-4.html">
-<img alt="شېئىر كىتابى 4" src="images/sheir-4.jpg"/>
+<img alt="شېئىر كىتابى 4" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 4
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-4.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-4.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-4">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-4">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-4">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -432,21 +445,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-5.html">
-<img alt="شېئىر كىتابى 5" src="images/sheir-5.jpg"/>
+<img alt="شېئىر كىتابى 5" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 5
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-5.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-5.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-5">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-5">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-5">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 <!-- =========================
@@ -454,21 +470,24 @@
             ========================= -->
 <article class="book-card">
 <a class="book-image" href="sheirlar-6.html">
-<img alt="شېئىر كىتابى 6" src="images/sheir-6.jpg"/>
+<img alt="شېئىر كىتابى 6" src="sample-book-cover.png"/>
 </a>
 <div class="book-info">
 <h2 class="book-title">
                         شېئىر كىتابى 6
                     </h2>
 <p class="book-author">
-                        ئاپتور ئىسمى
+                        ئاپتورى: ئاپتور ئىسمى
                     </p>
 <div class="book-price">
                         200 ₺
                     </div>
-<a class="detail-button" href="sheirlar-6.html">
-                        تەپسىلات
-                    </a>
+<div class="book-actions">
+<a class="detail-button" href="sheirlar-6.html">تەپسىلات</a>
+<button type="button" class="add-to-cart" data-cart-id="sheirlar-6">🛒 سېۋەتكە سېلىش</button>
+<button type="button" class="favorite-button" data-fav-id="sheirlar-6">♡ ياقتۇرۇش</button>
+<button type="button" class="share-button" data-share-id="sheirlar-6">🔗 ھەمبەھىرلەش</button>
+</div>
 </div>
 </article>
 </div>
@@ -481,7 +500,7 @@
         © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
     </footer>
-<script src="theme.js?v=2"></script>
-<script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=13"></script>
+<script src="theme.js?v=5"></script>
+<script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=22"></script>
 </body>
 </html>
