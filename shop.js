@@ -934,12 +934,16 @@ function setupHomeCarousel(){
 
   let index=0,timer=null;
   const gap=14;
-  const visible=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:window.innerWidth<=1100?3:5;
+  const visible=()=>window.innerWidth<=430?1:2;
+  const pageStep=()=>window.innerWidth<=430?1:2;
   const maxIndex=()=>Math.max(0,list.length-visible());
 
   function renderDots(){
-    const count=maxIndex()+1;
-    dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-بەت"></button>`).join("");
+    const step=pageStep();
+    const positions=[];
+    for(let i=0;i<=maxIndex();i+=step)positions.push(i);
+    if(positions[positions.length-1]!==maxIndex())positions.push(maxIndex());
+    dotsHost.innerHTML=positions.map((pos,i)=>`<button type="button" class="home-carousel-dot${pos===index?' is-active':''}" data-carousel-dot="${pos}" aria-label="${i+1}-بەت"></button>`).join("");
     dotsHost.querySelectorAll("[data-carousel-dot]").forEach(btn=>btn.onclick=()=>{index=Number(btn.dataset.carouselDot)||0;move();restart()});
   }
 
@@ -949,13 +953,13 @@ function setupHomeCarousel(){
     if(!card)return;
     const step=card.getBoundingClientRect().width+gap;
     host.style.transform=`translateX(${index*step}px)`;
-    dotsHost.querySelectorAll(".home-carousel-dot").forEach((d,i)=>d.classList.toggle("is-active",i===index));
+    dotsHost.querySelectorAll(".home-carousel-dot").forEach(d=>d.classList.toggle("is-active",Number(d.dataset.carouselDot)===index));
   }
 
-  function next(){index=index>=maxIndex()?0:index+1;move()}
-  function prev(){index=index<=0?maxIndex():index-1;move()}
+  function next(){index=index>=maxIndex()?0:Math.min(maxIndex(),index+pageStep());move()}
+  function prev(){index=index<=0?maxIndex():Math.max(0,index-pageStep());move()}
   function stop(){if(timer){clearInterval(timer);timer=null}}
-  function start(){stop();timer=setInterval(next,5000)}
+  function start(){stop();timer=setInterval(next,3000)}
   function restart(){start()}
 
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
