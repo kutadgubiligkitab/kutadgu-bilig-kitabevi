@@ -901,7 +901,78 @@ function setupCheckout(){
   if(share)share.onclick=shareOrder;
 }
 
-function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
+
+
+/* ===== باش بەت: يېڭى كەلگەن كىتابلار Carousel ===== */
+function setupHomeCarousel(){
+  const host=document.querySelector("#homeCarouselTrack");
+  const viewport=document.querySelector("#homeCarouselViewport");
+  const dotsHost=document.querySelector("#homeCarouselDots");
+  if(!host||!viewport||!dotsHost)return;
+
+  const list=(C.filter(b=>b.isNew===true).length?C.filter(b=>b.isNew===true):C).slice(0,10);
+  if(!list.length)return;
+  const sampleCover="carousel-sample-cover.png";
+
+  host.innerHTML=list.map(b=>`<article class="home-carousel-card">
+    <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
+    <a href="${b.href}" class="home-carousel-link">
+      <div class="home-carousel-cover"><img src="${b.image||sampleCover}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+      <div class="home-carousel-info">
+        <div class="home-carousel-title">${b.title||"كىتاب"}</div>
+        <div class="home-carousel-author">${b.author||"—"}</div>
+        <div class="home-carousel-bottom">
+          <span class="home-carousel-price">${money(b.price)}</span>
+          <button type="button" class="home-carousel-cart add-to-cart" data-cart-id="${b.id}" aria-label="سېۋەتكە قوشۇش">🛒</button>
+        </div>
+      </div>
+    </a>
+  </article>`).join("");
+
+  bindDynamicActions(host);
+  renderFavButtons();
+
+  let index=0,timer=null;
+  const gap=14;
+  const visible=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:window.innerWidth<=1100?3:5;
+  const maxIndex=()=>Math.max(0,list.length-visible());
+
+  function renderDots(){
+    const count=maxIndex()+1;
+    dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-بەت"></button>`).join("");
+    dotsHost.querySelectorAll("[data-carousel-dot]").forEach(btn=>btn.onclick=()=>{index=Number(btn.dataset.carouselDot)||0;move();restart()});
+  }
+
+  function move(){
+    index=Math.max(0,Math.min(index,maxIndex()));
+    const card=host.querySelector(".home-carousel-card");
+    if(!card)return;
+    const step=card.getBoundingClientRect().width+gap;
+    host.style.transform=`translateX(${index*step}px)`;
+    dotsHost.querySelectorAll(".home-carousel-dot").forEach((d,i)=>d.classList.toggle("is-active",i===index));
+  }
+
+  function next(){index=index>=maxIndex()?0:index+1;move()}
+  function prev(){index=index<=0?maxIndex():index-1;move()}
+  function stop(){if(timer){clearInterval(timer);timer=null}}
+  function start(){stop();timer=setInterval(next,5000)}
+  function restart(){start()}
+
+  document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
+  document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
+  viewport.addEventListener("mouseenter",stop);
+  viewport.addEventListener("mouseleave",start);
+  viewport.addEventListener("focusin",stop);
+  viewport.addEventListener("focusout",start);
+  document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
+  window.addEventListener("resize",()=>{index=Math.min(index,maxIndex());renderDots();move()});
+
+  renderDots();
+  move();
+  start();
+}
+
+function init(){injectFloat();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();cartPage();setupCheckout()}
 async function boot(){await loadRemoteCatalog();init()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder};
