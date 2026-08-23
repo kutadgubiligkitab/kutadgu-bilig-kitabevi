@@ -2208,6 +2208,38 @@ body.dark-mode .home-feature-cover-frame{
 
 
 
+/* ===== HERO FINAL PROPORTIONS — desktop professional balance ===== */
+@media (min-width:1101px){
+    .home-bookstore-hero{
+        min-height:260px !important;
+        padding-top:26px !important;
+        padding-bottom:26px !important;
+    }
+
+    .home-hero-inner{
+        width:min(1120px,100%) !important;
+        max-width:1120px !important;
+        grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+        gap:clamp(48px,4vw,72px) !important;
+        align-items:center !important;
+        justify-content:center !important;
+    }
+
+    .home-hero-copy{
+        width:min(100%,460px) !important;
+        max-width:460px !important;
+        justify-self:left !important;
+    }
+
+    .bookstore-scene{
+        width:100% !important;
+        max-width:520px !important;
+        min-height:215px !important;
+        justify-self:right !important;
+    }
+}
+
+
 /* ===== MOBILE TOUCH: accidental double-tap zoom نى ئازايتىش ===== */
 html,
 body,
