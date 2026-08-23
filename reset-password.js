@@ -4,9 +4,11 @@
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const $=s=>document.querySelector(s);
 let db=null;
+let recoveryReady=false;
 
 function status(msg,type=""){
   const el=$("#resetStatus");
+  if(!el)return;
   el.textContent=msg;
   el.className=`admin-status ${type}`.trim();
 }
@@ -15,12 +17,36 @@ function configured(){
   return !!(String(cfg.url||"").trim() && String(cfg.anonKey||cfg.publishableKey||"").trim());
 }
 
+function setFormEnabled(enabled){
+  const form=$("#resetPasswordForm");
+  if(!form)return;
+  form.querySelectorAll("input,button").forEach(el=>el.disabled=!enabled);
+}
+
+async function establishRecoverySession(){
+  const params=new URLSearchParams(location.search);
+  const code=params.get("code");
+
+  if(code){
+    const {error}=await db.auth.exchangeCodeForSession(code);
+    if(error)throw error;
+  }
+
+  for(let i=0;i<12;i++){
+    const {data}=await db.auth.getSession();
+    if(data?.session)return data.session;
+    await new Promise(r=>setTimeout(r,250));
+  }
+  return null;
+}
+
 async function init(){
   if(!configured()){
     status("Supabase سەپلىمىسى تېپىلمىدى.","error");
     $("#resetPasswordForm").hidden=true;
     return;
   }
+
   if(!window.supabase?.createClient){
     status("Supabase كۈتۈپخانىسى يۈكلەنمىدى.","error");
     $("#resetPasswordForm").hidden=true;
@@ -28,33 +54,42 @@ async function init(){
   }
 
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
+  setFormEnabled(false);
+  status("پارول يېڭىلاش ئۇلانمىسى تەكشۈرۈلۈۋاتىدۇ...");
 
-  // Supabase v2 URL دىكى recovery session/code نى ئۆزى تونۇيدۇ.
-  // Session قۇرۇلۇشىغا ئازراق ۋاقىت بېرىمىز.
-  await new Promise(r=>setTimeout(r,350));
-  const {data}=await db.auth.getSession();
+  let authSub=null;
 
-  if(data?.session){
-    status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
-  }else{
-    // بەزى recovery links session نى auth event ئارقىلىق كېچىكىپ بېرىدۇ.
-    let recovered=false;
+  try{
     const {data:sub}=db.auth.onAuthStateChange((event,session)=>{
       if((event==="PASSWORD_RECOVERY" || event==="SIGNED_IN") && session){
-        recovered=true;
+        recoveryReady=true;
+        setFormEnabled(true);
         status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
       }
     });
-    setTimeout(()=>{
-      if(!recovered){
-        status("بۇ بەتنى Admin دىكى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
-      }
-      sub?.subscription?.unsubscribe?.();
-    },2200);
+    authSub=sub;
+
+    const session=await establishRecoverySession();
+
+    if(session){
+      recoveryReady=true;
+      setFormEnabled(true);
+      status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
+    }else{
+      status("بۇ بەتنى Admin دىكى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
+    }
+  }catch(err){
+    status("پارول يېڭىلاش ئۇلانمىسىنى ئېچىش مەغلۇپ بولدى: "+(err.message||err),"error");
   }
 
   $("#resetPasswordForm").addEventListener("submit",async e=>{
     e.preventDefault();
+
+    if(!recoveryReady){
+      status("پارول يېڭىلاش رۇخسىتى تېپىلمىدى. Email غا كەلگەن يېڭى recovery ئۇلانمىسىدىن بۇ بەتنى قايتا ئېچىڭ.","warn");
+      return;
+    }
+
     const p1=$("#newPassword").value;
     const p2=$("#confirmPassword").value;
 
@@ -62,6 +97,7 @@ async function init(){
       status("پارول كەم دېگەندە 8 ھەرپ/بەلگە بولسۇن.","warn");
       return;
     }
+
     if(p1!==p2){
       status("ئىككى پارول بىر-بىرىگە ماس كەلمىدى.","warn");
       return;
@@ -70,6 +106,7 @@ async function init(){
     const btn=$("#savePasswordBtn");
     btn.disabled=true;
     btn.textContent="ساقلىنىۋاتىدۇ...";
+
     const {error}=await db.auth.updateUser({password:p1});
 
     if(error){
@@ -81,6 +118,7 @@ async function init(){
 
     status("✅ پارول مۇۋەپپەقىيەتلىك يېڭىلاندى. ھازىر Admin كىرىش بېتىگە قايتىسىز.","ok");
     await db.auth.signOut();
+    authSub?.subscription?.unsubscribe?.();
     setTimeout(()=>location.replace("admin.html"),1200);
   });
 }
