@@ -1064,3 +1064,48 @@
 .home-carousel-card{min-height:0!important;}
 .home-carousel-cover{height:148px!important;}
 .home-carousel-cover img{max-width:92px!important;max-height:132px!important;}
+
+
+/* ===== CAROUSEL TITLE/SPACING POLISH ===== */
+.home-carousel-card{
+  grid-template-rows:148px auto !important;
+}
+
+.home-carousel-cover{
+  height:148px !important;
+}
+
+.home-carousel-info{
+  padding:10px 4px 2px !important;
+  text-align:center !important;
+}
+
+.home-carousel-title{
+  font-size:14px !important;
+  font-weight:800 !important;
+  line-height:1.55 !important;
+  min-height:44px !important;
+  margin:0 0 3px !important;
+  display:-webkit-box !important;
+  -webkit-line-clamp:2 !important;
+  -webkit-box-orient:vertical !important;
+  overflow:hidden !important;
+  text-align:center !important;
+}
+
+.home-carousel-author{
+  font-size:10.5px !important;
+  margin-top:1px !important;
+  text-align:center !important;
+}
+
+.home-carousel-bottom{
+  margin-top:5px !important;
+}
+
+@media(max-width:700px){
+  .home-carousel-title{
+    font-size:13px !important;
+    min-height:40px !important;
+  }
+}
