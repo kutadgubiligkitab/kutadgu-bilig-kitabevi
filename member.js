@@ -20,8 +20,28 @@ function setFieldDirection(field){
   if(!field?.matches||field.matches('input[type="checkbox"],input[type="radio"],input[type="file"],input[type="button"],input[type="submit"],input[type="range"],input[type="color"]'))return;
   const type=String(field.getAttribute("type")||"").toLowerCase();
   const ltr=["email","tel","url","number","password","date","time","datetime-local","month","week"].includes(type);
-  field.setAttribute("dir",ltr?"ltr":"auto");
-  field.style.textAlign="start";
+  const update=()=>{
+    let direction="";
+    if(ltr)direction="ltr";
+    else{
+      const text=String(field.value||field.getAttribute("placeholder")||"");
+      for(const char of text){
+        if(!/\p{L}/u.test(char))continue;
+        direction=/[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/u.test(char)?"rtl":"ltr";
+        break;
+      }
+      if(!direction)direction="rtl";
+    }
+    field.setAttribute("dir",direction);
+    field.style.direction=direction;
+    field.style.textAlign=direction==="rtl"?"right":"left";
+  };
+  if(field.dataset.kutadguDirectionReady!=="1"){
+    field.dataset.kutadguDirectionReady="1";
+    field.addEventListener("input",update);
+    field.addEventListener("change",update);
+  }
+  update();
 }
 function applyFieldDirections(root=document){
   if(root?.matches?.("input,textarea"))setFieldDirection(root);
@@ -265,7 +285,7 @@ const api=window.KutadguMember={
   getProfile:()=>profile,
   isBlocked:()=>blocked,
   refreshProfile:fetchProfile,
-  signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey
+  signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections
 };
 
 async function init(){

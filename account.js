@@ -65,6 +65,7 @@ async function renderMember(){
   $("#profileCountry").value=profile?.country||"";
   $("#profileCity").value=profile?.city||"";
   $("#profileAddress").value=profile?.address||"";
+  api().applyFieldDirections(document);
   await renderOrders();
 }
 async function init(){
