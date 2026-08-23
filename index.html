@@ -2126,6 +2126,7 @@ body.dark-mode section.home-bookstore-hero{
 
 /* مۇقاۋا رامكىسى: كىتابقا يېقىن نىسبەت، ئارتۇق ئاق بوشلۇق يوق */
 .home-feature-cover-frame{
+    position:relative !important;
     width:108px !important;
     height:152px !important;
     display:flex !important;
@@ -2158,8 +2159,13 @@ body.dark-mode .home-feature-cover-frame{
     border-style:dashed !important;
 }
 .home-feature-placeholder{
+    position:absolute !important;
+    inset:0 !important;
     width:100% !important;
     height:100% !important;
+    max-width:100% !important;
+    max-height:100% !important;
+    box-sizing:border-box !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
@@ -2197,7 +2203,7 @@ body.dark-mode .home-feature-cover-frame{
     .home-feature-cover{height:175px !important;min-height:175px !important;padding-top:14px !important;}
     .home-feature-cover-frame{width:100px !important;height:142px !important;padding:5px !important;}
     .home-feature-cover-frame img{max-width:90px !important;max-height:132px !important;}
-    .home-feature-placeholder{width:88px !important;height:132px !important;font-size:52px !important;}
+    .home-feature-placeholder{width:100% !important;height:100% !important;font-size:52px !important;}
 }
 
 
