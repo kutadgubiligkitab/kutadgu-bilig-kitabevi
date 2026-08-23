@@ -1109,3 +1109,51 @@
     min-height:40px !important;
   }
 }
+
+
+/* ===== CAROUSEL HEADER CLEANUP ===== */
+.home-carousel-head{
+  display:grid !important;
+  grid-template-columns:auto minmax(180px,1fr) auto !important;
+  align-items:center !important;
+  gap:14px !important;
+  margin-bottom:10px !important;
+}
+
+.home-carousel-head > div:first-child{
+  min-width:0 !important;
+}
+
+.home-carousel-static-note{
+  min-width:0 !important;
+  text-align:center !important;
+  color:var(--site-text-soft,#806f62) !important;
+  font-size:13px !important;
+  line-height:1.5 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
+
+.home-carousel-head p{
+  display:none !important;
+}
+
+.home-carousel-controls{
+  flex:0 0 auto !important;
+}
+
+@media(max-width:700px){
+  .home-carousel-head{
+    grid-template-columns:1fr auto !important;
+    gap:10px !important;
+  }
+
+  .home-carousel-static-note{
+    grid-column:1/-1 !important;
+    grid-row:2 !important;
+    font-size:12px !important;
+    text-align:right !important;
+    white-space:normal !important;
+  }
+}
