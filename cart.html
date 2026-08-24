@@ -5,64 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سېۋەت ۋە زاكاز - قۇتادغۇبىلىك كىتابخانىسى</title>
     <link rel="stylesheet" href="theme.css?v=4">
-    <link rel="stylesheet" href="shop.css?v=19">
+    <link rel="stylesheet" href="shop.css?v=24">
 
-    <style>
-        /* زاكاز فورمىسى — ئاخىرقى رامكا/بوشلۇق تۈزىتىشى */
-        #checkoutCard {
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-
-        #checkoutForm {
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            padding-left: 14px;
-            padding-right: 14px;
-        }
-
-        #checkoutForm > label {
-            width: 100%;
-            min-width: 0;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-
-        #checkoutForm input,
-        #checkoutForm textarea,
-        #checkoutForm select {
-            display: block;
-            width: 100%;
-            min-width: 0;
-            max-width: 100%;
-            box-sizing: border-box;
-            margin: 0;
-        }
-
-        @media (max-width: 650px) {
-            #checkoutForm {
-                padding-left: 10px;
-                padding-right: 10px;
-            }
-        }
-
-        .checkout-member-note {
-            margin: 0 14px 18px;
-            padding: 12px 14px;
-            border: 1px solid #e8dccb;
-            border-radius: 10px;
-            background: #fbf8f2;
-            color: #806f62;
-            font-size: 13px;
-        }
-
-        .checkout-member-note a {
-            color: #70503d;
-            font-weight: 700;
-        }
-    </style>
-
+  <link rel="stylesheet" href="mobile.css?v=1">
 </head>
 <body>
 
@@ -86,7 +31,7 @@
         </div>
 
         <div class="checkout-member-note">
-            👤 <a href="account.html">ھېسابىڭىزغا كىرىڭ ياكى يېڭى ئەزالىق ئېچىڭ</a> — زاكاز تارىخىڭىز، سېۋىتىڭىز ۋە ئادرېسىڭىز ھېسابتا ساقلىنىدۇ.
+            👤 ئەزا بولۇش ئىختىيارىي. <a href="account.html">ھېسابىڭىزغا كىرسىڭىز</a> زاكاز تارىخىڭىز، سېۋىتىڭىز ۋە ئادرېسىڭىز ھېسابتا ساقلىنىدۇ؛ ئەزا بولمايمۇ WhatsApp ئارقىلىق زاكاز قىلالايسىز.
         </div>
 
         <form id="checkoutForm" class="checkout-form">
@@ -126,6 +71,7 @@
         </form>
 
         <div class="checkout-actions">
+            <button type="button" class="checkout-primary whatsapp-order" id="whatsappOrder">💬 WhatsApp ئارقىلىق زاكاز قىلىش</button>
             <button type="button" class="checkout-primary" id="prepareOrder">✅ زاكاز ئۇچۇرىنى تەييارلاش</button>
             <button type="button" class="checkout-secondary" id="copyOrder">📋 زاكازنى كۆچۈرۈش</button>
             <button type="button" class="checkout-secondary" id="shareOrder">📤 زاكازنى ھەمبەھىرلەش</button>
@@ -144,7 +90,8 @@
 </main>
 
 <script src="theme.js?v=5"></script>
-<script src="supabase-config.js?v=1"></script><script src="catalog.js"></script>
-<script src="shop.js?v=23"></script>
+<script src="supabase-config.js?v=2"></script><script src="catalog.js"></script>
+<script src="shop.js?v=25"></script>
+  <script src="mobile.js?v=1"></script>
 </body>
 </html>

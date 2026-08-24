@@ -32,15 +32,29 @@ create table if not exists public.books (
   translator text not null default '',
   language text not null default '',
   publish_date text not null default '',
+  publish_year text not null default '',
   publisher text not null default '',
+  cover_type text not null default '',
+  dimensions text not null default '',
   description text not null default '',
   stock integer not null default 0 check (stock >= 0),
+  stock_status text not null default 'in_stock',
   is_active boolean not null default true,
   is_new boolean not null default true,
   is_recommended boolean not null default false,
+  is_bestseller boolean not null default false,
+  sales_count integer not null default 0 check (sales_count >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- بۇرۇن قۇرۇلغان Database نىمۇ سانلىق مەلۇمات ئۆچۈرمەي يېڭىلاش
+alter table public.books add column if not exists publish_year text not null default '';
+alter table public.books add column if not exists cover_type text not null default '';
+alter table public.books add column if not exists dimensions text not null default '';
+alter table public.books add column if not exists stock_status text not null default 'in_stock';
+alter table public.books add column if not exists is_bestseller boolean not null default false;
+alter table public.books add column if not exists sales_count integer not null default 0;
 
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql set search_path = public
