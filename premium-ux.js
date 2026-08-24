@@ -79,7 +79,7 @@
 
   function renderDiscovery(){
     if(!enabled("discovery")||document.querySelector("#premiumDiscovery"))return;
-    const anchor=document.querySelector(".home-trust-strip");
+    const anchor=document.querySelector(".home-search-card-section")||document.querySelector(".home-trust-strip");
     if(!anchor)return;
     const groups=(config.discoveryGroups||[]).filter(group=>group?.id&&group?.label);
     if(!groups.length)return;

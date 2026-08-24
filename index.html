@@ -2334,7 +2334,7 @@ label {
 </style>
 
     <link rel="stylesheet" href="theme.css?v=8">
-<link rel="stylesheet" href="shop.css?v=27">
+<link rel="stylesheet" href="shop.css?v=28">
   <link rel="stylesheet" href="mobile.css?v=2">
 </head>
 
@@ -2462,6 +2462,46 @@ label {
 </section>
 
 <!-- =========================
+     كىتاب ئىزدەش — Hero دىن كېيىنكى ئاساسلىق action
+========================= -->
+<section class="home-search-card-section" id="books" aria-labelledby="homeSearchTitle">
+    <div class="home-search-card">
+        <div class="home-search-heading">
+            <div class="home-heading-icon" aria-hidden="true">🔎</div>
+            <div>
+                <h2 id="homeSearchTitle">قايسى كىتابنى ئىزدەۋاتىسىز؟</h2>
+                <p>كىتاب ئىسمى، ئاپتورى، تۈرى ياكى تارماق تۈرى بويىچە تېز تېپىڭ.</p>
+            </div>
+        </div>
+
+        <div class="search-box" role="search">
+            <div class="home-search-input-wrap">
+                <input
+                    type="search"
+                    id="searchInput"
+                    placeholder="كىتاب ئىسمى، ئاپتور ياكى تۈر بويىچە ئىزدەڭ…"
+                    autocomplete="off"
+                    enterkeyhint="search"
+                    aria-label="كىتاب ئىزدەش"
+                >
+            </div>
+            <button type="button" id="searchButton"><span aria-hidden="true">🔎</span> <span class="search-button-label">ئىزدەش</span></button>
+        </div>
+
+        <nav class="home-search-quick-links" aria-label="تېز كىتاب تۈرلىرى">
+            <span>تېز تاللاش:</span>
+            <a href="dini.html">دىنىي</a>
+            <a href="tarikhiy-romanlar.html">تارىخ</a>
+            <a href="adabiyat.html">ئەدەبىيات</a>
+            <a href="children.html">بالىلار</a>
+            <a href="my-books.html">يېڭى كەلگەنلەر</a>
+        </nav>
+
+        <div id="searchResults" class="search-results" aria-live="polite"></div>
+    </div>
+</section>
+
+<!-- =========================
      ئىشەنچ ۋە مۇلازىمەت بەلۋېغى
 ========================= -->
 <section class="home-trust-strip" aria-label="كىتابخانا مۇلازىمەتلىرى">
@@ -2510,28 +2550,7 @@ label {
      BOOK CATEGORIES
 ========================= -->
 
-<section class="section home-main-section" id="books">
-
-    <div class="home-search-heading">
-        <div class="home-heading-icon" aria-hidden="true">🔎</div>
-        <div>
-            <h2>كىتاب ئىزدەش</h2>
-            <p>كىتاب ئىسمى، ئاپتورى ياكى تۈرى بويىچە تېز تېپىڭ.</p>
-        </div>
-    </div>
-
-    <!-- كىتاب ئىزدەش -->
-    <div class="search-box">
-        <input
-            type="text"
-            id="searchInput"
-            placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."
-            autocomplete="off"
-        >
-        <button type="button" id="searchButton">🔎 ئىزدەش</button>
-    </div>
-
-    <div id="searchResults" class="search-results"></div>
+<section class="section home-main-section" id="bookCategories">
 
     <div id="homeFeaturedBooks"></div>
 
@@ -2733,7 +2752,7 @@ label {
 
 <!-- ئىزدەش سىستېمىسى catalog.js + shop.js?v=28 ئارقىلىق باشقۇرۇلىدۇ -->
 
-    <script src="theme.js?v=5"></script><script src="supabase-config.js?v=3"></script><script src="catalog.js"></script><script src="shop.js?v=28"></script>
+    <script src="theme.js?v=5"></script><script src="supabase-config.js?v=3"></script><script src="catalog.js"></script><script src="shop.js?v=29"></script>
   <script src="mobile.js?v=4"></script>
 </body>
 

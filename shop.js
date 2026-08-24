@@ -673,7 +673,8 @@ function searchEnhance(){
         </select>
       </div>
       <button type="button" class="advanced-search-reset" id="searchReset">↺ تازىلاش</button>`;
-    (box||res).insertAdjacentElement("afterend",panel);
+    const panelAnchor=document.querySelector(".home-search-quick-links")||box||res;
+    panelAnchor.insertAdjacentElement("afterend",panel);
   }
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
   function hasFilter(){return !!(input.value.trim()||category?.value||collection?.value||minEl?.value||maxEl?.value)}
@@ -701,6 +702,7 @@ function searchEnhance(){
   if(btn)btn.onclick=run;
   let inputTimer;
   input.addEventListener("input",()=>{clearTimeout(inputTimer);inputTimer=setTimeout(run,180)});
+  input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run()}});
   [category,collection,minEl,maxEl,sortEl].forEach(el=>el&&el.addEventListener("change",run));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",()=>{clearTimeout(inputTimer);inputTimer=setTimeout(run,180)}));
   if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run()};
@@ -1365,7 +1367,7 @@ function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=1";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
-  return loadAssetScript("premium-ux.js?v=1","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=2","kutadguPremiumUxScript");
 }
 function init(){
   injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
