@@ -2334,7 +2334,8 @@ label {
 </style>
 
     <link rel="stylesheet" href="theme.css?v=8">
-<link rel="stylesheet" href="shop.css?v=19">
+<link rel="stylesheet" href="shop.css?v=25">
+  <link rel="stylesheet" href="mobile.css?v=1">
 </head>
 
 
@@ -2407,7 +2408,7 @@ label {
             </h1>
 
             <p>
-                كىتاب تاللاڭ، سېۋەتكە سېلىڭ، زاكاز قىلىڭ.
+                ئۆزىڭىز ئىزدىگەن ئۇيغۇرچە كىتابلارنى بىر يەردىن تېپىڭ، تاللاڭ ۋە WhatsApp ئارقىلىق ئاسان زاكاز قىلىڭ.
             </p>
 
             <div class="home-hero-actions">
@@ -2466,7 +2467,10 @@ label {
 <section class="home-trust-strip" aria-label="كىتابخانا مۇلازىمەتلىرى">
     <div class="home-trust-item">
         <span class="home-trust-icon" aria-hidden="true">🚚</span>
-        <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا كىتاب ئەۋەتىمىز</strong>
+        <div>
+            <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا كىتاب ئەۋەتىمىز</strong>
+            <small>توشۇش ھەققى دۆلەت، ئېغىرلىق ۋە توشۇش ئۇسۇلىغا قاراپ ئۆزگىرىدۇ.</small>
+        </div>
     </div>
     <div class="home-trust-item">
         <span class="home-trust-icon" aria-hidden="true">💬</span>
@@ -2487,6 +2491,7 @@ label {
             <div class="home-carousel-tabs" role="tablist" aria-label="كىتاب تاللانمىلىرى">
                 <button type="button" class="home-carousel-tab is-active" data-carousel-mode="recommended" role="tab" aria-selected="true">⭐ تەۋسىيەلىك كىتابلار</button>
                 <button type="button" class="home-carousel-tab" data-carousel-mode="bestseller" role="tab" aria-selected="false">🔥 كۆپ سېتىلغان كىتابلار</button>
+                <button type="button" class="home-carousel-tab" data-carousel-mode="newest" role="tab" aria-selected="false">🆕 يېڭى كەلگەن كىتابلار</button>
             </div>
             <div class="home-carousel-controls" aria-label="Carousel controls">
                 <button type="button" class="home-carousel-arrow" id="carouselPrev" aria-label="ئالدىنقى كىتابلار">‹</button>
@@ -2686,17 +2691,17 @@ label {
      ABOUT
 ========================= -->
 
-<section class="about" id="about">
-
-    <h2>
-        بىز ھەققىدە
-    </h2>
-
-    <p>
-        قۇتادغۇبىلىك كىتابخانىسى ياخشى كىتاب ۋە بىلىم ئىزدەيدىغان
-        ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.
-    </p>
-
+<section class="about about-pro" id="about">
+    <div class="section-copy">
+        <span class="section-kicker">📚 قۇتادغۇبىلىك كىتابخانىسى</span>
+        <h2>بىز ھەققىدە</h2>
+        <p>قۇتادغۇبىلىك كىتابخانىسى ياخشى كىتاب ۋە بىلىم ئىزدەيدىغان ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.</p>
+    </div>
+    <div class="about-points" aria-label="مۇلازىمەت ئەۋزەللىكلىرى">
+        <div><span>🔎</span><strong>ئاسان تاللاش</strong><small>كىتابنى نامى، ئاپتورى ۋە تۈرى بويىچە تېپىڭ.</small></div>
+        <div><span>💬</span><strong>ئاسان زاكاز</strong><small>سېۋەتنى تەييارلاپ WhatsApp ئارقىلىق يوللاڭ.</small></div>
+        <div><span>🌍</span><strong>دۇنيا بويىچە ئەۋەتىش</strong><small>توشۇش ئۇسۇلى زاكازغا قاراپ ئايرىم بېكىتىلىدۇ.</small></div>
+    </div>
 </section>
 
 
@@ -2704,16 +2709,13 @@ label {
      CONTACT
 ========================= -->
 
-<section class="contact" id="contact">
-
-    <h2>
-        ئالاقە
-    </h2>
-
-    <p>
-        كىتابلار ۋە باشقا سوئاللار ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.
-    </p>
-
+<section class="contact contact-pro" id="contact">
+    <div class="section-copy">
+        <span class="section-kicker">💬 ياردەم ۋە زاكاز</span>
+        <h2>ئالاقە</h2>
+        <p>كىتابلار، توشۇش ۋە زاكاز ھەققىدىكى سوئاللىرىڭىز ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.</p>
+    </div>
+    <div id="contactDetails" class="contact-details" aria-live="polite"></div>
 </section>
 
 
@@ -2723,15 +2725,16 @@ label {
 
 <footer>
 
-    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+    © 2026 Kutadgu Bilig Kitabevi — بارلىق ھوقۇقلار قوغدىلىدۇ.
 
 </footer>
 
 
 
-<!-- ئىزدەش سىستېمىسى catalog.js + shop.js?v=23 ئارقىلىق باشقۇرۇلىدۇ -->
+<!-- ئىزدەش سىستېمىسى catalog.js + shop.js?v=25 ئارقىلىق باشقۇرۇلىدۇ -->
 
-    <script src="theme.js?v=5"></script><script src="supabase-config.js?v=1"></script><script src="catalog.js"></script><script src="shop.js?v=23"></script>
+    <script src="theme.js?v=5"></script><script src="supabase-config.js?v=3"></script><script src="catalog.js"></script><script src="shop.js?v=25"></script>
+  <script src="mobile.js?v=1"></script>
 </body>
 
 </html>
