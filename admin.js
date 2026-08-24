@@ -89,8 +89,8 @@ function renderBooks(){
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
-        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${Number(b.stock)||0}</div>
-        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""}</div>
+        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${Number(b.stock)||0} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}</div>
+        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${b.is_bestseller?" · 🔥 كۆپ سېتىلغان":""}</div>
       </div>
       <div class="admin-book-actions">
         <a href="${esc(b.href||`book.html?id=${encodeURIComponent(b.id)}`)}" target="_blank">👁️ كۆرۈش</a>
@@ -183,7 +183,10 @@ function clearForm(){
   $("#bookIsActive").checked=true;
   $("#bookIsNew").checked=true;
   $("#bookIsRecommended").checked=false;
+  $("#bookIsBestseller").checked=false;
   $("#bookStock").value=0;
+  $("#bookStockStatus").value="in_stock";
+  $("#bookSalesCount").value=0;
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
   $("#bookCoverText").textContent="رەسىم تاللانمىدى";
@@ -202,16 +205,22 @@ function openEdit(id){
   $("#bookAuthor").value=b.author||"";
   $("#bookPrice").value=b.price??"";
   $("#bookStock").value=b.stock??0;
+  $("#bookStockStatus").value=b.stock_status||"in_stock";
+  $("#bookSalesCount").value=b.sales_count??0;
   $("#bookSource").value=b.source||"";
   $("#bookPages").value=b.pages??"";
   $("#bookTranslator").value=b.translator||"";
   $("#bookLanguage").value=b.language||"";
   $("#bookPublishDate").value=b.publish_date||"";
+  $("#bookPublishYear").value=b.publish_year||"";
   $("#bookPublisher").value=b.publisher||"";
+  $("#bookCoverType").value=b.cover_type||"";
+  $("#bookDimensions").value=b.dimensions||"";
   $("#bookDescription").value=b.description||"";
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new!==false;
   $("#bookIsRecommended").checked=b.is_recommended===true;
+  $("#bookIsBestseller").checked=b.is_bestseller===true;
   $("#bookCoverPreview").src=b.image_url||"";
   $("#bookCoverPreview").style.visibility=b.image_url?"visible":"hidden";
   $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا":"مۇقاۋا يوق";
@@ -250,12 +259,18 @@ async function saveBook(e){
       translator:$("#bookTranslator").value.trim(),
       language:$("#bookLanguage").value.trim(),
       publish_date:$("#bookPublishDate").value.trim(),
+      publish_year:$("#bookPublishYear").value.trim(),
       publisher:$("#bookPublisher").value.trim(),
+      cover_type:$("#bookCoverType").value.trim(),
+      dimensions:$("#bookDimensions").value.trim(),
       description:$("#bookDescription").value.trim(),
       stock:Number($("#bookStock").value)||0,
+      stock_status:$("#bookStockStatus").value,
+      sales_count:Number($("#bookSalesCount").value)||0,
       is_active:$("#bookIsActive").checked,
       is_new:$("#bookIsNew").checked,
-      is_recommended:$("#bookIsRecommended").checked
+      is_recommended:$("#bookIsRecommended").checked,
+      is_bestseller:$("#bookIsBestseller").checked
     };
     const {error}=await db.from("books").upsert(row,{onConflict:"id"});
     if(error)throw error;
@@ -293,7 +308,10 @@ async function importStatic(){
       is_active:true,
       is_new:false,
       is_recommended:false,
-      stock:0
+      is_bestseller:false,
+      sales_count:0,
+      stock:0,
+      stock_status:"in_stock"
     }));
     const {error}=await db.from("books").upsert(rows,{onConflict:"id"});
     if(error)throw error;
