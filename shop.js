@@ -1117,12 +1117,12 @@ function renderContactSection(){
   const cfg=window.KUTADGU_CONTACT_CONFIG||{};
   const whatsapp=String(cfg.whatsapp||window.KUTADGU_WHATSAPP_NUMBER||"").replace(/\D/g,"");
   const cards=[];
-  const add=(icon,label,value,href="",className="",ltr=false)=>{
+  const add=(icon,label,value,href="",className="",forceLtr=false)=>{
     if(!value)return;
-    const valueHtml=ltr
-      ? `<bdi class="contact-ltr" dir="ltr">${safeText(value)}</bdi>`
-      : safeText(value);
-    const body=`<span aria-hidden="true">${icon}</span><div><strong>${safeText(label)}</strong><small>${valueHtml}</small></div>`;
+    const valueHtml=forceLtr
+      ? `<small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${safeText(value)}</bdi></small>`
+      : `<small>${safeText(value)}</small>`;
+    const body=`<span aria-hidden="true">${icon}</span><div><strong>${safeText(label)}</strong>${valueHtml}</div>`;
     const classes=`contact-card${className?` ${className}`:""}`;
     cards.push(href?`<a class="${classes}" href="${href}"${/^https?:/i.test(href)?' target="_blank" rel="noopener noreferrer"':""}>${body}</a>`:`<div class="${classes}">${body}</div>`);
   };
@@ -1131,8 +1131,7 @@ function renderContactSection(){
   add("📍","دۇكان ئادرېسى",cfg.address,cfg.addressUrl||"","contact-address");
   add("🕒","خىزمەت ۋاقتى",cfg.hours);
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
-  const whatsappDisplay=whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش";
-  cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small>${whatsapp?`<bdi class="contact-ltr" dir="ltr">${whatsappDisplay}</bdi>`:whatsappDisplay}</small></div></a>`);
+  cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</bdi></small></div></a>`);
   host.innerHTML=cards.join("");
 }
 
