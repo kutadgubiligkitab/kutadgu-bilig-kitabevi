@@ -89,7 +89,7 @@
     section.className="premium-discovery";
     section.innerHTML=`
       <div class="premium-section-heading">
-        <div><span>✨ كىتاب تېپىشنى ئاسانلاشتۇرىمىز</span><h2><span class="premium-discovery-title-desktop">نېمە ئوقۇغىڭىز بار؟</span><span class="premium-discovery-title-mobile">قانداق كىتاب ئوقۇغىڭىز بار؟</span></h2><p>تۈرنى تاللاڭ؛ سىزگە ئەڭ ماس 4–8 كىتابنى كۆرسىتىمىز.</p></div>
+        <div><span>✨ كىتاب تېپىشنى ئاسانلاشتۇرىمىز</span><h2><span class="premium-discovery-title-desktop">قايسى كىتابنى ئوقۇغىڭىز بار؟</span><span class="premium-discovery-title-mobile">قايسى كىتابنى ئوقۇغىڭىز بار؟</span></h2><p>تۈرنى تاللاڭ؛ سىزگە ئەڭ ماس 4–8 كىتابنى كۆرسىتىمىز.</p></div>
         ${enabled("smartWizard")?'<button type="button" class="premium-wizard-open" id="premiumWizardOpen" aria-expanded="false">🧭 سىزگە ماس كىتابنى تېپىڭ</button>':""}
       </div>
       <div class="premium-discovery-groups" role="group" aria-label="كىتاب تۈرلىرى">
