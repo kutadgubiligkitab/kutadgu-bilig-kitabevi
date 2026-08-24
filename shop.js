@@ -1117,18 +1117,22 @@ function renderContactSection(){
   const cfg=window.KUTADGU_CONTACT_CONFIG||{};
   const whatsapp=String(cfg.whatsapp||window.KUTADGU_WHATSAPP_NUMBER||"").replace(/\D/g,"");
   const cards=[];
-  const add=(icon,label,value,href="",className="")=>{
+  const add=(icon,label,value,href="",className="",ltr=false)=>{
     if(!value)return;
-    const body=`<span aria-hidden="true">${icon}</span><div><strong>${safeText(label)}</strong><small>${safeText(value)}</small></div>`;
+    const valueHtml=ltr
+      ? `<bdi class="contact-ltr" dir="ltr">${safeText(value)}</bdi>`
+      : safeText(value);
+    const body=`<span aria-hidden="true">${icon}</span><div><strong>${safeText(label)}</strong><small>${valueHtml}</small></div>`;
     const classes=`contact-card${className?` ${className}`:""}`;
     cards.push(href?`<a class="${classes}" href="${href}"${/^https?:/i.test(href)?' target="_blank" rel="noopener noreferrer"':""}>${body}</a>`:`<div class="${classes}">${body}</div>`);
   };
-  add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"");
+  add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"","",true);
   add("📷","Instagram",cfg.instagram,cfg.instagramUrl||"");
   add("📍","دۇكان ئادرېسى",cfg.address,cfg.addressUrl||"","contact-address");
   add("🕒","خىزمەت ۋاقتى",cfg.hours);
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
-  cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small>${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</small></div></a>`);
+  const whatsappDisplay=whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش";
+  cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small>${whatsapp?`<bdi class="contact-ltr" dir="ltr">${whatsappDisplay}</bdi>`:whatsappDisplay}</small></div></a>`);
   host.innerHTML=cards.join("");
 }
 
