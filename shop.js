@@ -1,6 +1,15 @@
 (function(){
 "use strict";
-const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])];
+const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map(book=>({
+  ...book,
+  subcategory:book.subcategory||"",
+  description:book.description||"",
+  stockStatus:book.stockStatus||"",
+  isNew:book.isNew===true,
+  isFeatured:book.isFeatured===true,
+  isRecommended:book.isRecommended===true,
+  isBestSeller:book.isBestSeller===true
+}));
 let C=[...STATIC_CATALOG];
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const FALLBACK_COVER="sample-book-cover.png";
@@ -8,10 +17,20 @@ const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
 const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const set=(k,v)=>{
-  localStorage.setItem(k,JSON.stringify(v));
-  window.KutadguMember?.syncKey?.(k,v);
+  try{
+    localStorage.setItem(k,JSON.stringify(v));
+    window.KutadguMember?.syncKey?.(k,v);
+    return true;
+  }catch(error){
+    console.warn("Local storage is unavailable; the current action was not saved.",error);
+    toast("ساقلاش مۇمكىن بولمىدى؛ توركۆرگۈ ساقلاش ئىجازىتىنى تەكشۈرۈڭ.");
+    return false;
+  }
 };
 const find=id=>C.find(x=>x.id===id);
+const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
+const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
+const trackEvent=(name,data={})=>window.KutadguAnalytics?.track?.(name,data);
 
 function supabasePublicConfig(){
   const c=window.KUTADGU_SUPABASE_CONFIG||{};
@@ -30,6 +49,7 @@ function normalizeRemoteBook(r){
     price:Number.isFinite(price)?price:null,
     priceText:Number.isFinite(price)?money(price):"باھا تېخى بېكىتىلمىگەن",
     category:r.category||"",
+    subcategory:r.subcategory||"",
     source:r.source||"universal.html",
     image:r.image_url||r.image||"",
     href:r.href||`book.html?id=${encodeURIComponent(r.id||"")}`,
@@ -45,6 +65,7 @@ function normalizeRemoteBook(r){
     stock:r.stock??null,
     stockStatus:r.stock_status||"",
     isNew:r.is_new!==false,
+    isFeatured:r.is_featured===true,
     isRecommended:r.is_recommended===true,
     isBestSeller:r.is_bestseller===true,
     salesCount:Number(r.sales_count??r.sold_count??0)||0,
@@ -106,11 +127,11 @@ function add(id,qty=1){
   let a=cart(),x=a.find(i=>i.id===id),next=(x?.qty||0)+Math.max(1,Number(qty)||1);
   if(Number.isFinite(stock.qty))next=Math.min(next,stock.qty);
   if(x)x.qty=next;else a.push({id,qty:next});
-  set(CART_KEY,a);updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒")
+  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:id,qty:Math.max(1,Number(qty)||1)})}
 }
 function remove(id){set(CART_KEY,cart().filter(x=>x.id!==id));updateBadge()}
 function favs(){return get(FAV_KEY,[])}
-function toggleFav(id){if(!find(id))return;let a=favs();if(a.includes(id)){a=a.filter(x=>x!==id);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}else{a.push(id);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}set(FAV_KEY,a);renderFavButtons()}
+function toggleFav(id){if(!find(id))return;let a=favs(),added=!a.includes(id);if(!added){a=a.filter(x=>x!==id);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}else{a.push(id);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:id})}}
 function recent(id){if(!find(id))return;let a=get(REC_KEY,[]).filter(x=>x!==id);a.unshift(id);set(REC_KEY,a.slice(0,12))}
 function toast(msg){let t=document.querySelector(".shop-toast");if(!t){t=document.createElement("div");t.className="shop-toast";t.style.cssText="position:fixed;right:18px;bottom:18px;z-index:10000;background:#4b3327;color:#fff;padding:12px 18px;border-radius:9px;box-shadow:0 8px 25px rgba(0,0,0,.2);font-family:inherit;transition:opacity .2s";document.body.appendChild(t)}t.textContent=msg;t.style.opacity="1";clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.opacity="0",1800)}
 function injectFloat(){if(document.querySelector(".shop-floating"))return;let d=document.createElement("div");d.className="shop-floating";d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;document.body.appendChild(d);updateBadge()}
@@ -216,6 +237,35 @@ function setDynamicMeta(label,value){
   return `<div class="book-meta-row"><div class="book-meta-label">${label}</div><div class="book-meta-value">${value}</div></div>`;
 }
 
+function setHeadMeta(selector,attributes){
+  let node=document.head.querySelector(selector);
+  if(!node){node=document.createElement(attributes.tag||"meta");document.head.appendChild(node)}
+  Object.entries(attributes).forEach(([key,value])=>{if(key!=="tag")node.setAttribute(key,value)});
+  return node;
+}
+
+/* Detail SEO is generated only from known book data; missing facts stay omitted. */
+function updateBookSeo(book){
+  const canonical=new URL(book.href||location.href,location.href).href;
+  const description=book.description||`${book.title}${book.author?` — ${book.author}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
+  setHeadMeta('meta[name="description"]',{name:"description",content:description});
+  setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:canonical});
+  setHeadMeta('meta[property="og:title"]',{property:"og:title",content:book.title});
+  setHeadMeta('meta[property="og:description"]',{property:"og:description",content:description});
+  setHeadMeta('meta[property="og:url"]',{property:"og:url",content:canonical});
+  if(book.image)setHeadMeta('meta[property="og:image"]',{property:"og:image",content:new URL(book.image,location.href).href});
+  let schema=document.head.querySelector("#kutadguBookSchema");
+  if(!schema){schema=document.createElement("script");schema.id="kutadguBookSchema";schema.type="application/ld+json";document.head.appendChild(schema)}
+  const data={"@context":"https://schema.org","@type":"Book",name:book.title,url:canonical};
+  if(book.author)data.author={"@type":"Person",name:book.author};
+  if(book.image)data.image=new URL(book.image,location.href).href;
+  if(book.description)data.description=book.description;
+  if(book.publisher)data.publisher={"@type":"Organization",name:book.publisher};
+  if(book.language)data.inLanguage=book.language;
+  if(book.price!==null&&book.price!==undefined&&book.price!=="")data.offers={"@type":"Offer",price:Number(book.price),priceCurrency:"TRY",availability:stockInfo(book).canBuy?"https://schema.org/InStock":"https://schema.org/OutOfStock"};
+  schema.textContent=JSON.stringify(data).replace(/</g,"\\u003c");
+}
+
 function populateDynamicBookPage(b){
   const dynamic=document.body.hasAttribute("data-dynamic-book");
   if(!dynamic&&!b.isRemote)return;
@@ -304,7 +354,7 @@ function renderDetailExtras(book){
   let wrap=document.createElement("div");
   wrap.className="detail-extra-sections";
 
-  let relatedHtml=related.length
+  let relatedHtml=featureEnabled("recommendations")&&related.length
     ? `<section class="detail-extra-section">
          <div class="detail-section-heading">
            <div>
@@ -317,7 +367,7 @@ function renderDetailExtras(book){
        </section>`
     : "";
 
-  let recentHtml=recentBooks.length
+  let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
     ? `<section class="detail-extra-section">
          <div class="detail-section-heading">
            <div>
@@ -339,7 +389,9 @@ function renderDetailExtras(book){
 function decorateDetail(){
   let b=getDetailBook(); if(!b)return;
   populateDynamicBookPage(b);
+  updateBookSeo(b);
   recent(b.id);
+  trackEvent("book_view",{bookId:b.id,category:b.category||""});
 
   let box=document.querySelector(".book-detail-info");
   if(!box)return;
@@ -467,6 +519,7 @@ function recommendedBooks(limit=12){
 function renderHomeFeaturedBooks(){
   const host=document.querySelector("#homeFeaturedBooks");
   if(!host)return;
+  if(!featureEnabled("newArrivals")){host.hidden=true;return}
 
   const marked=C.filter(b=>b.isNew===true);
   const books=(marked.length?marked:C).slice(0,6);
@@ -512,8 +565,13 @@ function renderHomeSections(){
   let fav=favs().map(find).filter(Boolean).slice(0,6);
   let newest=C.slice(0,8);
   let recommended=recommendedBooks(8);
-  let data={newest:["🆕 يېڭى قوشۇلغان كىتابلار",newest],recommended:["⭐ تەۋسىيە قىلىنغان كىتابلار",recommended],recent:["🕘 يېقىندا كۆرۈلگەن كىتابلار",rec],favorites:["❤️ ياقتۇرغان كىتابلار",fav]};
-  host.innerHTML=`<div class="shop-selector"><button type="button" class="shop-selector-button" id="shopSelectorButton">📚 كىتابلارنى تاللاش <span>⌄</span></button><div class="shop-selector-menu" id="shopSelectorMenu"><button type="button" data-shop-tab="newest">🆕 يېڭى قوشۇلغان كىتابلار</button><button type="button" data-shop-tab="recommended">⭐ تەۋسىيە قىلىنغان كىتابلار</button><button type="button" data-shop-tab="recent">🕘 يېقىندا كۆرۈلگەن كىتابلار</button><button type="button" data-shop-tab="favorites">❤️ ياقتۇرغان كىتابلار</button><a class="shop-selector-all-link" href="my-books.html">📚 مېنىڭ كىتابلىرىم — ھەممىسىنى بىر يەردە كۆرۈش</a></div></div><div id="shopSelectedContent" class="shop-selected-content"></div>`;
+  let data={};
+  if(featureEnabled("newArrivals"))data.newest=["🆕 يېڭى قوشۇلغان كىتابلار",newest];
+  if(featureEnabled("recommendations"))data.recommended=["⭐ تەۋسىيە قىلىنغان كىتابلار",recommended];
+  if(featureEnabled("recentlyViewed"))data.recent=["🕘 يېقىندا كۆرۈلگەن كىتابلار",rec];
+  data.favorites=["❤️ ياقتۇرغان كىتابلار",fav];
+  const labels={newest:"🆕 يېڭى قوشۇلغان كىتابلار",recommended:"⭐ تەۋسىيە قىلىنغان كىتابلار",recent:"🕘 يېقىندا كۆرۈلگەن كىتابلار",favorites:"❤️ ياقتۇرغان كىتابلار"};
+  host.innerHTML=`<div class="shop-selector"><button type="button" class="shop-selector-button" id="shopSelectorButton">📚 كىتابلارنى تاللاش <span>⌄</span></button><div class="shop-selector-menu" id="shopSelectorMenu">${Object.keys(data).map(key=>`<button type="button" data-shop-tab="${key}">${labels[key]}</button>`).join("")}<a class="shop-selector-all-link" href="my-books.html">📚 مېنىڭ كىتابلىرىم — ھەممىسىنى بىر يەردە كۆرۈش</a></div></div><div id="shopSelectedContent" class="shop-selected-content"></div>`;
   const btn=host.querySelector("#shopSelectorButton"),menu=host.querySelector("#shopSelectorMenu"),content=host.querySelector("#shopSelectedContent");
   function show(key){let [title,arr]=data[key];content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2>${arr.length?`<div class="shop-grid">${arr.map(miniCard).join("")}</div>`:`<div class="empty-state shop-section-empty">${key==='favorites'?"❤️ ھازىرچە ياقتۇرغان كىتاب يوق.":key==='recent'?"🕘 ھازىرچە يېقىندا كۆرۈلگەن كىتاب يوق.":"كىتابلار تېخى قوشۇلمىغان."}</div>`}</section>`;content.querySelectorAll("[data-cart-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();add(b.dataset.cartId)});content.querySelectorAll("[data-fav-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();toggleFav(b.dataset.favId)});content.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});renderFavButtons()}
   btn.onclick=()=>menu.classList.toggle("is-open");
@@ -629,7 +687,7 @@ function searchEnhance(){
       return;
     }
     let matches=C.filter(b=>{
-      let hay=normalizeText([b.title,b.author,b.category,b.publisher,b.language].filter(Boolean).join(" "));
+      let hay=normalizeText([b.title,b.author,b.category,b.subcategory,b.publisher,b.language].filter(Boolean).join(" "));
       return (!q||hay.includes(q))&&(!cat||b.category===cat)&&collectionPass(b,collection?.value||"")&&pricePass(b,min,max);
     });
     matches=sortBooks(matches,sortEl?.value||"new");
@@ -637,6 +695,7 @@ function searchEnhance(){
     res.innerHTML=`<div class="advanced-search-summary"><strong>${matches.length}</strong> دانە كىتاب تېپىلدى</div>`+
       (matches.length?`<div class="advanced-search-results-grid">${shown.map(searchResultCard).join("")}</div>${shown.length<matches.length?`<button type="button" class="search-load-more" id="searchLoadMore">يەنە ${Math.min(24,matches.length-shown.length)} دانە كۆرۈش</button>`:""}`:'<div class="search-empty">بۇ شەرتكە ماس كىتاب تېپىلمىدى.</div>');
     bindDynamicActions(res);
+    trackEvent("search",{query:input.value.trim(),category:cat,results:matches.length});
     const more=res.querySelector("#searchLoadMore");if(more)more.onclick=()=>{visibleLimit+=24;run(false)};
   }
   if(btn)btn.onclick=run;
@@ -691,7 +750,7 @@ function setupCatalogFilters(){
     <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
   grid.parentElement.insertBefore(bar,grid);
-  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.textContent="بۇ شەرتكە ماس كىتاب تېپىلمىدى.";grid.insertAdjacentElement("afterend",empty);
+  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML='<strong>بۇ شەرتكە ماس كىتاب تېپىلمىدى.</strong><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';grid.insertAdjacentElement("afterend",empty);
 
   let text=bar.querySelector("#catalogFilterText"),collection=bar.querySelector("#catalogCollection"),minEl=bar.querySelector("#catalogMinPrice"),maxEl=bar.querySelector("#catalogMaxPrice"),sortEl=bar.querySelector("#catalogSort"),count=bar.querySelector("#catalogFilterCount"),reset=bar.querySelector("#catalogFilterReset");
   function apply(){
@@ -703,10 +762,12 @@ function setupCatalogFilters(){
     sorted.forEach(b=>{let x=mapped.find(m=>m.id===b.id);if(x)grid.appendChild(x.card)});
     count.textContent=`${matches.length} / ${mapped.length} كىتاب`;
     empty.hidden=matches.length!==0;
+    trackEvent("filter_apply",{source:file,results:matches.length});
   }
   [text,minEl,maxEl].forEach(el=>el.addEventListener("input",apply));
   [sortEl,collection].forEach(el=>el.addEventListener("change",apply));
   reset.onclick=()=>{text.value="";collection.value="";minEl.value="";maxEl.value="";sortEl.value="new";apply()};
+  empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>reset.click());
   apply();
 }
 
@@ -1138,6 +1199,7 @@ function renderContactSection(){
 async function orderWithWhatsApp(){
   let o=getOrBuildOrder(true);if(!o)return;
   try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
+  trackEvent("whatsapp_order_click",{orderId:o.id||"",items:o.items?.length||cart().length,total:o.total||0});
   const popup=window.open(whatsappOrderUrl(o.text),"_blank","noopener,noreferrer");
   if(!popup)location.href=whatsappOrderUrl(o.text);
 }
@@ -1165,7 +1227,7 @@ function setupCheckout(){
 
 
 
-/* ===== باش بەت: يېڭى كەلگەن كىتابلار Carousel ===== */
+/* ===== Premium configurable carousel: 2x4 desktop, swipe carousel mobile ===== */
 function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
@@ -1173,115 +1235,110 @@ function setupHomeCarousel(){
   const tabs=[...document.querySelectorAll("[data-carousel-mode]")];
   if(!host||!viewport||!dotsHost)return;
 
-  const sampleCover=FALLBACK_COVER;
-  let mode="recommended";
-  let list=[];
-  let index=0,timer=null;
-  const gap=10;
+  const carouselModeFlags={recommended:"recommendations",bestseller:"bestSellers",newest:"newArrivals"};
+  const enabledModes=["recommended","bestseller","newest"].filter(item=>featureEnabled(carouselModeFlags[item]));
+  tabs.forEach(button=>{button.hidden=!enabledModes.includes(button.dataset.carouselMode)});
+  if(!enabledModes.length){viewport.closest("section")?.setAttribute("hidden","");return}
+
+  const carousel={
+    desktopCardsPerRow:4,desktopRows:2,tabletVisibleCards:4,
+    autoplayDelay:6000,animationDuration:600,staggerDelay:90,
+    autoPlayEnabled:true,mobileAutoPlayEnabled:false,
+    ...(appConfig().carousel||{})
+  };
+  const reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
+  const gap=10,sampleCover=FALLBACK_COVER;
+  let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=window.innerWidth>1100;
+  host.style.setProperty("--carousel-duration",`${Number(carousel.animationDuration)||600}ms`);
+  host.style.setProperty("--carousel-stagger",`${Number(carousel.staggerDelay)||90}ms`);
+  viewport.tabIndex=0;
+  viewport.setAttribute("role","region");
+  viewport.setAttribute("aria-roledescription","carousel");
+  viewport.setAttribute("aria-label","كىتاب تاللانمىلىرى");
 
   function recommendedList(){
-    const picked=C.filter(b=>b.isRecommended===true);
+    const picked=C.filter(b=>b.isRecommended===true||b.isFeatured===true);
     return (picked.length?picked:recommendedBooks(20)).slice(0,20);
   }
-
   function bestsellerList(){
-    const marked=C.filter(b=>b.isBestSeller===true || Number(b.salesCount)>0)
-      .sort((a,b)=>(Number(b.salesCount)||0)-(Number(a.salesCount)||0));
-    /* سېتىلىش سانى تېخى كىرگۈزۈلمىگەن بولسا، بەت بوش قالمىسۇن:
-       تەۋسىيەلىك كىتابلار ۋاقىتلىق كۆرسىتىلىدۇ. */
+    const marked=C.filter(b=>b.isBestSeller===true||Number(b.salesCount)>0).sort((a,b)=>(Number(b.salesCount)||0)-(Number(a.salesCount)||0));
     return (marked.length?marked:recommendedList()).slice(0,20);
   }
-
   function newestList(){
-    const marked=C.filter(b=>b.isNew===true)
-      .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+    const marked=C.filter(b=>b.isNew===true).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
     return (marked.length?marked:C).slice(0,20);
   }
-
-  function currentList(){
-    if(mode==="bestseller")return bestsellerList();
-    if(mode==="newest")return newestList();
-    return recommendedList();
-  }
-
+  function currentList(){return mode==="bestseller"?bestsellerList():mode==="newest"?newestList():recommendedList()}
   function card(b){
     return `<article class="home-carousel-card">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${b.href}" class="home-carousel-link">
         <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
-        <div class="home-carousel-info">
-          <div class="home-carousel-title">${b.title||"كىتاب"}</div>
-          <div class="home-carousel-author">${b.author||"—"}</div>
-          <div class="home-carousel-bottom">
-            <span class="home-carousel-price">${money(b.price)}</span>
-            ${cartButton(b,"🛒","home-carousel-cart add-to-cart")}
-          </div>
-        </div>
+        <div class="home-carousel-info"><div class="home-carousel-title">${b.title||"كىتاب"}</div><div class="home-carousel-author">${b.author||"—"}</div><div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div></div>
       </a>
     </article>`;
   }
-
-  const visible=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:window.innerWidth<=1100?4:8;
-  const maxIndex=()=>Math.max(0,list.length-visible());
+  const isDual=()=>window.innerWidth>1100;
+  const visibleSingle=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:Number(carousel.tabletVisibleCards)||4;
+  const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||2));
+  const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleSingle()));
 
   function renderDots(){
     const count=maxIndex()+1;
-    dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-بەت"></button>`).join("");
-    dotsHost.querySelectorAll("[data-carousel-dot]").forEach(btn=>btn.onclick=()=>{
-      index=Number(btn.dataset.carouselDot)||0;
-      move();
-      restart();
-    });
+    dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-كۆرۈنۈش"></button>`).join("");
+    dotsHost.querySelectorAll("[data-carousel-dot]").forEach(button=>button.onclick=()=>{index=Number(button.dataset.carouselDot)||0;move();restart()});
   }
-
   function move(){
     index=Math.max(0,Math.min(index,maxIndex()));
-    const cardEl=host.querySelector(".home-carousel-card");
-    if(!cardEl)return;
-    const step=cardEl.getBoundingClientRect().width+gap;
-    host.style.transform=`translateX(${index*step}px)`;
-    dotsHost.querySelectorAll(".home-carousel-dot").forEach((d,i)=>d.classList.toggle("is-active",i===index));
+    const first=host.querySelector(".home-carousel-card");if(!first)return;
+    const step=first.getBoundingClientRect().width+gap;
+    if(isDual()){
+      host.style.transform="";
+      host.querySelectorAll(".home-carousel-row").forEach(row=>row.style.transform=`translateX(${index*step}px)`);
+    }else{
+      host.style.transform=`translateX(${index*step}px)`;
+    }
+    dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===index));
   }
-
-  function draw(){
+  function draw(rotate=false){
     list=currentList();
-    index=0;
+    const canRotate=rotate&&mode==="recommended"&&list.length>8;
+    index=canRotate?(new Date().getDate()%Math.min(3,maxIndex()+1)):0;
     host.style.transform="translateX(0)";
-    host.innerHTML=list.map(card).join("");
-    bindDynamicActions(host);
-    renderFavButtons();
-    renderDots();
-    move();
+    host.classList.toggle("is-dual-row",isDual());host.classList.toggle("is-single-row",!isDual());
+    if(isDual()){
+      const midpoint=Math.ceil(list.length/2),top=list.slice(0,midpoint),bottom=list.slice(midpoint);
+      host.innerHTML=`<div class="home-carousel-row">${top.map(card).join("")}</div><div class="home-carousel-row">${bottom.map(card).join("")}</div>`;
+    }else host.innerHTML=list.map(card).join("");
+    bindDynamicActions(host);renderFavButtons();renderDots();move();
   }
-
   function setMode(nextMode){
-    mode=["recommended","bestseller","newest"].includes(nextMode)?nextMode:"recommended";
-    tabs.forEach(btn=>{
-      const active=btn.dataset.carouselMode===mode;
-      btn.classList.toggle("is-active",active);
-      btn.setAttribute("aria-selected",active?"true":"false");
-    });
-    draw();
-    restart();
+    mode=enabledModes.includes(nextMode)?nextMode:enabledModes[0];
+    tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
+    draw(true);restart();
   }
-
   function next(){index=index>=maxIndex()?0:index+1;move()}
   function prev(){index=index<=0?maxIndex():index-1;move()}
   function stop(){if(timer){clearInterval(timer);timer=null}}
-  function start(){stop();timer=setInterval(next,3000)}
+  function start(){
+    stop();
+    const mobile=window.innerWidth<=700;
+    if(reducedMotion||!featureEnabled("autoCarousel")||carousel.autoPlayEnabled===false||(mobile&&carousel.mobileAutoPlayEnabled!==true)||document.hidden)return;
+    timer=setInterval(next,Math.max(5000,Number(carousel.autoplayDelay)||6000));
+  }
   function restart(){start()}
 
-  tabs.forEach(btn=>btn.addEventListener("click",()=>setMode(btn.dataset.carouselMode)));
+  tabs.forEach(button=>button.addEventListener("click",()=>setMode(button.dataset.carouselMode)));
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
-  viewport.addEventListener("mouseenter",stop);
-  viewport.addEventListener("mouseleave",start);
-  viewport.addEventListener("focusin",stop);
-  viewport.addEventListener("focusout",start);
+  viewport.addEventListener("mouseenter",stop);viewport.addEventListener("mouseleave",start);
+  viewport.addEventListener("focusin",stop);viewport.addEventListener("focusout",start);
+  viewport.addEventListener("touchstart",event=>{touchX=event.touches[0]?.clientX??null;stop()},{passive:true});
+  viewport.addEventListener("touchend",event=>{if(touchX===null)return;const end=event.changedTouches[0]?.clientX??touchX,delta=end-touchX;touchX=null;if(Math.abs(delta)>38)(delta<0?next:prev)();restart()},{passive:true});
+  viewport.addEventListener("keydown",event=>{if(event.key==="ArrowLeft"){event.preventDefault();next();restart()}else if(event.key==="ArrowRight"){event.preventDefault();prev();restart()}});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
-  window.addEventListener("resize",()=>{index=Math.min(index,maxIndex());renderDots();move()});
-
-  setMode("recommended");
+  window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{index=Math.min(index,maxIndex());renderDots();move()}restart()});
+  setMode(enabledModes[0]);
 }
 
 function loadMemberSystem(){
@@ -1296,13 +1353,34 @@ function refreshAfterMemberSync(){
   if(document.querySelector("#myBooksApp"))renderMyBooks();
   loadMemberProfileIntoCheckout();
 }
+function loadAssetScript(src,id){
+  if(document.getElementById(id))return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const script=document.createElement("script");script.id=id;script.src=src;script.defer=true;
+    script.onload=resolve;script.onerror=()=>reject(new Error(`${src} could not be loaded`));
+    document.head.appendChild(script);
+  });
+}
+function loadPremiumUX(){
+  if(!document.querySelector('link[data-kutadgu-premium-ux]')){
+    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=1";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+  }
+  return loadAssetScript("premium-ux.js?v=1","kutadguPremiumUxScript");
+}
 function init(){
   injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
   document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
   document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
   loadMemberSystem();
 }
-async function boot(){await loadRemoteCatalog();init()}
+async function boot(){
+  try{await loadAssetScript("app-config.js?v=1","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  await loadRemoteCatalog();
+  window.KUTADGU_LIVE_CATALOG=C;
+  init();
+  document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
+  try{await loadPremiumUX()}catch(error){console.warn(error)}
+}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-window.kutadguShop={add,remove,toggleFav,cart,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl};
+window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],trackEvent};
 })();

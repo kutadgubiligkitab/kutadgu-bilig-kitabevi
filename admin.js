@@ -27,6 +27,7 @@ function applyFieldDirections(){
 function idForNew(){return `book-${Date.now().toString(36)}`}
 function categoryOptions(){
   const map=new Map();
+  (window.KUTADGU_APP_CONFIG?.catalogCategories||[]).forEach(item=>{if(item?.source&&!map.has(item.source))map.set(item.source,item.label||item.source)});
   STATIC.forEach(b=>{if(b.source&&!map.has(b.source))map.set(b.source,b.category||b.source)});
   return [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1],"ug"));
 }
