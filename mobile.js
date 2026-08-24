@@ -214,7 +214,9 @@
 
   function limitCarouselDots() {
     if (!MOBILE_QUERY.matches) {
-      document.querySelectorAll(".home-carousel-dot").forEach(dot => dot.classList.remove("mobile-dot-hidden"));
+      document.querySelectorAll(".home-carousel-dot").forEach(dot => {
+        if (dot.classList.contains("mobile-dot-hidden")) dot.classList.remove("mobile-dot-hidden");
+      });
       return;
     }
     const dots = [...document.querySelectorAll(".home-carousel-dot")];
@@ -225,7 +227,12 @@
     const active = Math.max(0, dots.findIndex(dot => dot.classList.contains("is-active")));
     let start = Math.max(0, active - 3);
     start = Math.min(start, dots.length - 7);
-    dots.forEach((dot, index) => dot.classList.toggle("mobile-dot-hidden", index < start || index >= start + 7));
+    dots.forEach((dot, index) => {
+      const shouldHide = index < start || index >= start + 7;
+      if (dot.classList.contains("mobile-dot-hidden") !== shouldHide) {
+        dot.classList.toggle("mobile-dot-hidden", shouldHide);
+      }
+    });
   }
 
   function enhanceCarousel() {
@@ -257,7 +264,11 @@
     window.addEventListener("resize", limitCarouselDots, { passive: true });
   }
 
+  let initialized = false;
+
   function init() {
+    if (initialized || !MOBILE_QUERY.matches) return;
+    initialized = true;
     enhanceHeader();
     ensureBottomNav();
     enhanceFilters();
@@ -268,4 +279,7 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
+  MOBILE_QUERY.addEventListener?.("change", event => {
+    if (event.matches) init();
+  });
 })();
