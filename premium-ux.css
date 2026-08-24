@@ -11,9 +11,151 @@
 .premium-search-suggestions{position:absolute;z-index:1200;inset-inline:0;top:calc(100% + 6px);max-height:390px;overflow:auto;padding:6px;background:var(--site-card,#fffdf9);border:1px solid var(--site-border,#e8dccb);border-radius:12px;box-shadow:0 14px 35px rgba(45,30,22,.16);text-align:right}.premium-search-suggestions[hidden]{display:none}.search-box{position:relative}.premium-search-suggestions button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border:0;border-radius:8px;background:transparent;color:var(--site-text,#44352d);font-family:inherit;text-align:right;cursor:pointer}.premium-search-suggestions button:hover,.premium-search-suggestions button.is-active{background:var(--site-bg-soft,#fbf8f2)}.premium-search-suggestions b,.premium-search-suggestions small{display:block}.premium-search-suggestions small{color:var(--site-text-soft,#806f62);font-size:11px}.premium-search-suggestions em{font-size:10px;color:var(--site-brown,#70503d);font-style:normal;white-space:nowrap}
 .search-empty{max-width:1050px;margin:0 auto 28px;padding:24px;background:var(--site-card,#fffdf9);border:1px dashed var(--site-border,#e8dccb);border-radius:14px;text-align:center}.search-empty h2{margin-top:0}.smart-empty-actions>div:first-of-type{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:12px 0 20px}.smart-empty-actions button,.smart-empty-actions a{display:inline-flex;align-items:center;justify-content:center;padding:8px 13px}.premium-empty-books{text-align:right}.premium-friendly-empty{padding:28px;border:1px dashed var(--site-border,#e8dccb);border-radius:12px;color:var(--site-text-soft,#806f62);text-align:center}
 .premium-filter-toggle{display:none;width:min(100%,1050px);margin:0 auto 10px;padding:8px 14px}.premium-active-filters{width:min(100%,1050px);display:flex;gap:7px;flex-wrap:wrap;margin:0 auto 14px}.premium-active-filters button{min-height:34px;padding:5px 10px;border:1px solid var(--site-border,#e8dccb);border-radius:999px;background:var(--site-bg-soft,#fbf8f2);color:var(--site-text,#44352d);font-family:inherit;cursor:pointer}.premium-recent-clear{padding:7px 13px}
-.home-carousel-track.is-dual-row{display:grid!important;gap:12px!important}.home-carousel-row{display:flex;gap:10px;direction:rtl;transition:transform var(--carousel-duration,600ms) cubic-bezier(.22,.61,.36,1);will-change:transform}.home-carousel-row:nth-child(2){transition-delay:var(--carousel-stagger,90ms)}.home-carousel-track.is-dual-row>.home-carousel-row .home-carousel-card{flex:0 0 calc((100% - 30px)/4)!important}.home-carousel-track.is-single-row{display:flex!important}
+#newBooksCarousel .home-carousel-track.is-dual-row{display:grid!important;gap:18px!important}#newBooksCarousel .home-carousel-row{display:flex;gap:16px;min-width:0;direction:rtl;transition:transform var(--carousel-duration,600ms) cubic-bezier(.22,.61,.36,1);will-change:transform}#newBooksCarousel .home-carousel-row:nth-child(2){transition-delay:var(--carousel-stagger,90ms)}#newBooksCarousel .home-carousel-track.is-dual-row>.home-carousel-row .home-carousel-card{flex:0 0 calc((100% - 48px)/4)!important}#newBooksCarousel .home-carousel-track.is-single-row{display:flex!important}
 :where(a,button,input,select,textarea):focus-visible{outline:3px solid rgba(157,104,70,.45);outline-offset:3px}
 @media(max-width:900px){.premium-book-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.premium-discovery-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.premium-discovery{width:calc(100% - 22px);padding:16px;margin:16px auto}.premium-section-heading{align-items:stretch;flex-direction:column}.premium-wizard-open{width:100%}.premium-filter-toggle{display:flex;align-items:center;justify-content:center}.advanced-search-panel.is-collapsed,.catalog-filter-bar.is-collapsed{display:none!important}.premium-active-filters{padding-inline:2px}.home-carousel-track.is-dual-row{display:flex!important}.home-carousel-row{display:contents}.premium-card-cover{height:180px}}
-@media(max-width:430px){.premium-discovery-groups{grid-template-columns:1fr 1fr}.premium-group-button{padding:9px 6px;font-size:12px}.premium-book-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.premium-book-card{padding:7px}.premium-card-cover{height:155px}.premium-card-link strong{font-size:12px;min-height:38px}.premium-card-cart{font-size:11px}.premium-card-favorite{top:12px;left:12px;width:34px;height:34px}.smart-empty-actions .premium-empty-books{grid-template-columns:repeat(2,minmax(0,1fr))}.home-carousel-track.is-single-row .home-carousel-card{flex-basis:74%!important}}
+@media(max-width:700px){.premium-discovery{width:calc(100% - 22px);padding:16px;margin:16px auto}.premium-section-heading{align-items:stretch;flex-direction:column}.premium-wizard-open{width:100%}.premium-filter-toggle{display:flex;align-items:center;justify-content:center}.advanced-search-panel.is-collapsed,.catalog-filter-bar.is-collapsed{display:none!important}.premium-active-filters{padding-inline:2px}#newBooksCarousel .home-carousel-track.is-dual-row{display:flex!important}#newBooksCarousel .home-carousel-row{display:contents}.premium-card-cover{height:180px}}
+@media(max-width:430px){.premium-discovery-groups{grid-template-columns:1fr 1fr}.premium-group-button{padding:9px 6px;font-size:12px}.premium-book-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.premium-book-card{padding:7px}.premium-card-cover{height:155px}.premium-card-link strong{font-size:12px;min-height:38px}.premium-card-cart{font-size:11px}.premium-card-favorite{top:12px;left:12px;width:34px;height:34px}.smart-empty-actions .premium-empty-books{grid-template-columns:repeat(2,minmax(0,1fr))}#newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:100%!important}}
+
+/* Recommended / bestseller / newest: scoped final product-card layout. */
+#newBooksCarousel{
+  width:min(1120px,calc(100% - 44px));
+  max-width:1120px;
+}
+#newBooksCarousel .home-carousel-inner{padding:17px 18px 14px}
+#newBooksCarousel .home-carousel-viewport{overflow:hidden;isolation:isolate}
+#newBooksCarousel .home-carousel-track,
+#newBooksCarousel .home-carousel-row{min-width:0}
+#newBooksCarousel .home-carousel-card{
+  min-width:0!important;
+  min-height:338px!important;
+  padding:10px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  grid-template-rows:none!important;
+  overflow:hidden!important;
+}
+#newBooksCarousel .home-carousel-link{
+  min-width:0;
+  display:block;
+  color:inherit;
+  text-decoration:none;
+  overflow:hidden;
+}
+#newBooksCarousel .home-carousel-meta-link{
+  min-width:0;
+  display:block;
+  color:inherit;
+  text-decoration:none;
+  overflow:hidden;
+}
+#newBooksCarousel .home-carousel-cover{
+  flex:0 0 210px;
+  width:100%;
+  height:210px!important;
+  padding:8px!important;
+  overflow:hidden!important;
+}
+#newBooksCarousel .home-carousel-cover img{
+  display:block;
+  width:auto!important;
+  height:auto!important;
+  max-width:150px!important;
+  max-height:194px!important;
+  object-fit:contain!important;
+  object-position:center!important;
+}
+#newBooksCarousel .home-carousel-info{
+  min-width:0;
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  padding:10px 4px 2px!important;
+  overflow:hidden;
+}
+#newBooksCarousel .home-carousel-title{
+  min-width:0;
+  min-height:43px!important;
+  max-height:43px;
+  margin:0 0 3px!important;
+  display:-webkit-box!important;
+  -webkit-box-orient:vertical!important;
+  -webkit-line-clamp:2!important;
+  overflow:hidden!important;
+  overflow-wrap:anywhere;
+}
+#newBooksCarousel .home-carousel-author{
+  min-width:0;
+  min-height:18px;
+  max-height:18px;
+  display:block;
+  white-space:nowrap;
+  overflow:hidden!important;
+  text-overflow:ellipsis;
+}
+#newBooksCarousel .home-carousel-bottom{
+  min-width:0;
+  margin-top:auto!important;
+  padding-top:7px;
+}
+#newBooksCarousel .home-carousel-price{white-space:nowrap}
+#newBooksCarousel .home-carousel-fav{top:17px;left:17px}
+
+/* The three service items remain compact, equal and aligned. */
+.home-trust-strip{grid-auto-rows:1fr}
+.home-trust-strip .home-trust-item{
+  min-height:66px;
+  padding:9px 16px;
+  justify-content:flex-start;
+  text-align:right;
+  overflow:hidden;
+}
+.home-trust-strip .home-trust-item>div{align-content:center}
+.home-trust-strip .home-trust-item strong{display:block;line-height:1.55}
+.home-trust-strip .home-trust-item small{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  overflow:hidden;
+  line-height:1.5;
+}
+.home-trust-strip .home-trust-item--whatsapp{
+  background:rgba(112,80,61,.055);
+  box-shadow:inset 0 0 0 1px rgba(112,80,61,.045);
+}
+
+@media(min-width:1101px){
+  #newBooksCarousel .home-carousel-track.is-dual-row>.home-carousel-row .home-carousel-card{
+    flex-basis:calc((100% - 48px)/4)!important;
+    max-width:calc((100% - 48px)/4);
+  }
+}
+@media(min-width:851px) and (max-width:1100px){
+  #newBooksCarousel{width:min(960px,calc(100% - 36px))}
+  #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:calc((100% - 24px)/3)!important}
+  #newBooksCarousel .home-carousel-track{gap:12px!important}
+  #newBooksCarousel .home-carousel-cover{height:195px!important;flex-basis:195px}
+  #newBooksCarousel .home-carousel-cover img{max-width:142px!important;max-height:179px!important}
+}
+@media(min-width:701px) and (max-width:850px){
+  #newBooksCarousel{width:calc(100% - 32px)}
+  #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:calc((100% - 12px)/2)!important}
+  #newBooksCarousel .home-carousel-track{gap:12px!important}
+  #newBooksCarousel .home-carousel-cover{height:195px!important;flex-basis:195px}
+}
+@media(max-width:700px){
+  #newBooksCarousel{width:calc(100% - 22px)}
+  #newBooksCarousel .home-carousel-inner{padding:13px}
+  #newBooksCarousel .home-carousel-track{gap:10px!important}
+  #newBooksCarousel .home-carousel-card{min-height:308px!important;padding:8px!important}
+  #newBooksCarousel .home-carousel-cover{height:174px!important;flex-basis:174px}
+  #newBooksCarousel .home-carousel-cover img{max-width:118px!important;max-height:158px!important}
+  .home-trust-strip .home-trust-item{min-height:58px;padding:8px 13px}
+}
+@media(max-width:430px){
+  #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:100%!important}
+  #newBooksCarousel .home-carousel-card{min-height:356px!important}
+  #newBooksCarousel .home-carousel-cover{height:220px!important;flex-basis:220px}
+  #newBooksCarousel .home-carousel-cover img{max-width:154px!important;max-height:204px!important}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important}}

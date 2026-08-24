@@ -1276,12 +1276,19 @@ function setupHomeCarousel(){
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${b.href}" class="home-carousel-link">
         <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
-        <div class="home-carousel-info"><div class="home-carousel-title">${b.title||"كىتاب"}</div><div class="home-carousel-author">${b.author||"—"}</div><div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div></div>
       </a>
+      <div class="home-carousel-info">
+        <a href="${b.href}" class="home-carousel-meta-link"><div class="home-carousel-title">${b.title||"كىتاب"}</div><div class="home-carousel-author">${b.author||"—"}</div></a>
+        <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div>
+      </div>
     </article>`;
   }
   const isDual=()=>window.innerWidth>1100;
-  const visibleSingle=()=>window.innerWidth<=430?1:window.innerWidth<=700?2:Number(carousel.tabletVisibleCards)||4;
+  const visibleSingle=()=>{
+    if(window.innerWidth<=430)return 1;
+    if(window.innerWidth<=850)return 2;
+    return Math.min(3,Number(carousel.tabletVisibleCards)||3);
+  };
   const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||2));
   const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleSingle()));
 
@@ -1293,7 +1300,10 @@ function setupHomeCarousel(){
   function move(){
     index=Math.max(0,Math.min(index,maxIndex()));
     const first=host.querySelector(".home-carousel-card");if(!first)return;
-    const step=first.getBoundingClientRect().width+gap;
+    const lane=isDual()?first.closest(".home-carousel-row"):host;
+    const laneStyle=window.getComputedStyle(lane);
+    const renderedGap=parseFloat(laneStyle.columnGap||laneStyle.gap)||gap;
+    const step=first.getBoundingClientRect().width+renderedGap;
     if(isDual()){
       host.style.transform="";
       host.querySelectorAll(".home-carousel-row").forEach(row=>row.style.transform=`translateX(${index*step}px)`);
@@ -1365,7 +1375,7 @@ function loadAssetScript(src,id){
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=1";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=2";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   return loadAssetScript("premium-ux.js?v=2","kutadguPremiumUxScript");
 }
