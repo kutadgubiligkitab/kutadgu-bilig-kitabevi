@@ -1375,9 +1375,9 @@ function loadAssetScript(src,id){
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=2";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=3";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
-  return loadAssetScript("premium-ux.js?v=2","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=3","kutadguPremiumUxScript");
 }
 function init(){
   injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
