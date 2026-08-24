@@ -1127,7 +1127,7 @@ function renderContactSection(){
     cards.push(href?`<a class="${classes}" href="${href}"${/^https?:/i.test(href)?' target="_blank" rel="noopener noreferrer"':""}>${body}</a>`:`<div class="${classes}">${body}</div>`);
   };
   add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"","",true);
-  add("📷","Instagram",cfg.instagram,cfg.instagramUrl||"");
+  add("📷","Instagram",cfg.instagram,cfg.instagramUrl||"","",true);
   add("📍","دۇكان ئادرېسى",cfg.address,cfg.addressUrl||"","contact-address");
   add("🕒","خىزمەت ۋاقتى",cfg.hours);
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
