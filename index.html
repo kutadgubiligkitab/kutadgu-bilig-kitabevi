@@ -2283,6 +2283,23 @@ body.dark-mode .home-feature-cover-frame{
     margin-top:14px !important;
 }
 
+/* Carousel نى RTL ياكى كونا margin قائىدىلىرى سۈرۈپ كەتمىسۇن. */
+#newBooksCarousel{
+    display:block !important;
+    margin:14px auto 6px !important;
+    margin-inline:auto !important;
+    justify-self:center !important;
+    grid-column:1 / -1 !important;
+    float:none !important;
+    clear:both !important;
+    inset:auto !important;
+}
+
+#newBooksCarousel .home-carousel-inner{
+    width:100% !important;
+    margin-inline:auto !important;
+}
+
 @media (max-width:900px) and (min-width:701px){
     .home-trust-item{
         padding-inline:10px;
@@ -2297,6 +2314,10 @@ body.dark-mode .home-feature-cover-frame{
 }
 
 @media (max-width:700px){
+    #newBooksCarousel{
+        margin:10px auto 6px !important;
+    }
+
     .home-trust-strip{
         width:calc(100% - 32px);
         margin-top:10px;
