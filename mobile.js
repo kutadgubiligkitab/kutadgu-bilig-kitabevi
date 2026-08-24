@@ -108,6 +108,7 @@
     const existing = document.querySelector("body > header:not(.account-topbar)");
     if (existing) {
       existing.classList.add("is-mobile-enhanced");
+      document.body.classList.add("has-mobile-fixed-header");
       const menu = existing.querySelector("nav") || buildMenu();
       if (!menu.parentElement) existing.appendChild(menu);
       if (!menu.id) menu.id = "mobileSiteMenu";
@@ -118,6 +119,7 @@
     if (document.querySelector(".mobile-site-header")) return;
     const header = document.createElement("header");
     header.className = "mobile-site-header";
+    document.body.classList.add("has-mobile-fixed-header");
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "index.html";

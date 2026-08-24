@@ -37,6 +37,10 @@
     overflow: hidden;
   }
 
+  body.has-mobile-fixed-header {
+    padding-top: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)) !important;
+  }
+
   img,
   svg,
   video {
@@ -79,8 +83,9 @@
   /* ---------------- Mobile header + drawer ---------------- */
   header.is-mobile-enhanced,
   .mobile-site-header {
-    position: sticky !important;
+    position: fixed !important;
     inset-block-start: 0;
+    inset-inline: 0;
     z-index: 12000;
     width: 100%;
     min-height: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)) !important;
