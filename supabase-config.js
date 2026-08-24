@@ -20,7 +20,7 @@ window.KUTADGU_CONTACT_CONFIG = {
   phone: "+90 536 899 98 88",
   instagram: "@kutadgu_bilig_kitabhanisi",
   instagramUrl: "https://www.instagram.com/kutadgu_bilig_kitabhanisi/",
-  address: "KEMALPAŞA MAH. 1. TURNA SK. AKPINAR APT. NO: 25/C, KÜÇÜKÇEKMECE / İSTANBUL",
-  addressUrl: "https://www.google.com/maps/search/?api=1&query=KEMALPA%C5%9EA%20MAH.%201.%20TURNA%20SK.%20AKPINAR%20APT.%20NO%3A%2025%2FC%2C%20K%C3%9C%C3%87%C3%9CK%C3%87EKMECE%20%2F%20%C4%B0STANBUL",
+  address: "KEMALPAŞA MAH. 1. TURNA SK. AKPINAR APT. NO: 25/C, KAPI NO: K, KÜÇÜKÇEKMECE / İSTANBUL",
+  addressUrl: "https://www.google.com/maps/search/?api=1&query=KEMALPA%C5%9EA%20MAH.%201.%20TURNA%20SK.%20AKPINAR%20APT.%20NO%3A%2025%2FC%2C%20KAPI%20NO%3A%20K%2C%20K%C3%9C%C3%87%C3%9CK%C3%87EKMECE%20%2F%20%C4%B0STANBUL",
   hours: ""
 };
