@@ -2240,11 +2240,13 @@ body.dark-mode .home-feature-cover-frame{
 
 
 /* ===== COMPACT TRUST / SERVICE STRIP ===== */
-.home-trust-strip{
+section.home-trust-strip{
     width:min(1120px,calc(100% - 44px));
+    max-width:1120px;
     margin:14px auto 0;
     display:grid;
     grid-template-columns:repeat(3,minmax(0,1fr));
+    grid-auto-rows:1fr;
     background:var(--card);
     border:1px solid var(--border);
     border-radius:14px;
@@ -2252,31 +2254,60 @@ body.dark-mode .home-feature-cover-frame{
     overflow:hidden;
 }
 
-.home-trust-item{
+section.home-trust-strip > .home-trust-item{
     min-width:0;
-    min-height:56px;
-    padding:10px 18px;
-    display:flex;
+    min-height:62px;
+    padding:8px 14px;
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
     align-items:center;
-    justify-content:center;
-    gap:10px;
+    align-content:center;
+    justify-content:stretch;
+    gap:9px;
     color:var(--text);
-    text-align:center;
+    text-align:right;
+    overflow:hidden;
 }
 
-.home-trust-item + .home-trust-item{
-    border-right:1px solid var(--border);
+section.home-trust-strip > .home-trust-item + .home-trust-item{
+    border-right:0;
+    border-inline-start:1px solid rgba(112,80,61,.14);
 }
 
-.home-trust-icon{
+section.home-trust-strip .home-trust-icon{
     flex:0 0 auto;
-    font-size:22px;
+    font-size:21px;
     line-height:1;
 }
 
-.home-trust-item strong{
+section.home-trust-strip .home-trust-item > div{
+    min-width:0;
+}
+
+section.home-trust-strip .home-trust-item strong,
+section.home-trust-strip .home-trust-item small{
+    display:block;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+section.home-trust-strip .home-trust-item strong{
     font-size:13px;
-    line-height:1.65;
+    line-height:1.5;
+    white-space:nowrap;
+}
+
+section.home-trust-strip .home-trust-item small{
+    margin-top:2px;
+    color:var(--muted);
+    font-size:10.5px;
+    line-height:1.45;
+    white-space:nowrap;
+}
+
+section.home-trust-strip > .home-trust-item--whatsapp{
+    background:rgba(112,80,61,.045);
+    box-shadow:inset 0 2px 0 rgba(52,137,82,.30);
 }
 
 .home-trust-strip + .home-book-carousel{
@@ -2300,42 +2331,49 @@ body.dark-mode .home-feature-cover-frame{
     margin-inline:auto !important;
 }
 
-@media (max-width:900px) and (min-width:701px){
-    .home-trust-item{
+@media (max-width:1024px) and (min-width:821px){
+    section.home-trust-strip > .home-trust-item{
         padding-inline:10px;
         gap:7px;
     }
-    .home-trust-icon{
-        font-size:20px;
+    section.home-trust-strip .home-trust-icon{
+        font-size:19px;
     }
-    .home-trust-item strong{
+    section.home-trust-strip .home-trust-item strong{
         font-size:11.5px;
+    }
+    section.home-trust-strip .home-trust-item small{
+        font-size:9.5px;
     }
 }
 
-@media (max-width:700px){
+@media (max-width:820px){
     #newBooksCarousel{
         margin:10px auto 6px !important;
     }
 
-    .home-trust-strip{
-        width:calc(100% - 32px);
+    section.home-trust-strip{
+        width:calc(100% - 24px);
         margin-top:10px;
         grid-template-columns:1fr;
         border-radius:12px;
     }
-    .home-trust-item{
-        min-height:48px;
-        padding:8px 14px;
-        justify-content:flex-start;
+    section.home-trust-strip > .home-trust-item{
+        min-height:54px;
+        padding:8px 13px;
+        justify-content:stretch;
         text-align:right;
     }
-    .home-trust-item + .home-trust-item{
+    section.home-trust-strip > .home-trust-item + .home-trust-item{
         border-right:0;
-        border-top:1px solid var(--border);
+        border-inline-start:0;
+        border-top:1px solid rgba(112,80,61,.14);
     }
-    .home-trust-item strong{
+    section.home-trust-strip .home-trust-item strong{
         font-size:12.5px;
+    }
+    section.home-trust-strip .home-trust-item small{
+        font-size:10px;
     }
 }
 
@@ -2529,8 +2567,8 @@ label {
     <div class="home-trust-item">
         <span class="home-trust-icon" aria-hidden="true">🚚</span>
         <div>
-            <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا كىتاب ئەۋەتىمىز</strong>
-            <small>توشۇش ھەققى دۆلەت، ئېغىرلىق ۋە توشۇش ئۇسۇلىغا قاراپ ئۆزگىرىدۇ.</small>
+            <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا ئەۋەتىش</strong>
+            <small>توشۇش ھەققى مەنزىل ۋە ئېغىرلىققا قاراپ بېكىتىلىدۇ.</small>
         </div>
     </div>
     <div class="home-trust-item home-trust-item--whatsapp">
@@ -2543,8 +2581,8 @@ label {
     <div class="home-trust-item">
         <span class="home-trust-icon" aria-hidden="true">📦</span>
         <div>
-            <strong>كىتابلار بىخەتەر ئوراپ يوللىنىدۇ</strong>
-            <small>مۇقاۋا ۋە بۇلۇڭلار قوغدىلىپ ئەۋەتىلىدۇ.</small>
+            <strong>كىتابلارنى بىخەتەر ئوراپ يوللاش</strong>
+            <small>مۇقاۋا ۋە بۇلۇڭلار قوغدىلىدۇ.</small>
         </div>
     </div>
 </section>
