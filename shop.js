@@ -109,6 +109,7 @@ function stockInfo(book){
   const raw=normalizeText(book?.stockStatus||"");
   const qty=book?.stock===null||book?.stock===undefined||book?.stock===""?null:Number(book.stock);
   if(["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw))return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
+  if(Number.isFinite(qty)&&qty<=0)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
   if(["low","low_stock","ئاز قالدى"].includes(raw))return Number.isFinite(qty)&&qty<=0?{key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0}:{key:"low",label:"ئاز قالدى",canBuy:true,qty:Number.isFinite(qty)&&qty>0?qty:null};
   if(["in","in_stock","available","ئامباردا بار"].includes(raw))return {key:"in",label:"ئامباردا بار",canBuy:true,qty:Number.isFinite(qty)&&qty>0?qty:null};
   if(Number.isFinite(qty)&&qty>0)return qty<=5?{key:"low",label:"ئاز قالدى",canBuy:true,qty}:{key:"in",label:"ئامباردا بار",canBuy:true,qty};
@@ -119,7 +120,13 @@ function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-t
   const s=stockInfo(book),disabled=s.canBuy?"":" disabled aria-disabled=\"true\"";
   return `<button type="button" class="${className}" data-cart-id="${book.id}"${disabled}>${s.canBuy?label:"تۈگەپ كەتتى"}</button>`;
 }
-function cart(){return get(CART_KEY,[])}
+function cart(){
+  const items=get(CART_KEY,[]);
+  if(!Array.isArray(items))return [];
+  return items
+    .filter(item=>item&&item.id)
+    .map(item=>({...item,qty:Math.max(1,Number(item.qty)||1)}));
+}
 function updateBadge(){let n=cart().reduce((s,x)=>s+(x.qty||1),0);document.querySelectorAll(".cart-count").forEach(e=>e.textContent=n)}
 function add(id,qty=1){
   let b=find(id);if(!b)return;
@@ -964,7 +971,7 @@ function cartPage(){
 function changeQty(id,d){
   let a=cart(),x=a.find(i=>i.id===id);if(!x)return;
   const stock=stockInfo(find(id));
-  x.qty=Math.max(1,x.qty+d);
+  x.qty=Math.max(1,(Number(x.qty)||1)+d);
   if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
   set(CART_KEY,a);
   cartPage();
@@ -1200,10 +1207,12 @@ function renderContactSection(){
 
 async function orderWithWhatsApp(){
   let o=getOrBuildOrder(true);if(!o)return;
+  trackEvent("whatsapp_order_click",{orderId:o.orderId||o.id||"",items:o.items?.length||cart().length,total:o.total||0});
+  const url=whatsappOrderUrl(o.text);
+  const popup=window.open(url,"_blank");
+  if(popup)popup.opener=null;
+  else location.href=url;
   try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
-  trackEvent("whatsapp_order_click",{orderId:o.id||"",items:o.items?.length||cart().length,total:o.total||0});
-  const popup=window.open(whatsappOrderUrl(o.text),"_blank","noopener,noreferrer");
-  if(!popup)location.href=whatsappOrderUrl(o.text);
 }
 
 function setupCheckout(){
@@ -1345,8 +1354,15 @@ function setupHomeCarousel(){
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
   viewport.addEventListener("mouseenter",stop);viewport.addEventListener("mouseleave",start);
   viewport.addEventListener("focusin",stop);viewport.addEventListener("focusout",start);
-  viewport.addEventListener("touchstart",event=>{touchX=event.touches[0]?.clientX??null;stop()},{passive:true});
-  viewport.addEventListener("touchend",event=>{if(touchX===null)return;const end=event.changedTouches[0]?.clientX??touchX,delta=end-touchX;touchX=null;if(Math.abs(delta)>38)(delta<0?next:prev)();restart()},{passive:true});
+  viewport.addEventListener("touchstart",event=>{
+    if(window.innerWidth<=768)return;
+    touchX=event.touches[0]?.clientX??null;stop();
+  },{passive:true});
+  viewport.addEventListener("touchend",event=>{
+    if(window.innerWidth<=768||touchX===null)return;
+    const end=event.changedTouches[0]?.clientX??touchX,delta=end-touchX;
+    touchX=null;if(Math.abs(delta)>38)(delta<0?next:prev)();restart();
+  },{passive:true});
   viewport.addEventListener("keydown",event=>{if(event.key==="ArrowLeft"){event.preventDefault();next();restart()}else if(event.key==="ArrowRight"){event.preventDefault();prev();restart()}});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
   window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{index=Math.min(index,maxIndex());renderDots();move()}restart()});
@@ -1377,7 +1393,7 @@ function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=4";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
-  return loadAssetScript("premium-ux.js?v=5","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=6","kutadguPremiumUxScript");
 }
 function init(){
   injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
