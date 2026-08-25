@@ -1,4 +1,4 @@
-@font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.ttf") format("truetype");font-display:swap}
+@font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.woff2") format("woff2"),url("UKIJCJK.ttf") format("truetype");font-display:swap}
 :root{--cream:#f6f0e5;--card:#fffdf9;--brown:#70503d;--brown-dark:#4b3327;--text:#44352d;--soft:#806f62;--border:#e8dccb;--ok:#467851;--danger:#a74f45}
 *{box-sizing:border-box}
 [hidden]{display:none!important}

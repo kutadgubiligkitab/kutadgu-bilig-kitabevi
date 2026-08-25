@@ -9,7 +9,7 @@
 <body>
 <div class="admin-shell">
   <header class="admin-topbar">
-    <div class="admin-brand"><img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" class="kutadgu-site-logo"><span class="kutadgu-brand-text">🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى</span></div>
+    <div class="admin-brand"><img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى" class="kutadgu-site-logo"><span class="kutadgu-brand-text">🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى</span></div>
     <div class="admin-top-actions">
       <a href="index.html">🏠 تور بەت</a>
       <button id="adminLogout" type="button" hidden>چىقىش</button>
@@ -62,6 +62,35 @@
         </div>
         <p class="admin-help">«ھازىرقى كىتابلارنى Database قا كىرگۈزۈش» كۇنۇپكىسىنى تۇنجى قېتىم بىرلا قېتىم بېسىش يېتەرلىك.</p>
         <div id="adminBookList" class="admin-book-list"></div>
+      </section>
+
+
+      <section class="admin-card" id="analyticsManagement">
+        <div class="admin-toolbar">
+          <div>
+            <span class="admin-section-kicker">📊 Analytics</span>
+            <h2 class="admin-section-title">تور بەت ئىشلىتىش سانلىق مەلۇماتى</h2>
+          </div>
+          <div class="admin-toolbar-group">
+            <select id="analyticsRange" class="admin-search" aria-label="Analytics ۋاقىت دائىرىسى">
+              <option value="7">ئاخىرقى 7 كۈن</option>
+              <option value="30" selected>ئاخىرقى 30 كۈن</option>
+              <option value="90">ئاخىرقى 90 كۈن</option>
+            </select>
+            <button class="admin-secondary" id="reloadAnalytics" type="button">↻ يېڭىلاش</button>
+          </div>
+        </div>
+        <p class="admin-help">زىيارەت، كىتاب كۆرۈش، سېۋەتكە قوشۇش، WhatsApp زاكاز چېكىش ۋە نەتىجىسىز ئىزدەش سانى. شەخسىي خېرىدار ئۇچۇرى ساقلانمايدۇ.</p>
+        <div class="admin-stats admin-analytics-stats">
+          <div class="admin-stat"><strong id="analyticsPageViews">0</strong><span>بەت زىيارىتى</span></div>
+          <div class="admin-stat"><strong id="analyticsBookViews">0</strong><span>كىتاب كۆرۈش</span></div>
+          <div class="admin-stat"><strong id="analyticsCartAdds">0</strong><span>سېۋەتكە قوشۇش</span></div>
+          <div class="admin-stat"><strong id="analyticsWhatsapp">0</strong><span>WhatsApp زاكاز چېكىش</span></div>
+        </div>
+        <div class="admin-analytics-grid">
+          <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🔎 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+        </div>
       </section>
 
       <section class="admin-card" id="memberManagement">
@@ -120,7 +149,7 @@
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
       <label class="admin-check"><input id="bookIsNew" type="checkbox" checked><span>يېڭى قوشۇلغان</span></label>
       <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
-      <label class="admin-check"><input id="bookIsBestseller" type="checkbox"><span>كۆپ سېتىلغان</span></label>
+      <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
 
       <div class="admin-wide admin-toolbar-group">
         <button class="admin-primary" type="submit">💾 ساقلاش</button>
@@ -134,6 +163,6 @@
 <script src="app-config.js?v=1"></script>
 <script src="catalog.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="admin.js?v=6"></script>
+<script src="admin.js?v=10"></script>
 </body>
 </html>

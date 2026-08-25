@@ -1,0 +1,10 @@
+Kutadgu Bilig — 6-step implementation
+
+1. QA: functional/static checks retained.
+2. Catalog: canonical fallback schema added; Admin fields standardized.
+3. WhatsApp: existing complete line-item + totals flow retained.
+4. Performance: WOFF2 first, WebP logos and fallback cover, lazy-loaded book covers retained.
+5. Admin: add/edit/hide/delete, manual New/Recommended, sales_count-driven Best Sellers.
+6. Analytics: page views, book views, cart adds, WhatsApp clicks, zero-result searches; Admin 7/30/90-day view.
+
+Existing Supabase projects: run DATABASE_UPGRADE_V10.sql once.

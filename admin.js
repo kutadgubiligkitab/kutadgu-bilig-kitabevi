@@ -63,7 +63,7 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
-  await Promise.all([loadBooks(),loadMembers()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics()]);
 }
 async function loadBooks(){
   status($("#adminStatus"),"كىتابلار يۈكلىنىۋاتىدۇ...");
@@ -91,17 +91,19 @@ function renderBooks(){
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
         <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${Number(b.stock)||0} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}</div>
-        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${b.is_bestseller?" · 🔥 كۆپ سېتىلغان":""}</div>
+        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}</div>
       </div>
       <div class="admin-book-actions">
         <a href="${esc(b.href||`book.html?id=${encodeURIComponent(b.id)}`)}" target="_blank">👁️ كۆرۈش</a>
         <button type="button" data-edit="${esc(b.id)}">✏️ تەھرىرلەش</button>
         <button type="button" data-hide="${esc(b.id)}">${b.is_active===false?"♻️ قايتا كۆرسىتىش":"🙈 يوشۇرۇش"}</button>
+        <button type="button" class="admin-danger" data-delete="${esc(b.id)}">🗑️ ئۆچۈرۈش</button>
       </div>
     </article>`).join("");
 
   host.querySelectorAll("[data-edit]").forEach(btn=>btn.onclick=()=>openEdit(btn.dataset.edit));
   host.querySelectorAll("[data-hide]").forEach(btn=>btn.onclick=()=>toggleActive(btn.dataset.hide));
+  host.querySelectorAll("[data-delete]").forEach(btn=>btn.onclick=()=>deleteBook(btn.dataset.delete));
 }
 function dateText(value){
   if(!value)return "—";
@@ -182,9 +184,9 @@ function clearForm(){
   $("#bookForm").reset();
   $("#bookId").value=idForNew();
   $("#bookIsActive").checked=true;
-  $("#bookIsNew").checked=true;
+  $("#bookIsNew").checked=false;
   $("#bookIsRecommended").checked=false;
-  $("#bookIsBestseller").checked=false;
+  
   $("#bookStock").value=0;
   $("#bookStockStatus").value="in_stock";
   $("#bookSalesCount").value=0;
@@ -221,18 +223,32 @@ function openEdit(id){
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new!==false;
   $("#bookIsRecommended").checked=b.is_recommended===true;
-  $("#bookIsBestseller").checked=b.is_bestseller===true;
+  
   $("#bookCoverPreview").src=b.image_url||"";
   $("#bookCoverPreview").style.visibility=b.image_url?"visible":"hidden";
   $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا":"مۇقاۋا يوق";
   modal(true);
 }
+async function optimizeCover(file){
+  if(!file||!String(file.type||"").startsWith("image/"))return file;
+  try{
+    const bitmap=await createImageBitmap(file);
+    const maxWidth=1000,scale=Math.min(1,maxWidth/bitmap.width);
+    const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
+    const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext("2d",{alpha:false});ctx.drawImage(bitmap,0,0,width,height);bitmap.close?.();
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/webp",0.82));
+    if(blob&&blob.size<file.size)return new File([blob],`${file.name.replace(/\.[^.]+$/,'')||'cover'}.webp`,{type:"image/webp"});
+  }catch(error){console.warn("Cover optimization skipped",error)}
+  return file;
+}
 async function uploadCover(id,file){
   if(!file)return editing?.image_url||"";
   const bucket=cfg.bucket||"book-covers";
-  const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const optimized=await optimizeCover(file);
+  const ext=(optimized.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
   const path=`${id}/${Date.now()}.${ext}`;
-  const {error}=await db.storage.from(bucket).upload(path,file,{upsert:false,contentType:file.type||undefined});
+  const {error}=await db.storage.from(bucket).upload(path,optimized,{upsert:false,contentType:optimized.type||undefined});
   if(error)throw error;
   const {data}=db.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
@@ -270,8 +286,7 @@ async function saveBook(e){
       sales_count:Number($("#bookSalesCount").value)||0,
       is_active:$("#bookIsActive").checked,
       is_new:$("#bookIsNew").checked,
-      is_recommended:$("#bookIsRecommended").checked,
-      is_bestseller:$("#bookIsBestseller").checked
+      is_recommended:$("#bookIsRecommended").checked
     };
     const {error}=await db.from("books").upsert(row,{onConflict:"id"});
     if(error)throw error;
@@ -289,6 +304,13 @@ async function toggleActive(id){
   const next=b.is_active===false;
   const {error}=await db.from("books").update({is_active:next}).eq("id",id);
   if(error){alert(error.message);return}
+  await loadBooks();
+}
+async function deleteBook(id){
+  const b=books.find(x=>x.id===id);if(!b)return;
+  if(!confirm(`«${b.title||id}» نى Database دىن پۈتۈنلەي ئۆچۈرەمسىز؟\nبۇ مەشغۇلاتنى قايتۇرغىلى بولمايدۇ.`))return;
+  const {error}=await db.from("books").delete().eq("id",id);
+  if(error){alert("ئۆچۈرۈش مەغلۇپ بولدى:\n"+error.message);return}
   await loadBooks();
 }
 async function importStatic(){
@@ -309,7 +331,6 @@ async function importStatic(){
       is_active:true,
       is_new:false,
       is_recommended:false,
-      is_bestseller:false,
       sales_count:0,
       stock:0,
       stock_status:"in_stock"
@@ -323,6 +344,29 @@ async function importStatic(){
   }finally{
     btn.disabled=false;btn.textContent="📥 ھازىرقى كىتابلارنى Database قا كىرگۈزۈش";
   }
+}
+
+
+async function loadAnalytics(){
+  const hostTop=$("#analyticsTopBooks"),hostZero=$("#analyticsZeroSearches");
+  if(!db||!hostTop||!hostZero)return;
+  const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
+  hostTop.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+  hostZero.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+  const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
+  if(error){
+    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>DATABASE_UPGRADE_V10.sql نى بىر قېتىم ئىجرا قىلىڭ.';
+    hostTop.innerHTML=`<div class="admin-empty">${msg}</div>`;hostZero.innerHTML=`<div class="admin-empty">${msg}</div>`;return;
+  }
+  const summary=data||{};
+  $("#analyticsPageViews").textContent=Number(summary.page_views||0).toLocaleString("tr-TR");
+  $("#analyticsBookViews").textContent=Number(summary.book_views||0).toLocaleString("tr-TR");
+  $("#analyticsCartAdds").textContent=Number(summary.cart_adds||0).toLocaleString("tr-TR");
+  $("#analyticsWhatsapp").textContent=Number(summary.whatsapp_clicks||0).toLocaleString("tr-TR");
+  const top=Array.isArray(summary.top_books)?summary.top_books:[];
+  hostTop.innerHTML=top.length?top.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.book_id||'—')}</span><strong>${Number(row.views||0)}</strong></div>`).join(''):'<div class="admin-empty">بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.</div>';
+  const zeros=Array.isArray(summary.zero_searches)?summary.zero_searches:[];
+  hostZero.innerHTML=zeros.length?zeros.map(row=>`<div class="admin-analytics-row"><span>${esc(row.query||'—')}</span><strong>${Number(row.searches||0)}</strong></div>`).join(''):'<div class="admin-empty">نەتىجىسىز ئىزدەش يوق.</div>';
 }
 
 async function requestPasswordReset(){
@@ -390,4 +434,7 @@ function init(){
   routeSession();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+
+  $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
+  $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 })();
