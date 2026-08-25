@@ -1,59 +1,45 @@
--- قۇتادغۇبىلىك كىتابخانىسى
--- يېڭى كەلگەنلەر + legacy featured compatibility + bounded query index لىرى
+-- قۇتادغۇبىلىك كىتابخانىسى — new/recommended compatibility + focused indexes
 -- Supabase > SQL Editor دا بىر قېتىم Run قىلىڭ.
--- بۇ migration جەدۋەلنى قايتا قۇرمايدۇ ۋە مەۋجۇت كىتابلارنى ئۆچۈرمەيدۇ.
+-- بۇ migration table ياكى كىتاب data نى ئۆچۈرمەيدۇ.
 
 begin;
 
--- كونا project لاردا كەم بولۇشى مۇمكىن بولغان flag/date ستونلىرىنى بىخەتەر تولۇقلاش.
-alter table public.books add column if not exists is_active boolean not null default true;
-alter table public.books add column if not exists is_new boolean not null default false;
-alter table public.books add column if not exists is_recommended boolean not null default false;
-alter table public.books add column if not exists is_featured boolean not null default false;
-alter table public.books add column if not exists is_bestseller boolean not null default false;
-alter table public.books add column if not exists sales_count integer not null default 0;
-alter table public.books add column if not exists created_at timestamptz not null default now();
+-- Legacy featured field نى ساقلاپ، يېڭى admin flow دا is_recommended نى ئاساسلىق field قىلىمىز.
+alter table public.books
+  add column if not exists is_featured boolean not null default false;
 
--- بۇندىن كېيىن is_new پەقەت قولدا override قىلىنغاندا true بولسۇن؛
--- ئادەتتىكى «يېڭى» ھالىتى created_at نىڭ 30 كۈنلۈك ۋاقتىدىن ھېسابلىنىدۇ.
-alter table public.books alter column is_new set default false;
-
--- is_recommended يېڭى ئاساسلىق field؛ is_featured پەقەت legacy compatibility ئۈچۈن ساقلىنىدۇ.
+-- كونا featured كىتابلار recommended تىزىملىكىدىن يوقاپ كەتمىسۇن.
 update public.books
 set is_recommended = true
 where is_featured = true
   and is_recommended is distinct from true;
 
--- 30 كۈنلۈك يېڭى كىتاب، category + newest ۋە default newest query لىرى.
-create index if not exists books_created_at_active_idx
-  on public.books (created_at desc,id)
+-- 30 كۈن + manual is_new override query سى ۋە كۆپ ئىشلىتىلىدىغان sort/filter لار.
+create index if not exists books_new_override_created_idx
+  on public.books (is_new, created_at desc)
   where is_active = true;
 
-create index if not exists books_category_created_active_idx
-  on public.books (category,created_at desc,id)
+create index if not exists books_featured_created_idx
+  on public.books (is_featured, created_at desc)
   where is_active = true;
 
--- 30 كۈندىن كونا بولسىمۇ is_new=true قىلىنغان manual override لار.
-create index if not exists books_new_manual_active_idx
-  on public.books (created_at desc,id)
-  where is_active = true and is_new = true;
-
--- تەۋسىيەلىك query نىڭ يېڭى ۋە legacy ئىككى تارمىقىغا ئايرىم partial index.
-create index if not exists books_recommended_true_active_idx
-  on public.books (created_at desc,id)
-  where is_active = true and is_recommended = true;
-
-create index if not exists books_featured_legacy_active_idx
-  on public.books (created_at desc,id)
-  where is_active = true and is_featured = true;
-
--- كۆپ سېتىلغان flag ۋە sales_count sort/filter.
-create index if not exists books_sales_count_active_idx
-  on public.books (sales_count desc,id)
+create index if not exists books_active_sales_count_idx
+  on public.books (sales_count desc, id)
   where is_active = true;
 
-create index if not exists books_bestseller_sales_active_idx
-  on public.books (sales_count desc,created_at desc,id)
-  where is_active = true and is_bestseller = true;
+-- تۆۋەندىكى indexes كونا migration دا بار بولسا IF NOT EXISTS سەۋەبىدىن قايتا قۇرۇلمايدۇ.
+create index if not exists books_active_created_idx
+  on public.books (is_active, created_at desc);
+
+create index if not exists books_active_category_created_idx
+  on public.books (is_active, category, created_at desc);
+
+create index if not exists books_recommended_idx
+  on public.books (is_recommended, created_at desc)
+  where is_active = true;
+
+create index if not exists books_bestseller_idx
+  on public.books (is_bestseller, sales_count desc)
+  where is_active = true;
 
 commit;

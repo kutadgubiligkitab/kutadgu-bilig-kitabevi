@@ -41,6 +41,7 @@ create table if not exists public.books (
   stock_status text not null default '',
   is_active boolean not null default true,
   is_new boolean not null default true,
+  is_featured boolean not null default false,
   is_recommended boolean not null default false,
   is_bestseller boolean not null default false,
   sales_count integer not null default 0 check (sales_count >= 0),
@@ -54,6 +55,7 @@ alter table public.books add column if not exists cover_type text not null defau
 alter table public.books add column if not exists dimensions text not null default '';
 alter table public.books add column if not exists stock_status text not null default 'in_stock';
 alter table public.books add column if not exists is_bestseller boolean not null default false;
+alter table public.books add column if not exists is_featured boolean not null default false;
 alter table public.books add column if not exists sales_count integer not null default 0;
 alter table public.books alter column stock drop not null;
 alter table public.books alter column stock drop default;
@@ -64,6 +66,9 @@ create index if not exists books_active_category_created_idx on public.books (is
 create index if not exists books_active_source_created_idx on public.books (is_active,source,created_at desc);
 create index if not exists books_recommended_idx on public.books (is_recommended,created_at desc) where is_active = true;
 create index if not exists books_bestseller_idx on public.books (is_bestseller,sales_count desc) where is_active = true;
+create index if not exists books_new_override_created_idx on public.books (is_new,created_at desc) where is_active = true;
+create index if not exists books_featured_created_idx on public.books (is_featured,created_at desc) where is_active = true;
+create index if not exists books_active_sales_count_idx on public.books (sales_count desc,id) where is_active = true;
 
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql set search_path = public
