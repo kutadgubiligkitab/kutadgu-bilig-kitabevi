@@ -9,7 +9,7 @@
 <body>
 <div class="admin-shell">
   <header class="admin-topbar">
-    <div class="admin-brand"><img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى" class="kutadgu-site-logo"><span class="kutadgu-brand-text">🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى</span></div>
+    <div class="admin-brand"><img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" class="kutadgu-site-logo"><span class="kutadgu-brand-text">🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى</span></div>
     <div class="admin-top-actions">
       <a href="index.html">🏠 تور بەت</a>
       <button id="adminLogout" type="button" hidden>چىقىش</button>
@@ -98,7 +98,7 @@
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
       <label><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" placeholder="نامەلۇم بولسا بوش قالدۇرۇڭ"></label>
       <label><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="">ھالىتى تېخى بېكىتىلمىگەن</option><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
-      <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><small class="admin-help">«كۆپ سېتىلغان» تىزىملىكى مۇشۇ سانغا قاراپ ئاپتوماتىك رەتلىنىدۇ.</small></label>
+      <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
@@ -118,9 +118,9 @@
       <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">رەسىم تاللانمىدى</span></div>
 
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
-      <label class="admin-check"><input id="bookIsNew" type="checkbox"><span>يېڭى كەلگەن</span></label>
+      <label class="admin-check"><input id="bookIsNew" type="checkbox" checked><span>يېڭى قوشۇلغان</span></label>
       <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
-      <p class="admin-wide admin-help">🔥 «كۆپ سېتىلغان كىتابلار» قولدا تاللانمايدۇ؛ سېتىلىش سانى ئەڭ كۆپ كىتابلار تور بەتتە ئۆزلۈكىدىن ئالدىغا چىقىدۇ.</p>
+      <label class="admin-check"><input id="bookIsBestseller" type="checkbox"><span>كۆپ سېتىلغان</span></label>
 
       <div class="admin-wide admin-toolbar-group">
         <button class="admin-primary" type="submit">💾 ساقلاش</button>
@@ -134,6 +134,6 @@
 <script src="app-config.js?v=1"></script>
 <script src="catalog.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="admin.js?v=8"></script>
+<script src="admin.js?v=7"></script>
 </body>
 </html>

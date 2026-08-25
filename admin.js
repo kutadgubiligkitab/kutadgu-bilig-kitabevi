@@ -97,7 +97,7 @@ function renderBooks(){
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
         <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${b.stock===null||b.stock===undefined?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":b.stock_status==="in_stock"?"ئامباردا بار":"ھالىتى بېكىتىلمىگەن"}</div>
-        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${Number(b.sales_count)>0?` · 🔥 سېتىلىش: ${Number(b.sales_count)}`:""}</div>
+        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${b.is_bestseller?" · 🔥 كۆپ سېتىلغان":""}</div>
       </div>
       <div class="admin-book-actions">
         <a href="${esc(b.href||`book.html?id=${encodeURIComponent(b.id)}`)}" target="_blank">👁️ كۆرۈش</a>
@@ -189,8 +189,9 @@ function clearForm(){
   $("#bookForm").reset();
   $("#bookId").value=idForNew();
   $("#bookIsActive").checked=true;
-  $("#bookIsNew").checked=false;
+  $("#bookIsNew").checked=true;
   $("#bookIsRecommended").checked=false;
+  $("#bookIsBestseller").checked=false;
   $("#bookStock").value="";
   $("#bookStockStatus").value="";
   $("#bookSalesCount").value=0;
@@ -225,8 +226,9 @@ function openEdit(id){
   $("#bookDimensions").value=b.dimensions||"";
   $("#bookDescription").value=b.description||"";
   $("#bookIsActive").checked=b.is_active!==false;
-  $("#bookIsNew").checked=b.is_new===true;
+  $("#bookIsNew").checked=b.is_new!==false;
   $("#bookIsRecommended").checked=b.is_recommended===true;
+  $("#bookIsBestseller").checked=b.is_bestseller===true;
   $("#bookCoverPreview").src=b.image_url||"";
   $("#bookCoverPreview").style.visibility=b.image_url?"visible":"hidden";
   $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا":"مۇقاۋا يوق";
@@ -276,8 +278,7 @@ async function saveBook(e){
       is_active:$("#bookIsActive").checked,
       is_new:$("#bookIsNew").checked,
       is_recommended:$("#bookIsRecommended").checked,
-      // Legacy field is preserved, but bestseller display is derived from sales_count.
-      is_bestseller:editing?.is_bestseller===true
+      is_bestseller:$("#bookIsBestseller").checked
     };
     const {error}=await db.from("books").upsert(row,{onConflict:"id"});
     if(error)throw error;
