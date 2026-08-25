@@ -704,8 +704,8 @@ async function renderHomeFeaturedBooks(){
   </section>`;
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
-    // Only the latest eight rows are requested; remoteOrder("new") maps to created_at DESC.
-    const result=await queryCatalog({offset:0,pageSize:8,sort:"new"});
+    // Only the latest twelve rows are requested; remoteOrder("new") maps to created_at DESC.
+    const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
     const grid=host.querySelector(".home-featured-grid");
     if(grid)grid.innerHTML=result.items.length?result.items.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
     bindDynamicActions(host);
