@@ -1519,3 +1519,80 @@
     padding-bottom: calc(var(--mobile-bottom-height, 62px) + 14px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
+
+/* =========================================================
+   TEMP MOBILE DIAGNOSTIC SAFE MODE — 2026-08-26
+   Purpose: prove/disprove invisible full-screen interaction blockers.
+   Remove after diagnosis.
+   ========================================================= */
+@media (max-width: 900px) {
+  html, body {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    height: auto !important;
+    min-height: 100% !important;
+    pointer-events: auto !important;
+    touch-action: pan-y !important;
+  }
+
+  body.mobile-menu-open {
+    overflow: auto !important;
+    position: static !important;
+  }
+
+  /* Disable every known full-screen backdrop/overlay during diagnosis. */
+  .mobile-menu-backdrop,
+  .cover-zoom-overlay,
+  .modal-backdrop,
+  .auth-backdrop,
+  .dialog-backdrop,
+  [data-backdrop],
+  [class*="fullscreen-overlay"],
+  [class*="full-screen-overlay"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* Keep normal page content interactive. */
+  main,
+  main *,
+  .search-section,
+  .search-section *,
+  .home-search-section,
+  .home-search-section *,
+  .categories,
+  .categories *,
+  .book-card,
+  .book-card *,
+  .home-featured-section,
+  .home-featured-section *,
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    pointer-events: auto;
+  }
+
+  /* Diagnostic badge must never block touches. */
+  #mobileDiagBadge {
+    position: fixed !important;
+    left: 6px !important;
+    right: 6px !important;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 2147483647 !important;
+    padding: 5px 8px !important;
+    border-radius: 8px !important;
+    background: rgba(20,20,20,.82) !important;
+    color: #fff !important;
+    font: 11px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif !important;
+    direction: ltr !important;
+    text-align: left !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
