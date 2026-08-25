@@ -1348,172 +1348,174 @@
 }
 
 /* =========================================================
-   iOS / MOBILE RESCUE LAYER — 2026-08-26
-   Loaded last. Mobile only. Prevents old desktop/min-height rules and
-   stale fixed overlays from reserving giant blank areas on iPhone.
+   MOBILE LAYOUT CLEANUP — FINAL CASCADE
+   Purpose: one final mobile source for container geometry.
+   Does not change desktop or business logic.
    ========================================================= */
 @media (max-width: 768px) {
   html {
-    width: 100% !important;
+    height: auto !important;
     min-height: 100% !important;
-    overflow-x: hidden !important;
-    -webkit-text-size-adjust: 100%;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   body {
-    width: 100% !important;
-    min-height: 100% !important;
+    position: relative !important;
     height: auto !important;
-    overflow-x: hidden !important;
-  }
-
-  body:not(.mobile-menu-open) {
+    min-height: 100% !important;
+    max-height: none !important;
     overflow-y: auto !important;
-    position: static !important;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* A closed menu backdrop must not exist in the hit-test/layout layer. */
+  /* A closed drawer must not create a touch layer or layout box. */
   .mobile-menu-backdrop:not(.is-open) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
     pointer-events: none !important;
   }
-
   .mobile-menu-backdrop.is-open {
     display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
     pointer-events: auto !important;
   }
 
-  /* Core homepage sections must size from their real content on iOS. */
+  /* Reset only section/container geometry. Card dimensions remain intact. */
+  main,
+  .main,
+  .page,
+  .page-wrap,
+  .page-content,
+  .section,
+  section,
+  .hero,
   .home-bookstore-hero,
   section.home-bookstore-hero,
   .home-hero-inner,
   .home-hero-copy,
-  .bookstore-scene,
   .home-search-card-section,
   .home-search-card,
-  section.home-trust-strip,
-  #newBooksCarousel,
-  #newBooksCarousel .home-carousel-inner,
-  #newBooksCarousel .home-carousel-viewport,
+  .home-main-section,
   .section.home-main-section,
-  #homeFeaturedBooks,
-  #homeShopSections,
-  .home-category-heading,
-  .home-main-section .cards,
-  .about,
-  .contact,
-  footer {
+  .home-book-carousel,
+  #newBooksCarousel,
+  .home-carousel-inner,
+  .home-featured-section,
+  .books-section,
+  .shop-section,
+  .shop-page,
+  .shop-main,
+  .shop-selected-content,
+  .catalog-results,
+  .catalog-results-wrap,
+  .category-page,
+  .category-content,
+  .mybooks-page,
+  .favorites-page {
     height: auto !important;
     max-height: none !important;
   }
 
   .home-bookstore-hero,
   section.home-bookstore-hero,
-  .home-hero-inner,
-  .home-hero-copy,
-  .bookstore-scene,
   .home-search-card-section,
   .home-search-card,
+  .home-main-section,
   .section.home-main-section,
-  #homeFeaturedBooks,
-  #homeShopSections,
-  .home-category-heading,
-  .home-main-section .cards {
+  .home-book-carousel,
+  #newBooksCarousel,
+  .home-featured-section,
+  .books-section,
+  .shop-section,
+  .shop-main,
+  .shop-selected-content,
+  .catalog-results,
+  .category-page,
+  .category-content {
     min-height: 0 !important;
-    visibility: visible !important;
-    opacity: 1 !important;
   }
 
+  /* Grids must grow naturally with rows; never reserve viewport-sized blanks. */
+  .books-grid,
+  .shop-grid,
+  .cards,
+  .home-main-section .cards,
+  .home-featured-grid,
+  .catalog-grid,
+  .category-grid,
+  .shop-selected-content .shop-grid {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    align-content: start !important;
+  }
+
+  /* Home hero keeps its compact visual scene but no inherited desktop height. */
   .home-bookstore-hero,
   section.home-bookstore-hero {
+    display: block !important;
     padding-top: 14px !important;
     padding-bottom: 14px !important;
   }
-
   .home-hero-inner {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     align-items: start !important;
-    gap: 10px !important;
+    align-content: start !important;
   }
-
-  .home-hero-copy {
-    display: flex !important;
-    flex-direction: column !important;
-  }
-
   .bookstore-scene {
-    display: flex !important;
-    min-height: 120px !important;
+    height: auto !important;
+    min-height: 125px !important;
+    max-height: 150px !important;
   }
 
-  .home-search-card-section {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+  /* Search and category sections must follow the previous section immediately. */
+  .home-search-card-section,
+  .section.home-main-section,
+  #books {
+    margin-top: 12px !important;
+    margin-bottom: 12px !important;
   }
 
-  .section.home-main-section {
-    padding-top: 18px !important;
-    padding-bottom: 28px !important;
+  /* Carousel viewport may clip horizontally, but must never reserve vertical space. */
+  .home-carousel-viewport,
+  #homeCarouselViewport {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
   }
 
-  .home-main-section .cards {
+  /* iOS Safari: don't let hidden/collapsed filter panels keep a large box. */
+  .advanced-search-panel.mobile-collapsible:not(.is-open),
+  .catalog-filter-bar.mobile-collapsible:not(.is-open) {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  .advanced-search-panel.mobile-collapsible.is-open,
+  .catalog-filter-bar.mobile-collapsible.is-open {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    align-items: stretch !important;
-    align-content: start !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
   }
 
-  .home-main-section .card {
+  /* Avoid legacy inline desktop sizing winning on category/list pages. */
+  .hero:not(.home-bookstore-hero) {
     height: auto !important;
-    min-height: 148px !important;
-    max-height: none !important;
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  /* Product/listing grids: no desktop 430/500px container rule may leak into phone. */
-  .books-section,
-  .shop-section,
-  .books-grid,
-  .shop-grid,
-  .home-featured-section,
-  .home-featured-grid,
-  .shop-selected-content {
-    height: auto !important;
-    max-height: none !important;
     min-height: 0 !important;
   }
 
-  .books-grid,
-  .shop-grid,
-  .home-featured-grid {
-    align-content: start !important;
-  }
-
-  .book-card,
-  .shop-mini-card,
-  .home-feature-card {
-    height: auto !important;
-    max-height: none !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  .book-image,
-  .book-cover {
-    height: auto !important;
-    min-height: 0 !important;
-    aspect-ratio: 3 / 4 !important;
-  }
-
-  /* Fixed bottom nav is allowed; make enough normal-flow room for it only. */
+  /* Fixed bottom nav remains fixed; page content receives space only once. */
   body.has-mobile-bottom-nav {
-    padding-bottom: calc(var(--mobile-bottom-height, 66px) + env(safe-area-inset-bottom, 0px) + 12px) !important;
+    padding-bottom: calc(var(--mobile-bottom-height, 62px) + 14px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }

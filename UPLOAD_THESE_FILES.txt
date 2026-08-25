@@ -1,11 +1,9 @@
-Upload/replace these files in the GitHub repository root:
-- index.html
-- shop.js
-- mobile.js
-- mobile.css
-- UKIJCJK.woff2
-- kutadgu-logo.webp
-- hero-brand-logo.webp
+MOBILE CSS CLEANUP — upload instructions
 
-No Supabase SQL change is required.
-After deploy, verify index.html references mobile.css?v=7, shop.js?v=44, mobile.js?v=6.
+1) Replace mobile.css in the GitHub project root.
+2) Replace the included HTML files in the project root. Their only intended HTML change is the mobile.css cache version -> v=8.
+3) Do NOT run any Supabase SQL for this fix.
+4) Vercel should redeploy after commit/push.
+5) Test on iPhone Safari/WhatsApp in-app browser after deploy.
+
+This package does not change database, cart, favorites, WhatsApp order logic, search logic, catalog query logic, or desktop CSS.
