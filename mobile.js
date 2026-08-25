@@ -223,7 +223,14 @@
     }
     const dots = [...document.querySelectorAll(".home-carousel-dot")];
     if (dots.length <= 7) {
-      dots.forEach(dot => dot.classList.remove("mobile-dot-hidden"));
+      // Important: do not mutate the class attribute when there is nothing to remove.
+      // The dots container is watched by a MutationObserver; unconditional classList.remove()
+      // can trigger a self-sustaining observer loop on mobile browsers and freeze the UI.
+      dots.forEach(dot => {
+        if (dot.classList.contains("mobile-dot-hidden")) {
+          dot.classList.remove("mobile-dot-hidden");
+        }
+      });
       return;
     }
     const active = Math.max(0, dots.findIndex(dot => dot.classList.contains("is-active")));
