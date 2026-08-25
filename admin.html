@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>باشقۇرۇش - قۇتادغۇبىلىك كىتابخانىسى</title>
-  <link rel="stylesheet" href="admin.css?v=4">
+  <link rel="stylesheet" href="admin.css?v=5">
 </head>
 <body>
 <div class="admin-shell">
@@ -96,8 +96,8 @@
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
 
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
-      <label><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
-      <label><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+      <label><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" placeholder="نامەلۇم بولسا بوش قالدۇرۇڭ"></label>
+      <label><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="">ھالىتى تېخى بېكىتىلمىگەن</option><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
@@ -132,8 +132,8 @@
 
 <script src="supabase-config.js?v=2"></script>
 <script src="app-config.js?v=1"></script>
-<script src="catalog.js"></script>
+<script src="catalog.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="admin.js?v=6"></script>
+<script src="admin.js?v=7"></script>
 </body>
 </html>

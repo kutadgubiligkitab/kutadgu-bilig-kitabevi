@@ -4,7 +4,7 @@
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
-let db=null,user=null,books=[],editing=null,members=[],orders=[];
+let db=null,user=null,books=[],editing=null,members=[],orders=[],adminVisible=100;
 
 function configured(){
   return !!(String(cfg.url||"").trim() && String(cfg.anonKey||cfg.publishableKey||"").trim());
@@ -67,9 +67,14 @@ async function routeSession(){
 }
 async function loadBooks(){
   status($("#adminStatus"),"كىتابلار يۈكلىنىۋاتىدۇ...");
-  const {data,error}=await db.from("books").select("*").order("created_at",{ascending:false});
-  if(error){status($("#adminStatus"),"Database دىن كىتاب ئوقۇش مەغلۇپ بولدى: "+error.message,"error");return}
-  books=data||[];
+  const all=[],batchSize=1000;
+  for(let from=0;from<100000;from+=batchSize){
+    const {data,error}=await db.from("books").select("*").order("created_at",{ascending:false}).order("id",{ascending:true}).range(from,from+batchSize-1);
+    if(error){status($("#adminStatus"),"Database دىن كىتاب ئوقۇش مەغلۇپ بولدى: "+error.message,"error");return}
+    all.push(...(data||[]));
+    if((data||[]).length<batchSize)break;
+  }
+  books=all;adminVisible=100;
   status($("#adminStatus"),`Admin كىرىش مۇۋەپپەقىيەتلىك — ${user?.email||""}`,"ok");
   renderStats();
   renderBooks();
@@ -85,12 +90,13 @@ function renderBooks(){
   const q=String($("#adminSearch")?.value||"").trim().toLocaleLowerCase("ug");
   const filtered=books.filter(b=>!q||`${b.title||""} ${b.author||""} ${b.category||""}`.toLocaleLowerCase("ug").includes(q));
   if(!filtered.length){host.innerHTML='<div class="admin-empty">كىتاب تېپىلمىدى.</div>';return}
-  host.innerHTML=filtered.map(b=>`
+  const shown=filtered.slice(0,adminVisible);
+  host.innerHTML=shown.map(b=>`
     <article class="admin-book-row ${b.is_active===false?"admin-hidden-book":""}">
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
-        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${Number(b.stock)||0} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}</div>
+        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${b.stock===null||b.stock===undefined?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":b.stock_status==="in_stock"?"ئامباردا بار":"ھالىتى بېكىتىلمىگەن"}</div>
         <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${b.is_bestseller?" · 🔥 كۆپ سېتىلغان":""}</div>
       </div>
       <div class="admin-book-actions">
@@ -98,10 +104,11 @@ function renderBooks(){
         <button type="button" data-edit="${esc(b.id)}">✏️ تەھرىرلەش</button>
         <button type="button" data-hide="${esc(b.id)}">${b.is_active===false?"♻️ قايتا كۆرسىتىش":"🙈 يوشۇرۇش"}</button>
       </div>
-    </article>`).join("");
+    </article>`).join("")+`${shown.length<filtered.length?`<button type="button" class="admin-load-more" id="adminLoadMore">يەنە ${Math.min(100,filtered.length-shown.length)} كىتابنى كۆرسىتىش</button>`:""}`;
 
   host.querySelectorAll("[data-edit]").forEach(btn=>btn.onclick=()=>openEdit(btn.dataset.edit));
   host.querySelectorAll("[data-hide]").forEach(btn=>btn.onclick=()=>toggleActive(btn.dataset.hide));
+  host.querySelector("#adminLoadMore")?.addEventListener("click",()=>{adminVisible+=100;renderBooks()});
 }
 function dateText(value){
   if(!value)return "—";
@@ -185,8 +192,8 @@ function clearForm(){
   $("#bookIsNew").checked=true;
   $("#bookIsRecommended").checked=false;
   $("#bookIsBestseller").checked=false;
-  $("#bookStock").value=0;
-  $("#bookStockStatus").value="in_stock";
+  $("#bookStock").value="";
+  $("#bookStockStatus").value="";
   $("#bookSalesCount").value=0;
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
@@ -205,8 +212,8 @@ function openEdit(id){
   $("#bookTitle").value=b.title||"";
   $("#bookAuthor").value=b.author||"";
   $("#bookPrice").value=b.price??"";
-  $("#bookStock").value=b.stock??0;
-  $("#bookStockStatus").value=b.stock_status||"in_stock";
+  $("#bookStock").value=b.stock??"";
+  $("#bookStockStatus").value=b.stock_status||"";
   $("#bookSalesCount").value=b.sales_count??0;
   $("#bookSource").value=b.source||"";
   $("#bookPages").value=b.pages??"";
@@ -265,7 +272,7 @@ async function saveBook(e){
       cover_type:$("#bookCoverType").value.trim(),
       dimensions:$("#bookDimensions").value.trim(),
       description:$("#bookDescription").value.trim(),
-      stock:Number($("#bookStock").value)||0,
+      stock:$("#bookStock").value===""?null:Number($("#bookStock").value),
       stock_status:$("#bookStockStatus").value,
       sales_count:Number($("#bookSalesCount").value)||0,
       is_active:$("#bookIsActive").checked,
@@ -293,7 +300,7 @@ async function toggleActive(id){
 }
 async function importStatic(){
   if(!STATIC.length)return;
-  if(!confirm(`ھازىرقى ${STATIC.length} دانە كىتابنى Database قا كىرگۈزەمسىز؟\nبار بولغان ID لار يېڭىلىنىدۇ.`))return;
+  if(!confirm(`ھازىرقى ${STATIC.length} دانە كىتابنى Database قا كىرگۈزەمسىز؟\nبار بولغان ID لار ساقلىنىدۇ، پەقەت كەم قالغانلىرى قوشۇلىدۇ.`))return;
   const btn=$("#importStaticBtn");
   btn.disabled=true;btn.textContent="كىرگۈزۈلۈۋاتىدۇ...";
   try{
@@ -306,16 +313,19 @@ async function importStatic(){
       source:b.source||"universal.html",
       image_url:b.image||"",
       href:b.href||`book.html?id=${encodeURIComponent(b.id)}`,
-      is_active:true,
-      is_new:false,
-      is_recommended:false,
-      is_bestseller:false,
-      sales_count:0,
-      stock:0,
-      stock_status:"in_stock"
+      description:b.description||"",
+      stock:b.stock??null,
+      stock_status:b.stockStatus||"",
+      is_active:b.isActive!==false,
+      is_new:b.isNew===true,
+      is_recommended:b.isRecommended===true||b.isFeatured===true,
+      is_bestseller:b.isBestSeller===true,
+      sales_count:Number(b.salesCount)||0
     }));
-    const {error}=await db.from("books").upsert(rows,{onConflict:"id"});
-    if(error)throw error;
+    for(let start=0;start<rows.length;start+=200){
+      const {error}=await db.from("books").upsert(rows.slice(start,start+200),{onConflict:"id",ignoreDuplicates:true});
+      if(error)throw error;
+    }
     await loadBooks();
     alert("ھازىرقى كىتابلار Database قا مۇۋەپپەقىيەتلىك كىرگۈزۈلدى ✅");
   }catch(err){
@@ -375,7 +385,7 @@ function init(){
   $("#cancelBookEdit").onclick=()=>modal(false);
   $("#bookForm").addEventListener("submit",saveBook);
   $("#importStaticBtn").onclick=importStatic;
-  $("#adminSearch").addEventListener("input",renderBooks);
+  $("#adminSearch").addEventListener("input",()=>{adminVisible=100;renderBooks()});
   $("#memberSearch").addEventListener("input",renderMembers);
   $("#reloadMembers").onclick=loadMembers;
   $("#bookCover").addEventListener("change",()=>{

@@ -1,16 +1,46 @@
 (function(){
 "use strict";
-const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map(book=>({
-  ...book,
-  subcategory:book.subcategory||"",
-  description:book.description||"",
-  stockStatus:book.stockStatus||"",
-  isNew:book.isNew===true,
-  isFeatured:book.isFeatured===true,
-  isRecommended:book.isRecommended===true,
-  isBestSeller:book.isBestSeller===true
-}));
+function normalizeCatalogBook(book,index=0,isRemote=false){
+  const price=(book.price===null||book.price===undefined||book.price==="")?null:Number(book.price);
+  const value=(camel,snake,defaultValue="")=>book[camel]??book[snake]??defaultValue;
+  const flag=(camel,snake,defaultValue=false)=>value(camel,snake,defaultValue)===true;
+  return {
+    id:String(book.id||"").trim(),
+    title:book.title||"",
+    author:book.author||"—",
+    price:Number.isFinite(price)?price:null,
+    priceText:Number.isFinite(price)?money(price):"باھا تېخى بېكىتىلمىگەن",
+    category:book.category||"",
+    subcategory:book.subcategory||"",
+    source:book.source||"universal.html",
+    image:value("image","image_url","")||"",
+    href:book.href||`book.html?id=${encodeURIComponent(book.id||"")}`,
+    pages:book.pages??null,
+    translator:book.translator||"",
+    language:book.language||"",
+    publishDate:value("publishDate","publish_date","")||"",
+    publishYear:value("publishYear","publish_year","")||"",
+    publisher:book.publisher||"",
+    coverType:value("coverType","cover_type","")||"",
+    dimensions:value("dimensions","book_size",value("dimensions","dimensions",""))||"",
+    description:book.description||"",
+    stock:book.stock??null,
+    stockStatus:value("stockStatus","stock_status","")||"",
+    isNew:flag("isNew","is_new",false),
+    isFeatured:flag("isFeatured","is_featured",false),
+    isRecommended:flag("isRecommended","is_recommended",false)||flag("isFeatured","is_featured",false),
+    isBestSeller:flag("isBestSeller","is_bestseller",false),
+    salesCount:Number(value("salesCount","sales_count",book.sold_count??0))||0,
+    isActive:value("isActive","is_active",true)!==false,
+    createdAt:value("createdAt","created_at","")||"",
+    updatedAt:value("updatedAt","updated_at","")||"",
+    isRemote,
+    catalogOrder:index
+  };
+}
+const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map((book,index)=>normalizeCatalogBook(book,index,false)).filter(book=>book.id);
 let C=[...STATIC_CATALOG];
+let catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:""};
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const FALLBACK_COVER="sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
@@ -40,67 +70,36 @@ function supabasePublicConfig(){
   };
 }
 
-function normalizeRemoteBook(r){
-  const price=(r.price===null||r.price===undefined||r.price==="")?null:Number(r.price);
-  return {
-    id:String(r.id||"").trim(),
-    title:r.title||"",
-    author:r.author||"—",
-    price:Number.isFinite(price)?price:null,
-    priceText:Number.isFinite(price)?money(price):"باھا تېخى بېكىتىلمىگەن",
-    category:r.category||"",
-    subcategory:r.subcategory||"",
-    source:r.source||"universal.html",
-    image:r.image_url||r.image||"",
-    href:r.href||`book.html?id=${encodeURIComponent(r.id||"")}`,
-    pages:r.pages??null,
-    translator:r.translator||"",
-    language:r.language||"",
-    publishDate:r.publish_date||"",
-    publishYear:r.publish_year||"",
-    publisher:r.publisher||"",
-    coverType:r.cover_type||"",
-    dimensions:r.dimensions||r.book_size||"",
-    description:r.description||"",
-    stock:r.stock??null,
-    stockStatus:r.stock_status||"",
-    isNew:r.is_new!==false,
-    isFeatured:r.is_featured===true,
-    isRecommended:r.is_recommended===true,
-    isBestSeller:r.is_bestseller===true,
-    salesCount:Number(r.sales_count??r.sold_count??0)||0,
-    isActive:r.is_active!==false,
-    createdAt:r.created_at||"",
-    updatedAt:r.updated_at||"",
-    isRemote:true
-  };
-}
+function normalizeRemoteBook(row,index=0){return normalizeCatalogBook(row,index,true)}
 
 async function loadRemoteCatalog(){
   const cfg=supabasePublicConfig();
-  if(!cfg.url||!cfg.key)return;
+  if(!cfg.url||!cfg.key){window.KUTADGU_CATALOG_STATUS=catalogStatus;return}
   try{
-    const response=await fetch(`${cfg.url}/rest/v1/books?select=*&order=created_at.desc`,{
-      headers:{
-        "apikey":cfg.key,
-        "Authorization":`Bearer ${cfg.key}`
-      }
-    });
-    if(!response.ok)throw new Error(`HTTP ${response.status}`);
-    const rows=await response.json();
-    if(!Array.isArray(rows))return;
-
+    const batchSize=1000,rows=[];
+    for(let offset=0;offset<100000;offset+=batchSize){
+      const response=await fetch(`${cfg.url}/rest/v1/books?select=*&order=created_at.desc,id.asc&limit=${batchSize}&offset=${offset}`,{
+        headers:{"apikey":cfg.key,"Authorization":`Bearer ${cfg.key}`}
+      });
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const batch=await response.json();
+      if(!Array.isArray(batch))throw new Error("Invalid catalog response");
+      rows.push(...batch);
+      if(batch.length<batchSize)break;
+    }
     const remote=rows.map(normalizeRemoteBook).filter(b=>b.id);
     const remoteIds=new Set(remote.map(b=>b.id));
-    const merged=[
-      ...remote,
-      ...STATIC_CATALOG.filter(b=>!remoteIds.has(b.id)).map(b=>({...b,isActive:true}))
-    ];
-    C=merged.filter(b=>b.isActive!==false);
+    const migrated=STATIC_CATALOG.length>0&&STATIC_CATALOG.every(book=>remoteIds.has(book.id));
+    const merged=migrated?remote:[...remote,...STATIC_CATALOG.filter(book=>!remoteIds.has(book.id))];
+    C=merged.filter(book=>book.isActive!==false);
+    catalogStatus={source:migrated?"supabase":"hybrid",remoteCount:remote.length,total:C.length,migrated,error:""};
     window.KUTADGU_LIVE_CATALOG=C;
+    window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }catch(err){
     console.warn("Remote catalog load failed; static catalog is being used.",err);
     C=[...STATIC_CATALOG];
+    catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:String(err?.message||err)};
+    window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }
 }
 
@@ -118,7 +117,7 @@ function stockInfo(book){
 function stockBadge(book){const s=stockInfo(book);return s.label?`<span class="stock-badge stock-${s.key}">${s.label}</span>`:""}
 function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"){
   const s=stockInfo(book),disabled=s.canBuy?"":" disabled aria-disabled=\"true\"";
-  return `<button type="button" class="${className}" data-cart-id="${book.id}"${disabled}>${s.canBuy?label:"تۈگەپ كەتتى"}</button>`;
+  return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}"${disabled}>${s.canBuy?escapeHtml(label):"تۈگەپ كەتتى"}</button>`;
 }
 function cart(){
   const items=get(CART_KEY,[]);
@@ -472,7 +471,7 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  return `<img src="${coverSrc(b)}" alt="${b.title}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
+  return `<img src="${coverSrc(b)}" alt="${b.title}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
 }
 
 function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
@@ -528,8 +527,7 @@ function renderHomeFeaturedBooks(){
   if(!host)return;
   if(!featureEnabled("newArrivals")){host.hidden=true;return}
 
-  const marked=C.filter(b=>b.isNew===true);
-  const books=(marked.length?marked:C).slice(0,6);
+  const books=sortBooks(C,"new").slice(0,6);
 
   function card(b){
     return `<article class="home-feature-card">
@@ -537,7 +535,7 @@ function renderHomeFeaturedBooks(){
       <a href="${b.href}">
         <div class="home-feature-cover">
           <div class="home-feature-cover-frame">
-            <img src="${coverSrc(b)}" alt="${b.title} كىتاب مۇقاۋىسى" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+            <img src="${coverSrc(b)}" alt="${b.title} كىتاب مۇقاۋىسى" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
           </div>
         </div>
         <div class="home-feature-info">
@@ -570,7 +568,7 @@ function renderHomeSections(){
   let host=document.querySelector("#homeShopSections");if(!host)return;
   let rec=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
   let fav=favs().map(find).filter(Boolean).slice(0,6);
-  let newest=C.slice(0,8);
+  let newest=sortBooks(C,"new").slice(0,8);
   let recommended=recommendedBooks(8);
   let data={};
   if(featureEnabled("newArrivals"))data.newest=["🆕 يېڭى قوشۇلغان كىتابلار",newest];
@@ -589,6 +587,10 @@ function renderHomeSections(){
 function normalizeText(v){
   return String(v||"").toLocaleLowerCase("ug").replace(/\s+/g," ").trim();
 }
+function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
+function escapeAttr(v){return escapeHtml(v)}
+function bookTime(book){const value=Date.parse(book?.createdAt||"");return Number.isFinite(value)?value:Number.NEGATIVE_INFINITY}
+function pageSize(){return window.innerWidth<=700?12:24}
 function uniqueCategories(){
   let seen=new Set(),out=[];
   C.forEach(b=>{let v=(b.category||"").trim();if(v&&!seen.has(v)){seen.add(v);out.push(v)}});
@@ -602,13 +604,14 @@ function pricePass(b,min,max){
 }
 function sortBooks(items,mode){
   let arr=[...items];
-  if(mode==="priceLow")arr.sort((a,b)=>(Number(a.price)||999999999)-(Number(b.price)||999999999));
-  else if(mode==="priceHigh")arr.sort((a,b)=>(Number(b.price)||0)-(Number(a.price)||0));
+  const priceOf=(book,fallback)=>book.price===null||book.price===undefined||book.price===""?fallback:Number(book.price);
+  if(mode==="priceLow")arr.sort((a,b)=>priceOf(a,Number.POSITIVE_INFINITY)-priceOf(b,Number.POSITIVE_INFINITY));
+  else if(mode==="priceHigh")arr.sort((a,b)=>priceOf(b,Number.NEGATIVE_INFINITY)-priceOf(a,Number.NEGATIVE_INFINITY));
   else if(mode==="title")arr.sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"ug"));
   else if(mode==="author")arr.sort((a,b)=>String(a.author||"").localeCompare(String(b.author||""),"ug"));
-  else if(mode==="bestseller")arr.sort((a,b)=>(Number(b.salesCount)||0)-(Number(a.salesCount)||0));
-  else if(mode==="recommended")arr.sort((a,b)=>Number(b.isRecommended===true)-Number(a.isRecommended===true));
-  else arr.sort((a,b)=>C.indexOf(a)-C.indexOf(b));
+  else if(mode==="bestseller")arr.sort((a,b)=>(Number(b.salesCount)||0)-(Number(a.salesCount)||0)||bookTime(b)-bookTime(a)||a.catalogOrder-b.catalogOrder);
+  else if(mode==="recommended")arr.sort((a,b)=>Number(b.isRecommended===true)-Number(a.isRecommended===true)||bookTime(b)-bookTime(a)||a.catalogOrder-b.catalogOrder);
+  else arr.sort((a,b)=>bookTime(b)-bookTime(a)||a.catalogOrder-b.catalogOrder);
   return arr;
 }
 function collectionPass(book,mode){
@@ -625,23 +628,42 @@ function bindDynamicActions(scope){
   scope.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});
   renderFavButtons();
 }
-function searchResultCard(b){
-  return `<article class="advanced-search-result">
-    <a class="advanced-search-cover" href="${b.href}"><img src="${coverSrc(b)}" alt="${b.title}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
+function bookCardMarkup(b,variant="listing"){
+  const id=escapeAttr(b.id),href=escapeAttr(b.href),title=escapeHtml(b.title),author=escapeHtml(b.author||"—"),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
+  if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
+    <a class="advanced-search-cover" href="${href}"><img src="${cover}" alt="${escapeAttr(b.title)}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
     <div class="advanced-search-info">
-      <a class="advanced-search-title" href="${b.href}">${b.title}</a>
-      <div class="advanced-search-meta">ئاپتورى: ${b.author||"—"}</div>
-      <div class="advanced-search-meta">${b.category||""}</div>
+      <a class="advanced-search-title" href="${href}">${title}</a>
+      <div class="advanced-search-meta">ئاپتورى: ${author}</div>
+      <div class="advanced-search-meta">${category}</div>
       <div class="advanced-search-price">${money(b.price)}</div>
       <div class="advanced-search-actions">
-        <a class="detail-button" href="${b.href}">تەپسىلات</a>
+        <a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
-        <button type="button" class="favorite-button" data-fav-id="${b.id}">♡ ياقتۇرۇش</button>
-        <button type="button" class="share-button" data-share-id="${b.id}">🔗</button>
+        <button type="button" class="favorite-button" data-fav-id="${id}">♡ ياقتۇرۇش</button>
+        <button type="button" class="share-button" data-share-id="${id}">🔗</button>
+      </div>
+    </div>
+  </article>`;
+  return `<article class="book-card" data-live-book-id="${id}">
+    <a class="book-image" href="${href}">
+      <img alt="${escapeAttr(b.title)} كىتاب مۇقاۋىسى" src="${cover}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+    </a>
+    <div class="book-info">
+      <h2 class="book-title">${title}</h2>
+      <p class="book-author">ئاپتورى: ${author}</p>
+      ${stockBadge(b)}
+      <div class="book-price">${money(b.price)}</div>
+      <div class="book-actions">
+        <a class="detail-button" href="${href}">تەپسىلات</a>
+        ${cartButton(b)}
+        <button type="button" class="favorite-button" data-fav-id="${id}">♡ ياقتۇرۇش</button>
+        <button type="button" class="share-button" data-share-id="${id}">🔗 ھەمبەھىرلەش</button>
       </div>
     </div>
   </article>`;
 }
+function searchResultCard(b){return bookCardMarkup(b,"search")}
 function searchEnhance(){
   let input=document.querySelector("#searchInput"),res=document.querySelector("#searchResults");if(!input||!res)return;
   let btn=document.querySelector("#searchButton");
@@ -684,14 +706,15 @@ function searchEnhance(){
     panelAnchor.insertAdjacentElement("afterend",panel);
   }
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
+  const fallbackNotice=()=>catalogStatus.error?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
   function hasFilter(){return !!(input.value.trim()||category?.value||collection?.value||minEl?.value||maxEl?.value)}
-  let visibleLimit=24;
+  let visibleLimit=pageSize();
   function run(resetLimit=true){
-    if(resetLimit!==false)visibleLimit=24;
+    if(resetLimit!==false)visibleLimit=pageSize();
     let q=normalizeText(input.value),cat=category?.value||"";
     let min=minEl?.value!==""?Number(minEl.value):NaN,max=maxEl?.value!==""?Number(maxEl.value):NaN;
     if(!hasFilter()){
-      res.innerHTML='<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+      res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
       return;
     }
     let matches=C.filter(b=>{
@@ -700,11 +723,11 @@ function searchEnhance(){
     });
     matches=sortBooks(matches,sortEl?.value||"new");
     const shown=matches.slice(0,visibleLimit);
-    res.innerHTML=`<div class="advanced-search-summary"><strong>${matches.length}</strong> دانە كىتاب تېپىلدى</div>`+
-      (matches.length?`<div class="advanced-search-results-grid">${shown.map(searchResultCard).join("")}</div>${shown.length<matches.length?`<button type="button" class="search-load-more" id="searchLoadMore">يەنە ${Math.min(24,matches.length-shown.length)} دانە كۆرۈش</button>`:""}`:'<div class="search-empty">بۇ شەرتكە ماس كىتاب تېپىلمىدى.</div>');
+    res.innerHTML=fallbackNotice()+`<div class="advanced-search-summary"><strong>${matches.length}</strong> دانە كىتاب تېپىلدى</div>`+
+      (matches.length?`<div class="advanced-search-results-grid">${shown.map(searchResultCard).join("")}</div>${shown.length<matches.length?`<button type="button" class="search-load-more" id="searchLoadMore">يەنە ${Math.min(pageSize(),matches.length-shown.length)} دانە كۆرۈش</button>`:""}`:'<div class="search-empty"><strong>نەتىجە تېپىلمىدى.</strong><br>سۈزگۈچنى تازىلاڭ ياكى باشقا كىتاب/ئاپتور نامىنى سىناڭ.</div>');
     bindDynamicActions(res);
     trackEvent("search",{query:input.value.trim(),category:cat,results:matches.length});
-    const more=res.querySelector("#searchLoadMore");if(more)more.onclick=()=>{visibleLimit+=24;run(false)};
+    const more=res.querySelector("#searchLoadMore");if(more)more.onclick=()=>{visibleLimit+=pageSize();run(false)};
   }
   if(btn)btn.onclick=run;
   let inputTimer;
@@ -713,39 +736,18 @@ function searchEnhance(){
   [category,collection,minEl,maxEl,sortEl].forEach(el=>el&&el.addEventListener("change",run));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",()=>{clearTimeout(inputTimer);inputTimer=setTimeout(run,180)}));
   if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run()};
-  res.innerHTML='<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+  res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
 }
 
-function dynamicListingCard(b){
-  return `<article class="book-card" data-live-book-id="${b.id}">
-    <a class="book-image" href="${b.href}">
-      <img alt="${b.title}" src="${coverSrc(b)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
-    </a>
-    <div class="book-info">
-      <h2 class="book-title">${b.title}</h2>
-      <p class="book-author">${b.author||"—"}</p>
-      ${stockBadge(b)}
-      <div class="book-price">${money(b.price)}</div>
-      <a class="detail-button" href="${b.href}">تەپسىلات</a>
-    </div>
-  </article>`;
-}
+function dynamicListingCard(b){return bookCardMarkup(b,"listing")}
 
 function setupCatalogFilters(){
   let file=(location.pathname.split("/").pop()||"").split(/[?#]/)[0]||"index.html";
   let pageBooks=C.filter(b=>b.source===file);
   let grid=document.querySelector(".books-grid");
-  if(!grid||!pageBooks.length||document.querySelector("#catalogFilterBar"))return;
-
-  let existingIds=new Set([...grid.querySelectorAll(".book-card")].map(cardId).filter(Boolean));
-  let missing=pageBooks.filter(b=>!existingIds.has(b.id));
-  if(missing.length){
-    grid.insertAdjacentHTML("beforeend",missing.map(dynamicListingCard).join(""));
-    decorateCards();
-  }
-
-  let mapped=[...grid.querySelectorAll(".book-card")].map((card,order)=>({card,id:cardId(card),order})).filter(x=>x.id&&pageBooks.some(b=>b.id===x.id));
-  if(!mapped.length)return;
+  if(!grid||document.querySelector("#catalogFilterBar"))return;
+  if(!pageBooks.length&&grid.dataset.catalogSource)pageBooks=C.filter(b=>b.source===grid.dataset.catalogSource);
+  if(!pageBooks.length)return;
 
   let bar=document.createElement("div");
   bar.id="catalogFilterBar";
@@ -755,25 +757,35 @@ function setupCatalogFilters(){
     <div class="catalog-filter-field"><label for="catalogCollection">تاللانما</label><select id="catalogCollection"><option value="">بارلىق كىتابلار</option><option value="new">يېڭى كەلگەنلەر</option><option value="bestseller">كۆپ سېتىلغانلار</option><option value="recommended">تەۋسىيەلىك</option></select></div>
     <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
     <div class="catalog-filter-field"><label for="catalogMaxPrice">ئەڭ يۇقىرى باھا</label><input id="catalogMaxPrice" type="number" min="0" placeholder="500 ₺"></div>
-    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort"><option value="new">ئەسلى تەرتىپ</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
+    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort"><option value="new">يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
     <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
   grid.parentElement.insertBefore(bar,grid);
-  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML='<strong>بۇ شەرتكە ماس كىتاب تېپىلمىدى.</strong><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';grid.insertAdjacentElement("afterend",empty);
+  let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
+  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';controls.insertAdjacentElement("afterend",empty);
+  if(catalogStatus.error){
+    const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
+  }
 
   let text=bar.querySelector("#catalogFilterText"),collection=bar.querySelector("#catalogCollection"),minEl=bar.querySelector("#catalogMinPrice"),maxEl=bar.querySelector("#catalogMaxPrice"),sortEl=bar.querySelector("#catalogSort"),count=bar.querySelector("#catalogFilterCount"),reset=bar.querySelector("#catalogFilterReset");
-  function apply(){
+  let visibleLimit=pageSize(),inputTimer;
+  function apply(resetLimit=true){
+    if(resetLimit!==false)visibleLimit=pageSize();
     let q=normalizeText(text.value),min=minEl.value!==""?Number(minEl.value):NaN,max=maxEl.value!==""?Number(maxEl.value):NaN;
-    let matches=mapped.filter(x=>{let b=find(x.id);if(!b)return false;let hay=normalizeText([b.title,b.author,b.category].join(" "));return (!q||hay.includes(q))&&collectionPass(b,collection.value)&&pricePass(b,min,max)});
-    let sorted=sortBooks(matches.map(x=>find(x.id)),sortEl.value);
-    let matchIds=new Set(sorted.map(b=>b.id));
-    mapped.forEach(x=>x.card.hidden=!matchIds.has(x.id));
-    sorted.forEach(b=>{let x=mapped.find(m=>m.id===b.id);if(x)grid.appendChild(x.card)});
-    count.textContent=`${matches.length} / ${mapped.length} كىتاب`;
+    let matches=pageBooks.filter(b=>{let hay=normalizeText([b.title,b.author,b.category,b.subcategory].join(" "));return (!q||hay.includes(q))&&collectionPass(b,collection.value)&&pricePass(b,min,max)});
+    matches=sortBooks(matches,sortEl.value||"new");
+    const shown=matches.slice(0,visibleLimit);
+    grid.innerHTML=shown.map(dynamicListingCard).join("");
+    bindDynamicActions(grid);
+    count.textContent=`${shown.length} / ${matches.length} كىتاب كۆرسىتىلدى`;
+    controls.innerHTML=shown.length<matches.length?`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${Math.min(pageSize(),matches.length-shown.length)} دانە</button>`:"";
+    controls.querySelector(".catalog-load-more")?.addEventListener("click",()=>{visibleLimit+=pageSize();apply(false)});
     empty.hidden=matches.length!==0;
-    trackEvent("filter_apply",{source:file,results:matches.length});
+    grid.hidden=matches.length===0;
+    controls.hidden=matches.length===0;
+    trackEvent("filter_apply",{source:file,results:matches.length,rendered:shown.length});
   }
-  [text,minEl,maxEl].forEach(el=>el.addEventListener("input",apply));
+  [text,minEl,maxEl].forEach(el=>el.addEventListener("input",()=>{clearTimeout(inputTimer);inputTimer=setTimeout(apply,160)}));
   [sortEl,collection].forEach(el=>el.addEventListener("change",apply));
   reset.onclick=()=>{text.value="";collection.value="";minEl.value="";maxEl.value="";sortEl.value="new";apply()};
   empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>reset.click());
@@ -782,7 +794,7 @@ function setupCatalogFilters(){
 
 function myBooksData(){
   return {
-    newest:(C.filter(b=>b.isNew===true).length?C.filter(b=>b.isNew===true):C).slice(0,12),
+    newest:sortBooks(C,"new").slice(0,12),
     recommended:recommendedBooks(12),
     recent:get(REC_KEY,[]).map(find).filter(Boolean).slice(0,12),
     favorites:favs().map(find).filter(Boolean)
@@ -1276,15 +1288,14 @@ function setupHomeCarousel(){
     return (marked.length?marked:recommendedList()).slice(0,20);
   }
   function newestList(){
-    const marked=C.filter(b=>b.isNew===true).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
-    return (marked.length?marked:C).slice(0,20);
+    return sortBooks(C,"new").slice(0,20);
   }
   function currentList(){return mode==="bestseller"?bestsellerList():mode==="newest"?newestList():recommendedList()}
   function card(b){
     return `<article class="home-carousel-card">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${b.href}" class="home-carousel-link">
-        <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+        <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
       </a>
       <div class="home-carousel-info">
         <a href="${b.href}" class="home-carousel-meta-link"><div class="home-carousel-title">${b.title||"كىتاب"}</div><div class="home-carousel-author">${b.author||"—"}</div></a>

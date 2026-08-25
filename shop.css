@@ -392,6 +392,20 @@
 .advanced-search-actions button{font-family:inherit;font-size:11px;padding:7px 9px;border-radius:7px;white-space:nowrap}
 .catalog-filter-count{grid-column:1/-1;text-align:left;color:var(--site-text-soft,#806f62);font-size:12px}
 .catalog-filter-empty{margin:20px auto 50px;text-align:center;padding:25px;color:var(--site-text-soft,#806f62);background:var(--site-card,#fffdf9);border:1px dashed var(--site-border,#e8dccb);border-radius:12px}
+.catalog-pagination-controls{display:flex;justify-content:center;max-width:1050px;margin:18px auto 42px}
+.catalog-load-more{min-width:210px;min-height:44px;padding:10px 18px;border:1px solid var(--site-border,#e8dccb);border-radius:9px;background:var(--site-card,#fffdf9);color:var(--site-text,#44352d);font:700 14px/1.4 inherit;cursor:pointer}
+.catalog-load-more:hover{border-color:var(--site-brown,#70503d);box-shadow:0 4px 14px rgba(75,51,39,.08)}
+.catalog-data-notice{max-width:1050px;margin:0 auto 12px;padding:10px 14px;border:1px solid #ead7a0;border-radius:10px;background:#fff9e8;color:#735e27;font-size:13px;text-align:center}
+.books-grid[data-catalog-source] .catalog-loading-state{grid-column:1/-1;min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--site-text-soft,#806f62)}
+.catalog-loading-spinner{width:28px;height:28px;border:3px solid var(--site-border,#e8dccb);border-top-color:var(--site-brown,#70503d);border-radius:50%;animation:catalog-spin .8s linear infinite}
+@keyframes catalog-spin{to{transform:rotate(360deg)}}
+.books-grid[data-catalog-source] .book-card{min-width:0;overflow:hidden}
+.books-grid[data-catalog-source] .book-image{overflow:hidden;aspect-ratio:2/3}
+.books-grid[data-catalog-source] .book-image img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain}
+.books-grid[data-catalog-source] .book-title,
+.books-grid[data-catalog-source] .book-author{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical}
+.books-grid[data-catalog-source] .book-title{-webkit-line-clamp:2;line-clamp:2}
+.books-grid[data-catalog-source] .book-author{-webkit-line-clamp:1;line-clamp:1}
 .book-card[hidden]{display:none!important}
 @media(max-width:900px){
   .advanced-search-panel,.catalog-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
