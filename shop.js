@@ -28,7 +28,8 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     stockStatus:value("stockStatus","stock_status","")||"",
     isNew:flag("isNew","is_new",false),
     isFeatured:flag("isFeatured","is_featured",false),
-    isRecommended:flag("isRecommended","is_recommended",false)||flag("isFeatured","is_featured",false),
+    // is_featured is retained as legacy data, but new collection logic uses is_recommended only.
+    isRecommended:flag("isRecommended","is_recommended",false),
     isBestSeller:flag("isBestSeller","is_bestseller",false),
     salesCount:Number(value("salesCount","sales_count",book.sold_count??0))||0,
     isActive:value("isActive","is_active",true)!==false,
@@ -44,7 +45,7 @@ let C=[...catalogCache.values()];
 let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,migrated:false,error:""};
 const QUERY_DEFAULTS=Object.freeze({
   offset:0,pageSize:24,category:"",source:"",search:"",sort:"new",
-  minPrice:null,maxPrice:null,newArrivals:false,featured:false,recommended:false,bestseller:false,
+  minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,newOnly:false,allowZeroSales:false,
   ids:null
 });
 const catalogQueryState={
@@ -120,12 +121,9 @@ function staticQueryPage(input={}){
   if(q)rows=rows.filter(book=>normalizeText([book.title,book.author,book.category].join(" ")).includes(q));
   if(Number.isFinite(state.minPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)>=state.minPrice);
   if(Number.isFinite(state.maxPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)<=state.maxPrice);
-  if(state.newArrivals){
-    const cutoff=Date.now()-30*24*60*60*1000;
-    rows=rows.filter(book=>book.isNew===true||(book.createdAt&&Date.parse(book.createdAt)>=cutoff));
-  }
-  if(state.featured||state.recommended)rows=rows.filter(book=>book.isRecommended===true||book.isFeatured===true);
-  if(state.bestseller)rows=rows.filter(book=>book.isBestSeller===true||Number(book.salesCount)>0);
+  if(state.newOnly)rows=rows.filter(book=>book.isNew===true);
+  if(state.featured||state.recommended)rows=rows.filter(book=>book.isRecommended===true);
+  if(state.bestseller&&!state.allowZeroSales)rows=rows.filter(book=>Number(book.salesCount)>0);
   rows=sortBooks(rows,state.sort);
   const total=rows.length,items=rows.slice(state.offset,state.offset+state.pageSize);
   return {items,total,hasMore:state.offset+items.length<total,offset:state.offset,pageSize:state.pageSize,source:"static"};
@@ -136,7 +134,7 @@ function remoteOrder(mode){
   if(mode==="priceHigh")return "price.desc.nullslast,id.asc";
   if(mode==="title")return "title.asc,id.asc";
   if(mode==="author")return "author.asc,id.asc";
-  if(mode==="bestseller")return "sales_count.desc,is_bestseller.desc,created_at.desc.nullslast,id.asc";
+  if(mode==="bestseller")return "sales_count.desc,created_at.desc.nullslast,id.asc";
   if(mode==="recommended")return "is_recommended.desc,created_at.desc.nullslast,id.asc";
   return "created_at.desc.nullslast,id.asc";
 }
@@ -151,18 +149,15 @@ function remoteBooksUrl(input={}){
   if(state.category)params.set("category",`eq.${state.category}`);
   if(Number.isFinite(state.minPrice))params.set("price",`gte.${state.minPrice}`);
   if(Number.isFinite(state.maxPrice))params.append("price",`lte.${state.maxPrice}`);
+  if(state.bestseller&&!state.allowZeroSales)params.set("sales_count","gt.0");
 
   const logic=[];
-  if(state.newArrivals){
-    const cutoff=new Date(Date.now()-30*24*60*60*1000).toISOString();
-    logic.push(`or(is_new.eq.true,created_at.gte.${cutoff})`);
-  }
-  if(state.featured||state.recommended)logic.push("or(is_recommended.eq.true,is_featured.eq.true)");
   if(state.search){
     const term=`*${state.search}*`;
     logic.push(`or(title.ilike.${term},author.ilike.${term},category.ilike.${term})`);
   }
-  if(state.bestseller)logic.push("or(is_bestseller.eq.true,sales_count.gt.0)");
+  if(state.newOnly)params.set("is_new","eq.true");
+  if(state.featured||state.recommended)params.set("is_recommended","eq.true");
   if(logic.length===1){
     const expression=logic[0];
     params.set("or",`(${expression.slice(3,-1)})`);
@@ -708,7 +703,7 @@ async function renderHomeFeaturedBooks(){
     <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېڭى كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
   </section>`;
   try{
-    const result=await queryCatalog({offset:0,pageSize:6,sort:"new",newArrivals:true});
+    const result=await queryCatalog({offset:0,pageSize:6,sort:"new",newOnly:true});
     const grid=host.querySelector(".home-featured-grid");
     if(grid)grid.innerHTML=result.items.length?result.items.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
     bindDynamicActions(host);
@@ -736,7 +731,7 @@ function renderHomeSections(){
     content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div></section>`;
     try{
       let arr=[];
-      if(key==="newest")arr=(await queryCatalog({offset:0,pageSize:8,sort:"new",newArrivals:true},{signal:controller.signal})).items;
+      if(key==="newest")arr=(await queryCatalog({offset:0,pageSize:8,sort:"new",newOnly:true},{signal:controller.signal})).items;
       else if(key==="recommended")arr=(await queryCatalog({offset:0,pageSize:8,sort:"recommended",recommended:true},{signal:controller.signal})).items;
       else if(key==="recent")arr=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
       else arr=favs().map(find).filter(Boolean).slice(0,6);
@@ -782,7 +777,7 @@ function sortBooks(items,mode){
 function collectionPass(book,mode){
   if(!mode)return true;
   if(mode==="new")return book.isNew===true;
-  if(mode==="bestseller")return book.isBestSeller===true||Number(book.salesCount)>0;
+  if(mode==="bestseller")return Number(book.salesCount)>0;
   if(mode==="recommended")return book.isRecommended===true;
   return true;
 }
@@ -880,7 +875,7 @@ function searchEnhance(){
       ...QUERY_DEFAULTS,
       offset,pageSize:pageSize(),search:input.value.trim(),category:category?.value||"",
       minPrice:minEl?.value??"",maxPrice:maxEl?.value??"",sort:collectionMode==="new"?"new":sortEl?.value||"new",
-      newArrivals:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
+      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
     };
     return catalogQueryState.search;
   }
@@ -965,7 +960,7 @@ function setupCatalogFilters(){
       ...QUERY_DEFAULTS,
       offset,pageSize:pageSize(),source,search:text.value.trim(),sort:collectionMode==="new"?"new":sortEl.value||"new",
       minPrice:minEl.value,maxPrice:maxEl.value,
-      newArrivals:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
+      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
     };
     return catalogQueryState.listing;
   }
@@ -1061,7 +1056,7 @@ function renderMyBooks(){
     let arr=data[key]||[];
     try{
       if(key==="newest"){
-        const result=await queryCatalog({offset:0,pageSize:12,sort:"new"},{signal:controller.signal});
+        const result=await queryCatalog({offset:0,pageSize:12,sort:"new",newOnly:true},{signal:controller.signal});
         arr=result.items;remoteCounts.newest=result.total;
       }else if(key==="recommended"){
         const result=await queryCatalog({offset:0,pageSize:12,sort:"recommended",recommended:true},{signal:controller.signal});
@@ -1522,7 +1517,10 @@ function setupHomeCarousel(){
     catalogQueryState.carousel={
       ...QUERY_DEFAULTS,offset,pageSize:8,
       sort:currentMode==="bestseller"?"bestseller":currentMode==="recommended"?"recommended":"new",
-      newArrivals:currentMode==="newest",recommended:currentMode==="recommended",bestseller:currentMode==="bestseller"
+      newOnly:currentMode==="newest",recommended:currentMode==="recommended",bestseller:currentMode==="bestseller",
+      // Homepage asks only for the top 8. Zero-sale books can fill unused slots only
+      // when fewer than 8 books have a positive sales_count.
+      allowZeroSales:currentMode==="bestseller"
     };
     return catalogQueryState.carousel;
   }
@@ -1532,14 +1530,6 @@ function setupHomeCarousel(){
     const token=++modeRequestId;modeController?.abort();modeController=new AbortController();
     let result=await queryCatalog(modeState(currentMode,append?existing.items.length:0),{signal:modeController.signal});
     if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
-    if(!append&&!result.items.length&&currentMode!=="newest"){
-      // Carousel fallback must stay populated even when there are no flagged
-      // recommended/bestseller books yet. Do NOT apply the 30-day new-arrivals
-      // filter here; that filter is only for the actual "newest" collection.
-      const fallbackState={...modeState("newest",0),newArrivals:false};
-      result=await queryCatalog(fallbackState,{signal:modeController.signal});
-      if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
-    }
     const merged=append?[...existing.items]:[];
     const known=new Set(merged.map(book=>book.id));
     result.items.forEach(book=>{if(!known.has(book.id)){known.add(book.id);merged.push(book)}});
@@ -1607,7 +1597,14 @@ function setupHomeCarousel(){
     try{
       const loaded=modeCache.get(requestedMode)||await loadMode(requestedMode,false);
       if(mode!==requestedMode)return;
-      list=loaded.items;draw(true);restart();
+      list=loaded.items;
+      if(!list.length){
+        stop();
+        dotsHost.innerHTML="";
+        host.innerHTML='<div class="empty-state shop-section-empty">بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى.</div>';
+        return;
+      }
+      draw(true);restart();
     }catch(error){if(error?.name!=="AbortError"){console.error("Homepage carousel query failed.",error);host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';dotsHost.innerHTML=""}}
   }
   async function next(){
