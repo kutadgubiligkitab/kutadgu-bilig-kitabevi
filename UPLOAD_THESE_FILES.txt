@@ -1,0 +1,11 @@
+Upload/replace these files in the GitHub repository root:
+- index.html
+- shop.js
+- mobile.js
+- mobile.css
+- UKIJCJK.woff2
+- kutadgu-logo.webp
+- hero-brand-logo.webp
+
+No Supabase SQL change is required.
+After deploy, verify index.html references mobile.css?v=7, shop.js?v=44, mobile.js?v=6.

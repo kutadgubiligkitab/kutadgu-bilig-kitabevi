@@ -129,7 +129,7 @@
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "index.html";
-    brand.innerHTML = `<img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
+    brand.innerHTML = `<img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);
     document.body.prepend(header);
