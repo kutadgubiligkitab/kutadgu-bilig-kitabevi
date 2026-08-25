@@ -44,9 +44,10 @@ let C=[...catalogCache.values()];
 let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,migrated:false,error:""};
 const QUERY_DEFAULTS=Object.freeze({
   offset:0,pageSize:24,category:"",source:"",search:"",sort:"new",
-  minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,
+  minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,newOnly:false,
   ids:null
 });
+const NEW_ARRIVAL_DAYS=30;
 const catalogQueryState={
   search:{...QUERY_DEFAULTS},
   listing:{...QUERY_DEFAULTS},
@@ -96,6 +97,10 @@ function cleanSearchTerm(value){
   return String(value||"").replace(/[%_*,()]/g," ").replace(/\s+/g," ").trim().slice(0,120);
 }
 
+function newArrivalCutoff(){
+  return new Date(Date.now()-(NEW_ARRIVAL_DAYS*24*60*60*1000)).toISOString();
+}
+
 function pageSize(){return window.innerWidth<=700?12:24}
 
 function normalizeQueryState(input={}){
@@ -120,6 +125,10 @@ function staticQueryPage(input={}){
   if(q)rows=rows.filter(book=>normalizeText([book.title,book.author,book.category].join(" ")).includes(q));
   if(Number.isFinite(state.minPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)>=state.minPrice);
   if(Number.isFinite(state.maxPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)<=state.maxPrice);
+  if(state.newOnly){
+    const cutoff=Date.parse(newArrivalCutoff());
+    rows=rows.filter(book=>book.isNew===true||(Number.isFinite(Date.parse(book.createdAt))&&Date.parse(book.createdAt)>=cutoff));
+  }
   if(state.featured||state.recommended)rows=rows.filter(book=>book.isRecommended===true||book.isFeatured===true);
   if(state.bestseller)rows=rows.filter(book=>book.isBestSeller===true||Number(book.salesCount)>0);
   rows=sortBooks(rows,state.sort);
@@ -147,13 +156,14 @@ function remoteBooksUrl(input={}){
   if(state.category)params.set("category",`eq.${state.category}`);
   if(Number.isFinite(state.minPrice))params.set("price",`gte.${state.minPrice}`);
   if(Number.isFinite(state.maxPrice))params.append("price",`lte.${state.maxPrice}`);
-  if(state.featured||state.recommended)params.set("is_recommended","eq.true");
 
   const logic=[];
   if(state.search){
     const term=`*${state.search}*`;
     logic.push(`or(title.ilike.${term},author.ilike.${term},category.ilike.${term})`);
   }
+  if(state.newOnly)logic.push(`or(is_new.eq.true,created_at.gte.${newArrivalCutoff()})`);
+  if(state.featured||state.recommended)logic.push("or(is_recommended.eq.true,is_featured.eq.true)");
   if(state.bestseller)logic.push("or(is_bestseller.eq.true,sales_count.gt.0)");
   if(logic.length===1){
     const expression=logic[0];
@@ -700,7 +710,7 @@ async function renderHomeFeaturedBooks(){
     <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېڭى كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
   </section>`;
   try{
-    const result=await queryCatalog({offset:0,pageSize:6,sort:"new"});
+    const result=await queryCatalog({offset:0,pageSize:6,sort:"new",newOnly:true});
     const grid=host.querySelector(".home-featured-grid");
     if(grid)grid.innerHTML=result.items.length?result.items.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
     bindDynamicActions(host);
@@ -728,7 +738,7 @@ function renderHomeSections(){
     content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div></section>`;
     try{
       let arr=[];
-      if(key==="newest")arr=(await queryCatalog({offset:0,pageSize:8,sort:"new"},{signal:controller.signal})).items;
+      if(key==="newest")arr=(await queryCatalog({offset:0,pageSize:8,sort:"new",newOnly:true},{signal:controller.signal})).items;
       else if(key==="recommended")arr=(await queryCatalog({offset:0,pageSize:8,sort:"recommended",recommended:true},{signal:controller.signal})).items;
       else if(key==="recent")arr=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
       else arr=favs().map(find).filter(Boolean).slice(0,6);
@@ -872,7 +882,7 @@ function searchEnhance(){
       ...QUERY_DEFAULTS,
       offset,pageSize:pageSize(),search:input.value.trim(),category:category?.value||"",
       minPrice:minEl?.value??"",maxPrice:maxEl?.value??"",sort:collectionMode==="new"?"new":sortEl?.value||"new",
-      recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
+      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
     };
     return catalogQueryState.search;
   }
@@ -957,7 +967,7 @@ function setupCatalogFilters(){
       ...QUERY_DEFAULTS,
       offset,pageSize:pageSize(),source,search:text.value.trim(),sort:collectionMode==="new"?"new":sortEl.value||"new",
       minPrice:minEl.value,maxPrice:maxEl.value,
-      recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
+      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
     };
     return catalogQueryState.listing;
   }
@@ -1053,7 +1063,7 @@ function renderMyBooks(){
     let arr=data[key]||[];
     try{
       if(key==="newest"){
-        const result=await queryCatalog({offset:0,pageSize:12,sort:"new"},{signal:controller.signal});
+        const result=await queryCatalog({offset:0,pageSize:12,sort:"new",newOnly:true},{signal:controller.signal});
         arr=result.items;remoteCounts.newest=result.total;
       }else if(key==="recommended"){
         const result=await queryCatalog({offset:0,pageSize:12,sort:"recommended",recommended:true},{signal:controller.signal});
@@ -1514,7 +1524,7 @@ function setupHomeCarousel(){
     catalogQueryState.carousel={
       ...QUERY_DEFAULTS,offset,pageSize:8,
       sort:currentMode==="bestseller"?"bestseller":currentMode==="recommended"?"recommended":"new",
-      recommended:currentMode==="recommended",bestseller:currentMode==="bestseller"
+      newOnly:currentMode==="newest",recommended:currentMode==="recommended",bestseller:currentMode==="bestseller"
     };
     return catalogQueryState.carousel;
   }
