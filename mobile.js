@@ -69,6 +69,7 @@
     const close = () => {
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
+      backdrop.setAttribute("aria-hidden", "true");
       document.body.classList.remove("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "تىزىملىكنى ئېچىش");
@@ -77,6 +78,7 @@
     const open = () => {
       menu.classList.add("is-open");
       backdrop.classList.add("is-open");
+      backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "true");
       toggle.setAttribute("aria-label", "تىزىملىكنى يېپىش");
@@ -92,6 +94,10 @@
     MOBILE_QUERY.addEventListener?.("change", event => {
       if (!event.matches) close();
     });
+
+    // Always start in a clean closed state. This prevents an invisible
+    // full-screen backdrop or stale body scroll-lock from blocking mobile taps.
+    close();
   }
 
   function enhanceHeader() {
