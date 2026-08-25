@@ -34,8 +34,7 @@
   }
 
   body.mobile-menu-open {
-    overflow: hidden !important;
-    overscroll-behavior: none;
+    overflow: hidden;
   }
 
   body.has-mobile-fixed-header {
@@ -180,19 +179,18 @@
     position: fixed;
     inset: 0;
     z-index: 11980;
-    display: none;
+    display: block;
     visibility: hidden;
     opacity: 0;
-    pointer-events: none !important;
+    pointer-events: none;
     background: rgba(25, 17, 13, .48);
     transition: opacity .18s ease, visibility .18s ease;
   }
 
   .mobile-menu-backdrop.is-open {
-    display: block;
     visibility: visible;
     opacity: 1;
-    pointer-events: auto !important;
+    pointer-events: auto;
   }
 
   header.is-mobile-enhanced nav,

@@ -62,19 +62,14 @@
     if (!backdrop) {
       backdrop = document.createElement("div");
       backdrop.className = "mobile-menu-backdrop";
+      backdrop.hidden = false;
+      backdrop.setAttribute("aria-hidden", "true");
       document.body.appendChild(backdrop);
     }
-    // Always start from a clean closed state. A stale class/backdrop must never block taps.
-    menu.classList.remove("is-open");
-    backdrop.classList.remove("is-open");
-    backdrop.hidden = true;
-    backdrop.setAttribute("aria-hidden", "true");
-    document.body.classList.remove("mobile-menu-open");
 
     const close = () => {
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
-      backdrop.hidden = true;
       backdrop.setAttribute("aria-hidden", "true");
       document.body.classList.remove("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "false");
@@ -83,9 +78,8 @@
     };
     const open = () => {
       menu.classList.add("is-open");
-      backdrop.hidden = false;
-      backdrop.setAttribute("aria-hidden", "false");
       backdrop.classList.add("is-open");
+      backdrop.setAttribute("aria-hidden", "false");
       document.body.classList.add("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "true");
       toggle.setAttribute("aria-label", "تىزىملىكنى يېپىش");
@@ -132,7 +126,7 @@
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "index.html";
-    brand.innerHTML = `<img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
+    brand.innerHTML = `<img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);
     document.body.prepend(header);
@@ -215,11 +209,8 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  function applyAutomaticDirection(root = document) {
-    const fields = [];
-    if (root instanceof Element && root.matches("input, textarea")) fields.push(root);
-    root.querySelectorAll?.("input, textarea").forEach(field => fields.push(field));
-    fields.forEach(field => {
+  function applyAutomaticDirection() {
+    document.querySelectorAll("input, textarea").forEach(field => {
       const type = (field.getAttribute("type") || "text").toLowerCase();
       if (["email", "tel", "number", "password", "url"].includes(type)) return;
       if (!field.hasAttribute("dir") || field.getAttribute("dir") === "rtl") field.setAttribute("dir", "auto");
@@ -288,9 +279,18 @@
     enhanceFilters();
     applyAutomaticDirection();
     enhanceCarousel();
+    // Avoid rescanning the whole document after every dynamic catalog mutation on mobile.
     new MutationObserver(records => {
       records.forEach(record => record.addedNodes.forEach(node => {
-        if (node instanceof Element) applyAutomaticDirection(node);
+        if (!(node instanceof Element)) return;
+        const fields=[];
+        if (node.matches?.("input, textarea")) fields.push(node);
+        node.querySelectorAll?.("input, textarea").forEach(field => fields.push(field));
+        fields.forEach(field => {
+          const type=(field.getAttribute("type")||"text").toLowerCase();
+          if (["email","tel","number","password","url"].includes(type)) return;
+          if (!field.hasAttribute("dir") || field.getAttribute("dir") === "rtl") field.setAttribute("dir","auto");
+        });
       }));
     }).observe(document.body, { childList: true, subtree: true });
   }
