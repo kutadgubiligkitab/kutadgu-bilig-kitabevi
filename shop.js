@@ -1533,7 +1533,11 @@ function setupHomeCarousel(){
     let result=await queryCatalog(modeState(currentMode,append?existing.items.length:0),{signal:modeController.signal});
     if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
     if(!append&&!result.items.length&&currentMode!=="newest"){
-      result=await queryCatalog(modeState("newest",0),{signal:modeController.signal});
+      // Carousel fallback must stay populated even when there are no flagged
+      // recommended/bestseller books yet. Do NOT apply the 30-day new-arrivals
+      // filter here; that filter is only for the actual "newest" collection.
+      const fallbackState={...modeState("newest",0),newArrivals:false};
+      result=await queryCatalog(fallbackState,{signal:modeController.signal});
       if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
     }
     const merged=append?[...existing.items]:[];
