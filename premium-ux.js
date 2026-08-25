@@ -246,11 +246,8 @@
   function setupFilterUX(){
     document.querySelectorAll(".advanced-search-panel,.catalog-filter-bar").forEach(panel=>{
       if(panel.dataset.premiumFilter==="1")return;panel.dataset.premiumFilter="1";
-      const mobileOwnsCollapse=window.matchMedia?.("(max-width: 768px)")?.matches===true;
-      if(!mobileOwnsCollapse){
-        const toggle=document.createElement("button");toggle.type="button";toggle.className="premium-filter-toggle";toggle.textContent="⚙️ سۈزگۈچلەرنى ئېچىش / يىغىش";toggle.setAttribute("aria-expanded","false");
-        panel.before(toggle);panel.classList.add("is-collapsed");toggle.onclick=()=>{panel.classList.toggle("is-collapsed");toggle.setAttribute("aria-expanded",panel.classList.contains("is-collapsed")?"false":"true")};
-      }
+      const toggle=document.createElement("button");toggle.type="button";toggle.className="premium-filter-toggle";toggle.textContent="⚙️ سۈزگۈچلەرنى ئېچىش / يىغىش";toggle.setAttribute("aria-expanded","false");
+      panel.before(toggle);panel.classList.add("is-collapsed");toggle.onclick=()=>{panel.classList.toggle("is-collapsed");toggle.setAttribute("aria-expanded",panel.classList.contains("is-collapsed")?"false":"true")};
       const chips=document.createElement("div");chips.className="premium-active-filters";panel.after(chips);
       const update=()=>{
         const active=[...panel.querySelectorAll("input,select")].filter(el=>el.value&&!(el.tagName==="SELECT"&&el.selectedIndex===0));
