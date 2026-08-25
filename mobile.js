@@ -63,16 +63,12 @@
       backdrop = document.createElement("div");
       backdrop.className = "mobile-menu-backdrop";
       backdrop.hidden = false;
-      backdrop.setAttribute("aria-hidden", "true");
-      backdrop.style.pointerEvents = "none";
       document.body.appendChild(backdrop);
     }
 
     const close = () => {
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
-      backdrop.setAttribute("aria-hidden", "true");
-      backdrop.style.pointerEvents = "none";
       document.body.classList.remove("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "تىزىملىكنى ئېچىش");
@@ -81,8 +77,6 @@
     const open = () => {
       menu.classList.add("is-open");
       backdrop.classList.add("is-open");
-      backdrop.setAttribute("aria-hidden", "false");
-      backdrop.style.pointerEvents = "auto";
       document.body.classList.add("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "true");
       toggle.setAttribute("aria-label", "تىزىملىكنى يېپىش");
@@ -277,33 +271,12 @@
   function init() {
     if (initialized || !MOBILE_QUERY.matches) return;
     initialized = true;
-    // Recover safely from any stale mobile-menu state restored by Safari/BFCache.
-    document.body.classList.remove("mobile-menu-open");
-    const staleBackdrop = document.querySelector(".mobile-menu-backdrop");
-    if (staleBackdrop) {
-      staleBackdrop.classList.remove("is-open");
-      staleBackdrop.setAttribute("aria-hidden", "true");
-      staleBackdrop.style.pointerEvents = "none";
-    }
     enhanceHeader();
     ensureBottomNav();
     enhanceFilters();
     applyAutomaticDirection();
     enhanceCarousel();
-    // Avoid rescanning the whole document after every dynamic catalog mutation on mobile.
-    new MutationObserver(records => {
-      records.forEach(record => record.addedNodes.forEach(node => {
-        if (!(node instanceof Element)) return;
-        const fields=[];
-        if (node.matches?.("input, textarea")) fields.push(node);
-        node.querySelectorAll?.("input, textarea").forEach(field => fields.push(field));
-        fields.forEach(field => {
-          const type=(field.getAttribute("type")||"text").toLowerCase();
-          if (["email","tel","number","password","url"].includes(type)) return;
-          if (!field.hasAttribute("dir") || field.getAttribute("dir") === "rtl") field.setAttribute("dir","auto");
-        });
-      }));
-    }).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(applyAutomaticDirection).observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
@@ -311,89 +284,4 @@
   MOBILE_QUERY.addEventListener?.("change", event => {
     if (event.matches) init();
   });
-})();
-
-/* =========================================================
-   TEMP MOBILE DIAGNOSTIC SAFE MODE — 2026-08-26
-   Does not touch catalog/Supabase/cart business logic.
-   ========================================================= */
-(function mobileDiagnosticSafeMode(){
-  if (!window.matchMedia || !window.matchMedia('(max-width: 900px)').matches) return;
-
-  function ensureBadge(){
-    let badge = document.getElementById('mobileDiagBadge');
-    if (!badge) {
-      badge = document.createElement('div');
-      badge.id = 'mobileDiagBadge';
-      badge.setAttribute('aria-hidden','true');
-      badge.textContent = 'DIAG booting…';
-      document.body.appendChild(badge);
-    }
-    return badge;
-  }
-
-  function selectorFor(el){
-    if (!el || el === document || el === window) return String(el);
-    let s = (el.tagName || 'node').toLowerCase();
-    if (el.id) s += '#' + el.id;
-    if (el.classList && el.classList.length) s += '.' + Array.from(el.classList).slice(0,3).join('.');
-    return s;
-  }
-
-  function neutralizeBlockers(){
-    document.body.classList.remove('mobile-menu-open');
-    document.querySelectorAll('.mobile-menu-backdrop,.cover-zoom-overlay,.modal-backdrop,.auth-backdrop,.dialog-backdrop,[data-backdrop]').forEach(el => {
-      el.style.setProperty('display','none','important');
-      el.style.setProperty('pointer-events','none','important');
-    });
-
-    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (!vw || !vh) return [];
-    const blockers = [];
-    document.body.querySelectorAll('*').forEach(el => {
-      if (el.id === 'mobileDiagBadge') return;
-      const cs = getComputedStyle(el);
-      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.pointerEvents === 'none') return;
-      if (cs.position !== 'fixed' && cs.position !== 'absolute') return;
-      const r = el.getBoundingClientRect();
-      const area = Math.max(0, Math.min(vw, r.right)-Math.max(0,r.left)) * Math.max(0, Math.min(vh,r.bottom)-Math.max(0,r.top));
-      const ratio = area / (vw*vh);
-      if (ratio > 0.72 && r.width > vw*0.75 && r.height > vh*0.75) {
-        const tag = selectorFor(el);
-        /* Do not disable actual page shell/body-like structural nodes. */
-        if (!/^(html|body|main)([#. ]|$)/.test(tag)) {
-          el.style.setProperty('pointer-events','none','important');
-          blockers.push(tag);
-        }
-      }
-    });
-    return blockers;
-  }
-
-  let lastTarget = 'none';
-  let lastBlockers = [];
-  let ticks = 0;
-
-  document.addEventListener('pointerdown', function(e){
-    lastTarget = selectorFor(e.target);
-  }, true);
-  document.addEventListener('touchstart', function(e){
-    if (e.touches && e.touches[0]) {
-      const t = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-      lastTarget = selectorFor(t || e.target);
-    }
-  }, {capture:true, passive:true});
-
-  function run(){
-    const badge = ensureBadge();
-    lastBlockers = neutralizeBlockers();
-    ticks++;
-    badge.textContent = 'DIAG ✓ heartbeat ' + ticks + ' | touch: ' + lastTarget + (lastBlockers.length ? ' | blocked→disabled: ' + lastBlockers.slice(0,2).join(',') : ' | blockers: none');
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', run, {once:true});
-  } else run();
-  setInterval(run, 1000);
 })();
