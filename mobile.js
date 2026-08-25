@@ -64,6 +64,7 @@
       backdrop.className = "mobile-menu-backdrop";
       backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "true");
+      backdrop.style.pointerEvents = "none";
       document.body.appendChild(backdrop);
     }
 
@@ -71,6 +72,7 @@
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
       backdrop.setAttribute("aria-hidden", "true");
+      backdrop.style.pointerEvents = "none";
       document.body.classList.remove("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "تىزىملىكنى ئېچىش");
@@ -80,6 +82,7 @@
       menu.classList.add("is-open");
       backdrop.classList.add("is-open");
       backdrop.setAttribute("aria-hidden", "false");
+      backdrop.style.pointerEvents = "auto";
       document.body.classList.add("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "true");
       toggle.setAttribute("aria-label", "تىزىملىكنى يېپىش");
@@ -274,6 +277,14 @@
   function init() {
     if (initialized || !MOBILE_QUERY.matches) return;
     initialized = true;
+    // Recover safely from any stale mobile-menu state restored by Safari/BFCache.
+    document.body.classList.remove("mobile-menu-open");
+    const staleBackdrop = document.querySelector(".mobile-menu-backdrop");
+    if (staleBackdrop) {
+      staleBackdrop.classList.remove("is-open");
+      staleBackdrop.setAttribute("aria-hidden", "true");
+      staleBackdrop.style.pointerEvents = "none";
+    }
     enhanceHeader();
     ensureBottomNav();
     enhanceFilters();
