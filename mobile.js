@@ -62,13 +62,19 @@
     if (!backdrop) {
       backdrop = document.createElement("div");
       backdrop.className = "mobile-menu-backdrop";
-      backdrop.hidden = false;
       document.body.appendChild(backdrop);
     }
+    // Always start from a clean closed state. A stale class/backdrop must never block taps.
+    menu.classList.remove("is-open");
+    backdrop.classList.remove("is-open");
+    backdrop.hidden = true;
+    backdrop.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("mobile-menu-open");
 
     const close = () => {
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
+      backdrop.hidden = true;
       backdrop.setAttribute("aria-hidden", "true");
       document.body.classList.remove("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "false");
@@ -77,8 +83,9 @@
     };
     const open = () => {
       menu.classList.add("is-open");
-      backdrop.classList.add("is-open");
+      backdrop.hidden = false;
       backdrop.setAttribute("aria-hidden", "false");
+      backdrop.classList.add("is-open");
       document.body.classList.add("mobile-menu-open");
       toggle.setAttribute("aria-expanded", "true");
       toggle.setAttribute("aria-label", "تىزىملىكنى يېپىش");
@@ -94,10 +101,6 @@
     MOBILE_QUERY.addEventListener?.("change", event => {
       if (!event.matches) close();
     });
-
-    // Always start in a clean closed state. This prevents an invisible
-    // full-screen backdrop or stale body scroll-lock from blocking mobile taps.
-    close();
   }
 
   function enhanceHeader() {
@@ -129,7 +132,7 @@
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "index.html";
-    brand.innerHTML = `<img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
+    brand.innerHTML = `<img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32"><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);
     document.body.prepend(header);
@@ -212,8 +215,11 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  function applyAutomaticDirection() {
-    document.querySelectorAll("input, textarea").forEach(field => {
+  function applyAutomaticDirection(root = document) {
+    const fields = [];
+    if (root instanceof Element && root.matches("input, textarea")) fields.push(root);
+    root.querySelectorAll?.("input, textarea").forEach(field => fields.push(field));
+    fields.forEach(field => {
       const type = (field.getAttribute("type") || "text").toLowerCase();
       if (["email", "tel", "number", "password", "url"].includes(type)) return;
       if (!field.hasAttribute("dir") || field.getAttribute("dir") === "rtl") field.setAttribute("dir", "auto");
@@ -282,7 +288,11 @@
     enhanceFilters();
     applyAutomaticDirection();
     enhanceCarousel();
-    new MutationObserver(applyAutomaticDirection).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(records => {
+      records.forEach(record => record.addedNodes.forEach(node => {
+        if (node instanceof Element) applyAutomaticDirection(node);
+      }));
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
