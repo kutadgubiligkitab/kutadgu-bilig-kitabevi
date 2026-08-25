@@ -926,10 +926,9 @@ function searchEnhance(){
 function dynamicListingCard(b){return bookCardMarkup(b,"listing")}
 
 function setupCatalogFilters(){
-  let file=(location.pathname.split("/").pop()||"").split(/[?#]/)[0]||"index.html";
-  let grid=document.querySelector(".books-grid");
+  let grid=document.querySelector(".books-grid[data-catalog-source]");
   if(!grid||document.querySelector("#catalogFilterBar"))return;
-  const source=grid.dataset.catalogSource||file;
+  const source=grid.dataset.catalogSource;
 
   let bar=document.createElement("div");
   bar.id="catalogFilterBar";
