@@ -695,22 +695,24 @@ async function renderHomeFeaturedBooks(){
   host.innerHTML=`<section class="home-featured-section">
     <div class="home-featured-head">
       <div>
-        <h3>🆕 يېڭى كەلگەن كىتابلار</h3>
+        <h3>🕘 يېقىندا قوشۇلغانلار</h3>
         <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
       </div>
       <a class="home-featured-all" href="my-books.html">ھەممىسىنى كۆرۈش ←</a>
     </div>
-    <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېڭى كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
+    <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېقىندا قوشۇلغان كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
   </section>`;
   try{
-    const result=await queryCatalog({offset:0,pageSize:6,sort:"new",newOnly:true});
+    // This standalone section is independent from the Admin-controlled is_new tab.
+    // Only the latest eight rows are requested; remoteOrder("new") maps to created_at DESC.
+    const result=await queryCatalog({offset:0,pageSize:8,sort:"new"});
     const grid=host.querySelector(".home-featured-grid");
     if(grid)grid.innerHTML=result.items.length?result.items.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
     bindDynamicActions(host);
   }catch(error){
-    console.error("New arrivals query failed.",error);
+    console.error("Recently added books query failed.",error);
     const grid=host.querySelector(".home-featured-grid");
-    if(grid)grid.innerHTML='<div class="empty-state shop-section-empty">يېڭى كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
+    if(grid)grid.innerHTML='<div class="empty-state shop-section-empty">يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
   }
 }
 
