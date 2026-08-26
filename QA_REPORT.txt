@@ -1,0 +1,60 @@
+1-باسقۇچ — REGRESSION QA REPORT
+
+PASS — File/reference audit
+- Initial archive: 185 files.
+- Cleaned working tree: 107 active HTML, 8 CSS, 12 JS, 7 SQL, 8 image assets, 2 fonts.
+- 37 deletion target نىڭ ھەممىسى root-level exact path بىلەن تەكشۈرۈلدى.
+- Active HTML/CSS دىن missing local reference يوق.
+- ھەر HTML دا duplicate script/stylesheet reference يوق.
+- Shared asset version query لىرى بىردەك.
+
+PASS — Asset safety
+- 8 PNG/JPEG/WebP file نىڭ نامى ۋە bytes ى original ZIP بىلەن byte-for-byte ئوخشاش.
+- 2 font file original ZIP بىلەن byte-for-byte ئوخشاش.
+- Existing cover/logo path لار rename/move/delete قىلىنمىدى.
+- `tibb.html` دىكى 6 broken WebP reference مەۋجۇت PNG sample cover غا تۈزىتىلدى.
+
+PASS — Database safety
+- 7 SQL file نىڭ ھەممىسى original ZIP بىلەن byte-for-byte ئوخشاش.
+- Table، field ياكى migration ئۆچۈرۈلمىدى.
+- Supabase public config file ساقلاپ قېلىندى.
+
+PASS — JavaScript/static runtime logic
+- 12 JavaScript file نىڭ ھەممىسى `node --check` syntax QA دىن ئۆتتى.
+- Named-function audit: scope سىرتىدىكى duplicate function تېپىلمىدى؛ nested `readState`/`draw`/`card` function لار ئۆز local scope ىدا قانۇنلۇق.
+- Project-wide reference يوق ئىككى helper لا ئۆچۈرۈلدى.
+- Synthetic static-catalog runtime test:
+  `is_recommended=true` filter PASS
+  `is_new=true` filter PASS
+  `sales_count DESC` + zero-sale exclusion PASS
+  `created_at DESC` order/limit PASS
+- Synthetic Supabase REST runtime test:
+  `is_recommended=eq.true` request PASS
+  `is_new=eq.true` request PASS
+  `sales_count=gt.0` + `sales_count.desc` request PASS
+- Cart quantity/total synthetic test: 3 books / 500 TL PASS.
+- WhatsApp order text and wa.me URL generation PASS.
+- WhatsApp click code path `sales_count` نى ئۆزگەرتمەيدۇ.
+
+PASS — Layout preservation proof
+- 107 active HTML page original بىلەن سېلىشتۇرۇلدى.
+- Markup difference پەقەت: cache version normalization، index CSS extraction ۋە tibb broken-cover fix.
+- `index.css` مەزمۇنى original `index.html` inline style بىلەن byte-equivalent (surrounding whitespace نى ھېسابقا ئالمىغاندا).
+- `mobile.css` visual property لار ئۆزگەرمىدى؛ پەقەت كۆرۈنمەيدىغان backdrop hit-testing قوشۇلدى.
+- شۇڭا Desktop/Tablet/Mobile breakpoint، RTL، card size، cover size، spacing، carousel animation style ۋە brand styling ساقلانغان.
+
+PASS — Slow/offline foundation
+- Static interaction shell `loadRemoteCatalog()` نى كۈتۈشتىن بۇرۇن ئىشقا كىرىدىغانلىقى source-order test بىلەن دەلىللەندى.
+- Supabase availability HEAD request 8 سېكۇنتتىن ئاشسا abort بولۇپ static fallback قا ئۆتىدۇ.
+- Closed Mobile backdrop touch/click نى توسالمايدۇ.
+
+LIMITATION — Live browser verification
+- بۇ execution environment تا Chromium/Firefox executable يوق؛ browser download network timeout بىلەن توسۇلدى.
+- شۇڭا actual browser screenshot diff، click-by-click Console panel ۋە authenticated Admin/Login sign-in بۇ يەردە راستتىن ئىجرا قىلىنمىدى.
+- بۇلارنى «ئۆتتى» دەپ يالغان خاتىرىلىمىدۇق.
+- GitHub/Vercel قا upload قىلىنغاندىن كېيىن production URL دا Desktop 1440px، Tablet 820px، Mobile 390px live pass نى ئايرىم تاماملاش كېرەك.
+
+FINAL STATUS
+- Static audit، reference integrity، asset/SQL safety، JS syntax، query/cart/WhatsApp logic ۋە layout-equivalence QA: PASS.
+- Live browser console/click + authenticated Admin/Login QA: PENDING DEPLOYED BUILD.
+- شۇڭا بۇ ZIP cleanup candidate سۈپىتىدە تەييار؛ live browser pass بولمىغۇچە «بارلىق DONE CRITERIA 100% تاماملاندى» دەپ بەلگە قويۇلمىدى.

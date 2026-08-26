@@ -55,6 +55,7 @@ const catalogQueryState={
   detail:{...QUERY_DEFAULTS,pageSize:1}
 };
 const remoteCatalog={configured:false,available:false,total:null};
+const CATALOG_BOOT_TIMEOUT_MS=8000;
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const FALLBACK_COVER="sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
@@ -210,9 +211,12 @@ async function loadRemoteCatalog(){
   const cfg=supabasePublicConfig();
   remoteCatalog.configured=!!(cfg.url&&cfg.key);
   if(!remoteCatalog.configured){window.KUTADGU_CATALOG_STATUS=catalogStatus;return}
+  const controller=new AbortController();
+  const timeoutId=setTimeout(()=>controller.abort(),CATALOG_BOOT_TIMEOUT_MS);
   try{
     const response=await fetch(`${cfg.url}/rest/v1/books?select=id&is_active=eq.true`,{
       method:"HEAD",
+      signal:controller.signal,
       headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Prefer:"count=exact","Range-Unit":"items",Range:"0-0"}
     });
     if(!response.ok)throw new Error(`Catalog availability check failed (HTTP ${response.status})`);
@@ -226,7 +230,7 @@ async function loadRemoteCatalog(){
     remoteCatalog.available=false;
     catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:String(err?.message||err)};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
-  }
+  }finally{clearTimeout(timeoutId)}
 }
 
 async function hydrateBooksByIds(ids=[]){
@@ -758,12 +762,6 @@ function uniqueCategories(){
   C.forEach(b=>{let v=(b.category||"").trim();if(v&&!seen.has(v)){seen.add(v);out.push(v)}});
   return out;
 }
-function pricePass(b,min,max){
-  let p=Number(b.price);
-  if(Number.isFinite(min)&&(!Number.isFinite(p)||p<min))return false;
-  if(Number.isFinite(max)&&(!Number.isFinite(p)||p>max))return false;
-  return true;
-}
 function sortBooks(items,mode){
   let arr=[...items];
   const priceOf=(book,fallback)=>book.price===null||book.price===undefined||book.price===""?fallback:Number(book.price);
@@ -775,13 +773,6 @@ function sortBooks(items,mode){
   else if(mode==="recommended")arr.sort((a,b)=>Number(b.isRecommended===true)-Number(a.isRecommended===true)||bookTime(b)-bookTime(a)||a.catalogOrder-b.catalogOrder);
   else arr.sort((a,b)=>bookTime(b)-bookTime(a)||a.catalogOrder-b.catalogOrder);
   return arr;
-}
-function collectionPass(book,mode){
-  if(!mode)return true;
-  if(mode==="new")return book.isNew===true;
-  if(mode==="bestseller")return Number(book.salesCount)>0;
-  if(mode==="recommended")return book.isRecommended===true;
-  return true;
 }
 function bindDynamicActions(scope){
   if(!scope)return;
@@ -828,6 +819,8 @@ function bookCardMarkup(b,variant="listing"){
 function searchResultCard(b){return bookCardMarkup(b,"search")}
 function searchEnhance(){
   let input=document.querySelector("#searchInput"),res=document.querySelector("#searchResults");if(!input||!res)return;
+  if(input.dataset.kutadguSearchReady==="1")return;
+  input.dataset.kutadguSearchReady="1";
   let btn=document.querySelector("#searchButton");
   let box=input.closest(".search-box")||input.parentElement;
   if(!document.querySelector("#advancedSearchPanel")){
@@ -1672,14 +1665,32 @@ function loadPremiumUX(){
   }
   return loadAssetScript("premium-ux.js?v=6","kutadguPremiumUxScript");
 }
+let staticShellReady=false;
+function initStaticShell(){
+  if(staticShellReady)return;
+  staticShellReady=true;
+  injectFloat();
+  applyStaticCoverFallbacks();
+  syncStaticCards();
+  decorateCards();
+  searchEnhance();
+  renderHomeFeaturedBooks();
+  renderHomeSections();
+  renderMyBooks();
+  renderFavoritesPage();
+  renderContactSection();
+  cartPage();
+  setupCheckout();
+}
 function init(){
-  injectFloat();applyStaticCoverFallbacks();syncStaticCards();applyDetailCoverFallback();decorateCards();decorateDetail();searchEnhance();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
+  initStaticShell();applyDetailCoverFallback();decorateDetail();setupCatalogFilters();setupHomeCarousel();renderHomeFeaturedBooks();renderHomeSections();renderMyBooks();renderFavoritesPage();renderContactSection();cartPage();setupCheckout();
   document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
   document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
   loadMemberSystem();
 }
 async function boot(){
   try{await loadAssetScript("app-config.js?v=1","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  initStaticShell();
   await loadRemoteCatalog();
   await hydratePageBook();
   if(document.querySelector("#cartItems,#favoritesList,#myBooksApp,#homeShopSections")){

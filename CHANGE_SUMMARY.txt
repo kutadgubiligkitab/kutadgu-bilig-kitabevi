@@ -1,0 +1,53 @@
+1-باسقۇچ — PROJECT CLEANUP + SAFE FOUNDATION
+
+1) Production structure
+- `index.html` production باش بەت ئىكەنلىكى دەلىللەندى.
+- باش بەتتىكى 54,563-byte inline CSS مەزمۇنى ئۆزگەرتىلمەي يېڭى `index.css` قا يۆتكەلدى.
+- `index.css`، `theme.css`، `shop.css`، `mobile.css` نىڭ cascade تەرتىپى ساقلاپ قېلىندى.
+- `README.md` نۆۋەتتىكى production file role لىرى، asset safety، database ۋە deploy قائىدىسى بىلەن يېڭىلاندى.
+
+2) Safe code cleanup
+- `shop.js` دىكى project بويىچە ھېچقانداق call/reference يوق `pricePass` ۋە `collectionPass` helper لىرى ئۆچۈرۈلدى.
+- Search initialization قا idempotent guard قوشۇلۇپ، duplicate event listener نىڭ ئالدى ئېلىندى.
+- Supabase catalog availability check قا 8-second AbortController timeout قوشۇلدى.
+- Static catalog UI، search، cart، favorites، recently added ۋە contact block remote catalog نى كۈتۈپ قالماي ئالدىن initialization قىلىنىدىغان بولدى.
+- Mobile menu backdrop يېپىق ۋاقىتتا `pointer-events:none`، ئېچىلغاندا `pointer-events:auto` بولدى.
+
+3) Broken reference fix
+- `tibb.html` دىكى مەۋجۇت ئەمەس `sample-book-cover.webp` reference ى 6 جايدا، project تا ھەقىقىي بار بولغان `sample-book-cover.png` غا قايتۇرۇلدى.
+- Cover filename نىڭ ئۆزى ئۆزگەرتىلمىدى؛ database/admin cover URL logic غا تەگمىدى.
+
+4) Cache/reference consistency
+- 106 production HTML file ئىچىدىكى shared asset query version لىرى بىر تۇتاشلاندى:
+  theme.css?v=8
+  shop.css?v=28
+  mobile.css?v=9
+  theme.js?v=5
+  supabase-config.js?v=2
+  catalog.js?v=1
+  analytics.js?v=1
+  shop.js?v=41
+  mobile.js?v=1
+- HTML content، link target، card markup ۋە business logic بۇ cache normalization دا ئۆزگەرتىلمىدى.
+
+5) Files marked for deletion
+- 37 دانە file `DELETE_THESE_FILES.txt` قا exact path بىلەن يېزىلدى.
+- بۇلار 2 old/backup HTML، 2 unreferenced CSS copy ۋە 33 historical fix/QA/upload instruction document.
+- Reference بار numbered book/detail HTML page لىرى ئۆچۈرۈلمىدى.
+
+6) Intentionally preserved
+- 107 active HTML page
+- 8 image/logo/cover asset
+- 2 font file
+- 7 SQL setup/migration file
+- `catalog.js` static fallback
+- Supabase/Admin/Login/Analytics files
+- Search، Category، Sort، server-side pagination، carousel، favorites، cart، WhatsApp، book detail ۋە responsive/RTL logic
+
+7) Output contents
+- 109 modified file
+- `index.css` (new)
+- `DELETE_THESE_FILES.txt`
+- `CHANGE_SUMMARY.txt`
+- `QA_REPORT.txt`
+- ئۆزگەرمىگەن file لار ZIP قا قوشۇلمىدى.
