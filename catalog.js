@@ -7,7 +7,7 @@ window.KITAP_CATALOG = [
     "priceText": "265 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "ozumuzni-etirap-qilayli.html"
   },
   {
@@ -18,7 +18,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "romanlar-2.html"
   },
   {
@@ -29,7 +29,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "romanlar-3.html"
   },
   {
@@ -40,7 +40,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "romanlar-4.html"
   },
   {
@@ -51,7 +51,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "romanlar-5.html"
   },
   {
@@ -62,7 +62,7 @@ window.KITAP_CATALOG = [
     "priceText": "265 ₺",
     "category": "رومانلار",
     "source": "romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "romanlar-6.html"
   },
   {
@@ -73,7 +73,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-1.html"
   },
   {
@@ -84,7 +84,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-2.html"
   },
   {
@@ -95,7 +95,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-3.html"
   },
   {
@@ -106,7 +106,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-4.html"
   },
   {
@@ -117,7 +117,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-5.html"
   },
   {
@@ -128,7 +128,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "تارىخىي رومانلار",
     "source": "tarikhiy-romanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tarikhiy-romanlar-6.html"
   },
   {
@@ -139,7 +139,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-1.html"
   },
   {
@@ -150,7 +150,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-2.html"
   },
   {
@@ -161,7 +161,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-3.html"
   },
   {
@@ -172,7 +172,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-4.html"
   },
   {
@@ -183,7 +183,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-5.html"
   },
   {
@@ -194,7 +194,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "شېئىرلار",
     "source": "sheirlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "sheirlar-6.html"
   },
   {
@@ -205,7 +205,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-1.html"
   },
   {
@@ -216,7 +216,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-2.html"
   },
   {
@@ -227,7 +227,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-3.html"
   },
   {
@@ -238,7 +238,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-4.html"
   },
   {
@@ -249,7 +249,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-5.html"
   },
   {
@@ -260,7 +260,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ھېكايىلەر",
     "source": "hekayiler.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "hekayiler-6.html"
   },
   {
@@ -271,7 +271,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-1.html"
   },
   {
@@ -282,7 +282,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-2.html"
   },
   {
@@ -293,7 +293,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-3.html"
   },
   {
@@ -304,7 +304,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-4.html"
   },
   {
@@ -315,7 +315,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-5.html"
   },
   {
@@ -326,7 +326,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "داستانلار",
     "source": "dastanlar.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dastanlar-6.html"
   },
   {
@@ -337,7 +337,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-1.html"
   },
   {
@@ -348,7 +348,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-2.html"
   },
   {
@@ -359,7 +359,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-3.html"
   },
   {
@@ -370,7 +370,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-4.html"
   },
   {
@@ -381,7 +381,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-5.html"
   },
   {
@@ -392,7 +392,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "دۇنيا ئەدەبىياتى",
     "source": "dunya-edebiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dunya-edebiyati-6.html"
   },
   {
@@ -403,7 +403,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-1.html"
   },
   {
@@ -414,7 +414,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-2.html"
   },
   {
@@ -425,7 +425,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-3.html"
   },
   {
@@ -436,7 +436,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-4.html"
   },
   {
@@ -447,7 +447,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-5.html"
   },
   {
@@ -458,7 +458,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئەدەبىيات رومانلىرى",
     "source": "adabiyat-roman.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "adabiyat-roman-6.html"
   },
   {
@@ -469,7 +469,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-1.html"
   },
   {
@@ -480,7 +480,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-2.html"
   },
   {
@@ -491,7 +491,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-3.html"
   },
   {
@@ -502,7 +502,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-4.html"
   },
   {
@@ -513,7 +513,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-5.html"
   },
   {
@@ -524,7 +524,7 @@ window.KITAP_CATALOG = [
     "priceText": "200 ₺",
     "category": "ئۇيغۇر ئەدەبىياتى",
     "source": "uyghur-adabiyati.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "uyghur-adabiyati-6.html"
   },
   {
@@ -535,7 +535,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-1.html"
   },
   {
@@ -546,7 +546,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-2.html"
   },
   {
@@ -557,7 +557,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-3.html"
   },
   {
@@ -568,7 +568,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-4.html"
   },
   {
@@ -579,7 +579,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-5.html"
   },
   {
@@ -590,7 +590,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "ئۇنىۋېرسال",
     "source": "universal.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "universal-6.html"
   },
   {
@@ -601,7 +601,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-1.html"
   },
   {
@@ -612,7 +612,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-2.html"
   },
   {
@@ -623,7 +623,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-3.html"
   },
   {
@@ -634,7 +634,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-4.html"
   },
   {
@@ -645,7 +645,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-5.html"
   },
   {
@@ -656,7 +656,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "تېبابەت ۋە ساغلاملىق",
     "source": "tibb.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "tibb-6.html"
   },
   {
@@ -667,7 +667,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-1.html"
   },
   {
@@ -678,7 +678,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-2.html"
   },
   {
@@ -689,7 +689,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-3.html"
   },
   {
@@ -700,7 +700,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-4.html"
   },
   {
@@ -711,7 +711,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-5.html"
   },
   {
@@ -722,7 +722,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دەرسلىك",
     "source": "derslik.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "derslik-6.html"
   },
   {
@@ -733,7 +733,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-1.html"
   },
   {
@@ -744,7 +744,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-2.html"
   },
   {
@@ -755,7 +755,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-3.html"
   },
   {
@@ -766,7 +766,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-4.html"
   },
   {
@@ -777,7 +777,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-5.html"
   },
   {
@@ -788,7 +788,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "پەرزەنت تەربىيەسى",
     "source": "terbiye.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "terbiye-6.html"
   },
   {
@@ -799,7 +799,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-1.html"
   },
   {
@@ -810,7 +810,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-2.html"
   },
   {
@@ -821,7 +821,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-3.html"
   },
   {
@@ -832,7 +832,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-4.html"
   },
   {
@@ -843,7 +843,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-5.html"
   },
   {
@@ -854,7 +854,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "دىنىي كىتابلار",
     "source": "dini.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "dini-6.html"
   },
   {
@@ -865,7 +865,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-1.html"
   },
   {
@@ -876,7 +876,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-2.html"
   },
   {
@@ -887,7 +887,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-3.html"
   },
   {
@@ -898,7 +898,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-4.html"
   },
   {
@@ -909,7 +909,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-5.html"
   },
   {
@@ -920,7 +920,7 @@ window.KITAP_CATALOG = [
     "priceText": "0 ₺",
     "category": "بالىلار كىتابلىرى",
     "source": "children.html",
-    "image": "sample-book-cover.webp",
+    "image": "sample-book-cover.png",
     "href": "children-6.html"
   }
 ];
@@ -934,7 +934,7 @@ window.KITAP_CATALOG = (window.KITAP_CATALOG || []).map(function(book,index){
   return Object.assign({
     id:String(book.id||('book-'+(index+1))),
     title:'', author:'', price:Number.isFinite(price)?price:null,
-    category:'', source:'universal.html', image:'sample-book-cover.webp',
+    category:'', source:'universal.html', image:'sample-book-cover.png',
     href:'book.html?id='+encodeURIComponent(book.id||('book-'+(index+1))),
     stock:null, stock_status:'', description:'', pages:null,
     translator:'', language:'', publisher:'', publish_date:'', publish_year:'',

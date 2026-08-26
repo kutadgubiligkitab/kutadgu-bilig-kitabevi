@@ -56,7 +56,7 @@ const catalogQueryState={
 };
 const remoteCatalog={configured:false,available:false,total:null};
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
-const FALLBACK_COVER="sample-book-cover.webp";
+const FALLBACK_COVER="sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
 const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};

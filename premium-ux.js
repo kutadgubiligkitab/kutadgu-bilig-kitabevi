@@ -15,7 +15,7 @@
     ...(config.featureFlags||{})
   };
   const REC_KEY=config.storageKeys?.recentlyViewed||"kutadgu-recent-v1";
-  const fallbackCover="sample-book-cover.webp";
+  const fallbackCover="sample-book-cover.png";
 
   const catalog=()=>window.kutadguShop?.getCatalog?.()||window.KUTADGU_LIVE_CATALOG||window.KITAP_CATALOG||[];
   const normalize=value=>String(value||"").trim().toLocaleLowerCase("ug");
