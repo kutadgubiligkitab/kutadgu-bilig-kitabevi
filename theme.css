@@ -280,6 +280,12 @@ body.dark-mode section.info-section p {
 
 
 /* ===== قۇتادغۇبىلىك لوگوسى ===== */
+.kutadgu-site-logo-picture{
+    display:inline-flex;
+    align-items:center;
+    flex:0 0 auto;
+    line-height:0;
+}
 .kutadgu-site-logo{
     width:48px;
     height:48px;

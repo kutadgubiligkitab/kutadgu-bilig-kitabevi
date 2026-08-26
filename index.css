@@ -1,6 +1,8 @@
 @font-face {
     font-family: "UKIJ CJK";
-    src: url("UKIJCJK.ttf") format("truetype");
+    src: url("UKIJCJK.woff2") format("woff2"), url("UKIJCJK.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
     font-display: swap;
 }
 
@@ -1848,7 +1850,7 @@ header > .container{
     align-items:center !important;
     justify-content:center !important;
 }
-.real-cover-wrap > img.hero-scene-logo{
+.real-cover-wrap img.hero-scene-logo{
     display:block !important;
     width:78px !important;
     height:78px !important;
@@ -1860,7 +1862,7 @@ header > .container{
     filter:drop-shadow(0 4px 7px rgba(0,0,0,.14)) !important;
 }
 @media (max-width:700px){
-    .real-cover-wrap > img.hero-scene-logo{
+    .real-cover-wrap img.hero-scene-logo{
         width:66px !important;
         height:66px !important;
         max-width:66px !important;
@@ -1881,7 +1883,7 @@ header > .container{
 .real-cover-wrap{
     background:transparent !important;
 }
-.real-cover-wrap > img.hero-scene-logo{
+.real-cover-wrap img.hero-scene-logo{
     background:transparent !important;
     filter:drop-shadow(0 3px 6px rgba(0,0,0,.12)) !important;
 }
