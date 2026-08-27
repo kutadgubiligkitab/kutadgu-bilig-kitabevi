@@ -144,18 +144,36 @@ async function mergeShopState(){
     ]);
     if(favError)throw favError;if(cartError)throw cartError;
 
+    const cloudFav=(favRows||[]).map(x=>x.book_id).filter(Boolean);
+    const cloudCart=(cartRows||[]).map(x=>({id:x.book_id,qty:x.quantity}));
     const localFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
-    const mergedFav=[...new Set([...localFav,...(favRows||[]).map(x=>x.book_id)].map(String).filter(Boolean))];
-
-    const cartMap=new Map();
-    (cartRows||[]).forEach(x=>cartMap.set(String(x.book_id),Math.max(1,Number(x.quantity)||1)));
     const localCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
-    localCart.forEach(x=>{
-      if(!x?.id)return;
-      const id=String(x.id),qty=Math.max(1,Number(x.qty)||1);
-      cartMap.set(id,Math.max(qty,cartMap.get(id)||0));
-    });
-    const mergedCart=[...cartMap].map(([id,qty])=>({id,qty}));
+    const pendingIds=[
+      ...cloudFav,
+      ...cloudCart.map(x=>x.id),
+      ...localFav,
+      ...localCart.map(x=>x?.id)
+    ].map(String).filter(Boolean);
+    if(typeof window.kutadguShop?.hydrateBooksByIds==="function"){
+      await window.kutadguShop.hydrateBooksByIds(pendingIds);
+    }
+
+    const resolveId=id=>{
+      const book=window.kutadguShop?.find?.(id);
+      return book?.id||String(id||"");
+    };
+    const helpers=window.KutadguLegacyIds;
+    const mergedFavRaw=[...localFav,...cloudFav].map(String).filter(Boolean);
+    const mergedFav=helpers?.migrateIdList?helpers.migrateIdList(mergedFavRaw,resolveId):[...new Set(mergedFavRaw)];
+
+    const cartRaw=[];
+    cloudCart.forEach(x=>cartRaw.push({id:String(x.id),qty:Math.max(1,Number(x.qty)||1)}));
+    localCart.forEach(x=>{if(x?.id)cartRaw.push({id:String(x.id),qty:Math.max(1,Number(x.qty)||1)})});
+    const mergedCart=helpers?.migrateCartItems?helpers.migrateCartItems(cartRaw,resolveId):(()=>{
+      const cartMap=new Map();
+      cartRaw.forEach(x=>{const id=String(x.id);cartMap.set(id,Math.max(x.qty,cartMap.get(id)||0))});
+      return [...cartMap].map(([id,qty])=>({id,qty}));
+    })();
 
     localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
     localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));

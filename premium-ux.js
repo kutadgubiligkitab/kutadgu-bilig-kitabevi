@@ -54,9 +54,11 @@
   }
 
   function bindCards(scope){
-    const favorites=new Set(window.kutadguShop?.favorites?.()||[]);
     scope.querySelectorAll(".premium-card-cover img").forEach(img=>img.onerror=()=>{img.onerror=null;img.src=fallbackCover});
-    scope.querySelectorAll("[data-premium-favorite]").forEach(button=>{const active=favorites.has(button.dataset.premiumFavorite);button.classList.toggle("is-favorite",active);button.textContent=active?"♥":"♡";button.setAttribute("aria-pressed",active?"true":"false")});
+    scope.querySelectorAll("[data-premium-favorite]").forEach(button=>{
+      const active=!!window.kutadguShop?.favHas?.(button.dataset.premiumFavorite);
+      button.classList.toggle("is-favorite",active);button.textContent=active?"♥":"♡";button.setAttribute("aria-pressed",active?"true":"false");
+    });
     scope.querySelectorAll("[data-premium-cart]").forEach(button=>button.onclick=()=>window.kutadguShop?.add?.(button.dataset.premiumCart));
     scope.querySelectorAll("[data-premium-favorite]").forEach(button=>button.onclick=()=>{
       window.kutadguShop?.toggleFav?.(button.dataset.premiumFavorite);
@@ -261,7 +263,7 @@
   function enhanceDetail(){
     const page=document.querySelector(".book-detail-page");if(!page)return;
     const currentId=document.body.dataset.bookId||new URLSearchParams(location.search).get("id");
-    const current=catalog().find(book=>book.id===currentId||book.href===(location.pathname.split("/").pop()||""));
+    const current=catalog().find(book=>book.id===currentId||book.legacyId===currentId||book.href===(location.pathname.split("/").pop()||""));
     if(!current)return;
     const extras=page.querySelector(".detail-extra-sections");
     if(extras&&enabled("recommendations")&&!extras.querySelector("[data-people-also-viewed]")){

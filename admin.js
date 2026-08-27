@@ -6,7 +6,7 @@ const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
-const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","dimensions"];
+const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","dimensions","legacy_id"];
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -19,9 +19,10 @@ const OPTIONAL_COL_ALIASES={
   publish_date:["publish_date"],
   publish_year:["publish_year","year"],
   cover_type:["cover_type"],
-  dimensions:["dimensions"]
+  dimensions:["dimensions"],
+  legacy_id:["legacy_id","legacyid","static_id"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:false,href:false,stock:false,stock_status:false,pages:false,translator:false,language:false,publish_date:false,publish_year:false,cover_type:false,dimensions:false};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:false,href:false,stock:false,stock_status:false,pages:false,translator:false,language:false,publish_date:false,publish_year:false,cover_type:false,dimensions:false,legacy_id:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let isbnColumn=true,migrationWarned=false;
@@ -154,6 +155,7 @@ function writeBookRow(row,opts={}){
   Object.keys(row||{}).forEach(key=>{
     if(OPTIONAL_BOOK_COLS.includes(key)&&!presentBookCols.has(key))return;
     if(omitId&&key==="id")return;
+    if(key==="id"&&generatedAlwaysId)return;
     out[key]=row[key];
   });
   return out;
@@ -279,6 +281,12 @@ function mapImportRow(raw){
   if(stock_status==="out")stock_status="out_of_stock";
   if(!stock_status)stock_status="in_stock";
   if(headerAlias(raw,["is_bestseller","bestseller"]))warnings.push("is_bestseller ئىمپورت قىلىنمايدۇ؛ كۆپ سېتىلغان sales_count بويىچە ئاپتوماتىك");
+  const suppliedId=String(headerAlias(raw,["id","book_id"])).trim();
+  if(suppliedId)warnings.push("id ستونى ئىمپورت قىلىنمايدۇ؛ Database identity id ھاسىل قىلىدۇ");
+  const legacy_id=String(headerAlias(raw,["legacy_id","legacyid","static_id"])).trim();
+  if(legacy_id&&!presentBookCols.has("legacy_id")){
+    errors.push("legacy_id ستونى Database دا يوق — STAGE45_LEGACY_ID_MIGRATION.sql نى ئىجرا قىلىڭ");
+  }
   nonEmptyIgnoredValues(raw).forEach(col=>warnings.push(`${col} بۇ Database لايىھەسىدە يوق — كىرگۈزۈلمەيدۇ`));
   return {
     row:raw._row,
@@ -302,6 +310,7 @@ function mapImportRow(raw){
     is_new:neu.empty?false:neu.value,
     is_active:act.empty?true:act.value,
     stock_status,
+    legacy_id,
     errors,
     warnings,
     status:errors.length?"error":"ok"
@@ -920,6 +929,7 @@ function titleAuthorKey(title,author){
 async function loadExistingForImport(mapped){
   const existingIsbn=new Map();
   const existingTitle=new Map();
+  const existingLegacy=new Map();
   const addIsbn=(b)=>{
     const key=normalizeIsbn(b.isbn);
     if(!key)return;
@@ -927,14 +937,18 @@ async function loadExistingForImport(mapped){
     if(!list.some(x=>x.id===b.id))list.push(b);
     existingIsbn.set(key,list);
   };
-  const cols=isbnColumn?"id,title,author,isbn":"id,title,author";
-  const {data:allTitles,error}=await db.from("books").select(cols).range(0,9999);
+  const cols=["id","title","author"];
+  if(isbnColumn)cols.push("isbn");
+  if(presentBookCols.has("legacy_id"))cols.push("legacy_id");
+  const {data:allTitles,error}=await db.from("books").select(cols.join(",")).range(0,9999);
   if(error)throw error;
   (allTitles||[]).forEach(b=>{
     addIsbn(b);
     existingTitle.set(titleAuthorKey(b.title,b.author),b);
+    const legacy=String(b.legacy_id||"").trim();
+    if(legacy)existingLegacy.set(legacy,b);
   });
-  return {existingIsbn,existingTitle};
+  return {existingIsbn,existingTitle,existingLegacy};
 }
 
 async function buildImportPreview(file){
@@ -955,15 +969,24 @@ async function buildImportPreview(file){
   }
   const mapped=objects.map(mapImportRow);
   const seenIsbn=new Map();
+  const seenLegacy=new Map();
   mapped.forEach(row=>{
     if(row.isbnKey){
       if(seenIsbn.has(row.isbnKey))row.errors.push("ئەسىلى ھۆججەت ئىچىدە ئوخشاش ISBN تەكرار");
       else seenIsbn.set(row.isbnKey,row.row);
     }
+    if(row.legacy_id){
+      if(seenLegacy.has(row.legacy_id))row.errors.push("ئەسىلى ھۆججەت ئىچىدە ئوخشاش legacy_id تەكرار — قاپلىمايمىز");
+      else seenLegacy.set(row.legacy_id,row.row);
+    }
   });
   try{
-    const {existingIsbn,existingTitle}=await loadExistingForImport(mapped);
+    const {existingIsbn,existingTitle,existingLegacy}=await loadExistingForImport(mapped);
     mapped.forEach(row=>{
+      if(row.legacy_id&&existingLegacy.has(row.legacy_id)){
+        const match=existingLegacy.get(row.legacy_id);
+        row.errors.push(`legacy_id مەۋجۇت كىتابقا تەكرار (${match.id}) — قاپلىمايمىز`);
+      }
       if(row.isbnKey&&existingIsbn.has(row.isbnKey)){
         const matches=existingIsbn.get(row.isbnKey)||[];
         row.isbnMatchCount=matches.length;
@@ -1011,7 +1034,7 @@ async function buildImportPreview(file){
   $("#importPreviewBody").innerHTML=mapped.map(r=>{
     const cls=r.status==="error"?"admin-row-error":r.status==="dup"||r.status==="warn"?"admin-row-warn":"admin-row-ok";
     const note=[...r.errors,...r.warnings].join("؛ ")||"جەزملەشنى ساقلاۋاتىدۇ";
-    return `<tr class="${cls}"><td>${r.row}</td><td>${esc(r.title)}</td><td>${esc(r.author)}</td><td class="admin-isbn">${esc(r.isbn||"—")}</td><td>${r.price==null?"—":esc(r.price)}</td><td>${esc(r.category||"—")}</td><td>${esc(note)}</td></tr>`;
+    return `<tr class="${cls}"><td>${r.row}</td><td>${esc(r.title)}</td><td>${esc(r.author)}</td><td class="admin-isbn">${esc(r.isbn||"—")}</td><td class="admin-isbn">${esc(r.legacy_id||"—")}</td><td>${r.price==null?"—":esc(r.price)}</td><td>${esc(r.category||"—")}</td><td>${esc(note)}</td></tr>`;
   }).join("");
   const canImport=mapped.some(r=>r.status!=="error")||mapped.some(r=>r.duplicate==="isbn");
   $("#confirmImportBtn").disabled=!mapped.length;
@@ -1046,6 +1069,7 @@ function rowToInsert(row,id){
     is_recommended:row.is_recommended===true
   };
   if(isbnColumn)rec.isbn=row.isbn||"";
+  if(presentBookCols.has("legacy_id")&&row.legacy_id)rec.legacy_id=row.legacy_id;
   return rec;
 }
 function rowToUpdate(row){
@@ -1212,6 +1236,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert
 };
 })();
