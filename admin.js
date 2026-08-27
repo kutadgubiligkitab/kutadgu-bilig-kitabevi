@@ -746,8 +746,9 @@ async function requestPasswordReset(){
     return;
   }
   status($("#loginStatus"),"پارول يېڭىلاش ئۇلانمىسى ئەۋەتىلىۋاتىدۇ...");
-  const base=location.pathname.replace(/admin\.html.*$/,"");
-  const redirectTo=`${location.origin}${base}reset-password.html?next=admin`;
+  const redirectTo=(window.kutadguPasswordResetRedirectTo||function(){
+    return `${String(window.KUTADGU_SITE_ORIGIN||location.origin).replace(/\/+$/,"")}/reset-password.html?next=admin`;
+  })("admin");
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error){
     status($("#loginStatus"),"ئۇلانما ئەۋەتىش مەغلۇپ بولدى: "+error.message,"error");

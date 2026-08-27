@@ -4,6 +4,32 @@
 */
 window.KUTADGU_SITE_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
 
+window.kutadguPasswordResetRedirectTo = function(next){
+  const origin=String(window.KUTADGU_SITE_ORIGIN||location.origin||"").replace(/\/+$/,"");
+  const url=origin+"/reset-password.html";
+  if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
+  return url;
+};
+
+(function kutadguBounceRecoveryToResetPage(){
+  try{
+    const file=(location.pathname.split("/").pop()||"index.html").split(/[?#]/)[0]||"index.html";
+    if(file==="reset-password.html")return;
+    const search=new URLSearchParams(location.search);
+    const hash=new URLSearchParams(String(location.hash||"").replace(/^#/,""));
+    const type=String(search.get("type")||hash.get("type")||"").toLowerCase();
+    if(type==="signup"||type==="email")return;
+    const recovery=type==="recovery";
+    const onHome=file==="index.html"||file==="";
+    const authOnHome=onHome&&(search.has("code")||search.has("token_hash")||hash.has("access_token"));
+    if(!recovery&&!authOnHome)return;
+    const dest=new URL("reset-password.html",location.href);
+    search.forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});
+    dest.hash=location.hash||"";
+    location.replace(dest.pathname+dest.search+dest.hash);
+  }catch(error){}
+})();
+
 window.KUTADGU_SUPABASE_CONFIG = {
   url: "https://fxlojnqwyojqjskfggmh.supabase.co",
   anonKey: "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE",
