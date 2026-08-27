@@ -131,10 +131,19 @@ function missingColumnName(error){
 }
 async function detectBookSchema(){
   if(!db||schemaDetected)return;
-  await Promise.all(OPTIONAL_BOOK_COLS.map(async col=>{
-    const {error}=await db.from("books").select(col).limit(0);
-    if(error)presentBookCols.delete(col);
-  }));
+  let cols=OPTIONAL_BOOK_COLS.filter(col=>presentBookCols.has(col));
+  for(let i=0;i<OPTIONAL_BOOK_COLS.length+1;i++){
+    if(!cols.length)break;
+    const {error}=await db.from("books").select(cols.join(",")).limit(0);
+    if(!error)break;
+    const missing=missingColumnName(error);
+    if(missing&&cols.includes(missing)){
+      presentBookCols.delete(missing);
+      cols=cols.filter(c=>c!==missing);
+      continue;
+    }
+    break;
+  }
   isbnColumn=presentBookCols.has("isbn");
   schemaDetected=true;
   if(!isbnColumn)warnMigrationOnce();
@@ -1156,7 +1165,6 @@ function init(){
     return;
   }
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
-  detectBookSchema();
   renderSourceOptions();
   $("#loginForm").addEventListener("submit",login);
   $("#forgotPasswordBtn").onclick=requestPasswordReset;
