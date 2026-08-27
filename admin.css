@@ -149,7 +149,8 @@ button{cursor:pointer}
 .admin-row-warn{background:#fffaf0}
 .admin-row-ok{background:#f3faf4}
 .admin-import-preview{margin-top:12px}
-a.admin-secondary{display:inline-flex;align-items:center;text-decoration:none}
+[data-book-col][hidden]{display:none!important}
+.admin-schema-note{margin-top:8px}
 @media(max-width:850px){
   .admin-book-row{grid-template-columns:24px 48px 1fr}
 }

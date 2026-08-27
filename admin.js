@@ -7,11 +7,26 @@ const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
 const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","dimensions"];
+const OPTIONAL_COL_ALIASES={
+  isbn:["isbn","barcode","باركود"],
+  publisher:["publisher","نەشرىيات"],
+  href:["href","url","link"],
+  stock:["stock","ئامبار"],
+  stock_status:["stock_status"],
+  pages:["pages"],
+  translator:["translator"],
+  language:["language"],
+  publish_date:["publish_date"],
+  publish_year:["publish_year","year"],
+  cover_type:["cover_type"],
+  dimensions:["dimensions"]
+};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:false,href:false,stock:false,stock_status:false,pages:false,translator:false,language:false,publish_date:false,publish_year:false,cover_type:false,dimensions:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let isbnColumn=true,migrationWarned=false;
-let schemaDetected=false,generatedAlwaysId=false;
-const presentBookCols=new Set(OPTIONAL_BOOK_COLS);
+let generatedAlwaysId=false;
+const presentBookCols=new Set();
 let listTotal=0,listPage=0,listRequest=0;
 let selectedIds=new Set();
 let searchTimer=null;
@@ -96,6 +111,30 @@ function postgrestIlike(column,term){
   const like=`%${String(term).replace(/\\/g," ").replace(/"/g,"")}%`;
   return `${column}.ilike."${like}"`;
 }
+function applyBooksSchema(){
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{};
+  const optional={...LIVE_OPTIONAL_BOOK_COLS,...(spec.optionalColumns||{})};
+  presentBookCols.clear();
+  OPTIONAL_BOOK_COLS.forEach(col=>{if(optional[col]!==false)presentBookCols.add(col)});
+  isbnColumn=presentBookCols.has("isbn");
+  generatedAlwaysId=spec.identityId==null?true:spec.identityId===true;
+  document.querySelectorAll("[data-book-col]").forEach(el=>{
+    const col=el.getAttribute("data-book-col");
+    el.hidden=!presentBookCols.has(col);
+  });
+  const search=$("#adminSearch");
+  if(search){
+    search.placeholder=presentBookCols.has("publisher")
+      ?"كىتاب، ئاپتور، ISBN ياكى نەشرىيات ئىزدەڭ..."
+      :(isbnColumn?"كىتاب، ئاپتور ياكى ISBN ئىزدەڭ...":"كىتاب ياكى ئاپتور ئىزدەڭ...");
+  }
+  const staticBtn=$("#importStaticBtn");
+  if(staticBtn){
+    staticBtn.hidden=generatedAlwaysId;
+    staticBtn.disabled=generatedAlwaysId;
+  }
+  if(!isbnColumn)warnMigrationOnce();
+}
 function searchOrFilter(term,includeIsbn){
   const t=searchSafe(term);
   if(!t)return "";
@@ -109,11 +148,12 @@ function searchOrFilter(term,includeIsbn){
   }
   return parts.join(",");
 }
-function writeBookRow(row){
+function writeBookRow(row,opts={}){
+  const omitId=!!opts.omitId;
   const out={};
   Object.keys(row||{}).forEach(key=>{
     if(OPTIONAL_BOOK_COLS.includes(key)&&!presentBookCols.has(key))return;
-    if(generatedAlwaysId&&key==="id")return;
+    if(omitId&&key==="id")return;
     out[key]=row[key];
   });
   return out;
@@ -122,31 +162,20 @@ function generatedIdError(error){
   const msg=String(error?.message||error||"");
   return error?.code==="428C9"||/GENERATED ALWAYS/i.test(msg)||/identity column/i.test(msg);
 }
-function missingColumnName(error){
-  const msg=String(error?.message||error||"");
-  const quoted=msg.match(/'([^']+)' column/i);
-  if(quoted)return quoted[1];
-  const dotted=msg.match(/column (?:public\.)?books\.([a-z0-9_]+)/i);
-  return dotted?dotted[1]:"";
+function ignoredImportColumns(objects){
+  const keys=new Set();
+  (objects||[]).forEach(row=>Object.keys(row||{}).forEach(k=>{if(k&&k!=="_row")keys.add(k)}));
+  return OPTIONAL_BOOK_COLS.filter(col=>{
+    if(presentBookCols.has(col))return false;
+    return (OPTIONAL_COL_ALIASES[col]||[col]).some(alias=>keys.has(alias));
+  });
 }
-async function detectBookSchema(){
-  if(!db||schemaDetected)return;
-  let cols=OPTIONAL_BOOK_COLS.filter(col=>presentBookCols.has(col));
-  for(let i=0;i<OPTIONAL_BOOK_COLS.length+1;i++){
-    if(!cols.length)break;
-    const {error}=await db.from("books").select(cols.join(",")).limit(0);
-    if(!error)break;
-    const missing=missingColumnName(error);
-    if(missing&&cols.includes(missing)){
-      presentBookCols.delete(missing);
-      cols=cols.filter(c=>c!==missing);
-      continue;
-    }
-    break;
-  }
-  isbnColumn=presentBookCols.has("isbn");
-  schemaDetected=true;
-  if(!isbnColumn)warnMigrationOnce();
+function nonEmptyIgnoredValues(raw){
+  return OPTIONAL_BOOK_COLS.filter(col=>{
+    if(presentBookCols.has(col))return false;
+    const value=headerAlias(raw,OPTIONAL_COL_ALIASES[col]||[col]);
+    return String(value??"").trim()!=="";
+  });
 }
 
 function parseCsvText(text){
@@ -250,6 +279,7 @@ function mapImportRow(raw){
   if(stock_status==="out")stock_status="out_of_stock";
   if(!stock_status)stock_status="in_stock";
   if(headerAlias(raw,["is_bestseller","bestseller"]))warnings.push("is_bestseller ئىمپورت قىلىنمايدۇ؛ كۆپ سېتىلغان sales_count بويىچە ئاپتوماتىك");
+  nonEmptyIgnoredValues(raw).forEach(col=>warnings.push(`${col} بۇ Database لايىھەسىدە يوق — كىرگۈزۈلمەيدۇ`));
   return {
     row:raw._row,
     title,
@@ -297,7 +327,6 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
-  await detectBookSchema();
   await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats()]);
 }
 
@@ -322,10 +351,6 @@ function applyListFilters(query){
   query=query.order(column,{ascending:dir==="asc",nullsFirst:false}).order("id",{ascending:true});
   return query;
 }
-function missingIsbnError(error){
-  const msg=String(error?.message||error||"");
-  return /isbn/i.test(msg)&&( /column/i.test(msg)||/schema cache/i.test(msg)||/does not exist/i.test(msg)||error?.code==="42703"||error?.code==="PGRST204");
-}
 function warnMigrationOnce(){
   if(migrationWarned)return;
   migrationWarned=true;
@@ -347,6 +372,16 @@ async function loadStats(){
       const stockRes=await db.from("books").select("stock").range(0,9999);
       if(!stockRes.error)$("#statStock").textContent=(stockRes.data||[]).reduce((s,b)=>s+(Number(b.stock)||0),0);
     }
+    const note=$("#adminCatalogNote");
+    if(note){
+      const dbCount=Number(all.error?NaN:all.count);
+      if(!all.error&&dbCount===0&&STATIC.length){
+        note.hidden=false;
+        note.textContent=`Database دا ھازىر 0 كىتاب بار. تور بەت ${STATIC.length} دانە static catalog.js كىتابىنى كۆرسىتىدۇ. ئۇلارنى Admin دا تەھرىرلىگىلى بولمايدۇ؛ CSV/Excel ئالدىن كۆرۈش ۋە جەزملەشتىن كېيىنلا Database غا كىرگۈزۈلىدۇ.`;
+      }else{
+        note.hidden=true;
+      }
+    }
   }catch(error){
     console.warn(error);
   }
@@ -362,24 +397,6 @@ async function loadBooks(){
   query=applyListFilters(query);
   let {data,error,count}=await query;
   if(req!==listRequest)return;
-  if(error&&isbnColumn&&missingIsbnError(error)){
-    isbnColumn=false;
-    presentBookCols.delete("isbn");
-    warnMigrationOnce();
-    query=applyListFilters(db.from("books").select(columnList(),{count:"exact"}).range(from,to));
-    ({data,error,count}=await query);
-    if(req!==listRequest)return;
-  }
-  if(error){
-    const missing=missingColumnName(error);
-    if(missing&&OPTIONAL_BOOK_COLS.includes(missing)){
-      presentBookCols.delete(missing);
-      if(missing==="isbn"){isbnColumn=false;warnMigrationOnce()}
-      query=applyListFilters(db.from("books").select(columnList(),{count:"exact"}).range(from,to));
-      ({data,error,count}=await query);
-      if(req!==listRequest)return;
-    }
-  }
   if(error){
     status($("#adminStatus"),"Database دىن كىتاب ئوقۇش مەغلۇپ بولدى: "+error.message,"error");
     $("#adminBookList").innerHTML=`<div class="admin-empty">${esc(error.message)}</div>`;
@@ -420,7 +437,7 @@ function renderBooks(){
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
-        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)} · ئامبار ${b.stock==null?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}</div>
+        <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)}${presentBookCols.has("stock")||presentBookCols.has("stock_status")?` · ئامبار ${b.stock==null?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}`:""}</div>
         <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}${b.isbn?` · ISBN <span class="admin-isbn">${esc(b.isbn)}</span>`:""}${b.publisher?` · ${esc(b.publisher)}`:""}</div>
       </div>
       <div class="admin-book-actions">
@@ -635,9 +652,9 @@ async function saveBook(e){
     };
     if(!row.title){alert("كىتاب ئىسمى كېرەك.");return}
     if(isbnColumn)row.isbn=isbn;
-    let payload=writeBookRow(row);
-    let error=null;
     const isNew=!editing;
+    let payload=writeBookRow(row,{omitId:generatedAlwaysId&&isNew});
+    let error=null;
     if(generatedAlwaysId&&isNew){
       delete payload.id;
       ({error}=await db.from("books").insert(payload));
@@ -646,30 +663,11 @@ async function saveBook(e){
     }
     if(error&&generatedIdError(error)&&isNew){
       generatedAlwaysId=true;
-      payload=writeBookRow(row);
+      payload=writeBookRow(row,{omitId:true});
       delete payload.id;
       ({error}=await db.from("books").insert(payload));
     }
-    if(error){
-      const missing=missingColumnName(error);
-      if(missing&&OPTIONAL_BOOK_COLS.includes(missing)){
-        presentBookCols.delete(missing);
-        if(missing==="isbn"){isbnColumn=false;warnMigrationOnce()}
-        payload=writeBookRow(row);
-        if(generatedAlwaysId&&isNew)delete payload.id;
-        const retry=generatedAlwaysId&&isNew
-          ?await db.from("books").insert(payload)
-          :await db.from("books").upsert(payload,{onConflict:"id"});
-        if(retry.error)throw retry.error;
-      }else if(isbnColumn&&missingIsbnError(error)){
-        isbnColumn=false;
-        presentBookCols.delete("isbn");
-        warnMigrationOnce();
-        payload=writeBookRow(row);
-        const retry=await db.from("books").upsert(payload,{onConflict:"id"});
-        if(retry.error)throw retry.error;
-      }else throw error;
-    }
+    if(error)throw error;
     modal(false);
     await Promise.all([loadBooks(),loadStats()]);
   }catch(err){
@@ -695,6 +693,10 @@ async function deleteBook(id){
   await Promise.all([loadBooks(),loadStats()]);
 }
 async function importStatic(){
+  if(generatedAlwaysId){
+    alert("بۇ Database دا كىتاب id نى ئۆزى ھاسىل قىلىدۇ. static catalog نى بىۋاسىتە ID بىلەن يازغىلى بولمايدۇ. CSV/Excel ئالدىن كۆرۈش ئارقىلىق كىرگۈزۈڭ.");
+    return;
+  }
   if(!STATIC.length)return;
   if(!confirm(`ھازىرقى ${STATIC.length} دانە كىتابنى Database قا كىرگۈزەمسىز؟\nبار بولغان ID لار يېڭىلىنىدۇ.`))return;
   const btn=$("#importStaticBtn");
@@ -859,6 +861,8 @@ function openImport(){
   $("#importPreviewWrap").hidden=true;
   $("#importProgress").hidden=true;
   $("#confirmImportBtn").disabled=true;
+  const ignoreNote=$("#importUnsupportedNote");
+  if(ignoreNote){ignoreNote.hidden=true;ignoreNote.textContent=""}
   status($("#importStatus"),"CSV ياكى Excel (.xlsx) تاللاڭ.");
   $("#importModal").hidden=false;
 }
@@ -923,15 +927,8 @@ async function loadExistingForImport(mapped){
     if(!list.some(x=>x.id===b.id))list.push(b);
     existingIsbn.set(key,list);
   };
-  const {data:allTitles,error}=await db.from("books").select("id,title,author,isbn").range(0,9999);
-  if(error&&missingIsbnError(error)){
-    isbnColumn=false;
-    warnMigrationOnce();
-    const retry=await db.from("books").select("id,title,author").range(0,9999);
-    if(retry.error)throw retry.error;
-    (retry.data||[]).forEach(b=>existingTitle.set(titleAuthorKey(b.title,b.author),b));
-    return {existingIsbn,existingTitle};
-  }
+  const cols=isbnColumn?"id,title,author,isbn":"id,title,author";
+  const {data:allTitles,error}=await db.from("books").select(cols).range(0,9999);
   if(error)throw error;
   (allTitles||[]).forEach(b=>{
     addIsbn(b);
@@ -999,6 +996,17 @@ async function buildImportPreview(file){
   const dups=mapped.filter(r=>r.duplicate==="isbn").length;
   const warns=mapped.filter(r=>r.status==="warn").length;
   $("#importPreviewWrap").hidden=false;
+  const ignored=ignoredImportColumns(objects);
+  const ignoreNote=$("#importUnsupportedNote");
+  if(ignoreNote){
+    if(ignored.length){
+      ignoreNote.hidden=false;
+      ignoreNote.textContent=`بۇ ھۆججەتتىكى ${ignored.join(", ")} ستونلىرى ھازىرقى books جەدۋىلىدە يوق. قىممەتلەر كىرگۈزۈلمەيدۇ.`;
+    }else{
+      ignoreNote.hidden=true;
+      ignoreNote.textContent="";
+    }
+  }
   $("#importSummary").textContent=`جەمئىي ${mapped.length} قۇر · خاتا ${errors} · ISBN تەكرار ${dups} · ئاگاھلاندۇرۇش ${warns}. جەزملەشتۈرمىگۈچە يېزىلمايدۇ.`;
   $("#importPreviewBody").innerHTML=mapped.map(r=>{
     const cls=r.status==="error"?"admin-row-error":r.status==="dup"||r.status==="warn"?"admin-row-warn":"admin-row-ok";
@@ -1095,22 +1103,13 @@ async function confirmImport(){
   try{
     for(let i=0;i<inserts.length;i+=IMPORT_BATCH){
       const source=inserts.slice(i,i+IMPORT_BATCH);
-      let chunk=source.map((row,idx)=>writeBookRow(rowToInsert(row,`book-imp-${Date.now().toString(36)}-${i}-${idx}`)));
+      let chunk=source.map((row,idx)=>writeBookRow(rowToInsert(row,`book-imp-${Date.now().toString(36)}-${i}-${idx}`),{omitId:generatedAlwaysId}));
       if(generatedAlwaysId)chunk=chunk.map(r=>{const {id,...rest}=r;return rest});
       let {error}=await db.from("books").insert(chunk);
       if(error&&generatedIdError(error)){
         generatedAlwaysId=true;
         chunk=chunk.map(r=>{const {id,...rest}=r;return rest});
         ({error}=await db.from("books").insert(chunk));
-      }
-      if(error){
-        const missing=missingColumnName(error);
-        if(missing&&OPTIONAL_BOOK_COLS.includes(missing)){
-          presentBookCols.delete(missing);
-          chunk=source.map((row,idx)=>writeBookRow(rowToInsert(row,`book-imp-${Date.now().toString(36)}-${i}-${idx}`)));
-          if(generatedAlwaysId)chunk=chunk.map(r=>{const {id,...rest}=r;return rest});
-          ({error}=await db.from("books").insert(chunk));
-        }
       }
       if(error){
         failed+=source.length;
@@ -1154,6 +1153,7 @@ function scheduleSearch(){
 }
 
 function init(){
+  applyBooksSchema();
   applyFieldDirections();
   if(!configured()){
     show("setupPanel");
@@ -1212,6 +1212,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS
 };
 })();

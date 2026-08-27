@@ -37,6 +37,29 @@ window.KUTADGU_SUPABASE_CONFIG = {
 };
 
 /*
+  Live public.books capabilities for this Supabase project (fxlojnqwyojqjskfggmh).
+  Verified read-only via PostgREST column selects. Not a secret; not a probe list.
+  Admin uses this map so missing optional columns are never requested.
+*/
+window.KUTADGU_BOOKS_SCHEMA = {
+  identityId: true,
+  optionalColumns: {
+    isbn: true,
+    publisher: false,
+    href: false,
+    stock: false,
+    stock_status: false,
+    pages: false,
+    translator: false,
+    language: false,
+    publish_date: false,
+    publish_year: false,
+    cover_type: false,
+    dimensions: false
+  }
+};
+
+/*
   ئالاقە مەلۇماتى — ئىگىسى تەمىنلىگەن ھەقىقىي قىممەتلەر.
   WhatsApp سىستېمىسى دۆلەت كودى بىلەن، + ۋە بوشلۇقسىز نومۇر ئىشلىتىدۇ.
   خىزمەت ۋاقتىغا ھەقىقىي سانلىق مەلۇمات كىرگۈزۈلمىگەچكە بوش قالدۇرۇلدى.
