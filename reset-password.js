@@ -29,10 +29,16 @@ function setFormEnabled(enabled){
 
 async function establishRecoverySession(){
   const params=new URLSearchParams(location.search);
+  const hashParams=new URLSearchParams(String(location.hash||"").replace(/^#/,""));
   const code=params.get("code");
+  const tokenHash=params.get("token_hash")||hashParams.get("token_hash");
+  const otpType=String(params.get("type")||hashParams.get("type")||"recovery").toLowerCase();
 
   if(code){
     const {error}=await db.auth.exchangeCodeForSession(code);
+    if(error)throw error;
+  }else if(tokenHash){
+    const {error}=await db.auth.verifyOtp({token_hash:tokenHash,type:otpType==="recovery"?"recovery":otpType});
     if(error)throw error;
   }
 
@@ -57,7 +63,9 @@ async function init(){
     return;
   }
 
-  db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
+  db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
+    auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}
+  });
   setFormEnabled(false);
   status("پارول يېڭىلاش ئۇلانمىسى تەكشۈرۈلۈۋاتىدۇ...");
 

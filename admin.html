@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=4">
+  <link rel="stylesheet" href="admin.css?v=7">
 </head>
 <body>
 <div class="admin-shell">
@@ -48,7 +48,7 @@
         <div class="admin-stat"><strong id="statAll">0</strong><span>Database دىكى كىتاب</span></div>
         <div class="admin-stat"><strong id="statActive">0</strong><span>كۆرۈنىدىغان كىتاب</span></div>
         <div class="admin-stat"><strong id="statRecommended">0</strong><span>تەۋسىيە قىلىنغان</span></div>
-        <div class="admin-stat"><strong id="statStock">0</strong><span>جەمئىي ئامبار سانى</span></div>
+        <div class="admin-stat" data-book-col="stock"><strong id="statStock">0</strong><span>جەمئىي ئامبار سانى</span></div>
         <div class="admin-stat admin-stat-member"><strong id="statMembers">0</strong><span>تىزىملاتقان خېرىدار</span></div>
         <div class="admin-stat admin-stat-member"><strong id="statVisits">0</strong><span>جەمئىي زىيارەت</span></div>
         <div class="admin-stat admin-stat-order"><strong id="statOrders">0</strong><span>زاكاز سانى</span></div>
@@ -59,12 +59,56 @@
         <div class="admin-toolbar">
           <div class="admin-toolbar-group">
             <button class="admin-primary" id="newBookBtn" type="button">➕ يېڭى كىتاب قوشۇش</button>
+            <button class="admin-secondary" id="importCsvBtn" type="button">📄 CSV / Excel كىرگۈزۈش</button>
+            <a class="admin-secondary" id="downloadImportTemplate" href="admin-import-template.csv" download>⬇️ ئۆرنەك CSV</a>
             <button class="admin-secondary" id="importStaticBtn" type="button">📥 ھازىرقى كىتابلارنى Database قا كىرگۈزۈش</button>
           </div>
-          <input id="adminSearch" class="admin-search" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ...">
         </div>
-        <p class="admin-help">«ھازىرقى كىتابلارنى Database قا كىرگۈزۈش» كۇنۇپكىسىنى تۇنجى قېتىم بىرلا قېتىم بېسىش يېتەرلىك.</p>
+        <div class="admin-filter-row">
+          <input id="adminSearch" class="admin-search" type="search" placeholder="كىتاب، ئاپتور ياكى ISBN ئىزدەڭ..." autocomplete="off">
+          <select id="adminFilterSource" aria-label="تۈر سۈزگۈچى"><option value="">بارلىق تۈرلەر</option></select>
+          <select id="adminFilterActive" aria-label="كۆرۈنۈش"><option value="">بارلىق ھالەت</option><option value="yes">كۆرۈنىدۇ</option><option value="no">يوشۇرۇلغان</option></select>
+          <select id="adminFilterRecommended" aria-label="تەۋسىيە"><option value="">تەۋسىيە: ھەممىسى</option><option value="yes">تەۋسىيەلىك</option><option value="no">تەۋسىيەسىز</option></select>
+          <select id="adminFilterNew" aria-label="يېڭى"><option value="">يېڭى: ھەممىسى</option><option value="yes">يېڭى بەلگىسى بار</option><option value="no">يېڭى بەلگىسى يوق</option></select>
+          <select id="adminSort" aria-label="تەرتىپ">
+            <option value="created_at.desc">يېڭى قوشۇلغان</option>
+            <option value="created_at.asc">كونا قوشۇلغان</option>
+            <option value="title.asc">كىتاب نامى</option>
+            <option value="author.asc">ئاپتور</option>
+            <option value="sales_count.desc">سېتىلىش سانى</option>
+            <option value="price.asc">باھا (ئەرزان)</option>
+            <option value="price.desc">باھا (قىممەت)</option>
+          </select>
+        </div>
+        <p class="admin-help">ئىزدەش Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە.</p>
+        <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
+        <div id="adminBulkBar" class="admin-bulk-bar">
+          <span id="adminSelectedCount">تاللانغان: 0 (نۆۋەتتىكى بەت)</span>
+          <div class="admin-toolbar-group">
+            <button type="button" class="admin-secondary" id="selectPageBtn">نۆۋەتتىكى بەتنى تاللاش</button>
+            <button type="button" class="admin-secondary" id="clearSelectionBtn">تاللاشنى تازىلاش</button>
+          </div>
+          <div class="admin-toolbar-group admin-bulk-actions">
+            <select id="bulkAction" aria-label="توپلام مەشغۇلات">
+              <option value="">توپلام مەشغۇلات تاللاڭ</option>
+              <option value="category">تۈرنى ئۆزگەرتىش</option>
+              <option value="stock_status" data-book-col="stock_status">ئامبار ھالىتى</option>
+              <option value="stock" data-book-col="stock">ئامبار سانى</option>
+              <option value="publisher" data-book-col="publisher">نەشرىيات</option>
+              <option value="recommended_on">تەۋسىيە قىلىش</option>
+              <option value="recommended_off">تەۋسىيەنى ئېلىش</option>
+              <option value="new_on">يېڭى بەلگىسى قويۇش</option>
+              <option value="new_off">يېڭى بەلگىسىنى ئېلىش</option>
+              <option value="activate">كۆرسىتىش</option>
+              <option value="deactivate">يوشۇرۇش</option>
+            </select>
+            <select id="bulkValueSelect" hidden></select>
+            <input id="bulkValueInput" hidden>
+            <button type="button" class="admin-primary" id="bulkApplyBtn">ئىجرا قىلىش</button>
+          </div>
+        </div>
         <div id="adminBookList" class="admin-book-list"></div>
+        <div id="adminPager" class="admin-pager"></div>
       </section>
 
 
@@ -126,23 +170,24 @@
 
       <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required></label>
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
+      <label data-book-col="isbn"><span>ISBN / باركود</span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."></label>
 
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
-      <label><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
-      <label><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
+      <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
-      <label><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
+      <label data-book-col="pages"><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
 
-      <label><span>تەرجىمانى</span><input id="bookTranslator"></label>
-      <label><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
+      <label data-book-col="translator"><span>تەرجىمانى</span><input id="bookTranslator"></label>
+      <label data-book-col="language"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
 
-      <label><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
-      <label><span>نەشر يىلى</span><input id="bookPublishYear" inputmode="numeric"></label>
-      <label><span>نەشرىيات</span><input id="bookPublisher"></label>
-      <label><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
-      <label><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
+      <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
+      <label data-book-col="publish_year"><span>نەشر يىلى</span><input id="bookPublishYear" inputmode="numeric"></label>
+      <label data-book-col="publisher"><span>نەشرىيات</span><input id="bookPublisher"></label>
+      <label data-book-col="cover_type"><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
+      <label data-book-col="dimensions"><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
 
       <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="bookDescription" rows="4"></textarea></label>
 
@@ -150,7 +195,7 @@
       <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">رەسىم تاللانمىدى</span></div>
 
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
-      <label class="admin-check"><input id="bookIsNew" type="checkbox" checked><span>يېڭى قوشۇلغان</span></label>
+      <label class="admin-check"><input id="bookIsNew" type="checkbox"><span>يېڭى قوشۇلغان (قولدا)</span></label>
       <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
       <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
 
@@ -162,10 +207,49 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=3"></script>
+<div id="importModal" class="admin-modal" hidden>
+  <div class="admin-modal-card admin-import-card">
+    <div class="admin-modal-head">
+      <h2>📄 توپلام كىرگۈزۈش</h2>
+      <button id="closeImportModal" type="button">✕</button>
+    </div>
+    <p class="admin-help">ھۆججەت تاللانغاندىن كېيىن ئالدى بىلەن تەكشۈرۈش ۋە ئالدىن كۆرۈش كۆرۈنىدۇ. جەزملەشتۈرمىگۈچە Database غا يېزىلمايدۇ. ISBN بولسا ئەڭ كۈچلۈك تەكرار سىگنالى؛ ISBN يوق قۇرلاردا ئىسىم+ئاپتور پەقەت ئاگاھلاندۇرۇش.</p>
+    <div id="importStatus" class="admin-status">CSV ياكى Excel (.xlsx) تاللاڭ.</div>
+    <div id="importUnsupportedNote" class="admin-status warn" hidden></div>
+    <div class="admin-toolbar-group">
+      <input id="importFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <a class="admin-secondary" href="admin-import-template.csv" download>⬇️ ئۆرنەك CSV</a>
+    </div>
+    <label class="admin-wide" style="margin-top:12px"><span>ISBN تەكرار بولسا</span>
+      <select id="importDupIsbn">
+        <option value="skip">ئۆتكۈزۈش (Skip)</option>
+        <option value="new">يېڭى كىتاب قىلىپ كىرگۈزۈش</option>
+        <option value="update">مەۋجۇت كىتابنى يېڭىلاش (ISBN توغرا ماسلاشسا)</option>
+      </select>
+    </label>
+    <div id="importPreviewWrap" class="admin-import-preview" hidden>
+      <div id="importSummary" class="admin-help"></div>
+      <div class="admin-table-scroll">
+        <table class="admin-import-table">
+          <thead>
+            <tr><th>قۇر</th><th>كىتاب</th><th>ئاپتور</th><th>ISBN</th><th>باھا</th><th>تۈر</th><th>ھالەت</th></tr>
+          </thead>
+          <tbody id="importPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="importProgress" class="admin-help" hidden></div>
+    <div class="admin-wide admin-toolbar-group" style="margin-top:16px">
+      <button class="admin-primary" id="confirmImportBtn" type="button" disabled>جەزملەشتۈرۈپ كىرگۈزۈش</button>
+      <button class="admin-secondary" id="cancelImportBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
+<script defer src="supabase-config.js?v=5"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script defer src="admin.js?v=10"></script>
+<script defer src="admin.js?v=16"></script>
 </body>
 </html>

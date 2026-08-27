@@ -365,7 +365,7 @@ begin
     'top_books',coalesce((
       select jsonb_agg(to_jsonb(t)) from (
         select e.book_id,coalesce(b.title,e.book_id) as title,count(*)::integer as views
-        from public.analytics_events e left join public.books b on b.id=e.book_id
+        from public.analytics_events e left join public.books b on b.id::text=e.book_id
         where e.created_at>=v_since and e.event_name='book_view' and e.book_id is not null
         group by e.book_id,b.title order by count(*) desc limit 10
       ) t
