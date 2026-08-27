@@ -825,14 +825,12 @@
   .book-card .book-cover,
   .book-image,
   .book-cover {
+    display: block !important;
     width: 100% !important;
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 2 / 3 !important;
     padding: 4px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     overflow: hidden !important;
   }
 
@@ -840,13 +838,13 @@
   .book-card .book-cover img,
   .book-image img,
   .book-cover img {
+    display: block !important;
     width: 100% !important;
     height: 100% !important;
     max-width: 100% !important;
     max-height: 100% !important;
     object-fit: contain !important;
     object-position: center !important;
-    display: block !important;
   }
 
   .book-info {
