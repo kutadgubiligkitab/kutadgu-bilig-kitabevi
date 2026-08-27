@@ -1,0 +1,85 @@
+title,author,price,category,source,image_url,is_recommended,is_new,sales_count,is_active
+ئۆزىمىزنى ئېتىراپ قىلايلى,ئەختەم ئۆمەر,265,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+رومان كىتابى 2,ئاپتور ئىسمى,200,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+رومان كىتابى 3,ئاپتور ئىسمى,200,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+رومان كىتابى 4,ئاپتور ئىسمى,200,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+رومان كىتابى 5,ئاپتور ئىسمى,200,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+رومان كىتابى 6,ئاپتور ئىسمى,265,رومانلار,romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 1,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 2,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 3,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 4,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 5,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+تارىخىي رومان 6,ئاپتور ئىسمى,200,تارىخىي رومانلار,tarikhiy-romanlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 1,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 2,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 3,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 4,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 5,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+شېئىر كىتابى 6,ئاپتور ئىسمى,200,شېئىرلار,sheirlar.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 1,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 2,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 3,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 4,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 5,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+ھېكايە كىتابى 6,ئاپتور ئىسمى,200,ھېكايىلەر,hekayiler.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 1,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 2,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 3,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 4,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 5,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+داستان كىتابى 6,ئاپتور ئىسمى,200,داستانلار,dastanlar.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 1,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 2,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 3,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 4,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 5,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+دۇنيا ئەدەبىياتى كىتابى 6,ئاپتور ئىسمى,200,دۇنيا ئەدەبىياتى,dunya-edebiyati.html,sample-book-cover.png,false,false,0,true
+رومان 1,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+رومان 2,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+رومان 3,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+رومان 4,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+رومان 5,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+رومان 6,ئاپتور ئىسمى,200,ئەدەبىيات رومانلىرى,adabiyat-roman.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 1,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 2,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 3,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 4,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 5,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇيغۇر ئەدەبىياتى كىتابى 6,ئاپتور ئىسمى,200,ئۇيغۇر ئەدەبىياتى,uyghur-adabiyati.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 1,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 2,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 3,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 4,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 5,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+ئۇنىۋېرسال ئەسەر 6,ئاپتور ئىسمى,0,ئۇنىۋېرسال,universal.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 1,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 2,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 3,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 4,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 5,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+تېبابەت ۋە ساغلاملىق 6,ئاپتور ئىسمى,0,تېبابەت ۋە ساغلاملىق,tibb.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 1,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 2,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 3,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 4,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 5,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+دەرسلىك كىتاب 6,ئاپتور ئىسمى,0,دەرسلىك,derslik.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 1,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 2,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 3,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 4,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 5,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+پەرزەنت تەربىيەسى 6,ئاپتور ئىسمى,0,پەرزەنت تەربىيەسى,terbiye.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 1,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 2,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 3,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 4,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 5,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+دىنىي كىتاب 6,ئاپتور ئىسمى,0,دىنىي كىتابلار,dini.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 1,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 2,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 3,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 4,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 5,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true
+بالىلار كىتابى 6,ئاپتور ئىسمى,0,بالىلار كىتابلىرى,children.html,sample-book-cover.png,false,false,0,true

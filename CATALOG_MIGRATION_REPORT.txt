@@ -1,0 +1,171 @@
+Kutadgu Bilig — Stage 4.5 catalog migration report
+Generated from the current catalog.js in this repository.
+No production INSERT/UPDATE/DELETE was performed.
+
+==================================================
+1. STATIC CATALOG AUDIT
+==================================================
+
+Exact book records in catalog.js (source array, before mapper): 84
+After catalog.js schema mapper: 84
+Unique static ids: 84
+No duplicate static ids.
+
+Every source record consistently has exactly these keys (84/84):
+  id, title, author, price, priceText, category, source, image, href
+
+Never present on source records (0/84):
+  isbn, description, publisher, stock, stock_status, pages, translator,
+  language, publish_date, publish_year, cover_type, dimensions,
+  is_recommended, is_new, is_active, is_bestseller, is_featured, sales_count
+
+The trailing mapper in catalog.js ADDS empty/default fields for storefront
+compatibility. Those mapper-only values are NOT original catalog data:
+  is_active default true
+  is_new default false
+  is_recommended default false
+  is_bestseller / is_featured default false
+  sales_count default 0
+  stock null, other extras empty string
+
+Authors:
+  ئەختەم ئۆمەر — 1 book (ozumuzni-etirap-qilayli)
+  ئاپتور ئىسمى — 83 books (placeholder author string; not invented here)
+
+Prices present on all 84 rows: 0, 200, or 265.
+  price 0: 36 books (universal, tibb, derslik, terbiye, dini, children)
+  Missing price: 0
+
+Covers:
+  image = sample-book-cover.png on all 84 source records.
+  No other cover path. No WebP. No Storage URL.
+
+Sources (all 14 match app-config.js catalogCategories):
+  romanlar.html | رومانلار: 6
+  tarikhiy-romanlar.html | تارىخىي رومانلار: 6
+  sheirlar.html | شېئىرلار: 6
+  hekayiler.html | ھېكايىلەر: 6
+  dastanlar.html | داستانلار: 6
+  dunya-edebiyati.html | دۇنيا ئەدەبىياتى: 6
+  adabiyat-roman.html | ئەدەبىيات رومانلىرى: 6
+  uyghur-adabiyati.html | ئۇيغۇر ئەدەبىياتى: 6
+  universal.html | ئۇنىۋېرسال: 6
+  tibb.html | تېبابەت ۋە ساغلاملىق: 6
+  derslik.html | دەرسلىك: 6
+  terbiye.html | پەرزەنت تەربىيەسى: 6
+  dini.html | دىنىي كىتابلار: 6
+  children.html | بالىلار كىتابلىرى: 6
+
+==================================================
+2. LIVE SUPABASE BOOKS SCHEMA (Stage 4 known)
+==================================================
+
+Supported / present:
+  id (bigint GENERATED ALWAYS — do not insert static string ids)
+  title, author, price, category, source, description, image_url
+  isbn (optional; none exist in static catalog)
+  is_recommended, is_new, is_active, sales_count, created_at
+
+Unsupported / omitted from CSV:
+  publisher, href, stock, stock_status, pages, translator, language,
+  publish_date, publish_year, cover_type, dimensions
+
+No dedicated column exists for the old static id. This migration does not
+create one. After import, PostgreSQL will assign new numeric ids. Storefront
+hrefs like ozumuzni-etirap-qilayli.html remain as static HTML pages; Admin
+will use book.html?id=<generated-id> for new DB rows.
+
+==================================================
+3. CSV CONTENTS
+==================================================
+
+File: CURRENT_CATALOG_TO_SUPABASE.csv
+Encoding: UTF-8 (no BOM)
+Row count: 84 data rows + 1 header = 85 lines
+
+Columns (all importer-supported and production-writable except generated id):
+  title, author, price, category, source, image_url,
+  is_recommended, is_new, sales_count, is_active
+
+image_url values are copied from static `image` unchanged:
+  sample-book-cover.png × 84
+
+Flags are the current storefront mapper defaults (not invented ISBNs/publishers):
+  is_recommended=false, is_new=false, sales_count=0, is_active=true
+
+Omitted on purpose:
+  id / static slug (identity column)
+  href, priceText
+  isbn (none exist; not invented)
+  publisher, stock, stock_status, description, translator, language,
+  publish_year, pages (unsupported or empty)
+
+==================================================
+4. DUPLICATE AUDIT
+==================================================
+
+A. Exact duplicates (identical records): 0
+   Same title + author: 0
+   Duplicate static ids: 0
+   Duplicate ISBN: none (no ISBNs)
+   Duplicate href: 0
+
+B. Possible duplicates / human review (NOT removed):
+  - 83 books share the placeholder author «ئاپتور ئىسمى».
+    Titles differ (numbered category slots). Kept as separate rows.
+  - All 84 books share sample-book-cover.png. This is the current live
+    placeholder cover, not evidence of duplicate products.
+  - 36 books have price 0. That is real source data, not a duplicate signal.
+
+==================================================
+5. IMPORT PARSER VALIDATION
+==================================================
+
+Validated with Stage 4 admin.js parseCsvText + mapImportRow + applyBooksSchema
+(no database write).
+
+  parsed objects: 84
+  validation errors: 0
+  EXAMPLE_DO_NOT_IMPORT rejections: 0
+  unknown category: 0
+  invalid price/boolean: 0
+  unsupported-column warnings: 0 (those columns were not included)
+  image_url preserved: sample-book-cover.png on all 84
+
+Import parser validation: PASS
+
+==================================================
+6. AFTER MANUAL IMPORT (do not do it in this task)
+==================================================
+
+1. User opens Admin → CSV / Excel import → selects this CSV → reviews preview.
+2. User clicks confirm only if preview is acceptable.
+3. Supabase books receives 84 inserts with generated bigint ids.
+4. Admin can edit those rows.
+5. Storefront already prefers Supabase when remote active count > 0
+   (shop.js loadRemoteCatalog). After import, remote catalog should become
+   primary automatically.
+6. catalog.js MUST remain as emergency fallback until that behavior is
+   verified on production. Do not delete catalog.js in this stage.
+7. Static HTML category pages still exist; they are separate from Admin
+   book.html?id= URLs.
+
+==================================================
+7. RISKS THE IMPORTER WILL NOT CATCH
+==================================================
+
+- Most titles look like template placeholders («رومان كىتابى 2», etc.).
+  Importing them will make those placeholders the live Admin catalog.
+- Price 0 books will appear as 0 ₺.
+- New DB ids will not match old static slugs; favorites/cart stored against
+  static ids in the browser will not map to new ids.
+- Covers will still be the placeholder PNG until replaced later in Admin.
+
+==================================================
+8. PRODUCTION
+==================================================
+
+Production database modified: NO
+catalog.js modified: NO
+sample-book-cover.png modified: NO
+Automatic import: NOT performed
