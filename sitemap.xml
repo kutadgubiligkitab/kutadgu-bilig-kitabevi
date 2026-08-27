@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 17 public URLs: 1 homepage + 15 category pages + 1 static book page. Live book.html?id= URLs are not listed. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/adabiyat.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/romanlar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/tarikhiy-romanlar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/sheirlar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/hekayiler.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/dastanlar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/dunya-edebiyati.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/adabiyat-roman.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/uyghur-adabiyati.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/universal.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/tibb.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/derslik.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/terbiye.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/dini.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/children.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://kutadgu-bilig-kitab.vercel.app/ozumuzni-etirap-qilayli.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+</urlset>

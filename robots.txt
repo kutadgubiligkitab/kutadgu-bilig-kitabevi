@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin.html
+Disallow: /account.html
+Disallow: /reset-password.html
+Disallow: /cart.html
+Disallow: /favorites.html
+Disallow: /my-books.html
+
+Sitemap: https://kutadgu-bilig-kitab.vercel.app/sitemap.xml

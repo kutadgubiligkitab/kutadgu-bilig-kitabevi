@@ -400,26 +400,73 @@ function setHeadMeta(selector,attributes){
   return node;
 }
 
+function siteOrigin(){
+  return String(window.KUTADGU_SITE_ORIGIN||"").replace(/\/+$/,"")||location.origin;
+}
+
+function absoluteUrl(value){
+  try{return new URL(value||location.href,siteOrigin()+"/").href}catch(e){return location.href}
+}
+
 /* Detail SEO is generated only from known book data; missing facts stay omitted. */
 function updateBookSeo(book){
-  const canonical=new URL(book.href||location.href,location.href).href;
-  const description=book.description||`${book.title}${book.author?` — ${book.author}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
+  const origin=siteOrigin();
+  const path=book.href||`book.html?id=${encodeURIComponent(book.id||"")}`;
+  const canonical=absoluteUrl(path);
+  const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
+  const authorName=String(book.author||"").trim();
+  const hasAuthor=!!authorName&&authorName!=="—";
+  const description=book.description||`${book.title}${hasAuthor?` — ${authorName}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
+  const image=book.image?absoluteUrl(book.image):"";
+  document.title=title;
   setHeadMeta('meta[name="description"]',{name:"description",content:description});
+  setHeadMeta('meta[name="robots"]',{name:"robots",content:"index, follow"});
   setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:canonical});
+  setHeadMeta('meta[property="og:site_name"]',{property:"og:site_name",content:"قۇتادغۇبىلىك كىتابخانىسى"});
+  setHeadMeta('meta[property="og:locale"]',{property:"og:locale",content:"ug"});
+  setHeadMeta('meta[property="og:type"]',{property:"og:type",content:"book"});
   setHeadMeta('meta[property="og:title"]',{property:"og:title",content:book.title});
   setHeadMeta('meta[property="og:description"]',{property:"og:description",content:description});
   setHeadMeta('meta[property="og:url"]',{property:"og:url",content:canonical});
-  if(book.image)setHeadMeta('meta[property="og:image"]',{property:"og:image",content:new URL(book.image,location.href).href});
+  if(image){
+    setHeadMeta('meta[property="og:image"]',{property:"og:image",content:image});
+    setHeadMeta('meta[property="og:image:alt"]',{property:"og:image:alt",content:`${book.title} كىتاب مۇقاۋىسى`});
+  }
+  setHeadMeta('meta[name="twitter:card"]',{name:"twitter:card",content:image?"summary_large_image":"summary"});
+  setHeadMeta('meta[name="twitter:title"]',{name:"twitter:title",content:book.title});
+  setHeadMeta('meta[name="twitter:description"]',{name:"twitter:description",content:description});
+  if(image)setHeadMeta('meta[name="twitter:image"]',{name:"twitter:image",content:image});
+
   let schema=document.head.querySelector("#kutadguBookSchema");
   if(!schema){schema=document.createElement("script");schema.id="kutadguBookSchema";schema.type="application/ld+json";document.head.appendChild(schema)}
-  const data={"@context":"https://schema.org","@type":"Book",name:book.title,url:canonical};
-  if(book.author)data.author={"@type":"Person",name:book.author};
-  if(book.image)data.image=new URL(book.image,location.href).href;
+  const data={"@type":"Book",name:book.title,url:canonical};
+  if(hasAuthor)data.author={"@type":"Person",name:authorName};
+  if(image)data.image=image;
   if(book.description)data.description=book.description;
   if(book.publisher)data.publisher={"@type":"Organization",name:book.publisher};
   if(book.language)data.inLanguage=book.language;
-  if(book.price!==null&&book.price!==undefined&&book.price!=="")data.offers={"@type":"Offer",price:Number(book.price),priceCurrency:"TRY",availability:stockInfo(book).canBuy?"https://schema.org/InStock":"https://schema.org/OutOfStock"};
-  schema.textContent=JSON.stringify(data).replace(/</g,"\\u003c");
+  if(book.price!==null&&book.price!==undefined&&book.price!==""){
+    const price=Number(book.price);
+    if(Number.isFinite(price)){
+      const offer={"@type":"Offer",price,priceCurrency:"TRY",url:canonical};
+      const stock=stockInfo(book);
+      if(stock.key==="out")offer.availability="https://schema.org/OutOfStock";
+      else if(stock.key==="in"||stock.key==="low")offer.availability="https://schema.org/InStock";
+      data.offers=offer;
+    }
+  }
+  const graph=[data];
+  if(book.category){
+    graph.push({
+      "@type":"BreadcrumbList",
+      itemListElement:[
+        {"@type":"ListItem",position:1,name:"قۇتادغۇبىلىك كىتابخانىسى",item:origin+"/"},
+        {"@type":"ListItem",position:2,name:book.category,item:absoluteUrl(book.source||"index.html")},
+        {"@type":"ListItem",position:3,name:book.title,item:canonical}
+      ]
+    });
+  }
+  schema.textContent=JSON.stringify({"@context":"https://schema.org","@graph":graph}).replace(/</g,"\\u003c");
 }
 
 function populateDynamicBookPage(b){
