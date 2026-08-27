@@ -1,0 +1,2 @@
+title,author,price,category,isbn,publisher,stock,stock_status,description,cover_url,is_recommended,is_new,sales_count,is_active,source,translator,language,publish_year,pages
+EXAMPLE_DO_NOT_IMPORT,Example Author,100,رومانلار,9789750000000,Example Publisher,1,in_stock,This sample row is not production data and must be removed before import.,,false,false,0,true,romanlar.html,,,2026,
