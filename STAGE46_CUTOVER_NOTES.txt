@@ -1,0 +1,21 @@
+Stage 4.6 — legacy_id cutover (local tests; no production import)
+
+Price = 0 rows kept exactly as source (36). Not treated as free books.
+All 36 use placeholder author ئاپتور ئىسمى and numbered placeholder titles.
+Do not invent prices.
+
+universal-1 … universal-6
+tibb-1 … tibb-6
+derslik-1 … derslik-6
+terbiye-1 … terbiye-6
+dini-1 … dini-6
+children-1 … children-6
+
+SQL in this PR must be run by the owner, in order, and not by the agent:
+1. STAGE45_LEGACY_ID_MIGRATION.sql
+2. (optional before import) STAGE46_ANALYTICS_LEGACY_ID.sql
+3. Admin CSV import of CURRENT_CATALOG_TO_SUPABASE.csv (is_active=false)
+4. Review in Admin
+5. STAGE45_ACTIVATE_MIGRATED_CATALOG.sql only if exactly 84 legacy_id rows
+
+Do not import in this task. Do not execute SQL. Do not merge PR #5.

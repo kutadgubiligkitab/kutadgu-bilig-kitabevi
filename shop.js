@@ -1,11 +1,21 @@
 (function(){
 "use strict";
+const Legacy=window.KutadguLegacyIds||{};
+function isCanonicalBookId(value){return Legacy.isCanonicalBookId?Legacy.isCanonicalBookId(value):/^\d+$/.test(String(value||"").trim())}
+function uniqueVisibleBooks(books){return Legacy.uniqueVisibleBooks?Legacy.uniqueVisibleBooks(books):[...new Map((books||[]).filter(b=>b&&b.id).map(b=>[String(b.id),b])).values()]}
+function splitLookupIds(ids){return Legacy.splitLookupIds?Legacy.splitLookupIds(ids):{numeric:(ids||[]).map(String).filter(isCanonicalBookId),legacy:(ids||[]).map(String).filter(id=>id&&!isCanonicalBookId(id))}}
+function quotePostgrestValue(value){return Legacy.quotePostgrestValue?Legacy.quotePostgrestValue(value):`"${String(value).replace(/["\\]/g,"")}"`}
+function legacyIdSupported(){return window.KUTADGU_BOOKS_SCHEMA?.optionalColumns?.legacy_id!==false}
+
 function normalizeCatalogBook(book,index=0,isRemote=false){
   const price=(book.price===null||book.price===undefined||book.price==="")?null:Number(book.price);
   const value=(camel,snake,defaultValue="")=>book[camel]??book[snake]??defaultValue;
   const flag=(camel,snake,defaultValue=false)=>value(camel,snake,defaultValue)===true;
+  const id=String(book.id||"").trim();
+  const legacyId=String(value("legacyId","legacy_id","")||"").trim();
   return {
-    id:String(book.id||"").trim(),
+    id,
+    legacyId,
     title:book.title||"",
     author:book.author||"—",
     price:Number.isFinite(price)?price:null,
@@ -14,7 +24,7 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     subcategory:book.subcategory||"",
     source:book.source||"universal.html",
     image:value("image","image_url","")||"",
-    href:book.href||`book.html?id=${encodeURIComponent(book.id||"")}`,
+    href:isRemote?`book.html?id=${encodeURIComponent(id)}`:(book.href||`book.html?id=${encodeURIComponent(id)}`),
     pages:book.pages??null,
     translator:book.translator||"",
     language:book.language||"",
@@ -41,7 +51,8 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
 }
 const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map((book,index)=>normalizeCatalogBook(book,index,false)).filter(book=>book.id);
 const catalogCache=new Map(STATIC_CATALOG.map(book=>[book.id,book]));
-let C=[...catalogCache.values()];
+let remoteVisible=false;
+let C=uniqueVisibleBooks([...catalogCache.values()]);
 let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,migrated:false,error:""};
 const QUERY_DEFAULTS=Object.freeze({
   offset:0,pageSize:24,category:"",source:"",search:"",sort:"new",
@@ -72,7 +83,32 @@ const set=(k,v)=>{
     return false;
   }
 };
+function indexCatalogBook(book){
+  if(!book?.id)return;
+  catalogCache.set(String(book.id),book);
+  if(book.legacyId)catalogCache.set(String(book.legacyId),book);
+}
+function rebuildVisibleCatalog(){
+  C=uniqueVisibleBooks([...catalogCache.values()]).filter(book=>book.isActive!==false);
+  window.KUTADGU_LIVE_CATALOG=C;
+  return C;
+}
+function beginRemoteVisibleCatalog(){
+  if(remoteVisible)return;
+  catalogCache.clear();
+  remoteVisible=true;
+}
+function restoreStaticVisibleCatalog(){
+  catalogCache.clear();
+  remoteVisible=false;
+  STATIC_CATALOG.forEach(indexCatalogBook);
+  rebuildVisibleCatalog();
+}
 const find=id=>catalogCache.get(String(id||""));
+function canonicalId(id){
+  const book=find(id);
+  return book?.id||String(id||"");
+}
 const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
 const trackEvent=(name,data={})=>window.KutadguAnalytics?.track?.(name,data);
@@ -88,9 +124,9 @@ function supabasePublicConfig(){
 function normalizeRemoteBook(row,index=0){return normalizeCatalogBook(row,index,true)}
 
 function refreshCatalogCache(books=[]){
-  books.filter(book=>book?.id).forEach(book=>catalogCache.set(book.id,book));
-  C=[...catalogCache.values()].filter(book=>book.isActive!==false);
-  window.KUTADGU_LIVE_CATALOG=C;
+  if(remoteCatalog.available)beginRemoteVisibleCatalog();
+  books.filter(book=>book?.id).forEach(indexCatalogBook);
+  rebuildVisibleCatalog();
   return books;
 }
 
@@ -116,7 +152,7 @@ function normalizeQueryState(input={}){
 function staticQueryPage(input={}){
   const state=normalizeQueryState(input),q=normalizeText(state.search);
   let rows=STATIC_CATALOG.filter(book=>book.isActive!==false);
-  if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id))}
+  if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id)||(book.legacyId&&ids.has(book.legacyId)))}
   if(state.source)rows=rows.filter(book=>book.source===state.source);
   if(state.category)rows=rows.filter(book=>book.category===state.category);
   if(q)rows=rows.filter(book=>normalizeText([book.title,book.author,book.category].join(" ")).includes(q));
@@ -142,9 +178,16 @@ function remoteOrder(mode){
 
 function remoteBooksUrl(input={}){
   const cfg=supabasePublicConfig(),state=normalizeQueryState(input),params=new URLSearchParams({select:"*",is_active:"eq.true"});
+  const logic=[];
   if(state.ids?.length){
-    const ids=state.ids.map(id=>`"${String(id).replace(/["\\]/g,"")}"`).join(",");
-    params.set("id",`in.(${ids})`);
+    const {numeric,legacy}=splitLookupIds(state.ids);
+    const idParts=[];
+    if(numeric.length)idParts.push(`id.in.(${numeric.join(",")})`);
+    if(legacy.length&&legacyIdSupported())idParts.push(`legacy_id.in.(${legacy.map(quotePostgrestValue).join(",")})`);
+    if(idParts.length===1&&numeric.length&&!legacy.length)params.set("id",`in.(${numeric.join(",")})`);
+    else if(idParts.length===1&&legacy.length)params.set("legacy_id",`in.(${legacy.map(quotePostgrestValue).join(",")})`);
+    else if(idParts.length>1)logic.push(`or(${idParts.join(",")})`);
+    else params.set("id","eq.-1");
   }
   if(state.source)params.set("source",`eq.${state.source}`);
   if(state.category)params.set("category",`eq.${state.category}`);
@@ -152,7 +195,6 @@ function remoteBooksUrl(input={}){
   if(Number.isFinite(state.maxPrice))params.append("price",`lte.${state.maxPrice}`);
   if(state.bestseller&&!state.allowZeroSales)params.set("sales_count","gt.0");
 
-  const logic=[];
   if(state.search){
     const term=`*${state.search}*`;
     logic.push(`or(title.ilike.${term},author.ilike.${term},category.ilike.${term})`);
@@ -188,7 +230,7 @@ async function fetchRemotePage(input={},options={}){
   const items=refreshCatalogCache(rows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
   const exactTotal=totalFromContentRange(response.headers.get("content-range"));
   const total=Number.isFinite(exactTotal)?exactTotal:from+items.length+(items.length===state.pageSize?1:0);
-  catalogStatus={source:"supabase",remoteCount:catalogCache.size-STATIC_CATALOG.length,total:exactTotal,migrated:true,error:""};
+  catalogStatus={source:"supabase",remoteCount:C.length,total:exactTotal,migrated:true,error:""};
   window.KUTADGU_CATALOG_STATUS=catalogStatus;
   return {items,total,hasMore:Number.isFinite(exactTotal)?from+items.length<exactTotal:items.length===state.pageSize,offset:from,pageSize:state.pageSize,source:"supabase"};
 }
@@ -200,6 +242,7 @@ async function queryCatalog(input={},options={}){
     catch(error){
       if(error?.name==="AbortError")throw error;
       console.error("Supabase catalog query failed; static fallback is being used.",error);
+      restoreStaticVisibleCatalog();
       catalogStatus={...catalogStatus,source:"static",error:String(error?.message||error)};
       window.KUTADGU_CATALOG_STATUS=catalogStatus;
     }
@@ -223,11 +266,13 @@ async function loadRemoteCatalog(){
     const total=totalFromContentRange(response.headers.get("content-range"));
     remoteCatalog.available=Number(total)>0;
     remoteCatalog.total=Number.isFinite(total)?total:null;
+    if(!remoteCatalog.available)restoreStaticVisibleCatalog();
     catalogStatus={source:remoteCatalog.available?"supabase":"static",remoteCount:0,total:remoteCatalog.available?total:STATIC_CATALOG.length,migrated:remoteCatalog.available,error:""};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }catch(err){
     console.warn("Remote catalog load failed; static catalog is being used.",err);
     remoteCatalog.available=false;
+    restoreStaticVisibleCatalog();
     catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:String(err?.message||err)};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }finally{clearTimeout(timeoutId)}
@@ -244,11 +289,24 @@ async function hydrateBooksByIds(ids=[]){
 }
 
 async function hydratePageBook(){
-  if(!document.body.hasAttribute("data-dynamic-book"))return;
   const id=new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
   if(!id)return;
   try{await queryCatalog({ids:[id],pageSize:1,offset:0})}
   catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
+}
+
+function resolveStoredBookId(id){
+  const book=find(id);
+  return book?book.id:String(id||"");
+}
+function migratePersistedBookIds(){
+  const resolve=resolveStoredBookId;
+  const nextCart=Legacy.migrateCartItems?Legacy.migrateCartItems(cart(),resolve):cart();
+  const nextFav=Legacy.migrateIdList?Legacy.migrateIdList(favs(),resolve):favs().map(String);
+  const nextRec=Legacy.migrateIdList?Legacy.migrateIdList(get(REC_KEY,[]),resolve,{limit:12}):get(REC_KEY,[]).map(String).slice(0,12);
+  if(JSON.stringify(nextCart)!==JSON.stringify(cart()))set(CART_KEY,nextCart);
+  if(JSON.stringify(nextFav)!==JSON.stringify((favs()||[]).map(String)))set(FAV_KEY,nextFav);
+  if(JSON.stringify(nextRec)!==JSON.stringify((get(REC_KEY,[])||[]).map(String)))set(REC_KEY,nextRec);
 }
 
 function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}
@@ -277,16 +335,34 @@ function cart(){
 function updateBadge(){let n=cart().reduce((s,x)=>s+(x.qty||1),0);document.querySelectorAll(".cart-count").forEach(e=>e.textContent=n)}
 function add(id,qty=1){
   let b=find(id);if(!b)return;
+  const storeId=b.id;
   const stock=stockInfo(b);if(!stock.canBuy){toast("بۇ كىتاب ھازىر تۈگەپ كەتكەن");return}
-  let a=cart(),x=a.find(i=>i.id===id),next=(x?.qty||0)+Math.max(1,Number(qty)||1);
+  let a=cart(),x=a.find(i=>canonicalId(i.id)===storeId),next=(x?.qty||0)+Math.max(1,Number(qty)||1);
   if(Number.isFinite(stock.qty))next=Math.min(next,stock.qty);
-  if(x)x.qty=next;else a.push({id,qty:next});
-  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:id,qty:Math.max(1,Number(qty)||1)})}
+  if(x){x.id=storeId;x.qty=next}else a.push({id:storeId,qty:next});
+  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:storeId,qty:Math.max(1,Number(qty)||1)})}
 }
-function remove(id){set(CART_KEY,cart().filter(x=>x.id!==id));updateBadge()}
+function remove(id){const want=canonicalId(id);set(CART_KEY,cart().filter(x=>canonicalId(x.id)!==want));updateBadge()}
 function favs(){return get(FAV_KEY,[])}
-function toggleFav(id){if(!find(id))return;let a=favs(),added=!a.includes(id);if(!added){a=a.filter(x=>x!==id);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}else{a.push(id);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:id})}}
-function recent(id){if(!find(id))return;let a=get(REC_KEY,[]).filter(x=>x!==id);a.unshift(id);set(REC_KEY,a.slice(0,12))}
+function favHas(id){
+  const want=canonicalId(id);
+  return favs().some(x=>canonicalId(x)===want);
+}
+function toggleFav(id){
+  const b=find(id);if(!b)return;
+  const storeId=b.id;
+  let a=favs().map(String),added=!a.some(x=>canonicalId(x)===storeId);
+  if(!added){a=a.filter(x=>canonicalId(x)!==storeId);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}
+  else{a.push(storeId);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}
+  if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:storeId})}
+}
+function recent(id){
+  const b=find(id);if(!b)return;
+  const storeId=b.id;
+  let a=get(REC_KEY,[]).filter(x=>canonicalId(x)!==storeId);
+  a.unshift(storeId);
+  set(REC_KEY,a.slice(0,12));
+}
 function toast(msg){let t=document.querySelector(".shop-toast");if(!t){t=document.createElement("div");t.className="shop-toast";t.style.cssText="position:fixed;right:18px;bottom:18px;z-index:10000;background:#4b3327;color:#fff;padding:12px 18px;border-radius:9px;box-shadow:0 8px 25px rgba(0,0,0,.2);font-family:inherit;transition:opacity .2s";document.body.appendChild(t)}t.textContent=msg;t.style.opacity="1";clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.opacity="0",1800)}
 function injectFloat(){if(document.querySelector(".shop-floating"))return;let d=document.createElement("div");d.className="shop-floating";d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;document.body.appendChild(d);updateBadge()}
 function cardId(card){
@@ -376,7 +452,7 @@ function decorateCards(){
   document.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});
   renderFavButtons();
 }
-function renderFavButtons(){let a=favs();document.querySelectorAll("[data-fav-id]").forEach(b=>{let yes=a.includes(b.dataset.favId);b.classList.toggle("is-favorite",yes);if(b.classList.contains("mini-heart")||b.classList.contains("home-feature-heart")){b.textContent=yes?"♥":"♡";b.setAttribute("aria-pressed",yes?"true":"false");b.setAttribute("aria-label",yes?"ياقتۇرۇلدى":"ياقتۇرۇش");}else if(b.textContent.includes("ياقتۇرۇش")||b.textContent.includes("♡")||b.textContent.includes("♥"))b.textContent=yes?"♥ ياقتۇرۇلدى":"♡ ياقتۇرۇش"})}
+function renderFavButtons(){document.querySelectorAll("[data-fav-id]").forEach(b=>{let yes=favHas(b.dataset.favId);b.classList.toggle("is-favorite",yes);if(b.classList.contains("mini-heart")||b.classList.contains("home-feature-heart")){b.textContent=yes?"♥":"♡";b.setAttribute("aria-pressed",yes?"true":"false");b.setAttribute("aria-label",yes?"ياقتۇرۇلدى":"ياقتۇرۇش");}else if(b.textContent.includes("ياقتۇرۇش")||b.textContent.includes("♡")||b.textContent.includes("♥"))b.textContent=yes?"♥ ياقتۇرۇلدى":"♡ ياقتۇرۇش"})}
 function getDetailBook(){
   let id=document.body.dataset.bookId;
   let b=find(id); if(b)return b;
@@ -549,7 +625,7 @@ function renderDetailExtras(book){
 
   let related=detailRecommendations(book,4);
   let recentBooks=get(REC_KEY,[])
-    .filter(id=>id!==book.id)
+    .filter(id=>canonicalId(id)!==canonicalId(book.id))
     .map(find)
     .filter(Boolean)
     .slice(0,4);
@@ -1259,7 +1335,7 @@ function cartPage(){
 }
 
 function changeQty(id,d){
-  let a=cart(),x=a.find(i=>i.id===id);if(!x)return;
+  let a=cart(),x=a.find(i=>canonicalId(i.id)===canonicalId(id));if(!x)return;
   const stock=stockInfo(find(id));
   x.qty=Math.max(1,(Number(x.qty)||1)+d);
   if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
@@ -1696,7 +1772,7 @@ function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=3";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=4";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -1717,7 +1793,7 @@ function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=4";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
-  return loadAssetScript("premium-ux.js?v=6","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=7","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -1760,15 +1836,14 @@ async function boot(){
   initStaticShell();
   await loadRemoteCatalog();
   await hydratePageBook();
-  if(document.querySelector("#cartItems,#favoritesList,#myBooksApp,#homeShopSections")){
-    const savedIds=[...cart().map(item=>item.id),...favs(),...get(REC_KEY,[])];
-    await hydrateBooksByIds(savedIds);
-  }
+  const savedIds=[...cart().map(item=>item.id),...favs(),...get(REC_KEY,[])];
+  await hydrateBooksByIds(savedIds);
+  migratePersistedBookIds();
   window.KUTADGU_LIVE_CATALOG=C;
   init();
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
   try{await loadPremiumUX()}catch(error){console.warn(error)}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent};
+window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds};
 })();
