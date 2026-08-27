@@ -414,7 +414,9 @@ function updateBookSeo(book){
   const path=book.href||`book.html?id=${encodeURIComponent(book.id||"")}`;
   const canonical=absoluteUrl(path);
   const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
-  const description=book.description||`${book.title}${book.author?` — ${book.author}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
+  const authorName=String(book.author||"").trim();
+  const hasAuthor=!!authorName&&authorName!=="—";
+  const description=book.description||`${book.title}${hasAuthor?` — ${authorName}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
   const image=book.image?absoluteUrl(book.image):"";
   document.title=title;
   setHeadMeta('meta[name="description"]',{name:"description",content:description});
@@ -438,18 +440,20 @@ function updateBookSeo(book){
   let schema=document.head.querySelector("#kutadguBookSchema");
   if(!schema){schema=document.createElement("script");schema.id="kutadguBookSchema";schema.type="application/ld+json";document.head.appendChild(schema)}
   const data={"@type":"Book",name:book.title,url:canonical};
-  if(book.author)data.author={"@type":"Person",name:book.author};
+  if(hasAuthor)data.author={"@type":"Person",name:authorName};
   if(image)data.image=image;
   if(book.description)data.description=book.description;
   if(book.publisher)data.publisher={"@type":"Organization",name:book.publisher};
   if(book.language)data.inLanguage=book.language;
-  const price=Number(book.price);
-  if(Number.isFinite(price)){
-    const offer={"@type":"Offer",price,priceCurrency:"TRY",url:canonical};
-    const stock=stockInfo(book);
-    if(stock.key==="out")offer.availability="https://schema.org/OutOfStock";
-    else if(stock.key==="in"||stock.key==="low")offer.availability="https://schema.org/InStock";
-    data.offers=offer;
+  if(book.price!==null&&book.price!==undefined&&book.price!==""){
+    const price=Number(book.price);
+    if(Number.isFinite(price)){
+      const offer={"@type":"Offer",price,priceCurrency:"TRY",url:canonical};
+      const stock=stockInfo(book);
+      if(stock.key==="out")offer.availability="https://schema.org/OutOfStock";
+      else if(stock.key==="in"||stock.key==="low")offer.availability="https://schema.org/InStock";
+      data.offers=offer;
+    }
   }
   const graph=[data];
   if(book.category){
