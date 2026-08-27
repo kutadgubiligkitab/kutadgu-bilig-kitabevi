@@ -1,7 +1,8 @@
 
 @font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.woff2") format("woff2"),url("UKIJCJK.ttf") format("truetype");font-display:swap}
 *{box-sizing:border-box}
-body{margin:0;font-family:"UKIJ CJK",Arial,sans-serif;background:#f6f0e5;color:#44352d;direction:rtl}
+html{overflow-x:hidden}
+body{margin:0;font-family:"UKIJ CJK",Arial,sans-serif;background:#f6f0e5;color:#44352d;direction:rtl;overflow-x:hidden}
 button,input,textarea,select{font:inherit}
 button{cursor:pointer}
 .admin-shell{min-height:100vh}
