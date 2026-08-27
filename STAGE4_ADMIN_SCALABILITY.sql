@@ -1,34 +1,26 @@
 -- قۇتادغۇبىلىك كىتابخانىسى — Stage 4 Admin scalability
 -- Supabase > SQL Editor دا بىر قېتىم Run قىلىڭ.
--- Repeat-safe: IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
--- مەۋجۇت كىتاب، ID، image_url، created_at، sales_count ۋە RLS ئۆزگەرتىلمەيدۇ.
--- بۇ ھۆججەت RLS نى ئاجىزلاشتۇرمايدۇ؛ service_role ئاچمايدۇ.
+-- Repeat-safe: ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS.
+-- جەدۋەل DROP/CREATE قىلىنمايدۇ. UPDATE/DELETE يوق. RLS ئۆزگەرتىلمەيدۇ.
+-- مەۋجۇت قۇرلار، id، image_url، created_at، updated_at، sales_count ساقلىنىدۇ.
+-- بۇ ھۆججەت service_role ئاچمايدۇ ۋە ئاممىۋى يېزىش ھوقۇقى بەرمەيدۇ.
+
+-- isbn: مەۋجۇت ھەر قۇرغا بوش تېكىست قويۇلىدۇ (NOT NULL DEFAULT '').
+-- قايتا Run قىلسىڭىز ستون بار بولسا ئاتلىنىدۇ؛ قىممەتلەر قايتا يېزىلمايدۇ.
 
 begin;
 
--- ISBN/barcode: schema دا بۇرۇن isbn يوق. بوش قىممەت رۇخسەت (مەجبۇرىي ئەمەس).
 alter table public.books
   add column if not exists isbn text not null default '';
 
--- Admin تىزىملىكى يوشۇرۇلغان كىتابلارنىمۇ ئىزدەيدۇ؛ شۇڭا is_active=true partial index يەتمەيدۇ.
-create extension if not exists pg_trgm;
-
+-- ISBN تەكرار تەكشۈرۈش ۋە .eq / .in ئىزدەش. بوش ISBN كىرەلمەيدۇ.
 create index if not exists books_isbn_eq_idx
   on public.books (isbn)
   where isbn <> '';
 
-create index if not exists books_isbn_trgm_idx
-  on public.books using gin (isbn gin_trgm_ops);
-
-create index if not exists books_publisher_trgm_idx
-  on public.books using gin (publisher gin_trgm_ops);
-
-create index if not exists books_title_trgm_all_idx
-  on public.books using gin (title gin_trgm_ops);
-
-create index if not exists books_author_trgm_all_idx
-  on public.books using gin (author gin_trgm_ops);
-
+-- Admin تىزىملىكى يوشۇرۇلغان كىتابلارنىمۇ كۆرسىتىدۇ؛
+-- كونا storefront index لار ھەمىشە is_active=true partial.
+-- بۇ btree index لار filter + created_at/id تەرتىپ + LIMIT/OFFSET ئۈچۈن.
 create index if not exists books_admin_created_idx
   on public.books (created_at desc, id);
 
@@ -46,5 +38,10 @@ create index if not exists books_admin_source_created_idx
 
 commit;
 
--- RLS: يېڭىسى قوشۇلمايدۇ. كىتاب يېزىش يەنىلا authenticated + is_kutadgu_admin() ئارقىلىق.
--- public.books select يەنىلا ھەممە ئوقۇرمەنلەرگە ئوچۇق (مەۋجۇت ھالەت).
+-- pg_trgm: بۇ Stage 4 ھۆججىتى كېڭەيتىلمىنى قوزغاتمايدۇ.
+-- Admin ئىزدەش ILIKE '%text%' ئىشلىتىدۇ؛ btree بۇنى تېزلىتەلمەيدۇ.
+-- 5,000 قۇرلۇق Admin ئىزدەش seq scan بىلەن يېتەرلىك.
+-- Storefront تەرەپتىكى trgm index لار CATALOG_SERVER_QUERY_MIGRATION.sql دا قالىدۇ.
+
+-- RLS: يېڭىسى يوق. كىتاب INSERT/UPDATE/DELETE يەنىلا
+-- authenticated + public.is_kutadgu_admin() (SUPABASE_SETUP.sql).

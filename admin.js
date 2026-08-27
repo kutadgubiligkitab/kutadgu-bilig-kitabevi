@@ -89,7 +89,22 @@ function isbnLooksValid(value){
   return n.length===10||n.length===13;
 }
 function searchSafe(term){
-  return String(term||"").replace(/[%_,()]/g," ").replace(/\s+/g," ").trim();
+  return String(term||"").replace(/[%_*(),]/g," ").replace(/\s+/g," ").trim().slice(0,80);
+}
+function postgrestIlike(column,term){
+  const like=`%${String(term).replace(/\\/g," ").replace(/"/g,"")}%`;
+  return `${column}.ilike."${like}"`;
+}
+function searchOrFilter(term,includeIsbn){
+  const t=searchSafe(term);
+  if(!t)return "";
+  const parts=["title","author","publisher"].map(col=>postgrestIlike(col,t));
+  if(includeIsbn){
+    parts.push(postgrestIlike("isbn",t));
+    const digits=normalizeIsbn(t);
+    if(digits&&digits!==t)parts.push(postgrestIlike("isbn",digits));
+  }
+  return parts.join(",");
 }
 
 function parseCsvText(text){
@@ -256,14 +271,7 @@ function applyListFilters(query){
   if(listFilters.isNew==="no")query=query.eq("is_new",false);
   const term=searchSafe(listFilters.q);
   if(term){
-    const like=`%${term}%`;
-    const parts=[`title.ilike.${like}`,`author.ilike.${like}`,`publisher.ilike.${like}`];
-    if(isbnColumn){
-      parts.push(`isbn.ilike.${like}`);
-      const digits=normalizeIsbn(term);
-      if(digits&&digits!==term)parts.push(`isbn.ilike.%${digits}%`);
-    }
-    query=query.or(parts.join(","));
+    query=query.or(searchOrFilter(listFilters.q,isbnColumn));
   }
   const [col,dir]=String(listFilters.sort||"created_at.desc").split(".");
   const allowed={created_at:1,title:1,author:1,price:1,sales_count:1};
@@ -643,7 +651,15 @@ async function importStatic(){
 }
 
 function selectedIdList(){
-  return [...selectedIds];
+  return [...new Set([...selectedIds].map(id=>String(id||"").trim()).filter(Boolean))];
+}
+function assertSelectedIds(ids){
+  if(!Array.isArray(ids)||ids.length===0){
+    throw new Error("NO_SELECTED_IDS");
+  }
+  if(ids.length>PAGE_SIZE){
+    throw new Error("SELECTED_IDS_EXCEED_PAGE");
+  }
 }
 function updateBulkValueUi(){
   const action=$("#bulkAction").value;
@@ -691,6 +707,8 @@ async function applyBulk(){
   else if(action==="deactivate"){patch={is_active:false};label="يوشۇرۇش"}
   if(!patch)return;
   if(!confirm(`تاللانغان ${ids.length} دانە كىتابقا «${label}» قىلامسىز؟\nپەقەت تاللانغان ID لار يېڭىلىنىدۇ.`))return;
+  try{assertSelectedIds(ids)}catch(err){alert("توپلام يېڭىلاش توختىتىلدى: تاللانغان ID يوق ياكى بەت چېكىدىن ئېشىپ كەتتى.");return}
+  if(!ids.length)return;
   const {error}=await db.from("books").update(patch).in("id",ids);
   if(error){alert("توپلام يېڭىلاش مەغلۇپ بولدى:\n"+error.message);return}
   selectedIds.clear();
@@ -765,10 +783,14 @@ function closeImport(){
   importRows=[];
 }
 
-function loadScript(src){
+function loadScript(src,attrs={}){
   return new Promise((resolve,reject)=>{
     const s=document.createElement("script");
     s.src=src;s.async=true;
+    if(attrs.integrity){
+      s.integrity=attrs.integrity;
+      s.crossOrigin=attrs.crossOrigin||"anonymous";
+    }
     s.onload=()=>resolve();
     s.onerror=()=>reject(new Error("Excel كۈتۈپخانىسى يۈكلەنمىدى"));
     document.head.appendChild(s);
@@ -776,7 +798,12 @@ function loadScript(src){
 }
 async function ensureXlsx(){
   if(window.XLSX)return window.XLSX;
-  if(!xlsxLoading)xlsxLoading=loadScript("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js");
+  if(!xlsxLoading){
+    xlsxLoading=loadScript(
+      "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+      {integrity:"sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==",crossOrigin:"anonymous"}
+    );
+  }
   await xlsxLoading;
   if(!window.XLSX)throw new Error("XLSX parser يوق");
   return window.XLSX;
@@ -804,36 +831,27 @@ function titleAuthorKey(title,author){
 async function loadExistingForImport(mapped){
   const existingIsbn=new Map();
   const existingTitle=new Map();
-  const isbnKeys=[...new Set(mapped.map(r=>r.isbnKey).filter(Boolean))];
-  if(isbnColumn&&isbnKeys.length){
-    for(let i=0;i<isbnKeys.length;i+=80){
-      const chunk=isbnKeys.slice(i,i+80);
-      const {data,error}=await db.from("books").select("id,title,author,isbn").in("isbn",mapped.filter(r=>chunk.includes(r.isbnKey)).map(r=>r.isbn));
-      if(error&&missingIsbnError(error)){isbnColumn=false;warnMigrationOnce();break}
-      if(error){
-        const {data:all,error:e2}=await db.from("books").select("id,title,author,isbn").range(0,9999);
-        if(e2)throw e2;
-        (all||[]).forEach(b=>{
-          const key=normalizeIsbn(b.isbn);
-          if(key)existingIsbn.set(key,b);
-          existingTitle.set(titleAuthorKey(b.title,b.author),b);
-        });
-        break;
-      }
-      (data||[]).forEach(b=>{
-        const key=normalizeIsbn(b.isbn);
-        if(key)existingIsbn.set(key,b);
-      });
-    }
-  }
+  const addIsbn=(b)=>{
+    const key=normalizeIsbn(b.isbn);
+    if(!key)return;
+    const list=existingIsbn.get(key)||[];
+    if(!list.some(x=>x.id===b.id))list.push(b);
+    existingIsbn.set(key,list);
+  };
   const {data:allTitles,error}=await db.from("books").select("id,title,author,isbn").range(0,9999);
-  if(!error){
-    (allTitles||[]).forEach(b=>{
-      const key=normalizeIsbn(b.isbn);
-      if(key)existingIsbn.set(key,b);
-      existingTitle.set(titleAuthorKey(b.title,b.author),b);
-    });
+  if(error&&missingIsbnError(error)){
+    isbnColumn=false;
+    warnMigrationOnce();
+    const retry=await db.from("books").select("id,title,author").range(0,9999);
+    if(retry.error)throw retry.error;
+    (retry.data||[]).forEach(b=>existingTitle.set(titleAuthorKey(b.title,b.author),b));
+    return {existingIsbn,existingTitle};
   }
+  if(error)throw error;
+  (allTitles||[]).forEach(b=>{
+    addIsbn(b);
+    existingTitle.set(titleAuthorKey(b.title,b.author),b);
+  });
   return {existingIsbn,existingTitle};
 }
 
@@ -865,9 +883,15 @@ async function buildImportPreview(file){
     const {existingIsbn,existingTitle}=await loadExistingForImport(mapped);
     mapped.forEach(row=>{
       if(row.isbnKey&&existingIsbn.has(row.isbnKey)){
-        row.dbMatch=existingIsbn.get(row.isbnKey);
-        row.duplicate="isbn";
-        row.warnings.push(`ISBN مەۋجۇت كىتابقا ماس كېلىدۇ (${row.dbMatch.id})`);
+        const matches=existingIsbn.get(row.isbnKey)||[];
+        row.isbnMatchCount=matches.length;
+        if(matches.length===1){
+          row.dbMatch=matches[0];
+          row.duplicate="isbn";
+          row.warnings.push(`ISBN مەۋجۇت بىر كىتابقا ماس كېلىدۇ (${row.dbMatch.id})`);
+        }else{
+          row.errors.push(`ISBN ${matches.length} كىتابقا ماس كەلدى؛ يېڭىلاش/ئاپتوماتىك ماسلاشتۇرۇش رۇخسەت قىلىنمايدۇ`);
+        }
       }else{
         const t=existingTitle.get(titleAuthorKey(row.title,row.author));
         if(t){
@@ -968,9 +992,14 @@ async function confirmImport(){
   const inserts=[];
   const updates=[];
   actionable.forEach(row=>{
-    if(row.duplicate==="isbn"&&row.dbMatch){
+    if(row.duplicate==="isbn"){
       if(dupMode==="skip"){skipped++;row.result="skipped";return}
-      if(dupMode==="update"){updates.push(row);return}
+      if(dupMode==="update"){
+        if(row.isbnMatchCount===1&&row.dbMatch?.id){updates.push(row);return}
+        skipped++;
+        row.result="skipped-ambiguous";
+        return;
+      }
     }
     inserts.push(row);
   });
@@ -983,13 +1012,10 @@ async function confirmImport(){
       const chunk=inserts.slice(i,i+IMPORT_BATCH).map((row,idx)=>rowToInsert(row,`book-imp-${Date.now().toString(36)}-${i}-${idx}`));
       const {error}=await db.from("books").insert(chunk);
       if(error){
-        for(const rec of chunk){
-          const one=await db.from("books").insert(rec);
-          if(one.error){failed++;failedRows.push({rows:[rec.title],message:one.error.message})}
-          else imported++;
-          done++;
-          tick();
-        }
+        failed+=chunk.length;
+        failedRows.push({rows:chunk.map(c=>c.title),message:error.message});
+        done+=chunk.length;
+        tick();
       }else{
         imported+=chunk.length;
         done+=chunk.length;
@@ -997,6 +1023,7 @@ async function confirmImport(){
       }
     }
     for(const row of updates){
+      if(row.isbnMatchCount!==1||!row.dbMatch?.id){skipped++;done++;tick();continue}
       const {error}=await db.from("books").update(rowToUpdate(row)).eq("id",row.dbMatch.id);
       if(error){failed++;failedRows.push({rows:[row.title],message:error.message})}
       else updated++;
@@ -1084,6 +1111,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,parseBoolCell,parseNumberCell,resolveCategory,searchSafe
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,PAGE_SIZE
 };
 })();
