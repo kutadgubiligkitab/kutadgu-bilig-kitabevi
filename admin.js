@@ -810,7 +810,7 @@ async function loadAnalytics(){
   hostZero.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
   const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
   if(error){
-    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>DATABASE_UPGRADE_V10.sql نى بىر قېتىم ئىجرا قىلىڭ.';
+    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>STAGE4_ANALYTICS_RPC_FIX.sql نى Supabase SQL Editor دا بىر قېتىم Run قىلىڭ.';
     hostTop.innerHTML=`<div class="admin-empty">${msg}</div>`;hostZero.innerHTML=`<div class="admin-empty">${msg}</div>`;return;
   }
   const summary=data||{};
