@@ -17,7 +17,10 @@
   const REC_KEY=config.storageKeys?.recentlyViewed||"kutadgu-recent-v1";
   const fallbackCover="sample-book-cover.png";
 
-  const catalog=()=>window.kutadguShop?.getCatalog?.()||window.KUTADGU_LIVE_CATALOG||window.KITAP_CATALOG||[];
+  const catalog=()=>{
+    const rows=window.kutadguShop?.getCatalog?.()||window.KUTADGU_LIVE_CATALOG||window.KITAP_CATALOG||[];
+    return rows.filter(book=>window.kutadguShop?.isStorefrontVisible?window.kutadguShop.isStorefrontVisible(book):book.isActive!==false&&book.is_active!==false);
+  };
   const normalize=value=>String(value||"").trim().toLocaleLowerCase("ug");
   const escapeHtml=value=>String(value??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]));
   const money=value=>value!==null&&value!==undefined&&value!==""?`${Number(value).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن";

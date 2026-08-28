@@ -482,6 +482,23 @@
     line-height:2;
 }
 
+.detail-unavailable-panel{
+    background:var(--site-bg-soft,#fbf8f2);
+}
+.detail-unavailable-title{
+    margin:0 0 8px;
+    color:var(--site-brown,#70503d);
+    font-size:18px;
+    font-weight:800;
+}
+.favorite-card-unavailable,
+.cart-item-unavailable{
+    opacity:.78;
+}
+.book-card[hidden]{
+    display:none !important;
+}
+
 .detail-cover-zoomable{
     cursor:zoom-in;
     transition:transform .25s ease;
