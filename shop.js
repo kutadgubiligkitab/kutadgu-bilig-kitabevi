@@ -1794,7 +1794,7 @@ function ensureCoverSystemCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="covers.css?v=1";
+    el.href="covers.css?v=2";
     el.dataset.kutadguCovers="1";
   }
   document.head.appendChild(el);

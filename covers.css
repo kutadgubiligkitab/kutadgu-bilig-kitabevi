@@ -4,7 +4,6 @@
 :root{
   --cover-ratio:2 / 3;
   --cover-inset:4px;
-  --cover-max:210px;
 }
 
 .book-card .book-image,
@@ -18,13 +17,14 @@
   align-items:center !important;
   justify-content:center !important;
   box-sizing:border-box !important;
-  width:min(100%,var(--cover-max)) !important;
+  width:100% !important;
   max-width:100% !important;
   height:auto !important;
   min-height:0 !important;
   aspect-ratio:var(--cover-ratio) !important;
   margin-inline:auto !important;
   padding:var(--cover-inset) !important;
+  padding-inline:var(--cover-inset) !important;
   overflow:hidden !important;
   background:#eee9e1;
 }
@@ -70,19 +70,20 @@
 
 .shop-mini-card a > img{
   display:block !important;
-  width:min(100%,var(--cover-max)) !important;
+  width:100% !important;
   max-width:100% !important;
   height:auto !important;
   aspect-ratio:var(--cover-ratio) !important;
   margin-inline:auto !important;
   padding:var(--cover-inset) !important;
+  padding-inline:var(--cover-inset) !important;
   object-fit:contain !important;
   object-position:center center !important;
   box-sizing:border-box !important;
 }
 
 .mini-cover-placeholder{
-  width:min(100%,var(--cover-max)) !important;
+  width:100% !important;
   height:auto !important;
   min-height:0 !important;
   aspect-ratio:var(--cover-ratio) !important;

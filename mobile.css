@@ -906,7 +906,7 @@
   }
 
   .home-feature-cover-frame {
-    width: min(100%, var(--cover-max, 210px)) !important;
+    width: 100% !important;
     height: auto !important;
     aspect-ratio: 2 / 3 !important;
     padding: var(--cover-inset, 4px) !important;
