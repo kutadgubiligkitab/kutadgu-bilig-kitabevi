@@ -895,18 +895,19 @@
   }
 
   .home-feature-card {
-    min-height: 292px !important;
+    min-height: 318px !important;
   }
 
   .home-feature-cover {
-    height: 166px !important;
-    min-height: 166px !important;
-    padding: 11px 7px 7px !important;
+    height: 188px !important;
+    min-height: 188px !important;
+    padding: 6px 5px 5px !important;
   }
 
   .home-feature-cover-frame {
-    width: 100px !important;
-    height: 145px !important;
+    width: 118px !important;
+    height: 171px !important;
+    padding: 3px !important;
   }
 
   .home-feature-cover-frame img {
