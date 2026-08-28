@@ -1791,7 +1791,7 @@ function loadAssetScript(src,id){
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=6";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=7";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   return loadAssetScript("premium-ux.js?v=7","kutadguPremiumUxScript");
 }
