@@ -5,7 +5,22 @@ function isCanonicalBookId(value){return Legacy.isCanonicalBookId?Legacy.isCanon
 function uniqueVisibleBooks(books){return Legacy.uniqueVisibleBooks?Legacy.uniqueVisibleBooks(books):[...new Map((books||[]).filter(b=>b&&b.id).map(b=>[String(b.id),b])).values()]}
 function splitLookupIds(ids){return Legacy.splitLookupIds?Legacy.splitLookupIds(ids):{numeric:(ids||[]).map(String).filter(isCanonicalBookId),legacy:(ids||[]).map(String).filter(id=>id&&!isCanonicalBookId(id))}}
 function quotePostgrestValue(value){return Legacy.quotePostgrestValue?Legacy.quotePostgrestValue(value):`"${String(value).replace(/["\\]/g,"")}"`}
-function legacyIdSupported(){return window.KUTADGU_BOOKS_SCHEMA?.optionalColumns?.legacy_id!==false}
+function bibliographicLib(){return window.KutadguBibliography||{}}
+function bibliographicColumnEnabled(col){
+  const lib=bibliographicLib();
+  if(lib.schemaOptional)return lib.schemaOptional(window.KUTADGU_BOOKS_SCHEMA,col);
+  return window.KUTADGU_BOOKS_SCHEMA?.optionalColumns?.[col]!==false;
+}
+function disableBibliographicColumns(cols){
+  const lib=bibliographicLib();
+  if(lib.disableOptionalColumns){
+    window.KUTADGU_BOOKS_SCHEMA=lib.disableOptionalColumns(window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}},cols);
+  }else{
+    window.KUTADGU_BOOKS_SCHEMA=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+    window.KUTADGU_BOOKS_SCHEMA.optionalColumns=window.KUTADGU_BOOKS_SCHEMA.optionalColumns||{};
+    (cols||[]).forEach(col=>{window.KUTADGU_BOOKS_SCHEMA.optionalColumns[col]=false});
+  }
+}
 
 function normalizeGalleryImages(value,coverUrl){
   const fn=window.KutadguGallery?.normalizeGalleryImages;
@@ -209,7 +224,12 @@ function staticQueryPage(input={}){
   if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id)||(book.legacyId&&ids.has(book.legacyId)))}
   if(state.source)rows=rows.filter(book=>book.source===state.source);
   if(state.category)rows=rows.filter(book=>book.category===state.category);
-  if(q)rows=rows.filter(book=>normalizeText([book.title,book.author,book.category].join(" ")).includes(q));
+  if(q)rows=rows.filter(book=>{
+    const hay=bibliographicLib().staticSearchHaystack
+      ?bibliographicLib().staticSearchHaystack(book)
+      :[book.title,book.author,book.category,book.translator,book.publisher,book.isbn].filter(Boolean).join(" ");
+    return normalizeText(hay).includes(q)||normalizeText(String(book.isbn||"").replace(/[\s-]+/g,"")).includes(q);
+  });
   if(Number.isFinite(state.minPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)>=state.minPrice);
   if(Number.isFinite(state.maxPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)<=state.maxPrice);
   if(state.newOnly)rows=rows.filter(book=>book.isNew===true);
@@ -252,7 +272,14 @@ function remoteBooksUrl(input={}){
 
   if(state.search){
     const term=`*${state.search}*`;
-    logic.push(`or(title.ilike.${term},author.ilike.${term},category.ilike.${term})`);
+    const cols=bibliographicLib().storefrontSearchColumns
+      ?bibliographicLib().storefrontSearchColumns(window.KUTADGU_BOOKS_SCHEMA)
+      :["title","author","category"];
+    const parts=cols.map(col=>`${col}.ilike.${term}`);
+    const digits=(bibliographicLib().normalizeIsbnDigits||(v=>String(v||"").replace(/[\s-]+/g,"")))(state.search);
+    if(cols.includes("isbn")&&digits&&digits!==state.search)parts.push(`isbn.ilike.*${digits}*`);
+    if(cols.includes("isbn")&&/^[0-9X]+$/i.test(digits))parts.push(`isbn.eq.${digits}`);
+    logic.push(`or(${parts.join(",")})`);
   }
   if(state.newOnly)params.set("is_new","eq.true");
   if(state.featured||state.recommended)params.set("is_recommended","eq.true");
@@ -279,7 +306,18 @@ async function fetchRemotePage(input={},options={}){
       "Range-Unit":"items",Range:`${from}-${to}`
     }
   });
-  if(!response.ok&&response.status!==416)throw new Error(`Catalog query failed (HTTP ${response.status})`);
+  if(!response.ok&&response.status!==416){
+    let body="";
+    try{body=await response.text()}catch(err){body=""}
+    const missing=bibliographicLib().missingColumnsFromError
+      ?bibliographicLib().missingColumnsFromError({message:body})
+      :[];
+    if(missing.length&&!options._bibRetry){
+      disableBibliographicColumns(bibliographicLib().BIB_OPTIONAL_COLS||missing);
+      return fetchRemotePage(input,{...options,_bibRetry:true});
+    }
+    throw new Error(`Catalog query failed (HTTP ${response.status})`);
+  }
   const rows=response.status===416?[]:await response.json();
   if(!Array.isArray(rows))throw new Error("Catalog query returned invalid data");
   const fetched=refreshCatalogCache(rows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
@@ -712,18 +750,12 @@ function populateDynamicBookPage(b){
   if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
       setDynamicMeta("ئاپتورى",storefrontAuthor(b)),
-      setDynamicMeta("ISBN",storefrontIsbn(b)),
-      setDynamicMeta("كىتاب تۈرى",b.category),
-      setDynamicMeta("بەت سانى",b.pages),
       setDynamicMeta("تەرجىمانى",b.translator),
-      setDynamicMeta("تىلى",b.language),
-      setDynamicMeta("نەشر ۋاقتى",b.publishDate),
-      setDynamicMeta("نەشر يىلى",b.publishYear),
       setDynamicMeta("نەشرىيات",b.publisher),
-      setDynamicMeta("مۇقاۋا تۈرى",b.coverType),
-      setDynamicMeta("كىتاب ئۆلچىمى",b.dimensions),
-      setDynamicMeta("ئامبار ھالىتى",isStorefrontVisible(b)?stockInfo(b).label:"ھازىرچە تەمىنلەنمەيدۇ"),
-      setDynamicMeta("ئامبار سانى",isStorefrontVisible(b)&&Number.isFinite(Number(b.stock))&&b.stock!==null&&b.stock!==""?`${Number(b.stock)} دانە`:"")
+      setDynamicMeta("نەشر يىلى",b.publishYear),
+      setDynamicMeta("ISBN",storefrontIsbn(b)),
+      setDynamicMeta("بەت سانى",b.pages),
+      setDynamicMeta("كىتاب تۈرى",b.category)
     ].join("");
   }
 

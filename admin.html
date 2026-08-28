@@ -26,7 +26,7 @@
         Admin كىرىشنى ئاددىي HTML پارولى بىلەن قىلمايمىز. بۇ بىخەتەر ئەمەس.
         بۇ نۇسخا Supabase Auth + Database + Storage ئۈچۈن تەييارلانغان.
       </div>
-      <p>`supabase-config.js?v=8` تېخى تولدۇرۇلمىغان. Supabase نى بىر قېتىم ئۇلىغاندىن كېيىن، پەقەت سىز كىرىپ كىتاب قوشالايسىز.</p>
+      <p>`supabase-config.js?v=9` تېخى تولدۇرۇلمىغان. Supabase نى بىر قېتىم ئۇلىغاندىن كېيىن، پەقەت سىز كىرىپ كىتاب قوشالايسىز.</p>
       <p class="admin-help">ZIP ئىچىدە <b>SUPABASE_SETUP.sql</b> ۋە <b>STEP5_ADMIN_SETUP.md</b> تەييار. كود ئىزدەشنىڭ ھاجىتى يوق.</p>
     </section>
 
@@ -186,14 +186,14 @@
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
-      <label data-book-col="pages"><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
+      <label data-book-col="pages"><span>بەت سانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPages" type="number" min="1" step="1"><span class="admin-help">پۈتۈن سان، ئەڭ ئاز 1. بوش قالدۇرۇشقا بولىدۇ.</span></label>
 
-      <label data-book-col="translator"><span>تەرجىمانى</span><input id="bookTranslator"></label>
+      <label data-book-col="translator"><span>تەرجىمانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
       <label data-book-col="language"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
 
       <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
-      <label data-book-col="publish_year"><span>نەشر يىلى</span><input id="bookPublishYear" inputmode="numeric"></label>
-      <label data-book-col="publisher"><span>نەشرىيات</span><input id="bookPublisher"></label>
+      <label data-book-col="publish_year"><span>نەشر يىلى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublishYear" type="number" min="1000" max="2100" step="1" inputmode="numeric"><span class="admin-help">مىلادىيە يىلى، 1000–2100. بوش قالدۇرۇشقا بولىدۇ.</span></label>
+      <label data-book-col="publisher"><span>نەشرىيات <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublisher"></label>
       <label data-book-col="cover_type"><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
       <label data-book-col="dimensions"><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
 
@@ -276,13 +276,14 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=8"></script>
+<script defer src="supabase-config.js?v=9"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
-<script defer src="admin.js?v=21"></script>
+<script defer src="catalog-bibliography.js?v=1"></script>
+<script defer src="admin.js?v=22"></script>
 </body>
 </html>

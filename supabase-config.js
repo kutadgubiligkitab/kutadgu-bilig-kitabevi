@@ -42,21 +42,23 @@ window.KUTADGU_SUPABASE_CONFIG = {
   Admin uses this map so missing optional columns are never requested.
   Core columns always selected via *: id, title, author, price, image_url,
   category, source, description, is_active, is_new, is_recommended, sales_count.
-  description is live-supported optional text. Do not invent columns.
+  description is live-supported optional text.
+  translator/publisher/publish_year/pages: true after STAGE61_BIBLIOGRAPHIC_METADATA.sql.
+  If that SQL has not been run, Admin/storefront drop those columns on the first 42703 write/search (no boot probe).
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
   optionalColumns: {
     isbn: true,
-    publisher: false,
+    publisher: true,
     href: false,
     stock: false,
     stock_status: false,
-    pages: false,
-    translator: false,
+    pages: true,
+    translator: true,
     language: false,
     publish_date: false,
-    publish_year: false,
+    publish_year: true,
     cover_type: false,
     dimensions: false,
     /* true after STAGE45_LEGACY_ID_MIGRATION.sql. Importer never writes books.id. */

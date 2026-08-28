@@ -62,6 +62,7 @@ function qualityIssues(book,opts={}){
   if(isPlaceholderCover(book&&(book.image_url||book.image)))issues.push("cover");
   if(descriptionSupported&&isMissingDescription(book&&book.description))issues.push("description");
   if(isbnSupported&&isMissingIsbn(book&&book.isbn))issues.push("isbn");
+  // translator / publisher / publish_year / pages are optional bibliography and never mark a book incomplete.
   return issues;
 }
 

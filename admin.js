@@ -2,6 +2,7 @@
 "use strict";
 const Write=window.KutadguAdminWrite||{};
 const Quality=window.KutadguAdminQuality||{};
+const Bib=window.KutadguBibliography||{};
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
@@ -14,17 +15,17 @@ const OPTIONAL_COL_ALIASES={
   href:["href","url","link"],
   stock:["stock","ئامبار"],
   stock_status:["stock_status"],
-  pages:["pages"],
-  translator:["translator"],
+  pages:["pages","بەت","بەت_سانى"],
+  translator:["translator","تەرجىمان","تەرجىمانى"],
   language:["language"],
   publish_date:["publish_date"],
-  publish_year:["publish_year","year"],
+  publish_year:["publish_year","year","نەشر_يىلى"],
   cover_type:["cover_type"],
   dimensions:["dimensions"],
   legacy_id:["legacy_id","legacyid","static_id"],
   gallery_images:["gallery_images","gallery"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:false,href:false,stock:false,stock_status:false,pages:false,translator:false,language:false,publish_date:false,publish_year:false,cover_type:false,dimensions:false,legacy_id:false,gallery_images:false};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:false,dimensions:false,legacy_id:false,gallery_images:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let isbnColumn=true,migrationWarned=false;
@@ -131,9 +132,7 @@ function applyBooksSchema(){
   });
   const search=$("#adminSearch");
   if(search){
-    search.placeholder=presentBookCols.has("publisher")
-      ?"كىتاب، ئاپتور، ISBN ياكى نەشرىيات ئىزدەڭ..."
-      :(isbnColumn?"كىتاب، ئاپتور ياكى ISBN ئىزدەڭ...":"كىتاب ياكى ئاپتور ئىزدەڭ...");
+    search.placeholder="كىتاب، ئاپتور، تەرجىمان، نەشرىيات ياكى ISBN ئىزدەڭ...";
   }
   const staticBtn=$("#importStaticBtn");
   if(staticBtn){
@@ -142,16 +141,22 @@ function applyBooksSchema(){
   }
   if(!isbnColumn)warnMigrationOnce();
 }
+function disableBibColumns(cols){
+  (cols||[]).forEach(col=>presentBookCols.delete(col));
+  const spec=window.KUTADGU_BOOKS_SCHEMA;
+  if(spec&&Bib.disableOptionalColumns)window.KUTADGU_BOOKS_SCHEMA=Bib.disableOptionalColumns(spec,cols);
+  applyBooksSchema();
+}
 function searchOrFilter(term,includeIsbn){
   const t=searchSafe(term);
   if(!t)return "";
-  const cols=["title","author"];
-  if(presentBookCols.has("publisher"))cols.push("publisher");
+  const cols=Bib.adminSearchColumns?Bib.adminSearchColumns(presentBookCols):["title","author"];
   const parts=cols.map(col=>postgrestIlike(col,t));
   if(includeIsbn&&presentBookCols.has("isbn")){
     parts.push(postgrestIlike("isbn",t));
     const digits=normalizeIsbn(t);
     if(digits&&digits!==t)parts.push(postgrestIlike("isbn",digits));
+    if(digits)parts.push(`isbn.eq.${digits}`);
   }
   return parts.join(",");
 }
@@ -260,9 +265,9 @@ function mapImportRow(raw){
   const publisher=String(headerAlias(raw,["publisher","نەشرىيات"])).trim();
   const description=String(headerAlias(raw,["description","desc"])).trim();
   const cover=String(headerAlias(raw,["cover_url","image_url","image","cover"])).trim();
-  const translator=String(headerAlias(raw,["translator"])).trim();
+  const translator=String(headerAlias(raw,["translator","تەرجىمان","تەرجىمانى"])).trim();
   const language=String(headerAlias(raw,["language"])).trim();
-  const publishYear=String(headerAlias(raw,["publish_year","year"])).trim();
+  const publishYearRaw=String(headerAlias(raw,["publish_year","year","نەشر_يىلى"])).trim();
   const stockStatus=String(headerAlias(raw,["stock_status"])).trim();
   const sourceRaw=String(headerAlias(raw,["source","category_source"])).trim();
   const categoryRaw=String(headerAlias(raw,["category","تۈر"])).trim();
@@ -275,8 +280,10 @@ function mapImportRow(raw){
   if(!price.ok)errors.push(price.error);
   const stock=parseNumberCell(headerAlias(raw,["stock","ئامبار"]),"stock",{integer:true});
   if(!stock.ok)errors.push(stock.error);
-  const pages=parseNumberCell(headerAlias(raw,["pages"]),"pages",{integer:true});
+  const pages=Bib.parsePages?Bib.parsePages(headerAlias(raw,["pages","بەت","بەت_سانى"])):parseNumberCell(headerAlias(raw,["pages"]),"pages",{integer:true});
   if(!pages.ok)errors.push(pages.error);
+  const year=Bib.parsePublishYear?Bib.parsePublishYear(publishYearRaw):{ok:true,value:publishYearRaw||null,empty:!publishYearRaw};
+  if(!year.ok)errors.push(year.error);
   const sales=parseNumberCell(headerAlias(raw,["sales_count","sold_count"]),"sales_count",{integer:true});
   if(!sales.ok)errors.push(sales.error);
   const rec=parseBoolCell(headerAlias(raw,["is_recommended","recommended"]),"is_recommended");
@@ -312,12 +319,12 @@ function mapImportRow(raw){
     image_url:cover,
     translator,
     language,
-    publish_year:publishYear,
+    publish_year:year.empty?null:year.value,
     source:cat?.source||"",
     category:cat?.category||"",
     price:price.value,
     stock:stock.empty?null:stock.value,
-    pages:pages.value,
+    pages:pages.empty?null:pages.value,
     sales_count:sales.empty?0:sales.value,
     is_recommended:rec.empty?false:rec.value,
     is_new:neu.empty?false:neu.value,
@@ -422,6 +429,15 @@ async function loadBooks(){
   let query=db.from("books").select(columnList(),{count:"exact"}).range(from,to);
   query=applyListFilters(query);
   let {data,error,count}=await query;
+  if(error){
+    const missing=Bib.missingColumnsFromError?Bib.missingColumnsFromError(error):[];
+    if(missing.length){
+      disableBibColumns(Bib.BIB_OPTIONAL_COLS||missing);
+      query=db.from("books").select(columnList(),{count:"exact"}).range(from,to);
+      query=applyListFilters(query);
+      ({data,error,count}=await query);
+    }
+  }
   if(req!==listRequest)return;
   if(error){
     status($("#adminStatus"),"Database دىن كىتاب ئوقۇش مەغلۇپ بولدى: "+error.message,"error");
@@ -911,6 +927,10 @@ async function saveBook(e){
   if(!source){alert("كىتاب تۈرىنى تاللاڭ.");return}
   const isbn=formatIsbn($("#bookIsbn").value);
   if(isbn&&!isbnLooksValid(isbn)){alert("ISBN 10 ياكى 13 خانىلىق بولسۇن (بوش قالدۇرۇشقا بولىدۇ).");return}
+  const year=Bib.parsePublishYear?Bib.parsePublishYear($("#bookPublishYear").value):{ok:true,value:$("#bookPublishYear").value.trim()||null};
+  if(!year.ok){alert(year.error);return}
+  const pages=Bib.parsePages?Bib.parsePages($("#bookPages").value):{ok:true,value:$("#bookPages").value===""?null:Number($("#bookPages").value)};
+  if(!pages.ok){alert(pages.error);return}
   const title=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookTitle").value):$("#bookTitle").value.trim();
   if(!title){alert("كىتاب ئىسمى كېرەك.");return}
   const plan=planCurrentSave();
@@ -958,12 +978,12 @@ async function saveBook(e){
       source,
       image_url:imageUrl,
       href:editing?.href||(isEdit?`book.html?id=${encodeURIComponent(editingBookId)}`:""),
-      pages:$("#bookPages").value===""?null:Number($("#bookPages").value),
-      translator:$("#bookTranslator").value.trim(),
+      pages:pages.value,
+      translator:$("#bookTranslator").value.trim()||null,
       language:$("#bookLanguage").value.trim(),
       publish_date:$("#bookPublishDate").value.trim(),
-      publish_year:$("#bookPublishYear").value.trim(),
-      publisher:$("#bookPublisher").value.trim(),
+      publish_year:year.value,
+      publisher:$("#bookPublisher").value.trim()||null,
       cover_type:$("#bookCoverType").value.trim(),
       dimensions:$("#bookDimensions").value.trim(),
       description:$("#bookDescription").value.trim(),
@@ -988,6 +1008,16 @@ async function saveBook(e){
       presentBookCols.delete("gallery_images");
       delete payload.gallery_images;
       ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+    }
+    const bibMissing=Bib.missingColumnsFromError?Bib.missingColumnsFromError(error):[];
+    if(error&&bibMissing.length){
+      const cols=Bib.BIB_OPTIONAL_COLS||bibMissing;
+      disableBibColumns(cols);
+      cols.forEach(col=>delete payload[col]);
+      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      if(!error){
+        alert("تەرجىمان / نەشرىيات / نەشر يىلى / بەت سانى ستونى تېخى Database دا يوق. STAGE61_BIBLIOGRAPHIC_METADATA.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
+      }
     }
     if(error)throw error;
     modal(false);
@@ -1369,11 +1399,11 @@ function rowToInsert(row,id){
     source:row.source,
     image_url:row.image_url||"",
     href:`book.html?id=${encodeURIComponent(id)}`,
-    pages:row.pages,
-    translator:row.translator||"",
+    pages:row.pages==null?null:row.pages,
+    translator:row.translator||null,
     language:row.language||"",
-    publish_year:row.publish_year||"",
-    publisher:row.publisher||"",
+    publish_year:row.publish_year==null?null:row.publish_year,
+    publisher:row.publisher||null,
     description:row.description||"",
     stock:row.stock,
     stock_status:row.stock_status||"",
@@ -1393,14 +1423,17 @@ function rowToUpdate(row){
     price:row.price,
     category:row.category,
     source:row.source,
-    publisher:row.publisher||"",
+    publisher:row.publisher||null,
     description:row.description||"",
     stock:row.stock,
     stock_status:row.stock_status||"",
     sales_count:row.sales_count||0,
     is_active:row.is_active!==false,
     is_new:row.is_new===true,
-    is_recommended:row.is_recommended===true
+    is_recommended:row.is_recommended===true,
+    translator:row.translator||null,
+    publish_year:row.publish_year==null?null:row.publish_year,
+    pages:row.pages==null?null:row.pages
   };
   if(row.image_url)rec.image_url=row.image_url;
   if(isbnColumn)rec.isbn=row.isbn||"";
