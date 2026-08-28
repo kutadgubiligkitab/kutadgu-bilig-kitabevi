@@ -225,7 +225,7 @@ function syncKey(key,value){
     finally{syncTimers.delete(key)}
   },250));
 }
-async function applySession(session,{trackLogin=false,sync=true}={}){
+async function applySession(session,{trackLogin=false,sync=false}={}){
   user=session?.user||null;profile=null;blocked=false;
   if(user){
     try{
