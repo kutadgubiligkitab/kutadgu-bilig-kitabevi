@@ -720,6 +720,8 @@
     color:#fff;
     font-size:13px;
     z-index:1;
+    direction:ltr;
+    unicode-bidi:isolate;
 }
 
 @media(max-width:900px){
