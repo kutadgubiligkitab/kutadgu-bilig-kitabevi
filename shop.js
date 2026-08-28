@@ -34,7 +34,8 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     id,
     legacyId,
     title:book.title||"",
-    author:book.author||"—",
+    author:book.author||"",
+    isbn:String(value("isbn","isbn","")||"").trim(),
     price:Number.isFinite(price)?price:null,
     priceText:Number.isFinite(price)?money(price):"باھا تېخى بېكىتىلمىگەن",
     category:book.category||"",
@@ -171,6 +172,17 @@ function refreshCatalogCache(books=[]){
   return books;
 }
 
+function isPlaceholderAuthor(value){
+  const author=String(value||"").replace(/\s+/g," ").trim();
+  return !author||author==="—"||author==="ئاپتور ئىسمى";
+}
+function storefrontAuthor(book){
+  const author=book&&book.author;
+  return isPlaceholderAuthor(author)?"":String(author).trim();
+}
+function storefrontIsbn(book){
+  return String(book&&book.isbn||"").replace(/[\s-]+/g,"").trim();
+}
 function cleanSearchTerm(value){
   return String(value||"").replace(/[%_*,()]/g," ").replace(/\s+/g," ").trim().slice(0,120);
 }
@@ -497,7 +509,12 @@ function syncStaticCards(){
     if(img){img.loading="lazy";img.decoding="async";if(!img.getAttribute("width"))img.setAttribute("width","320");if(!img.getAttribute("height"))img.setAttribute("height","460");img.src=coverSrc(book);img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;}
     const detail=card.querySelector(".detail-button,.book-button");if(detail&&book.href)detail.href=book.href;
     const title=card.querySelector(".book-title");if(title)title.textContent=book.title||"كىتاب";
-    const author=card.querySelector(".book-author");if(author)author.textContent=`ئاپتورى: ${book.author||"—"}`;
+    const author=card.querySelector(".book-author");
+    if(author){
+      const name=storefrontAuthor(book);
+      author.textContent=name?`ئاپتورى: ${name}`:"";
+      author.hidden=!name;
+    }
     const price=card.querySelector(".book-price,.price");if(price)price.textContent=money(book.price);
   });
 }
@@ -610,8 +627,8 @@ function updateBookSeo(book){
   const path=book.href||`book.html?id=${encodeURIComponent(book.id||"")}`;
   const canonical=absoluteUrl(path);
   const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
-  const authorName=String(book.author||"").trim();
-  const hasAuthor=!!authorName&&authorName!=="—";
+  const authorName=storefrontAuthor(book);
+  const hasAuthor=!!authorName;
   const description=book.description||`${book.title}${hasAuthor?` — ${authorName}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
   const image=isStorefrontVisible(book)&&book.image?absoluteUrl(book.image):"";
   document.title=title;
@@ -685,12 +702,17 @@ function populateDynamicBookPage(b){
   const h1=info.querySelector("h1");
   if(h1)h1.textContent=b.title;
   const author=info.querySelector(".book-author");
-  if(author)author.textContent=`ئاپتورى: ${b.author||"—"}`;
+  if(author){
+    const name=storefrontAuthor(b);
+    author.textContent=name?`ئاپتورى: ${name}`:"";
+    author.hidden=!name;
+  }
 
   const meta=info.querySelector(".book-meta");
   if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
-      setDynamicMeta("ئاپتورى",b.author),
+      setDynamicMeta("ئاپتورى",storefrontAuthor(b)),
+      setDynamicMeta("ISBN",storefrontIsbn(b)),
       setDynamicMeta("كىتاب تۈرى",b.category),
       setDynamicMeta("بەت سانى",b.pages),
       setDynamicMeta("تەرجىمانى",b.translator),
@@ -1135,12 +1157,13 @@ function bindDynamicActions(scope){
   renderFavButtons();
 }
 function bookCardMarkup(b,variant="listing"){
-  const id=escapeAttr(b.id),href=escapeAttr(b.href),title=escapeHtml(b.title),author=escapeHtml(b.author||"—"),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
+  const id=escapeAttr(b.id),href=escapeAttr(b.href),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
+  const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
   if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
     <a class="advanced-search-cover" href="${href}"><img src="${cover}" alt="${escapeAttr(b.title)}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${href}">${title}</a>
-      <div class="advanced-search-meta">ئاپتورى: ${author}</div>
+      ${authorBlock}
       <div class="advanced-search-meta">${category}</div>
       <div class="advanced-search-price">${money(b.price)}</div>
       <div class="advanced-search-actions">
@@ -1157,7 +1180,7 @@ function bookCardMarkup(b,variant="listing"){
     </a>
     <div class="book-info">
       <h2 class="book-title">${title}</h2>
-      <p class="book-author">ئاپتورى: ${author}</p>
+      ${authorName?`<p class="book-author">ئاپتورى: ${author}</p>`:`<p class="book-author" hidden></p>`}
       ${stockBadge(b)}
       <div class="book-price">${money(b.price)}</div>
       <div class="book-actions">
@@ -1841,6 +1864,10 @@ function renderContactSection(){
   add("🕒","خىزمەت ۋاقتى",cfg.hours);
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
   cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</bdi></small></div></a>`);
+  const photo=String(cfg.storePhoto||cfg.aboutPhoto||"").trim();
+  if(photo&&!/[<>"']/.test(photo)){
+    cards.push(`<figure class="contact-store-photo"><img src="${safeText(photo)}" alt="دۇكان رەسىمى" width="640" height="400" loading="lazy" decoding="async"></figure>`);
+  }
   host.innerHTML=cards.join("");
 }
 
@@ -1878,17 +1905,65 @@ function setupCheckout(){
 
 
 /* ===== Premium configurable carousel: 2x4 desktop, swipe carousel mobile ===== */
-function setupHomeCarousel(){
+function applyBestsellerHonesty(hasSales){
+  const show=!!hasSales;
+  document.querySelectorAll("[data-carousel-mode='bestseller']").forEach(el=>{
+    el.hidden=!show;
+    if(!show)el.setAttribute("aria-hidden","true");
+    else el.removeAttribute("aria-hidden");
+  });
+  document.querySelectorAll("#searchCollection option[value='bestseller'],#catalogCollection option[value='bestseller'],#searchSort option[value='bestseller'],#catalogSort option[value='bestseller']").forEach(opt=>{
+    opt.hidden=!show;
+    opt.disabled=!show;
+    if(!show&&opt.selected)opt.selected=false;
+  });
+  return show;
+}
+
+async function countPositiveSales(){
+  if(Number.isFinite(window.__kutadguPositiveSalesCount))return window.__kutadguPositiveSalesCount;
+  const cfg=supabasePublicConfig();
+  if(cfg&&cfg.url&&cfg.anonKey){
+    try{
+      const url=`${String(cfg.url).replace(/\/+$/,"")}/rest/v1/books?select=id&sales_count=gt.0`;
+      const res=await fetch(url,{
+        method:"HEAD",
+        headers:{
+          apikey:cfg.anonKey,
+          Authorization:`Bearer ${cfg.anonKey}`,
+          Prefer:"count=exact",
+          Range:"0-0"
+        }
+      });
+      const range=res.headers.get("content-range")||"";
+      const total=Number(String(range).split("/")[1]);
+      if(Number.isFinite(total)){
+        window.__kutadguPositiveSalesCount=total;
+        return total;
+      }
+    }catch(err){console.warn("positive sales count skipped",err)}
+  }
+  const n=C.filter(book=>Number(book.salesCount)>0).length;
+  window.__kutadguPositiveSalesCount=n;
+  return n;
+}
+
+async function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
   const dotsHost=document.querySelector("#homeCarouselDots");
   const tabs=[...document.querySelectorAll("[data-carousel-mode]")];
   if(!host||!viewport||!dotsHost)return;
+  const hasSales=(await countPositiveSales())>0;
+  applyBestsellerHonesty(hasSales);
   if(viewport.dataset.kutadguCarouselReady==="1")return;
   viewport.dataset.kutadguCarouselReady="1";
-
   const carouselModeFlags={recommended:"recommendations",bestseller:"bestSellers",newest:"newArrivals"};
-  const enabledModes=["recommended","bestseller","newest"].filter(item=>featureEnabled(carouselModeFlags[item]));
+  const enabledModes=["recommended","bestseller","newest"].filter(item=>{
+    if(!featureEnabled(carouselModeFlags[item]))return false;
+    if(item==="bestseller"&&!hasSales)return false;
+    return true;
+  });
   tabs.forEach(button=>{button.hidden=!enabledModes.includes(button.dataset.carouselMode)});
   if(!enabledModes.length){viewport.closest("section")?.setAttribute("hidden","");return}
 
@@ -1915,9 +1990,7 @@ function setupHomeCarousel(){
       ...QUERY_DEFAULTS,offset,pageSize:8,
       sort:currentMode==="bestseller"?"bestseller":currentMode==="recommended"?"recommended":"new",
       newOnly:currentMode==="newest",recommended:currentMode==="recommended",bestseller:currentMode==="bestseller",
-      // Homepage asks only for the top 8. Zero-sale books can fill unused slots only
-      // when fewer than 8 books have a positive sales_count.
-      allowZeroSales:currentMode==="bestseller"
+      allowZeroSales:false
     };
     return catalogQueryState.carousel;
   }
@@ -1942,7 +2015,7 @@ function setupHomeCarousel(){
         <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" width="320" height="460" loading="${loading}" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
       </a>
       <div class="home-carousel-info">
-        <a href="${b.href}" class="home-carousel-meta-link"><div class="home-carousel-title">${b.title||"كىتاب"}</div><div class="home-carousel-author">${b.author||"—"}</div></a>
+        <a href="${b.href}" class="home-carousel-meta-link"><div class="home-carousel-title">${b.title||"كىتاب"}</div>${storefrontAuthor(b)?`<div class="home-carousel-author">${storefrontAuthor(b)}</div>`:""}</a>
         <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div>
       </div>
     </article>`;
@@ -2104,6 +2177,7 @@ function init(){
   decorateDetail();
   setupCatalogFilters();
   setupHomeCarousel();
+  countPositiveSales().then(n=>applyBestsellerHonesty(n>0));
   // Refresh catalog-backed views after remote availability is known.
   // Selector/contact/checkout shells are already built by initStaticShell().
   renderHomeFeaturedBooks();
@@ -2133,5 +2207,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility};
+window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor};
 })();

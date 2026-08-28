@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=8">
+  <link rel="stylesheet" href="admin.css?v=9">
 </head>
 <body>
 <div class="admin-shell">
@@ -26,7 +26,7 @@
         Admin كىرىشنى ئاددىي HTML پارولى بىلەن قىلمايمىز. بۇ بىخەتەر ئەمەس.
         بۇ نۇسخا Supabase Auth + Database + Storage ئۈچۈن تەييارلانغان.
       </div>
-      <p>`supabase-config.js?v=6` تېخى تولدۇرۇلمىغان. Supabase نى بىر قېتىم ئۇلىغاندىن كېيىن، پەقەت سىز كىرىپ كىتاب قوشالايسىز.</p>
+      <p>`supabase-config.js?v=8` تېخى تولدۇرۇلمىغان. Supabase نى بىر قېتىم ئۇلىغاندىن كېيىن، پەقەت سىز كىرىپ كىتاب قوشالايسىز.</p>
       <p class="admin-help">ZIP ئىچىدە <b>SUPABASE_SETUP.sql</b> ۋە <b>STEP5_ADMIN_SETUP.md</b> تەييار. كود ئىزدەشنىڭ ھاجىتى يوق.</p>
     </section>
 
@@ -70,6 +70,14 @@
           <select id="adminFilterActive" aria-label="كۆرۈنۈش"><option value="">بارلىق ھالەت</option><option value="yes">كۆرۈنىدۇ</option><option value="no">يوشۇرۇلغان</option></select>
           <select id="adminFilterRecommended" aria-label="تەۋسىيە"><option value="">تەۋسىيە: ھەممىسى</option><option value="yes">تەۋسىيەلىك</option><option value="no">تەۋسىيەسىز</option></select>
           <select id="adminFilterNew" aria-label="يېڭى"><option value="">يېڭى: ھەممىسى</option><option value="yes">يېڭى بەلگىسى بار</option><option value="no">يېڭى بەلگىسى يوق</option></select>
+          <select id="adminFilterQuality" aria-label="مەزمۇن سۈپىتى">
+            <option value="">مەزمۇن سۈپىتى: ھەممىسى</option>
+            <option value="missing_author">ئاپتور يوق / ئورۇنباسار</option>
+            <option value="placeholder_cover">ئورۇنباسار مۇقاۋا</option>
+            <option value="missing_description">چۈشەندۈرۈش يوق</option>
+            <option value="missing_isbn">ISBN يوق</option>
+            <option value="complete">تولۇق كىتابلار</option>
+          </select>
           <select id="adminSort" aria-label="تەرتىپ">
             <option value="created_at.desc">يېڭى قوشۇلغان</option>
             <option value="created_at.asc">كونا قوشۇلغان</option>
@@ -80,7 +88,7 @@
             <option value="price.desc">باھا (قىممەت)</option>
           </select>
         </div>
-        <p class="admin-help">ئىزدەش Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە.</p>
+        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە.</p>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
           <span id="adminSelectedCount">تاللانغان: 0 (نۆۋەتتىكى بەت)</span>
@@ -170,12 +178,12 @@
 
       <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required></label>
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
-      <label data-book-col="isbn"><span>ISBN / باركود</span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."></label>
+      <label data-book-col="isbn"><span>ISBN / باركود <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">بوشلۇق ۋە سىزىقچىلار ئاپتوماتىك تازىلىنىدۇ. ISBN-10 / ISBN-13 ساقلىنىدۇ؛ يوق كىتابلارغا ISBN توختىماڭ.</span></label>
 
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
       <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
       <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
-      <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"></label>
+      <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label data-book-col="pages"><span>بەت سانى</span><input id="bookPages" type="number" min="1" step="1"></label>
@@ -189,10 +197,13 @@
       <label data-book-col="cover_type"><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
       <label data-book-col="dimensions"><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
 
-      <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="bookDescription" rows="4"></textarea></label>
+      <label class="admin-wide"><span>كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
 
       <label class="admin-wide"><span>مۇقاۋا رەسىمى</span><input id="bookCover" type="file" accept="image/*"></label>
-      <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">رەسىم تاللانمىدى</span></div>
+      <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">يېڭى ھۆججەت تاللانمىسا ھازىرقى مۇقاۋا ساقلىنىدۇ</span>
+        <button type="button" class="admin-secondary" id="clearCoverPick">يېڭى رەسىم تاللاشنى بىكار قىلىش</button>
+      </div>
+      <p class="admin-help admin-wide">ئاساسىي مۇقاۋا بىلەن قوشۇمچە gallery رەسىملىرى ئايرىم. ھۆججەت تاللانمىسا مەۋجۇت image_url ئۆزگەرمەيدۇ. sample-book-cover.png قايلانمايدۇ.</p>
 
       <div class="admin-wide admin-gallery-section" data-book-col="gallery_images" hidden>
         <div class="admin-gallery-head">
@@ -210,6 +221,12 @@
       <label class="admin-check"><input id="bookIsNew" type="checkbox"><span>يېڭى قوشۇلغان (قولدا)</span></label>
       <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
       <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
+
+      <div id="createDuplicateWarning" class="admin-status warn admin-wide" hidden>
+        <strong id="createDuplicateMessage">An existing book with the same title and author was found.</strong>
+        <div id="createDuplicateMatches" class="admin-dup-list"></div>
+        <label class="admin-check"><input id="createDuplicateConfirm" type="checkbox"><span>بۇ يېڭى كىتاب، داۋاملاشتۇرۇشنى جەزملەشتۈرىمەن</span></label>
+      </div>
 
       <div class="admin-wide admin-toolbar-group">
         <button class="admin-primary" type="submit">💾 ساقلاش</button>
@@ -259,12 +276,13 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=7"></script>
+<script defer src="supabase-config.js?v=8"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script defer src="admin-book-write.js?v=2"></script>
-<script defer src="admin.js?v=20"></script>
+<script defer src="admin-book-quality.js?v=1"></script>
+<script defer src="admin.js?v=21"></script>
 </body>
 </html>

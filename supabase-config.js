@@ -40,6 +40,9 @@ window.KUTADGU_SUPABASE_CONFIG = {
   Live public.books capabilities for this Supabase project (fxlojnqwyojqjskfggmh).
   Verified read-only via PostgREST column selects. Not a secret; not a probe list.
   Admin uses this map so missing optional columns are never requested.
+  Core columns always selected via *: id, title, author, price, image_url,
+  category, source, description, is_active, is_new, is_recommended, sales_count.
+  description is live-supported optional text. Do not invent columns.
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -77,5 +80,6 @@ window.KUTADGU_CONTACT_CONFIG = {
   instagramUrl: "https://www.instagram.com/kutadgu_bilig_kitabhanisi/",
   address: "KEMALPAŞA MAH. 1. TURNA SK. AKPINAR APT. NO: 25/C, KAPI NO: K, KÜÇÜKÇEKMECE / İSTANBUL",
   addressUrl: "https://www.google.com/maps/search/?api=1&query=KEMALPA%C5%9EA%20MAH.%201.%20TURNA%20SK.%20AKPINAR%20APT.%20NO%3A%2025%2FC%2C%20KAPI%20NO%3A%20K%2C%20K%C3%9C%C3%87%C3%9CK%C3%87EKMECE%20%2F%20%C4%B0STANBUL",
-  hours: ""
+  hours: "",
+  storePhoto: ""
 };

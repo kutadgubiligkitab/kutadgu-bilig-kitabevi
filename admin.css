@@ -157,7 +157,18 @@ button{cursor:pointer}
 .admin-row-ok{background:#f3faf4}
 .admin-import-preview{margin-top:12px}
 [data-book-col][hidden]{display:none!important}
-.admin-schema-note{margin-top:8px}
+.admin-quality-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.admin-quality-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.6}
+.admin-quality-complete{background:#edf7ef;color:#2f6a3c}
+.admin-quality-author,.admin-quality-cover,.admin-quality-description,.admin-quality-isbn{background:#fff4e8;color:#8a4b12}
+.admin-optional{font-weight:600;color:#8a7568}
+.admin-dup-list{display:grid;gap:8px;margin:10px 0}
+.admin-dup-match{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 10px;border:1px solid #ead3a6;border-radius:8px;background:#fffdf8;font-size:13px}
+.admin-cover-preview{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.admin-cover-preview img{width:72px;height:96px;object-fit:contain;background:#eee9e1;border-radius:8px}
+@media(max-width:620px){
+  .admin-dup-match{grid-template-columns:1fr 1fr; }
+}
 @media(max-width:850px){
   .admin-book-row{grid-template-columns:24px 48px 1fr}
 }
