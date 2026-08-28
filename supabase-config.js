@@ -57,7 +57,9 @@ window.KUTADGU_BOOKS_SCHEMA = {
     cover_type: false,
     dimensions: false,
     /* true after STAGE45_LEGACY_ID_MIGRATION.sql. Importer never writes books.id. */
-    legacy_id: true
+    legacy_id: true,
+    /* false until GALLERY_IMAGES_MIGRATION.sql. Admin also live-detects the column. */
+    gallery_images: false
   }
 };
 

@@ -47,6 +47,13 @@ button{cursor:pointer}
 .admin-hidden-book{opacity:.58}
 .admin-cover-preview{display:flex;align-items:center;gap:12px;margin-top:8px}
 .admin-cover-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border:1px solid #e8dccb;border-radius:7px}
+.admin-gallery-section{display:grid;gap:10px;padding:12px;border:1px dashed #dccdb9;border-radius:12px;background:#fbf8f2}
+.admin-gallery-head{display:grid;gap:4px}
+.admin-gallery-list{display:flex;flex-wrap:wrap;gap:10px}
+.admin-gallery-item{width:110px;display:grid;gap:6px;padding:8px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
+.admin-gallery-item img{width:100%;height:92px;object-fit:contain;background:#eee9e1;border-radius:6px}
+.admin-gallery-item-actions{display:flex;flex-wrap:wrap;gap:4px}
+.admin-gallery-item-actions button{flex:1;min-width:0;padding:5px 6px;font-size:11px}
 .admin-help{color:#806f62;font-size:12px;line-height:1.8}
 .admin-modal{position:fixed;inset:0;z-index:30000;background:rgba(31,23,19,.65);display:flex;align-items:center;justify-content:center;padding:20px}
 .admin-modal[hidden]{display:none}

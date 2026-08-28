@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=7">
+  <link rel="stylesheet" href="admin.css?v=8">
 </head>
 <body>
 <div class="admin-shell">
@@ -194,6 +194,18 @@
       <label class="admin-wide"><span>مۇقاۋا رەسىمى</span><input id="bookCover" type="file" accept="image/*"></label>
       <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">رەسىم تاللانمىدى</span></div>
 
+      <div class="admin-wide admin-gallery-section" data-book-col="gallery_images" hidden>
+        <div class="admin-gallery-head">
+          <strong>قوشۇمچە كىتاب رەسىملىرى</strong>
+          <span class="admin-help">ئىختىيارىي — ئارقا مۇقاۋا، مۇندەرىجە، ئىچكى بەت. ئەڭ كۆپ 4 رەسىم. ئاساسىي مۇقاۋىغا تەگمەيدۇ.</span>
+        </div>
+        <label><span>قوشۇمچە رەسىم يۈكلەش</span>
+          <input id="bookGallery" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+        </label>
+        <div id="bookGalleryStatus" class="admin-help">ھازىرچە قوشۇمچە رەسىم يوق.</div>
+        <div id="bookGalleryList" class="admin-gallery-list"></div>
+      </div>
+
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
       <label class="admin-check"><input id="bookIsNew" type="checkbox"><span>يېڭى قوشۇلغان (قولدا)</span></label>
       <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
@@ -246,10 +258,11 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=6"></script>
+<script defer src="supabase-config.js?v=7"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
+<script defer src="gallery-images.js?v=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script defer src="admin.js?v=17"></script>
+<script defer src="admin.js?v=18"></script>
 </body>
 </html>
