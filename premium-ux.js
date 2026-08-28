@@ -84,7 +84,7 @@
 
   function renderDiscovery(){
     if(!enabled("discovery")||document.querySelector("#premiumDiscovery"))return;
-    const anchor=document.querySelector(".home-search-card-section")||document.querySelector(".home-trust-strip");
+    const anchor=document.querySelector("#bookCategories")||document.querySelector(".home-search-card-section")||document.querySelector(".home-trust-strip");
     if(!anchor)return;
     const groups=(config.discoveryGroups||[]).filter(group=>group?.id&&group?.label);
     if(!groups.length)return;
@@ -98,12 +98,12 @@
         ${enabled("smartWizard")?'<button type="button" class="premium-wizard-open" id="premiumWizardOpen" aria-expanded="false">🧭 سىزگە ماس كىتابنى تېپىڭ</button>':""}
       </div>
       <div class="premium-discovery-groups" role="group" aria-label="كىتاب تۈرلىرى">
-        ${groups.map((group,index)=>`<button type="button" class="premium-group-button${index===0?' is-active':''}" data-premium-group="${escapeHtml(group.id)}"><span>${escapeHtml(group.icon||"📚")}</span>${escapeHtml(group.label)}</button>`).join("")}
+        ${groups.map((group)=>`<button type="button" class="premium-group-button" data-premium-group="${escapeHtml(group.id)}"><span>${escapeHtml(group.icon||"📚")}</span>${escapeHtml(group.label)}</button>`).join("")}
       </div>
       <div class="premium-subcategories" id="premiumSubcategories"></div>
       <div class="premium-discovery-results" id="premiumDiscoveryResults" aria-live="polite"></div>
       ${enabled("smartWizard")?wizardMarkup(groups):""}`;
-    anchor.insertAdjacentElement("afterend",section);
+    anchor.insertAdjacentElement("beforebegin",section);
 
     const results=section.querySelector("#premiumDiscoveryResults");
     const subcategories=section.querySelector("#premiumSubcategories");
@@ -119,7 +119,7 @@
       subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
     }
     section.querySelectorAll("[data-premium-group]").forEach(button=>button.onclick=()=>showGroup(button.dataset.premiumGroup));
-    showGroup(groups[0].id);
+    results.innerHTML='<div class="premium-friendly-empty">تۈرنى تاللاڭ؛ شۇ تۈردىكى كىتابلار تۆۋەندە كۆرۈنىدۇ.</div>';
     setupWizard(section,groups);
   }
 

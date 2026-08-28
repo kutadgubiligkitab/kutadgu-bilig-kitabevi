@@ -29,11 +29,11 @@
 
 <link rel="preconnect" href="https://fxlojnqwyojqjskfggmh.supabase.co" crossorigin>
 <link rel="preload" href="UKIJCJK.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="index.css?v=6">
+<link rel="stylesheet" href="index.css?v=7">
 <link rel="stylesheet" href="theme.css?v=9">
-<link rel="stylesheet" href="shop.css?v=37">
+<link rel="stylesheet" href="shop.css?v=38">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
-<link rel="stylesheet" href="mobile.css?v=17">
+<link rel="stylesheet" href="mobile.css?v=18">
 <script>
 (function(){
   var q=location.search||"";
@@ -48,7 +48,8 @@
 <script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=6"></script>
 <script defer src="catalog.js?v=1"></script>
-<script defer src="legacy-id-utils.js?v=1"></script><script defer src="catalog-visibility.js?v=1"></script><script defer src="shop.js?v=53"></script>
+<script defer src="analytics.js?v=1"></script>
+<script defer src="legacy-id-utils.js?v=1"></script><script defer src="catalog-visibility.js?v=1"></script><script defer src="shop.js?v=54"></script>
 <script defer src="mobile.js?v=2"></script>
 </head>
 
@@ -109,12 +110,6 @@
     <div class="home-hero-inner">
 
         <div class="hero-content home-hero-copy">
-            <div class="home-hero-symbols" aria-hidden="true">
-                <span>📚</span>
-                <span>📖</span>
-                <span>🛒</span>
-            </div>
-
             <div class="home-hero-eyebrow">قۇتادغۇبىلىك كىتابخانىسى</div>
 
             <h1>
@@ -122,15 +117,15 @@
             </h1>
 
             <p>
-                ئۆزىڭىز ئىزدىگەن ئۇيغۇرچە كىتابلارنى بىر يەردىن تېپىڭ، تاللاڭ ۋە WhatsApp ئارقىلىق ئاسان زاكاز قىلىڭ.
+                ئۇيغۇرچە كىتابلارنى ئىزدەڭ، تاللاڭ؛ زاكازنى WhatsApp ئارقىلىق يوللاڭ.
             </p>
 
             <div class="home-hero-actions">
                 <a href="#books" class="button">
-                    📚 كىتابلارنى كۆرۈش
+                    🔎 كىتاب ئىزدەش
                 </a>
-                <a href="cart.html" class="home-hero-secondary">
-                    🛒 سېۋەت
+                <a href="#bookCategories" class="home-hero-secondary">
+                    📚 كىتاب تۈرلىرى
                 </a>
             </div>
         </div>
@@ -187,7 +182,7 @@
             <div class="home-heading-icon" aria-hidden="true">🔎</div>
             <div>
                 <h2 id="homeSearchTitle">قايسى كىتابنى ئىزدەۋاتىسىز؟</h2>
-                <p>كىتاب ئىسمى، ئاپتورى، تۈرى ياكى تارماق تۈرى بويىچە تېز تېپىڭ.</p>
+                <p>كىتاب ئىسمى، ئاپتورى ياكى تۈرى بويىچە ئىزدەڭ.</p>
             </div>
         </div>
 
@@ -211,37 +206,10 @@
             <a href="tarikhiy-romanlar.html">تارىخ</a>
             <a href="adabiyat.html">ئەدەبىيات</a>
             <a href="children.html">بالىلار</a>
-            <a href="my-books.html">يېڭى كەلگەنلەر</a>
+            <a href="#homeFeaturedBooks">يېقىندا قوشۇلغانلار</a>
         </nav>
 
         <div id="searchResults" class="search-results" aria-live="polite"></div>
-    </div>
-</section>
-
-<!-- =========================
-     ئىشەنچ ۋە مۇلازىمەت بەلۋېغى
-========================= -->
-<section class="home-trust-strip" aria-label="كىتابخانا مۇلازىمەتلىرى">
-    <div class="home-trust-item">
-        <span class="home-trust-icon" aria-hidden="true">🚚</span>
-        <div>
-            <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا ئەۋەتىش</strong>
-            <small>توشۇش ھەققى مەنزىل ۋە ئېغىرلىققا قاراپ بېكىتىلىدۇ.</small>
-        </div>
-    </div>
-    <div class="home-trust-item home-trust-item--whatsapp">
-        <span class="home-trust-icon" aria-hidden="true">💬</span>
-        <div>
-            <strong>WhatsApp ئارقىلىق تېز زاكاز</strong>
-            <small>سېۋەتنى تەييارلاپ بىۋاسىتە يوللاڭ.</small>
-        </div>
-    </div>
-    <div class="home-trust-item">
-        <span class="home-trust-icon" aria-hidden="true">📦</span>
-        <div>
-            <strong>كىتابلارنى بىخەتەر ئوراپ يوللاش</strong>
-            <small>مۇقاۋا ۋە بۇلۇڭلار قوغدىلىدۇ.</small>
-        </div>
     </div>
 </section>
 
@@ -274,10 +242,6 @@
 ========================= -->
 
 <section class="section home-main-section" id="bookCategories">
-
-    <div id="homeFeaturedBooks"></div>
-
-    <div id="homeShopSections"></div>
 
     <div class="home-category-heading">
         <div class="home-heading-icon" aria-hidden="true">📚</div>
@@ -426,6 +390,44 @@
 
     </div>
 
+    <div id="homeFeaturedBooks"></div>
+
+</section>
+
+<section class="home-trust-order" id="orderProcess" aria-labelledby="orderProcessTitle">
+    <div class="home-order-process">
+        <h2 id="orderProcessTitle">زاكاز قانداق بولىدۇ؟</h2>
+        <ol class="order-steps">
+            <li><span>1</span>كىتابنى تاللاڭ</li>
+            <li><span>2</span>سېۋەتكە قوشۇڭ</li>
+            <li><span>3</span>WhatsApp ئارقىلىق زاكاز ئەۋەتىڭ</li>
+            <li><span>4</span>توشۇش ياكى دۇكاندىن ئېلىش تەپسىلاتىنى بىز جەزملەيمىز</li>
+        </ol>
+        <p class="order-steps-note">سېۋەتتىكى جەمئىي پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە ئۇسۇلغا قاراپ WhatsApp تا ئايرىم جەزمللىنىدۇ.</p>
+    </div>
+    <section class="home-trust-strip" aria-label="كىتابخانا مۇلازىمەتلىرى">
+        <div class="home-trust-item">
+            <span class="home-trust-icon" aria-hidden="true">🚚</span>
+            <div>
+                <strong>دۇنيانىڭ ھەرقايسى جايلىرىغا ئەۋەتىش</strong>
+                <small>توشۇش ھەققى مەنزىل ۋە ئېغىرلىققا قاراپ بېكىتىلىدۇ.</small>
+            </div>
+        </div>
+        <div class="home-trust-item home-trust-item--whatsapp">
+            <span class="home-trust-icon" aria-hidden="true">💬</span>
+            <div>
+                <strong>WhatsApp ئارقىلىق تېز زاكاز</strong>
+                <small>سېۋەتنى تەييارلاپ بىۋاسىتە يوللاڭ.</small>
+            </div>
+        </div>
+        <div class="home-trust-item">
+            <span class="home-trust-icon" aria-hidden="true">📦</span>
+            <div>
+                <strong>كىتابلارنى بىخەتەر ئوراپ يوللاش</strong>
+                <small>مۇقاۋا ۋە بۇلۇڭلار قوغدىلىدۇ.</small>
+            </div>
+        </div>
+    </section>
 </section>
 
 
@@ -465,15 +467,7 @@
      FOOTER
 ========================= -->
 
-<footer>
-
-    © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
-
-</footer>
-
-
-
-<!-- ئىزدەش سىستېمىسى catalog.js?v=1 + shop.js?v=53 ئارقىلىق باشقۇرۇلىدۇ -->
+<footer class="site-footer"></footer>
 
 </body>
 

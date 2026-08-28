@@ -1175,9 +1175,12 @@
 
   footer {
     min-height: 56px;
-    padding: 18px var(--mobile-page-pad) !important;
-    font-size: 10.5px !important;
+    padding: 18px var(--mobile-page-pad) calc(18px + var(--mobile-bottom-height) + env(safe-area-inset-bottom, 0px)) !important;
+    font-size: 12px !important;
     line-height: 1.7 !important;
+  }
+  .site-footer-links a {
+    font-size: 13px !important;
   }
 
   .empty-state,
