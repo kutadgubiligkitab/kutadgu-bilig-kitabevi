@@ -294,9 +294,8 @@
 
 
 /* ===== زاكاز فورمىسى — ئاخىرقى رامكا/بوشلۇق تۈزىتىشى ===== */
-#checkoutCard{
-    box-sizing:border-box;
-    overflow:hidden;
+#checkoutCard[hidden]{
+    display:none !important;
 }
 
 #checkoutForm{

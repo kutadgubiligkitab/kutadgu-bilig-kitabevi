@@ -1513,7 +1513,10 @@ function cartPage(){
     return;
   }
 
-  if(checkout)checkout.hidden=blocked;
+    if(checkout){
+      checkout.hidden=blocked;
+      checkout.setAttribute("aria-hidden",blocked?"true":"false");
+    }
 
   host.innerHTML=items.map(x=>{
     const visible=isStorefrontVisible(x.b);
@@ -1542,7 +1545,7 @@ function cartPage(){
        </div>
        <div class="cart-total">جەمئىي: ${money(total)}</div>
        <div class="cart-summary-actions">
-         <button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>
+         ${blocked?"":`<button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
