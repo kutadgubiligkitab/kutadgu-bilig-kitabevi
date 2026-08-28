@@ -49,15 +49,19 @@ async function persistBookRow(db,payload,operation,editingBookId){
   const db=mockDb();
   const plan=W.planBookSave({id:2},"2","edit");
   assert.strictEqual(plan.editingBookId,"2");
-  const first=await persistBookRow(db,{price:201},plan.operation,plan.editingBookId);
+  const first=await persistBookRow(db,{price:201,translator:"تەرجىمان",publisher:"نەشرىيات",publish_year:2019,pages:320},plan.operation,plan.editingBookId);
   assert.ok(!first.error);
   books[2].price=201;
+  books[2].translator="تەرجىمان";
+  books[2].publisher="نەشرىيات";
+  books[2].publish_year=2019;
+  books[2].pages=320;
   assert.strictEqual(db.calls.length,1);
   assert.strictEqual(db.calls[0].method,"PATCH");
   assert.strictEqual(db.calls[0].filter,"id=eq.2");
+  assert.strictEqual(db.calls[0].payload.translator,"تەرجىمان");
   assert.ok(!db.calls.some(c=>c.method==="POST"));
   assert.strictEqual(count,2);
-  assert.strictEqual(books[2].price,201);
   assert.strictEqual(books[2].id,2);
 
   const second=await persistBookRow(db,{price:202},"UPDATE","2");

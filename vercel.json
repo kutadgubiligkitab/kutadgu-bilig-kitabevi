@@ -28,7 +28,7 @@
       ]
     },
     {
-      "source": "/admin-book-quality.js",
+      "source": "/catalog-bibliography.js",
       "headers": [
         {
           "key": "Cache-Control",
