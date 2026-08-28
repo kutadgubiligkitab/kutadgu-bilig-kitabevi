@@ -2637,7 +2637,8 @@ label {
 
 /* Homepage lower sections: fill cover area (Recently Added + shop selector grids) */
 #homeShopSections .shop-mini-card img{
-    height:248px !important;
+    height:auto !important;
+    aspect-ratio:2 / 3 !important;
     padding:4px !important;
     object-fit:contain !important;
     object-position:center !important;
@@ -2645,7 +2646,7 @@ label {
 }
 @media (max-width:650px){
     #homeShopSections .shop-mini-card img{
-        height:212px !important;
+        height:auto !important;
         padding:4px !important;
     }
 }

@@ -1,0 +1,124 @@
+/* Shared storefront book-cover system.
+   Grid/card frames share 2:3, equal inset, and centered contain.
+   Detail/cart/favorites thumbs keep the same ratio and inset at their container width. */
+:root{
+  --cover-ratio:2 / 3;
+  --cover-inset:4px;
+}
+
+.book-card .book-image,
+.book-card .book-cover,
+.home-feature-cover-frame,
+.home-carousel-cover,
+.premium-card-cover,
+.favorite-cover,
+.advanced-search-cover{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  aspect-ratio:var(--cover-ratio) !important;
+  margin-inline:auto !important;
+  padding:var(--cover-inset) !important;
+  padding-inline:var(--cover-inset) !important;
+  overflow:hidden !important;
+  background:#eee9e1;
+}
+
+.home-feature-cover{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  height:auto !important;
+  min-height:0 !important;
+  padding:var(--cover-inset) !important;
+  background:transparent !important;
+}
+
+.home-carousel-card{
+  grid-template-rows:auto auto !important;
+}
+
+#newBooksCarousel .home-carousel-cover{
+  flex:0 0 auto !important;
+  flex-basis:auto !important;
+}
+
+.book-card .book-image img,
+.book-card .book-cover img,
+.home-feature-cover-frame img,
+.home-feature-cover img,
+.home-carousel-cover img,
+.premium-card-cover img,
+.favorite-cover img,
+.advanced-search-cover img{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  margin:0 !important;
+  margin-inline:auto !important;
+  padding:0 !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+.shop-mini-card a > img{
+  display:block !important;
+  width:100% !important;
+  max-width:100% !important;
+  height:auto !important;
+  aspect-ratio:var(--cover-ratio) !important;
+  margin-inline:auto !important;
+  padding:var(--cover-inset) !important;
+  padding-inline:var(--cover-inset) !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  box-sizing:border-box !important;
+}
+
+.mini-cover-placeholder{
+  width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  aspect-ratio:var(--cover-ratio) !important;
+  margin-inline:auto !important;
+  padding:var(--cover-inset) !important;
+  box-sizing:border-box !important;
+}
+
+/* Detail hero: same ratio and inset, fills the detail column (intentionally larger). */
+.book-cover-box{
+  box-sizing:border-box;
+  padding:var(--cover-inset);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.book-cover-box img{
+  width:100%;
+  height:auto;
+  aspect-ratio:var(--cover-ratio);
+  object-fit:contain;
+  object-position:center center;
+}
+
+/* Cart line thumbnail: 2:3 of the cart image column. */
+.cart-item img{
+  width:100%;
+  height:auto !important;
+  aspect-ratio:var(--cover-ratio) !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  padding:var(--cover-inset);
+  box-sizing:border-box;
+}
+
+@media (max-width:700px){
+  :root{--cover-inset:3px;}
+}
