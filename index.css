@@ -2068,7 +2068,7 @@ body.dark-mode section.home-bookstore-hero{
     display:flex !important;
     flex-direction:column !important;
     height:100% !important;
-    min-height:332px !important;
+    min-height:318px !important;
     border-radius:16px !important;
     box-shadow:0 4px 14px rgba(0,0,0,.04) !important;
 }
@@ -2105,8 +2105,8 @@ body.dark-mode section.home-bookstore-hero{
 
 /* مۇقاۋا رايونى — پاكىز ۋە بىردەك */
 .home-feature-cover{
-    height:208px !important;
-    min-height:208px !important;
+    height:194px !important;
+    min-height:194px !important;
     padding:8px 6px 6px !important;
     display:flex !important;
     align-items:center !important;
