@@ -70,12 +70,13 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
 const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map((book,index)=>normalizeCatalogBook(book,index,false)).filter(book=>book.id);
 const catalogCache=new Map(STATIC_CATALOG.map(book=>[book.id,book]));
 let remoteVisible=false;
+let inactiveRemoteKeys=new Set();
 let C=uniqueVisibleBooks([...catalogCache.values()]);
 let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,migrated:false,error:""};
 const QUERY_DEFAULTS=Object.freeze({
   offset:0,pageSize:24,category:"",source:"",search:"",sort:"new",
   minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,newOnly:false,allowZeroSales:false,
-  ids:null
+  ids:null,includeInactive:false
 });
 const catalogQueryState={
   search:{...QUERY_DEFAULTS},
@@ -101,13 +102,27 @@ const set=(k,v)=>{
     return false;
   }
 };
+function visibilityContext(){
+  return {remoteAvailable:!!remoteCatalog.available,inactiveKeys:inactiveRemoteKeys};
+}
+function isStorefrontVisible(book){
+  const fn=window.KutadguVisibility?.isStorefrontVisible;
+  if(fn)return fn(book,visibilityContext());
+  if(!book||!String(book.id||"").trim())return false;
+  if(book.isActive===false)return false;
+  if(remoteCatalog.available){
+    if(inactiveRemoteKeys.has(String(book.id||"")))return false;
+    if(book.legacyId&&inactiveRemoteKeys.has(String(book.legacyId)))return false;
+  }
+  return true;
+}
 function indexCatalogBook(book){
   if(!book?.id)return;
   catalogCache.set(String(book.id),book);
   if(book.legacyId)catalogCache.set(String(book.legacyId),book);
 }
 function rebuildVisibleCatalog(){
-  C=uniqueVisibleBooks([...catalogCache.values()]).filter(book=>book.isActive!==false);
+  C=uniqueVisibleBooks([...catalogCache.values()]).filter(isStorefrontVisible);
   window.KUTADGU_LIVE_CATALOG=C;
   return C;
 }
@@ -116,9 +131,17 @@ function beginRemoteVisibleCatalog(){
   catalogCache.clear();
   remoteVisible=true;
 }
+function refreshStorefrontVisibility(){
+  rebuildVisibleCatalog();
+  syncStaticCards();
+  decorateDetail();
+  renderFavoritesPage();
+  cartPage();
+}
 function restoreStaticVisibleCatalog(){
   catalogCache.clear();
   remoteVisible=false;
+  inactiveRemoteKeys=new Set();
   STATIC_CATALOG.forEach(indexCatalogBook);
   rebuildVisibleCatalog();
 }
@@ -163,13 +186,14 @@ function normalizeQueryState(input={}){
     pageSize:Math.max(1,Math.min(100,Number.isFinite(requested)?requested:pageSize())),
     search:cleanSearchTerm(input.search),
     minPrice:input.minPrice===""||input.minPrice===null||input.minPrice===undefined?null:Number(input.minPrice),
-    maxPrice:input.maxPrice===""||input.maxPrice===null||input.maxPrice===undefined?null:Number(input.maxPrice)
+    maxPrice:input.maxPrice===""||input.maxPrice===null||input.maxPrice===undefined?null:Number(input.maxPrice),
+    includeInactive:!!input.includeInactive
   };
 }
 
 function staticQueryPage(input={}){
   const state=normalizeQueryState(input),q=normalizeText(state.search);
-  let rows=STATIC_CATALOG.filter(book=>book.isActive!==false);
+  let rows=STATIC_CATALOG.filter(isStorefrontVisible);
   if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id)||(book.legacyId&&ids.has(book.legacyId)))}
   if(state.source)rows=rows.filter(book=>book.source===state.source);
   if(state.category)rows=rows.filter(book=>book.category===state.category);
@@ -195,7 +219,8 @@ function remoteOrder(mode){
 }
 
 function remoteBooksUrl(input={}){
-  const cfg=supabasePublicConfig(),state=normalizeQueryState(input),params=new URLSearchParams({select:"*",is_active:"eq.true"});
+  const cfg=supabasePublicConfig(),state=normalizeQueryState(input),params=new URLSearchParams({select:"*"});
+  if(!state.includeInactive)params.set("is_active","eq.true");
   const logic=[];
   if(state.ids?.length){
     const {numeric,legacy}=splitLookupIds(state.ids);
@@ -245,7 +270,8 @@ async function fetchRemotePage(input={},options={}){
   if(!response.ok&&response.status!==416)throw new Error(`Catalog query failed (HTTP ${response.status})`);
   const rows=response.status===416?[]:await response.json();
   if(!Array.isArray(rows))throw new Error("Catalog query returned invalid data");
-  const items=refreshCatalogCache(rows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
+  const fetched=refreshCatalogCache(rows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
+  const items=state.includeInactive?fetched:fetched.filter(isStorefrontVisible);
   const exactTotal=totalFromContentRange(response.headers.get("content-range"));
   const total=Number.isFinite(exactTotal)?exactTotal:from+items.length+(items.length===state.pageSize?1:0);
   catalogStatus={source:"supabase",remoteCount:C.length,total:exactTotal,migrated:true,error:""};
@@ -268,6 +294,40 @@ async function queryCatalog(input={},options={}){
   return staticQueryPage(state);
 }
 
+async function loadInactiveRemoteIndex(){
+  if(!remoteCatalog.available){
+    inactiveRemoteKeys=new Set();
+    rebuildVisibleCatalog();
+    return;
+  }
+  const cfg=supabasePublicConfig();
+  const collect=window.KutadguVisibility?.collectInactiveKeys;
+  const next=new Set();
+  try{
+    let from=0;
+    while(from<5000){
+      const to=from+999;
+      const response=await fetch(`${cfg.url}/rest/v1/books?select=id,legacy_id&is_active=eq.false`,{
+        headers:{
+          apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Prefer:"count=exact",
+          "Range-Unit":"items",Range:`${from}-${to}`
+        }
+      });
+      if(!response.ok)throw new Error(`Inactive index failed (HTTP ${response.status})`);
+      const rows=await response.json();
+      if(!Array.isArray(rows)||!rows.length)break;
+      const keys=collect?collect(rows):new Set(rows.flatMap(row=>[String(row.id||""),String(row.legacy_id||"")].filter(Boolean)));
+      keys.forEach(key=>next.add(key));
+      if(rows.length<1000)break;
+      from+=1000;
+    }
+    inactiveRemoteKeys=next;
+  }catch(error){
+    console.warn("Inactive catalog index could not be loaded.",error);
+  }
+  rebuildVisibleCatalog();
+}
+
 async function loadRemoteCatalog(){
   const cfg=supabasePublicConfig();
   remoteCatalog.configured=!!(cfg.url&&cfg.key);
@@ -284,7 +344,8 @@ async function loadRemoteCatalog(){
     const total=totalFromContentRange(response.headers.get("content-range"));
     remoteCatalog.available=Number(total)>0;
     remoteCatalog.total=Number.isFinite(total)?total:null;
-    if(!remoteCatalog.available)restoreStaticVisibleCatalog();
+    if(remoteCatalog.available)await loadInactiveRemoteIndex();
+    else restoreStaticVisibleCatalog();
     catalogStatus={source:remoteCatalog.available?"supabase":"static",remoteCount:0,total:remoteCatalog.available?total:STATIC_CATALOG.length,migrated:remoteCatalog.available,error:""};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }catch(err){
@@ -301,15 +362,15 @@ async function hydrateBooksByIds(ids=[]){
   if(!unique.length||!remoteCatalog.available)return;
   for(let index=0;index<unique.length;index+=100){
     const chunk=unique.slice(index,index+100);
-    try{await fetchRemotePage({ids:chunk,pageSize:chunk.length,offset:0,sort:"new"})}
+    try{await fetchRemotePage({ids:chunk,pageSize:chunk.length,offset:0,sort:"new",includeInactive:true})}
     catch(error){if(error?.name!=="AbortError")console.warn("Saved book data could not be refreshed.",error)}
   }
 }
 
 async function hydratePageBook(){
   const id=new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
-  if(!id)return;
-  try{await queryCatalog({ids:[id],pageSize:1,offset:0})}
+  if(!id||!remoteCatalog.available)return;
+  try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
   catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
 }
 
@@ -340,6 +401,9 @@ function stockInfo(book){
 }
 function stockBadge(book){const s=stockInfo(book);return s.label?`<span class="stock-badge stock-${s.key}">${s.label}</span>`:""}
 function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"){
+  if(!isStorefrontVisible(book)){
+    return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true">ھازىرچە تەمىنلەنمەيدۇ</button>`;
+  }
   const s=stockInfo(book),disabled=s.canBuy?"":" disabled aria-disabled=\"true\"";
   return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}"${disabled}>${s.canBuy?escapeHtml(label):"تۈگەپ كەتتى"}</button>`;
 }
@@ -353,6 +417,7 @@ function cart(){
 function updateBadge(){let n=cart().reduce((s,x)=>s+(x.qty||1),0);document.querySelectorAll(".cart-count").forEach(e=>e.textContent=n)}
 function add(id,qty=1){
   let b=find(id);if(!b)return;
+  if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   const storeId=b.id;
   const stock=stockInfo(b);if(!stock.canBuy){toast("بۇ كىتاب ھازىر تۈگەپ كەتكەن");return}
   let a=cart(),x=a.find(i=>canonicalId(i.id)===storeId),next=(x?.qty||0)+Math.max(1,Number(qty)||1);
@@ -371,6 +436,7 @@ function toggleFav(id){
   const storeId=b.id;
   let a=favs().map(String),added=!a.some(x=>canonicalId(x)===storeId);
   if(!added){a=a.filter(x=>canonicalId(x)!==storeId);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}
+  else if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   else{a.push(storeId);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}
   if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:storeId})}
 }
@@ -383,18 +449,48 @@ function recent(id){
 }
 function toast(msg){let t=document.querySelector(".shop-toast");if(!t){t=document.createElement("div");t.className="shop-toast";t.style.cssText="position:fixed;right:18px;bottom:18px;z-index:10000;background:#4b3327;color:#fff;padding:12px 18px;border-radius:9px;box-shadow:0 8px 25px rgba(0,0,0,.2);font-family:inherit;transition:opacity .2s";document.body.appendChild(t)}t.textContent=msg;t.style.opacity="1";clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.opacity="0",1800)}
 function injectFloat(){if(document.querySelector(".shop-floating"))return;let d=document.createElement("div");d.className="shop-floating";d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;document.body.appendChild(d);updateBadge()}
+function cardIdentityKeys(card){
+  const keys=new Set();
+  const add=value=>{const v=String(value||"").trim();if(v)keys.add(v)};
+  add(card.dataset.liveBookId);
+  add(card.querySelector("[data-cart-id]")?.dataset.cartId);
+  add(card.querySelector("[data-fav-id]")?.dataset.favId);
+  add(card.querySelector("[data-share-id]")?.dataset.shareId);
+  card.querySelectorAll("a[href]").forEach(anchor=>{
+    const href=anchor.getAttribute("href")||"";
+    try{
+      const url=new URL(href,location.href);
+      add(url.searchParams.get("id"));
+      add((url.pathname.split("/").pop()||"").replace(/\.html$/i,""));
+    }catch(error){
+      add(href.replace(/\.html$/i,"").split("id=").pop());
+    }
+  });
+  return [...keys];
+}
 function cardId(card){
-  const explicit=card.querySelector("[data-cart-id],[data-fav-id],[data-share-id]")?.dataset.cartId||card.querySelector("[data-fav-id]")?.dataset.favId||card.querySelector("[data-share-id]")?.dataset.shareId;
-  if(explicit&&find(explicit))return explicit;
+  const keys=cardIdentityKeys(card);
+  for(const key of keys){if(find(key))return find(key).id}
   const hrefs=[...card.querySelectorAll("a.book-image,a.book-cover,.detail-button,.book-button")].map(a=>a.getAttribute("href")).filter(Boolean);
   for(const href of hrefs){const b=C.find(x=>x.href===href);if(b)return b.id}
   const title=card.querySelector(".book-title")?.textContent.trim();
   if(title){const b=C.find(x=>x.title===title);if(b)return b.id}
-  return null;
+  return keys[0]||null;
 }
 function syncStaticCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
-    const id=cardId(card),book=id&&find(id);if(!book)return;
+    if(card.querySelector(".book-icon")&&!card.querySelector("a.book-image,a.book-cover,.book-title"))return;
+    const keys=cardIdentityKeys(card);
+    const id=cardId(card);
+    const book=id&&find(id);
+    const suppressed=!!(keys.some(key=>inactiveRemoteKeys.has(String(key)))||(book&&!isStorefrontVisible(book)));
+    card.hidden=suppressed;
+    if(suppressed){
+      card.setAttribute("aria-hidden","true");
+      return;
+    }
+    card.removeAttribute("aria-hidden");
+    if(!book)return;
     const cover=card.querySelector("a.book-image,a.book-cover");
     const img=cover?.querySelector("img");
     if(cover&&book.href)cover.href=book.href;
@@ -477,9 +573,15 @@ function getDetailBook(){
   let queryId=new URLSearchParams(location.search).get("id");
   if(queryId){b=find(queryId);if(b)return b}
   let file=(location.pathname.split("/").pop()||"").split("?")[0];
+  const slug=file.replace(/\.html$/i,"");
+  b=find(slug)||find(file);
+  if(b)return b;
+  const cached=[...catalogCache.values()];
+  b=cached.find(x=>x.href===file||x.id===slug||x.legacyId===slug);
+  if(b)return b;
   b=C.find(x=>x.href===file); if(b)return b;
   let title=document.querySelector(".book-detail-info h1")?.textContent.trim();
-  return title?C.find(x=>x.title===title):null;
+  return title?(cached.find(x=>x.title===title)||C.find(x=>x.title===title)):null;
 }
 
 function setDynamicMeta(label,value){
@@ -511,10 +613,10 @@ function updateBookSeo(book){
   const authorName=String(book.author||"").trim();
   const hasAuthor=!!authorName&&authorName!=="—";
   const description=book.description||`${book.title}${hasAuthor?` — ${authorName}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
-  const image=book.image?absoluteUrl(book.image):"";
+  const image=isStorefrontVisible(book)&&book.image?absoluteUrl(book.image):"";
   document.title=title;
   setHeadMeta('meta[name="description"]',{name:"description",content:description});
-  setHeadMeta('meta[name="robots"]',{name:"robots",content:"index, follow"});
+  setHeadMeta('meta[name="robots"]',{name:"robots",content:isStorefrontVisible(book)?"index, follow":"noindex, follow"});
   setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:canonical});
   setHeadMeta('meta[property="og:site_name"]',{property:"og:site_name",content:"قۇتادغۇبىلىك كىتابخانىسى"});
   setHeadMeta('meta[property="og:locale"]',{property:"og:locale",content:"ug"});
@@ -539,7 +641,7 @@ function updateBookSeo(book){
   if(book.description)data.description=book.description;
   if(book.publisher)data.publisher={"@type":"Organization",name:book.publisher};
   if(book.language)data.inLanguage=book.language;
-  if(book.price!==null&&book.price!==undefined&&book.price!==""){
+  if(isStorefrontVisible(book)&&book.price!==null&&book.price!==undefined&&book.price!==""){
     const price=Number(book.price);
     if(Number.isFinite(price)){
       const offer={"@type":"Offer",price,priceCurrency:"TRY",url:canonical};
@@ -598,8 +700,8 @@ function populateDynamicBookPage(b){
       setDynamicMeta("نەشرىيات",b.publisher),
       setDynamicMeta("مۇقاۋا تۈرى",b.coverType),
       setDynamicMeta("كىتاب ئۆلچىمى",b.dimensions),
-      setDynamicMeta("ئامبار ھالىتى",stockInfo(b).label),
-      setDynamicMeta("ئامبار سانى",Number.isFinite(Number(b.stock))?`${b.stock} دانە`:"")
+      setDynamicMeta("ئامبار ھالىتى",isStorefrontVisible(b)?stockInfo(b).label:"ھازىرچە تەمىنلەنمەيدۇ"),
+      setDynamicMeta("ئامبار سانى",isStorefrontVisible(b)&&Number.isFinite(Number(b.stock))&&b.stock!==null&&b.stock!==""?`${Number(b.stock)} دانە`:"")
     ].join("");
   }
 
@@ -722,7 +824,7 @@ function renderDetailExtras(book){
   let recentBooks=get(REC_KEY,[])
     .filter(id=>canonicalId(id)!==canonicalId(book.id))
     .map(find)
-    .filter(Boolean)
+    .filter(book=>book&&isStorefrontVisible(book))
     .slice(0,4);
 
   let wrap=document.createElement("div");
@@ -765,7 +867,7 @@ function decorateDetail(){
   populateDynamicBookPage(b);
   updateBookSeo(b);
   renderBookGallery(b);
-  recent(b.id);
+  if(isStorefrontVisible(b))recent(b.id);
   trackEvent("book_view",{bookId:b.id,category:b.category||""});
 
   let box=document.querySelector(".book-detail-info");
@@ -782,6 +884,21 @@ function decorateDetail(){
 
   let old=box.querySelector(".detail-actions");
   if(old)old.remove();
+  box.querySelector(".detail-purchase-panel")?.remove();
+
+  if(!isStorefrontVisible(b)){
+    const unavailable=document.createElement("div");
+    unavailable.className="detail-purchase-panel detail-unavailable-panel";
+    unavailable.innerHTML=`
+      <div class="detail-unavailable-title">بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ.</div>
+      <p class="detail-order-tip">بۇ كىتاب تېخى سېتىلىشقا چىقىرىلمىغان ياكى ۋاقتىنچە يوشۇرۇلغان.</p>
+      ${favHas(b.id)?`<button type="button" class="favorite-button" data-fav-id="${b.id}">♥ ياقتۇرۇلدى</button>`:""}
+    `;
+    box.appendChild(unavailable);
+    unavailable.querySelector("[data-fav-id]")?.addEventListener("click",()=>{toggleFav(b.id);decorateDetail()});
+    renderDetailExtras(b);
+    return;
+  }
 
   let panel=document.createElement("div");
   panel.className="detail-purchase-panel";
@@ -845,6 +962,19 @@ function miniCover(b){
 function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
 
 function favoriteCard(b){
+  if(!isStorefrontVisible(b)){
+    return `<article class="favorite-card favorite-card-unavailable">
+    <a class="favorite-cover" href="${b.href}">${miniCover(b)}</a>
+    <div class="favorite-card-info">
+      <a class="favorite-card-title" href="${b.href}">${b.title}</a>
+      <div class="favorite-card-author">${b.author||"—"}</div>
+      <div class="favorite-card-row"><span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span></div>
+      <div class="favorite-card-actions">
+        <button type="button" class="favorite-remove" data-remove-favorite="${b.id}">ياقتۇرغانلاردىن چىقىرىش</button>
+      </div>
+    </div>
+  </article>`;
+  }
   return `<article class="favorite-card">
     <a class="favorite-cover" href="${b.href}">${miniCover(b)}</a>
     <div class="favorite-card-info">
@@ -930,8 +1060,9 @@ async function renderHomeFeaturedBooks(){
     // This standalone section is independent from the Admin-controlled is_new tab.
     // Only the latest twelve rows are requested; remoteOrder("new") maps to created_at DESC.
     const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
+    const books=result.items.filter(isStorefrontVisible);
     const grid=host.querySelector(".home-featured-grid");
-    if(grid)grid.innerHTML=result.items.length?result.items.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+    if(grid)grid.innerHTML=books.length?books.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
     bindDynamicActions(host);
   }catch(error){
     console.error("Recently added books query failed.",error);
@@ -961,8 +1092,8 @@ function renderHomeSections(){
       let arr=[];
       if(key==="newest")arr=(await queryCatalog({offset:0,pageSize:8,sort:"new",newOnly:true},{signal:controller.signal})).items;
       else if(key==="recommended")arr=(await queryCatalog({offset:0,pageSize:8,sort:"recommended",recommended:true},{signal:controller.signal})).items;
-      else if(key==="recent")arr=get(REC_KEY,[]).map(find).filter(Boolean).slice(0,6);
-      else arr=favs().map(find).filter(Boolean).slice(0,6);
+      else if(key==="recent")arr=get(REC_KEY,[]).map(find).filter(book=>book&&isStorefrontVisible(book)).slice(0,6);
+      else arr=favs().map(find).filter(book=>book&&isStorefrontVisible(book)).slice(0,6);
       if(token!==requestId)return;
       content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2>${arr.length?`<div class="shop-grid">${arr.map(miniCard).join("")}</div>`:`<div class="empty-state shop-section-empty">${key==='favorites'?"❤️ ھازىرچە ياقتۇرغان كىتاب يوق.":key==='recent'?"🕘 ھازىرچە يېقىندا كۆرۈلگەن كىتاب يوق.":"كىتابلار تېخى قوشۇلمىغان."}</div>`}</section>`;
       bindDynamicActions(content);
@@ -1123,7 +1254,7 @@ function searchEnhance(){
     try{
       const result=await queryCatalog(state,{signal:controller.signal});
       if(token!==requestId)return;
-      draw(result,append);
+      draw({...result,items:result.items.filter(isStorefrontVisible)},append);
       trackEvent("search",{query:state.search,category:state.category,results:result.total});
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
@@ -1210,7 +1341,7 @@ function setupCatalogFilters(){
     try{
       const result=await queryCatalog(state,{signal:controller.signal});
       if(token!==requestId)return;
-      draw(result,append);
+      draw({...result,items:result.items.filter(isStorefrontVisible)},append);
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Category catalog query failed.",error);
@@ -1231,7 +1362,7 @@ function myBooksData(){
   return {
     newest:sortBooks(C,"new").slice(0,12),
     recommended:recommendedBooks(12),
-    recent:get(REC_KEY,[]).map(find).filter(Boolean).slice(0,12),
+    recent:get(REC_KEY,[]).map(find).filter(book=>book&&isStorefrontVisible(book)).slice(0,12),
     favorites:favs().map(find).filter(Boolean)
   };
 }
@@ -1274,10 +1405,10 @@ function renderMyBooks(){
     try{
       if(key==="newest"){
         const result=await queryCatalog({offset:0,pageSize:12,sort:"new",newOnly:true},{signal:controller.signal});
-        arr=result.items;remoteCounts.newest=result.total;
+        arr=result.items.filter(isStorefrontVisible);remoteCounts.newest=result.total;
       }else if(key==="recommended"){
         const result=await queryCatalog({offset:0,pageSize:12,sort:"recommended",recommended:true},{signal:controller.signal});
-        arr=result.items;remoteCounts.recommended=result.total;
+        arr=result.items.filter(isStorefrontVisible);remoteCounts.recommended=result.total;
       }
       if(token!==requestId)return;
       meta=tabMeta(myBooksData());
@@ -1291,11 +1422,12 @@ function renderMyBooks(){
         <span class="mybooks-result-count">${arr.length} دانە</span>
       </div>
       ${arr.length
-        ? `<div class="shop-grid mybooks-grid">${arr.map(miniCard).join("")}</div>`
+        ? `<div class="${key==="favorites"?"favorites-grid":"shop-grid mybooks-grid"}">${arr.map(key==="favorites"?favoriteCard:miniCard).join("")}</div>`
         : `<div class="empty-state mybooks-empty">${emptyText(key)}</div>`
       }`;
 
     bindDynamicActions(content);
+    content.querySelectorAll("[data-remove-favorite]").forEach(button=>button.onclick=()=>{toggleFav(button.dataset.removeFavorite);renderMyBooks()});
 
     // Favorite changes should refresh counts and the favorite tab immediately.
     content.querySelectorAll("[data-fav-id]").forEach(btn=>{
@@ -1368,9 +1500,11 @@ function renderMyBooks(){
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
   let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);
-  let totalQty=items.reduce((s,x)=>s+x.qty,0);
-  let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
+  const orderable=items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy);
+  let totalQty=orderable.reduce((s,x)=>s+x.qty,0);
+  let total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
   let checkout=document.querySelector("#checkoutCard");
+  const blocked=items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy);
 
   if(!items.length){
     host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
@@ -1379,24 +1513,31 @@ function cartPage(){
     return;
   }
 
-  if(checkout)checkout.hidden=false;
+    if(checkout){
+      checkout.hidden=blocked;
+      checkout.setAttribute("aria-hidden",blocked?"true":"false");
+    }
 
-  host.innerHTML=items.map(x=>`<div class="cart-item">
+  host.innerHTML=items.map(x=>{
+    const visible=isStorefrontVisible(x.b);
+    const stock=stockInfo(x.b);
+    return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
       <img src="${coverSrc(x.b)}" alt="${x.b.title}" width="75" height="95" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
       <div>
         <div class="cart-title">${x.b.title}</div>
         <div class="cart-meta">${x.b.author} · ${x.b.category}</div>
-        <div class="cart-stock">${stockBadge(x.b)}</div>
+        <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}</div>
         <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
       </div>
       <div class="qty-control">
-        <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}">−</button>
+        <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${!visible?" disabled":""}>−</button>
         <span>${x.qty}</span>
-        <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${Number.isFinite(stockInfo(x.b).qty)&&x.qty>=stockInfo(x.b).qty?' disabled aria-disabled="true"':''}>+</button>
+        <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
       </div>
-      <div class="cart-line-price"><small>جەمئىي</small><strong>${money((x.b.price||0)*x.qty)}</strong></div>
+      <div class="cart-line-price"><small>جەمئىي</small><strong>${visible?money((x.b.price||0)*x.qty):"—"}</strong></div>
       <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
-    </div>`).join("")+
+    </div>`;
+  }).join("")+
     `<div class="cart-summary">
        <div class="cart-summary-meta">
          <span>📚 جەمئىي كىتاب سانى: ${totalQty}</span>
@@ -1404,7 +1545,7 @@ function cartPage(){
        </div>
        <div class="cart-total">جەمئىي: ${money(total)}</div>
        <div class="cart-summary-actions">
-         <button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>
+         ${blocked?"":`<button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
@@ -1431,7 +1572,9 @@ function cartPage(){
 
 function changeQty(id,d){
   let a=cart(),x=a.find(i=>canonicalId(i.id)===canonicalId(id));if(!x)return;
-  const stock=stockInfo(find(id));
+  const book=find(id);
+  if(!isStorefrontVisible(book))return;
+  const stock=stockInfo(book);
   x.qty=Math.max(1,(Number(x.qty)||1)+d);
   if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
   set(CART_KEY,a);
@@ -1506,6 +1649,7 @@ function currentOrderSignature(customer){
 function buildOrderText(requireCustomer=true){
   let items=cart().map(x=>({...x,b:find(x.id)})).filter(x=>x.b);
   if(!items.length){toast("سېۋەت بوش");return null}
+  if(items.some(x=>!isStorefrontVisible(x.b))){toast("سېۋەتتە ھازىرچە تەمىنلەنمەيدىغان كىتاب بار");return null}
   if(items.some(x=>!stockInfo(x.b).canBuy)){toast("سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ");return null}
 
   let form=document.querySelector("#checkoutForm");
@@ -1751,7 +1895,7 @@ function setupHomeCarousel(){
     if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
     const merged=append?[...existing.items]:[];
     const known=new Set(merged.map(book=>book.id));
-    result.items.forEach(book=>{if(!known.has(book.id)){known.add(book.id);merged.push(book)}});
+    result.items.filter(isStorefrontVisible).forEach(book=>{if(!known.has(book.id)){known.add(book.id);merged.push(book)}});
     const value={items:merged,hasMore:result.hasMore&&merged.length<24,total:result.total};
     modeCache.set(currentMode,value);
     return value;
@@ -1899,7 +2043,7 @@ function loadPremiumUX(){
     const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=8";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   ensureCoverSystemCss();
-  return loadAssetScript("premium-ux.js?v=7","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=8","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -1931,6 +2075,7 @@ function init(){
   renderMyBooks();
   renderFavoritesPage();
   cartPage();
+  syncStaticCards();
   if(document.documentElement.dataset.kutadguShopListeners!=="1"){
     document.documentElement.dataset.kutadguShopListeners="1";
     document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
@@ -1953,5 +2098,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages};
+window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility};
 })();
