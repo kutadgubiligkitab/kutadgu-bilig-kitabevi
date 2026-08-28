@@ -701,7 +701,7 @@ function populateDynamicBookPage(b){
       setDynamicMeta("مۇقاۋا تۈرى",b.coverType),
       setDynamicMeta("كىتاب ئۆلچىمى",b.dimensions),
       setDynamicMeta("ئامبار ھالىتى",isStorefrontVisible(b)?stockInfo(b).label:"ھازىرچە تەمىنلەنمەيدۇ"),
-      setDynamicMeta("ئامبار سانى",Number.isFinite(Number(b.stock))?`${b.stock} دانە`:"")
+      setDynamicMeta("ئامبار سانى",isStorefrontVisible(b)&&Number.isFinite(Number(b.stock))&&b.stock!==null&&b.stock!==""?`${Number(b.stock)} دانە`:"")
     ].join("");
   }
 
