@@ -29,7 +29,7 @@
 #newBooksCarousel .home-carousel-row{min-width:0}
 #newBooksCarousel .home-carousel-card{
   min-width:0!important;
-  min-height:338px!important;
+  min-height:376px!important;
   padding:10px!important;
   display:flex!important;
   flex-direction:column!important;
@@ -51,18 +51,18 @@
   overflow:hidden;
 }
 #newBooksCarousel .home-carousel-cover{
-  flex:0 0 210px;
+  flex:0 0 248px;
   width:100%;
-  height:210px!important;
-  padding:8px!important;
+  height:248px!important;
+  padding:4px!important;
   overflow:hidden!important;
 }
 #newBooksCarousel .home-carousel-cover img{
   display:block;
-  width:auto!important;
-  height:auto!important;
-  max-width:150px!important;
-  max-height:194px!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
   object-fit:contain!important;
   object-position:center!important;
 }
@@ -199,28 +199,28 @@
   #newBooksCarousel{width:min(960px,calc(100% - 36px))}
   #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:calc((100% - 24px)/3)!important}
   #newBooksCarousel .home-carousel-track{gap:12px!important}
-  #newBooksCarousel .home-carousel-cover{height:195px!important;flex-basis:195px}
-  #newBooksCarousel .home-carousel-cover img{max-width:142px!important;max-height:179px!important}
+  #newBooksCarousel .home-carousel-cover{height:230px!important;flex-basis:230px}
+  #newBooksCarousel .home-carousel-cover img{max-width:100%!important;max-height:100%!important}
 }
 @media(min-width:701px) and (max-width:850px){
   #newBooksCarousel{width:calc(100% - 32px)}
   #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:calc((100% - 12px)/2)!important}
   #newBooksCarousel .home-carousel-track{gap:12px!important}
-  #newBooksCarousel .home-carousel-cover{height:195px!important;flex-basis:195px}
+  #newBooksCarousel .home-carousel-cover{height:230px!important;flex-basis:230px}
 }
 @media(max-width:700px){
   #newBooksCarousel{width:calc(100% - 22px)}
   #newBooksCarousel .home-carousel-inner{padding:13px}
   #newBooksCarousel .home-carousel-track{gap:10px!important}
-  #newBooksCarousel .home-carousel-card{min-height:308px!important;padding:8px!important}
-  #newBooksCarousel .home-carousel-cover{height:174px!important;flex-basis:174px}
-  #newBooksCarousel .home-carousel-cover img{max-width:118px!important;max-height:158px!important}
+  #newBooksCarousel .home-carousel-card{min-height:340px!important;padding:8px!important}
+  #newBooksCarousel .home-carousel-cover{height:205px!important;flex-basis:205px}
+  #newBooksCarousel .home-carousel-cover img{max-width:100%!important;max-height:100%!important}
   .home-trust-strip .home-trust-item{min-height:58px;padding:8px 13px}
 }
 @media(max-width:430px){
   #newBooksCarousel .home-carousel-track.is-single-row .home-carousel-card{flex-basis:100%!important}
-  #newBooksCarousel .home-carousel-card{min-height:356px!important}
-  #newBooksCarousel .home-carousel-cover{height:220px!important;flex-basis:220px}
-  #newBooksCarousel .home-carousel-cover img{max-width:154px!important;max-height:204px!important}
+  #newBooksCarousel .home-carousel-card{min-height:392px!important}
+  #newBooksCarousel .home-carousel-cover{height:260px!important;flex-basis:260px}
+  #newBooksCarousel .home-carousel-cover img{max-width:100%!important;max-height:100%!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important}}

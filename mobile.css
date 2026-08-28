@@ -547,12 +547,12 @@
 
   .home-carousel-card {
     flex-basis: calc((100% - 10px) / 2) !important;
-    grid-template-rows: 145px auto !important;
+    grid-template-rows: 171px auto !important;
     padding: 7px !important;
   }
 
   .home-carousel-cover {
-    height: 145px !important;
+    height: 171px !important;
   }
 
   .home-carousel-cover img {
@@ -895,18 +895,20 @@
   }
 
   .home-feature-card {
-    min-height: 292px !important;
+    min-height: 0 !important;
   }
 
   .home-feature-cover {
-    height: 166px !important;
-    min-height: 166px !important;
-    padding: 11px 7px 7px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 4px 5px 4px !important;
   }
 
   .home-feature-cover-frame {
-    width: 100px !important;
-    height: 145px !important;
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    padding: 2px !important;
   }
 
   .home-feature-cover-frame img {
