@@ -23,7 +23,7 @@
     })();
   </script>
   <link rel="stylesheet" href="theme.css?v=9">
-  <link rel="stylesheet" href="shop.css?v=34">
+  <link rel="stylesheet" href="shop.css?v=35">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
   <style>
     *{box-sizing:border-box}
@@ -148,6 +148,37 @@
       color:var(--site-text-soft,#806f62);
       font-size:11.5px;
       text-align:center;
+    }
+
+    .book-gallery-thumbs{
+      margin-top:10px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      max-width:100%;
+      overflow-x:auto;
+    }
+
+    .book-gallery-thumb{
+      width:64px;
+      height:88px;
+      padding:4px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:10px;
+      background:var(--site-bg-soft,#fbf8f2);
+      cursor:pointer;
+    }
+
+    .book-gallery-thumb.is-active{
+      border-color:var(--site-brown,#70503d);
+      box-shadow:0 0 0 2px rgba(112,80,61,.18);
+    }
+
+    .book-gallery-thumb img{
+      display:block;
+      width:100%;
+      height:100%;
+      object-fit:contain;
     }
 
     .book-cover-box.no-cover + .cover-view-hint{
@@ -326,6 +357,12 @@
       .book-cover-box img{
         max-height:450px;
       }
+      .book-gallery-thumb{
+        width:56px;
+        height:80px;
+        min-width:48px;
+        min-height:72px;
+      }
       .book-detail-info{
         padding:23px 18px;
       }
@@ -403,7 +440,9 @@
   <script defer src="theme.js?v=5"></script>
   <script defer src="supabase-config.js?v=6"></script>
   <script defer src="catalog.js?v=1"></script><script defer src="analytics.js?v=1"></script>
-  <script defer src="legacy-id-utils.js?v=1"></script><script defer src="shop.js?v=50"></script>
+  <script defer src="legacy-id-utils.js?v=1"></script>
+  <script defer src="gallery-images.js?v=1"></script>
+  <script defer src="shop.js?v=51"></script>
   <script defer src="mobile.js?v=2"></script>
 </body>
 </html>
