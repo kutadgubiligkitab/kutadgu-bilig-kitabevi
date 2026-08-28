@@ -186,7 +186,7 @@ function createDuplicateMessage(matches){
     return "ئوخشاش ISBN ۋە ئوخشاش ئىسىم+ئاپتورلۇق مەۋجۇت كىتاب تېپىلدى.";
   }
   if(reasons.has("isbn"))return "ئوخشاش ISBN لىق مەۋجۇت كىتاب تېپىلدى.";
-  return "An existing book with the same title and author was found.";
+  return "بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار.";
 }
 
 const api={

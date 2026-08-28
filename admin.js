@@ -604,7 +604,7 @@ function renderCreateConflict(matches){
   const list=$("#createDuplicateMatches");
   const msg=$("#createDuplicateMessage");
   if(!box||!list)return;
-  if(msg)msg.textContent=Quality.createDuplicateMessage?Quality.createDuplicateMessage(matches):"An existing book with the same title and author was found.";
+  if(msg)msg.textContent=Quality.createDuplicateMessage?Quality.createDuplicateMessage(matches):"بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار.";
   list.innerHTML=(matches||[]).map(row=>`<div class="admin-dup-match">
     <strong>id ${esc(row.id)}</strong>
     <span>${esc(row.title||"—")}</span>

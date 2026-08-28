@@ -75,7 +75,7 @@ test("duplicate message includes existing identity fields for UI",()=>{
   assert.strictEqual(matches[0].author,"ئ");
   assert.strictEqual(matches[0].price,100);
   assert.strictEqual(matches[0].is_active,false);
-  assert.ok(/same title and author/i.test(Q.createDuplicateMessage(matches)));
+  assert.ok(Q.createDuplicateMessage(matches).includes("بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار"));
 });
 
 if(failed)process.exit(1);
