@@ -304,24 +304,23 @@
 
     </style>
 <link href="theme.css?v=9" rel="stylesheet"/>
-<link rel="stylesheet" href="shop.css?v=28">
+<link rel="stylesheet" href="shop.css?v=33">
 
 <style id="unified-book-card-layout">
 .book-card .book-image,
 .book-card .book-cover {
+  display: block !important;
   width: 100% !important;
-  height: 500px !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
   background: #eee9e1 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
   overflow: hidden !important;
-  padding: 12px !important;
+  padding: 4px !important;
   box-sizing: border-box !important;
 }
 .book-card .book-image img,
 .book-card .book-cover img {
-  width: auto !important;
+  width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
@@ -329,15 +328,8 @@
   object-position: center center !important;
   display: block !important;
 }
-@media (max-width: 768px) {
-  .book-card .book-image,
-  .book-card .book-cover {
-    height: 300px !important;
-    padding: 10px !important;
-  }
-}
 </style>
-  <link rel="stylesheet" href="mobile.css?v=9">
+  <link rel="stylesheet" href="mobile.css?v=13">
 </head>
 <body>
 <!-- باش تېما -->
