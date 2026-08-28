@@ -2068,7 +2068,7 @@ body.dark-mode section.home-bookstore-hero{
     display:flex !important;
     flex-direction:column !important;
     height:100% !important;
-    min-height:318px !important;
+    min-height:0 !important;
     border-radius:16px !important;
     box-shadow:0 4px 14px rgba(0,0,0,.04) !important;
 }
@@ -2105,24 +2105,25 @@ body.dark-mode section.home-bookstore-hero{
 
 /* مۇقاۋا رايونى — پاكىز ۋە بىردەك */
 .home-feature-cover{
-    height:194px !important;
-    min-height:194px !important;
-    padding:8px 6px 6px !important;
+    height:auto !important;
+    min-height:0 !important;
+    padding:4px 6px 4px !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
     background:transparent !important;
 }
 
-/* مۇقاۋا رامكىسى: كىتابقا يېقىن نىسبەت، ئارتۇق ئاق بوشلۇق يوق */
+/* مۇقاۋا رامكىسى: كارتا كەڭلىكىنى تولدۇرىدۇ، 2:3 نىسبەت ساقلىنىدۇ */
 .home-feature-cover-frame{
     position:relative !important;
-    width:128px !important;
-    height:180px !important;
+    width:100% !important;
+    height:auto !important;
+    aspect-ratio:2 / 3 !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    padding:3px !important;
+    padding:2px !important;
     border:1px solid rgba(112,80,61,.20) !important;
     border-radius:8px !important;
     background:rgba(255,255,255,.34) !important;
@@ -2189,9 +2190,9 @@ body.dark-mode .home-feature-cover-frame{
 .home-feature-cart{width:38px !important;height:38px !important;}
 
 @media(max-width:700px){
-    .home-feature-card{min-height:318px !important;}
-    .home-feature-cover{height:188px !important;min-height:188px !important;padding:6px 5px 5px !important;}
-    .home-feature-cover-frame{width:118px !important;height:171px !important;padding:3px !important;}
+    .home-feature-card{min-height:0 !important;}
+    .home-feature-cover{height:auto !important;min-height:0 !important;padding:4px 5px 4px !important;}
+    .home-feature-cover-frame{width:100% !important;height:auto !important;aspect-ratio:2 / 3 !important;padding:2px !important;}
     .home-feature-cover-frame img{max-width:100% !important;max-height:100% !important;}
     .home-feature-placeholder{width:100% !important;height:100% !important;font-size:52px !important;}
 }
@@ -2632,4 +2633,19 @@ select,
 textarea,
 label {
     touch-action: manipulation;
+}
+
+/* Homepage lower sections: fill cover area (Recently Added + shop selector grids) */
+#homeShopSections .shop-mini-card img{
+    height:248px !important;
+    padding:4px !important;
+    object-fit:contain !important;
+    object-position:center !important;
+    box-sizing:border-box !important;
+}
+@media (max-width:650px){
+    #homeShopSections .shop-mini-card img{
+        height:212px !important;
+        padding:4px !important;
+    }
 }
