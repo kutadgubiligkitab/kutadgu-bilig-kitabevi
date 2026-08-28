@@ -27,14 +27,14 @@ test("A only legacy cart id resolves to canonical",()=>{
   assert.deepStrictEqual(out,[{id:"101",qty:2}]);
 });
 
-test("B legacy + canonical cart lines merge",()=>{
+test("B legacy + canonical cart lines merge without summing",()=>{
   const out=Legacy.migrateCartItems([
     {id:"ozumuzni-etirap-qilayli",qty:1},
     {id:"101",qty:2}
   ],resolve);
   assert.strictEqual(out.length,1);
   assert.strictEqual(out[0].id,"101");
-  assert.strictEqual(out[0].qty,3);
+  assert.strictEqual(out[0].qty,2);
 });
 
 test("C old favorite slug maps and dedupes",()=>{
