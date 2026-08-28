@@ -1789,16 +1789,28 @@ function loadAssetScript(src,id){
     document.head.appendChild(script);
   });
 }
+function ensureCoverSystemCss(){
+  let el=document.querySelector("link[data-kutadgu-covers]");
+  if(!el){
+    el=document.createElement("link");
+    el.rel="stylesheet";
+    el.href="covers.css?v=1";
+    el.dataset.kutadguCovers="1";
+  }
+  document.head.appendChild(el);
+}
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=6";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=8";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
+  ensureCoverSystemCss();
   return loadAssetScript("premium-ux.js?v=7","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
   if(staticShellReady)return;
   staticShellReady=true;
+  ensureCoverSystemCss();
   injectFloat();
   applyStaticCoverFallbacks();
   syncStaticCards();
@@ -1843,6 +1855,7 @@ async function boot(){
   init();
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
   try{await loadPremiumUX()}catch(error){console.warn(error)}
+  ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 window.kutadguShop={add,remove,toggleFav,cart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds};

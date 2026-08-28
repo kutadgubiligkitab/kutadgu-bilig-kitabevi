@@ -547,12 +547,13 @@
 
   .home-carousel-card {
     flex-basis: calc((100% - 10px) / 2) !important;
-    grid-template-rows: 171px auto !important;
+    grid-template-rows: auto auto !important;
     padding: 7px !important;
   }
 
   .home-carousel-cover {
-    height: 171px !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
   }
 
   .home-carousel-cover img {
@@ -905,10 +906,11 @@
   }
 
   .home-feature-cover-frame {
-    width: 100% !important;
+    width: min(100%, var(--cover-max, 210px)) !important;
     height: auto !important;
     aspect-ratio: 2 / 3 !important;
-    padding: 2px !important;
+    padding: var(--cover-inset, 4px) !important;
+    margin-inline: auto !important;
   }
 
   .home-feature-cover-frame img {
