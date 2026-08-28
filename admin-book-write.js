@@ -14,12 +14,48 @@ function resolveEditBookId(editing,formId){
   return canonicalBookId(editing&&editing.id)||canonicalBookId(formId);
 }
 
-function editMustStop(editing,formId){
-  return !!editing&&!resolveEditBookId(editing,formId);
+function editMustStop(editing,formId,formMode){
+  return planBookSave(editing,formId,formMode).operation==="STOP";
 }
 
-function persistMethod(editing){
-  return editing?"update":"insert";
+function persistMethod(editing,formId,formMode){
+  const op=planBookSave(editing,formId,formMode).operation;
+  return op==="UPDATE"?"update":(op==="INSERT"?"insert":op);
+}
+
+function planBookSave(editing,formId,formMode){
+  const editingBookId=resolveEditBookId(editing,formId);
+  const markedEdit=String(formMode||"").toLowerCase()==="edit"||!!editing;
+  if(markedEdit){
+    if(!editingBookId){
+      return {mode:"edit",editingBookId:"",operation:"STOP"};
+    }
+    return {mode:"edit",editingBookId,operation:"UPDATE"};
+  }
+  if(editingBookId){
+    return {mode:"edit",editingBookId,operation:"UPDATE"};
+  }
+  return {mode:"create",editingBookId:"",operation:"INSERT"};
+}
+
+function enforcePersistOperation(operation,editingBookId){
+  const id=canonicalBookId(editingBookId);
+  const op=String(operation||"").toUpperCase();
+  if(op==="STOP")return "STOP";
+  if(id)return "UPDATE";
+  if(op==="UPDATE")return "STOP";
+  return "INSERT";
+}
+
+function persistRequest(operation,editingBookId){
+  const op=enforcePersistOperation(operation,editingBookId);
+  if(op==="UPDATE"){
+    return {operation:"UPDATE",method:"PATCH",table:"books",filter:`id=eq.${canonicalBookId(editingBookId)}`};
+  }
+  if(op==="INSERT"){
+    return {operation:"INSERT",method:"POST",table:"books",filter:""};
+  }
+  return {operation:"STOP",method:"",table:"",filter:""};
 }
 
 function stripIdentityFields(payload){
@@ -31,7 +67,17 @@ function stripIdentityFields(payload){
   return out;
 }
 
-const api={isCanonicalBookId,canonicalBookId,resolveEditBookId,editMustStop,persistMethod,stripIdentityFields};
+const api={
+  isCanonicalBookId,
+  canonicalBookId,
+  resolveEditBookId,
+  editMustStop,
+  persistMethod,
+  planBookSave,
+  enforcePersistOperation,
+  persistRequest,
+  stripIdentityFields
+};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 root.KutadguAdminWrite=api;
 })(typeof window!=="undefined"?window:typeof globalThis!=="undefined"?globalThis:{});

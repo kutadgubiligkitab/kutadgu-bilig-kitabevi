@@ -46,5 +46,49 @@ test("create path is insert, edit path is update",()=>{
   assert.strictEqual(W.persistMethod(undefined),"insert");
 });
 
+test("PR13 hole: editing=null but #bookId=2 is UPDATE not INSERT",()=>{
+  const plan=W.planBookSave(null,"2","create");
+  assert.strictEqual(plan.operation,"UPDATE");
+  assert.strictEqual(plan.editingBookId,"2");
+  assert.strictEqual(W.enforcePersistOperation("INSERT","2"),"UPDATE");
+  const req=W.persistRequest("INSERT","2");
+  assert.strictEqual(req.method,"PATCH");
+  assert.strictEqual(req.filter,"id=eq.2");
+});
+
+test("openEdit id 2 plans PATCH books?id=eq.2",()=>{
+  const plan=W.planBookSave({id:2},"2","edit");
+  assert.deepStrictEqual(plan,{mode:"edit",editingBookId:"2",operation:"UPDATE"});
+  const req=W.persistRequest(plan.operation,plan.editingBookId);
+  assert.strictEqual(req.method,"PATCH");
+  assert.strictEqual(req.table,"books");
+  assert.strictEqual(req.filter,"id=eq.2");
+  assert.notStrictEqual(req.method,"POST");
+});
+
+test("new book slug never inserts via update and never carries canonical id",()=>{
+  const plan=W.planBookSave(null,"book-lxyz","create");
+  assert.strictEqual(plan.operation,"INSERT");
+  assert.strictEqual(plan.editingBookId,"");
+  const req=W.persistRequest(plan.operation,plan.editingBookId);
+  assert.strictEqual(req.method,"POST");
+  assert.strictEqual(req.filter,"");
+});
+
+test("edit mode without id stops instead of inserting",()=>{
+  const plan=W.planBookSave({id:"book-abc"},"book-abc","edit");
+  assert.strictEqual(plan.operation,"STOP");
+  assert.strictEqual(W.enforcePersistOperation("UPDATE",""),"STOP");
+});
+
+test("second edit of same id still PATCH eq.2",()=>{
+  const first=W.persistRequest("UPDATE","2");
+  const second=W.persistRequest("UPDATE","2");
+  assert.strictEqual(first.filter,"id=eq.2");
+  assert.strictEqual(second.filter,"id=eq.2");
+  assert.strictEqual(first.method,"PATCH");
+  assert.strictEqual(second.method,"PATCH");
+});
+
 if(failed)process.exit(1);
 console.log("All admin save tests passed");

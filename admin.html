@@ -165,7 +165,7 @@
       <button id="closeBookModal" type="button">✕</button>
     </div>
 
-    <form id="bookForm" class="admin-form">
+    <form id="bookForm" class="admin-form" data-save-mode="create">
       <input id="bookId" type="hidden">
 
       <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required></label>
@@ -215,6 +215,7 @@
         <button class="admin-primary" type="submit">💾 ساقلاش</button>
         <button class="admin-secondary" id="cancelBookEdit" type="button">بىكار قىلىش</button>
       </div>
+      <p id="bookSaveDiag" class="admin-help admin-wide" hidden></p>
     </form>
   </div>
 </div>
@@ -263,7 +264,7 @@
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script defer src="admin-book-write.js?v=1"></script>
-<script defer src="admin.js?v=19"></script>
+<script defer src="admin-book-write.js?v=2"></script>
+<script defer src="admin.js?v=20"></script>
 </body>
 </html>
