@@ -9,8 +9,8 @@
 
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="member.css?v=1">
-  <link rel="stylesheet" href="account.css?v=4">
-  <link rel="stylesheet" href="mobile.css?v=13">
+  <link rel="stylesheet" href="account.css?v=5">
+  <link rel="stylesheet" href="mobile.css?v=18">
 </head>
 <body data-account-page="true">
   <header class="account-topbar">
@@ -70,7 +70,7 @@
           <label><span>ئېلخەت ئادرېسى</span><input id="signupEmail" dir="ltr" type="email" autocomplete="email" required placeholder="name@example.com"></label>
           <label><span>پارول</span><div class="password-field"><input id="signupPassword" dir="ltr" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="signupPassword" aria-label="پارولنى كۆرسىتىش" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>كەم دېگەندە 8 ھەرپ ياكى بەلگە</small></label>
           <label><span>پارولنى قايتا يېزىڭ</span><div class="password-field"><input id="signupConfirm" dir="ltr" type="password" autocomplete="new-password" required minlength="8"><button class="password-toggle" type="button" data-password-toggle="signupConfirm" aria-label="پارولنى كۆرسىتىش" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></label>
-          <p class="auth-privacy-note">ھېساب بىخەتەرلىكى ئۈچۈن تىزىملاتقان ۋاقىت ۋە زىيارەت ئۇچۇرى ساقلىنىدۇ.</p>
+          <p class="auth-privacy-note">ھېساب بىخەتەرلىكى ئۈچۈن تىزىملاتقان ۋاقىت ۋە زىيارەت ئۇچۇرى ساقلىنىدۇ. تەپسىلات: <a href="privacy.html">مەخپىيەتلىك</a>.</p>
           <button class="account-primary" type="submit">ئەزالىق ئېچىش</button>
           <div class="auth-switch">ھېسابىڭىز بارمۇ؟ <button type="button" data-auth-tab="login">كىرىش بېتىگە قايتىڭ</button></div>
         </form>
@@ -122,7 +122,18 @@
       </div>
     </section>
   </main>
-
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <strong class="site-footer-name">قۇتادغۇبىلىك كىتابخانىسى</strong>
+      <nav class="site-footer-links" aria-label="ئىشەنچ ۋە ئالاقە">
+        <a href="index.html#contact">ئالاقە</a>
+        <a href="order-info.html">زاكاز قانداق بولىدۇ</a>
+        <a href="privacy.html">مەخپىيەتلىك</a>
+        <a href="returns.html">قايتۇرۇش / ئالماشتۇرۇش</a>
+      </nav>
+      <p class="site-footer-copy">© 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.</p>
+    </div>
+  </footer>
   <script defer src="supabase-config.js?v=6"></script>
   <script defer src="legacy-id-utils.js?v=1"></script><script defer src="catalog-visibility.js?v=1"></script>
   <script defer src="member.js?v=4"></script>

@@ -1211,9 +1211,7 @@ footer {
     }
 
     .bookstore-scene{
-        width: min(100%,430px);
-        min-height: 225px;
-        margin: 0 auto;
+        display:none;
     }
 
     .home-main-section{

@@ -925,7 +925,7 @@ function decorateDetail(){
       <button type="button" class="share-button" data-share-id="${b.id}">🔗 ھەمبەھىرلەش</button>
     </div>
 
-    <div class="detail-order-tip">📦 سېۋەتكە قوشقاندىن كېيىن زاكاز ئۇچۇرلىرىنى تولدۇرالايسىز.</div>
+    <div class="detail-order-tip">سېۋەتكە قوشقاندىن كېيىن WhatsApp ئارقىلىق زاكاز قىلىڭ. كۆرسىتىلگەن باھا كىتاب باھاسى؛ توشۇش ھەققى زاكازدا ئايرىم جەزمللىنىدۇ. دۇكاندىن ئېلىش ياكى كارگو تاللىسىڭىز بولىدۇ.</div>
   `;
   box.appendChild(panel);
 
@@ -994,7 +994,7 @@ function renderFavoritesPage(){
   const books=favs().map(find).filter(Boolean);
   host.innerHTML=books.length
     ? `<div class="favorites-grid">${books.map(favoriteCard).join("")}</div>`
-    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
+    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز. مېھمان بولسىڭىز شۇ ئۈسكۈنىدە ساقلىنىدۇ؛ ھېسابقا كىرسىڭىز ھېسابىڭىزغا ماسلىشىدۇ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
   bindDynamicActions(host);
   host.querySelectorAll("[data-remove-favorite]").forEach(button=>button.onclick=()=>{toggleFav(button.dataset.removeFavorite);renderFavoritesPage()});
 }
@@ -1541,9 +1541,10 @@ function cartPage(){
     `<div class="cart-summary">
        <div class="cart-summary-meta">
          <span>📚 جەمئىي كىتاب سانى: ${totalQty}</span>
-         <span>💰 ئومۇمىي باھا: ${money(total)}</span>
+         <span>💰 كىتاب جەمئىي: ${money(total)}</span>
        </div>
-       <div class="cart-total">جەمئىي: ${money(total)}</div>
+       <div class="cart-total">كىتاب جەمئىي: ${money(total)}</div>
+       <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
        <div class="cart-summary-actions">
          ${blocked?"":`<button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
@@ -1785,6 +1786,39 @@ function safeText(value){
   const span=document.createElement("span");
   span.textContent=String(value||"");
   return span.innerHTML;
+}
+
+function siteFooterHtml(){
+  const cfg=window.KUTADGU_CONTACT_CONFIG||{};
+  const whatsapp=String(cfg.whatsapp||window.KUTADGU_WHATSAPP_NUMBER||"").replace(/\D/g,"");
+  const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
+  const phoneHref=cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"";
+  const ig=cfg.instagramUrl||"";
+  const maps=cfg.addressUrl||"";
+  return `<div class="site-footer-inner">
+    <strong class="site-footer-name">قۇتادغۇبىلىك كىتابخانىسى</strong>
+    <nav class="site-footer-links" aria-label="ئىشەنچ ۋە ئالاقە">
+      <a href="${waHref}" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+      ${phoneHref?`<a href="${phoneHref}">تېلېفون</a>`:""}
+      ${ig?`<a href="${ig}" target="_blank" rel="noopener noreferrer">Instagram</a>`:""}
+      ${maps?`<a href="${maps}" target="_blank" rel="noopener noreferrer">خەرىتە</a>`:""}
+      <a href="order-info.html">زاكاز قانداق بولىدۇ</a>
+      <a href="privacy.html">مەخپىيەتلىك</a>
+      <a href="returns.html">قايتۇرۇش / ئالماشتۇرۇش</a>
+    </nav>
+    <p class="site-footer-copy">© ${new Date().getFullYear()} قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.</p>
+  </div>`;
+}
+function renderSiteFooter(){
+  let foot=document.querySelector("footer");
+  if(!foot){
+    foot=document.createElement("footer");
+    document.body.appendChild(foot);
+  }
+  if(foot.dataset.kutadguFooter==="1")return;
+  foot.dataset.kutadguFooter="1";
+  foot.classList.add("site-footer");
+  foot.innerHTML=siteFooterHtml();
 }
 
 function renderContactSection(){
@@ -2043,7 +2077,7 @@ function loadPremiumUX(){
     const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=8";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   ensureCoverSystemCss();
-  return loadAssetScript("premium-ux.js?v=8","kutadguPremiumUxScript");
+  return loadAssetScript("premium-ux.js?v=9","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -2060,6 +2094,7 @@ function initStaticShell(){
   renderMyBooks();
   renderFavoritesPage();
   renderContactSection();
+  renderSiteFooter();
   cartPage();
   setupCheckout();
 }
