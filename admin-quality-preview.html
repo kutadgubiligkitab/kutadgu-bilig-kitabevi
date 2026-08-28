@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin quality preview</title>
+  <link rel="stylesheet" href="admin.css?v=9">
+</head>
+<body>
+<script>
+window.__kutadguSkipAdminAuth=true;
+window.__kutadguAdminPreviewBooks=[
+  {id:2,title:"رومان كىتابى 2",author:"ئاپتور ئىسمى",price:203,category:"رومانلار",image_url:"sample-book-cover.png",description:"",isbn:"",is_active:true,is_recommended:false,is_new:false,sales_count:0,href:"book.html?id=2"},
+  {id:9001,title:"تولۇق ئۆرنەك",author:"ئابدۇرېھىم ئۆتكۈر",price:120,category:"رومانلار",image_url:"kutadgu-logo.png",description:"قىسقا كىتابخانا چۈشەندۈرۈشى.",isbn:"9789750802959",is_active:true,is_recommended:true,is_new:false,sales_count:3,href:"book.html?id=9001"}
+];
+</script>
+<div class="admin-shell">
+  <header class="admin-topbar"><div class="admin-brand">Admin quality preview</div></header>
+  <main class="admin-main">
+    <section id="dashboardPanel">
+      <div class="admin-filter-row">
+        <select id="adminFilterQuality" aria-label="مەزمۇن سۈپىتى">
+          <option value="">مەزمۇن سۈپىتى: ھەممىسى</option>
+          <option value="missing_author">ئاپتور يوق / ئورۇنباسار</option>
+          <option value="placeholder_cover">ئورۇنباسار مۇقاۋا</option>
+          <option value="missing_description">چۈشەندۈرۈش يوق</option>
+          <option value="missing_isbn">ISBN يوق</option>
+          <option value="complete">تولۇق كىتابلار</option>
+        </select>
+      </div>
+      <div id="adminBookList" class="admin-book-list"></div>
+      <div id="adminPager" class="admin-pager"></div>
+    </section>
+  </main>
+</div>
+<div id="bookModal" class="admin-modal">
+  <div class="admin-modal-card">
+    <div class="admin-modal-head"><h2>يېڭى كىتاب</h2></div>
+    <form id="bookForm" class="admin-form" data-save-mode="create">
+      <div id="createDuplicateWarning" class="admin-status warn admin-wide">
+        <strong id="createDuplicateMessage">بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار.</strong>
+        <div id="createDuplicateMatches" class="admin-dup-list">
+          <div class="admin-dup-match"><strong>id 2</strong><span>رومان كىتابى 2</span><span>ئاپتور ئىسمى</span><span>203 ₺</span><span>كۆرۈنىدۇ</span></div>
+        </div>
+        <label class="admin-check"><input id="createDuplicateConfirm" type="checkbox"><span>بۇ يېڭى كىتاب، داۋاملاشتۇرۇشنى جەزملەشتۈرىمەن</span></label>
+      </div>
+    </form>
+  </div>
+</div>
+<section id="setupPanel" hidden></section>
+<section id="loginPanel" hidden></section>
+<script src="admin-book-quality.js?v=2"></script>
+<script src="admin-book-write.js?v=2"></script>
+<script src="admin.js?v=21"></script>
+</body>
+</html>

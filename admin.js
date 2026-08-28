@@ -1,6 +1,7 @@
 (function(){
 "use strict";
 const Write=window.KutadguAdminWrite||{};
+const Quality=window.KutadguAdminQuality||{};
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
@@ -37,6 +38,7 @@ let importRunning=false;
 let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
+let createConflictAck=false;
 
 const listFilters={
   q:"",
@@ -44,6 +46,7 @@ const listFilters={
   active:"",
   recommended:"",
   isNew:"",
+  quality:"",
   sort:"created_at.desc"
 };
 
@@ -98,10 +101,10 @@ function modal(open){
   $("#bookModal").hidden=!open;
 }
 function normalizeIsbn(value){
-  return String(value??"").trim().replace(/[\s-]+/g,"").replace(/[^0-9Xx]/g,"").toUpperCase();
+  return Quality.normalizeIsbn?Quality.normalizeIsbn(value):String(value??"").trim().replace(/[\s-]+/g,"").replace(/[^0-9Xx]/g,"").toUpperCase();
 }
 function formatIsbn(value){
-  return String(value??"").trim().replace(/\s+/g," ");
+  return Quality.formatIsbn?Quality.formatIsbn(value):normalizeIsbn(value);
 }
 function isbnLooksValid(value){
   const n=normalizeIsbn(value);
@@ -361,6 +364,9 @@ function applyListFilters(query){
   if(listFilters.recommended==="no")query=query.eq("is_recommended",false);
   if(listFilters.isNew==="yes")query=query.eq("is_new",true);
   if(listFilters.isNew==="no")query=query.eq("is_new",false);
+  if(listFilters.quality){
+    if(Quality.applyQualityFilter)query=Quality.applyQualityFilter(query,listFilters.quality);
+  }
   const term=searchSafe(listFilters.q);
   if(term){
     query=query.or(searchOrFilter(listFilters.q,isbnColumn));
@@ -457,6 +463,7 @@ function renderBooks(){
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
+        <div class="admin-quality-row">${Quality.qualityChipsHtml?Quality.qualityChipsHtml(b,{descriptionSupported:true,isbnSupported:isbnColumn}):""}</div>
         <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)}${presentBookCols.has("stock")||presentBookCols.has("stock_status")?` · ئامبار ${b.stock==null?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}`:""}</div>
         <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}${b.isbn?` · ISBN <span class="admin-isbn">${esc(b.isbn)}</span>`:""}${b.publisher?` · ${esc(b.publisher)}`:""}</div>
       </div>
@@ -583,8 +590,62 @@ function planCurrentSave(){
   }
   return {mode:"create",editingBookId:"",operation:"INSERT"};
 }
+function hideCreateConflict(){
+  createConflictAck=false;
+  const box=$("#createDuplicateWarning");
+  const ack=$("#createDuplicateConfirm");
+  if(box)box.hidden=true;
+  if(ack)ack.checked=false;
+  const list=$("#createDuplicateMatches");
+  if(list)list.innerHTML="";
+}
+function renderCreateConflict(matches){
+  const box=$("#createDuplicateWarning");
+  const list=$("#createDuplicateMatches");
+  const msg=$("#createDuplicateMessage");
+  if(!box||!list)return;
+  if(msg)msg.textContent=Quality.createDuplicateMessage?Quality.createDuplicateMessage(matches):"بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار.";
+  list.innerHTML=(matches||[]).map(row=>`<div class="admin-dup-match">
+    <strong>id ${esc(row.id)}</strong>
+    <span>${esc(row.title||"—")}</span>
+    <span>${esc(row.author||"—")}</span>
+    <span>${money(row.price)}</span>
+    <span>${row.is_active===false?"يوشۇرۇلغان":"كۆرۈنىدۇ"}</span>
+  </div>`).join("");
+  box.hidden=false;
+  const ack=$("#createDuplicateConfirm");
+  if(ack)ack.checked=false;
+  createConflictAck=false;
+}
+async function findCreateConflicts({title,author,isbn,excludeId}){
+  if(!db)return [];
+  const merged=[];
+  const t=Quality.normalizeCatalogText?Quality.normalizeCatalogText(title):String(title||"").trim();
+  const a=Quality.normalizeCatalogText?Quality.normalizeCatalogText(author):String(author||"").trim();
+  if(t&&a){
+    const {data,error}=await db.from("books").select("id,title,author,price,is_active,isbn").eq("title",t).eq("author",a).limit(8);
+    if(!error&&Quality.mergeConflictRows)merged.push(...Quality.mergeConflictRows(data,"title_author"));
+  }
+  const isbnN=normalizeIsbn(isbn);
+  if(isbnN&&isbnColumn){
+    let query=db.from("books").select("id,title,author,price,is_active,isbn").or(`isbn.eq.${isbnN},isbn.eq."${isbnN}"`).limit(8);
+    if(excludeId)query=query.neq("id",excludeId);
+    const {data,error}=await query;
+    if(!error&&Quality.mergeConflictRows){
+      Quality.mergeConflictRows(data,"isbn").forEach(row=>{
+        const existing=merged.find(x=>String(x.id)===String(row.id));
+        if(existing){
+          if(!existing.reasons.includes("isbn"))existing.reasons.push("isbn");
+        }else merged.push(row);
+      });
+    }
+  }
+  if(excludeId)return merged.filter(row=>String(row.id)!==String(excludeId));
+  return merged;
+}
 function clearForm(){
   editing=null;
+  hideCreateConflict();
   $("#bookForm").reset();
   setSaveMode("create");
   $("#bookId").value=idForNew();
@@ -597,7 +658,7 @@ function clearForm(){
   $("#bookSalesCount").value=0;
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
-  $("#bookCoverText").textContent="رەسىم تاللانمىدى";
+  $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
   resetGalleryDraft([]);
   $("#bookModalTitle").textContent="➕ يېڭى كىتاب";
 }
@@ -641,7 +702,8 @@ async function openEdit(id){
   $("#bookIsRecommended").checked=b.is_recommended===true;
   $("#bookCoverPreview").src=b.image_url||"";
   $("#bookCoverPreview").style.visibility=b.image_url?"visible":"hidden";
-  $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا":"مۇقاۋا يوق";
+  $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ":"مۇقاۋا يوق";
+  hideCreateConflict();
   resetGalleryDraft(normalizeGalleryField(b.gallery_images,b.image_url));
   modal(true);
   logSavePlan(planCurrentSave());
@@ -849,7 +911,7 @@ async function saveBook(e){
   if(!source){alert("كىتاب تۈرىنى تاللاڭ.");return}
   const isbn=formatIsbn($("#bookIsbn").value);
   if(isbn&&!isbnLooksValid(isbn)){alert("ISBN 10 ياكى 13 خانىلىق بولسۇن (بوش قالدۇرۇشقا بولىدۇ).");return}
-  const title=$("#bookTitle").value.trim();
+  const title=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookTitle").value):$("#bookTitle").value.trim();
   if(!title){alert("كىتاب ئىسمى كېرەك.");return}
   const plan=planCurrentSave();
   logSavePlan(plan);
@@ -859,17 +921,38 @@ async function saveBook(e){
   }
   const isEdit=plan.operation==="UPDATE";
   const editingBookId=plan.editingBookId;
+  const author=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookAuthor").value):$("#bookAuthor").value.trim();
   const submit=$("#bookForm button[type='submit']");
   saveInFlight=true;
   submit.disabled=true;
   submit.textContent="ساقلىنىۋاتىدۇ...";
   try{
+    if(!Quality.shouldSkipCreateDuplicateCheck||!Quality.shouldSkipCreateDuplicateCheck(plan.operation)){
+      const matches=await findCreateConflicts({title,author,isbn,excludeId:""});
+      if(Quality.shouldWarnCreateDuplicates(plan.operation,matches)&&!createConflictAck){
+        renderCreateConflict(matches);
+        saveInFlight=false;
+        submit.disabled=false;
+        submit.textContent="💾 ساقلاش";
+        return;
+      }
+    }else if(isbn){
+      const isbnHits=await findCreateConflicts({title:"",author:"",isbn,excludeId:editingBookId});
+      const isbnOnly=isbnHits.filter(row=>(row.reasons||[]).includes("isbn"));
+      if(isbnOnly.length&&!createConflictAck){
+        renderCreateConflict(isbnOnly);
+        saveInFlight=false;
+        submit.disabled=false;
+        submit.textContent="💾 ساقلاش";
+        return;
+      }
+    }
     const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
     const imageUrl=await uploadCover(storageId,$("#bookCover").files[0]);
     const galleryUrls=await collectGalleryUrls(storageId);
     const row={
       title,
-      author:$("#bookAuthor").value.trim(),
+      author,
       price:$("#bookPrice").value===""?null:Number($("#bookPrice").value),
       category:sourceCategory(source),
       source,
@@ -1412,6 +1495,14 @@ function init(){
   window.__kutadguAdminInit=true;
   applyBooksSchema();
   applyFieldDirections();
+  if(window.__kutadguSkipAdminAuth){
+    show("dashboardPanel");
+    books=Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[];
+    listTotal=books.length;
+    if($("#adminBookList"))renderBooks();
+    if($("#adminPager"))renderPager();
+    return;
+  }
   if(!configured()){
     show("setupPanel");
     return;
@@ -1436,7 +1527,22 @@ function init(){
   $("#adminFilterActive").onchange=()=>{listFilters.active=$("#adminFilterActive").value;listPage=0;loadBooks()};
   $("#adminFilterRecommended").onchange=()=>{listFilters.recommended=$("#adminFilterRecommended").value;listPage=0;loadBooks()};
   $("#adminFilterNew").onchange=()=>{listFilters.isNew=$("#adminFilterNew").value;listPage=0;loadBooks()};
+  $("#adminFilterQuality")&&($("#adminFilterQuality").onchange=()=>{listFilters.quality=$("#adminFilterQuality").value;listPage=0;loadBooks()});
   $("#adminSort").onchange=()=>{listFilters.sort=$("#adminSort").value;listPage=0;loadBooks()};
+  $("#createDuplicateConfirm")&&($("#createDuplicateConfirm").onchange=()=>{createConflictAck=!!$("#createDuplicateConfirm").checked});
+  $("#clearCoverPick")&&($("#clearCoverPick").onclick=()=>{
+    $("#bookCover").value="";
+    if(editing&&editing.image_url){
+      $("#bookCoverPreview").src=editing.image_url;
+      $("#bookCoverPreview").style.visibility="visible";
+      $("#bookCoverText").textContent="ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ";
+    }else{
+      $("#bookCoverPreview").src="";
+      $("#bookCoverPreview").style.visibility="hidden";
+      $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
+    }
+  });
+  $("#bookIsbn")&&$("#bookIsbn").addEventListener("blur",()=>{$("#bookIsbn").value=formatIsbn($("#bookIsbn").value)});
   $("#selectPageBtn").onclick=()=>{books.forEach(b=>selectedIds.add(b.id));renderBooks()};
   $("#clearSelectionBtn").onclick=()=>{selectedIds.clear();renderBooks()};
   $("#bulkAction").onchange=updateBulkValueUi;
@@ -1473,6 +1579,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters
 };
 })();
