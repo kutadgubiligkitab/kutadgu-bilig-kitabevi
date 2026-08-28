@@ -28,6 +28,15 @@
       ]
     },
     {
+      "source": "/admin-book-quality.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/catalog-bibliography.js",
       "headers": [
         {
