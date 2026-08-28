@@ -2044,8 +2044,8 @@ body.dark-mode section.home-bookstore-hero{
 .home-feature-cover img{
     width:auto !important;
     height:auto !important;
-    max-width:74px !important;
-    max-height:118px !important;
+    max-width:100% !important;
+    max-height:100% !important;
     object-fit:contain !important;
     display:block !important;
     margin:0 auto !important;
@@ -2068,7 +2068,7 @@ body.dark-mode section.home-bookstore-hero{
     display:flex !important;
     flex-direction:column !important;
     height:100% !important;
-    min-height:315px !important;
+    min-height:332px !important;
     border-radius:16px !important;
     box-shadow:0 4px 14px rgba(0,0,0,.04) !important;
 }
@@ -2105,9 +2105,9 @@ body.dark-mode section.home-bookstore-hero{
 
 /* مۇقاۋا رايونى — پاكىز ۋە بىردەك */
 .home-feature-cover{
-    height:190px !important;
-    min-height:190px !important;
-    padding:16px 12px 10px !important;
+    height:208px !important;
+    min-height:208px !important;
+    padding:8px 6px 6px !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
@@ -2117,12 +2117,12 @@ body.dark-mode section.home-bookstore-hero{
 /* مۇقاۋا رامكىسى: كىتابقا يېقىن نىسبەت، ئارتۇق ئاق بوشلۇق يوق */
 .home-feature-cover-frame{
     position:relative !important;
-    width:108px !important;
-    height:152px !important;
+    width:128px !important;
+    height:180px !important;
     display:flex !important;
     align-items:center !important;
     justify-content:center !important;
-    padding:5px !important;
+    padding:3px !important;
     border:1px solid rgba(112,80,61,.20) !important;
     border-radius:8px !important;
     background:rgba(255,255,255,.34) !important;
@@ -2137,8 +2137,8 @@ body.dark-mode .home-feature-cover-frame{
     display:block !important;
     width:100% !important;
     height:100% !important;
-    max-width:98px !important;
-    max-height:142px !important;
+    max-width:100% !important;
+    max-height:100% !important;
     object-fit:contain !important;
     object-position:center !important;
     margin:0 auto !important;
@@ -2189,10 +2189,10 @@ body.dark-mode .home-feature-cover-frame{
 .home-feature-cart{width:38px !important;height:38px !important;}
 
 @media(max-width:700px){
-    .home-feature-card{min-height:300px !important;}
-    .home-feature-cover{height:175px !important;min-height:175px !important;padding-top:14px !important;}
-    .home-feature-cover-frame{width:100px !important;height:142px !important;padding:5px !important;}
-    .home-feature-cover-frame img{max-width:90px !important;max-height:132px !important;}
+    .home-feature-card{min-height:318px !important;}
+    .home-feature-cover{height:188px !important;min-height:188px !important;padding:6px 5px 5px !important;}
+    .home-feature-cover-frame{width:118px !important;height:171px !important;padding:3px !important;}
+    .home-feature-cover-frame img{max-width:100% !important;max-height:100% !important;}
     .home-feature-placeholder{width:100% !important;height:100% !important;font-size:52px !important;}
 }
 
