@@ -224,3 +224,50 @@
   #newBooksCarousel .home-carousel-cover img{max-width:100%!important;max-height:100%!important}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important}}
+
+/* Discovery grid only — “قايسى كىتابنى ئوقۇغىڭىز بار؟” */
+#premiumDiscoveryResults .premium-book-grid{
+  align-items:stretch;
+}
+#premiumDiscoveryResults .premium-book-card{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+}
+#premiumDiscoveryResults .premium-card-link{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+}
+#premiumDiscoveryResults .premium-card-cover{
+  width:100%;
+  height:256px;
+  padding:4px;
+  box-sizing:border-box;
+  overflow:hidden;
+}
+#premiumDiscoveryResults .premium-card-cover img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center;
+}
+#premiumDiscoveryResults .premium-card-cart{
+  width:100%;
+  margin-top:auto;
+}
+@media(max-width:700px){
+  #premiumDiscoveryResults .premium-card-cover{
+    height:220px;
+    padding:4px;
+  }
+}
+@media(max-width:430px){
+  #premiumDiscoveryResults .premium-card-cover{
+    height:194px;
+    padding:3px;
+  }
+}
+
