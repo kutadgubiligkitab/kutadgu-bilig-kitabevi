@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-
+const Write=window.KutadguAdminWrite||{};
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
@@ -36,6 +36,7 @@ let importRows=[];
 let importRunning=false;
 let xlsxLoading=null;
 let galleryDraft=[];
+let saveInFlight=false;
 
 const listFilters={
   q:"",
@@ -151,15 +152,22 @@ function searchOrFilter(term,includeIsbn){
   }
   return parts.join(",");
 }
+function isCanonicalBookId(value){
+  return Write.isCanonicalBookId?Write.isCanonicalBookId(value):/^\d+$/.test(String(value||"").trim());
+}
+function canonicalBookId(value){
+  return Write.canonicalBookId?Write.canonicalBookId(value):(isCanonicalBookId(value)?String(value).trim():"");
+}
 function writeBookRow(row,opts={}){
-  const omitId=!!opts.omitId;
+  const omitId=!!opts.omitId||(generatedAlwaysId&&opts.mode!=="update");
   const out={};
   Object.keys(row||{}).forEach(key=>{
     if(OPTIONAL_BOOK_COLS.includes(key)&&!presentBookCols.has(key))return;
     if(omitId&&key==="id")return;
-    if(key==="id"&&generatedAlwaysId)return;
+    if(opts.mode==="update"&&(key==="id"||key==="created_at"||key==="legacy_id"||key==="updated_at"))return;
     out[key]=row[key];
   });
+  if(opts.mode==="update"&&Write.stripIdentityFields)return Write.stripIdentityFields(out);
   return out;
 }
 function generatedIdError(error){
@@ -778,28 +786,50 @@ async function uploadCover(id,file){
   const {data}=db.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
+async function persistBookRow(payload,isEdit,editingBookId){
+  if(isEdit){
+    const {data,error}=await db.from("books").update(payload).eq("id",editingBookId).select("id");
+    if(error)return {error};
+    if(!Array.isArray(data)||data.length!==1){
+      return {error:new Error("بۇ كىتاب يېڭىلانمىدى. يېڭى قۇر قوشۇلمىدى.")};
+    }
+    return {error:null,data};
+  }
+  const insertPayload={...payload};
+  delete insertPayload.id;
+  return db.from("books").insert(insertPayload).select("id");
+}
 async function saveBook(e){
   e.preventDefault();
-  const id=$("#bookId").value||idForNew();
+  if(saveInFlight)return;
   const source=$("#bookSource").value;
   if(!source){alert("كىتاب تۈرىنى تاللاڭ.");return}
   const isbn=formatIsbn($("#bookIsbn").value);
   if(isbn&&!isbnLooksValid(isbn)){alert("ISBN 10 ياكى 13 خانىلىق بولسۇن (بوش قالدۇرۇشقا بولىدۇ).");return}
+  const title=$("#bookTitle").value.trim();
+  if(!title){alert("كىتاب ئىسمى كېرەك.");return}
+  const isEdit=!!editing;
+  const editingBookId=Write.resolveEditBookId?Write.resolveEditBookId(editing,$("#bookId").value):canonicalBookId(editing?.id)||canonicalBookId($("#bookId").value);
+  if(isEdit&&!editingBookId){
+    alert("تەھرىرلەش ئۈچۈن كىتاب ID تېپىلمىدى. يېڭى قۇر قوشۇلمايدۇ.");
+    return;
+  }
   const submit=$("#bookForm button[type='submit']");
+  saveInFlight=true;
   submit.disabled=true;
   submit.textContent="ساقلىنىۋاتىدۇ...";
   try{
-    const imageUrl=await uploadCover(id,$("#bookCover").files[0]);
-    const galleryUrls=await collectGalleryUrls(id);
+    const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
+    const imageUrl=await uploadCover(storageId,$("#bookCover").files[0]);
+    const galleryUrls=await collectGalleryUrls(storageId);
     const row={
-      id,
-      title:$("#bookTitle").value.trim(),
+      title,
       author:$("#bookAuthor").value.trim(),
       price:$("#bookPrice").value===""?null:Number($("#bookPrice").value),
       category:sourceCategory(source),
       source,
       image_url:imageUrl,
-      href:editing?.href||`book.html?id=${encodeURIComponent(id)}`,
+      href:editing?.href||(isEdit?`book.html?id=${encodeURIComponent(editingBookId)}`:""),
       pages:$("#bookPages").value===""?null:Number($("#bookPages").value),
       translator:$("#bookTranslator").value.trim(),
       language:$("#bookLanguage").value.trim(),
@@ -817,28 +847,19 @@ async function saveBook(e){
       is_recommended:$("#bookIsRecommended").checked
     };
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
-    if(!row.title){alert("كىتاب ئىسمى كېرەك.");return}
     if(isbnColumn)row.isbn=isbn;
-    const isNew=!editing;
-    let payload=writeBookRow(row,{omitId:generatedAlwaysId&&isNew});
-    let error=null;
-    if(generatedAlwaysId&&isNew){
-      delete payload.id;
-      ({error}=await db.from("books").insert(payload));
-    }else{
-      ({error}=await db.from("books").upsert(payload,{onConflict:"id"}));
-    }
-    if(error&&generatedIdError(error)&&isNew){
+    let payload=writeBookRow(row,{mode:isEdit?"update":"insert",omitId:!isEdit});
+    if(isEdit&&Write.stripIdentityFields)payload=Write.stripIdentityFields(payload);
+    let {error}=await persistBookRow(payload,isEdit,editingBookId);
+    if(error&&generatedIdError(error)&&!isEdit){
       generatedAlwaysId=true;
-      payload=writeBookRow(row,{omitId:true});
-      delete payload.id;
-      ({error}=await db.from("books").insert(payload));
+      payload=writeBookRow(row,{omitId:true,mode:"insert"});
+      ({error}=await persistBookRow(payload,false,""));
     }
     if(error&&/gallery_images/.test(String(error.message||""))){
       presentBookCols.delete("gallery_images");
       delete payload.gallery_images;
-      if(generatedAlwaysId&&isNew)({error}=await db.from("books").insert(payload));
-      else ({error}=await db.from("books").upsert(payload,{onConflict:"id"}));
+      ({error}=await persistBookRow(payload,isEdit,editingBookId));
     }
     if(error)throw error;
     modal(false);
@@ -846,6 +867,7 @@ async function saveBook(e){
   }catch(err){
     alert("ساقلاش مەغلۇپ بولدى:\n"+(err.message||err));
   }finally{
+    saveInFlight=false;
     submit.disabled=false;
     submit.textContent="💾 ساقلاش";
   }
@@ -1358,8 +1380,8 @@ function init(){
   $("#forgotPasswordBtn").onclick=requestPasswordReset;
   $("#adminLogout").onclick=logout;
   $("#newBookBtn").onclick=openNew;
-  $("#closeBookModal").onclick=()=>modal(false);
-  $("#cancelBookEdit").onclick=()=>modal(false);
+  $("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)};
+  $("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)};
   $("#bookForm").addEventListener("submit",saveBook);
   $("#importStaticBtn").onclick=importStatic;
   $("#adminSearch").addEventListener("input",scheduleSearch);
@@ -1393,7 +1415,7 @@ function init(){
     addGalleryFiles($("#bookGallery").files||[]);
     $("#bookGallery").value="";
   });
-  $("#bookModal").addEventListener("click",e=>{if(e.target===$("#bookModal"))modal(false)});
+  $("#bookModal").addEventListener("click",e=>{if(saveInFlight)return;if(e.target===$("#bookModal"))modal(false)});
   $("#importModal").addEventListener("click",e=>{if(e.target===$("#importModal")&&!importRunning)closeImport()});
   db.auth.onAuthStateChange(()=>setTimeout(routeSession,0));
   routeSession();
@@ -1404,6 +1426,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow
 };
 })();
