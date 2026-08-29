@@ -128,6 +128,30 @@ function test(name, fn) {
     assert.ok(/image_url يوق 1/.test(result));
   });
 
+  await test("stale match is cleared on failed lookup and lookup input change", () => {
+    const file = { name: "001.jpg" };
+    let state = Repair.applyLookupOutcome({ file: file }, { ok: true, book: { id: 102, title: "Old" } });
+    assert.strictEqual(String(state.book.id), "102");
+    assert.strictEqual(Repair.canWriteCoverRepair(state), true);
+    state = Repair.invalidateRepairTarget(state);
+    assert.strictEqual(state.book, null);
+    assert.strictEqual(state.file.name, "001.jpg");
+    assert.strictEqual(Repair.canWriteCoverRepair(state), false);
+    state = Repair.applyLookupOutcome(state, { ok: false, reason: "none" });
+    assert.strictEqual(state.book, null);
+    assert.strictEqual(Repair.canWriteCoverRepair(state), false);
+    state = Repair.applyLookupOutcome(state, { ok: false, reason: "ambiguous", matches: [{ id: 1 }, { id: 2 }] });
+    assert.strictEqual(state.book, null);
+    state = Repair.applyLookupOutcome({ file: file }, { ok: true, book: { id: 102 } });
+    state = Repair.applyLookupOutcome(state, { ok: false, error: "network" });
+    assert.strictEqual(state.book, null);
+    const admin = fs.readFileSync(path.join(ROOT, "admin.js"), "utf8");
+    assert.ok(/invalidateCoverRepairOnLookupChange/.test(admin));
+    assert.ok(/coverRepairLookupGen/.test(admin));
+    const css = fs.readFileSync(path.join(ROOT, "admin.css"), "utf8");
+    assert.ok(/admin-cover-repair-preview\[hidden\]/.test(css));
+  });
+
   await test("wired in admin.html / admin.js; no SQL migration; IMPORT_BATCH 80", () => {
     const html = fs.readFileSync(path.join(ROOT, "admin.html"), "utf8");
     const admin = fs.readFileSync(path.join(ROOT, "admin.js"), "utf8");

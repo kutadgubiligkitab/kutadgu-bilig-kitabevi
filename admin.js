@@ -39,6 +39,7 @@ let searchTimer=null;
 let importRows=[];
 let importRunning=false;
 let coverRepairDraft=null;
+let coverRepairLookupGen=0;
 let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
@@ -1335,12 +1336,37 @@ function refreshImportPlanSummary(){
 
 const COVER_REPAIR_SELECT="id,title,author,isbn,image_url,price,sales_count,is_active";
 
-function resetCoverRepairPreview(msg){
-  coverRepairDraft=null;
+function selectedCoverRepairFile(){
+  const input=$("#coverRepairFile");
+  return input&&input.files&&input.files[0]?input.files[0]:null;
+}
+
+function clearCoverRepairTargetDisplay(){
   const wrap=$("#coverRepairPreview");
   if(wrap)wrap.hidden=true;
   if($("#coverRepairConfirmBtn"))$("#coverRepairConfirmBtn").disabled=true;
+  if($("#coverRepairTitle"))$("#coverRepairTitle").textContent="";
+  if($("#coverRepairMeta"))$("#coverRepairMeta").textContent="";
+  const thumb=$("#coverRepairThumb");
+  if(thumb){
+    thumb.removeAttribute("src");
+    thumb.style.visibility="hidden";
+  }
+}
+
+function resetCoverRepairPreview(msg){
+  const file=selectedCoverRepairFile();
+  coverRepairDraft=CoverRepair.invalidateRepairTarget?CoverRepair.invalidateRepairTarget({file:file}):{book:null,file:file};
+  clearCoverRepairTargetDisplay();
   if(msg)status($("#coverRepairStatus"),msg);
+}
+
+function invalidateCoverRepairOnLookupChange(){
+  coverRepairLookupGen+=1;
+  const file=selectedCoverRepairFile()||(coverRepairDraft&&coverRepairDraft.file)||null;
+  coverRepairDraft=CoverRepair.invalidateRepairTarget?CoverRepair.invalidateRepairTarget({file:file}):{book:null,file:file};
+  clearCoverRepairTargetDisplay();
+  if($("#coverRepairConfirmBtn"))$("#coverRepairConfirmBtn").disabled=true;
 }
 
 async function lookupCoverRepairBook(raw){
@@ -1386,31 +1412,39 @@ function renderCoverRepairPreview(book,file){
 async function previewCoverRepair(){
   if(!db){status($("#coverRepairStatus"),"Database ئۇلىنىشى يوق.","error");return}
   const raw=$("#coverRepairLookup")&&$("#coverRepairLookup").value;
-  const file=$("#coverRepairFile")&&$("#coverRepairFile").files&&$("#coverRepairFile").files[0];
+  const file=selectedCoverRepairFile();
+  const gen=++coverRepairLookupGen;
+  coverRepairDraft=CoverRepair.invalidateRepairTarget?CoverRepair.invalidateRepairTarget({file:file}):{book:null,file:file};
+  clearCoverRepairTargetDisplay();
   status($("#coverRepairStatus"),"كىتاب تەكشۈرۈلىۋاتىدۇ...");
   try{
     const resolved=await lookupCoverRepairBook(raw);
-    if(!resolved.ok){
-      coverRepairDraft=null;
-      if($("#coverRepairPreview"))$("#coverRepairPreview").hidden=true;
-      if($("#coverRepairConfirmBtn"))$("#coverRepairConfirmBtn").disabled=true;
+    if(gen!==coverRepairLookupGen)return;
+    coverRepairDraft=CoverRepair.applyLookupOutcome?CoverRepair.applyLookupOutcome({file:file},resolved):(!resolved.ok?{book:null,file:file}:{book:resolved.book,file:file});
+    if(!resolved.ok||!coverRepairDraft.book){
+      clearCoverRepairTargetDisplay();
       if(resolved.reason==="none")status($("#coverRepairStatus"),"ماس كىتاب تېپىلمىدى. يېزىلمايدۇ.","error");
       else if(resolved.reason==="ambiguous")status($("#coverRepairStatus"),`ISBN ${resolved.matches.length} كىتابقا ماس كەلدى — قايسىسى ئىكەنلىكى ئېنىق ئەمەس. يېزىلمايدۇ.`,"error");
       else status($("#coverRepairStatus"),"ID ياكى ISBN كىرگۈزۈڭ. ئىسىم بىلەن ئىزدەلمەيدۇ.","error");
       return;
     }
-    coverRepairDraft={book:resolved.book,file:file||null};
-    renderCoverRepairPreview(resolved.book,file||null);
+    renderCoverRepairPreview(coverRepairDraft.book,file||null);
     status($("#coverRepairStatus"),file?"كىتاب تېپىلدى. جەزملەشتۈرمىگۈچە پەقەت image_url ئۆزگەرمەيدۇ.":"كىتاب تېپىلدى. رەسىم تاللاپ جەزملەڭ.","ok");
   }catch(err){
-    resetCoverRepairPreview("تەكشۈرۈش مەغلۇپ: "+(err.message||err));
+    coverRepairDraft=CoverRepair.invalidateRepairTarget?CoverRepair.invalidateRepairTarget({file:file}):{book:null,file:file};
+    clearCoverRepairTargetDisplay();
     status($("#coverRepairStatus"),"تەكشۈرۈش مەغلۇپ: "+(err.message||err),"error");
   }
 }
 
 async function confirmCoverRepair(){
+  const file=selectedCoverRepairFile()||(coverRepairDraft&&coverRepairDraft.file)||null;
+  if(file&&coverRepairDraft)coverRepairDraft.file=file;
+  if(CoverRepair.canWriteCoverRepair&&!CoverRepair.canWriteCoverRepair(coverRepairDraft)){
+    status($("#coverRepairStatus"),"ئالدى بىلەن نۆۋەتتىكى ID/ISBN نى تەكشۈرۈڭ.","error");
+    return;
+  }
   if(!coverRepairDraft||!coverRepairDraft.book){status($("#coverRepairStatus"),"ئالدى بىلەن كىتابنى تەكشۈرۈڭ.","error");return}
-  const file=($("#coverRepairFile")&&$("#coverRepairFile").files&&$("#coverRepairFile").files[0])||coverRepairDraft.file;
   if(!file){status($("#coverRepairStatus"),"رەسىم تاللاڭ.","error");return}
   const book=coverRepairDraft.book;
   if(!confirm(`«${book.title||book.id}» غا پەقەت مۇقاۋا باغلامسىز؟\nباشقا مەيدانلار ئۆزگەرمەيدۇ.`))return;
@@ -1800,11 +1834,17 @@ function init(){
   $("#importDupIsbn")&&$("#importDupIsbn").addEventListener("change",refreshImportPlanSummary);
   $("#coverRepairPreviewBtn")&&($("#coverRepairPreviewBtn").onclick=previewCoverRepair);
   $("#coverRepairConfirmBtn")&&($("#coverRepairConfirmBtn").onclick=confirmCoverRepair);
+  $("#coverRepairLookup")&&$("#coverRepairLookup").addEventListener("input",()=>{
+    invalidateCoverRepairOnLookupChange();
+  });
   $("#coverRepairFile")&&$("#coverRepairFile").addEventListener("change",()=>{
+    const file=selectedCoverRepairFile();
+    if(coverRepairDraft)coverRepairDraft.file=file;
     if(coverRepairDraft&&coverRepairDraft.book){
-      coverRepairDraft.file=$("#coverRepairFile").files[0]||null;
-      renderCoverRepairPreview(coverRepairDraft.book,coverRepairDraft.file);
-      if(coverRepairDraft.file)status($("#coverRepairStatus"),"رەسىم تاللاندى. جەزملەشتۈرمىگۈچە يېزىلمايدۇ.","ok");
+      renderCoverRepairPreview(coverRepairDraft.book,file);
+      if(file)status($("#coverRepairStatus"),"رەسىم تاللاندى. جەزملەشتۈرمىگۈچە يېزىلمايدۇ.","ok");
+    }else if($("#coverRepairConfirmBtn")){
+      $("#coverRepairConfirmBtn").disabled=true;
     }
   });
   $("#memberSearch").addEventListener("input",renderMembers);

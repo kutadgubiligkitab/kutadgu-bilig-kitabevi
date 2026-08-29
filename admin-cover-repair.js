@@ -182,6 +182,26 @@
     return n;
   }
 
+  function emptyRepairState(file) {
+    return { book: null, file: file || null, canWrite: false };
+  }
+
+  function invalidateRepairTarget(prev) {
+    return emptyRepairState(prev && prev.file);
+  }
+
+  function applyLookupOutcome(prev, resolved) {
+    const file = prev && prev.file || null;
+    if (!resolved || !resolved.ok || !resolved.book || resolved.book.id == null || resolved.book.id === "") {
+      return emptyRepairState(file);
+    }
+    return { book: resolved.book, file: file, canWrite: !!file };
+  }
+
+  function canWriteCoverRepair(state) {
+    return !!(state && state.book && state.book.id != null && state.book.id !== "" && state.file);
+  }
+
   return {
     METADATA_KEYS: METADATA_KEYS,
     parseLookup: parseLookup,
@@ -196,6 +216,10 @@
     summarizeImportPlan: summarizeImportPlan,
     formatPlanText: formatPlanText,
     formatResultText: formatResultText,
-    countWithoutImageUrl: countWithoutImageUrl
+    countWithoutImageUrl: countWithoutImageUrl,
+    emptyRepairState: emptyRepairState,
+    invalidateRepairTarget: invalidateRepairTarget,
+    applyLookupOutcome: applyLookupOutcome,
+    canWriteCoverRepair: canWriteCoverRepair
   };
 });

@@ -46,6 +46,7 @@ button{cursor:pointer}
 .admin-book-actions button,.admin-book-actions a{padding:7px 9px;border-radius:7px;border:1px solid #dccdb9;background:#fbf8f2;color:#44352d;text-decoration:none}
 .admin-hidden-book{opacity:.58}
 .admin-cover-repair-preview{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px;border:1px solid #e8dccb;border-radius:11px;background:#fbf8f2}
+.admin-cover-repair-preview[hidden]{display:none!important}
 .admin-cover-repair-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border-radius:6px}
 .admin-cover-preview{display:flex;align-items:center;gap:12px;margin-top:8px}
 .admin-cover-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border:1px solid #e8dccb;border-radius:7px}
