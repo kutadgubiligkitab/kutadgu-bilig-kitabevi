@@ -123,11 +123,16 @@ async function replaceFavorites(values){
     if(error)throw error;
   }
 }
+function sanitizeMemberQty(raw){
+  return window.KutadguLegacyIds?.sanitizeCartQty
+    ?window.KutadguLegacyIds.sanitizeCartQty(raw)
+    :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
+}
 async function replaceCart(values){
   if(!db||!user||blocked)return;
   const rows=(Array.isArray(values)?values:[])
     .filter(x=>x&&x.id)
-    .map(x=>({user_id:user.id,book_id:String(x.id),quantity:Math.max(1,Math.min(99,Number(x.qty)||1))}));
+    .map(x=>({user_id:user.id,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
   const {error:delError}=await db.from("member_cart_items").delete().eq("user_id",user.id);
   if(delError)throw delError;
   if(rows.length){
@@ -135,8 +140,22 @@ async function replaceCart(values){
     if(error)throw error;
   }
 }
+let mergedForUserId=null;
+const MERGE_LOCK_KEY="kutadgu-member-shop-merged-v2";
+function readMergeLock(){
+  try{return String(localStorage.getItem(MERGE_LOCK_KEY)||"")}catch(e){return ""}
+}
+function writeMergeLock(id){
+  mergedForUserId=id||null;
+  try{
+    if(id)localStorage.setItem(MERGE_LOCK_KEY,id);
+    else localStorage.removeItem(MERGE_LOCK_KEY);
+  }catch(e){}
+}
 async function mergeShopState(){
   if(!db||!user||blocked)return;
+  if(mergedForUserId===user.id||readMergeLock()===user.id)return;
+  writeMergeLock(user.id);
   try{
     const [{data:favRows,error:favError},{data:cartRows,error:cartError}]=await Promise.all([
       db.from("member_favorites").select("book_id").eq("user_id",user.id),
@@ -163,24 +182,36 @@ async function mergeShopState(){
       return book?.id||String(id||"");
     };
     const helpers=window.KutadguLegacyIds;
-    const mergedFavRaw=[...localFav,...cloudFav].map(String).filter(Boolean);
-    const mergedFav=helpers?.migrateIdList?helpers.migrateIdList(mergedFavRaw,resolveId):[...new Set(mergedFavRaw)];
+    const mergedFav=helpers?.mergeGuestAndCloudFavs
+      ?helpers.mergeGuestAndCloudFavs(localFav,cloudFav,resolveId)
+      :(helpers?.migrateIdList?helpers.migrateIdList([...localFav,...cloudFav].map(String).filter(Boolean),resolveId):[...new Set([...localFav,...cloudFav].map(String).filter(Boolean))]);
 
-    const cartRaw=[];
-    cloudCart.forEach(x=>cartRaw.push({id:String(x.id),qty:Math.max(1,Number(x.qty)||1)}));
-    localCart.forEach(x=>{if(x?.id)cartRaw.push({id:String(x.id),qty:Math.max(1,Number(x.qty)||1)})});
-    const mergedCart=helpers?.migrateCartItems?helpers.migrateCartItems(cartRaw,resolveId):(()=>{
-      const cartMap=new Map();
-      cartRaw.forEach(x=>{const id=String(x.id);cartMap.set(id,Math.max(x.qty,cartMap.get(id)||0))});
-      return [...cartMap].map(([id,qty])=>({id,qty}));
-    })();
+    const mergedCart=helpers?.mergeGuestAndCloudCart
+      ?helpers.mergeGuestAndCloudCart(localCart,cloudCart,resolveId)
+      :(helpers?.migrateCartItems?helpers.migrateCartItems([
+        ...cloudCart.map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)})),
+        ...localCart.filter(x=>x?.id).map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)}))
+      ],resolveId):localCart);
 
-    localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
-    localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
-    await replaceFavorites(mergedFav);
-    await replaceCart(mergedCart);
+    const nextFavJson=JSON.stringify(mergedFav);
+    const nextCartJson=JSON.stringify(mergedCart);
+    const prevFavJson=JSON.stringify(Array.isArray(localFav)?localFav.map(String):[]);
+    const prevCartJson=JSON.stringify(Array.isArray(localCart)?localCart:[]);
+    if(nextFavJson!==prevFavJson)localStorage.setItem(FAV_KEY,nextFavJson);
+    if(nextCartJson!==prevCartJson)localStorage.setItem(CART_KEY,nextCartJson);
+
+    const cloudFavCanon=helpers?.migrateIdList?helpers.migrateIdList(cloudFav,resolveId):cloudFav.map(String);
+    const cloudCartCanon=helpers?.migrateCartItems?helpers.migrateCartItems(cloudCart,resolveId):cloudCart;
+    const cloudChanged=JSON.stringify(cloudFavCanon)!==nextFavJson||JSON.stringify(cloudCartCanon)!==nextCartJson;
+    if(cloudChanged||nextFavJson!==prevFavJson||nextCartJson!==prevCartJson){
+      await replaceFavorites(mergedFav);
+      await replaceCart(mergedCart);
+    }
     emit("kutadgu-member-state-synced");
-  }catch(err){console.warn("Member shop sync failed",err)}
+  }catch(err){
+    writeMergeLock("");
+    console.warn("Member shop sync failed",err);
+  }
 }
 const syncTimers=new Map();
 function syncKey(key,value){
@@ -194,7 +225,7 @@ function syncKey(key,value){
     finally{syncTimers.delete(key)}
   },250));
 }
-async function applySession(session,{trackLogin=false,sync=true}={}){
+async function applySession(session,{trackLogin=false,sync=false}={}){
   user=session?.user||null;profile=null;blocked=false;
   if(user){
     try{
@@ -225,14 +256,14 @@ async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const result=await db.auth.signUp({email,password,options:{data:{full_name:fullName||""},emailRedirectTo:new URL("account.html",location.href).href}});
   if(result.error)throw result.error;
-  if(result.data?.session)await queueSession(result.data.session,{trackLogin:true});
+  if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:false});
   return result.data;
 }
 async function signIn({email,password}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const {data,error}=await db.auth.signInWithPassword({email,password});
   if(error)throw error;
-  await queueSession(data.session,{trackLogin:true});
+  await queueSession(data.session,{trackLogin:true,sync:false});
   return data;
 }
 async function signInWithGoogle(){
@@ -244,6 +275,7 @@ async function signInWithGoogle(){
 }
 async function signOut(){
   if(db)await db.auth.signOut();
+  writeMergeLock("");
   user=null;profile=null;blocked=false;renderButton();emit();
 }
 async function resetPassword(email,next="account"){
@@ -315,9 +347,11 @@ async function init(){
     db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
     const {data,error}=await db.auth.getSession();
     if(error)throw error;
-    await queueSession(data.session,{sync:true});
+    await queueSession(data.session,{sync:false});
     db.auth.onAuthStateChange((event,session)=>{
-      setTimeout(()=>queueSession(session,{trackLogin:event==="SIGNED_IN",sync:event!=="TOKEN_REFRESHED"}),0);
+      if(event==="SIGNED_OUT")writeMergeLock("");
+      const isLogin=event==="SIGNED_IN";
+      setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);
     });
   }catch(err){initError=err;console.warn("Member system failed to initialize",err);renderButton();emit()}
   readyResolve(api);

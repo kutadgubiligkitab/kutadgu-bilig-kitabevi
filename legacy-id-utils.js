@@ -8,6 +8,25 @@
 
 const CANONICAL_ID=/^\d+$/;
 const EXPECTED_MIGRATED_COUNT=84;
+const MAX_CART_QTY=99;
+
+function sanitizeCartQty(raw){
+  if(raw===true||raw===false)return 1;
+  if(raw==null||raw==="")return 1;
+  const n=parseInt(String(raw).trim(),10);
+  if(!Number.isFinite(n)||n<1)return 1;
+  if(n>MAX_CART_QTY)return MAX_CART_QTY;
+  return n;
+}
+
+function collapseAliasQuantities(qtys){
+  const nums=(Array.isArray(qtys)?qtys:[]).map(sanitizeCartQty);
+  if(!nums.length)return 1;
+  if(nums.length===1)return nums[0];
+  const belowCap=nums.filter(qty=>qty<MAX_CART_QTY);
+  if(belowCap.length)return Math.max(...belowCap);
+  return MAX_CART_QTY;
+}
 
 function isCanonicalBookId(value){
   return CANONICAL_ID.test(String(value||"").trim());
@@ -47,16 +66,81 @@ function migrateCartItems(items=[],resolveId=id=>id){
     const raw=String(item.id);
     const mapped=resolveId(raw);
     const resolved=mapped==null||mapped===""?raw:String(mapped);
-    const qty=Math.max(1,Math.min(99,Number(item.qty)||1));
+    const qty=sanitizeCartQty(item.qty);
     if(!merged.has(resolved)){
-      merged.set(resolved,{id:resolved,qty});
+      merged.set(resolved,{id:resolved,qtys:[qty]});
       order.push(resolved);
     }else{
-      const row=merged.get(resolved);
-      row.qty=Math.max(1,Math.min(99,row.qty+qty));
+      merged.get(resolved).qtys.push(qty);
     }
   });
-  return order.map(id=>merged.get(id));
+  return order.map(id=>{
+    const row=merged.get(id);
+    return {id,qty:collapseAliasQuantities(row.qtys)};
+  });
+}
+
+function mergeGuestAndCloudCart(localCart=[],cloudCart=[],resolveId=id=>id){
+  return migrateCartItems([...(Array.isArray(cloudCart)?cloudCart:[]),...(Array.isArray(localCart)?localCart:[])],resolveId);
+}
+
+function mergeGuestAndCloudFavs(localFav=[],cloudFav=[],resolveId=id=>id){
+  return migrateIdList([...(Array.isArray(localFav)?localFav:[]),...(Array.isArray(cloudFav)?cloudFav:[])],resolveId);
+}
+
+function shopStateSignature(cartItems=[],favIds=[]){
+  const cart=migrateCartItems(cartItems,id=>id).map(row=>`${row.id}:${row.qty}`).join(",");
+  const fav=migrateIdList(favIds,id=>id).join(",");
+  return `c=${cart}|f=${fav}`;
+}
+
+function rememberBookAliases(book,aliasMap={}){
+  const next={...(aliasMap&&typeof aliasMap==="object"&&!Array.isArray(aliasMap)?aliasMap:{})};
+  const id=String(book?.id||"").trim();
+  const legacy=String(book?.legacyId||book?.legacy_id||"").trim();
+  if(id&&legacy&&id!==legacy){
+    next[id]=legacy;
+    next[legacy]=id;
+  }
+  return next;
+}
+
+function lookupBook(id,indexes={},seen){
+  const key=String(id||"").trim();
+  if(!key)return null;
+  const visited=seen||new Set();
+  if(visited.has(key))return null;
+  visited.add(key);
+  const fromMap=map=>{
+    if(!map)return null;
+    if(typeof map.get==="function")return map.get(key)||null;
+    if(!Array.isArray(map)&&typeof map==="object")return map[key]||null;
+    return null;
+  };
+  const fromList=list=>(Array.isArray(list)?list:[]).find(book=>String(book?.id||"")===key||String(book?.legacyId||book?.legacy_id||"")===key)||null;
+  const direct=fromMap(indexes.cache)||fromMap(indexes.fallback)||fromList(indexes.staticBooks);
+  if(direct)return direct;
+  const alias=indexes.aliases?String(indexes.aliases[key]||"").trim():"";
+  if(!alias||alias===key)return null;
+  return lookupBook(alias,{cache:indexes.cache,fallback:indexes.fallback,staticBooks:indexes.staticBooks,aliases:indexes.aliases},visited);
+}
+
+function visibleCartLines(items=[],lookup=id=>null){
+  const resolve=id=>{
+    const book=lookup(id);
+    return book&&book.id?String(book.id):String(id||"");
+  };
+  return migrateCartItems(items,resolve).map(item=>{
+    const book=lookup(item.id)||lookup(item.id);
+    return {id:book&&book.id?String(book.id):String(item.id),qty:item.qty,book:book||null};
+  });
+}
+
+function cartHasBook(items=[],bookId="",lookup=id=>null){
+  const book=lookup(bookId);
+  const want=String(book&&book.id?book.id:bookId||"");
+  if(!want)return false;
+  return visibleCartLines(items,lookup).some(line=>String(line.id)===want);
 }
 
 function migrateIdList(ids=[],resolveId=id=>id,{limit=null}={}){
@@ -89,13 +173,23 @@ function remoteAvailableFromActiveCount(activeCount){
 
 const api={
   EXPECTED_MIGRATED_COUNT,
+  MAX_CART_QTY,
   isCanonicalBookId,
   trimLegacyId,
   quotePostgrestValue,
   splitLookupIds,
   uniqueVisibleBooks,
+  sanitizeCartQty,
+  collapseAliasQuantities,
   migrateCartItems,
   migrateIdList,
+  mergeGuestAndCloudCart,
+  mergeGuestAndCloudFavs,
+  rememberBookAliases,
+  lookupBook,
+  visibleCartLines,
+  cartHasBook,
+  shopStateSignature,
   activationGuard,
   remoteAvailableFromActiveCount
 };
