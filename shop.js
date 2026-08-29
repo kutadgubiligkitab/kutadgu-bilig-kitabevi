@@ -466,9 +466,15 @@ function resolveStoredBookId(id){
   if(!find(canonical))return raw;
   return canonical;
 }
+function aliasMap(){
+  return Legacy.readPersistedAliasMap?Legacy.readPersistedAliasMap(localStorage):persistedAliases();
+}
 function migratePersistedBookIds(){
   const resolve=resolveStoredBookId;
-  const nextCart=Legacy.migrateCartItems?Legacy.migrateCartItems(cart(),resolve):cart();
+  const aliases=aliasMap();
+  const nextCart=Legacy.repairCapPollutedCartItems
+    ?Legacy.repairCapPollutedCartItems(cart(),resolve,aliases)
+    :(Legacy.migrateCartItems?Legacy.migrateCartItems(cart(),resolve):cart());
   const nextFav=Legacy.migrateIdList?Legacy.migrateIdList(favs(),resolve):favs().map(String);
   const nextRec=Legacy.migrateIdList?Legacy.migrateIdList(get(REC_KEY,[]),resolve,{limit:12}):get(REC_KEY,[]).map(String).slice(0,12);
   if(JSON.stringify(nextCart)!==JSON.stringify(cart()))set(CART_KEY,nextCart);
@@ -546,17 +552,32 @@ function add(id,qty=1){
   if(x){x.id=storeId;x.qty=next}else a.push({id:storeId,qty:next});
   if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:storeId,qty:Math.max(1,Number(qty)||1)})}
 }
-function remove(id){const want=canonicalId(id);set(CART_KEY,cart().filter(x=>canonicalId(x.id)!==want));updateBadge()}
+function remove(id){
+  const resolve=resolveStoredBookId;
+  const aliases=aliasMap();
+  const next=Legacy.filterCartRemovingBook
+    ?Legacy.filterCartRemovingBook(cart(),id,resolve,aliases)
+    :cart().filter(x=>canonicalId(x.id)!==canonicalId(id));
+  set(CART_KEY,next);
+  updateBadge();
+}
 function favs(){return get(FAV_KEY,[])}
 function favHas(id){
   const want=canonicalId(id);
-  return favs().some(x=>canonicalId(x)===want);
+  const aliases=aliasMap();
+  return favs().some(x=>Legacy.sameBookIdentity?Legacy.sameBookIdentity(x,want,resolveStoredBookId,aliases):canonicalId(x)===want);
 }
 function toggleFav(id){
   const b=find(id);if(!b)return;
   const storeId=b.id;
-  let a=favs().map(String),added=!a.some(x=>canonicalId(x)===storeId);
-  if(!added){a=a.filter(x=>canonicalId(x)!==storeId);toast("ياقتۇرۇلغانلاردىن چىقىرىلدى")}
+  const resolve=resolveStoredBookId;
+  const aliases=aliasMap();
+  let a=favs().map(String);
+  const added=!(Legacy.sameBookIdentity?a.some(x=>Legacy.sameBookIdentity(x,storeId,resolve,aliases)):a.some(x=>canonicalId(x)===storeId));
+  if(!added){
+    a=Legacy.filterFavsRemovingBook?Legacy.filterFavsRemovingBook(a,storeId,resolve,aliases):a.filter(x=>canonicalId(x)!==storeId);
+    toast("ياقتۇرۇلغانلاردىن چىقىرىلدى");
+  }
   else if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   else{a.push(storeId);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}
   if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:storeId})}
@@ -1757,7 +1778,10 @@ function cartPage(){
 }
 
 function changeQty(id,d){
-  let a=cart(),x=a.find(i=>canonicalId(i.id)===canonicalId(id));if(!x)return;
+  let a=cart();
+  const aliases=aliasMap();
+  let x=a.find(i=>Legacy.sameBookIdentity?Legacy.sameBookIdentity(i.id,id,resolveStoredBookId,aliases):canonicalId(i.id)===canonicalId(id));
+  if(!x)return;
   const book=find(id);
   if(!isStorefrontVisible(book))return;
   const stock=stockInfo(book);
@@ -2280,7 +2304,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=6";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=7";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -2374,5 +2398,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap};
 })();

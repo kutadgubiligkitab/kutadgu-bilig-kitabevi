@@ -19,13 +19,66 @@ function sanitizeCartQty(raw){
   return n;
 }
 
-function collapseAliasQuantities(qtys){
+function collapseAliasQuantities(qtys,options={}){
   const nums=(Array.isArray(qtys)?qtys:[]).map(sanitizeCartQty);
   if(!nums.length)return 1;
-  if(nums.length===1)return nums[0];
+  const sourceCount=Number(options.sourceCount);
+  const distinctSources=Number.isFinite(sourceCount)?sourceCount:nums.length;
   const belowCap=nums.filter(qty=>qty<MAX_CART_QTY);
   if(belowCap.length)return Math.max(...belowCap);
+  if(distinctSources>=2)return 1;
+  if(nums.length===1)return nums[0];
   return MAX_CART_QTY;
+}
+
+function readPersistedAliasMap(storage){
+  try{
+    const raw=(storage||(typeof localStorage!=="undefined"?localStorage:null))?.getItem?.("kutadgu-id-aliases-v1");
+    const parsed=raw?JSON.parse(raw):{};
+    return parsed&&typeof parsed==="object"&&!Array.isArray(parsed)?parsed:{};
+  }catch(e){return {}}
+}
+
+function identityKeys(id,resolveId=x=>x,aliasMap={}){
+  const raw=String(id??"").trim();
+  const keys=new Set();
+  if(!raw)return keys;
+  keys.add(raw);
+  const resolved=String(resolveId(raw)||raw);
+  if(resolved)keys.add(resolved);
+  const map=aliasMap&&typeof aliasMap==="object"?aliasMap:{};
+  let guard=0;
+  while(guard++<8){
+    let added=false;
+    [...keys].forEach(key=>{
+      const mapped=String(map[key]||"").trim();
+      if(mapped&&!keys.has(mapped)){keys.add(mapped);added=true}
+      const extra=String(resolveId(key)||"").trim();
+      if(extra&&!keys.has(extra)){keys.add(extra);added=true}
+    });
+    if(!added)break;
+  }
+  return keys;
+}
+
+function sameBookIdentity(a,b,resolveId=x=>x,aliasMap={}){
+  const left=identityKeys(a,resolveId,aliasMap);
+  if(!left.size)return false;
+  return [...identityKeys(b,resolveId,aliasMap)].some(key=>left.has(key));
+}
+
+function applyBookIdMap(id,idMap={}){
+  const raw=String(id??"").trim();
+  if(!raw)return raw;
+  const mapped=idMap[raw];
+  if(mapped==null||mapped==="")return raw;
+  if(isCanonicalBookId(String(mapped)))return String(mapped);
+  if(isCanonicalBookId(raw))return raw;
+  return String(mapped);
+}
+
+function rememberRowAliases(idMap={},id,legacyId){
+  return rememberBookAliases({id,legacyId,legacy_id:legacyId},idMap);
 }
 
 function isCanonicalBookId(value){
@@ -68,16 +121,44 @@ function migrateCartItems(items=[],resolveId=id=>id){
     const resolved=mapped==null||mapped===""?raw:String(mapped);
     const qty=sanitizeCartQty(item.qty);
     if(!merged.has(resolved)){
-      merged.set(resolved,{id:resolved,qtys:[qty]});
+      merged.set(resolved,{id:resolved,qtys:[qty],rawIds:new Set([raw])});
       order.push(resolved);
     }else{
-      merged.get(resolved).qtys.push(qty);
+      const row=merged.get(resolved);
+      row.qtys.push(qty);
+      row.rawIds.add(raw);
     }
   });
   return order.map(id=>{
     const row=merged.get(id);
-    return {id,qty:collapseAliasQuantities(row.qtys)};
+    return {id,qty:collapseAliasQuantities(row.qtys,{sourceCount:row.rawIds.size})};
   });
+}
+
+function repairCapPollutedCartItems(items=[],resolveId=id=>id,aliasMap={}){
+  const migrated=migrateCartItems(items,resolveId);
+  return migrated.map(row=>{
+    const qty=sanitizeCartQty(row.qty);
+    if(qty!==MAX_CART_QTY)return {id:row.id,qty};
+    if(!isCanonicalBookId(row.id))return {id:row.id,qty:1};
+    const keys=identityKeys(row.id,resolveId,aliasMap);
+    const hasAliasPair=[...keys].some(key=>key!==String(row.id));
+    if(!hasAliasPair)return {id:row.id,qty};
+    return {id:row.id,qty:1};
+  });
+}
+
+function filterCartRemovingBook(items=[],bookId="",resolveId=id=>id,aliasMap={}){
+  const want=String(bookId||"").trim();
+  if(!want)return migrateCartItems(items,resolveId);
+  return migrateCartItems(items,resolveId).filter(item=>!sameBookIdentity(item.id,want,resolveId,aliasMap));
+}
+
+function filterFavsRemovingBook(ids=[],bookId="",resolveId=id=>id,aliasMap={}){
+  const want=String(bookId||"").trim();
+  const migrated=migrateIdList(ids,resolveId);
+  if(!want)return migrated;
+  return migrated.filter(id=>!sameBookIdentity(id,want,resolveId,aliasMap));
 }
 
 function mergeGuestAndCloudCart(localCart=[],cloudCart=[],resolveId=id=>id){
@@ -181,7 +262,15 @@ const api={
   uniqueVisibleBooks,
   sanitizeCartQty,
   collapseAliasQuantities,
+  identityKeys,
+  sameBookIdentity,
+  applyBookIdMap,
+  rememberRowAliases,
+  readPersistedAliasMap,
   migrateCartItems,
+  repairCapPollutedCartItems,
+  filterCartRemovingBook,
+  filterFavsRemovingBook,
   migrateIdList,
   mergeGuestAndCloudCart,
   mergeGuestAndCloudFavs,

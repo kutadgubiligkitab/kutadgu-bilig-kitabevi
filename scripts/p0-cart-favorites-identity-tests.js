@@ -196,6 +196,116 @@ test("badge count matches visible cart lines including unresolved ids",()=>{
   assert.ok(lines.every(line=>line.book==null));
 });
 
+const aliasMap={"102":"children-3","children-3":"102","103":"children-4","children-4":"103"};
+
+test("A polluted local children-3 qty99 + 102 qty1 collapses to safe qty not 100",()=>{
+  const out=Legacy.repairCapPollutedCartItems(
+    [{id:"children-3",qty:99},{id:"102",qty:1}],
+    resolve,
+    aliasMap
+  );
+  assert.deepStrictEqual(out,[{id:"102",qty:1}]);
+  assert.strictEqual(out.reduce((s,x)=>s+x.qty,0),1);
+});
+
+test("B polluted cloud children-3 qty99 + 102 qty1 repairs once and is idempotent",()=>{
+  const cloud=[{id:"children-3",qty:99},{id:"102",qty:1}];
+  const first=Legacy.repairCapPollutedCartItems(cloud,resolve,aliasMap);
+  const login=Legacy.repairCapPollutedCartItems(
+    [...first,...cloud],
+    resolve,
+    aliasMap
+  );
+  assert.deepStrictEqual(login,[{id:"102",qty:1}]);
+  const again=Legacy.repairCapPollutedCartItems(login,resolve,aliasMap);
+  assert.deepStrictEqual(again,[{id:"102",qty:1}]);
+});
+
+test("C favorites children-3 + 102 become one favorite",()=>{
+  const fav=Legacy.mergeGuestAndCloudFavs(["children-3"],["102"],resolve);
+  assert.deepStrictEqual(fav,["102"]);
+});
+
+test("D remove canonical item removes all aliases local+cloud leftover",()=>{
+  const local=[{id:"102",qty:1},{id:"79",qty:2}];
+  const cloud=[{id:"children-3",qty:99},{id:"79",qty:2}];
+  const afterLocal=Legacy.filterCartRemovingBook(local,"102",resolve,aliasMap);
+  const afterCloud=Legacy.filterCartRemovingBook(cloud,"children-3",resolve,aliasMap);
+  assert.deepStrictEqual(afterLocal,[{id:"79",qty:2}]);
+  assert.deepStrictEqual(afterCloud,[{id:"79",qty:2}]);
+  const leftoverMerge=Legacy.repairCapPollutedCartItems([...afterLocal,...afterCloud],resolve,aliasMap);
+  assert.deepStrictEqual(leftoverMerge,[{id:"79",qty:2}]);
+  const fav=Legacy.filterFavsRemovingBook(["102","children-3","79"],"102",resolve,aliasMap);
+  assert.deepStrictEqual(fav,["79"]);
+});
+
+test("E refresh x5 after repair does not resurrect aliases",()=>{
+  let cart=Legacy.repairCapPollutedCartItems([{id:"children-3",qty:99},{id:"102",qty:99}],resolve,aliasMap);
+  let fav=Legacy.migrateIdList(["children-3","102"],resolve);
+  for(let i=0;i<5;i++){
+    cart=Legacy.repairCapPollutedCartItems(cart,resolve,aliasMap);
+    fav=Legacy.migrateIdList(fav,resolve);
+  }
+  assert.deepStrictEqual(cart,[{id:"102",qty:1}]);
+  assert.deepStrictEqual(fav,["102"]);
+});
+
+test("F logout/login merge of repaired empty book does not return children-3",()=>{
+  const local=[];
+  const cloud=[];
+  const login=Legacy.mergeGuestAndCloudCart(local,cloud,resolve);
+  assert.deepStrictEqual(login,[]);
+});
+
+test("G two tabs do not multiply repaired qty",()=>{
+  const tabA=[{id:"102",qty:1}];
+  const tabB=[{id:"children-3",qty:1}];
+  const a=Legacy.repairCapPollutedCartItems([...tabA,...tabB],resolve,aliasMap);
+  const b=Legacy.repairCapPollutedCartItems([...a,...tabA],resolve,aliasMap);
+  assert.deepStrictEqual(b,[{id:"102",qty:1}]);
+});
+
+test("H children-3 and children-4 qty1 each → badge 2 not 198",()=>{
+  const cart=Legacy.repairCapPollutedCartItems(
+    [{id:"children-3",qty:1},{id:"children-4",qty:1}],
+    resolve,
+    aliasMap
+  );
+  assert.strictEqual(cart.length,2);
+  assert.deepStrictEqual(cart.map(x=>x.id).sort(),["102","103"]);
+  assert.strictEqual(cart.reduce((s,x)=>s+x.qty,0),2);
+  const polluted=Legacy.repairCapPollutedCartItems(
+    [{id:"children-3",qty:99},{id:"children-4",qty:99}],
+    resolve,
+    aliasMap
+  );
+  assert.strictEqual(polluted.reduce((s,x)=>s+x.qty,0),2);
+});
+
+test("I clean unrelated cart items are preserved",()=>{
+  const out=Legacy.repairCapPollutedCartItems(
+    [{id:"children-3",qty:99},{id:"102",qty:1},{id:"79",qty:4}],
+    resolve,
+    aliasMap
+  );
+  const extra=out.find(x=>x.id==="79");
+  assert.deepStrictEqual(extra,{id:"79",qty:4});
+});
+
+test("J clean legitimate qty >1 is preserved",()=>{
+  const out=Legacy.repairCapPollutedCartItems([{id:"79",qty:3},{id:"102",qty:5}],resolve,aliasMap);
+  assert.deepStrictEqual(out.find(x=>x.id==="79"),{id:"79",qty:3});
+  assert.deepStrictEqual(out.find(x=>x.id==="102"),{id:"102",qty:5});
+});
+
+test("solo dual-identity cap 99 repairs to 1 then stays 1",()=>{
+  const first=Legacy.repairCapPollutedCartItems([{id:"102",qty:99}],resolve,aliasMap);
+  assert.deepStrictEqual(first,[{id:"102",qty:1}]);
+  const second=Legacy.repairCapPollutedCartItems(first,resolve,aliasMap);
+  assert.deepStrictEqual(second,[{id:"102",qty:1}]);
+});
+
+
 if(failed){
   console.error("\n"+failed+" test(s) failed");
   process.exit(1);

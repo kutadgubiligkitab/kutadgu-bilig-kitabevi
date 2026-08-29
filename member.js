@@ -113,6 +113,55 @@ async function recordVisit(){
   const {error}=await db.rpc("record_member_visit",{page_path:page});
   if(!error)localStorage.setItem(key,String(now));
 }
+async function fetchCanonicalIdMap(ids=[]){
+  const helpers=window.KutadguLegacyIds;
+  const map=helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{};
+  const unique=[...new Set((ids||[]).map(id=>String(id||"").trim()).filter(Boolean))];
+  unique.forEach(id=>{
+    if(map[id])return;
+    if(helpers?.isCanonicalBookId?.(id))map[id]=id;
+  });
+  if(!db||!unique.length)return map;
+  const split=helpers?.splitLookupIds?helpers.splitLookupIds(unique):{numeric:unique.filter(id=>/^\d+$/.test(id)),legacy:unique.filter(id=>id&&!/^\d+$/.test(id))};
+  const queries=[];
+  if(split.numeric.length){
+    queries.push(db.from("books").select("id,legacy_id").in("id",split.numeric));
+  }
+  if(split.legacy.length){
+    queries.push(db.from("books").select("id,legacy_id").in("legacy_id",split.legacy));
+  }
+  if(!queries.length)return map;
+  try{
+    const results=await Promise.all(queries);
+    results.forEach(({data,error})=>{
+      if(error)throw error;
+      (data||[]).forEach(row=>{
+        const id=String(row.id||"").trim();
+        const legacy=String(row.legacy_id||"").trim();
+        if(helpers?.rememberRowAliases)Object.assign(map,helpers.rememberRowAliases(map,id,legacy));
+        else{
+          if(id)map[id]=id;
+          if(id&&legacy)map[legacy]=id;
+        }
+      });
+    });
+  }catch(err){
+    console.warn("Member book identity lookup failed",err);
+  }
+  try{localStorage.setItem("kutadgu-id-aliases-v1",JSON.stringify(map))}catch(e){}
+  return map;
+}
+function memberResolveId(id,idMap={}){
+  const raw=String(id||"");
+  const fromShop=window.kutadguShop?.find?.(raw);
+  if(fromShop?.id)return String(fromShop.id);
+  const helpers=window.KutadguLegacyIds;
+  if(helpers?.applyBookIdMap){
+    const mapped=helpers.applyBookIdMap(raw,idMap);
+    if(mapped)return mapped;
+  }
+  return idMap[raw]||raw;
+}
 async function replaceFavorites(values){
   if(!db||!user||blocked)return;
   const ids=[...new Set((Array.isArray(values)?values:[]).map(String).filter(Boolean))];
@@ -173,25 +222,28 @@ async function mergeShopState(){
       ...localFav,
       ...localCart.map(x=>x?.id)
     ].map(String).filter(Boolean);
+    const idMap=await fetchCanonicalIdMap(pendingIds);
     if(typeof window.kutadguShop?.hydrateBooksByIds==="function"){
       await window.kutadguShop.hydrateBooksByIds(pendingIds);
     }
 
-    const resolveId=id=>{
-      const book=window.kutadguShop?.find?.(id);
-      return book?.id||String(id||"");
-    };
+    const resolveId=id=>memberResolveId(id,idMap);
     const helpers=window.KutadguLegacyIds;
+    const aliases={...idMap,...(helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{})};
+
     const mergedFav=helpers?.mergeGuestAndCloudFavs
       ?helpers.mergeGuestAndCloudFavs(localFav,cloudFav,resolveId)
       :(helpers?.migrateIdList?helpers.migrateIdList([...localFav,...cloudFav].map(String).filter(Boolean),resolveId):[...new Set([...localFav,...cloudFav].map(String).filter(Boolean))]);
 
-    const mergedCart=helpers?.mergeGuestAndCloudCart
-      ?helpers.mergeGuestAndCloudCart(localCart,cloudCart,resolveId)
-      :(helpers?.migrateCartItems?helpers.migrateCartItems([
-        ...cloudCart.map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)})),
-        ...localCart.filter(x=>x?.id).map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)}))
-      ],resolveId):localCart);
+    const combinedCart=[
+      ...(Array.isArray(cloudCart)?cloudCart:[]),
+      ...(Array.isArray(localCart)?localCart:[])
+    ];
+    const mergedCart=helpers?.repairCapPollutedCartItems
+      ?helpers.repairCapPollutedCartItems(combinedCart,resolveId,aliases)
+      :(helpers?.mergeGuestAndCloudCart
+        ?helpers.mergeGuestAndCloudCart(localCart,cloudCart,resolveId)
+        :(helpers?.migrateCartItems?helpers.migrateCartItems(combinedCart,resolveId):localCart));
 
     const nextFavJson=JSON.stringify(mergedFav);
     const nextCartJson=JSON.stringify(mergedCart);
@@ -201,7 +253,9 @@ async function mergeShopState(){
     if(nextCartJson!==prevCartJson)localStorage.setItem(CART_KEY,nextCartJson);
 
     const cloudFavCanon=helpers?.migrateIdList?helpers.migrateIdList(cloudFav,resolveId):cloudFav.map(String);
-    const cloudCartCanon=helpers?.migrateCartItems?helpers.migrateCartItems(cloudCart,resolveId):cloudCart;
+    const cloudCartCanon=helpers?.repairCapPollutedCartItems
+      ?helpers.repairCapPollutedCartItems(cloudCart,resolveId,aliases)
+      :(helpers?.migrateCartItems?helpers.migrateCartItems(cloudCart,resolveId):cloudCart);
     const cloudChanged=JSON.stringify(cloudFavCanon)!==nextFavJson||JSON.stringify(cloudCartCanon)!==nextCartJson;
     if(cloudChanged||nextFavJson!==prevFavJson||nextCartJson!==prevCartJson){
       await replaceFavorites(mergedFav);
@@ -217,13 +271,14 @@ const syncTimers=new Map();
 function syncKey(key,value){
   if(!user||blocked||![CART_KEY,FAV_KEY].includes(key))return;
   clearTimeout(syncTimers.get(key));
-  syncTimers.set(key,setTimeout(async()=>{
+  const run=async()=>{
     try{
       if(key===FAV_KEY)await replaceFavorites(value);
       if(key===CART_KEY)await replaceCart(value);
     }catch(err){console.warn("Member state save failed",err)}
     finally{syncTimers.delete(key)}
-  },250));
+  };
+  syncTimers.set(key,setTimeout(run,0));
 }
 async function applySession(session,{trackLogin=false,sync=false}={}){
   user=session?.user||null;profile=null;blocked=false;
