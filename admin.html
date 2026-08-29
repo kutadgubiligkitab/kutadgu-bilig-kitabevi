@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=9">
+  <link rel="stylesheet" href="admin.css?v=10">
 </head>
 <body>
 <div class="admin-shell">
@@ -135,16 +135,25 @@
             <button class="admin-secondary" id="reloadAnalytics" type="button">↻ يېڭىلاش</button>
           </div>
         </div>
-        <p class="admin-help">زىيارەت، كىتاب كۆرۈش، سېۋەتكە قوشۇش، WhatsApp زاكاز چېكىش ۋە نەتىجىسىز ئىزدەش سانى. شەخسىي خېرىدار ئۇچۇرى ساقلانمايدۇ.</p>
+        <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp زاكاز چېكىش (مەقسەت، سېتىش ئەمەس). نەتىجىسىز ئىزدەش كىتاب تېپىلمىغان سۈرۈشتۈرۈشلەرنى كۆرسىتىدۇ. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
         <div class="admin-stats admin-analytics-stats">
-          <div class="admin-stat"><strong id="analyticsPageViews">0</strong><span>بەت زىيارىتى</span></div>
           <div class="admin-stat"><strong id="analyticsBookViews">0</strong><span>كىتاب كۆرۈش</span></div>
           <div class="admin-stat"><strong id="analyticsCartAdds">0</strong><span>سېۋەتكە قوشۇش</span></div>
           <div class="admin-stat"><strong id="analyticsWhatsapp">0</strong><span>WhatsApp زاكاز چېكىش</span></div>
+          <div class="admin-stat"><strong id="analyticsZeroSearchesCount">0</strong><span>نەتىجىسىز ئىزدەش</span></div>
+        </div>
+        <p class="admin-help admin-analytics-sub">بەت زىيارىتى: <strong id="analyticsPageViews">0</strong> — ھەر بەت ئېچىلىشى؛ سېتىش ئەمەس.</p>
+        <div class="admin-analytics-funnel" id="analyticsFunnel" aria-label="ئىشلىتىش يولى">
+          <h3>يوسۇن (Views → سېۋەت → WhatsApp چېكىش)</h3>
+          <div class="admin-analytics-funnel-steps" id="analyticsFunnelSteps"></div>
+          <p class="admin-help">WhatsApp چېكىش = زاكاز مەقسىتى. تاماملانغان سېتىش ئەمەس.</p>
         </div>
         <div class="admin-analytics-grid">
           <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🔎 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><div id="analyticsTopSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🚫 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
         </div>
       </section>
 
@@ -284,6 +293,7 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="catalog-bibliography.js?v=1"></script>
-<script defer src="admin.js?v=22"></script>
+<script defer src="kutadgu-analytics-core.js?v=1"></script>
+<script defer src="admin.js?v=23"></script>
 </body>
 </html>

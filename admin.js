@@ -1157,24 +1157,51 @@ async function applyBulk(){
 
 async function loadAnalytics(){
   const hostTop=$("#analyticsTopBooks"),hostZero=$("#analyticsZeroSearches");
+  const hostCart=$("#analyticsTopCart"),hostWa=$("#analyticsTopWhatsapp"),hostSearch=$("#analyticsTopSearches");
   if(!db||!hostTop||!hostZero)return;
   const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  hostTop.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-  hostZero.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+  const loading='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+  [hostTop,hostZero,hostCart,hostWa,hostSearch].forEach(el=>{if(el)el.innerHTML=loading});
   const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
   if(error){
-    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>STAGE4_ANALYTICS_RPC_FIX.sql نى Supabase SQL Editor دا بىر قېتىم Run قىلىڭ.';
-    hostTop.innerHTML=`<div class="admin-empty">${msg}</div>`;hostZero.innerHTML=`<div class="admin-empty">${msg}</div>`;return;
+    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>STAGE8_STORE_ANALYTICS.sql نى Supabase SQL Editor دا بىر قېتىم Run قىلىڭ (ئالدىن STAGE4_ANALYTICS_RPC_FIX.sql).';
+    [hostTop,hostZero,hostCart,hostWa,hostSearch].forEach(el=>{if(el)el.innerHTML=`<div class="admin-empty">${msg}</div>`});
+    return;
   }
   const summary=data||{};
+  const Core=window.KutadguAnalyticsCore;
+  const funnel=summary.funnel&&typeof summary.funnel==="object"
+    ?summary.funnel
+    :(Core&&Core.funnelFromCounts?Core.funnelFromCounts(summary):{
+      views:Number(summary.book_views||0),
+      cart_adds:Number(summary.cart_adds||0),
+      whatsapp_clicks:Number(summary.whatsapp_clicks||0)
+    });
   $("#analyticsPageViews").textContent=Number(summary.page_views||0).toLocaleString("tr-TR");
   $("#analyticsBookViews").textContent=Number(summary.book_views||0).toLocaleString("tr-TR");
   $("#analyticsCartAdds").textContent=Number(summary.cart_adds||0).toLocaleString("tr-TR");
   $("#analyticsWhatsapp").textContent=Number(summary.whatsapp_clicks||0).toLocaleString("tr-TR");
+  const zeroEl=$("#analyticsZeroSearchesCount");
+  if(zeroEl)zeroEl.textContent=Number(summary.zero_result_searches||0).toLocaleString("tr-TR");
+  const fmtPct=value=>{
+    if(value===null||value===undefined||value==="")return "";
+    return ` · ${Number(value).toLocaleString("tr-TR")}%`;
+  };
+  const funnelHost=$("#analyticsFunnelSteps");
+  if(funnelHost){
+    funnelHost.innerHTML=`
+      <div class="admin-analytics-funnel-step"><span>1. كىتاب كۆرۈش</span><strong>${Number(funnel.views||0).toLocaleString("tr-TR")}</strong></div>
+      <div class="admin-analytics-funnel-step"><span>2. سېۋەتكە قوشۇش${fmtPct(funnel.view_to_cart_pct)}</span><strong>${Number(funnel.cart_adds||0).toLocaleString("tr-TR")}</strong></div>
+      <div class="admin-analytics-funnel-step"><span>3. WhatsApp زاكاز چېكىش (مەقسەت)${fmtPct(funnel.view_to_whatsapp_pct)}${funnel.cart_to_whatsapp_pct!=null?` · سېۋەتتىن ${Number(funnel.cart_to_whatsapp_pct).toLocaleString("tr-TR")}%`:""}</span><strong>${Number(funnel.whatsapp_clicks||0).toLocaleString("tr-TR")}</strong></div>`;
+  }
+  const list=(rows,countKey,emptyText)=>rows.length?rows.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.query||row.book_id||"—")}</span><strong>${Number(row[countKey]||row.views||row.adds||row.clicks||row.searches||0)}</strong></div>`).join(""):`<div class="admin-empty">${emptyText}</div>`;
   const top=Array.isArray(summary.top_books)?summary.top_books:[];
-  hostTop.innerHTML=top.length?top.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.book_id||'—')}</span><strong>${Number(row.views||0)}</strong></div>`).join(''):'<div class="admin-empty">بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.</div>';
+  hostTop.innerHTML=list(top,"views","بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.");
+  if(hostCart)hostCart.innerHTML=list(Array.isArray(summary.top_cart_books)?summary.top_cart_books:[],"adds","سېۋەتكە قوشۇش سانلىق مەلۇماتى يوق.");
+  if(hostWa)hostWa.innerHTML=list(Array.isArray(summary.top_whatsapp_books)?summary.top_whatsapp_books:[],"clicks","WhatsApp چېكىش سانلىق مەلۇماتى يوق.");
+  if(hostSearch)hostSearch.innerHTML=list(Array.isArray(summary.top_searches)?summary.top_searches:[],"searches","ئىزدەش سانلىق مەلۇماتى يوق.");
   const zeros=Array.isArray(summary.zero_searches)?summary.zero_searches:[];
-  hostZero.innerHTML=zeros.length?zeros.map(row=>`<div class="admin-analytics-row"><span>${esc(row.query||'—')}</span><strong>${Number(row.searches||0)}</strong></div>`).join(''):'<div class="admin-empty">نەتىجىسىز ئىزدەش يوق.</div>';
+  hostZero.innerHTML=list(zeros,"searches","نەتىجىسىز ئىزدەش يوق.");
 }
 
 async function requestPasswordReset(){

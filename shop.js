@@ -200,7 +200,27 @@ function canonicalId(id){
 }
 const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
-const trackEvent=(name,data={})=>window.KutadguAnalytics?.track?.(name,data);
+const trackEvent=(name,data={})=>{try{window.KutadguAnalytics?.track?.(name,data)}catch(err){}};
+const trackedBookViews=new Set();
+function trackBookViewOnce(book){
+  try{
+    if(!book)return;
+    const id=String(book.id||"").trim();
+    const canonical=/^\d+$/.test(id)?id:(window.KutadguLegacyIds?.isCanonicalBookId?.(id)?id:"");
+    if(!canonical)return;
+    if(trackedBookViews.has(canonical))return;
+    trackedBookViews.add(canonical);
+    trackEvent("book_view",{bookId:canonical,legacyId:book.legacyId||"",category:book.category||""});
+  }catch(err){}
+}
+function trackSearchQuery(query,resultCount){
+  try{
+    const events=window.KutadguAnalyticsCore?.searchEvents
+      ?window.KutadguAnalyticsCore.searchEvents(query,resultCount)
+      :(String(query||"").trim()?[{name:"search",data:{query:String(query).trim().slice(0,80),results:Number(resultCount)||0}}]:[]);
+    events.forEach(ev=>trackEvent(ev.name,ev.data));
+  }catch(err){}
+}
 
 function supabasePublicConfig(){
   const c=window.KUTADGU_SUPABASE_CONFIG||{};
@@ -554,7 +574,7 @@ function add(id,qty=1){
   let a=cart(),x=a.find(i=>canonicalId(i.id)===storeId||canonicalId(i.id)===canonicalId(storeId)),next=sanitizeQty((x?.qty||0)+Math.max(1,sanitizeQty(qty)));
   if(Number.isFinite(stock.qty))next=Math.min(next,stock.qty);
   if(x){x.id=storeId;x.qty=next}else a.push({id:storeId,qty:next});
-  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:storeId,qty:Math.max(1,Number(qty)||1)})}
+  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:storeId,legacyId:b.legacyId||"",qty:Math.max(1,Number(qty)||1)})}
 }
 function remove(id){
   const resolve=resolveStoredBookId;
@@ -584,7 +604,7 @@ function toggleFav(id){
   }
   else if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   else{a.push(storeId);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}
-  if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:storeId})}
+  if(set(FAV_KEY,a)){renderFavButtons();trackEvent(added?"add_to_favorite":"remove_from_favorite",{bookId:storeId,legacyId:b.legacyId||""})}
 }
 function recent(id){
   const b=find(id);if(!b)return;
@@ -1054,7 +1074,7 @@ function decorateDetail(){
   updateBookSeo(b);
   renderBookGallery(b);
   if(isStorefrontVisible(b))recent(b.id);
-  trackEvent("book_view",{bookId:b.id,category:b.category||""});
+  trackBookViewOnce(b);
 
   let box=document.querySelector(".book-detail-info");
   if(!box)return;
@@ -1442,7 +1462,7 @@ function searchEnhance(){
       const result=await queryCatalog(state,{signal:controller.signal});
       if(token!==requestId)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
-      trackEvent("search",{query:state.search,category:state.category,results:result.total});
+      if(!append)trackSearchQuery(state.search,result.total);
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Catalog search failed.",error);
@@ -1514,7 +1534,10 @@ function setupCatalogFilters(){
     empty.hidden=result.total!==0;
     grid.hidden=result.total===0;
     controls.hidden=result.total===0;
-    trackEvent("filter_apply",{source,results:result.total,rendered:items.length});
+    if(!append){
+      trackEvent("filter_apply",{source,results:result.total,rendered:items.length});
+      trackSearchQuery(text.value,result.total);
+    }
   }
   async function apply(append=false){
     if(loadingMore)return;
@@ -2040,7 +2063,8 @@ function renderContactSection(){
 
 async function orderWithWhatsApp(){
   let o=getOrBuildOrder(true);if(!o)return;
-  trackEvent("whatsapp_order_click",{orderId:o.orderId||o.id||"",items:o.items?.length||cart().length,total:o.total||0});
+  const bookIds=[...new Set(cart().map(line=>canonicalId(line.id)).filter(id=>id&&/^\d+$/.test(String(id))))];
+  trackEvent("whatsapp_order_click",{bookId:bookIds[0]||"",bookIds,items:bookIds.length||o.items?.length||cart().length,total:o.total||0});
   const url=whatsappOrderUrl(o.text);
   const popup=window.open(url,"_blank");
   if(popup)popup.opener=null;
