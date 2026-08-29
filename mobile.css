@@ -324,6 +324,18 @@
     font: 18px/1 Arial, sans-serif !important;
   }
 
+  .mobile-bottom-nav a[href="account.html"] .mobile-bottom-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--site-brown, #70503d);
+    color: #fff;
+    font-size: 13px !important;
+  }
+
   .mobile-bottom-nav .cart-count {
     position: absolute;
     inset-block-start: 1px;

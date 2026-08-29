@@ -181,6 +181,15 @@
   header nav a[href="cart.html"] .cart-count{
     margin-inline-start:4px;
   }
+  header nav a[href="account.html"]{
+    height:36px;
+    min-height:36px;
+    padding:0 12px;
+    border-radius:999px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.14);
+    color:#fff !important;
+  }
 }
 @media(max-width:768px){
   .kutadgu-desktop-shop-links,
