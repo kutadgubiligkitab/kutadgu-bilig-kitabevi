@@ -402,8 +402,13 @@ async function loadStats(){
     if(!active.error)$("#statActive").textContent=active.count??0;
     if(!rec.error)$("#statRecommended").textContent=rec.count??0;
     if(presentBookCols.has("stock")){
-      const stockRes=await db.from("books").select("stock").range(0,9999);
-      if(!stockRes.error)$("#statStock").textContent=(stockRes.data||[]).reduce((s,b)=>s+(Number(b.stock)||0),0);
+      const scale=window.KutadguAdminImportScale;
+      if(scale&&typeof scale.fetchStockSumRpc==="function"){
+        const sum=await scale.fetchStockSumRpc(db);
+        $("#statStock").textContent=sum.ok?String(sum.total):"—";
+      }else{
+        $("#statStock").textContent="—";
+      }
     }
     const note=$("#adminCatalogNote");
     if(note){
@@ -1298,28 +1303,16 @@ function titleAuthorKey(title,author){
 }
 
 async function loadExistingForImport(mapped){
-  const existingIsbn=new Map();
-  const existingTitle=new Map();
-  const existingLegacy=new Map();
-  const addIsbn=(b)=>{
-    const key=normalizeIsbn(b.isbn);
-    if(!key)return;
-    const list=existingIsbn.get(key)||[];
-    if(!list.some(x=>x.id===b.id))list.push(b);
-    existingIsbn.set(key,list);
-  };
-  const cols=["id","title","author"];
-  if(isbnColumn)cols.push("isbn");
-  if(presentBookCols.has("legacy_id"))cols.push("legacy_id");
-  const {data:allTitles,error}=await db.from("books").select(cols.join(",")).range(0,9999);
-  if(error)throw error;
-  (allTitles||[]).forEach(b=>{
-    addIsbn(b);
-    existingTitle.set(titleAuthorKey(b.title,b.author),b);
-    const legacy=String(b.legacy_id||"").trim();
-    if(legacy)existingLegacy.set(legacy,b);
+  const scale=window.KutadguAdminImportScale;
+  if(!scale||typeof scale.loadExistingForImport!=="function"){
+    throw new Error("admin-import-scale.js missing");
+  }
+  return scale.loadExistingForImport(db,mapped,{
+    isbnColumn,
+    hasLegacy:presentBookCols.has("legacy_id"),
+    normalizeIsbn,
+    titleAuthorKey
   });
-  return {existingIsbn,existingTitle,existingLegacy};
 }
 
 async function buildImportPreview(file){
@@ -1639,6 +1632,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport
 };
 })();
