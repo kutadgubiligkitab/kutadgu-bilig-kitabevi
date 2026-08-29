@@ -6,3 +6,5 @@ blob-report/
 .env
 .env.*
 !.env.example
+backups/local/
+*.dump

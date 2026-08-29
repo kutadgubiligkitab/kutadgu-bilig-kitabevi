@@ -28,6 +28,8 @@ Logo، font ۋە كىتاب مۇقاۋا filename/path لىرى database ۋە st
 
 Project root نى GitHub قا يۈكلەڭ؛ Vercel `index.html` نى production entry قىلىدۇ. `vercel.json` static asset cache header لىرىنى باشقۇرىدۇ.
 
+**Vercel rollback does not roll back Supabase.** Recovery playbook: `STAGE11_RECOVERY.md`. Emergency one-pager: `docs/EMERGENCY.md`.
+
 ## Maintenance safety
 
 - Search/category/filter/pagination query لىرى `shop.js` تا server-side Supabase REST ئارقىلىق ئىجرا بولىدۇ.
