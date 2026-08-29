@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 
 Disallow: /admin.html
+Disallow: /admin-quality-preview.html
 Disallow: /account.html
 Disallow: /reset-password.html
 Disallow: /cart.html

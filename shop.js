@@ -807,32 +807,33 @@ function setHeadMeta(selector,attributes){
 }
 
 function siteOrigin(){
-  return String(window.KUTADGU_SITE_ORIGIN||"").replace(/\/+$/,"")||location.origin;
+  if(window.KutadguBookSeo&&window.KutadguBookSeo.productionOrigin)return window.KutadguBookSeo.productionOrigin();
+  return "https://kutadgu-bilig-kitab.vercel.app";
 }
 
 function absoluteUrl(value){
-  try{return new URL(value||location.href,siteOrigin()+"/").href}catch(e){return location.href}
+  try{return new URL(value||"/",siteOrigin()+"/").href}catch(e){return siteOrigin()+"/"}
 }
 
 /* Detail SEO is generated only from known book data; missing facts stay omitted. */
 function updateBookSeo(book){
+  const Seo=window.KutadguBookSeo||{};
   const origin=siteOrigin();
-  const path=book.href||`book.html?id=${encodeURIComponent(book.id||"")}`;
-  const canonical=absoluteUrl(path);
+  const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}/book.html?id=${encodeURIComponent(String(book.id||"").trim())}`;
   const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
   const authorName=storefrontAuthor(book);
-  const hasAuthor=!!authorName;
-  const description=book.description||`${book.title}${hasAuthor?` — ${authorName}`:""}. قۇتادغۇبىلىك كىتابخانىسى.`;
+  const description=Seo.metaDescription?Seo.metaDescription(book):(String(book.description||"").trim()||`${book.title} — قۇتادغۇبىلىك كىتابخانىسى`);
   const image=isStorefrontVisible(book)&&book.image?absoluteUrl(book.image):"";
+  const indexable=isStorefrontVisible(book)&&/^\d+$/.test(String(book.id||"").trim());
   document.title=title;
-  setHeadMeta('meta[name="description"]',{name:"description",content:description});
-  setHeadMeta('meta[name="robots"]',{name:"robots",content:isStorefrontVisible(book)?"index, follow":"noindex, follow"});
+  if(description)setHeadMeta('meta[name="description"]',{name:"description",content:description});
+  setHeadMeta('meta[name="robots"]',{name:"robots",content:indexable?"index, follow":"noindex, follow"});
   setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:canonical});
   setHeadMeta('meta[property="og:site_name"]',{property:"og:site_name",content:"قۇتادغۇبىلىك كىتابخانىسى"});
   setHeadMeta('meta[property="og:locale"]',{property:"og:locale",content:"ug"});
   setHeadMeta('meta[property="og:type"]',{property:"og:type",content:"book"});
   setHeadMeta('meta[property="og:title"]',{property:"og:title",content:book.title});
-  setHeadMeta('meta[property="og:description"]',{property:"og:description",content:description});
+  if(description)setHeadMeta('meta[property="og:description"]',{property:"og:description",content:description});
   setHeadMeta('meta[property="og:url"]',{property:"og:url",content:canonical});
   if(image){
     setHeadMeta('meta[property="og:image"]',{property:"og:image",content:image});
@@ -840,39 +841,15 @@ function updateBookSeo(book){
   }
   setHeadMeta('meta[name="twitter:card"]',{name:"twitter:card",content:image?"summary_large_image":"summary"});
   setHeadMeta('meta[name="twitter:title"]',{name:"twitter:title",content:book.title});
-  setHeadMeta('meta[name="twitter:description"]',{name:"twitter:description",content:description});
+  if(description)setHeadMeta('meta[name="twitter:description"]',{name:"twitter:description",content:description});
   if(image)setHeadMeta('meta[name="twitter:image"]',{name:"twitter:image",content:image});
 
   let schema=document.head.querySelector("#kutadguBookSchema");
   if(!schema){schema=document.createElement("script");schema.id="kutadguBookSchema";schema.type="application/ld+json";document.head.appendChild(schema)}
-  const data={"@type":"Book",name:book.title,url:canonical};
-  if(hasAuthor)data.author={"@type":"Person",name:authorName};
-  if(image)data.image=image;
-  if(book.description)data.description=book.description;
-  if(book.publisher)data.publisher={"@type":"Organization",name:book.publisher};
-  if(book.language)data.inLanguage=book.language;
-  if(isStorefrontVisible(book)&&book.price!==null&&book.price!==undefined&&book.price!==""){
-    const price=Number(book.price);
-    if(Number.isFinite(price)){
-      const offer={"@type":"Offer",price,priceCurrency:"TRY",url:canonical};
-      const stock=stockInfo(book);
-      if(stock.key==="out")offer.availability="https://schema.org/OutOfStock";
-      else if(stock.key==="in"||stock.key==="low")offer.availability="https://schema.org/InStock";
-      data.offers=offer;
-    }
-  }
-  const graph=[data];
-  if(book.category){
-    graph.push({
-      "@type":"BreadcrumbList",
-      itemListElement:[
-        {"@type":"ListItem",position:1,name:"قۇتادغۇبىلىك كىتابخانىسى",item:origin+"/"},
-        {"@type":"ListItem",position:2,name:book.category,item:absoluteUrl(book.source||"index.html")},
-        {"@type":"ListItem",position:3,name:book.title,item:canonical}
-      ]
-    });
-  }
-  schema.textContent=JSON.stringify({"@context":"https://schema.org","@graph":graph}).replace(/</g,"\\u003c");
+  const payload=Seo.buildBookJsonLd
+    ?Seo.buildBookJsonLd(book,{origin,canonical,authorName,image,visible:isStorefrontVisible(book),stockKey:stockInfo(book).key})
+    :{"@context":"https://schema.org","@graph":[{"@type":"Book",name:book.title,url:canonical}]};
+  schema.textContent=JSON.stringify(payload).replace(/</g,"\\u003c");
 }
 
 function populateDynamicBookPage(b){
