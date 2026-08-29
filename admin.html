@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=11">
+  <link rel="stylesheet" href="admin.css?v=13">
 </head>
 <body>
 <div class="admin-shell">
@@ -119,6 +119,26 @@
         <div id="adminPager" class="admin-pager"></div>
       </section>
 
+      <section class="admin-card" id="coverRepairCard">
+        <h2>🖼 مۇقاۋا رېمونت / قايتا باغلاش</h2>
+        <p class="admin-help">توپلام كىرگۈزۈشتە مۇقاۋا يۈكلەنمىگەن كىتابقا پەقەت رەسىم باغلايدۇ. باشقا مەيدانلار (نام، باھا، sales_count قاتارلىق) ئۆزگەرمەيدۇ. پەقەت كىتاب ID ياكى بىر ISBN؛ ئىسىم بىلەن پەرەز قىلىنمايدۇ. جەزملەشتۈرمىگۈچە يېزىلمايدۇ.</p>
+        <div class="admin-form">
+          <label class="admin-wide"><span>كىتاب ID ياكى ISBN</span><input id="coverRepairLookup" dir="ltr" autocomplete="off" placeholder="مەسىلەن 102 ياكى 978..."></label>
+          <label class="admin-wide"><span>يېڭى مۇقاۋا رەسىمى</span><input id="coverRepairFile" type="file" accept="image/*"></label>
+        </div>
+        <div class="admin-toolbar-group" style="margin-top:12px">
+          <button class="admin-secondary" id="coverRepairPreviewBtn" type="button">كىتابنى تەكشۈرۈش</button>
+          <button class="admin-primary" id="coverRepairConfirmBtn" type="button" disabled>مۇقاۋىنى جەزملەش</button>
+        </div>
+        <div id="coverRepairStatus" class="admin-status">ID ياكى ISBN كىرگۈزۈپ تەكشۈرۈڭ.</div>
+        <div id="coverRepairPreview" class="admin-cover-repair-preview" hidden>
+          <img id="coverRepairThumb" alt="" width="86" height="115">
+          <div>
+            <div class="admin-book-title" id="coverRepairTitle"></div>
+            <div class="admin-book-meta" id="coverRepairMeta"></div>
+          </div>
+        </div>
+      </section>
 
       <section class="admin-card" id="analyticsManagement">
         <div class="admin-toolbar">
@@ -300,6 +320,7 @@
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
-<script defer src="admin.js?v=25"></script>
+<script defer src="admin-cover-repair.js?v=2"></script>
+<script defer src="admin.js?v=27"></script>
 </body>
 </html>
