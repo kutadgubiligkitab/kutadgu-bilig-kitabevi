@@ -94,6 +94,55 @@ function shopStateSignature(cartItems=[],favIds=[]){
   return `c=${cart}|f=${fav}`;
 }
 
+function rememberBookAliases(book,aliasMap={}){
+  const next={...(aliasMap&&typeof aliasMap==="object"&&!Array.isArray(aliasMap)?aliasMap:{})};
+  const id=String(book?.id||"").trim();
+  const legacy=String(book?.legacyId||book?.legacy_id||"").trim();
+  if(id&&legacy&&id!==legacy){
+    next[id]=legacy;
+    next[legacy]=id;
+  }
+  return next;
+}
+
+function lookupBook(id,indexes={},seen){
+  const key=String(id||"").trim();
+  if(!key)return null;
+  const visited=seen||new Set();
+  if(visited.has(key))return null;
+  visited.add(key);
+  const fromMap=map=>{
+    if(!map)return null;
+    if(typeof map.get==="function")return map.get(key)||null;
+    if(!Array.isArray(map)&&typeof map==="object")return map[key]||null;
+    return null;
+  };
+  const fromList=list=>(Array.isArray(list)?list:[]).find(book=>String(book?.id||"")===key||String(book?.legacyId||book?.legacy_id||"")===key)||null;
+  const direct=fromMap(indexes.cache)||fromMap(indexes.fallback)||fromList(indexes.staticBooks);
+  if(direct)return direct;
+  const alias=indexes.aliases?String(indexes.aliases[key]||"").trim():"";
+  if(!alias||alias===key)return null;
+  return lookupBook(alias,{cache:indexes.cache,fallback:indexes.fallback,staticBooks:indexes.staticBooks,aliases:indexes.aliases},visited);
+}
+
+function visibleCartLines(items=[],lookup=id=>null){
+  const resolve=id=>{
+    const book=lookup(id);
+    return book&&book.id?String(book.id):String(id||"");
+  };
+  return migrateCartItems(items,resolve).map(item=>{
+    const book=lookup(item.id)||lookup(item.id);
+    return {id:book&&book.id?String(book.id):String(item.id),qty:item.qty,book:book||null};
+  });
+}
+
+function cartHasBook(items=[],bookId="",lookup=id=>null){
+  const book=lookup(bookId);
+  const want=String(book&&book.id?book.id:bookId||"");
+  if(!want)return false;
+  return visibleCartLines(items,lookup).some(line=>String(line.id)===want);
+}
+
 function migrateIdList(ids=[],resolveId=id=>id,{limit=null}={}){
   const out=[];
   const seen=new Set();
@@ -136,6 +185,10 @@ const api={
   migrateIdList,
   mergeGuestAndCloudCart,
   mergeGuestAndCloudFavs,
+  rememberBookAliases,
+  lookupBook,
+  visibleCartLines,
+  cartHasBook,
   shopStateSignature,
   activationGuard,
   remoteAvailableFromActiveCount

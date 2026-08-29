@@ -153,6 +153,49 @@ test("repeated migrateCartItems is idempotent",()=>{
   assert.deepStrictEqual(second,third);
 });
 
+test("A/H empty cart: zero lines and cartHas is false",()=>{
+  const lookup=id=>Legacy.lookupBook(id,{staticBooks:[{id:"children-3",title:"c3"}]});
+  assert.deepStrictEqual(Legacy.visibleCartLines([],lookup),[]);
+  assert.strictEqual(Legacy.cartHasBook([],"children-3",lookup),false);
+  assert.strictEqual(Legacy.cartHasBook([],"102",lookup),false);
+});
+
+test("B/G bigint cart row stays visible via alias when live cache was cleared",()=>{
+  const staticBooks=[{id:"children-3",title:"بالىلار كىتابى 3"},{id:"children-4",title:"بالىلار كىتابى 4"}];
+  const aliases=Legacy.rememberBookAliases({id:"102",legacyId:"children-3"},{});
+  Object.assign(aliases,Legacy.rememberBookAliases({id:"103",legacyId:"children-4"},aliases));
+  const lookup=id=>Legacy.lookupBook(id,{staticBooks,aliases});
+  const lines=Legacy.visibleCartLines([{id:"102",qty:1}],lookup);
+  assert.strictEqual(lines.length,1);
+  assert.strictEqual(lines[0].qty,1);
+  assert.ok(lines[0].book);
+  assert.strictEqual(lines[0].book.title,"بالىلار كىتابى 3");
+  assert.strictEqual(Legacy.cartHasBook([{id:"102",qty:1}],"children-3",lookup),true);
+  assert.strictEqual(Legacy.cartHasBook([{id:"102",qty:1}],"children-4",lookup),false);
+});
+
+test("D both children-3 and children-4 resolve identically as slug or bigint",()=>{
+  const remote3={id:"102",legacyId:"children-3",title:"c3"};
+  const remote4={id:"103",legacyId:"children-4",title:"c4"};
+  const cache=new Map([["102",remote3],["children-3",remote3],["103",remote4],["children-4",remote4]]);
+  const lookup=id=>Legacy.lookupBook(id,{cache});
+  assert.strictEqual(lookup("children-3").id,lookup("102").id);
+  assert.strictEqual(lookup("children-4").id,lookup("103").id);
+  const lines=Legacy.visibleCartLines([{id:"children-3",qty:1},{id:"103",qty:1}],lookup);
+  assert.strictEqual(lines.length,2);
+  assert.deepStrictEqual(lines.map(x=>x.id).sort(),["102","103"]);
+  assert.strictEqual(Legacy.cartHasBook(lines,"102",lookup),true);
+  assert.strictEqual(Legacy.cartHasBook(lines,"children-4",lookup),true);
+});
+
+test("badge count matches visible cart lines including unresolved ids",()=>{
+  const lookup=()=>null;
+  const lines=Legacy.visibleCartLines([{id:"102",qty:1},{id:"103",qty:1}],lookup);
+  assert.strictEqual(lines.length,2);
+  assert.strictEqual(lines.reduce((s,x)=>s+x.qty,0),2);
+  assert.ok(lines.every(line=>line.book==null));
+});
+
 if(failed){
   console.error("\n"+failed+" test(s) failed");
   process.exit(1);
