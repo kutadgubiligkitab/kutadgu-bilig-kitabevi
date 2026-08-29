@@ -61,7 +61,7 @@ function emit(name="kutadgu-member-change"){
 function ensureStyle(){
   if(document.querySelector('link[data-kutadgu-member-style]'))return;
   const link=document.createElement("link");
-  link.rel="stylesheet";link.href="member.css?v=1";link.dataset.kutadguMemberStyle="1";
+  link.rel="stylesheet";link.href="member.css?v=2";link.dataset.kutadguMemberStyle="1";
   document.head.appendChild(link);
 }
 function loadSdk(){

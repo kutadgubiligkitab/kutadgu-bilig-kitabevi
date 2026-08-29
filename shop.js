@@ -569,7 +569,66 @@ function recent(id){
   set(REC_KEY,a.slice(0,12));
 }
 function toast(msg){let t=document.querySelector(".shop-toast");if(!t){t=document.createElement("div");t.className="shop-toast";t.style.cssText="position:fixed;right:18px;bottom:18px;z-index:10000;background:#4b3327;color:#fff;padding:12px 18px;border-radius:9px;box-shadow:0 8px 25px rgba(0,0,0,.2);font-family:inherit;transition:opacity .2s";document.body.appendChild(t)}t.textContent=msg;t.style.opacity="1";clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.opacity="0",1800)}
-function injectFloat(){if(document.querySelector(".shop-floating"))return;let d=document.createElement("div");d.className="shop-floating";d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;document.body.appendChild(d);updateBadge()}
+function isDesktopShopViewport(){
+  return window.matchMedia("(min-width: 769px)").matches;
+}
+function ensureCartCount(link){
+  if(!link||link.querySelector(".cart-count"))return link;
+  const span=document.createElement("span");
+  span.className="cart-count";
+  span.textContent="0";
+  link.appendChild(span);
+  return link;
+}
+function ensureDesktopShopNav(){
+  if(!isDesktopShopViewport()){
+    document.documentElement.classList.remove("kutadgu-desktop-header-shop");
+    return;
+  }
+  const headerNav=document.querySelector("header nav");
+  const altHost=document.querySelector(".detail-topbar, .cart-page-top");
+  let host=headerNav;
+  if(!host&&altHost){
+    host=altHost.querySelector(".kutadgu-desktop-shop-links");
+    if(!host){
+      host=document.createElement("nav");
+      host.className="kutadgu-desktop-shop-links";
+      host.setAttribute("aria-label","سېۋەت ۋە ھېساب");
+      altHost.appendChild(host);
+    }
+  }
+  if(!host){
+    document.documentElement.classList.remove("kutadgu-desktop-header-shop");
+    return;
+  }
+  const scoped=selector=>[...host.querySelectorAll(selector),...document.querySelectorAll(`header nav ${selector}, .detail-topbar ${selector}, .cart-page-top ${selector}`)][0];
+  const add=(href,label)=>{
+    let link=scoped(`a[href="${href}"]`);
+    if(!link){
+      link=document.createElement("a");
+      link.href=href;
+      link.textContent=label;
+      if(!headerNav)link.dataset.kutadguDesktopShop="1";
+      host.appendChild(link);
+    }
+    if(href==="cart.html")ensureCartCount(link);
+    return link;
+  };
+  add("account.html","👤 ھېسابىم");
+  add("cart.html","🛒 سېۋەت");
+  add("favorites.html","❤️");
+  document.documentElement.classList.add("kutadgu-desktop-header-shop");
+}
+function injectFloat(){
+  if(!document.querySelector(".shop-floating")){
+    let d=document.createElement("div");
+    d.className="shop-floating";
+    d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;
+    document.body.appendChild(d);
+  }
+  ensureDesktopShopNav();
+  updateBadge();
+}
 function cardIdentityKeys(card){
   const keys=new Set();
   const add=value=>{const v=String(value||"").trim();if(v)keys.add(v)};
@@ -683,7 +742,7 @@ function decorateCards(){
     let detail=info.querySelector(".detail-button");
     let wrap=document.createElement("div");
     wrap.className="book-actions";
-    wrap.innerHTML=`${detail?detail.outerHTML:""}${cartButton(find(id))}<button type="button" class="favorite-button" data-fav-id="${id}">♡ ياقتۇرۇش</button><button type="button" class="share-button" data-share-id="${id}">🔗 ھەمبەھىرلەش</button>`;
+    wrap.innerHTML=`${detail?detail.outerHTML:""}${cartButton(find(id))}<button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button><button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>`;
     if(detail) detail.remove();
     info.appendChild(wrap);
   });
@@ -1272,8 +1331,8 @@ function bookCardMarkup(b,variant="listing"){
       <div class="advanced-search-actions">
         <a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
-        <button type="button" class="favorite-button" data-fav-id="${id}">♡ ياقتۇرۇش</button>
-        <button type="button" class="share-button" data-share-id="${id}">🔗</button>
+        <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
+        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>
       </div>
     </div>
   </article>`;
@@ -1289,8 +1348,8 @@ function bookCardMarkup(b,variant="listing"){
       <div class="book-actions">
         <a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b)}
-        <button type="button" class="favorite-button" data-fav-id="${id}">♡ ياقتۇرۇش</button>
-        <button type="button" class="share-button" data-share-id="${id}">🔗 ھەمبەھىرلەش</button>
+        <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
+        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>
       </div>
     </div>
   </article>`;
@@ -2221,7 +2280,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=5";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=6";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -2292,6 +2351,7 @@ function init(){
     document.documentElement.dataset.kutadguShopListeners="1";
     document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
     document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
+    window.addEventListener("resize",()=>{ensureDesktopShopNav();updateBadge()});
   }
   loadMemberSystem();
 }
