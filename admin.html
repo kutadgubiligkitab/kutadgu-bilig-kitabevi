@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=13">
+  <link rel="stylesheet" href="admin.css?v=14">
 </head>
 <body>
 <div class="admin-shell">
@@ -137,6 +137,11 @@
             <div class="admin-book-title" id="coverRepairTitle"></div>
             <div class="admin-book-meta" id="coverRepairMeta"></div>
           </div>
+        </div>
+        <div id="lastImportCoverQueue" class="admin-import-queue" hidden>
+          <h3 class="admin-analytics-sub">ئاخىرقى كىرگۈزۈش — مۇقاۋا يوق نۆۋەت</h3>
+          <p class="admin-help">پەقەت شۇ كىرگۈزۈش. پۈتۈن كاتالوگ ئىزدەلمەيدۇ. رەسىم تاللاپ جەزملەڭ.</p>
+          <div id="lastImportCoverQueueBody"></div>
         </div>
       </section>
 
@@ -283,6 +288,7 @@
       <input id="importCoverFiles" type="file" accept="image/*" multiple>
     </label>
     <p class="admin-help">ئالدىن كۆرۈشتە ھەر قۇرنىڭ مۇقاۋا ھالىتى كۆرۈنىدۇ: ماس كەلدى / رەسىم تېپىلمىدى / تەكرار نام / تەلەپ قىلىنمىدى.</p>
+    <div id="importBackupNote" class="admin-status warn">چوڭ كىرگۈزۈشتىن بۇرۇن Database زاپاس قىلىڭ. Database زاپىسىدا Supabase Storage مۇقاۋا رەسىملىرى بولمايدۇ — ئەسلى رەسىملەرنى ئايرىم ساقلاڭ. بۇ ئەسكەرتىش پەقەت ئۇچۇر؛ زاپاس تەكشۈرۈلمەيدۇ.</div>
     <label class="admin-wide" style="margin-top:12px"><span>ISBN تەكرار بولسا</span>
       <select id="importDupIsbn">
         <option value="skip">ئۆتكۈزۈش (Skip)</option>
@@ -302,6 +308,17 @@
       </div>
     </div>
     <div id="importProgress" class="admin-help" hidden></div>
+    <div id="importMissingCoverWrap" class="admin-import-queue" hidden>
+      <div class="admin-help" id="importMissingCoverSummary"></div>
+      <div class="admin-table-scroll">
+        <table class="admin-import-table">
+          <thead>
+            <tr><th>ID</th><th>كىتاب</th><th>ئاپتور</th><th>سەۋەب</th><th></th></tr>
+          </thead>
+          <tbody id="importMissingCoverBody"></tbody>
+        </table>
+      </div>
+    </div>
     <div class="admin-wide admin-toolbar-group" style="margin-top:16px">
       <button class="admin-primary" id="confirmImportBtn" type="button" disabled>جەزملەشتۈرۈپ كىرگۈزۈش</button>
       <button class="admin-secondary" id="cancelImportBtn" type="button">بىكار قىلىش</button>
@@ -321,6 +338,7 @@
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
-<script defer src="admin.js?v=27"></script>
+<script defer src="admin-import-intake.js?v=1"></script>
+<script defer src="admin.js?v=28"></script>
 </body>
 </html>

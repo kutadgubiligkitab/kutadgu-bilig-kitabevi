@@ -5,6 +5,7 @@ const Quality=window.KutadguAdminQuality||{};
 const Bib=window.KutadguBibliography||{};
 const ImportCovers=window.KutadguAdminImportCovers||{};
 const CoverRepair=window.KutadguAdminCoverRepair||{};
+const ImportIntake=window.KutadguAdminImportIntake||{};
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
@@ -40,6 +41,7 @@ let importRows=[];
 let importRunning=false;
 let coverRepairDraft=null;
 let coverRepairLookupGen=0;
+let lastImportMissingQueue=[];
 let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
@@ -1631,6 +1633,45 @@ function rowToUpdate(row){
   return rec;
 }
 
+function queueRepairButtonHtml(id){
+  const safe=ImportIntake.repairLookupValue?ImportIntake.repairLookupValue(id):"";
+  if(!safe)return "";
+  return `<button type="button" class="admin-secondary last-import-repair-btn" data-repair-id="${esc(safe)}">رېمونت</button>`;
+}
+
+function renderLastImportCoverQueue(){
+  const items=lastImportMissingQueue||[];
+  const modalWrap=$("#importMissingCoverWrap");
+  const modalBody=$("#importMissingCoverBody");
+  const modalSum=$("#importMissingCoverSummary");
+  const dash=$("#lastImportCoverQueue");
+  const dashBody=$("#lastImportCoverQueueBody");
+  if(modalSum)modalSum.textContent=items.length?`بۇ كىرگۈزۈشتە مۇقاۋا يوق ${items.length} كىتاب. رەسىم تاللاپ جەزملەڭ.`:"بۇ كىرگۈزۈشتە مۇقاۋا نۆۋىتى قۇرۇق.";
+  const rows=items.map(item=>{
+    const btn=queueRepairButtonHtml(item.id);
+    return `<tr><td class="admin-isbn">${esc(item.id)}</td><td>${esc(item.title||"—")}</td><td>${esc(item.author||"—")}</td><td>${esc(item.reasonLabel||item.reason||"—")}</td><td>${btn}</td></tr>`;
+  }).join("");
+  if(modalBody)modalBody.innerHTML=rows||"";
+  if(modalWrap)modalWrap.hidden=!items.length;
+  if(dashBody){
+    dashBody.innerHTML=items.length?`<div class="admin-table-scroll"><table class="admin-import-table"><thead><tr><th>ID</th><th>كىتاب</th><th>ئاپتور</th><th>سەۋەب</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:"<p class=\"admin-help\">نۆۋەت يوق.</p>";
+  }
+  if(dash)dash.hidden=!items.length;
+}
+
+function openCoverRepairFromQueue(id){
+  const safe=ImportIntake.repairLookupValue?ImportIntake.repairLookupValue(id):"";
+  if(!safe){status($("#coverRepairStatus"),"بۇ نۆۋەتتە بىخەتەر كىتاب ID يوق.","error");return}
+  const lookup=$("#coverRepairLookup");
+  if(lookup)lookup.value=safe;
+  invalidateCoverRepairOnLookupChange();
+  if(lookup)lookup.value=safe;
+  const card=$("#coverRepairCard");
+  if(card&&card.scrollIntoView)card.scrollIntoView({block:"start"});
+  if($("#importModal")&&!$("#importModal").hidden)closeImport();
+  previewCoverRepair();
+}
+
 function importInsertSelectCols(){
   return isbnColumn?"id,title,author,isbn":"id,title,author";
 }
@@ -1644,7 +1685,7 @@ async function confirmImport(){
   }
   const actionable=importRows.filter(r=>ImportCovers.classifyImportRowAction(r,dupMode)!=="exclude");
   if(!actionable.length){status($("#importStatus"),"كىرگۈزۈشكە تەييار قۇر يوق.","error");return}
-  if(!confirm((CoverRepair.formatPlanText?CoverRepair.formatPlanText(CoverRepair.summarizeImportPlan(importRows,dupMode,ImportCovers.classifyImportRowAction)):"")+`\nخاتا قۇرلار ئۆتكۈزۈلىدۇ. ئىسىم+ئاپتور تەكرار قۇرلار قوشۇلمايدۇ. مۇقاۋا رەسىملىرى پەقەت ماس كەلگەن قۇرلارغا يۈكلىنىدۇ. مۇقاۋا مەغلۇپ بولسا كىتاب ئۆچۈرۈلمەيدۇ — رېمونت بۆلىكىدىن قايتا باغلاڭ.`))return;
+  if(!confirm((CoverRepair.formatPlanText?CoverRepair.formatPlanText(CoverRepair.summarizeImportPlan(importRows,dupMode,ImportCovers.classifyImportRowAction)):"")+`\nچوڭ كىرگۈزۈشتىن بۇرۇن Database زاپاس قىلىڭ؛ Storage رەسىملىرى زاپاسقا كىرمەيدۇ.\nخاتا قۇرلار ئۆتكۈزۈلىدۇ. ئىسىم+ئاپتور تەكرار قۇرلار قوشۇلمايدۇ. مۇقاۋا رەسىملىرى پەقەت ماس كەلگەن قۇرلارغا يۈكلىنىدۇ. مۇقاۋا مەغلۇپ بولسا كىتاب ئۆچۈرۈلمەيدۇ — رېمونت بۆلىكىدىن قايتا باغلاڭ.`))return;
   importRunning=true;
   $("#confirmImportBtn").disabled=true;
   $("#importFile").disabled=true;
@@ -1657,6 +1698,7 @@ async function confirmImport(){
   const updates=[];
   const coverJobs=[];
   const succeededRows=[];
+  const coverOkByKey={};
   actionable.forEach(row=>{
     const action=ImportCovers.classifyImportRowAction(row,dupMode);
     if(action==="skip"){skipped++;row.result="skipped";return}
@@ -1717,7 +1759,6 @@ async function confirmImport(){
       done++;
       tick();
     }
-    const coverOkByKey={};
     if(coverJobs.length){
       progress.textContent+=` · مۇقاۋا يۈكلىنىۋاتىدۇ (${coverJobs.length})`;
       const coverResults=await ImportCovers.mapPool(coverJobs,ImportCovers.COVER_UPLOAD_CONCURRENCY,async job=>{
@@ -1739,13 +1780,20 @@ async function confirmImport(){
       });
     }
     const withoutImageUrl=CoverRepair.countWithoutImageUrl?CoverRepair.countWithoutImageUrl(succeededRows,null,coverOkByKey):0;
+    const built=ImportIntake.buildMissingCoverQueue?ImportIntake.buildMissingCoverQueue(succeededRows,coverOkByKey):[];
+    lastImportMissingQueue=ImportIntake.replaceLastImportQueue?ImportIntake.replaceLastImportQueue(lastImportMissingQueue,built):built;
+    renderLastImportCoverQueue();
     const type=(failed||coverFailed||unmappedIds)&&(imported+updated)?"warn":(failed||coverFailed)?"error":"ok";
-    const resultLine=CoverRepair.formatResultText?CoverRepair.formatResultText({imported,updated,skipped,failed,coverOk,coverFailed,withoutImageUrl}):`تاماملاندى: كىرگۈزۈلدى ${imported}، يېڭىلاندى ${updated}، ئۆتكۈزۈلدى ${skipped}، مەغلۇپ ${failed}، مۇقاۋا ${coverOk}، مۇقاۋا مەغلۇپ ${coverFailed}`;
+    let resultLine=CoverRepair.formatResultText?CoverRepair.formatResultText({imported,updated,skipped,failed,coverOk,coverFailed,withoutImageUrl}):`تاماملاندى: كىرگۈزۈلدى ${imported}، يېڭىلاندى ${updated}، ئۆتكۈزۈلدى ${skipped}، مەغلۇپ ${failed}، مۇقاۋا ${coverOk}، مۇقاۋا مەغلۇپ ${coverFailed}`;
+    if(ImportIntake.appendQueueCount)resultLine=ImportIntake.appendQueueCount(resultLine,lastImportMissingQueue.length);
     status($("#importStatus"),resultLine+(failedRows.length? " — "+failedRows.map(f=>f.message).join("; "):""),type);
     if(failed&&!(imported||updated))progress.textContent+=" · پۈتۈن كىرگۈزۈش مۇۋەپپەقىيەتلىك دېيىلمىدى.";
     tick();
     await Promise.all([loadBooks(),loadStats()]);
   }catch(err){
+    const built=ImportIntake.buildMissingCoverQueue?ImportIntake.buildMissingCoverQueue(succeededRows,coverOkByKey):[];
+    lastImportMissingQueue=ImportIntake.replaceLastImportQueue?ImportIntake.replaceLastImportQueue(lastImportMissingQueue,built):built;
+    renderLastImportCoverQueue();
     status($("#importStatus"),"كىرگۈزۈش توختىدى: "+(err.message||err),"error");
   }finally{
     importRunning=false;
@@ -1825,6 +1873,12 @@ function init(){
   $("#closeImportModal").onclick=closeImport;
   $("#cancelImportBtn").onclick=closeImport;
   $("#confirmImportBtn").onclick=confirmImport;
+  document.addEventListener("click",e=>{
+    const btn=e.target&&e.target.closest&&e.target.closest(".last-import-repair-btn");
+    if(!btn)return;
+    e.preventDefault();
+    openCoverRepairFromQueue(btn.getAttribute("data-repair-id"));
+  });
   $("#importFile").addEventListener("change",()=>{
     refreshImportPreviewFromInputs();
   });
@@ -1871,6 +1925,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue
 };
 })();
