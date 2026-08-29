@@ -21,14 +21,14 @@
     menu.id = "mobileSiteMenu";
     menu.setAttribute("aria-label", "ئاساسلىق يول باشلاش");
     [
-      ["باش بەت", "index.html", "🏠"],
-      ["كىتابلار", "index.html#books", "📚"],
-      ["كىتاب تۈرلىرى", "index.html#books", "🗂️"],
+      ["باش بەت", "/", "🏠"],
+      ["كىتابلار", "/#books", "📚"],
+      ["كىتاب تۈرلىرى", "/#books", "🗂️"],
       ["ياقتۇرغانلار", "favorites.html", "❤️"],
       ["سېۋەت", "cart.html", "🛒"],
       ["ھېسابىم / ئەزا بولۇش", "account.html", "👤"],
-      ["بىز ھەققىدە", "index.html#about", "ℹ️"],
-      ["ئالاقە", "index.html#contact", "💬"]
+      ["بىز ھەققىدە", "/#about", "ℹ️"],
+      ["ئالاقە", "/#contact", "💬"]
     ].forEach(([label, href, icon]) => menu.appendChild(link(label, href, icon)));
     return menu;
   }
@@ -122,7 +122,7 @@
     document.body.classList.add("has-mobile-fixed-header");
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
-    brand.href = "index.html";
+    brand.href = "/";
     brand.innerHTML = `<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="kutadgu-logo.webp"><img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32" decoding="async"></picture><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);

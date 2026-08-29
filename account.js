@@ -51,7 +51,7 @@ async function renderOrders(){
   const host=$("#orderList");
   try{
     const orders=await api().getOrders();$("#memberOrders").textContent=orders.length;
-    if(!orders.length){host.innerHTML='<div class="account-empty">ھازىرچە زاكاز تارىخى يوق.<br><a href="index.html#books">كىتاب كۆرۈش →</a></div>';return}
+    if(!orders.length){host.innerHTML='<div class="account-empty">ھازىرچە زاكاز تارىخى يوق.<br><a href="/#books">كىتاب كۆرۈش →</a></div>';return}
     host.innerHTML=orders.map(order=>{
       const items=Array.isArray(order.items)?order.items:[];
       return `<article class="member-order">

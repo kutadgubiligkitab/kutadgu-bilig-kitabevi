@@ -198,6 +198,23 @@ function canonicalId(id){
   const book=find(id);
   return book?.id||String(id||"");
 }
+const HOMEPAGE_DOCUMENT_TITLE="قۇتادغۇبىلىك كىتابخانىسى";
+function storefrontPageFile(){
+  return (location.pathname||"/").split("/").pop().split(/[?#]/)[0]||"";
+}
+function isStorefrontHomepage(){
+  const file=storefrontPageFile();
+  return file===""||file==="index.html";
+}
+function isBookDetailDocument(){
+  if(isStorefrontHomepage())return false;
+  if(document.body.hasAttribute("data-dynamic-book"))return true;
+  if(storefrontPageFile()==="book.html")return true;
+  return !!document.querySelector(".book-detail-page,.book-detail-info");
+}
+function applyHomepageDocumentTitle(){
+  document.title=HOMEPAGE_DOCUMENT_TITLE;
+}
 const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
 const trackEvent=(name,data={})=>{try{window.KutadguAnalytics?.track?.(name,data)}catch(err){}};
@@ -482,6 +499,7 @@ async function hydrateBooksByIds(ids=[]){
 }
 
 async function hydratePageBook(){
+  if(isStorefrontHomepage())return;
   const id=new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
   if(!id||!remoteCatalog.available)return;
   try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
@@ -848,6 +866,7 @@ function absoluteUrl(value){
 
 /* Detail SEO is generated only from known book data; missing facts stay omitted. */
 function updateBookSeo(book){
+  if(!book||!isBookDetailDocument())return;
   const Seo=window.KutadguBookSeo||{};
   const origin=siteOrigin();
   const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}/book.html?id=${encodeURIComponent(String(book.id||"").trim())}`;
@@ -884,6 +903,10 @@ function updateBookSeo(book){
 }
 
 function populateDynamicBookPage(b){
+  if(isStorefrontHomepage()||!isBookDetailDocument()){
+    if(isStorefrontHomepage())applyHomepageDocumentTitle();
+    return;
+  }
   const dynamic=document.body.hasAttribute("data-dynamic-book");
   if(!dynamic&&!b.isRemote)return;
   document.body.dataset.bookId=b.id;
@@ -1054,7 +1077,7 @@ function renderDetailExtras(book){
              <span class="detail-section-kicker">📚 يەنە كۆرۈپ بېقىڭ</span>
              <h2>ئوخشاش كىتابلار</h2>
            </div>
-           <a href="${book.source||'index.html#books'}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>
+           <a href="${book.source||'/#books'}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>
          </div>
          <div class="shop-grid detail-related-grid">${related.map(miniCard).join("")}</div>
        </section>`
@@ -1080,6 +1103,11 @@ function renderDetailExtras(book){
 }
 
 function decorateDetail(){
+  if(isStorefrontHomepage()){
+    applyHomepageDocumentTitle();
+    return;
+  }
+  if(!isBookDetailDocument())return;
   let b=getDetailBook(); if(!b)return;
   populateDynamicBookPage(b);
   updateBookSeo(b);
@@ -1211,7 +1239,7 @@ function renderFavoritesPage(){
   const books=favs().map(id=>find(id)).filter(Boolean);
   host.innerHTML=books.length
     ? `<div class="favorites-grid">${books.map(favoriteCard).join("")}</div>`
-    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز. مېھمان بولسىڭىز شۇ ئۈسكۈنىدە ساقلىنىدۇ؛ ھېسابقا كىرسىڭىز ھېسابىڭىزغا ماسلىشىدۇ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
+    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز. مېھمان بولسىڭىز شۇ ئۈسكۈنىدە ساقلىنىدۇ؛ ھېسابقا كىرسىڭىز ھېسابىڭىزغا ماسلىشىدۇ.</p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></div>`;
   bindDynamicActions(host);
   host.querySelectorAll("[data-remove-favorite]").forEach(button=>button.onclick=()=>{toggleFav(button.dataset.removeFavorite);renderFavoritesPage()});
 }
@@ -1512,7 +1540,7 @@ function setupCatalogFilters(){
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
-  const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
+  const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="/#books">باشقا كىتابلارنى كۆرۈش</a>';
   let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptyMarkup;controls.insertAdjacentElement("afterend",empty);
   if(catalogStatus.error){
     const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
@@ -1728,7 +1756,7 @@ function cartPage(){
   const blocked=items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy);
 
   if(!items.length){
-    host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
+    host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></div>`;
     if(checkout)checkout.hidden=true;
     updateBadge();
     return;
@@ -2375,6 +2403,7 @@ function initStaticShell(){
 }
 function init(){
   initStaticShell();
+  if(isStorefrontHomepage())applyHomepageDocumentTitle();
   applyDetailCoverFallback();
   decorateDetail();
   setupCatalogFilters();
@@ -2392,6 +2421,7 @@ function init(){
     document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
     document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
     window.addEventListener("resize",()=>{ensureDesktopShopNav();updateBadge()});
+    window.addEventListener("pageshow",()=>{if(isStorefrontHomepage())applyHomepageDocumentTitle()});
   }
   loadMemberSystem();
 }
@@ -2414,5 +2444,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle};
 })();
