@@ -1886,15 +1886,7 @@ header > .container{
     filter:drop-shadow(0 3px 6px rgba(0,0,0,.12)) !important;
 }
 
-/* ياقتۇرغانلىرىم يۈرەك ئايكونىنى theme كۇنۇپكىدىن يىراقلاشتۇرۇش */
-header nav a[href="favorites.html"]{
-    margin-left:24px !important;
-}
-@media (max-width: 700px){
-    header nav a[href="favorites.html"]{
-        margin-left:18px !important;
-    }
-}
+/* Shop header controls are unified in shop.css (account / cart / favorites). */
 
 
 
@@ -1920,34 +1912,30 @@ header nav a{
     line-height: 1;
 }
 
-/* سېۋەت ۋە ياقتۇرغانلىرىم — icon pill style */
+/* سېۋەت / ياقتۇرغانلىرىم / ھېساب — بىر header control ئائىلىسى */
 header nav a[href="cart.html"],
-header nav a[href="favorites.html"]{
+header nav a[href="favorites.html"],
+header nav a[href="account.html"]{
     height: 36px;
+    min-height: 36px;
     min-width: 36px;
     padding: 0 12px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.14);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
-}
-
-header nav a[href="cart.html"]{
+    margin: 0;
     gap: 6px;
-}
-
-header nav a[href="favorites.html"]{
-    justify-content: center;
-    min-width: 40px;
-    padding: 0 10px;
-    margin-left: 10px !important;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: none;
+    color: #fff;
 }
 
 header nav a[href="cart.html"]:hover,
-header nav a[href="favorites.html"]:hover{
-    background: rgba(255,255,255,.15);
+header nav a[href="favorites.html"]:hover,
+header nav a[href="account.html"]:hover{
+    background: rgba(255,255,255,.16);
     color: #ffffff;
-    transform: translateY(-1px);
 }
 
 /* theme button نى باشقا icon لار بىلەن ماسلاشتۇرۇش */
@@ -1999,14 +1987,13 @@ header nav a[href="favorites.html"]:hover{
         font-size: 14px;
     }
     header nav a[href="cart.html"],
-    header nav a[href="favorites.html"]{
-        height: 34px;
-        min-width: 34px;
-        padding: 0 10px;
-    }
-    header nav a[href="favorites.html"]{
+    header nav a[href="favorites.html"],
+    header nav a[href="account.html"]{
+        height: 36px;
+        min-height: 36px;
         min-width: 36px;
-        margin-left: 8px !important;
+        padding: 0 12px;
+        margin: 0;
     }
 }
 
