@@ -33,7 +33,23 @@ function isStorefrontVisible(book,ctx){
   return true;
 }
 
-const api={collectInactiveKeys,bookIdentityKeys,isStorefrontVisible};
+async function loadInactiveKeysPaged(fetchPage,options){
+  const pageSize=Math.max(1,(options&&options.pageSize)||1000);
+  const maxPages=Math.max(1,(options&&options.maxPages)||100000);
+  const keys=new Set();
+  let from=0;
+  for(let n=0;n<maxPages;n++){
+    const to=from+pageSize-1;
+    const rows=await fetchPage(from,to);
+    if(!Array.isArray(rows)||!rows.length)break;
+    collectInactiveKeys(rows).forEach(key=>keys.add(key));
+    if(rows.length<pageSize)break;
+    from+=pageSize;
+  }
+  return keys;
+}
+
+const api={collectInactiveKeys,bookIdentityKeys,isStorefrontVisible,loadInactiveKeysPaged};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 root.KutadguVisibility=api;
 })(typeof window!=="undefined"?window:typeof globalThis!=="undefined"?globalThis:{});

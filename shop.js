@@ -404,12 +404,9 @@ async function loadInactiveRemoteIndex(){
     return;
   }
   const cfg=supabasePublicConfig();
-  const collect=window.KutadguVisibility?.collectInactiveKeys;
-  const next=new Set();
+  const pager=window.KutadguVisibility?.loadInactiveKeysPaged;
   try{
-    let from=0;
-    while(from<5000){
-      const to=from+999;
+    const fetchPage=async(from,to)=>{
       const response=await fetch(`${cfg.url}/rest/v1/books?select=id,legacy_id&is_active=eq.false`,{
         headers:{
           apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Prefer:"count=exact",
@@ -418,13 +415,27 @@ async function loadInactiveRemoteIndex(){
       });
       if(!response.ok)throw new Error(`Inactive index failed (HTTP ${response.status})`);
       const rows=await response.json();
-      if(!Array.isArray(rows)||!rows.length)break;
-      const keys=collect?collect(rows):new Set(rows.flatMap(row=>[String(row.id||""),String(row.legacy_id||"")].filter(Boolean)));
-      keys.forEach(key=>next.add(key));
-      if(rows.length<1000)break;
-      from+=1000;
-    }
-    inactiveRemoteKeys=next;
+      return Array.isArray(rows)?rows:[];
+    };
+    inactiveRemoteKeys=pager
+      ?await pager(fetchPage,{pageSize:1000})
+      :await (async()=>{
+        const next=new Set();
+        let from=0;
+        for(;;){
+          const rows=await fetchPage(from,from+999);
+          if(!rows.length)break;
+          rows.forEach(row=>{
+            const id=String(row&&row.id||"").trim();
+            const legacy=String(row&&row.legacy_id||"").trim();
+            if(id)next.add(id);
+            if(legacy)next.add(legacy);
+          });
+          if(rows.length<1000)break;
+          from+=1000;
+        }
+        return next;
+      })();
   }catch(error){
     console.warn("Inactive catalog index could not be loaded.",error);
   }
