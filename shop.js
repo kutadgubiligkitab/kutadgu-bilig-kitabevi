@@ -459,6 +459,10 @@ async function hydratePageBook(){
 
 function resolveStoredBookId(id){
   const raw=String(id||"");
+  if(Legacy.bindResolve)return Legacy.bindResolve(value=>{
+    const book=find(value);
+    return book?.id&&isCanonicalBookId(book.id)?String(book.id):value;
+  },aliasMap())(raw);
   const book=find(raw);
   if(!book||!book.id)return raw;
   const canonical=String(book.id);
@@ -2304,7 +2308,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=7";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=8";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){

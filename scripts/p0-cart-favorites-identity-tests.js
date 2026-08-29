@@ -305,6 +305,108 @@ test("solo dual-identity cap 99 repairs to 1 then stays 1",()=>{
   assert.deepStrictEqual(second,[{id:"102",qty:1}]);
 });
 
+test("agreed polluted 99 on both local and cloud does not stay 99",()=>{
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart:[{id:"102",qty:99}],
+    localFav:["102"],
+    cloudCart:[{id:"children-3",qty:99},{id:"102",qty:99}],
+    cloudFav:["children-3","102"],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"102",qty:1}]);
+  assert.deepStrictEqual(out.fav,["102"]);
+  assert.strictEqual(out.badge,1);
+});
+
+test("SIGNED_IN empty local + polluted cloud is canonical qty1 not badge 198",()=>{
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart:[],
+    localFav:[],
+    cloudCart:[
+      {id:"children-3",qty:99},{id:"102",qty:99},
+      {id:"children-4",qty:99},{id:"103",qty:99}
+    ],
+    cloudFav:["children-3","102","children-4","103"],
+    resolveId:id=>id,
+    aliasMap:{}
+  });
+  assert.strictEqual(out.cart.length,2);
+  assert.deepStrictEqual(out.cart.map(x=>x.id).sort(),["102","103"]);
+  assert.ok(out.cart.every(row=>row.qty===1));
+  assert.strictEqual(out.badge,2);
+  assert.ok(!out.cart.some(row=>String(row.id).startsWith("children-")));
+  assert.deepStrictEqual(out.fav.slice().sort(),["102","103"]);
+});
+
+test("authenticated remove then next SIGNED_IN stays empty",()=>{
+  const login=Legacy.syncAuthenticatedShopState({
+    localCart:[],
+    localFav:[],
+    cloudCart:[{id:"children-3",qty:99},{id:"102",qty:99},{id:"children-4",qty:99},{id:"103",qty:99}],
+    cloudFav:["children-3","102","children-4","103"],
+    resolveId:id=>id,
+    aliasMap:{}
+  });
+  const afterRemoveCart=Legacy.filterCartRemovingBook(
+    Legacy.filterCartRemovingBook(login.cart,"102",id=>id,{}),
+    "103",id=>id,{}
+  );
+  const afterRemoveFav=Legacy.filterFavsRemovingBook(
+    Legacy.filterFavsRemovingBook(login.fav,"102",id=>id,{}),
+    "children-4",id=>id,{}
+  );
+  assert.deepStrictEqual(afterRemoveCart,[]);
+  assert.deepStrictEqual(afterRemoveFav,[]);
+  const nextLogin=Legacy.syncAuthenticatedShopState({
+    localCart:afterRemoveCart,
+    localFav:afterRemoveFav,
+    cloudCart:afterRemoveCart,
+    cloudFav:afterRemoveFav,
+    resolveId:id=>id,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(nextLogin.cart,[]);
+  assert.deepStrictEqual(nextLogin.fav,[]);
+  assert.strictEqual(nextLogin.badge,0);
+});
+
+test("unrelated legitimate qty3 and favorite survive authenticated repair",()=>{
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart:[],
+    localFav:[],
+    cloudCart:[
+      {id:"children-3",qty:99},{id:"102",qty:99},{id:"79",qty:3}
+    ],
+    cloudFav:["children-3","102","79"],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart.find(x=>x.id==="79"),{id:"79",qty:3});
+  assert.ok(out.fav.includes("79"));
+  assert.deepStrictEqual(out.cart.find(x=>x.id==="102"),{id:"102",qty:1});
+  assert.strictEqual(out.badge,4);
+});
+
+test("no seed and no multiplication on empty stores",()=>{
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart:[],localFav:[],cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[]);
+  assert.deepStrictEqual(out.fav,[]);
+});
+
+test("static slug resolver cannot keep children-3 as a second line",()=>{
+  const staticResolve=id=>String(id);
+  const out=Legacy.repairCapPollutedCartItems(
+    [{id:"children-3",qty:99},{id:"102",qty:99}],
+    staticResolve,
+    {}
+  );
+  assert.deepStrictEqual(out,[{id:"102",qty:1}]);
+});
+
+
 
 if(failed){
   console.error("\n"+failed+" test(s) failed");

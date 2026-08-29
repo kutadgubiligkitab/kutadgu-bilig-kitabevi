@@ -9,6 +9,41 @@
 const CANONICAL_ID=/^\d+$/;
 const EXPECTED_MIGRATED_COUNT=84;
 const MAX_CART_QTY=99;
+const KNOWN_RESTORED_ALIASES=Object.freeze({
+  "children-3":"102","102":"children-3",
+  "children-4":"103","103":"children-4"
+});
+
+function mergedAliasMap(aliasMap){
+  return Object.assign({},KNOWN_RESTORED_ALIASES,aliasMap&&typeof aliasMap==="object"&&!Array.isArray(aliasMap)?aliasMap:{});
+}
+
+function bindResolve(resolveId,aliasMap){
+  const map=mergedAliasMap(aliasMap);
+  const caller=typeof resolveId==="function"?resolveId:id=>id;
+  return function(id){
+    const raw=String(id??"").trim();
+    if(!raw)return raw;
+    const fromRaw=applyBookIdMap(raw,map);
+    if(isCanonicalBookId(fromRaw))return fromRaw;
+    let via=raw;
+    try{via=String(caller(raw)||raw)}catch(e){via=raw}
+    const fromVia=applyBookIdMap(via,map);
+    if(isCanonicalBookId(fromVia))return fromVia;
+    if(isCanonicalBookId(via))return via;
+    if(isCanonicalBookId(raw))return raw;
+    return fromRaw||via||raw;
+  };
+}
+
+function isHistoricalCapPollutionId(id,resolveId,aliasMap){
+  const resolve=typeof resolveId==="function"?resolveId:bindResolve(resolveId,aliasMap);
+  const canonical=String(resolve(id)||id||"");
+  const keys=identityKeys(id,resolve,mergedAliasMap(aliasMap));
+  if(keys.has("children-3")||keys.has("102")||keys.has("children-4")||keys.has("103"))return true;
+  if(!isCanonicalBookId(canonical))return true;
+  return [...keys].some(key=>key!==canonical);
+}
 
 function sanitizeCartQty(raw){
   if(raw===true||raw===false)return 1;
@@ -136,29 +171,72 @@ function migrateCartItems(items=[],resolveId=id=>id){
 }
 
 function repairCapPollutedCartItems(items=[],resolveId=id=>id,aliasMap={}){
-  const migrated=migrateCartItems(items,resolveId);
+  const resolve=bindResolve(resolveId,aliasMap);
+  const map=mergedAliasMap(aliasMap);
+  const migrated=migrateCartItems(items,resolve);
   return migrated.map(row=>{
     const qty=sanitizeCartQty(row.qty);
     if(qty!==MAX_CART_QTY)return {id:row.id,qty};
-    if(!isCanonicalBookId(row.id))return {id:row.id,qty:1};
-    const keys=identityKeys(row.id,resolveId,aliasMap);
-    const hasAliasPair=[...keys].some(key=>key!==String(row.id));
-    if(!hasAliasPair)return {id:row.id,qty};
-    return {id:row.id,qty:1};
+    if(isHistoricalCapPollutionId(row.id,resolve,map))return {id:row.id,qty:1};
+    return {id:row.id,qty};
   });
 }
 
 function filterCartRemovingBook(items=[],bookId="",resolveId=id=>id,aliasMap={}){
+  const resolve=bindResolve(resolveId,aliasMap);
+  const map=mergedAliasMap(aliasMap);
   const want=String(bookId||"").trim();
-  if(!want)return migrateCartItems(items,resolveId);
-  return migrateCartItems(items,resolveId).filter(item=>!sameBookIdentity(item.id,want,resolveId,aliasMap));
+  if(!want)return repairCapPollutedCartItems(items,resolve,map);
+  return repairCapPollutedCartItems(items,resolve,map).filter(item=>!sameBookIdentity(item.id,want,resolve,map));
 }
 
 function filterFavsRemovingBook(ids=[],bookId="",resolveId=id=>id,aliasMap={}){
+  const resolve=bindResolve(resolveId,aliasMap);
+  const map=mergedAliasMap(aliasMap);
   const want=String(bookId||"").trim();
-  const migrated=migrateIdList(ids,resolveId);
+  const migrated=migrateIdList(ids,resolve);
   if(!want)return migrated;
-  return migrated.filter(id=>!sameBookIdentity(id,want,resolveId,aliasMap));
+  return migrated.filter(id=>!sameBookIdentity(id,want,resolve,map));
+}
+
+function syncAuthenticatedShopState(input={}){
+  const resolve=bindResolve(input.resolveId,input.aliasMap);
+  const map=mergedAliasMap(input.aliasMap);
+  const localCart=Array.isArray(input.localCart)?input.localCart:[];
+  const cloudCart=Array.isArray(input.cloudCart)?input.cloudCart:[];
+  const localFav=Array.isArray(input.localFav)?input.localFav:[];
+  const cloudFav=Array.isArray(input.cloudFav)?input.cloudFav:[];
+  const repairedLocalCart=repairCapPollutedCartItems(localCart,resolve,map);
+  const repairedCloudCart=repairCapPollutedCartItems(cloudCart,resolve,map);
+  const repairedLocalFav=migrateIdList(localFav,resolve);
+  const repairedCloudFav=migrateIdList(cloudFav,resolve);
+  const cart=repairCapPollutedCartItems([...repairedCloudCart,...repairedLocalCart],resolve,map);
+  const fav=migrateIdList([...repairedLocalFav,...repairedCloudFav],resolve);
+  const rawCloudIds=[...cloudCart.map(x=>String(x&&x.id||"")),...cloudFav.map(String)].filter(Boolean);
+  const nextIds=[...cart.map(x=>String(x.id)),...fav.map(String)];
+  const staleAliasRemained=rawCloudIds.some(id=>!isCanonicalBookId(id))||nextIds.some(id=>!isCanonicalBookId(id));
+  return {
+    cart,
+    fav,
+    repairedLocalCart,
+    repairedCloudCart,
+    repairedLocalFav,
+    repairedCloudFav,
+    staleAliasRemained,
+    badge:cart.reduce((sum,row)=>sum+sanitizeCartQty(row.qty),0)
+  };
+}
+
+function replacementIdentityIds(cartItems=[],favIds=[],resolveId=id=>id,aliasMap={}){
+  const resolve=bindResolve(resolveId,aliasMap);
+  const map=mergedAliasMap(aliasMap);
+  const keys=new Set(Object.keys(KNOWN_RESTORED_ALIASES));
+  [...(Array.isArray(cartItems)?cartItems:[]),...(Array.isArray(favIds)?favIds:[])].forEach(value=>{
+    const id=String(value&&value.id!=null?value.id:value||"").trim();
+    if(!id)return;
+    identityKeys(id,resolve,map).forEach(key=>keys.add(key));
+  });
+  return [...keys];
 }
 
 function mergeGuestAndCloudCart(localCart=[],cloudCart=[],resolveId=id=>id){
@@ -262,6 +340,10 @@ const api={
   uniqueVisibleBooks,
   sanitizeCartQty,
   collapseAliasQuantities,
+  KNOWN_RESTORED_ALIASES,
+  mergedAliasMap,
+  bindResolve,
+  isHistoricalCapPollutionId,
   identityKeys,
   sameBookIdentity,
   applyBookIdMap,
@@ -271,6 +353,8 @@ const api={
   repairCapPollutedCartItems,
   filterCartRemovingBook,
   filterFavsRemovingBook,
+  syncAuthenticatedShopState,
+  replacementIdentityIds,
   migrateIdList,
   mergeGuestAndCloudCart,
   mergeGuestAndCloudFavs,

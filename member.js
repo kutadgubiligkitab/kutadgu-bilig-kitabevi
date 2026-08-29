@@ -113,19 +113,24 @@ async function recordVisit(){
   const {error}=await db.rpc("record_member_visit",{page_path:page});
   if(!error)localStorage.setItem(key,String(now));
 }
+function memberLog(level,step,detail){
+  const payload={step,detail:detail&&detail.message?String(detail.message):detail};
+  if(level==="error")console.error("Kutadgu member shop",payload,detail);
+  else console.warn("Kutadgu member shop",payload,detail||"");
+}
 async function fetchCanonicalIdMap(ids=[]){
   const helpers=window.KutadguLegacyIds;
-  const map=helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{};
+  const map=Object.assign({},helpers?.KNOWN_RESTORED_ALIASES||{},helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{});
   const unique=[...new Set((ids||[]).map(id=>String(id||"").trim()).filter(Boolean))];
   unique.forEach(id=>{
-    if(map[id])return;
-    if(helpers?.isCanonicalBookId?.(id))map[id]=id;
+    if(helpers?.isCanonicalBookId?.(id)&&!map[id])map[id]=id;
   });
   if(!db||!unique.length)return map;
   const split=helpers?.splitLookupIds?helpers.splitLookupIds(unique):{numeric:unique.filter(id=>/^\d+$/.test(id)),legacy:unique.filter(id=>id&&!/^\d+$/.test(id))};
+  const numericIds=split.numeric.map(id=>/^\d+$/.test(id)?Number(id):id);
   const queries=[];
-  if(split.numeric.length){
-    queries.push(db.from("books").select("id,legacy_id").in("id",split.numeric));
+  if(numericIds.length){
+    queries.push(db.from("books").select("id,legacy_id").in("id",numericIds));
   }
   if(split.legacy.length){
     queries.push(db.from("books").select("id,legacy_id").in("legacy_id",split.legacy));
@@ -140,37 +145,67 @@ async function fetchCanonicalIdMap(ids=[]){
         const legacy=String(row.legacy_id||"").trim();
         if(helpers?.rememberRowAliases)Object.assign(map,helpers.rememberRowAliases(map,id,legacy));
         else{
-          if(id)map[id]=id;
-          if(id&&legacy)map[legacy]=id;
+          if(id&&legacy){map[legacy]=id;map[id]=legacy}
+          else if(id)map[id]=id;
         }
       });
     });
   }catch(err){
-    console.warn("Member book identity lookup failed",err);
+    memberLog("warn","canonical-id-lookup",err);
   }
   try{localStorage.setItem("kutadgu-id-aliases-v1",JSON.stringify(map))}catch(e){}
   return map;
 }
 function memberResolveId(id,idMap={}){
-  const raw=String(id||"");
-  const fromShop=window.kutadguShop?.find?.(raw);
-  if(fromShop?.id)return String(fromShop.id);
   const helpers=window.KutadguLegacyIds;
-  if(helpers?.applyBookIdMap){
-    const mapped=helpers.applyBookIdMap(raw,idMap);
-    if(mapped)return mapped;
-  }
-  return idMap[raw]||raw;
+  const resolve=helpers?.bindResolve
+    ?helpers.bindResolve(raw=>{
+      const book=window.kutadguShop?.find?.(raw);
+      return book?.id&&helpers.isCanonicalBookId?.(book.id)?String(book.id):raw;
+    },idMap)
+    :raw=>String(idMap[raw]||raw);
+  return resolve(id);
 }
 async function replaceFavorites(values){
-  if(!db||!user||blocked)return;
+  if(!db||!user||blocked){
+    memberLog("warn","replace-favorites-skipped",{hasDb:!!db,hasUser:!!user,blocked});
+    return {ok:false,reason:"not-ready"};
+  }
   const ids=[...new Set((Array.isArray(values)?values:[]).map(String).filter(Boolean))];
+  const helpers=window.KutadguLegacyIds;
+  const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds([],ids,memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
+  if(aliasIds.length){
+    const {error:aliasDelError}=await db.from("member_favorites").delete().eq("user_id",user.id).in("book_id",aliasIds);
+    if(aliasDelError){
+      memberLog("error","replace-favorites-alias-delete",aliasDelError);
+      throw aliasDelError;
+    }
+  }
   const {error:delError}=await db.from("member_favorites").delete().eq("user_id",user.id);
-  if(delError)throw delError;
+  if(delError){
+    memberLog("error","replace-favorites-delete",delError);
+    throw delError;
+  }
   if(ids.length){
     const {error}=await db.from("member_favorites").insert(ids.map(book_id=>({user_id:user.id,book_id})));
-    if(error)throw error;
+    if(error){
+      memberLog("error","replace-favorites-insert",error);
+      throw error;
+    }
   }
+  const {data:verify,error:verifyError}=await db.from("member_favorites").select("book_id").eq("user_id",user.id);
+  if(verifyError){
+    memberLog("error","replace-favorites-verify",verifyError);
+    throw verifyError;
+  }
+  const remaining=(verify||[]).map(row=>String(row.book_id||"")).filter(Boolean).sort();
+  const expected=[...ids].sort();
+  if(JSON.stringify(remaining)!==JSON.stringify(expected)){
+    const err=new Error("member_favorites replace verify mismatch");
+    memberLog("error","replace-favorites-verify-mismatch",{remaining,expected});
+    throw err;
+  }
+  return {ok:true,ids};
 }
 function sanitizeMemberQty(raw){
   return window.KutadguLegacyIds?.sanitizeCartQty
@@ -178,19 +213,57 @@ function sanitizeMemberQty(raw){
     :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
 }
 async function replaceCart(values){
-  if(!db||!user||blocked)return;
+  if(!db||!user||blocked){
+    memberLog("warn","replace-cart-skipped",{hasDb:!!db,hasUser:!!user,blocked});
+    return {ok:false,reason:"not-ready"};
+  }
+  const helpers=window.KutadguLegacyIds;
   const rows=(Array.isArray(values)?values:[])
     .filter(x=>x&&x.id)
     .map(x=>({user_id:user.id,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
+  const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds(values,[],memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
+  const {error:aliasDelError}=aliasIds.length
+    ?await db.from("member_cart_items").delete().eq("user_id",user.id).in("book_id",aliasIds)
+    :{error:null};
+  if(aliasDelError){
+    memberLog("error","replace-cart-alias-delete",aliasDelError);
+    throw aliasDelError;
+  }
   const {error:delError}=await db.from("member_cart_items").delete().eq("user_id",user.id);
-  if(delError)throw delError;
+  if(delError){
+    memberLog("error","replace-cart-delete",delError);
+    throw delError;
+  }
   if(rows.length){
     const {error}=await db.from("member_cart_items").insert(rows);
-    if(error)throw error;
+    if(error){
+      memberLog("error","replace-cart-insert",error);
+      throw error;
+    }
   }
+  const {data:verify,error:verifyError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",user.id);
+  if(verifyError){
+    memberLog("error","replace-cart-verify",verifyError);
+    throw verifyError;
+  }
+  const remaining=(verify||[]).map(row=>({id:String(row.book_id||""),qty:sanitizeMemberQty(row.quantity)}));
+  if(remaining.some(row=>helpers?.isCanonicalBookId&&!helpers.isCanonicalBookId(row.id))){
+    const err=new Error("member_cart_items still contains legacy alias rows");
+    memberLog("error","replace-cart-alias-survived",remaining);
+    throw err;
+  }
+  const expected=rows.map(row=>({id:row.book_id,qty:row.quantity})).sort((a,b)=>a.id.localeCompare(b.id));
+  const got=remaining.slice().sort((a,b)=>a.id.localeCompare(b.id));
+  if(JSON.stringify(expected)!==JSON.stringify(got)){
+    const err=new Error("member_cart_items replace verify mismatch");
+    memberLog("error","replace-cart-verify-mismatch",{expected,got});
+    throw err;
+  }
+  return {ok:true,rows};
 }
 let mergedForUserId=null;
-const MERGE_LOCK_KEY="kutadgu-member-shop-merged-v2";
+let shopSyncInFlight=null;
+const MERGE_LOCK_KEY="kutadgu-member-shop-merged-v3";
 function readMergeLock(){
   try{return String(localStorage.getItem(MERGE_LOCK_KEY)||"")}catch(e){return ""}
 }
@@ -203,69 +276,66 @@ function writeMergeLock(id){
 }
 async function mergeShopState(){
   if(!db||!user||blocked)return;
-  if(mergedForUserId===user.id||readMergeLock()===user.id)return;
-  writeMergeLock(user.id);
-  try{
-    const [{data:favRows,error:favError},{data:cartRows,error:cartError}]=await Promise.all([
-      db.from("member_favorites").select("book_id").eq("user_id",user.id),
-      db.from("member_cart_items").select("book_id,quantity").eq("user_id",user.id)
-    ]);
-    if(favError)throw favError;if(cartError)throw cartError;
+  if(shopSyncInFlight)return shopSyncInFlight;
+  shopSyncInFlight=(async()=>{
+    try{
+      const [{data:favRows,error:favError},{data:cartRows,error:cartError}]=await Promise.all([
+        db.from("member_favorites").select("book_id").eq("user_id",user.id),
+        db.from("member_cart_items").select("book_id,quantity").eq("user_id",user.id)
+      ]);
+      if(favError){
+        memberLog("error","fetch-cloud-favorites",favError);
+        throw favError;
+      }
+      if(cartError){
+        memberLog("error","fetch-cloud-cart",cartError);
+        throw cartError;
+      }
 
-    const cloudFav=(favRows||[]).map(x=>x.book_id).filter(Boolean);
-    const cloudCart=(cartRows||[]).map(x=>({id:x.book_id,qty:x.quantity}));
-    const localFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
-    const localCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
-    const pendingIds=[
-      ...cloudFav,
-      ...cloudCart.map(x=>x.id),
-      ...localFav,
-      ...localCart.map(x=>x?.id)
-    ].map(String).filter(Boolean);
-    const idMap=await fetchCanonicalIdMap(pendingIds);
-    if(typeof window.kutadguShop?.hydrateBooksByIds==="function"){
-      await window.kutadguShop.hydrateBooksByIds(pendingIds);
+      const cloudFav=(favRows||[]).map(x=>x.book_id).filter(Boolean);
+      const cloudCart=(cartRows||[]).map(x=>({id:x.book_id,qty:x.quantity}));
+      const localFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
+      const localCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
+      const pendingIds=[
+        ...cloudFav,
+        ...cloudCart.map(x=>x.id),
+        ...localFav,
+        ...localCart.map(x=>x?.id)
+      ].map(String).filter(Boolean);
+      const idMap=await fetchCanonicalIdMap(pendingIds);
+      if(typeof window.kutadguShop?.hydrateBooksByIds==="function"){
+        await window.kutadguShop.hydrateBooksByIds(pendingIds);
+      }
+
+      const helpers=window.KutadguLegacyIds;
+      const aliases={...idMap,...(helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{})};
+      const resolveId=id=>memberResolveId(id,aliases);
+      const synced=helpers?.syncAuthenticatedShopState
+        ?helpers.syncAuthenticatedShopState({localCart,localFav,cloudCart,cloudFav,resolveId,aliasMap:aliases})
+        :{
+          cart:helpers?.repairCapPollutedCartItems?helpers.repairCapPollutedCartItems([...(cloudCart||[]),...(localCart||[])],resolveId,aliases):localCart,
+          fav:helpers?.migrateIdList?helpers.migrateIdList([...(localFav||[]),...(cloudFav||[])],resolveId):[...new Set([...(localFav||[]),...(cloudFav||[])].map(String))]
+        };
+
+      const mergedFav=synced.fav;
+      const mergedCart=synced.cart;
+      try{
+        await replaceFavorites(mergedFav);
+        await replaceCart(mergedCart);
+      }catch(saveErr){
+        writeMergeLock("");
+        throw saveErr;
+      }
+      localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
+      localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
+      writeMergeLock(user.id);
+      emit("kutadgu-member-state-synced");
+    }catch(err){
+      writeMergeLock("");
+      memberLog("error","member-shop-sync",err);
     }
-
-    const resolveId=id=>memberResolveId(id,idMap);
-    const helpers=window.KutadguLegacyIds;
-    const aliases={...idMap,...(helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{})};
-
-    const mergedFav=helpers?.mergeGuestAndCloudFavs
-      ?helpers.mergeGuestAndCloudFavs(localFav,cloudFav,resolveId)
-      :(helpers?.migrateIdList?helpers.migrateIdList([...localFav,...cloudFav].map(String).filter(Boolean),resolveId):[...new Set([...localFav,...cloudFav].map(String).filter(Boolean))]);
-
-    const combinedCart=[
-      ...(Array.isArray(cloudCart)?cloudCart:[]),
-      ...(Array.isArray(localCart)?localCart:[])
-    ];
-    const mergedCart=helpers?.repairCapPollutedCartItems
-      ?helpers.repairCapPollutedCartItems(combinedCart,resolveId,aliases)
-      :(helpers?.mergeGuestAndCloudCart
-        ?helpers.mergeGuestAndCloudCart(localCart,cloudCart,resolveId)
-        :(helpers?.migrateCartItems?helpers.migrateCartItems(combinedCart,resolveId):localCart));
-
-    const nextFavJson=JSON.stringify(mergedFav);
-    const nextCartJson=JSON.stringify(mergedCart);
-    const prevFavJson=JSON.stringify(Array.isArray(localFav)?localFav.map(String):[]);
-    const prevCartJson=JSON.stringify(Array.isArray(localCart)?localCart:[]);
-    if(nextFavJson!==prevFavJson)localStorage.setItem(FAV_KEY,nextFavJson);
-    if(nextCartJson!==prevCartJson)localStorage.setItem(CART_KEY,nextCartJson);
-
-    const cloudFavCanon=helpers?.migrateIdList?helpers.migrateIdList(cloudFav,resolveId):cloudFav.map(String);
-    const cloudCartCanon=helpers?.repairCapPollutedCartItems
-      ?helpers.repairCapPollutedCartItems(cloudCart,resolveId,aliases)
-      :(helpers?.migrateCartItems?helpers.migrateCartItems(cloudCart,resolveId):cloudCart);
-    const cloudChanged=JSON.stringify(cloudFavCanon)!==nextFavJson||JSON.stringify(cloudCartCanon)!==nextCartJson;
-    if(cloudChanged||nextFavJson!==prevFavJson||nextCartJson!==prevCartJson){
-      await replaceFavorites(mergedFav);
-      await replaceCart(mergedCart);
-    }
-    emit("kutadgu-member-state-synced");
-  }catch(err){
-    writeMergeLock("");
-    console.warn("Member shop sync failed",err);
-  }
+  })().finally(()=>{shopSyncInFlight=null});
+  return shopSyncInFlight;
 }
 const syncTimers=new Map();
 function syncKey(key,value){
@@ -275,7 +345,7 @@ function syncKey(key,value){
     try{
       if(key===FAV_KEY)await replaceFavorites(value);
       if(key===CART_KEY)await replaceCart(value);
-    }catch(err){console.warn("Member state save failed",err)}
+    }catch(err){memberLog("error","member-state-save",err)}
     finally{syncTimers.delete(key)}
   };
   syncTimers.set(key,setTimeout(run,0));
@@ -311,14 +381,14 @@ async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const result=await db.auth.signUp({email,password,options:{data:{full_name:fullName||""},emailRedirectTo:new URL("account.html",location.href).href}});
   if(result.error)throw result.error;
-  if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:false});
+  if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:true});
   return result.data;
 }
 async function signIn({email,password}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const {data,error}=await db.auth.signInWithPassword({email,password});
   if(error)throw error;
-  await queueSession(data.session,{trackLogin:true,sync:false});
+  await queueSession(data.session,{trackLogin:true,sync:true});
   return data;
 }
 async function signInWithGoogle(){
@@ -405,6 +475,7 @@ async function init(){
     await queueSession(data.session,{sync:false});
     db.auth.onAuthStateChange((event,session)=>{
       if(event==="SIGNED_OUT")writeMergeLock("");
+      if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED")return;
       const isLogin=event==="SIGNED_IN";
       setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);
     });
