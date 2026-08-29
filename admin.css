@@ -149,7 +149,7 @@ button{cursor:pointer}
 .admin-isbn{font-family:ui-monospace,Menlo,monospace;direction:ltr;unicode-bidi:isolate;font-size:12px}
 .admin-import-card{width:min(96%,1080px)}
 .admin-table-scroll{overflow:auto;max-height:min(50vh,420px);margin-top:10px;border:1px solid #eadfce;border-radius:10px}
-.admin-import-table{width:100%;border-collapse:collapse;min-width:720px;font-size:13px}
+.admin-import-table{width:100%;border-collapse:collapse;min-width:860px;font-size:13px}
 .admin-import-table th,.admin-import-table td{padding:8px 10px;border-bottom:1px solid #f0e7da;text-align:start;vertical-align:top}
 .admin-import-table th{background:#fbf8f2;position:sticky;top:0}
 .admin-row-error{background:#fff5f3}
