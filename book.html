@@ -12,13 +12,14 @@
     (function(){
       var id=new URLSearchParams(location.search).get("id");
       var origin="https://kutadgu-bilig-kitab.vercel.app";
-      if(id){
+      var canonicalId=/^\d+$/.test(String(id||""))?String(id):"";
+      if(canonicalId){
         var robots=document.getElementById("kutadguRobots");
         if(robots)robots.setAttribute("content","index, follow");
       }
       var link=document.createElement("link");
       link.rel="canonical";
-      link.href=id?origin+"/book.html?id="+encodeURIComponent(id):origin+"/book.html";
+      link.href=canonicalId?origin+"/book.html?id="+encodeURIComponent(canonicalId):origin+"/book.html";
       document.head.appendChild(link);
     })();
   </script>
@@ -446,7 +447,8 @@
   <script defer src="catalog.js?v=1"></script><script defer src="analytics.js?v=1"></script>
   <script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=1"></script>
   <script defer src="gallery-images.js?v=1"></script>
-  <script defer src="shop.js?v=61"></script>
+  <script defer src="kutadgu-book-seo.js?v=1"></script>
+  <script defer src="shop.js?v=62"></script>
   <script defer src="mobile.js?v=2"></script>
 </body>
 </html>

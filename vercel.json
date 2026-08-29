@@ -1,4 +1,18 @@
 {
+  "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap-index"
+    },
+    {
+      "source": "/sitemap-books.xml",
+      "destination": "/api/sitemap-books"
+    },
+    {
+      "source": "/sitemap-books-:page(\\d+).xml",
+      "destination": "/api/sitemap-books?page=:page"
+    }
+  ],
   "headers": [
     {
       "source": "/admin.html",
