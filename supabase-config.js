@@ -4,6 +4,26 @@
 */
 window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilig.com";
 
+window.kutadguAuthCallbackOrigin = function(){
+  const canonical="https://www.kutadgubilig.com";
+  try{
+    const host=String(location.hostname||"");
+    const origin=String(location.origin||canonical).replace(/\/+$/,"");
+    if(host==="kutadgubilig.com")return canonical;
+    if(host==="www.kutadgubilig.com")return canonical;
+    if(host==="kutadgu-bilig-kitab.vercel.app")return canonical;
+    if(/\.vercel\.app$/.test(host))return origin;
+    if(host==="localhost"||host==="127.0.0.1")return origin;
+    return canonical;
+  }catch(error){
+    return canonical;
+  }
+};
+
+window.kutadguGoogleAccountRedirectTo = function(){
+  return String(window.kutadguAuthCallbackOrigin()||"https://www.kutadgubilig.com").replace(/\/+$/,"")+"/account.html";
+};
+
 window.kutadguPasswordResetRedirectTo = function(next){
   const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
   const url=origin+"/reset-password.html";
@@ -11,12 +31,39 @@ window.kutadguPasswordResetRedirectTo = function(next){
   return url+"?next=account";
 };
 
+window.kutadguAuthHashParams = function(hash){
+  return new URLSearchParams(String(hash||"").replace(/^#/,""));
+};
+
+window.kutadguIsGenericOauthHash = function(hash){
+  const h=window.kutadguAuthHashParams(hash);
+  if(h.get("provider_token"))return true;
+  const type=String(h.get("type")||"").toLowerCase();
+  if(h.get("access_token") && type!=="recovery")return true;
+  return false;
+};
+
 window.kutadguIsPasswordRecoveryType = function(search,hash){
+  if(window.kutadguIsGenericOauthHash(hash))return false;
   const q=new URLSearchParams(search||"");
-  const h=new URLSearchParams(String(hash||"").replace(/^#/,""));
+  const h=window.kutadguAuthHashParams(hash);
   const type=String(q.get("type")||h.get("type")||"").toLowerCase();
   return type==="recovery";
 };
+
+(function kutadguCanonicalizeApexAuthCallback(){
+  try{
+    if(location.hostname!=="kutadgubilig.com")return;
+    const search=location.search||"";
+    const hash=location.hash||"";
+    const auth=window.kutadguIsPasswordRecoveryType(search,hash)
+      ||window.kutadguIsGenericOauthHash(hash)
+      ||/[?&]code=/.test(search)
+      ||/[?&]token_hash=/.test(search);
+    if(!auth)return;
+    location.replace("https://www.kutadgubilig.com"+location.pathname+search+hash);
+  }catch(error){}
+})();
 
 (function kutadguBounceRecoveryToResetPage(){
   try{
@@ -24,6 +71,7 @@ window.kutadguIsPasswordRecoveryType = function(search,hash){
     if(file==="reset-password.html")return;
     const search=location.search||"";
     const hash=location.hash||"";
+    if(window.kutadguIsGenericOauthHash(hash))return;
     if(!window.kutadguIsPasswordRecoveryType(search,hash))return;
     const dest=new URL("reset-password.html",location.href);
     new URLSearchParams(search).forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});

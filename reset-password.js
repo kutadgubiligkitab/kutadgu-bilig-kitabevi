@@ -17,7 +17,9 @@ function recoveryParams(){
   const next=String(params.get("next")||"").toLowerCase();
   const code=params.get("code")||hashParams.get("code");
   const tokenHash=params.get("token_hash")||hashParams.get("token_hash");
-  return {params,hashParams,type,next,code,tokenHash};
+  const hasAccessToken=!!(hashParams.get("access_token")||params.get("access_token"));
+  const hasProviderToken=!!(hashParams.get("provider_token")||params.get("provider_token"));
+  return {params,hashParams,type,next,code,tokenHash,hasAccessToken,hasProviderToken};
 }
 
 function isExplicitRecoveryType(type){
@@ -25,12 +27,15 @@ function isExplicitRecoveryType(type){
 }
 
 function isIntendedRecoveryLink(info){
+  if(info.hasProviderToken)return false;
   if(isExplicitRecoveryType(info.type))return true;
   if((info.next==="account"||info.next==="admin")&&(info.code||info.tokenHash))return true;
   return false;
 }
 
-function isGenericOauthCode(info){
+function isGenericOauthCallback(info){
+  if(info.hasProviderToken)return true;
+  if(info.hasAccessToken && !isExplicitRecoveryType(info.type))return true;
   if(!info.code)return false;
   if(isExplicitRecoveryType(info.type))return false;
   if(info.next==="account"||info.next==="admin")return false;
@@ -94,7 +99,7 @@ async function establishRecoverySession(info){
 async function init(){
   const info=recoveryParams();
 
-  if(isGenericOauthCode(info)){
+  if(isGenericOauthCallback(info)){
     sendGenericOauthToAccount(info);
     return;
   }
@@ -194,7 +199,7 @@ window.kutadguResetPasswordTest={
   returnTarget,
   isExplicitRecoveryType,
   isIntendedRecoveryLink,
-  isGenericOauthCode
+  isGenericOauthCallback
 };
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();

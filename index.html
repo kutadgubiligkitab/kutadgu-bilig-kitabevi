@@ -39,17 +39,20 @@
 (function(){
   var q=location.search||"";
   var h=location.hash||"";
-  if(/[?&]type=(?:signup|email)(?:&|$)/.test(q)||/[?#&]type=(?:signup|email)(?:&|$)/.test(h))return;
-  var recovery=/[?&]type=recovery(?:&|$)/.test(q)||/[?#&]type=recovery(?:&|$)/.test(h);
-  if(!recovery)return;
+  var hp=new URLSearchParams(String(h||"").replace(/^#/,""));
+  if(hp.get("provider_token"))return;
+  var type=String(new URLSearchParams(q).get("type")||hp.get("type")||"").toLowerCase();
+  if(type==="signup"||type==="email")return;
+  if(hp.get("access_token")&&type!=="recovery")return;
+  if(type!=="recovery")return;
   location.replace("reset-password.html"+q+h);
 })();
 </script>
 <script defer src="theme.js?v=5"></script>
-<script defer src="supabase-config.js?v=10"></script>
+<script defer src="supabase-config.js?v=11"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=1"></script><script defer src="kutadgu-book-seo.js?v=1"></script><script defer src="shop.js?v=66"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=1"></script><script defer src="kutadgu-book-seo.js?v=1"></script><script defer src="shop.js?v=67"></script>
 <script defer src="mobile.js?v=3"></script>
 </head>
 

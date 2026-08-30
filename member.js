@@ -393,8 +393,9 @@ async function signIn({email,password}){
 }
 async function signInWithGoogle(){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
-  const redirectTo=origin+"/account.html";
+  const redirectTo=(window.kutadguGoogleAccountRedirectTo||function(){
+    return "https://www.kutadgubilig.com/account.html";
+  })();
   const {data,error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
   if(error)throw error;
   return data;
@@ -470,7 +471,9 @@ async function init(){
   if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");readyResolve(api);emit();return}
   try{
     await loadSdk();
-    db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
+    db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
+      auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}
+    });
     const {data,error}=await db.auth.getSession();
     if(error)throw error;
     await queueSession(data.session,{sync:false});
