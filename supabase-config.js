@@ -99,8 +99,8 @@ window.KUTADGU_CONTACT_CONFIG = {
     }
     if(document.querySelector('script[data-kutadgu-maintenance="1"]'))return;
     var s=document.createElement("script");
-    s.src="kutadgu-maintenance.js?v=1";
-    s.async=false;
+    s.src="kutadgu-maintenance.js?v=2";
+    s.async=true;
     s.dataset.kutadguMaintenance="1";
     (document.head||document.documentElement).appendChild(s);
   }catch(e){}

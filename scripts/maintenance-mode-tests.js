@@ -43,6 +43,8 @@ test("guard fail-open on lookup error and uses admin_users for bypass", () => {
   assert.match(maint, /if \(res\.error\) return false/);
   assert.match(maint, /\/rest\/v1\/admin_users\?select=user_id/);
   assert.match(maint, /cache: "no-store"/);
+  assert.match(maint, /credentials: "omit"/);
+  assert.match(maint, /kutadgu-maint-admin-note/);
   assert.doesNotMatch(maint, /service_role/);
   assert.doesNotMatch(maint, /[?&]bypass=/);
   assert.doesNotMatch(maint, /localStorage\.getItem\(["']kutadgu/);
@@ -59,7 +61,7 @@ test("guard covers storefront and skips Admin + password recovery", () => {
 });
 
 test("supabase-config loads one centralized guard without mass HTML", () => {
-  assert.match(cfg, /kutadgu-maintenance\.js\?v=1/);
+  assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
   assert.match(cfg, /admin\.html/);
   assert.doesNotMatch(cfg, /service_role/);
 });

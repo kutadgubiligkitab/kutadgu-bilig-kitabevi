@@ -23,6 +23,7 @@ function memberCreds() {
 
 /**
  * Block catalog/order/analytics writes. Allow GET catalog + Auth token exchange.
+ * Default maintenance_mode to false so the suite does not depend on the live flag.
  */
 async function installReadSafeNetwork(page) {
   await page.route("**/*", async (route) => {
@@ -30,7 +31,16 @@ async function installReadSafeNetwork(page) {
     const method = req.method();
     const url = req.url();
     const isWrite = method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE";
-    if (!isWrite) return route.continue();
+    if (!isWrite) {
+      if (url.includes("/rest/v1/store_settings")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([{ key: "maintenance_mode", value: false }])
+        });
+      }
+      return route.continue();
+    }
     if (url.includes("/auth/v1/")) return route.continue();
     if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings)/.test(url)) {
       return route.fulfill({

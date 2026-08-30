@@ -51,6 +51,7 @@
       if (document.body) document.body.classList.remove(ACTIVE_CLASS);
     } catch (e) {}
     hidePending();
+    hideAdminBypassNotice();
     var el = document.getElementById(OVERLAY_ID);
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
@@ -83,8 +84,28 @@
       "#" +
       OVERLAY_ID +
       " .kutadgu-maint-msg{margin:0;font-size:1.05rem;line-height:1.85;" +
-      "color:#4a3420}";
+      "color:#4a3420}" +
+      "#kutadgu-maint-admin-note{position:sticky;top:0;z-index:2147482999;" +
+      "background:#6b3a1f;color:#fff;text-align:center;padding:8px 12px;" +
+      "font-size:14px;line-height:1.6;direction:rtl}";
     (document.head || document.documentElement).appendChild(css);
+  }
+
+  function showAdminBypassNotice() {
+    if (document.getElementById("kutadgu-maint-admin-note")) return;
+    injectOverlayStyles();
+    var note = document.createElement("div");
+    note.id = "kutadgu-maint-admin-note";
+    note.setAttribute("dir", "rtl");
+    note.setAttribute("lang", "ug");
+    note.textContent = "ئاسراش ھالىتى ئوچۇق. سىز Admin بولغاچقا تور بەتنى نورمال كۆرەلەيسىز. ئادەتتىكى زىيارەتچى بۇ يازمىنى كۆرمەيدۇ.";
+    var mount = document.body || document.documentElement;
+    mount.appendChild(note);
+  }
+
+  function hideAdminBypassNotice() {
+    var el = document.getElementById("kutadgu-maint-admin-note");
+    if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
   function showMaintenance() {
@@ -144,7 +165,8 @@
       var res = await fetch(c.url + path, {
         method: "GET",
         headers: restHeaders(token),
-        cache: "no-store"
+        cache: "no-store",
+        credentials: "omit"
       });
       if (!res.ok) return { error: true, status: res.status };
       var data = await res.json();
@@ -157,7 +179,10 @@
   async function fetchMaintenanceOn() {
     var path = "/rest/v1/store_settings?select=key,value&key=eq." + encodeURIComponent(SETTING_KEY);
     var res = await restGet(path);
-    if (res.error) return false;
+    if (res.error) {
+      res = await restGet(path);
+      if (res.error) return false;
+    }
     var rows = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
     if (!rows.length) return false;
     return parseMaintenanceRow(rows[0]);
@@ -236,6 +261,7 @@
     var admin = await isAuthorizedAdmin();
     if (admin) {
       showStorefront();
+      showAdminBypassNotice();
       return;
     }
     showMaintenance();

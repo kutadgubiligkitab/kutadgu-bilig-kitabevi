@@ -94,7 +94,7 @@ test.describe("maintenance mode", () => {
     await expect(page.locator(OVERLAY)).toContainText("قۇتادغۇبىلىك كىتابخانىسى");
     await expect(page.locator(OVERLAY)).toContainText("ۋاقىتلىق ئاسراش");
     await expect(page.locator("#searchInput")).toBeHidden();
-    expect(hops.filter((u) => /\/$|index\.html/.test(u)).length).toBeLessThan(4);
+    await expect(page.locator("#kutadgu-maint-admin-note")).toHaveCount(0);
 
     await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
@@ -139,6 +139,7 @@ test.describe("maintenance mode", () => {
     await H.waitForShop(page);
     await expect(page.locator(OVERLAY)).toHaveCount(0);
     await expect(page.locator("#searchInput")).toBeVisible();
+    await expect(page.locator("#kutadgu-maint-admin-note")).toBeVisible();
 
     await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
     const title = await H.waitForDetailTitle(page);
