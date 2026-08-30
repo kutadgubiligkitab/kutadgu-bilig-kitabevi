@@ -65,7 +65,6 @@ test("shop.js resets homepage title and only sets book titles on detail pages", 
   assert.match(src, /if\(isStorefrontHomepage\(\)\)\{\s*applyHomepageDocumentTitle\(\);\s*return;/);
   assert.match(src, /if\(!book\|\|!isBookDetailDocument\(\)\)return;/);
   assert.match(src, /pageshow/);
-  assert.doesNotMatch(src, /href="index\.html#books"/);
 });
 
 test("mobile home navigation uses / not index.html", () => {

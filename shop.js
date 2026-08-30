@@ -1077,7 +1077,7 @@ function renderDetailExtras(book){
              <span class="detail-section-kicker">📚 يەنە كۆرۈپ بېقىڭ</span>
              <h2>ئوخشاش كىتابلار</h2>
            </div>
-           <a href="${book.source||'/#books'}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>
+           <a href="${book.source||'index.html#books'}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>
          </div>
          <div class="shop-grid detail-related-grid">${related.map(miniCard).join("")}</div>
        </section>`
@@ -1239,7 +1239,7 @@ function renderFavoritesPage(){
   const books=favs().map(id=>find(id)).filter(Boolean);
   host.innerHTML=books.length
     ? `<div class="favorites-grid">${books.map(favoriteCard).join("")}</div>`
-    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز. مېھمان بولسىڭىز شۇ ئۈسكۈنىدە ساقلىنىدۇ؛ ھېسابقا كىرسىڭىز ھېسابىڭىزغا ماسلىشىدۇ.</p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></div>`;
+    : `<div class="empty-state favorites-empty"><span>♡</span><h2>ھازىرچە ياقتۇرغان كىتاب يوق</h2><p>كىتاب كارتىسىدىكى يۈرەك بەلگىسىنى بېسىپ بۇ يەرگە ساقلىيالايسىز. مېھمان بولسىڭىز شۇ ئۈسكۈنىدە ساقلىنىدۇ؛ ھېسابقا كىرسىڭىز ھېسابىڭىزغا ماسلىشىدۇ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
   bindDynamicActions(host);
   host.querySelectorAll("[data-remove-favorite]").forEach(button=>button.onclick=()=>{toggleFav(button.dataset.removeFavorite);renderFavoritesPage()});
 }
@@ -1540,7 +1540,7 @@ function setupCatalogFilters(){
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
-  const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="/#books">باشقا كىتابلارنى كۆرۈش</a>';
+  const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
   let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptyMarkup;controls.insertAdjacentElement("afterend",empty);
   if(catalogStatus.error){
     const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
@@ -1756,7 +1756,7 @@ function cartPage(){
   const blocked=items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy);
 
   if(!items.length){
-    host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></div>`;
+    host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
     if(checkout)checkout.hidden=true;
     updateBadge();
     return;
