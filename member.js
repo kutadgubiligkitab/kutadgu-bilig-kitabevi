@@ -391,11 +391,24 @@ async function signIn({email,password}){
   await queueSession(data.session,{trackLogin:true,sync:true});
   return data;
 }
+function googleAccountRedirectTo(){
+  const wwwAccount="https://www.kutadgubilig.com/account.html";
+  const host=String(location.hostname||"");
+  const origin=String(location.origin||"").replace(/\/+$/,"");
+  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilig.com"||host==="kutadgubilig.com"||host==="kutadgu-bilig-kitab.vercel.app")){
+    return wwwAccount;
+  }
+  if(origin && origin!=="null")return origin+"/account.html";
+  if(typeof window.kutadguGoogleAccountRedirectTo==="function"){
+    const url=String(window.kutadguGoogleAccountRedirectTo()||"");
+    if(/\/account\.html$/i.test(url) && url.indexOf("reset-password")===-1)return url;
+  }
+  return wwwAccount;
+}
+
 async function signInWithGoogle(){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const redirectTo=(window.kutadguGoogleAccountRedirectTo||function(){
-    return "https://www.kutadgubilig.com/account.html";
-  })();
+  const redirectTo=googleAccountRedirectTo();
   const {data,error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
   if(error)throw error;
   return data;

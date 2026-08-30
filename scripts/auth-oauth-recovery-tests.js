@@ -88,31 +88,44 @@ test("password reset helper always uses www and next=account|admin", () => {
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("", "#access_token=x&type=recovery&provider_token=p"), false);
 });
 
-test("Google OAuth redirectTo uses preview origin and forces www on apex", () => {
+test("Google OAuth redirectTo stays on the start origin except production hosts", () => {
   const www = loadConfig({
     hostname: "www.kutadgubilig.com",
     origin: "https://www.kutadgubilig.com"
   });
   assert.strictEqual(www.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  assert.ok(!www.kutadguGoogleAccountRedirectTo().includes("reset-password"));
   const apex = loadConfig({
     hostname: "kutadgubilig.com",
     origin: "https://kutadgubilig.com"
   });
   assert.strictEqual(apex.kutadguAuthCallbackOrigin(), "https://www.kutadgubilig.com");
   assert.strictEqual(apex.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  const previewHost = "kutadgu-bilig-kitab-git-cursor-auth-oauth-recovery-domain-fd87.vercel.app";
   const preview = loadConfig({
-    hostname: "kutadgu-bilig-kitab-git-cursor-auth-oauth-recovery-domain-fd87.vercel.app",
-    origin: "https://kutadgu-bilig-kitab-git-cursor-auth-oauth-recovery-domain-fd87.vercel.app"
+    hostname: previewHost,
+    origin: "https://"+previewHost
   });
-  assert.strictEqual(
-    preview.kutadguGoogleAccountRedirectTo(),
-    "https://kutadgu-bilig-kitab-git-cursor-auth-oauth-recovery-domain-fd87.vercel.app/account.html"
-  );
+  assert.strictEqual(preview.kutadguGoogleAccountRedirectTo(), "https://"+previewHost+"/account.html");
   const prodVercel = loadConfig({
     hostname: "kutadgu-bilig-kitab.vercel.app",
     origin: "https://kutadgu-bilig-kitab.vercel.app"
   });
   assert.strictEqual(prodVercel.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  const otherPreview = loadConfig({
+    hostname: "pr-33-auth.example.com",
+    origin: "https://pr-33-auth.example.com"
+  });
+  assert.strictEqual(otherPreview.kutadguGoogleAccountRedirectTo(), "https://pr-33-auth.example.com/account.html");
+  const local = loadConfig({
+    hostname: "127.0.0.1",
+    origin: "http://127.0.0.1:4173"
+  });
+  assert.strictEqual(local.kutadguGoogleAccountRedirectTo(), "http://127.0.0.1:4173/account.html");
+  assert.strictEqual(
+    preview.kutadguPasswordResetRedirectTo("account"),
+    "https://www.kutadgubilig.com/reset-password.html?next=account"
+  );
 });
 
 test("homepage bounce only uses explicit type=recovery and skips OAuth hashes", () => {
@@ -124,12 +137,13 @@ test("homepage bounce only uses explicit type=recovery and skips OAuth hashes", 
   assert.match(cfg, /kutadguCanonicalizeApexAuthCallback/);
 });
 
-test("Google OAuth uses PKCE and account helper", () => {
-  assert.match(member, /kutadguGoogleAccountRedirectTo/);
+test("Google OAuth uses PKCE and same-origin account helper", () => {
+  assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
-  assert.match(account, /member\.js\?v=10/);
-  assert.match(read("shop.js"), /member\.js\?v=10/);
-  assert.match(index, /shop\.js\?v=67/);
+  assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
+  assert.match(account, /member\.js\?v=11/);
+  assert.match(read("shop.js"), /member\.js\?v=11/);
+  assert.match(index, /shop\.js\?v=68/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -145,10 +159,10 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
 
 test("reset-password.html loads reset-password.js v=5", () => {
   assert.match(read("reset-password.html"), /reset-password\.js\?v=5/);
-  assert.match(read("reset-password.html"), /supabase-config\.js\?v=11/);
-  assert.match(account, /supabase-config\.js\?v=11/);
-  assert.match(index, /supabase-config\.js\?v=11/);
-  assert.match(read("admin.html"), /supabase-config\.js\?v=11/);
+  assert.match(read("reset-password.html"), /supabase-config\.js\?v=12/);
+  assert.match(account, /supabase-config\.js\?v=12/);
+  assert.match(index, /supabase-config\.js\?v=12/);
+  assert.match(read("admin.html"), /supabase-config\.js\?v=12/);
   assert.match(read("admin.html"), /admin\.js\?v=30/);
 });
 

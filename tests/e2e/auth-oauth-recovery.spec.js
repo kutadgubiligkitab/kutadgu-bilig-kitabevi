@@ -78,8 +78,9 @@ test.describe("auth oauth vs recovery", () => {
       admin: window.kutadguPasswordResetRedirectTo("admin")
     }));
     expect(urls.origin).toBe("https://www.kutadgubilig.com");
-    expect(urls.google).toMatch(/\/account\.html$/);
+    expect(urls.google).toBe(`${new URL(page.url()).origin}/account.html`);
     expect(urls.google).not.toContain("reset-password.html");
+    expect(urls.google).not.toContain("kutadgubilig.com");
     expect(urls.account).toBe("https://www.kutadgubilig.com/reset-password.html?next=account");
     expect(urls.admin).toBe("https://www.kutadgubilig.com/reset-password.html?next=admin");
     expect(JSON.stringify(urls)).not.toContain("kutadgu-bilig-kitab.vercel.app");

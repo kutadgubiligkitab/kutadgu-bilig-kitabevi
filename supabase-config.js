@@ -4,16 +4,18 @@
 */
 window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilig.com";
 
+window.kutadguIsProductionAuthHost = function(host){
+  const h=String(host||"").toLowerCase();
+  return h==="www.kutadgubilig.com"||h==="kutadgubilig.com"||h==="kutadgu-bilig-kitab.vercel.app";
+};
+
 window.kutadguAuthCallbackOrigin = function(){
   const canonical="https://www.kutadgubilig.com";
   try{
     const host=String(location.hostname||"");
-    const origin=String(location.origin||canonical).replace(/\/+$/,"");
-    if(host==="kutadgubilig.com")return canonical;
-    if(host==="www.kutadgubilig.com")return canonical;
-    if(host==="kutadgu-bilig-kitab.vercel.app")return canonical;
-    if(/\.vercel\.app$/.test(host))return origin;
-    if(host==="localhost"||host==="127.0.0.1")return origin;
+    const origin=String(location.origin||"").replace(/\/+$/,"");
+    if(window.kutadguIsProductionAuthHost(host))return canonical;
+    if(origin && origin!=="null")return origin;
     return canonical;
   }catch(error){
     return canonical;
@@ -21,7 +23,7 @@ window.kutadguAuthCallbackOrigin = function(){
 };
 
 window.kutadguGoogleAccountRedirectTo = function(){
-  return String(window.kutadguAuthCallbackOrigin()||"https://www.kutadgubilig.com").replace(/\/+$/,"")+"/account.html";
+  return String(window.kutadguAuthCallbackOrigin()).replace(/\/+$/,"")+"/account.html";
 };
 
 window.kutadguPasswordResetRedirectTo = function(next){
