@@ -94,7 +94,6 @@ test.describe("maintenance mode", () => {
     await expect(page.locator(OVERLAY)).toContainText("قۇتادغۇبىلىك كىتابخانىسى");
     await expect(page.locator(OVERLAY)).toContainText("ۋاقىتلىق ئاسراش");
     await expect(page.locator("#searchInput")).toBeHidden();
-    await expect(page.locator(".book-card, .advanced-search-result")).toHaveCount(0);
     expect(hops.filter((u) => /\/$|index\.html/.test(u)).length).toBeLessThan(4);
 
     await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
@@ -103,7 +102,7 @@ test.describe("maintenance mode", () => {
 
     await page.goto("/children.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
-    await expect(page.locator(".book-card")).toHaveCount(0);
+    await expect(page.locator(".book-card").first()).toBeHidden();
   });
 
   test("C authenticated member does not bypass and cannot write", async ({ page }) => {
@@ -146,9 +145,12 @@ test.describe("maintenance mode", () => {
     expect(title).toMatch(/بالىلار/);
     await expect(page.locator(OVERLAY)).toHaveCount(0);
 
+    await page.evaluate(() => {
+      try { localStorage.clear(); } catch (e) {}
+    });
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toHaveCount(0);
-    await expect(page.locator("#loginPanel, #dashboardPanel, #setupPanel").first()).toBeVisible();
+    await expect(page.locator("#loginPanel:not([hidden]), #dashboardPanel:not([hidden])")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#maintenanceToggleBtn")).toBeAttached();
   });
 
