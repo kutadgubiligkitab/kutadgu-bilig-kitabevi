@@ -198,6 +198,23 @@ function canonicalId(id){
   const book=find(id);
   return book?.id||String(id||"");
 }
+const HOMEPAGE_DOCUMENT_TITLE="قۇتادغۇبىلىك كىتابخانىسى";
+function storefrontPageFile(){
+  return (location.pathname||"/").split("/").pop().split(/[?#]/)[0]||"";
+}
+function isStorefrontHomepage(){
+  const file=storefrontPageFile();
+  return file===""||file==="index.html";
+}
+function isBookDetailDocument(){
+  if(isStorefrontHomepage())return false;
+  if(document.body.hasAttribute("data-dynamic-book"))return true;
+  if(storefrontPageFile()==="book.html")return true;
+  return !!document.querySelector(".book-detail-page,.book-detail-info");
+}
+function applyHomepageDocumentTitle(){
+  document.title=HOMEPAGE_DOCUMENT_TITLE;
+}
 const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
 const trackEvent=(name,data={})=>{try{window.KutadguAnalytics?.track?.(name,data)}catch(err){}};
@@ -482,6 +499,7 @@ async function hydrateBooksByIds(ids=[]){
 }
 
 async function hydratePageBook(){
+  if(isStorefrontHomepage())return;
   const id=new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
   if(!id||!remoteCatalog.available)return;
   try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
@@ -848,6 +866,7 @@ function absoluteUrl(value){
 
 /* Detail SEO is generated only from known book data; missing facts stay omitted. */
 function updateBookSeo(book){
+  if(!book||!isBookDetailDocument())return;
   const Seo=window.KutadguBookSeo||{};
   const origin=siteOrigin();
   const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}/book.html?id=${encodeURIComponent(String(book.id||"").trim())}`;
@@ -884,6 +903,10 @@ function updateBookSeo(book){
 }
 
 function populateDynamicBookPage(b){
+  if(isStorefrontHomepage()||!isBookDetailDocument()){
+    if(isStorefrontHomepage())applyHomepageDocumentTitle();
+    return;
+  }
   const dynamic=document.body.hasAttribute("data-dynamic-book");
   if(!dynamic&&!b.isRemote)return;
   document.body.dataset.bookId=b.id;
@@ -1080,6 +1103,11 @@ function renderDetailExtras(book){
 }
 
 function decorateDetail(){
+  if(isStorefrontHomepage()){
+    applyHomepageDocumentTitle();
+    return;
+  }
+  if(!isBookDetailDocument())return;
   let b=getDetailBook(); if(!b)return;
   populateDynamicBookPage(b);
   updateBookSeo(b);
@@ -2375,6 +2403,7 @@ function initStaticShell(){
 }
 function init(){
   initStaticShell();
+  if(isStorefrontHomepage())applyHomepageDocumentTitle();
   applyDetailCoverFallback();
   decorateDetail();
   setupCatalogFilters();
@@ -2392,6 +2421,7 @@ function init(){
     document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
     document.addEventListener("kutadgu-member-change",loadMemberProfileIntoCheckout);
     window.addEventListener("resize",()=>{ensureDesktopShopNav();updateBadge()});
+    window.addEventListener("pageshow",()=>{if(isStorefrontHomepage())applyHomepageDocumentTitle()});
   }
   loadMemberSystem();
 }
@@ -2414,5 +2444,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle};
 })();
