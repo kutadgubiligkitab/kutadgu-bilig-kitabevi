@@ -55,7 +55,12 @@ test.describe("auth oauth vs recovery", () => {
 });
 
 test.describe("auth oauth vs recovery — mobile viewport", () => {
-  test.use({ ...devices["Pixel 5"] });
+  test.use({
+    viewport: devices["Pixel 5"].viewport,
+    userAgent: devices["Pixel 5"].userAgent,
+    isMobile: true,
+    hasTouch: true
+  });
 
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
