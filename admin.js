@@ -351,6 +351,83 @@ async function checkAdmin(u){
   if(error)return false;
   return !!data;
 }
+
+function parseMaintenanceFlag(value){
+  return value===true||value==="true"||value==="t"||value===1||value==="1";
+}
+
+function renderMaintenanceCard(on,opts={}){
+  const card=$("#maintenanceCard");
+  const btn=$("#maintenanceToggleBtn");
+  const el=$("#maintenanceStatus");
+  if(!card||!btn||!el)return;
+  card.classList.remove("is-active","is-inactive","is-missing");
+  if(opts.missing){
+    card.classList.add("is-missing");
+    btn.disabled=true;
+    btn.textContent="ئاسراشنى باشلاش";
+    status(el,"ئاسراش جەدۋىلى تېخى قوشۇلمىغان. SITE_MAINTENANCE_MODE.sql نى قولدا ئىجرا قىلغاندىن كېيىن بۇ يەردىن باشقۇرغىلى بولىدۇ.","warn");
+    return;
+  }
+  if(opts.error){
+    card.classList.add("is-inactive");
+    btn.disabled=true;
+    status(el,"ئاسراش ھالىتى ئوقۇلمىدى. تور بەت قۇلۇپلانمايدۇ.","warn");
+    return;
+  }
+  btn.disabled=false;
+  if(on){
+    card.classList.add("is-active");
+    btn.textContent="ئاسراشنى توختىتىش";
+    status(el,"ئاسراش ھازىر ئوچۇق. ئادەتتىكى زىيارەتچى ۋە ئەزالار كاتالوگنى كۆرەلمەيدۇ. پەقەت Admin تور بەتنى نورمال كۆرەلەيدۇ.","warn");
+  }else{
+    card.classList.add("is-inactive");
+    btn.textContent="ئاسراشنى باشلاش";
+    status(el,"ئاسراش ھازىر يېپىق. تور بەت نورمال ئېچىق.","ok");
+  }
+}
+
+async function loadMaintenanceCard(){
+  if(!db)return;
+  try{
+    const {data,error}=await db.from("store_settings").select("key,value").eq("key","maintenance_mode").maybeSingle();
+    if(error){
+      const msg=String(error.message||error.code||"");
+      const missing=/store_settings|does not exist|42P01|PGRST/i.test(msg)||error.code==="42P01"||error.code==="PGRST205";
+      renderMaintenanceCard(false,{missing,error:true});
+      return;
+    }
+    renderMaintenanceCard(parseMaintenanceFlag(data&&data.value));
+  }catch(err){
+    renderMaintenanceCard(false,{error:true});
+  }
+}
+
+async function toggleMaintenanceMode(){
+  if(!db||!user)return;
+  const btn=$("#maintenanceToggleBtn");
+  const el=$("#maintenanceStatus");
+  const currentlyOn=$("#maintenanceCard")&&$("#maintenanceCard").classList.contains("is-active");
+  const next=!currentlyOn;
+  const ok=confirm(next
+    ?"ئاسراشتىن كېيىن ئادەتتىكى زىيارەتچى كاتالوگنى كۆرەلمەيدۇ. داۋاملاشتۇرامسىز؟"
+    :"ئاسراشنى توختىتىپ تور بەتنى نورمال ئېچىۋېتەمسىز؟");
+  if(!ok)return;
+  if(btn)btn.disabled=true;
+  status(el,"ئاسراش ھالىتى يېزىلىۋاتىدۇ...");
+  try{
+    const {error}=await db.from("store_settings").update({
+      value:next,
+      updated_at:new Date().toISOString(),
+      updated_by:user.id
+    }).eq("key","maintenance_mode");
+    if(error)throw error;
+    await loadMaintenanceCard();
+  }catch(err){
+    status(el,"ئاسراش ھالىتى يېزىلمىدى: "+(err.message||err),"error");
+    if(btn)btn.disabled=false;
+  }
+}
 async function routeSession(){
   const {data}=await db.auth.getSession();
   const session=data.session;
@@ -366,7 +443,7 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
-  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard()]);
 }
 
 function columnList(){
@@ -1839,6 +1916,7 @@ function init(){
   $("#loginForm").addEventListener("submit",login);
   $("#forgotPasswordBtn").onclick=requestPasswordReset;
   $("#adminLogout").onclick=logout;
+  $("#maintenanceToggleBtn")&&($("#maintenanceToggleBtn").onclick=toggleMaintenanceMode);
   $("#newBookBtn").onclick=openNew;
   $("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)};
   $("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)};
@@ -1925,6 +2003,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard
 };
 })();

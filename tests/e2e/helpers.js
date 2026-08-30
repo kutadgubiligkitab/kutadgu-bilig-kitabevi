@@ -32,7 +32,7 @@ async function installReadSafeNetwork(page) {
     const isWrite = method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE";
     if (!isWrite) return route.continue();
     if (url.includes("/auth/v1/")) return route.continue();
-    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users)/.test(url)) {
+    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings)/.test(url)) {
       return route.fulfill({
         status: 201,
         contentType: "application/json",
