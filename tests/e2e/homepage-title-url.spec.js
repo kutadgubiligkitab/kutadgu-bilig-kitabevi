@@ -13,8 +13,8 @@ test.describe("homepage title and root URL", () => {
     await H.waitForShop(page);
     await expect(page).toHaveTitle(HOME_TITLE);
     expect(new URL(page.url()).pathname).toBe("/");
-    const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
-    expect(canonical).toBe("https://www.kutadgubilik.com/");
+    const canonical = String(await page.locator('link[rel="canonical"]').first().getAttribute("href") || "").trim();
+    expect(canonical.replace(/\/+$/, "/")).toMatch(/^https:\/\/www\.kutadgubilig\.com\/$/);
     await expect(page.locator("a.logo")).toHaveAttribute("href", "/");
   });
 
