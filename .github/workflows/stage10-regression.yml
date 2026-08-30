@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  deployments: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -15,6 +19,7 @@ jobs:
       KUTADGU_ADMIN_PASSWORD: ${{ secrets.KUTADGU_ADMIN_PASSWORD }}
       KUTADGU_MEMBER_EMAIL: ${{ secrets.KUTADGU_MEMBER_EMAIL }}
       KUTADGU_MEMBER_PASSWORD: ${{ secrets.KUTADGU_MEMBER_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,15 +29,23 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Resolve target URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci-resolve-e2e-target.js
+      - name: Serve PR checkout when Preview is not usable
+        if: env.KUTADGU_USE_LOCAL_STATIC == '1'
         run: |
-          if [ -n "$KUTADGU_PREVIEW_URL" ]; then
-            echo "Using preview $KUTADGU_PREVIEW_URL"
-          elif [ -n "$KUTADGU_BASE_URL" ]; then
-            echo "Using KUTADGU_BASE_URL $KUTADGU_BASE_URL"
-          else
-            echo "KUTADGU_BASE_URL=https://kutadgu-bilig-kitab.vercel.app" >> "$GITHUB_ENV"
-            echo "Using production (read-safe Playwright routes block catalog writes)"
-          fi
+          node scripts/static-preview-server.js &
+          for i in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:4173/" >/dev/null; then
+              echo "[e2e-target] local checkout server ready host=127.0.0.1"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "[e2e-target] local checkout server failed to start" >&2
+          exit 1
       - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()

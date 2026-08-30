@@ -24,10 +24,30 @@ function send(res, status, headers, body) {
   res.end(body);
 }
 
+const SITEMAP_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+
+function isSitemapPath(pathname) {
+  return pathname === "/sitemap.xml"
+    || pathname === "/sitemap-books.xml"
+    || /^\/sitemap-books-\d+\.xml$/.test(pathname);
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
   if (url.pathname === "/index.html") {
     send(res, 308, { Location: `/${url.search}` }, "");
+    return;
+  }
+  if (isSitemapPath(url.pathname)) {
+    const dest = `${SITEMAP_ORIGIN}${url.pathname}${url.search}`;
+    fetch(dest).then(async (upstream) => {
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      send(res, upstream.status, {
+        "Content-Type": upstream.headers.get("content-type") || "application/xml; charset=utf-8"
+      }, buf);
+    }).catch(() => {
+      send(res, 502, { "Content-Type": "text/plain; charset=utf-8" }, "sitemap proxy failed");
+    });
     return;
   }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
