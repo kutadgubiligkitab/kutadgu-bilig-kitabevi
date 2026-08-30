@@ -393,7 +393,8 @@ async function signIn({email,password}){
 }
 async function signInWithGoogle(){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const redirectTo=new URL("account.html",location.href).href;
+  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
+  const redirectTo=origin+"/account.html";
   const {data,error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
   if(error)throw error;
   return data;
@@ -406,7 +407,7 @@ async function signOut(){
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const redirectTo=(window.kutadguPasswordResetRedirectTo||function(n){
-    return `${String(window.KUTADGU_SITE_ORIGIN||location.origin).replace(/\/+$/,"")}/reset-password.html?next=${encodeURIComponent(n||"account")}`;
+    return "https://www.kutadgubilig.com/reset-password.html?next="+encodeURIComponent(n==="admin"?"admin":"account");
   })(next);
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error)throw error;

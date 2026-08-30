@@ -2,30 +2,32 @@
   قۇتادغۇبىلىك كىتابخانىسى — Supabase public config
   پەقەت PUBLIC Project URL ۋە PUBLIC Publishable key ئىشلىتىلىدۇ.
 */
-window.KUTADGU_SITE_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilig.com";
 
 window.kutadguPasswordResetRedirectTo = function(next){
-  const origin=String(window.KUTADGU_SITE_ORIGIN||location.origin||"").replace(/\/+$/,"");
+  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
   const url=origin+"/reset-password.html";
   if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
-  return url;
+  return url+"?next=account";
+};
+
+window.kutadguIsPasswordRecoveryType = function(search,hash){
+  const q=new URLSearchParams(search||"");
+  const h=new URLSearchParams(String(hash||"").replace(/^#/,""));
+  const type=String(q.get("type")||h.get("type")||"").toLowerCase();
+  return type==="recovery";
 };
 
 (function kutadguBounceRecoveryToResetPage(){
   try{
     const file=(location.pathname.split("/").pop()||"index.html").split(/[?#]/)[0]||"index.html";
     if(file==="reset-password.html")return;
-    const search=new URLSearchParams(location.search);
-    const hash=new URLSearchParams(String(location.hash||"").replace(/^#/,""));
-    const type=String(search.get("type")||hash.get("type")||"").toLowerCase();
-    if(type==="signup"||type==="email")return;
-    const recovery=type==="recovery";
-    const onHome=file==="index.html"||file==="";
-    const authOnHome=onHome&&(search.has("code")||search.has("token_hash")||hash.has("access_token"));
-    if(!recovery&&!authOnHome)return;
+    const search=location.search||"";
+    const hash=location.hash||"";
+    if(!window.kutadguIsPasswordRecoveryType(search,hash))return;
     const dest=new URL("reset-password.html",location.href);
-    search.forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});
-    dest.hash=location.hash||"";
+    new URLSearchParams(search).forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});
+    dest.hash=hash||"";
     location.replace(dest.pathname+dest.search+dest.hash);
   }catch(error){}
 })();
