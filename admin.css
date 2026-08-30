@@ -37,6 +37,10 @@ button{cursor:pointer}
 .admin-stat{background:#fffdf9;border:1px solid #e8dccb;border-radius:13px;padding:16px}
 .admin-stat strong{display:block;font-size:27px}
 .admin-stat span{font-size:12px;color:#806f62}
+.admin-maint-card.is-active{border-color:#c47a4a;background:#fff6ee;box-shadow:0 0 0 2px rgba(167,79,69,.12)}
+.admin-maint-card.is-inactive{border-color:#96b89e}
+.admin-maint-card.is-active #maintenanceToggleBtn{background:#a74f45}
+.admin-maint-card.is-missing{border-color:#d8bd7d}
 .admin-book-list{display:grid;gap:10px}
 .admin-book-row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px;border:1px solid #e8dccb;border-radius:11px;background:#fff}
 .admin-book-row img{width:54px;height:72px;object-fit:contain;background:#eee9e1;border-radius:6px}

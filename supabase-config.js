@@ -85,3 +85,23 @@ window.KUTADGU_CONTACT_CONFIG = {
   hours: "",
   storePhoto: ""
 };
+
+(function kutadguLoadMaintenanceGuard(){
+  try{
+    var file=(location.pathname.split("/").pop()||"").toLowerCase();
+    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html")return;
+    document.documentElement.classList.add("kutadgu-maint-pending");
+    if(!document.getElementById("kutadgu-maintenance-boot-style")){
+      var css=document.createElement("style");
+      css.id="kutadgu-maintenance-boot-style";
+      css.textContent="html.kutadgu-maint-pending body,body.kutadgu-maint-pending{visibility:hidden!important}";
+      (document.head||document.documentElement).appendChild(css);
+    }
+    if(document.querySelector('script[data-kutadgu-maintenance="1"]'))return;
+    var s=document.createElement("script");
+    s.src="kutadgu-maintenance.js?v=2";
+    s.async=true;
+    s.dataset.kutadguMaintenance="1";
+    (document.head||document.documentElement).appendChild(s);
+  }catch(e){}
+})();

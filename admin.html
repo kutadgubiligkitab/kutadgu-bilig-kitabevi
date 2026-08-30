@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=14">
+  <link rel="stylesheet" href="admin.css?v=15">
 </head>
 <body>
 <div class="admin-shell">
@@ -53,6 +53,13 @@
         <div class="admin-stat admin-stat-member"><strong id="statVisits">0</strong><span>جەمئىي زىيارەت</span></div>
         <div class="admin-stat admin-stat-order"><strong id="statOrders">0</strong><span>زاكاز سانى</span></div>
         <div class="admin-stat admin-stat-order"><strong id="statRevenue">0 ₺</strong><span>زاكاز ئومۇمىي سوممىسى</span></div>
+      </section>
+
+      <section class="admin-card admin-maint-card is-inactive" id="maintenanceCard">
+        <h2>🛠 تور بەت ئاسراش ھالىتى</h2>
+        <p class="admin-help">ئاسراش ئوچۇق بولسا ئادەتتىكى زىيارەتچى ۋە ئەزالار كاتالوگنى كۆرەلمەيدۇ. پەقەت ھەقىقىي Admin ھېساباتى تور بەتنى نورمال كۆرەلەيدۇ. بۇ تەڭشەك Database دا ساقلىنىدۇ؛ قايتا ئېلان قىلىش ھاجەتسىز.</p>
+        <div id="maintenanceStatus" class="admin-status">ئاسراش ھالىتى تەكشۈرۈلىۋاتىدۇ...</div>
+        <button class="admin-primary" id="maintenanceToggleBtn" type="button" disabled>ئاسراشنى باشلاش</button>
       </section>
 
       <section class="admin-card">
@@ -339,6 +346,6 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=28"></script>
+<script defer src="admin.js?v=29"></script>
 </body>
 </html>
