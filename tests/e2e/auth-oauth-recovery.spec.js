@@ -85,6 +85,96 @@ test.describe("auth oauth vs recovery", () => {
     expect(urls.admin).toBe("https://www.kutadgubilig.com/reset-password.html?next=admin");
     expect(JSON.stringify(urls)).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
+
+  test("C next=account PKCE code is OAuth, not recovery", async ({ page }) => {
+    await page.goto("/reset-password.html?next=account&code=oauth-test-code", { waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => new URL(url).pathname === "/account.html", { timeout: 10_000 });
+    expect(new URL(page.url()).searchParams.get("code")).toBe("oauth-test-code");
+    await expect(page.locator("#resetPasswordForm")).toHaveCount(0);
+  });
+});
+
+test.describe("cross-device token_hash recovery", () => {
+  async function mockVerify(page, outcome) {
+    await page.route("**/auth/v1/verify**", async (route) => {
+      if (outcome === "ok") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            access_token: "test-recovery-access",
+            refresh_token: "test-recovery-refresh",
+            expires_in: 3600,
+            token_type: "bearer",
+            user: { id: "11111111-1111-1111-1111-111111111111", email: "member@example.com" }
+          })
+        });
+      }
+      const msg = outcome === "expired"
+        ? "Token has expired or is invalid"
+        : "Invalid token";
+      return route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "otp_expired", error_description: msg, msg })
+      });
+    });
+  }
+
+  test("desktop request, phone opens token_hash, form enables without PKCE storage", async ({ browser, baseURL }) => {
+    const phone = await browser.newContext({
+      viewport: devices["Pixel 5"].viewport,
+      userAgent: devices["Pixel 5"].userAgent,
+      isMobile: true,
+      hasTouch: true,
+      baseURL
+    });
+    const page = await phone.newPage();
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "ok");
+    await page.goto("/reset-password.html?next=account&token_hash=phone-opens-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
+    expect(new URL(page.url()).pathname).toBe("/reset-password.html");
+    await phone.close();
+  });
+
+  test("phone request, desktop opens token_hash, form enables", async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "ok");
+    await page.goto("/reset-password.html?next=admin&token_hash=desktop-opens-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
+  });
+
+  test("same-device token_hash recovery enables the form", async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "ok");
+    await page.goto("/reset-password.html?next=account&token_hash=same-device-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
+  });
+
+  test("invalid token_hash is rejected", async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "invalid");
+    await page.goto("/reset-password.html?next=account&token_hash=invalid-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeDisabled();
+    await expect(page.locator("#resetStatus")).toContainText(/مەغلۇپ|invalid|expired|ئۇلانما/i);
+  });
+
+  test("expired token_hash is rejected", async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "expired");
+    await page.goto("/reset-password.html?next=account&token_hash=expired-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeDisabled();
+    await expect(page.locator("#resetStatus")).toContainText(/مەغلۇپ|expired|invalid|ئۇلانما/i);
+  });
+
+  test("used token_hash is rejected", async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+    await mockVerify(page, "invalid");
+    await page.goto("/reset-password.html?next=account&token_hash=used-hash&type=recovery", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#newPassword")).toBeDisabled();
+    await expect(page.locator("#resetStatus")).toContainText(/مەغلۇپ|invalid|expired|ئۇلانما/i);
+  });
 });
 
 test.describe("auth oauth vs recovery — mobile viewport", () => {
@@ -117,3 +207,4 @@ test.describe("auth oauth vs recovery — mobile viewport", () => {
     expect(page.url()).not.toMatch(/reset-password\.html/);
   });
 });
+

@@ -32,6 +32,9 @@ window.kutadguPasswordResetRedirectTo = function(next){
   if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
   return url+"?next=account";
 };
+/* Recovery email CTA (manual Supabase template, not ConfirmationURL):
+   {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery
+   RedirectTo is www reset-password.html?next=account|admin. TokenHash is cross-device. */
 
 window.kutadguAuthHashParams = function(hash){
   return new URLSearchParams(String(hash||"").replace(/^#/,""));

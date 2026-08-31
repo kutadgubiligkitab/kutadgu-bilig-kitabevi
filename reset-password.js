@@ -28,18 +28,17 @@ function isExplicitRecoveryType(type){
 
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
+  if(!info.tokenHash)return false;
   if(isExplicitRecoveryType(info.type))return true;
-  if((info.next==="account"||info.next==="admin")&&(info.code||info.tokenHash))return true;
+  if(info.next==="account"||info.next==="admin")return true;
   return false;
 }
 
 function isGenericOauthCallback(info){
   if(info.hasProviderToken)return true;
   if(info.hasAccessToken && !isExplicitRecoveryType(info.type))return true;
-  if(!info.code)return false;
-  if(isExplicitRecoveryType(info.type))return false;
-  if(info.next==="account"||info.next==="admin")return false;
-  return true;
+  if(info.code && !info.tokenHash)return true;
+  return false;
 }
 
 function sendGenericOauthToAccount(info){
@@ -73,24 +72,14 @@ function markRecoveryReady(){
 }
 
 async function establishRecoverySession(info){
-  const otpType=isExplicitRecoveryType(info.type)?"recovery":(info.type||"recovery");
-  let consumed=false;
-
-  if(info.code){
-    const {error}=await db.auth.exchangeCodeForSession(info.code);
-    if(error)throw error;
-    consumed=true;
-  }else if(info.tokenHash && (isExplicitRecoveryType(info.type) || !info.type)){
-    const {error}=await db.auth.verifyOtp({token_hash:info.tokenHash,type:otpType==="recovery"?"recovery":otpType});
-    if(error)throw error;
-    consumed=true;
-  }
-
-  if(!consumed)return null;
-
+  if(!info.tokenHash)return null;
+  if(!isIntendedRecoveryLink(info))return null;
+  const {data,error}=await db.auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
+  if(error)throw error;
+  if(data?.session)return data.session;
   for(let i=0;i<12;i++){
-    const {data}=await db.auth.getSession();
-    if(data?.session)return data.session;
+    const {data:now}=await db.auth.getSession();
+    if(now?.session)return now.session;
     await new Promise(r=>setTimeout(r,250));
   }
   return null;
@@ -117,11 +106,7 @@ async function init(){
   }
 
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
-    auth:{
-      detectSessionInUrl:isExplicitRecoveryType(info.type),
-      persistSession:true,
-      flowType:"pkce"
-    }
+    auth:{detectSessionInUrl:false,persistSession:true,flowType:"pkce"}
   });
   setFormEnabled(false);
 
@@ -142,7 +127,7 @@ async function init(){
 
     const session=await establishRecoverySession(info);
 
-    if(session && (info.code || info.tokenHash))markRecoveryReady();
+    if(session && info.tokenHash)markRecoveryReady();
     else if(!recoveryReady && !isExplicitRecoveryType(info.type)){
       status("بۇ بەتنى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
     }else if(!recoveryReady){
@@ -199,7 +184,8 @@ window.kutadguResetPasswordTest={
   returnTarget,
   isExplicitRecoveryType,
   isIntendedRecoveryLink,
-  isGenericOauthCallback
+  isGenericOauthCallback,
+  usesPkceCodeExchange:false
 };
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
