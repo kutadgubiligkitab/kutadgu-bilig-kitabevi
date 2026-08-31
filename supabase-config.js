@@ -2,30 +2,85 @@
   قۇتادغۇبىلىك كىتابخانىسى — Supabase public config
   پەقەت PUBLIC Project URL ۋە PUBLIC Publishable key ئىشلىتىلىدۇ.
 */
-window.KUTADGU_SITE_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilig.com";
+
+window.kutadguIsProductionAuthHost = function(host){
+  const h=String(host||"").toLowerCase();
+  return h==="www.kutadgubilig.com"||h==="kutadgubilig.com"||h==="kutadgu-bilig-kitab.vercel.app";
+};
+
+window.kutadguAuthCallbackOrigin = function(){
+  const canonical="https://www.kutadgubilig.com";
+  try{
+    const host=String(location.hostname||"");
+    const origin=String(location.origin||"").replace(/\/+$/,"");
+    if(window.kutadguIsProductionAuthHost(host))return canonical;
+    if(origin && origin!=="null")return origin;
+    return canonical;
+  }catch(error){
+    return canonical;
+  }
+};
+
+window.kutadguGoogleAccountRedirectTo = function(){
+  return String(window.kutadguAuthCallbackOrigin()).replace(/\/+$/,"")+"/account.html";
+};
 
 window.kutadguPasswordResetRedirectTo = function(next){
-  const origin=String(window.KUTADGU_SITE_ORIGIN||location.origin||"").replace(/\/+$/,"");
+  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
   const url=origin+"/reset-password.html";
   if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
-  return url;
+  return url+"?next=account";
 };
+/* Recovery email CTA (manual Supabase template, not ConfirmationURL):
+   {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery
+   RedirectTo is www reset-password.html?next=account|admin. TokenHash is cross-device. */
+
+window.kutadguAuthHashParams = function(hash){
+  return new URLSearchParams(String(hash||"").replace(/^#/,""));
+};
+
+window.kutadguIsGenericOauthHash = function(hash){
+  const h=window.kutadguAuthHashParams(hash);
+  if(h.get("provider_token"))return true;
+  const type=String(h.get("type")||"").toLowerCase();
+  if(h.get("access_token") && type!=="recovery")return true;
+  return false;
+};
+
+window.kutadguIsPasswordRecoveryType = function(search,hash){
+  if(window.kutadguIsGenericOauthHash(hash))return false;
+  const q=new URLSearchParams(search||"");
+  const h=window.kutadguAuthHashParams(hash);
+  const type=String(q.get("type")||h.get("type")||"").toLowerCase();
+  return type==="recovery";
+};
+
+(function kutadguCanonicalizeApexAuthCallback(){
+  try{
+    if(location.hostname!=="kutadgubilig.com")return;
+    const search=location.search||"";
+    const hash=location.hash||"";
+    const auth=window.kutadguIsPasswordRecoveryType(search,hash)
+      ||window.kutadguIsGenericOauthHash(hash)
+      ||/[?&]code=/.test(search)
+      ||/[?&]token_hash=/.test(search);
+    if(!auth)return;
+    location.replace("https://www.kutadgubilig.com"+location.pathname+search+hash);
+  }catch(error){}
+})();
 
 (function kutadguBounceRecoveryToResetPage(){
   try{
     const file=(location.pathname.split("/").pop()||"index.html").split(/[?#]/)[0]||"index.html";
     if(file==="reset-password.html")return;
-    const search=new URLSearchParams(location.search);
-    const hash=new URLSearchParams(String(location.hash||"").replace(/^#/,""));
-    const type=String(search.get("type")||hash.get("type")||"").toLowerCase();
-    if(type==="signup"||type==="email")return;
-    const recovery=type==="recovery";
-    const onHome=file==="index.html"||file==="";
-    const authOnHome=onHome&&(search.has("code")||search.has("token_hash")||hash.has("access_token"));
-    if(!recovery&&!authOnHome)return;
+    const search=location.search||"";
+    const hash=location.hash||"";
+    if(window.kutadguIsGenericOauthHash(hash))return;
+    if(!window.kutadguIsPasswordRecoveryType(search,hash))return;
     const dest=new URL("reset-password.html",location.href);
-    search.forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});
-    dest.hash=location.hash||"";
+    new URLSearchParams(search).forEach((value,key)=>{if(key)dest.searchParams.set(key,value)});
+    dest.hash=hash||"";
     location.replace(dest.pathname+dest.search+dest.hash);
   }catch(error){}
 })();

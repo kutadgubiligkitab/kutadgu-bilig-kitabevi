@@ -391,9 +391,24 @@ async function signIn({email,password}){
   await queueSession(data.session,{trackLogin:true,sync:true});
   return data;
 }
+function googleAccountRedirectTo(){
+  const wwwAccount="https://www.kutadgubilig.com/account.html";
+  const host=String(location.hostname||"");
+  const origin=String(location.origin||"").replace(/\/+$/,"");
+  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilig.com"||host==="kutadgubilig.com"||host==="kutadgu-bilig-kitab.vercel.app")){
+    return wwwAccount;
+  }
+  if(origin && origin!=="null")return origin+"/account.html";
+  if(typeof window.kutadguGoogleAccountRedirectTo==="function"){
+    const url=String(window.kutadguGoogleAccountRedirectTo()||"");
+    if(/\/account\.html$/i.test(url) && url.indexOf("reset-password")===-1)return url;
+  }
+  return wwwAccount;
+}
+
 async function signInWithGoogle(){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const redirectTo=new URL("account.html",location.href).href;
+  const redirectTo=googleAccountRedirectTo();
   const {data,error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
   if(error)throw error;
   return data;
@@ -406,7 +421,7 @@ async function signOut(){
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const redirectTo=(window.kutadguPasswordResetRedirectTo||function(n){
-    return `${String(window.KUTADGU_SITE_ORIGIN||location.origin).replace(/\/+$/,"")}/reset-password.html?next=${encodeURIComponent(n||"account")}`;
+    return "https://www.kutadgubilig.com/reset-password.html?next="+encodeURIComponent(n==="admin"?"admin":"account");
   })(next);
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error)throw error;
@@ -469,7 +484,9 @@ async function init(){
   if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");readyResolve(api);emit();return}
   try{
     await loadSdk();
-    db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
+    db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
+      auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}
+    });
     const {data,error}=await db.auth.getSession();
     if(error)throw error;
     await queueSession(data.session,{sync:false});
