@@ -406,6 +406,78 @@ test("static slug resolver cannot keep children-3 as a second line",()=>{
   assert.deepStrictEqual(out,[{id:"102",qty:1}]);
 });
 
+const CART_KEY="kutadgu-cart-v1";
+const FAV_KEY="kutadgu-favorites-v1";
+const REC_KEY="kutadgu-recent-v1";
+const CUSTOMER_KEY="kutadgu-customer-v1";
+function clearLocalCartAndFavorites(store){
+  delete store[CART_KEY];
+  delete store[FAV_KEY];
+}
+
+test("A logout then B login does not carry A cart/favorites into B",()=>{
+  const store={
+    [CART_KEY]:JSON.stringify([{id:"102",qty:2}]),
+    [FAV_KEY]:JSON.stringify(["102"]),
+    [REC_KEY]:JSON.stringify(["102"]),
+    [CUSTOMER_KEY]:JSON.stringify({name:"A"})
+  };
+  clearLocalCartAndFavorites(store);
+  assert.strictEqual(store[CART_KEY],undefined);
+  assert.strictEqual(store[FAV_KEY],undefined);
+  assert.strictEqual(store[REC_KEY],JSON.stringify(["102"]));
+  assert.strictEqual(store[CUSTOMER_KEY],JSON.stringify({name:"A"}));
+  const localCart=store[CART_KEY]?JSON.parse(store[CART_KEY]):[];
+  const localFav=store[FAV_KEY]?JSON.parse(store[FAV_KEY]):[];
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart,
+    localFav,
+    cloudCart:[{id:"79",qty:1}],
+    cloudFav:["79"],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:1}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("guest cart/favorites still merge on first login",()=>{
+  const localCart=[{id:"102",qty:3}];
+  const localFav=["102"];
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart,
+    localFav,
+    cloudCart:[],
+    cloudFav:[],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"102",qty:3}]);
+  assert.deepStrictEqual(out.fav,["102"]);
+});
+
+test("member.js clears only cart/favorites on signOut and SIGNED_OUT",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/function clearLocalCartAndFavorites\(\)\{/);
+  assert.match(src,/localStorage\.removeItem\(CART_KEY\)/);
+  assert.match(src,/localStorage\.removeItem\(FAV_KEY\)/);
+  assert.match(src,/emit\("kutadgu-member-state-synced"\)/);
+  assert.match(src,/async function signOut\(\)\{\s*clearLocalCartAndFavorites\(\);/);
+  assert.match(src,/if\(event==="SIGNED_OUT"\)\{\s*clearLocalCartAndFavorites\(\);\s*writeMergeLock\(""\);/);
+  assert.doesNotMatch(src,/localStorage\.removeItem\(REC_KEY\)/);
+  assert.doesNotMatch(src,/removeItem\("kutadgu-recent-v1"\)/);
+  assert.doesNotMatch(src,/removeItem\("kutadgu-customer-v1"\)/);
+});
+
+test("homepage recently-added view-all points to public catalog not my-books",()=>{
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/class="home-featured-all" href="#books"/);
+  assert.doesNotMatch(shop,/class="home-featured-all" href="my-books\.html"/);
+  assert.match(shop,/class="shop-selector-all-link" href="my-books\.html"/);
+});
+
+
 
 
 if(failed){

@@ -274,6 +274,13 @@ function writeMergeLock(id){
     else localStorage.removeItem(MERGE_LOCK_KEY);
   }catch(e){}
 }
+function clearLocalCartAndFavorites(){
+  try{
+    localStorage.removeItem(CART_KEY);
+    localStorage.removeItem(FAV_KEY);
+  }catch(e){}
+  emit("kutadgu-member-state-synced");
+}
 async function mergeShopState(){
   if(!db||!user||blocked)return;
   if(shopSyncInFlight)return shopSyncInFlight;
@@ -414,6 +421,7 @@ async function signInWithGoogle(){
   return data;
 }
 async function signOut(){
+  clearLocalCartAndFavorites();
   if(db)await db.auth.signOut();
   writeMergeLock("");
   user=null;profile=null;blocked=false;renderButton();emit();
@@ -491,7 +499,10 @@ async function init(){
     if(error)throw error;
     await queueSession(data.session,{sync:false});
     db.auth.onAuthStateChange((event,session)=>{
-      if(event==="SIGNED_OUT")writeMergeLock("");
+      if(event==="SIGNED_OUT"){
+        clearLocalCartAndFavorites();
+        writeMergeLock("");
+      }
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED")return;
       const isLogin=event==="SIGNED_IN";
       setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);

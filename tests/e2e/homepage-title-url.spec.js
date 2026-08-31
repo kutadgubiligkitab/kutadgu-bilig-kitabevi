@@ -74,4 +74,18 @@ test.describe("homepage title and root URL", () => {
     await H.waitForShop(page);
     await expect(page.locator("body")).toBeVisible();
   });
+
+  test("recently-added view-all goes to public catalog, not my-books", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    const link = page.locator("#homeFeaturedBooks .home-featured-all");
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "#books");
+    const href = await link.getAttribute("href");
+    expect(href).not.toMatch(/my-books/);
+    await link.click();
+    expect(new URL(page.url()).hash).toBe("#books");
+    await expect(page.locator("#books")).toBeVisible();
+    expect(new URL(page.url()).pathname).not.toMatch(/my-books/);
+  });
 });

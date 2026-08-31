@@ -1297,7 +1297,7 @@ async function renderHomeFeaturedBooks(){
         <h3>🕘 يېقىندا قوشۇلغانلار</h3>
         <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
       </div>
-      <a class="home-featured-all" href="my-books.html">ھەممىسىنى كۆرۈش ←</a>
+      <a class="home-featured-all" href="#books">ھەممىسىنى كۆرۈش ←</a>
     </div>
     <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېقىندا قوشۇلغان كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
   </section>`;
@@ -2348,7 +2348,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=11";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=12";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
