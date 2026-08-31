@@ -281,6 +281,20 @@ function clearLocalCartAndFavorites(){
   }catch(e){}
   emit("kutadgu-member-state-synced");
 }
+function abandonMemberShopSync(){
+  user=null;
+  profile=null;
+  blocked=false;
+  writeMergeLock("");
+  clearLocalCartAndFavorites();
+  const pending=shopSyncInFlight;
+  if(pending){
+    Promise.resolve(pending).finally(()=>{
+      if(!user)clearLocalCartAndFavorites();
+    });
+  }
+  return pending;
+}
 async function mergeShopState(){
   if(!db||!user||blocked)return;
   if(shopSyncInFlight)return shopSyncInFlight;
@@ -421,10 +435,11 @@ async function signInWithGoogle(){
   return data;
 }
 async function signOut(){
-  clearLocalCartAndFavorites();
+  const pending=abandonMemberShopSync();
   if(db)await db.auth.signOut();
-  writeMergeLock("");
-  user=null;profile=null;blocked=false;renderButton();emit();
+  if(pending)try{await pending}catch(e){}
+  if(!user)clearLocalCartAndFavorites();
+  renderButton();emit();
 }
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
@@ -499,10 +514,7 @@ async function init(){
     if(error)throw error;
     await queueSession(data.session,{sync:false});
     db.auth.onAuthStateChange((event,session)=>{
-      if(event==="SIGNED_OUT"){
-        clearLocalCartAndFavorites();
-        writeMergeLock("");
-      }
+      if(event==="SIGNED_OUT")abandonMemberShopSync();
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED")return;
       const isLogin=event==="SIGNED_IN";
       setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);
