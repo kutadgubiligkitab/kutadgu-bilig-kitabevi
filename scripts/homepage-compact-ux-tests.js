@@ -53,9 +53,9 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 test("homepage assets bumped; hero image paths unchanged", () => {
   assert.match(html, /index\.css\?v=16/);
   assert.match(html, /shop\.css\?v=43/);
-  assert.match(html, /mobile\.css\?v=21/);
+  assert.match(html, /mobile\.css\?v=22/);
   assert.match(html, /shop\.js\?v=81/);
-  assert.match(html, /mobile\.js\?v=4/);
+  assert.match(html, /mobile\.js\?v=5/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
   assert.match(html, /srcset="kutadgu-logo\.webp"/);
@@ -187,6 +187,9 @@ test("homepage mobile P1 keeps one working filter toggle and 44px carousel targe
   assert.match(mobileJs, /hideHomepagePremiumFilterToggle/);
   assert.match(mobileJs, /\.premium-filter-toggle/);
   assert.doesNotMatch(mobileJs, /createElement\("button"\);[^;]*premium-filter-toggle/);
+  assert.match(mobileJs, /document\.body\.insertBefore\(menu, backdrop\)/);
+  assert.match(mobileJs, /homeParent\.insertBefore\(menu, homeNext\)/);
+  assert.match(mobileCss, /header\.is-mobile-enhanced,\s*\n\s*\.mobile-site-header \{[\s\S]*z-index:\s*12000 !important;/);
   assert.match(mobileCss, /\.home-search-card \.premium-filter-toggle\s*\{\s*display:\s*none !important/);
   assert.match(mobileCss, /#newBooksCarousel \.home-carousel-tab[\s\S]{0,80}min-height:\s*44px/);
   assert.match(mobileCss, /#newBooksCarousel \.home-carousel-arrow[\s\S]{0,120}min-width:\s*44px/);

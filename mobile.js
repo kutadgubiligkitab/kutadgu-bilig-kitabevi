@@ -66,6 +66,21 @@
       document.body.appendChild(backdrop);
     }
 
+    const homeParent = menu.parentElement;
+    const homeNext = menu.nextSibling;
+    const hoistMenu = () => {
+      menu.classList.add("mobile-site-menu");
+      if (!menu.id) menu.id = "mobileSiteMenu";
+      if (menu.parentElement === document.body) return;
+      if (backdrop.parentElement === document.body) document.body.insertBefore(menu, backdrop);
+      else document.body.appendChild(menu);
+    };
+    const restoreMenu = () => {
+      if (!homeParent || menu.parentElement === homeParent) return;
+      if (homeNext && homeNext.parentNode === homeParent) homeParent.insertBefore(menu, homeNext);
+      else homeParent.appendChild(menu);
+    };
+
     const close = () => {
       menu.classList.remove("is-open");
       backdrop.classList.remove("is-open");
@@ -75,6 +90,7 @@
       toggle.textContent = "☰";
     };
     const open = () => {
+      hoistMenu();
       menu.classList.add("is-open");
       backdrop.classList.add("is-open");
       document.body.classList.add("mobile-menu-open");
@@ -83,6 +99,8 @@
       toggle.textContent = "×";
     };
 
+    if (MOBILE_QUERY.matches) hoistMenu();
+
     toggle.addEventListener("click", () => menu.classList.contains("is-open") ? close() : open());
     backdrop.addEventListener("click", close);
     menu.querySelectorAll("a").forEach(a => a.addEventListener("click", close));
@@ -90,7 +108,11 @@
       if (e.key === "Escape" && menu.classList.contains("is-open")) close();
     });
     MOBILE_QUERY.addEventListener?.("change", event => {
-      if (!event.matches) close();
+      if (event.matches) hoistMenu();
+      else {
+        close();
+        restoreMenu();
+      }
     });
   }
 
