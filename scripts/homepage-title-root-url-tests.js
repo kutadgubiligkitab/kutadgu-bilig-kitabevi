@@ -57,6 +57,8 @@ test("vercel permanently redirects /index.html to / once", () => {
   assert.strictEqual(home[0].permanent, true);
   assert.ok(!redirects.some((r) => r.source === "/" && r.destination === "/index.html"));
   assert.ok(!redirects.some((r) => r.source === "/" && r.destination === "/"));
+  assert.ok(!vercel.cleanUrls);
+  assert.ok(redirects.some((r) => r.source === "/universal.html" && r.destination === "/universal" && r.permanent === true));
 });
 
 test("shop.js resets homepage title and only sets book titles on detail pages", () => {

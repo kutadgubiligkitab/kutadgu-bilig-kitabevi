@@ -2,21 +2,21 @@
 <!-- Public storefront pages only. Book detail URLs live in sitemap-books.xml (server-generated). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://www.kutadgubilik.com/</loc></url>
-  <url><loc>https://www.kutadgubilik.com/adabiyat.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/romanlar.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/tarikhiy-romanlar.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/sheirlar.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/hekayiler.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/dastanlar.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/dunya-edebiyati.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/adabiyat-roman.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/uyghur-adabiyati.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/universal.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/tibb.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/derslik.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/terbiye.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/dini.html</loc></url>
-  <url><loc>https://www.kutadgubilik.com/children.html</loc></url>
+  <url><loc>https://www.kutadgubilik.com/adabiyat</loc></url>
+  <url><loc>https://www.kutadgubilik.com/romanlar</loc></url>
+  <url><loc>https://www.kutadgubilik.com/tarikhiy-romanlar</loc></url>
+  <url><loc>https://www.kutadgubilik.com/sheirlar</loc></url>
+  <url><loc>https://www.kutadgubilik.com/hekayiler</loc></url>
+  <url><loc>https://www.kutadgubilik.com/dastanlar</loc></url>
+  <url><loc>https://www.kutadgubilik.com/dunya-edebiyati</loc></url>
+  <url><loc>https://www.kutadgubilik.com/adabiyat-roman</loc></url>
+  <url><loc>https://www.kutadgubilik.com/uyghur-adabiyati</loc></url>
+  <url><loc>https://www.kutadgubilik.com/universal</loc></url>
+  <url><loc>https://www.kutadgubilik.com/tibb</loc></url>
+  <url><loc>https://www.kutadgubilik.com/derslik</loc></url>
+  <url><loc>https://www.kutadgubilik.com/terbiye</loc></url>
+  <url><loc>https://www.kutadgubilik.com/dini</loc></url>
+  <url><loc>https://www.kutadgubilik.com/children</loc></url>
   <url><loc>https://www.kutadgubilik.com/order-info.html</loc></url>
   <url><loc>https://www.kutadgubilik.com/privacy.html</loc></url>
   <url><loc>https://www.kutadgubilik.com/returns.html</loc></url>

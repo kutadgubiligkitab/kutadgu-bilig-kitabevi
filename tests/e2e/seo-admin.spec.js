@@ -95,14 +95,56 @@ test.describe("seo + admin", () => {
     expect(await page.locator("#kutadguBookSchema").count()).toBe(1);
   });
 
-  test("category hub is indexable on www; pagination is noindex", async ({ page }) => {
+  test("category hub uses clean URL; old .html redirects; numbered stubs stay put", async ({ page, request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const clean = await request.get(`${origin}/universal`, { maxRedirects: 0 });
+    expect(clean.status()).toBe(200);
+    expect(await clean.text()).toContain("ئۇنىۋېرسال");
+
+    const legacy = await request.get(`${origin}/universal.html`, { maxRedirects: 0 });
+    expect(legacy.status()).toBe(308);
+    const location = String(legacy.headers().location || "");
+    expect(new URL(location, origin).pathname).toBe("/universal");
+
+    const again = await request.get(`${origin}/universal`, { maxRedirects: 0 });
+    expect(again.status()).toBe(200);
+
+    const stub = await request.get(`${origin}/universal-2.html`, { maxRedirects: 0 });
+    expect(stub.status()).toBe(200);
+
+    const cart = await request.get(`${origin}/cart.html`, { maxRedirects: 0 });
+    expect(cart.status()).toBe(200);
+    const trust = await request.get(`${origin}/privacy.html`, { maxRedirects: 0 });
+    expect(trust.status()).toBe(200);
+    const homeHtml = await request.get(`${origin}/index.html`, { maxRedirects: 0 });
+    expect(homeHtml.status()).toBe(308);
+    expect(new URL(homeHtml.headers().location || "/", origin).pathname).toBe("/");
+
+    const pages = await request.get(`${origin}/sitemap-pages.xml`);
+    expect(pages.status()).toBe(200);
+    const pagesXml = await pages.text();
+    expect(pagesXml).toContain("https://www.kutadgubilik.com/universal</loc>");
+    expect(pagesXml).not.toContain("https://www.kutadgubilik.com/universal.html");
+    expect(pagesXml).toContain("https://www.kutadgubilik.com/privacy.html");
+
     await page.goto("/universal.html", { waitUntil: "domcontentloaded" });
+    expect(new URL(page.url()).pathname).toBe("/universal");
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://www.kutadgubilik.com/universal.html"
+      "https://www.kutadgubilik.com/universal"
+    );
+    await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+      "content",
+      "https://www.kutadgubilik.com/universal"
     );
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
+    const shopPath = await page.evaluate(() => {
+      const el = document.querySelector('script[src*="shop.js"]');
+      return el ? new URL(el.src, location.href).pathname : "";
+    });
+    expect(shopPath).toBe("/shop.js");
     await page.goto("/universal-2.html", { waitUntil: "domcontentloaded" });
+    expect(new URL(page.url()).pathname).toBe("/universal-2.html");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",

@@ -24,23 +24,27 @@ const PRIVATE_PATH_MARKERS = [
   "/my-books.html"
 ];
 
+const CATEGORY_HUB_SLUGS = [
+  "adabiyat",
+  "romanlar",
+  "tarikhiy-romanlar",
+  "sheirlar",
+  "hekayiler",
+  "dastanlar",
+  "dunya-edebiyati",
+  "adabiyat-roman",
+  "uyghur-adabiyati",
+  "universal",
+  "tibb",
+  "derslik",
+  "terbiye",
+  "dini",
+  "children"
+];
+
 const PUBLIC_PAGE_PATHS = [
   "/",
-  "/adabiyat.html",
-  "/romanlar.html",
-  "/tarikhiy-romanlar.html",
-  "/sheirlar.html",
-  "/hekayiler.html",
-  "/dastanlar.html",
-  "/dunya-edebiyati.html",
-  "/adabiyat-roman.html",
-  "/uyghur-adabiyati.html",
-  "/universal.html",
-  "/tibb.html",
-  "/derslik.html",
-  "/terbiye.html",
-  "/dini.html",
-  "/children.html",
+  ...CATEGORY_HUB_SLUGS.map(slug => `/${slug}`),
   "/order-info.html",
   "/privacy.html",
   "/returns.html"
@@ -237,6 +241,7 @@ const api = {
   SITE_ORIGIN,
   FETCH_PAGE_SIZE,
   URLS_PER_SITEMAP,
+  CATEGORY_HUB_SLUGS,
   PUBLIC_PAGE_PATHS,
   PRIVATE_PATH_MARKERS,
   productionOrigin,

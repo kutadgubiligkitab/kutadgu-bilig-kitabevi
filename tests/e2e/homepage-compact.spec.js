@@ -230,9 +230,9 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
     await page.locator("#premiumDiscovery [data-premium-group]").first().click();
     await expect(page.locator("#premiumDiscoveryResults .premium-book-grid, #premiumDiscoveryResults .premium-friendly-empty").first()).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="adabiyat.html"]')).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="dini.html"]')).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="children.html"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="/adabiyat"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="/dini"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="/children"]')).toBeVisible();
   });
 
   test("mobile homepage section order has no overflow regression", async ({ page }) => {

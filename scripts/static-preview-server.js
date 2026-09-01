@@ -25,6 +25,20 @@ function send(res, status, headers, body) {
 }
 
 const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
+const CATEGORY_HUBS = new Set(sitemap.CATEGORY_HUB_SLUGS || []);
+
+function hubSlugFromPathname(pathname) {
+  const raw = String(pathname || "");
+  if (!raw.startsWith("/") || raw === "/") return "";
+  const rest = raw.slice(1);
+  if (rest.includes("/") || rest.includes("\\")) return "";
+  if (CATEGORY_HUBS.has(rest)) return rest;
+  if (rest.endsWith(".html")) {
+    const slug = rest.slice(0, -5);
+    if (CATEGORY_HUBS.has(slug)) return slug;
+  }
+  return "";
+}
 
 function isSitemapPath(pathname) {
   return pathname === "/sitemap.xml"
@@ -43,6 +57,11 @@ const server = http.createServer((req, res) => {
     send(res, 308, { Location: `/${url.search}` }, "");
     return;
   }
+  const hubSlug = hubSlugFromPathname(url.pathname);
+  if (hubSlug && url.pathname.endsWith(".html")) {
+    send(res, 308, { Location: `/${hubSlug}${url.search}` }, "");
+    return;
+  }
   if (isSitemapPath(url.pathname)) {
     const build = url.pathname === "/sitemap.xml"
       ? sitemap.buildIndexSitemapXml()
@@ -55,6 +74,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
+  if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const abs = path.join(root, rel);
   if (!abs.startsWith(root + path.sep) && abs !== root) {

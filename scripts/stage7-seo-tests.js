@@ -83,7 +83,8 @@ jobs.push(test("F private URLs never emitted", () => {
 jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
   const xml = sitemap.buildUrlsetXml(sitemap.publicPageEntries());
   assert.ok(xml.includes("https://www.kutadgubilik.com/</loc>"));
-  assert.ok(xml.includes("/children.html"));
+  assert.ok(xml.includes("/children</loc>"));
+  assert.ok(!xml.includes("/children.html"));
   assert.ok(xml.includes("/privacy.html"));
   assert.ok(xml.includes("/returns.html"));
   assert.ok(xml.includes("/order-info.html"));
@@ -158,15 +159,39 @@ jobs.push(test("J missing author/ISBN/description omitted; placeholder author sk
   assert.ok(!seo.datePublishedIfTrustworthy({ publishYear: "999" }));
 }));
 
-jobs.push(test("category hubs use www canonical; pagination stays noindex to www hub", () => {
+jobs.push(test("category hubs use www canonical; numbered stubs stay noindex to old hub URL", () => {
   const universal = fs.readFileSync(path.join(__dirname, "..", "universal.html"), "utf8");
   const page2 = fs.readFileSync(path.join(__dirname, "..", "universal-2.html"), "utf8");
-  assert.ok(universal.includes('rel="canonical" href="https://www.kutadgubilik.com/universal.html"'));
-  assert.ok(universal.includes('og:url" content="https://www.kutadgubilik.com/universal.html"'));
+  assert.ok(universal.includes('rel="canonical" href="https://www.kutadgubilik.com/universal"'));
+  assert.ok(universal.includes('og:url" content="https://www.kutadgubilik.com/universal"'));
   assert.ok(universal.includes('content="index, follow"'));
   assert.ok(!universal.includes("kutadgu-bilig-kitab.vercel.app"));
+  assert.ok(!universal.includes('kutadgubilik.com/universal.html'));
   assert.ok(page2.includes('content="noindex, follow"'));
   assert.ok(page2.includes('rel="canonical" href="https://www.kutadgubilik.com/universal.html"'));
+}));
+
+jobs.push(test("category hub clean URLs are explicit redirects+rewrites without global cleanUrls", () => {
+  const vercel = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "vercel.json"), "utf8"));
+  assert.ok(!vercel.cleanUrls);
+  const home = (vercel.redirects || []).filter(r => r.source === "/index.html");
+  assert.strictEqual(home.length, 1);
+  assert.strictEqual(home[0].destination, "/");
+  sitemap.CATEGORY_HUB_SLUGS.forEach(slug => {
+    const redirect = (vercel.redirects || []).find(r => r.source === `/${slug}.html`);
+    const rewrite = (vercel.rewrites || []).find(r => r.source === `/${slug}`);
+    assert.ok(redirect, `missing redirect for ${slug}`);
+    assert.strictEqual(redirect.destination, `/${slug}`);
+    assert.strictEqual(redirect.permanent, true);
+    assert.ok(rewrite, `missing rewrite for ${slug}`);
+    assert.strictEqual(rewrite.destination, `/${slug}.html`);
+    assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
+  });
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"));
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/cart.html"));
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/account.html"));
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/order-info.html"));
+  assert.ok(!(vercel.rewrites || []).some(r => r.source === "/universal-2"));
 }));
 
 jobs.push(test("G robots.txt sitemap location and private disallows", () => {
@@ -256,6 +281,9 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
   assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-pages.xml"));
   assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-books.xml"));
   assert.ok(!pagesXml.includes("changefreq"));
+  assert.ok(pagesXml.includes("/children</loc>"));
+  assert.ok(pagesXml.includes("/privacy.html"));
+  assert.ok(!pagesXml.includes("/children.html"));
   assert.ok(!pagesXml.includes("/admin.html"));
   assert.ok(!pagesXml.includes("/cart.html"));
   assert.ok(!pagesXml.includes("book.html?id="));
