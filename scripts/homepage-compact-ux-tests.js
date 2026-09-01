@@ -99,6 +99,34 @@ test("homepage carousel auto-slides one book every 5s when more than 4 books are
   assert.match(css, /flex:0 0 calc\(\(100% - 48px\) \/ 4\)/);
 });
 
+test("homepage sections keep ids and put books before category cards", () => {
+  const pos = (id) => {
+    const needle = `id="${id}"`;
+    const first = html.indexOf(needle);
+    assert.ok(first >= 0, `${id} must exist`);
+    assert.strictEqual(html.indexOf(needle, first + 1), -1, `${id} must exist exactly once`);
+    return first;
+  };
+  const books = pos("books");
+  const carousel = pos("newBooksCarousel");
+  const featured = pos("homeFeaturedBooks");
+  const categories = pos("bookCategories");
+  const order = pos("orderProcess");
+  const about = pos("about");
+  const contact = pos("contact");
+  assert.ok(books < carousel && carousel < featured && featured < categories);
+  assert.ok(categories < order && order < about && about < contact);
+  assert.doesNotMatch(html, /id="premiumDiscovery"/);
+  assert.match(html, /id="searchInput"/);
+  assert.match(html, /id="homeCarouselTrack"/);
+  assert.match(html, /href="adabiyat.html"/);
+  assert.match(html, /href="dini.html"/);
+  assert.match(html, /href="children.html"/);
+  const catBlock = html.slice(categories, order);
+  assert.doesNotMatch(catBlock, /id="homeFeaturedBooks"/);
+  assert.doesNotMatch(html, /id="homeShopSections"/);
+});
+
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
   process.exit(1);

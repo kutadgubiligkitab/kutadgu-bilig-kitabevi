@@ -197,4 +197,57 @@ test.describe("homepage compact first-view", () => {
     expect(metrics.inputHeight).toBeGreaterThanOrEqual(44);
     expect(metrics.overflow).toBeLessThanOrEqual(4);
   });
+
+  test("homepage section order puts books before category cards", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#books")).toHaveCount(1);
+    await expect(page.locator("#newBooksCarousel")).toHaveCount(1);
+    await expect(page.locator("#homeFeaturedBooks")).toHaveCount(1);
+    await expect(page.locator("#bookCategories")).toHaveCount(1);
+    await expect(page.locator("#searchInput")).toHaveCount(1);
+    await expect(page.locator("#newBooksCarousel")).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).toBeVisible();
+    await expect(page.locator("#homeFeaturedBooks .home-featured-section, #homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
+    await page.waitForSelector("#premiumDiscovery", { timeout: 45_000 });
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(1);
+    const ordered = await page.evaluate(() => {
+      const ids = ["books", "newBooksCarousel", "homeFeaturedBooks", "premiumDiscovery", "bookCategories", "orderProcess"];
+      const nodes = ids.map((id) => document.getElementById(id));
+      if (nodes.some((n) => !n)) return { missing: ids.filter((id, i) => !nodes[i]) };
+      const ok = nodes.every((node, i) => i === 0 || !!(nodes[i - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING));
+      return { ok, ids };
+    });
+    expect(ordered.missing || []).toEqual([]);
+    expect(ordered.ok).toBe(true);
+    await page.locator("#searchInput").fill("بالىلار");
+    await page.locator("#searchButton").click();
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
+    await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await page.locator("#premiumDiscovery [data-premium-group]").first().click();
+    await expect(page.locator("#premiumDiscoveryResults .premium-book-grid, #premiumDiscoveryResults .premium-friendly-empty").first()).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="adabiyat.html"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="dini.html"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a.card[href="children.html"]')).toBeVisible();
+  });
+
+  test("mobile homepage section order has no overflow regression", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#newBooksCarousel")).toBeVisible();
+    await expect(page.locator("#homeFeaturedBooks")).toBeVisible();
+    await expect(page.locator("#bookCategories")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(4);
+    const tops = await page.evaluate(() => {
+      const ids = ["books", "newBooksCarousel", "homeFeaturedBooks", "bookCategories"];
+      return Object.fromEntries(ids.map((id) => {
+        const el = document.getElementById(id);
+        return [id, el ? el.getBoundingClientRect().top : null];
+      }));
+    });
+    expect(tops.books).toBeLessThan(tops.newBooksCarousel);
+    expect(tops.newBooksCarousel).toBeLessThan(tops.homeFeaturedBooks);
+    expect(tops.homeFeaturedBooks).toBeLessThan(tops.bookCategories);
+  });
 });
