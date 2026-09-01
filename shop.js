@@ -1342,8 +1342,8 @@ async function renderHomeFeaturedBooks(){
   </section>`;
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
-    // Only the latest twelve rows are requested; remoteOrder("new") maps to created_at DESC.
-    const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
+    // Only the latest twenty rows are requested; remoteOrder("new") maps to created_at DESC.
+    const result=await queryCatalog({offset:0,pageSize:20,sort:"new"});
     const books=result.items.filter(isStorefrontVisible);
     const grid=host.querySelector(".home-featured-grid");
     if(grid){
@@ -2284,10 +2284,12 @@ function setupHomeFeaturedMarquee(host){
   const delay=5500,duration=900;
   const motionMq=window.matchMedia?.("(prefers-reduced-motion: reduce)");
   let reducedMotion=motionMq?.matches===true;
-  let paused=false;
+  let hoverPaused=false;
+  let focusPaused=false;
   const states=new WeakMap();
   let timer=null;
   const pendingSnaps=new Set();
+  function interactionPaused(){return hoverPaused||focusPaused}
 
   function isMobile(){return window.innerWidth<=700}
 
@@ -2326,15 +2328,25 @@ function setupHomeFeaturedMarquee(host){
         const clone=card.cloneNode(true);
         clone.dataset.featuredClone="1";
         clone.setAttribute("aria-hidden","true");
+        clone.querySelectorAll("a,button,input,select,textarea,[tabindex]").forEach(el=>{
+          el.setAttribute("tabindex","-1");
+        });
         if(dir==="ltr")track.insertBefore(clone,track.firstChild);
         else track.appendChild(clone);
       });
     }
     const card=track.querySelector(".home-feature-card");
     const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
-    const step=card?card.getBoundingClientRect().width+gap:0;
-    const setWidth=step*itemCount;
-    const offset=dir==="ltr"&&itemCount>visible&&!isMobile()?-setWidth:0;
+    const originals=uniqueCards(track);
+    const firstOriginal=originals[0];
+    const lastOriginal=originals[originals.length-1];
+    const step=firstOriginal?firstOriginal.getBoundingClientRect().width+gap:0;
+    const measured=firstOriginal&&lastOriginal
+      ?Math.abs(lastOriginal.getBoundingClientRect().right-firstOriginal.getBoundingClientRect().left)
+      :step*itemCount;
+    const ltrStart=dir==="ltr"&&itemCount>visible&&firstOriginal?-Math.round(firstOriginal.offsetLeft):0;
+    const setWidth=ltrStart?Math.abs(ltrStart):measured;
+    const offset=ltrStart;
     states.set(row,{track,dir,itemCount,step,setWidth,offset,canPlay});
     apply(track,offset,false);
   }
@@ -2342,7 +2354,7 @@ function setupHomeFeaturedMarquee(host){
   function draw(){rowEls.forEach(drawRow)}
 
   function tick(){
-    if(paused||document.hidden||reducedMotion||isMobile())return;
+    if(interactionPaused()||document.hidden||reducedMotion||isMobile())return;
     rowEls.forEach(row=>{
       const st=states.get(row);
       if(!st||!st.canPlay||!st.step)return;
@@ -2381,12 +2393,18 @@ function setupHomeFeaturedMarquee(host){
   function stop(){if(timer){clearInterval(timer);timer=null}}
   function start(){
     stop();
-    if(paused||isMobile()||reducedMotion||document.hidden)return;
+    if(interactionPaused()||isMobile()||reducedMotion||document.hidden)return;
     if(!rowEls.some(row=>states.get(row)?.canPlay))return;
     timer=setInterval(tick,delay);
   }
-  function onEnter(){paused=true;stop()}
-  function onLeave(){paused=false;start()}
+  function onEnter(){hoverPaused=true;stop()}
+  function onLeave(){hoverPaused=false;if(!focusPaused)start()}
+  function onFocusIn(){focusPaused=true;stop()}
+  function onFocusOut(event){
+    if(section.contains(event.relatedTarget))return;
+    focusPaused=false;
+    if(!hoverPaused)start();
+  }
   function onVis(){if(document.hidden)stop();else start()}
   function onMotion(event){reducedMotion=event.matches;draw();if(reducedMotion)stop();else start()}
   function onResize(){draw();start()}
@@ -2394,6 +2412,8 @@ function setupHomeFeaturedMarquee(host){
   draw();
   section.addEventListener("mouseenter",onEnter);
   section.addEventListener("mouseleave",onLeave);
+  section.addEventListener("focusin",onFocusIn);
+  section.addEventListener("focusout",onFocusOut);
   document.addEventListener("visibilitychange",onVis);
   motionMq?.addEventListener?.("change",onMotion);
   window.addEventListener("resize",onResize);
@@ -2409,6 +2429,8 @@ function setupHomeFeaturedMarquee(host){
     pendingSnaps.clear();
     section.removeEventListener("mouseenter",onEnter);
     section.removeEventListener("mouseleave",onLeave);
+    section.removeEventListener("focusin",onFocusIn);
+    section.removeEventListener("focusout",onFocusOut);
     document.removeEventListener("visibilitychange",onVis);
     motionMq?.removeEventListener?.("change",onMotion);
     window.removeEventListener("resize",onResize);

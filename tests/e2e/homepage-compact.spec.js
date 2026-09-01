@@ -263,6 +263,35 @@ test.describe("homepage compact first-view", () => {
     return 0;
   }
 
+  test("featured desktop marquee shows two visible rows without page overflow", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 20 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks [data-featured-row]")).toHaveCount(2);
+    await expect(page.locator('[data-featured-row="top"]')).toBeVisible();
+    await expect(page.locator('[data-featured-row="bottom"]')).toBeVisible();
+    const metrics = await page.evaluate(() => {
+      const top = document.querySelector('[data-featured-row="top"]');
+      const bottom = document.querySelector('[data-featured-row="bottom"]');
+      const topBox = top ? top.getBoundingClientRect() : null;
+      const bottomBox = bottom ? bottom.getBoundingClientRect() : null;
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      const display = getComputedStyle(document.querySelector("#homeFeaturedBooks .home-featured-grid.is-marquee")).display;
+      return {
+        overflow,
+        display,
+        topH: topBox ? topBox.height : 0,
+        bottomH: bottomBox ? bottomBox.height : 0,
+        stacked: !!(topBox && bottomBox && bottomBox.top >= topBox.bottom - 1)
+      };
+    });
+    expect(metrics.display).toBe("flex");
+    expect(metrics.topH).toBeGreaterThan(40);
+    expect(metrics.bottomH).toBeGreaterThan(40);
+    expect(metrics.stacked).toBe(true);
+    expect(metrics.overflow).toBeLessThanOrEqual(4);
+  });
+
   test("featured top and bottom rows move in opposite directions", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
     await page.setViewportSize({ width: 1280, height: 900 });
