@@ -268,41 +268,62 @@ jobs.push(test("B mocked generator emits one loc per active id", async () => {
   const rows = [
     { id: 1, legacy_id: "ozumuzni-etirap-qilayli", is_active: true, updated_at: "2026-08-28T23:44:39.224424+00:00" },
     { id: 102, legacy_id: "children-3", is_active: true, created_at: "2026-08-27T00:00:00Z" },
-    { id: 500, legacy_id: "gone", is_active: false }
+    { id: 103, legacy_id: "children-4", is_active: true, updated_at: "2026-08-28T00:00:00Z" },
+    { id: 500, legacy_id: "gone", is_active: false, updated_at: "2026-08-28T00:00:00Z" }
   ];
-  const xml = await sitemap.buildBooksSitemapXml(1, mockFetch(rows.filter(r => r.is_active)));
-  assert.ok(xml.includes("book.html?id=1"));
-  assert.ok(xml.includes("book.html?id=102"));
-  assert.ok(!xml.includes("id=500"));
-  assert.ok(!xml.includes("children-3"));
-}));
-
-jobs.push(test("live: 84 active books, valid XML, production locs, no private (A B D F)", async () => {
-  const xml = await sitemap.buildBooksSitemapXml(1);
+  const xml = await sitemap.buildBooksSitemapXml(1, mockFetch(rows));
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
-  assert.ok(xml.includes("<urlset"));
-  assert.ok(locs.length >= 80 && locs.length <= 84);
-  assert.strictEqual(new Set(locs).size, locs.length);
+  assert.ok(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+  assert.ok(xml.includes("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
+  assert.strictEqual(locs.length, 3);
+  assert.deepStrictEqual(locs, [
+    "https://www.kutadgubilig.com/book.html?id=1",
+    "https://www.kutadgubilig.com/book.html?id=102",
+    "https://www.kutadgubilig.com/book.html?id=103"
+  ]);
+  assert.strictEqual(new Set(locs).size, 3);
   locs.forEach(loc => {
     assert.ok(loc.startsWith("https://www.kutadgubilig.com/book.html?id="));
-    const id = loc.split("id=")[1];
-    assert.ok(/^\d+$/.test(id));
+    assert.ok(/^\d+$/.test(loc.split("id=")[1]));
   });
-  assert.ok(locs.includes("https://www.kutadgubilig.com/book.html?id=102"));
-  assert.ok(locs.includes("https://www.kutadgubilig.com/book.html?id=103"));
+  assert.ok(!xml.includes("id=500"));
+  assert.ok(!xml.includes("children-3"));
+  assert.ok(!xml.includes("children-4"));
+  assert.ok(!xml.includes("ozumuzni-etirap-qilayli"));
   assert.ok(!xml.includes("/admin.html"));
   assert.ok(!xml.includes("/cart.html"));
-  const indexXml = await sitemap.buildIndexSitemapXml();
+  const indexXml = await sitemap.buildIndexSitemapXml(mockFetch(rows.filter(r => r.is_active === true)));
   assert.ok(indexXml.includes("<sitemapindex"));
-  assert.ok(indexXml.includes("/sitemap-books.xml"));
+  assert.ok(indexXml.includes("https://www.kutadgubilig.com/sitemap-books.xml"));
+  assert.ok(!indexXml.includes("sitemap-books-1.xml"));
 }));
 
-jobs.push(test("E live legacy_id children-3 resolves on storefront URL", async () => {
-  const res = await fetch("https://kutadgu-bilig-kitab.vercel.app/book.html?id=children-3");
-  assert.ok(res.ok);
-  const html = await res.text();
-  assert.ok(html.includes("book.html"));
-}));
+const LIVE_SEO = String(process.env.KUTADGU_LIVE_SEO_TESTS || "").trim() === "1";
+if (LIVE_SEO) {
+  jobs.push(test("opt-in live books sitemap smoke (structure only, no catalog size)", async () => {
+    const xml = await sitemap.buildBooksSitemapXml(1);
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
+    assert.ok(xml.includes("<urlset"));
+    assert.ok(locs.length > 0, "live sitemap returned no book locs");
+    assert.strictEqual(new Set(locs).size, locs.length);
+    locs.forEach(loc => {
+      assert.ok(loc.startsWith("https://www.kutadgubilig.com/book.html?id="));
+      assert.ok(/^\d+$/.test(loc.split("id=")[1]));
+    });
+    assert.ok(!xml.includes("/admin.html"));
+    assert.ok(!xml.includes("/cart.html"));
+    const indexXml = await sitemap.buildIndexSitemapXml();
+    assert.ok(indexXml.includes("<sitemapindex"));
+    assert.ok(indexXml.includes("/sitemap-books.xml"));
+  }));
+
+  jobs.push(test("E live legacy_id children-3 resolves on storefront URL", async () => {
+    const res = await fetch("https://kutadgu-bilig-kitab.vercel.app/book.html?id=children-3");
+    assert.ok(res.ok);
+    const html = await res.text();
+    assert.ok(html.includes("book.html"));
+  }));
+}
 
 Promise.all(jobs).then(() => {
   if (failed) {
