@@ -345,7 +345,7 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
     await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
     const metrics = await page.evaluate(() => {
-      const track = document.querySelector('[data-featured-row="top"] .home-featured-track");
+      const track = document.querySelector('[data-featured-row="top"] .home-featured-track');
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const display = track ? getComputedStyle(track).display : "";
       const transform = track ? track.style.transform : "";
