@@ -1348,8 +1348,9 @@
 
   #newBooksCarousel .home-carousel-tab {
     flex: 0 0 auto !important;
-    min-height: 35px !important;
-    padding: 6px 10px !important;
+    min-height: 44px !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
     white-space: nowrap !important;
     scroll-snap-align: start;
   }
@@ -1359,6 +1360,48 @@
     display: flex !important;
     justify-content: flex-start !important;
     align-self: auto !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .home-search-card .premium-filter-toggle {
+    display: none !important;
+  }
+
+  #newBooksCarousel .home-carousel-tab {
+    min-height: 44px !important;
+    font-size: 12px !important;
+  }
+
+  #newBooksCarousel .home-carousel-arrow {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .home-search-card-section {
+    margin: 8px auto 8px !important;
+  }
+
+  .home-search-card {
+    padding: 10px 12px 10px !important;
+  }
+
+  .home-search-card .home-search-heading {
+    margin-bottom: 8px !important;
+  }
+
+  .home-search-card .search-box {
+    margin-bottom: 7px !important;
+  }
+
+  .home-search-card .home-search-quick-links {
+    margin-bottom: 6px !important;
+  }
+
+  .home-search-card .mobile-filter-toggle {
+    margin: 4px auto 6px;
   }
 }
 

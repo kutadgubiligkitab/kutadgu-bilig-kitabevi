@@ -1479,16 +1479,16 @@ body:not(.dark-mode) .about-points strong{
   .home-search-card #advancedSearchPanel{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 }
 @media(max-width:700px){
-  .home-search-card-section{width:calc(100% - 22px);margin:14px auto 12px;scroll-margin-top:78px}
-  .home-search-card{padding:15px 13px;border-radius:15px}
-  .home-search-card .home-search-heading{margin-bottom:12px!important;gap:8px!important}
+  .home-search-card-section{width:calc(100% - 22px);margin:8px auto 8px;scroll-margin-top:78px}
+  .home-search-card{padding:10px 12px;border-radius:15px}
+  .home-search-card .home-search-heading{margin-bottom:8px!important;gap:8px!important}
   .home-search-card .home-search-heading h2{font-size:21px!important;line-height:1.55}
   .home-search-card .home-search-heading p{font-size:11px!important;line-height:1.7}
   .home-search-card .home-heading-icon{font-size:24px!important}
-  .home-search-card .search-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-bottom:10px}
+  .home-search-card .search-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin-bottom:7px}
   .home-search-input-wrap input{min-height:50px;font-size:15px;padding-inline:12px}
   .home-search-card #searchButton{min-width:92px;min-height:50px;padding-inline:12px}
-  .home-search-quick-links{justify-content:flex-start;gap:6px;margin-bottom:9px}
+  .home-search-quick-links{justify-content:flex-start;gap:6px;margin-bottom:6px}
   .home-search-quick-links>span{width:100%;font-size:11px}
   .home-search-quick-links>a{min-height:34px;padding:4px 10px;font-size:11px}
   .home-search-card .premium-search-suggestions{max-height:min(360px,55vh)}

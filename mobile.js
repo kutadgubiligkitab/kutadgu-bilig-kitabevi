@@ -161,6 +161,28 @@
     }, 0);
   }
 
+  function hideHomepagePremiumFilterToggle(scope) {
+    const root = scope && scope.querySelectorAll ? scope : document;
+    const cards = root.matches?.(".home-search-card") ? [root] : [...(root.querySelectorAll?.(".home-search-card") || [])];
+    cards.forEach(card => {
+      if (!card.querySelector(".mobile-filter-toggle")) return;
+      card.querySelectorAll(".premium-filter-toggle").forEach(button => {
+        button.hidden = true;
+        button.setAttribute("hidden", "");
+        button.setAttribute("aria-hidden", "true");
+      });
+    });
+  }
+
+  function setFilterPanelOpen(panel, toggle, open) {
+    panel.classList.toggle("is-open", open);
+    panel.classList.toggle("is-collapsed", !open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    const premium = panel.parentElement?.querySelector(".premium-filter-toggle");
+    if (premium) premium.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
   function enhanceFilter(panel) {
     if (!panel || panel.dataset.mobileCollapsible === "1") return;
     panel.dataset.mobileCollapsible = "1";
@@ -173,6 +195,8 @@
     toggle.setAttribute("aria-expanded", "false");
     toggle.innerHTML = `<span>⚙️ سۈزگۈچ ۋە تەرتىپلەش <span class="mobile-filter-badge" hidden>0</span></span><span class="mobile-filter-chevron" aria-hidden="true">⌄</span>`;
     panel.insertAdjacentElement("beforebegin", toggle);
+    setFilterPanelOpen(panel, toggle, false);
+    hideHomepagePremiumFilterToggle(panel.closest(".home-search-card") || document);
 
     const update = () => {
       const count = countActiveFilters(panel);
@@ -183,10 +207,8 @@
     };
 
     toggle.addEventListener("click", () => {
-      const open = !panel.classList.contains("is-open");
-      panel.classList.toggle("is-open", open);
-      panel.setAttribute("aria-hidden", open ? "false" : "true");
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      const currentlyOpen = panel.classList.contains("is-open") && !panel.classList.contains("is-collapsed");
+      setFilterPanelOpen(panel, toggle, !currentlyOpen);
     });
     panel.addEventListener("input", update);
     panel.addEventListener("change", update);
@@ -196,11 +218,14 @@
 
   function enhanceFilters() {
     document.querySelectorAll(".advanced-search-panel, .catalog-filter-bar").forEach(enhanceFilter);
+    hideHomepagePremiumFilterToggle(document);
     const observer = new MutationObserver(records => {
       records.forEach(record => record.addedNodes.forEach(node => {
         if (!(node instanceof Element)) return;
         if (node.matches(".advanced-search-panel, .catalog-filter-bar")) enhanceFilter(node);
         node.querySelectorAll?.(".advanced-search-panel, .catalog-filter-bar").forEach(enhanceFilter);
+        if (node.matches(".premium-filter-toggle, .home-search-card")) hideHomepagePremiumFilterToggle(document);
+        node.querySelectorAll?.(".premium-filter-toggle").forEach(() => hideHomepagePremiumFilterToggle(document));
       }));
     });
     observer.observe(document.body, { childList: true, subtree: true });

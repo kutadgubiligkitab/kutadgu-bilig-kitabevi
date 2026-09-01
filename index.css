@@ -2635,3 +2635,178 @@ label {
         padding:4px !important;
     }
 }
+
+@media (max-width: 700px){
+  .home-featured-grid.is-marquee{
+    display:grid !important;
+  }
+  .home-featured-row,
+  .home-featured-track{
+    display:contents;
+  }
+  .home-featured-track{
+    transform:none !important;
+    transition:none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .home-featured-track{
+    transition:none !important;
+  }
+}
+
+/* PR #35 — desktop/tablet homepage first-view compaction only */
+@media (min-width: 701px){
+  .home-bookstore-hero{
+    min-height:160px !important;
+    padding:12px clamp(22px,5vw,74px) 14px !important;
+  }
+  .home-hero-inner{
+    gap:22px !important;
+  }
+  .home-bookstore-hero h1{
+    font-size:clamp(28px,3.1vw,38px) !important;
+    margin-bottom:4px !important;
+  }
+  .home-bookstore-hero p{
+    margin-bottom:10px !important;
+    font-size:14px !important;
+  }
+  .bookstore-scene{
+    min-height:135px !important;
+    padding:8px !important;
+  }
+  .store-scene-top{
+    height:24px !important;
+  }
+  .store-icon{
+    font-size:16px !important;
+  }
+  .store-window{
+    margin-top:5px !important;
+    padding:5px 8px 6px !important;
+  }
+  .store-shelf{
+    height:22px !important;
+    border-bottom-width:5px !important;
+  }
+  .store-display{
+    height:54px !important;
+    gap:10px !important;
+    padding:4px 6px 2px !important;
+    grid-template-columns:56px 1fr 48px !important;
+  }
+  .real-cover-wrap{
+    height:50px !important;
+  }
+  .real-cover-wrap img,
+  .real-cover-wrap > img.hero-scene-logo{
+    max-height:50px !important;
+    max-width:40px !important;
+  }
+  .store-cart{
+    font-size:22px !important;
+  }
+  .store-shelf.lower{
+    height:20px !important;
+  }
+  .book-stack span{
+    height:10px !important;
+  }
+
+  .home-search-card-section{
+    margin:10px auto 8px !important;
+    scroll-margin-top:96px;
+  }
+  .home-search-card{
+    padding:14px 20px 12px !important;
+  }
+  .home-search-card .home-search-heading{
+    margin-bottom:10px !important;
+  }
+  .home-search-card .search-box{
+    margin-bottom:8px !important;
+  }
+  .home-search-card .search-box input,
+  .home-search-input-wrap input{
+    min-height:48px !important;
+  }
+  .home-search-card #searchButton{
+    min-height:48px !important;
+  }
+  .home-search-quick-links{
+    margin-bottom:8px !important;
+  }
+  .home-search-card .premium-filter-toggle{
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    width:min(100%,980px);
+    margin:0 auto 8px !important;
+  }
+  .home-search-card .advanced-search-panel.is-collapsed{
+    display:none !important;
+  }
+  .home-search-card .premium-active-filters:empty{
+    display:none !important;
+    margin:0 !important;
+  }
+  .home-search-card .advanced-search-panel,
+  .home-search-card #advancedSearchPanel{
+    margin:6px auto 8px !important;
+    padding:10px !important;
+    gap:8px !important;
+  }
+  .home-search-card .advanced-search-panel input,
+  .home-search-card .advanced-search-panel select,
+  .home-search-card .advanced-search-reset{
+    height:40px !important;
+  }
+
+  #newBooksCarousel.home-book-carousel,
+  #newBooksCarousel{
+    margin-top:8px !important;
+  }
+
+  .home-featured-grid.is-marquee{
+    display:flex !important;
+    flex-direction:column;
+    gap:14px !important;
+    grid-template-columns:none !important;
+  }
+  .home-featured-row{
+    overflow:hidden;
+    width:100%;
+  }
+  .home-featured-track{
+    display:flex;
+    gap:14px;
+    width:100%;
+    will-change:transform;
+  }
+  .home-featured-track > .home-feature-card{
+    flex:0 0 calc((100% - 28px) / 3);
+    max-width:calc((100% - 28px) / 3);
+    min-width:0;
+  }
+  .home-featured-track [data-featured-clone]{
+    pointer-events:none;
+  }
+}
+
+@media (min-width: 1101px){
+  #newBooksCarousel .home-carousel-track{
+    gap:16px !important;
+    transition:transform .8s cubic-bezier(.22,.61,.36,1);
+  }
+  #newBooksCarousel .home-carousel-track.is-single-row > .home-carousel-card{
+    flex:0 0 calc((100% - 48px) / 4) !important;
+    max-width:calc((100% - 48px) / 4);
+  }
+  .home-featured-track > .home-feature-card{
+    flex:0 0 calc((100% - 56px) / 5) !important;
+    max-width:calc((100% - 56px) / 5);
+  }
+}
+

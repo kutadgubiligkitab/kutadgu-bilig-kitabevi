@@ -1346,8 +1346,19 @@ async function renderHomeFeaturedBooks(){
     const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
     const books=result.items.filter(isStorefrontVisible);
     const grid=host.querySelector(".home-featured-grid");
-    if(grid)grid.innerHTML=books.length?books.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+    if(grid){
+      if(!books.length){
+        grid.classList.remove("is-marquee");
+        grid.innerHTML='<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+      }else{
+        const split=splitFeaturedRows(books);
+        const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(card).join("")}</div></div>`;
+        grid.classList.add("is-marquee");
+        grid.innerHTML=`${rowMarkup(split.top,"top")}${split.bottom.length?rowMarkup(split.bottom,"bottom"):""}`;
+      }
+    }
     bindDynamicActions(host);
+    setupHomeFeaturedMarquee(host);
   }catch(error){
     console.error("Recently added books query failed.",error);
     const grid=host.querySelector(".home-featured-grid");
@@ -1526,7 +1537,7 @@ function searchEnhance(){
   async function run(append=false){
     if(!hasFilter()){
       controller?.abort();items=[];
-      res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+      res.innerHTML=fallbackNotice();
       return;
     }
     if(loadingMore)return;
@@ -1556,7 +1567,7 @@ function searchEnhance(){
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
   if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run(false)};
-  res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+  res.innerHTML=fallbackNotice();
 }
 
 function dynamicListingCard(b){return bookCardMarkup(b,"listing")}
@@ -2217,6 +2228,193 @@ async function countPositiveSales(){
   return n;
 }
 
+function firstPopulatedCarouselMode(enabledModes,itemCounts){
+  const modes=Array.isArray(enabledModes)?enabledModes.filter(Boolean):[];
+  if(!modes.length)return "";
+  for(let i=0;i<modes.length;i++){
+    const mode=modes[i];
+    if(Number(itemCounts&&itemCounts[mode])>0)return mode;
+  }
+  return modes[0];
+}
+
+function carouselVisibleCount(width,config){
+  const w=Number(width)||0;
+  const desktop=Math.max(1,Number(config&&config.desktopCardsPerRow)||4);
+  if(w>1100)return desktop;
+  if(w<=430)return 1;
+  if(w<=850)return 2;
+  return Math.min(3,Number(config&&config.tabletVisibleCards)||3);
+}
+
+function carouselShouldAutoplay(itemCount,visible,options){
+  const opts=options||{};
+  if(opts.reducedMotion||opts.hidden||opts.autoPlayEnabled===false)return false;
+  if(opts.mobile&&opts.mobileAutoPlayEnabled!==true)return false;
+  return Number(itemCount)>Number(visible);
+}
+
+function featuredRowVisibleCount(width){
+  const w=Number(width)||0;
+  if(w<=700)return 2;
+  if(w<=1100)return 3;
+  return 5;
+}
+
+function featuredRowShouldAutoplay(itemCount,visible,options){
+  return carouselShouldAutoplay(itemCount,visible,options);
+}
+
+function splitFeaturedRows(books){
+  const list=Array.isArray(books)?books:[];
+  const mid=Math.ceil(list.length/2);
+  return {top:list.slice(0,mid),bottom:list.slice(mid)};
+}
+
+function featuredRowDirection(which){
+  return which==="bottom"?"ltr":"rtl";
+}
+
+function setupHomeFeaturedMarquee(host){
+  if(!host)return;
+  if(typeof host._featuredMarqueeCleanup==="function")host._featuredMarqueeCleanup();
+  const section=host.querySelector(".home-featured-section")||host;
+  const rowEls=[...host.querySelectorAll(".home-featured-row")];
+  if(!rowEls.length)return;
+  const delay=5500,duration=900;
+  const motionMq=window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  let reducedMotion=motionMq?.matches===true;
+  let paused=false;
+  const states=new WeakMap();
+  let timer=null;
+  const pendingSnaps=new Set();
+
+  function isMobile(){return window.innerWidth<=700}
+
+  function uniqueCards(track){
+    return [...track.querySelectorAll(".home-feature-card")].filter(el=>el.dataset.featuredClone!=="1");
+  }
+
+  function apply(track,offset,animate){
+    const enable=animate&&!reducedMotion;
+    track.style.transition=enable?`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`:"none";
+    track.style.transform=`translateX(${offset}px)`;
+    if(!enable){void track.offsetWidth;track.style.transition=`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`}
+  }
+
+  function drawRow(row){
+    const track=row.querySelector(".home-featured-track");
+    if(!track)return;
+    pendingSnaps.forEach(fn=>{track.removeEventListener("transitionend",fn)});
+    track.querySelectorAll("[data-featured-clone]").forEach(n=>n.remove());
+    const items=uniqueCards(track);
+    const itemCount=items.length;
+    const visible=featuredRowVisibleCount(window.innerWidth);
+    const dir=row.dataset.direction||featuredRowDirection(row.dataset.featuredRow);
+    const canPlay=featuredRowShouldAutoplay(itemCount,visible,{
+      reducedMotion,hidden:document.hidden,autoPlayEnabled:true,mobile:isMobile(),mobileAutoPlayEnabled:false
+    });
+    row.dataset.autoplay=canPlay?"1":"0";
+    if(isMobile()){
+      states.set(row,{track,dir,itemCount,step:0,setWidth:0,offset:0,canPlay:false});
+      track.style.transition="";
+      track.style.transform="";
+      return;
+    }
+    if(itemCount>visible){
+      items.forEach(card=>{
+        const clone=card.cloneNode(true);
+        clone.dataset.featuredClone="1";
+        clone.setAttribute("aria-hidden","true");
+        if(dir==="ltr")track.insertBefore(clone,track.firstChild);
+        else track.appendChild(clone);
+      });
+    }
+    const card=track.querySelector(".home-feature-card");
+    const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
+    const step=card?card.getBoundingClientRect().width+gap:0;
+    const setWidth=step*itemCount;
+    const offset=dir==="ltr"&&itemCount>visible&&!isMobile()?-setWidth:0;
+    states.set(row,{track,dir,itemCount,step,setWidth,offset,canPlay});
+    apply(track,offset,false);
+  }
+
+  function draw(){rowEls.forEach(drawRow)}
+
+  function tick(){
+    if(paused||document.hidden||reducedMotion||isMobile())return;
+    rowEls.forEach(row=>{
+      const st=states.get(row);
+      if(!st||!st.canPlay||!st.step)return;
+      if(st.dir==="rtl"){
+        st.offset-=st.step;
+        apply(st.track,st.offset,true);
+        if(st.offset<=-st.setWidth+0.5){
+          const snap=event=>{
+            if(event.propertyName!=="transform"||event.target!==st.track)return;
+            st.track.removeEventListener("transitionend",snap);
+            pendingSnaps.delete(snap);
+            st.offset=0;
+            apply(st.track,0,false);
+          };
+          pendingSnaps.add(snap);
+          st.track.addEventListener("transitionend",snap);
+        }
+      }else{
+        st.offset+=st.step;
+        apply(st.track,st.offset,true);
+        if(st.offset>=-0.5){
+          const snap=event=>{
+            if(event.propertyName!=="transform"||event.target!==st.track)return;
+            st.track.removeEventListener("transitionend",snap);
+            pendingSnaps.delete(snap);
+            st.offset=-st.setWidth;
+            apply(st.track,-st.setWidth,false);
+          };
+          pendingSnaps.add(snap);
+          st.track.addEventListener("transitionend",snap);
+        }
+      }
+    });
+  }
+
+  function stop(){if(timer){clearInterval(timer);timer=null}}
+  function start(){
+    stop();
+    if(paused||isMobile()||reducedMotion||document.hidden)return;
+    if(!rowEls.some(row=>states.get(row)?.canPlay))return;
+    timer=setInterval(tick,delay);
+  }
+  function onEnter(){paused=true;stop()}
+  function onLeave(){paused=false;start()}
+  function onVis(){if(document.hidden)stop();else start()}
+  function onMotion(event){reducedMotion=event.matches;draw();if(reducedMotion)stop();else start()}
+  function onResize(){draw();start()}
+
+  draw();
+  section.addEventListener("mouseenter",onEnter);
+  section.addEventListener("mouseleave",onLeave);
+  document.addEventListener("visibilitychange",onVis);
+  motionMq?.addEventListener?.("change",onMotion);
+  window.addEventListener("resize",onResize);
+  start();
+  host._featuredMarqueeCleanup=()=>{
+    stop();
+    pendingSnaps.forEach(fn=>{
+      rowEls.forEach(row=>{
+        const track=row.querySelector(".home-featured-track");
+        if(track)track.removeEventListener("transitionend",fn);
+      });
+    });
+    pendingSnaps.clear();
+    section.removeEventListener("mouseenter",onEnter);
+    section.removeEventListener("mouseleave",onLeave);
+    document.removeEventListener("visibilitychange",onVis);
+    motionMq?.removeEventListener?.("change",onMotion);
+    window.removeEventListener("resize",onResize);
+  };
+}
+
 async function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
@@ -2237,14 +2435,14 @@ async function setupHomeCarousel(){
   if(!enabledModes.length){viewport.closest("section")?.setAttribute("hidden","");return}
 
   const carousel={
-    desktopCardsPerRow:4,desktopRows:2,tabletVisibleCards:4,
-    autoplayDelay:6000,animationDuration:600,staggerDelay:90,
+    desktopCardsPerRow:4,desktopRows:1,tabletVisibleCards:4,
+    autoplayDelay:5000,animationDuration:800,staggerDelay:90,
     autoPlayEnabled:true,mobileAutoPlayEnabled:false,
     ...(appConfig().carousel||{})
   };
-  const reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
+  let reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
   const gap=10,sampleCover=FALLBACK_COVER;
-  let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=window.innerWidth>1100;
+  let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=false;
   let modeRequestId=0,modeController=null;
   const modeCache=new Map();
   host.style.setProperty("--carousel-duration",`${Number(carousel.animationDuration)||600}ms`);
@@ -2289,45 +2487,61 @@ async function setupHomeCarousel(){
       </div>
     </article>`;
   }
-  const isDual=()=>window.innerWidth>1100;
-  const visibleSingle=()=>{
-    if(window.innerWidth<=430)return 1;
-    if(window.innerWidth<=850)return 2;
-    return Math.min(3,Number(carousel.tabletVisibleCards)||3);
-  };
-  const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||2));
-  const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleSingle()));
+  const isDual=()=>window.innerWidth>1100&&Number(carousel.desktopRows)>1;
+  dualLayout=isDual();
+  const visibleCount=()=>carouselVisibleCount(window.innerWidth,carousel);
+  const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||1));
+  const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleCount()));
+  let loopPad=0,snapping=false;
 
   function renderDots(){
     const count=maxIndex()+1;
     dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-كۆرۈنۈش"></button>`).join("");
     dotsHost.querySelectorAll("[data-carousel-dot]").forEach(button=>button.onclick=()=>{index=Number(button.dataset.carouselDot)||0;move();restart()});
   }
-  function move(){
-    index=Math.max(0,Math.min(index,maxIndex()));
+  function trackIndex(){return(isDual()?0:loopPad)+index}
+  function move(animate=true){
+    if(isDual())index=Math.max(0,Math.min(index,maxIndex()));
     const first=host.querySelector(".home-carousel-card");if(!first)return;
     const lane=isDual()?first.closest(".home-carousel-row"):host;
     const laneStyle=window.getComputedStyle(lane);
     const renderedGap=parseFloat(laneStyle.columnGap||laneStyle.gap)||gap;
     const step=first.getBoundingClientRect().width+renderedGap;
+    const enableAnim=animate!==false&&!reducedMotion&&!snapping;
     if(isDual()){
       host.style.transform="";
-      host.querySelectorAll(".home-carousel-row").forEach(row=>row.style.transform=`translateX(${index*step}px)`);
+      host.querySelectorAll(".home-carousel-row").forEach(row=>{
+        row.style.transition=enableAnim?"":"none";
+        row.style.transform=`translateX(${index*step}px)`;
+      });
     }else{
-      host.style.transform=`translateX(${index*step}px)`;
+      host.style.transition=enableAnim?"":"none";
+      host.style.transform=`translateX(${trackIndex()*step}px)`;
+      if(!enableAnim){void host.offsetWidth;host.style.transition=""}
     }
-    dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===index));
+    const n=Math.max(list.length,1);
+    const wrapped=((index%n)+n)%n;
+    const dotIndex=Math.max(0,Math.min(wrapped,maxIndex()));
+    dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===dotIndex));
   }
   function draw(rotate=false){
+    const vis=visibleCount();
     const canRotate=rotate&&mode==="recommended"&&list.length>8;
     index=canRotate?(new Date().getDate()%Math.min(3,maxIndex()+1)):0;
     host.style.transform="translateX(0)";
     host.classList.toggle("is-dual-row",isDual());host.classList.toggle("is-single-row",!isDual());
     if(isDual()){
+      loopPad=0;
       const midpoint=Math.ceil(list.length/2),top=list.slice(0,midpoint),bottom=list.slice(midpoint);
       host.innerHTML=`<div class="home-carousel-row">${top.map((b,i)=>card(b,i)).join("")}</div><div class="home-carousel-row">${bottom.map((b,i)=>card(b,i+top.length)).join("")}</div>`;
-    }else host.innerHTML=list.map((b,i)=>card(b,i)).join("");
-    bindDynamicActions(host);renderFavButtons();renderDots();move();
+    }else{
+      const loop=list.length>vis;
+      const lead=loop?list.slice(-vis):[];
+      const tail=loop?list.slice(0,vis):[];
+      loopPad=lead.length;
+      host.innerHTML=[...lead,...list,...tail].map((b,i)=>card(b,i)).join("");
+    }
+    bindDynamicActions(host);renderFavButtons();renderDots();move(false);
   }
   async function setMode(nextMode){
     mode=enabledModes.includes(nextMode)?nextMode:enabledModes[0];
@@ -2348,27 +2562,70 @@ async function setupHomeCarousel(){
     }catch(error){if(error?.name!=="AbortError"){console.error("Homepage carousel query failed.",error);host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';dotsHost.innerHTML=""}}
   }
   async function next(){
+    if(!list.length)return;
+    const vis=visibleCount();
     const cached=modeCache.get(mode);
-    if(index>=maxIndex()&&cached?.hasMore&&cached.items.length<24){
-      try{const loaded=await loadMode(mode,true);list=loaded.items;draw();index=Math.min(1,maxIndex());move();return}catch(error){if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error)}
+    if(!isDual()&&index>=list.length-vis&&cached?.hasMore&&cached.items.length<24){
+      try{
+        const keep=index;
+        const loaded=await loadMode(mode,true);
+        list=loaded.items;draw();index=Math.min(keep,Math.max(0,list.length-1));move(false);
+      }catch(error){if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error)}
     }
-    index=index>=maxIndex()?0:index+1;move();
+    if(isDual()){index=index>=maxIndex()?0:index+1;move(true);return}
+    if(list.length<=vis){index=0;move(true);return}
+    index+=1;move(true);
   }
-  function prev(){index=index<=0?maxIndex():index-1;move()}
+  function prev(){
+    if(!list.length)return;
+    if(isDual()){index=index<=0?maxIndex():index-1;move(true);return}
+    if(list.length<=visibleCount()){index=0;move(true);return}
+    index-=1;move(true);
+  }
   function stop(){if(timer){clearInterval(timer);timer=null}}
   function start(){
     stop();
-    const mobile=window.innerWidth<=700;
-    if(reducedMotion||!featureEnabled("autoCarousel")||carousel.autoPlayEnabled===false||(mobile&&carousel.mobileAutoPlayEnabled!==true)||document.hidden)return;
-    timer=setInterval(()=>{next()},Math.max(5000,Number(carousel.autoplayDelay)||6000));
+    if(!featureEnabled("autoCarousel"))return;
+    if(!carouselShouldAutoplay(list.length,visibleCount(),{
+      reducedMotion,hidden:document.hidden,autoPlayEnabled:carousel.autoPlayEnabled,
+      mobile:window.innerWidth<=700,mobileAutoPlayEnabled:carousel.mobileAutoPlayEnabled
+    }))return;
+    timer=setInterval(()=>{next()},Math.max(5000,Number(carousel.autoplayDelay)||5000));
   }
   function restart(){start()}
+  function settleLoop(){
+    if(isDual()||list.length<=visibleCount())return;
+    if(index>=list.length){snapping=true;index=0;move(false);snapping=false}
+    else if(index<0){snapping=true;index=list.length-1;move(false);snapping=false}
+  }
 
-  tabs.forEach(button=>button.addEventListener("click",()=>setMode(button.dataset.carouselMode)));
+  let userPickedMode=false;
+  async function resolveInitialMode(){
+    const itemCounts={};
+    for(const candidate of enabledModes){
+      try{
+        const loaded=modeCache.get(candidate)||await loadMode(candidate,false);
+        itemCounts[candidate]=loaded.items.length;
+        if(loaded.items.length)break;
+      }catch(error){
+        if(error?.name==="AbortError"){
+          if(userPickedMode)return mode;
+          continue;
+        }
+        console.warn("Homepage carousel mode probe failed.",candidate,error);
+        itemCounts[candidate]=0;
+      }
+    }
+    return firstPopulatedCarouselMode(enabledModes,itemCounts);
+  }
+  tabs.forEach(button=>button.addEventListener("click",()=>{userPickedMode=true;setMode(button.dataset.carouselMode)}));
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
-  viewport.addEventListener("mouseenter",stop);viewport.addEventListener("mouseleave",start);
+  const carouselRoot=viewport.closest("#newBooksCarousel")||viewport;
+  carouselRoot.addEventListener("mouseenter",stop);
+  carouselRoot.addEventListener("mouseleave",start);
   viewport.addEventListener("focusin",stop);viewport.addEventListener("focusout",start);
+  host.addEventListener("transitionend",event=>{if(event.target===host&&event.propertyName==="transform")settleLoop()});
   viewport.addEventListener("touchstart",event=>{
     if(window.innerWidth<=768)return;
     touchX=event.touches[0]?.clientX??null;stop();
@@ -2380,8 +2637,9 @@ async function setupHomeCarousel(){
   },{passive:true});
   viewport.addEventListener("keydown",event=>{if(event.key==="ArrowLeft"){event.preventDefault();next();restart()}else if(event.key==="ArrowRight"){event.preventDefault();prev();restart()}});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
-  window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{index=Math.min(index,maxIndex());renderDots();move()}restart()});
-  setMode(enabledModes[0]);
+  window.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("change",event=>{reducedMotion=event.matches;if(reducedMotion)stop();else restart()});
+  window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{if(isDual())index=Math.min(index,maxIndex());renderDots();move(false)}restart()});
+  resolveInitialMode().then(initial=>{if(!userPickedMode)setMode(initial)});
 }
 
 function loadMemberSystem(){
@@ -2487,7 +2745,7 @@ function init(){
 let bootStarted=false;
 async function boot(){
   if(bootStarted)return;
-  bootStarted=true;  try{await loadAssetScript("app-config.js?v=1","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  bootStarted=true;  try{await loadAssetScript("app-config.js?v=2","kutadguAppConfigScript")}catch(error){console.warn(error)}
   initStaticShell();
   await loadRemoteCatalog();
   await hydratePageBook();

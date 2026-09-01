@@ -118,12 +118,98 @@ async function waitForDetailTitle(page) {
   return page.locator(".book-detail-info h1").innerText();
 }
 
+/** Control carousel mode payloads for both static catalog and remote queries. */
+async function installCarouselCatalogStub(page, flags) {
+  const recommended = flags.recommended === true;
+  const newest = flags.newest === true;
+  const bestseller = flags.bestseller === true;
+  const bookCount = Math.max(1, Number(flags.bookCount) || 1);
+  const featuredCount = flags.featuredCount == null ? null : Math.max(0, Number(flags.featuredCount) || 0);
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount }) => {
+    window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
+    let catalog = [];
+    Object.defineProperty(window, "KITAP_CATALOG", {
+      configurable: true,
+      enumerable: true,
+      get() { return catalog; },
+      set(arr) {
+        let rows = Array.isArray(arr) ? arr : [];
+        if (featuredCount != null) rows = rows.slice(0, featuredCount);
+        catalog = rows.map((book, i) => ({
+          ...book,
+          is_recommended: !!(recommended && i < bookCount),
+          is_new: !!(newest && i < bookCount),
+          sales_count: bestseller && i < bookCount ? 4 : 0
+        }));
+      }
+    });
+    const origFetch = window.fetch.bind(window);
+    const jsonResponse = (rows, head) => {
+      const list = Array.isArray(rows) ? rows : [];
+      const last = Math.max(0, list.length - 1);
+      return new Response(head ? null : JSON.stringify(list), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "content-range": list.length ? `0-${last}/${list.length}` : "*/0"
+        }
+      });
+    };
+    const stubBook = (extra) => ({
+      id: extra.id || 91001,
+      title: extra.title || "Carousel Stub Book",
+      author: "تەست",
+      price: 25,
+      category: "رومانلار",
+      image_url: "sample-book-cover.png",
+      is_active: true,
+      is_recommended: extra.is_recommended === true,
+      is_new: extra.is_new === true,
+      sales_count: Number(extra.sales_count) || 0
+    });
+    const stubBooks = (extra) => Array.from({ length: bookCount }, (_, i) => stubBook({
+      ...extra,
+      id: (extra.id || 91001) + i,
+      title: `${extra.title || "Carousel Stub Book"} ${i + 1}`
+    }));
+    window.fetch = async (input, init) => {
+      const url = String(typeof input === "string" ? input : input && input.url || "");
+      const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
+      if (!url.includes("/rest/v1/books")) return origFetch(input, init);
+      if (method === "HEAD" && url.includes("sales_count=gt.0")) {
+        return new Response(null, { status: 200, headers: { "content-range": `0-0/${bestseller ? 3 : 0}` } });
+      }
+      if (method === "HEAD" && url.includes("is_active=eq.true")) {
+        return new Response(null, { status: 200, headers: { "content-range": "0-0/12" } });
+      }
+      if (url.includes("is_active=eq.false")) return jsonResponse([]);
+      if (url.includes("is_recommended=eq.true")) {
+        return jsonResponse(recommended ? stubBooks({ is_recommended: true, id: 91001, title: "Recommended Stub" }) : []);
+      }
+      if (url.includes("is_new=eq.true")) {
+        return jsonResponse(newest ? stubBooks({ is_new: true, id: 92001, title: "Newest Stub" }) : []);
+      }
+      if (url.includes("sales_count=gt.0")) {
+        return jsonResponse(bestseller ? stubBooks({ sales_count: 4, id: 93001, title: "Bestseller Stub" }) : []);
+      }
+      if (featuredCount != null) {
+        return jsonResponse(Array.from({ length: featuredCount }, (_, i) => stubBook({
+          id: 94001 + i,
+          title: `Featured Stub ${i + 1}`
+        })));
+      }
+      return jsonResponse([]);
+    };
+  }, { recommended, newest, bestseller, bookCount, featuredCount });
+}
+
 module.exports = {
   PRODUCTION,
   targetOrigin,
   adminCreds,
   memberCreds,
   installReadSafeNetwork,
+  installCarouselCatalogStub,
   waitForShop,
   clearShopStorage,
   readCart,
