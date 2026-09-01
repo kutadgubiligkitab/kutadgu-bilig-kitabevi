@@ -26,6 +26,10 @@ button{cursor:pointer}
 .admin-wide{grid-column:1/-1}
 .admin-check{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;gap:8px!important}
 .admin-check input{width:auto!important}
+.admin-flag-check{padding:8px 10px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
+.admin-flag-check:has(input:checked){border-color:#70503d;background:#f4ece4;box-shadow:0 0 0 2px rgba(112,80,61,.12)}
+.admin-flag-check input{accent-color:#70503d;width:18px!important;height:18px}
+.admin-flag-check:has(input:checked) span{font-weight:800;color:#4b3327}
 .admin-primary,.admin-secondary,.admin-danger{border:0;border-radius:9px;padding:11px 15px}
 .admin-primary{background:#70503d;color:#fff}
 .admin-secondary{background:#eee4d7;color:#44352d}
@@ -176,6 +180,13 @@ button{cursor:pointer}
 .admin-quality-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.6}
 .admin-quality-complete{background:#edf7ef;color:#2f6a3c}
 .admin-quality-author,.admin-quality-cover,.admin-quality-description,.admin-quality-isbn{background:#fff4e8;color:#8a4b12}
+.admin-status-filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.admin-status-chip{border:1px solid #dccdb9;background:#fbf8f2;color:#44352d;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700}
+.admin-status-chip.is-active{background:#70503d;color:#fff;border-color:#70503d;box-shadow:0 0 0 2px rgba(112,80,61,.16)}
+.admin-status-badges{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 2px}
+.admin-status-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;line-height:1.5}
+.admin-status-badge-recommended{background:#edf4fb;color:#2c5a86}
+.admin-status-badge-new{background:#edf7ef;color:#2f6a3c}
 .admin-optional{font-weight:600;color:#8a7568}
 .admin-dup-list{display:grid;gap:8px;margin:10px 0}
 .admin-dup-match{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 10px;border:1px solid #ead3a6;border-radius:8px;background:#fffdf8;font-size:13px}
