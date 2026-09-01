@@ -82,6 +82,15 @@ header,
     color: #fff !important;
 }
 
+/* PR #36: category + homepage brown headers stay visible while scrolling.
+   Do not apply to account/admin topbars. Mobile uses position:fixed !important. */
+body > header:not(.account-topbar):not(.admin-topbar) {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    flex-wrap: wrap;
+}
+
 /* Typography */
 .hero h1,
 .hero h2,

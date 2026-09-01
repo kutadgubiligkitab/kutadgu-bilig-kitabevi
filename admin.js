@@ -428,6 +428,250 @@ async function toggleMaintenanceMode(){
     if(btn)btn.disabled=false;
   }
 }
+
+function isMissingAnnounceTable(error){
+  const msg=String((error&& (error.message||error.code))||"");
+  return /store_announcements|store_announcement_settings|does not exist|42P01|PGRST/i.test(msg)||(error&& (error.code==="42P01"||error.code==="PGRST205"));
+}
+
+function clampAnnounceInterval(value){
+  const n=Math.round(Number(value));
+  if(!Number.isFinite(n))return 5;
+  return Math.min(60,Math.max(2,n));
+}
+
+function toDatetimeLocal(iso){
+  if(!iso)return "";
+  const d=new Date(iso);
+  if(Number.isNaN(d.getTime()))return "";
+  const pad=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(value){
+  const raw=String(value||"").trim();
+  if(!raw)return null;
+  const d=new Date(raw);
+  if(Number.isNaN(d.getTime()))return null;
+  return d.toISOString();
+}
+
+function resetAnnounceForm(){
+  $("#announceEditId")&&($("#announceEditId").value="");
+  $("#announceMessage")&&($("#announceMessage").value="");
+  $("#announceEnabled")&&($("#announceEnabled").checked=true);
+  $("#announceSort")&&($("#announceSort").value="0");
+  $("#announceStart")&&($("#announceStart").value="");
+  $("#announceEnd")&&($("#announceEnd").value="");
+}
+
+function fillAnnounceForm(row){
+  if(!row)return resetAnnounceForm();
+  $("#announceEditId").value=row.id||"";
+  $("#announceMessage").value=row.message||"";
+  $("#announceEnabled").checked=row.enabled!==false;
+  $("#announceSort").value=Number.isFinite(Number(row.sort_order))?row.sort_order:0;
+  $("#announceStart").value=toDatetimeLocal(row.starts_at);
+  $("#announceEnd").value=toDatetimeLocal(row.ends_at);
+}
+
+function renderAnnounceMissing(){
+  const card=$("#announcementCard");
+  if(card)card.classList.add("is-missing");
+  const list=$("#announcementList");
+  if(list)list.innerHTML="";
+  ["announceSaveBtn","announceResetBtn","announceIntervalSave"].forEach(id=>{
+    const el=$(`#${id}`);
+    if(el)el.disabled=true;
+  });
+  status($("#announcementStatus"),"ئېلان جەدۋىلى تېخى Database غا قوشۇلمىغان. SITE_ANNOUNCEMENT_BAR.sql نى قولدا ئىجرا قىلىڭ. تور بەت بۇنىڭ بىلەن بۇزۇلمايدۇ.","warn");
+}
+
+let announceRows=[];
+
+function renderAnnounceList(){
+  const list=$("#announcementList");
+  if(!list)return;
+  list.innerHTML="";
+  if(!announceRows.length){
+    const empty=document.createElement("p");
+    empty.className="admin-help";
+    empty.textContent="ھازىرچە ئېلان يوق. يېڭى ئېلان قوشۇڭ.";
+    list.appendChild(empty);
+    return;
+  }
+  announceRows.forEach((row,idx)=>{
+    const item=document.createElement("div");
+    item.className="admin-announce-row";
+    const body=document.createElement("div");
+    const title=document.createElement("div");
+    title.className="admin-announce-message";
+    title.textContent=row.message||"";
+    const meta=document.createElement("div");
+    meta.className="admin-book-meta";
+    meta.textContent=(row.enabled===false?"يېپىق":"ئوچۇق")+" · تەرتىپ "+(row.sort_order??0);
+    body.append(title,meta);
+    const actions=document.createElement("div");
+    actions.className="admin-book-actions";
+    const mk=(label,cls,fn)=>{
+      const b=document.createElement("button");
+      b.type="button";
+      b.className=cls||"";
+      b.textContent=label;
+      b.addEventListener("click",fn);
+      return b;
+    };
+    actions.append(
+      mk("↑","",()=>reorderAnnounce(idx,-1)),
+      mk("↓","",()=>reorderAnnounce(idx,1)),
+      mk("تەھرىرلەش","",()=>fillAnnounceForm(row)),
+      mk(row.enabled===false?"قوزغىتىش":"توختىتىش","",()=>toggleAnnounceEnabled(row)),
+      mk("ئۆچۈرۈش","admin-danger",()=>deleteAnnounce(row))
+    );
+    item.append(body,actions);
+    list.appendChild(item);
+  });
+}
+
+async function loadAnnouncementCard(){
+  if(!db)return;
+  const card=$("#announcementCard");
+  if(card)card.classList.remove("is-missing");
+  try{
+    const [listRes,setRes]=await Promise.all([
+      db.from("store_announcements").select("id,message,enabled,sort_order,starts_at,ends_at,created_at").order("sort_order",{ascending:true}).order("created_at",{ascending:true}),
+      db.from("store_announcement_settings").select("id,rotation_interval_seconds").eq("id",1).maybeSingle()
+    ]);
+    if(listRes.error){
+      if(isMissingAnnounceTable(listRes.error))return renderAnnounceMissing();
+      throw listRes.error;
+    }
+    if(setRes.error && isMissingAnnounceTable(setRes.error))return renderAnnounceMissing();
+    if(setRes.error)throw setRes.error;
+    ["announceSaveBtn","announceResetBtn","announceIntervalSave"].forEach(id=>{
+      const el=$(`#${id}`);
+      if(el)el.disabled=false;
+    });
+    announceRows=Array.isArray(listRes.data)?listRes.data:[];
+    const interval=clampAnnounceInterval(setRes.data&&setRes.data.rotation_interval_seconds);
+    if($("#announceInterval"))$("#announceInterval").value=String(interval);
+    renderAnnounceList();
+    status($("#announcementStatus"),"ئېلان سانى: "+announceRows.length+" · ئايلىنىش: "+interval+" سېكۇنت","ok");
+  }catch(err){
+    if(isMissingAnnounceTable(err))return renderAnnounceMissing();
+    status($("#announcementStatus"),"ئېلانلار ئوقۇلمىدى: "+(err.message||err),"error");
+  }
+}
+
+async function saveAnnounceInterval(e){
+  e&&e.preventDefault();
+  if(!db||!user)return;
+  const seconds=clampAnnounceInterval($("#announceInterval")&&$("#announceInterval").value);
+  if($("#announceInterval"))$("#announceInterval").value=String(seconds);
+  try{
+    const {error}=await db.from("store_announcement_settings").update({
+      rotation_interval_seconds:seconds,
+      updated_at:new Date().toISOString(),
+      updated_by:user.id
+    }).eq("id",1);
+    if(error)throw error;
+    status($("#announcementStatus"),"ئايلىنىش ئارىلىقى "+seconds+" سېكۇنت قىلىپ ساقلاندى.","ok");
+  }catch(err){
+    if(isMissingAnnounceTable(err))return renderAnnounceMissing();
+    status($("#announcementStatus"),"ئارىلىق ساقلانمىدى: "+(err.message||err),"error");
+  }
+}
+
+async function saveAnnounce(e){
+  e&&e.preventDefault();
+  if(!db||!user)return;
+  const message=String($("#announceMessage")&&$("#announceMessage").value||"").trim();
+  if(!message){
+    status($("#announcementStatus"),"ئېلان تېكىستى بوش بولماسلىقى كېرەك.","error");
+    return;
+  }
+  const payload={
+    message,
+    enabled:!!($("#announceEnabled")&&$("#announceEnabled").checked),
+    sort_order:Number($("#announceSort")&&$("#announceSort").value)||0,
+    starts_at:fromDatetimeLocal($("#announceStart")&&$("#announceStart").value),
+    ends_at:fromDatetimeLocal($("#announceEnd")&&$("#announceEnd").value),
+    updated_at:new Date().toISOString(),
+    updated_by:user.id
+  };
+  const id=String($("#announceEditId")&&$("#announceEditId").value||"").trim();
+  try{
+    let error;
+    if(id){
+      ({error}=await db.from("store_announcements").update(payload).eq("id",id));
+    }else{
+      ({error}=await db.from("store_announcements").insert(payload));
+    }
+    if(error)throw error;
+    resetAnnounceForm();
+    await loadAnnouncementCard();
+    status($("#announcementStatus"),id?"ئېلان يېڭىلاندى.":"يېڭى ئېلان قوشۇلدى.","ok");
+  }catch(err){
+    if(isMissingAnnounceTable(err))return renderAnnounceMissing();
+    status($("#announcementStatus"),"ئېلان ساقلانمىدى: "+(err.message||err),"error");
+  }
+}
+
+async function toggleAnnounceEnabled(row){
+  if(!db||!user||!row)return;
+  try{
+    const {error}=await db.from("store_announcements").update({
+      enabled:row.enabled===false,
+      updated_at:new Date().toISOString(),
+      updated_by:user.id
+    }).eq("id",row.id);
+    if(error)throw error;
+    await loadAnnouncementCard();
+  }catch(err){
+    status($("#announcementStatus"),"ھالەت ئۆزگەرتىلمىدى: "+(err.message||err),"error");
+  }
+}
+
+async function deleteAnnounce(row){
+  if(!db||!row)return;
+  if(!confirm("بۇ ئېلاننى ئۆچۈرەمسىز؟"))return;
+  try{
+    const {error}=await db.from("store_announcements").delete().eq("id",row.id);
+    if(error)throw error;
+    if($("#announceEditId")&&$("#announceEditId").value===row.id)resetAnnounceForm();
+    await loadAnnouncementCard();
+    status($("#announcementStatus"),"ئېلان ئۆچۈرۈلدى.","ok");
+  }catch(err){
+    status($("#announcementStatus"),"ئېلان ئۆچۈرۈلمىدى: "+(err.message||err),"error");
+  }
+}
+
+async function reorderAnnounce(idx,dir){
+  const other=idx+dir;
+  if(other<0||other>=announceRows.length)return;
+  const a=announceRows[idx];
+  const b=announceRows[other];
+  const aOrder=Number(a.sort_order)||0;
+  const bOrder=Number(b.sort_order)||0;
+  const nextA=aOrder===bOrder?aOrder+dir:bOrder;
+  const nextB=aOrder===bOrder?bOrder:aOrder;
+  try{
+    const u1=await db.from("store_announcements").update({sort_order:nextA,updated_at:new Date().toISOString(),updated_by:user.id}).eq("id",a.id);
+    if(u1.error)throw u1.error;
+    const u2=await db.from("store_announcements").update({sort_order:nextB,updated_at:new Date().toISOString(),updated_by:user.id}).eq("id",b.id);
+    if(u2.error)throw u2.error;
+    await loadAnnouncementCard();
+  }catch(err){
+    status($("#announcementStatus"),"تەرتىپ ئۆزگەرتىلمىدى: "+(err.message||err),"error");
+  }
+}
+
+function bindAnnouncementAdmin(){
+  $("#announcementForm")&&$("#announcementForm").addEventListener("submit",saveAnnounce);
+  $("#announcementSettingsForm")&&$("#announcementSettingsForm").addEventListener("submit",saveAnnounceInterval);
+  $("#announceResetBtn")&&($("#announceResetBtn").onclick=resetAnnounceForm);
+}
+
 async function routeSession(){
   const {data}=await db.auth.getSession();
   const session=data.session;
@@ -443,7 +687,7 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
-  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard()]);
 }
 
 function columnList(){
@@ -1917,6 +2161,7 @@ function init(){
   $("#forgotPasswordBtn").onclick=requestPasswordReset;
   $("#adminLogout").onclick=logout;
   $("#maintenanceToggleBtn")&&($("#maintenanceToggleBtn").onclick=toggleMaintenanceMode);
+  bindAnnouncementAdmin();
   $("#newBookBtn").onclick=openNew;
   $("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)};
   $("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)};
@@ -2003,6 +2248,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal
 };
 })();

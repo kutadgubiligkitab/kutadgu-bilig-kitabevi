@@ -24,6 +24,7 @@
     overflow-x: hidden;
     overflow-x: clip;
     scroll-padding-top: calc(var(--mobile-header-height) + 10px);
+    scroll-padding-top: calc(var(--kutadgu-sticky-header-height, calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px))) + 10px);
   }
 
   body {
@@ -39,6 +40,7 @@
 
   body.has-mobile-fixed-header {
     padding-top: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)) !important;
+    padding-top: var(--kutadgu-sticky-header-height, calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px))) !important;
   }
 
   img,
@@ -91,6 +93,7 @@
     min-height: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)) !important;
     padding: calc(7px + env(safe-area-inset-top, 0px)) 62px 7px !important;
     display: flex !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
     justify-content: center !important;
     background: var(--site-brown-dark, #4b3327) !important;
@@ -197,11 +200,12 @@
   .mobile-site-menu {
     position: fixed !important;
     inset-block-start: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px));
+    inset-block-start: var(--kutadgu-sticky-header-height, calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)));
     inset-inline: 10px !important;
     z-index: 11990 !important;
     width: auto !important;
     max-height: calc(100vh - var(--mobile-header-height) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    max-height: calc(100dvh - var(--mobile-header-height) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - var(--kutadgu-sticky-header-height, calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px))) - 24px - env(safe-area-inset-bottom, 0px));
     padding: 10px !important;
     display: none !important;
     overflow-y: auto;

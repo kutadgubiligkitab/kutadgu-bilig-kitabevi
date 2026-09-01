@@ -2718,6 +2718,7 @@ label {
   .home-search-card-section{
     margin:10px auto 8px !important;
     scroll-margin-top:96px;
+    scroll-margin-top:calc(var(--kutadgu-sticky-header-height, 80px) + 16px);
   }
   .home-search-card{
     padding:14px 20px 12px !important;

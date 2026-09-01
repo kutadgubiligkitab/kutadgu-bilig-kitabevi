@@ -39,10 +39,24 @@ async function installReadSafeNetwork(page) {
           body: JSON.stringify([{ key: "maintenance_mode", value: false }])
         });
       }
+      if (url.includes("/rest/v1/store_announcements")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: "[]"
+        });
+      }
+      if (url.includes("/rest/v1/store_announcement_settings")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([{ id: 1, rotation_interval_seconds: 5 }])
+        });
+      }
       return route.continue();
     }
     if (url.includes("/auth/v1/")) return route.continue();
-    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings)/.test(url)) {
+    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings|store_announcements|store_announcement_settings)/.test(url)) {
       return route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -203,6 +217,47 @@ async function installCarouselCatalogStub(page, flags) {
   }, { recommended, newest, bestseller, bookCount, featuredCount });
 }
 
+async function installAnnouncementFixtures(page, opts) {
+  const options = opts || {};
+  const missing = options.missing === true;
+  const interval = options.interval == null ? 5 : Number(options.interval);
+  const rows = Array.isArray(options.announcements) ? options.announcements : [];
+  await page.route("**/rest/v1/store_announcement_settings**", async (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+    }
+    if (missing) {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "PGRST205", message: "table not found" })
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([{ id: 1, rotation_interval_seconds: interval }])
+    });
+  });
+  await page.route("**/rest/v1/store_announcements**", async (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+    }
+    if (missing) {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "PGRST205", message: "table not found" })
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(rows)
+    });
+  });
+}
+
 module.exports = {
   PRODUCTION,
   targetOrigin,
@@ -210,6 +265,7 @@ module.exports = {
   memberCreds,
   installReadSafeNetwork,
   installCarouselCatalogStub,
+  installAnnouncementFixtures,
   waitForShop,
   clearShopStorage,
   readCart,

@@ -51,9 +51,9 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=11/);
-  assert.match(html, /shop\.css\?v=42/);
-  assert.match(html, /mobile\.css\?v=20/);
+  assert.match(html, /index\.css\?v=12/);
+  assert.match(html, /shop\.css\?v=43/);
+  assert.match(html, /mobile\.css\?v=21/);
   assert.match(html, /shop\.js\?v=77/);
   assert.match(html, /mobile\.js\?v=4/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
