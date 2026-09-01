@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=16">
+  <link rel="stylesheet" href="admin.css?v=17">
 </head>
 <body>
 <div class="admin-shell">
@@ -138,7 +138,13 @@
             <option value="price.desc">باھا (قىممەت)</option>
           </select>
         </div>
-        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە.</p>
+        <div class="admin-status-filters" role="group" aria-label="تەۋسىيە ۋە يېڭى كەلگەن تېز سۈزگۈچ">
+          <button type="button" class="admin-status-chip is-active" data-status-filter="all" aria-pressed="true">ھەممىسى</button>
+          <button type="button" class="admin-status-chip" data-status-filter="recommended" aria-pressed="false">تەۋسىيەلىك</button>
+          <button type="button" class="admin-status-chip" data-status-filter="new" aria-pressed="false">يېڭى كەلگەن</button>
+          <button type="button" class="admin-status-chip" data-status-filter="unmarked" aria-pressed="false">بەلگىلەنمىگەن</button>
+        </div>
+        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە. «يېڭى كەلگەن» بەلگىسى قولدىكى is_new؛ باش بەتتىكى يېقىندا قوشۇلغانلار created_at بويىچە ئايرىم.</p>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
           <span id="adminSelectedCount">تاللانغان: 0 (نۆۋەتتىكى بەت)</span>
@@ -302,8 +308,8 @@
       </div>
 
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
-      <label class="admin-check"><input id="bookIsNew" type="checkbox"><span>يېڭى قوشۇلغان (قولدا)</span></label>
-      <label class="admin-check"><input id="bookIsRecommended" type="checkbox"><span>تەۋسىيە قىلىنغان</span></label>
+      <label class="admin-check admin-flag-check"><input id="bookIsNew" type="checkbox"><span>🆕 يېڭى قوشۇلغان (قولدا)</span></label>
+      <label class="admin-check admin-flag-check"><input id="bookIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
       <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
 
       <div id="createDuplicateWarning" class="admin-status warn admin-wide" hidden>
@@ -389,6 +395,6 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=31"></script>
+<script defer src="admin.js?v=32"></script>
 </body>
 </html>

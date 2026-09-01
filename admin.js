@@ -57,6 +57,55 @@ const listFilters={
   sort:"created_at.desc"
 };
 
+// Quick chips only write these same listFilters keys; applyListFilters() remains the query path.
+const STATUS_CHIP_PRESETS={
+  all:{recommended:"",isNew:""},
+  recommended:{recommended:"yes",isNew:""},
+  new:{recommended:"",isNew:"yes"},
+  unmarked:{recommended:"no",isNew:"no"}
+};
+
+function matchedStatusChip(){
+  const rec=listFilters.recommended||"";
+  const neu=listFilters.isNew||"";
+  if(rec===""&&neu==="")return "all";
+  if(rec==="yes"&&neu==="")return "recommended";
+  if(rec===""&&neu==="yes")return "new";
+  if(rec==="no"&&neu==="no")return "unmarked";
+  return "";
+}
+
+function syncStatusFilterUi(){
+  const active=matchedStatusChip();
+  document.querySelectorAll("[data-status-filter]").forEach(btn=>{
+    const on=active!==""&&btn.dataset.statusFilter===active;
+    btn.classList.toggle("is-active",on);
+    btn.setAttribute("aria-pressed",on?"true":"false");
+  });
+  const recSel=$("#adminFilterRecommended");
+  const newSel=$("#adminFilterNew");
+  if(recSel)recSel.value=listFilters.recommended||"";
+  if(newSel)newSel.value=listFilters.isNew||"";
+}
+
+function applyStatusChip(which){
+  const preset=STATUS_CHIP_PRESETS[which];
+  if(!preset)return;
+  listFilters.recommended=preset.recommended;
+  listFilters.isNew=preset.isNew;
+  listPage=0;
+  syncStatusFilterUi();
+  loadBooks();
+}
+
+function statusBadgesHtml(book){
+  const bits=[];
+  if(book.is_recommended===true)bits.push('<span class="admin-status-badge admin-status-badge-recommended">⭐ تەۋسىيەلىك</span>');
+  if(book.is_new===true)bits.push('<span class="admin-status-badge admin-status-badge-new">🆕 يېڭى كەلگەن</span>');
+  if(!bits.length)return "";
+  return `<div class="admin-status-badges">${bits.join("")}</div>`;
+}
+
 function configured(){
   return !!(String(cfg.url||"").trim() && String(cfg.anonKey||cfg.publishableKey||"").trim());
 }
@@ -814,9 +863,10 @@ function renderBooks(){
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
+        ${statusBadgesHtml(b)}
         <div class="admin-quality-row">${Quality.qualityChipsHtml?Quality.qualityChipsHtml(b,{descriptionSupported:true,isbnSupported:isbnColumn}):""}</div>
         <div class="admin-book-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${money(b.price)}${presentBookCols.has("stock")||presentBookCols.has("stock_status")?` · ئامبار ${b.stock==null?"—":Number(b.stock)} · ${b.stock_status==="out_of_stock"?"تۈگەپ كەتتى":b.stock_status==="low_stock"?"ئاز قالدى":"ئامباردا بار"}`:""}</div>
-        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${b.is_recommended?" · ⭐ تەۋسىيە":""} ${b.is_new?" · 🆕 يېڭى":""} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}${b.isbn?` · ISBN <span class="admin-isbn">${esc(b.isbn)}</span>`:""}${b.publisher?` · ${esc(b.publisher)}`:""}</div>
+        <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}${b.isbn?` · ISBN <span class="admin-isbn">${esc(b.isbn)}</span>`:""}${b.publisher?` · ${esc(b.publisher)}`:""}</div>
       </div>
       <div class="admin-book-actions">
         <a href="${esc(b.href||`book.html?id=${encodeURIComponent(b.id)}`)}" target="_blank">👁️ كۆرۈش</a>
@@ -2170,8 +2220,12 @@ function init(){
   $("#adminSearch").addEventListener("input",scheduleSearch);
   $("#adminFilterSource").onchange=()=>{listFilters.source=$("#adminFilterSource").value;listPage=0;loadBooks()};
   $("#adminFilterActive").onchange=()=>{listFilters.active=$("#adminFilterActive").value;listPage=0;loadBooks()};
-  $("#adminFilterRecommended").onchange=()=>{listFilters.recommended=$("#adminFilterRecommended").value;listPage=0;loadBooks()};
-  $("#adminFilterNew").onchange=()=>{listFilters.isNew=$("#adminFilterNew").value;listPage=0;loadBooks()};
+  $("#adminFilterRecommended").onchange=()=>{listFilters.recommended=$("#adminFilterRecommended").value;listPage=0;syncStatusFilterUi();loadBooks()};
+  $("#adminFilterNew").onchange=()=>{listFilters.isNew=$("#adminFilterNew").value;listPage=0;syncStatusFilterUi();loadBooks()};
+  document.querySelectorAll("[data-status-filter]").forEach(btn=>{
+    btn.onclick=()=>applyStatusChip(btn.dataset.statusFilter);
+  });
+  syncStatusFilterUi();
   $("#adminFilterQuality")&&($("#adminFilterQuality").onchange=()=>{listFilters.quality=$("#adminFilterQuality").value;listPage=0;loadBooks()});
   $("#adminSort").onchange=()=>{listFilters.sort=$("#adminSort").value;listPage=0;loadBooks()};
   $("#createDuplicateConfirm")&&($("#createDuplicateConfirm").onchange=()=>{createConflictAck=!!$("#createDuplicateConfirm").checked});
@@ -2248,6 +2302,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal
 };
 })();
