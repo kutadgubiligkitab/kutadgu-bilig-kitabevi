@@ -123,7 +123,8 @@ async function installCarouselCatalogStub(page, flags) {
   const recommended = flags.recommended === true;
   const newest = flags.newest === true;
   const bestseller = flags.bestseller === true;
-  await page.addInitScript(({ recommended, newest, bestseller }) => {
+  const bookCount = Math.max(1, Number(flags.bookCount) || 1);
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount }) => {
     window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
     let catalog = [];
     Object.defineProperty(window, "KITAP_CATALOG", {
@@ -134,9 +135,9 @@ async function installCarouselCatalogStub(page, flags) {
         const rows = Array.isArray(arr) ? arr : [];
         catalog = rows.map((book, i) => ({
           ...book,
-          is_recommended: !!(recommended && i === 0),
-          is_new: !!(newest && i === (recommended ? 1 : 0)),
-          sales_count: bestseller && i === 2 ? 4 : 0
+          is_recommended: !!(recommended && i < bookCount),
+          is_new: !!(newest && i < bookCount),
+          sales_count: bestseller && i < bookCount ? 4 : 0
         }));
       }
     });
@@ -164,6 +165,11 @@ async function installCarouselCatalogStub(page, flags) {
       is_new: extra.is_new === true,
       sales_count: Number(extra.sales_count) || 0
     });
+    const stubBooks = (extra) => Array.from({ length: bookCount }, (_, i) => stubBook({
+      ...extra,
+      id: (extra.id || 91001) + i,
+      title: `${extra.title || "Carousel Stub Book"} ${i + 1}`
+    }));
     window.fetch = async (input, init) => {
       const url = String(typeof input === "string" ? input : input && input.url || "");
       const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
@@ -176,17 +182,17 @@ async function installCarouselCatalogStub(page, flags) {
       }
       if (url.includes("is_active=eq.false")) return jsonResponse([]);
       if (url.includes("is_recommended=eq.true")) {
-        return jsonResponse(recommended ? [stubBook({ is_recommended: true, id: 91001, title: "Recommended Stub" })] : []);
+        return jsonResponse(recommended ? stubBooks({ is_recommended: true, id: 91001, title: "Recommended Stub" }) : []);
       }
       if (url.includes("is_new=eq.true")) {
-        return jsonResponse(newest ? [stubBook({ is_new: true, id: 91002, title: "Newest Stub" })] : []);
+        return jsonResponse(newest ? stubBooks({ is_new: true, id: 92001, title: "Newest Stub" }) : []);
       }
       if (url.includes("sales_count=gt.0")) {
-        return jsonResponse(bestseller ? [stubBook({ sales_count: 4, id: 91003, title: "Bestseller Stub" })] : []);
+        return jsonResponse(bestseller ? stubBooks({ sales_count: 4, id: 93001, title: "Bestseller Stub" }) : []);
       }
       return jsonResponse([]);
     };
-  }, { recommended, newest, bestseller });
+  }, { recommended, newest, bestseller, bookCount });
 }
 
 module.exports = {

@@ -2227,6 +2227,22 @@ function firstPopulatedCarouselMode(enabledModes,itemCounts){
   return modes[0];
 }
 
+function carouselVisibleCount(width,config){
+  const w=Number(width)||0;
+  const desktop=Math.max(1,Number(config&&config.desktopCardsPerRow)||4);
+  if(w>1100)return desktop;
+  if(w<=430)return 1;
+  if(w<=850)return 2;
+  return Math.min(3,Number(config&&config.tabletVisibleCards)||3);
+}
+
+function carouselShouldAutoplay(itemCount,visible,options){
+  const opts=options||{};
+  if(opts.reducedMotion||opts.hidden||opts.autoPlayEnabled===false)return false;
+  if(opts.mobile&&opts.mobileAutoPlayEnabled!==true)return false;
+  return Number(itemCount)>Number(visible);
+}
+
 async function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
@@ -2247,14 +2263,14 @@ async function setupHomeCarousel(){
   if(!enabledModes.length){viewport.closest("section")?.setAttribute("hidden","");return}
 
   const carousel={
-    desktopCardsPerRow:4,desktopRows:2,tabletVisibleCards:4,
-    autoplayDelay:6000,animationDuration:600,staggerDelay:90,
+    desktopCardsPerRow:4,desktopRows:1,tabletVisibleCards:4,
+    autoplayDelay:5000,animationDuration:800,staggerDelay:90,
     autoPlayEnabled:true,mobileAutoPlayEnabled:false,
     ...(appConfig().carousel||{})
   };
-  const reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
+  let reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
   const gap=10,sampleCover=FALLBACK_COVER;
-  let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=window.innerWidth>1100;
+  let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=false;
   let modeRequestId=0,modeController=null;
   const modeCache=new Map();
   host.style.setProperty("--carousel-duration",`${Number(carousel.animationDuration)||600}ms`);
@@ -2299,45 +2315,61 @@ async function setupHomeCarousel(){
       </div>
     </article>`;
   }
-  const isDual=()=>window.innerWidth>1100;
-  const visibleSingle=()=>{
-    if(window.innerWidth<=430)return 1;
-    if(window.innerWidth<=850)return 2;
-    return Math.min(3,Number(carousel.tabletVisibleCards)||3);
-  };
-  const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||2));
-  const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleSingle()));
+  const isDual=()=>window.innerWidth>1100&&Number(carousel.desktopRows)>1;
+  dualLayout=isDual();
+  const visibleCount=()=>carouselVisibleCount(window.innerWidth,carousel);
+  const rowLength=()=>Math.ceil(list.length/Math.max(1,Number(carousel.desktopRows)||1));
+  const maxIndex=()=>Math.max(0,(isDual()?rowLength()-(Number(carousel.desktopCardsPerRow)||4):list.length-visibleCount()));
+  let loopPad=0,snapping=false;
 
   function renderDots(){
     const count=maxIndex()+1;
     dotsHost.innerHTML=Array.from({length:count},(_,i)=>`<button type="button" class="home-carousel-dot${i===index?' is-active':''}" data-carousel-dot="${i}" aria-label="${i+1}-كۆرۈنۈش"></button>`).join("");
     dotsHost.querySelectorAll("[data-carousel-dot]").forEach(button=>button.onclick=()=>{index=Number(button.dataset.carouselDot)||0;move();restart()});
   }
-  function move(){
-    index=Math.max(0,Math.min(index,maxIndex()));
+  function trackIndex(){return(isDual()?0:loopPad)+index}
+  function move(animate=true){
+    if(isDual())index=Math.max(0,Math.min(index,maxIndex()));
     const first=host.querySelector(".home-carousel-card");if(!first)return;
     const lane=isDual()?first.closest(".home-carousel-row"):host;
     const laneStyle=window.getComputedStyle(lane);
     const renderedGap=parseFloat(laneStyle.columnGap||laneStyle.gap)||gap;
     const step=first.getBoundingClientRect().width+renderedGap;
+    const enableAnim=animate!==false&&!reducedMotion&&!snapping;
     if(isDual()){
       host.style.transform="";
-      host.querySelectorAll(".home-carousel-row").forEach(row=>row.style.transform=`translateX(${index*step}px)`);
+      host.querySelectorAll(".home-carousel-row").forEach(row=>{
+        row.style.transition=enableAnim?"":"none";
+        row.style.transform=`translateX(${index*step}px)`;
+      });
     }else{
-      host.style.transform=`translateX(${index*step}px)`;
+      host.style.transition=enableAnim?"":"none";
+      host.style.transform=`translateX(${trackIndex()*step}px)`;
+      if(!enableAnim){void host.offsetWidth;host.style.transition=""}
     }
-    dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===index));
+    const n=Math.max(list.length,1);
+    const wrapped=((index%n)+n)%n;
+    const dotIndex=Math.max(0,Math.min(wrapped,maxIndex()));
+    dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===dotIndex));
   }
   function draw(rotate=false){
+    const vis=visibleCount();
     const canRotate=rotate&&mode==="recommended"&&list.length>8;
     index=canRotate?(new Date().getDate()%Math.min(3,maxIndex()+1)):0;
     host.style.transform="translateX(0)";
     host.classList.toggle("is-dual-row",isDual());host.classList.toggle("is-single-row",!isDual());
     if(isDual()){
+      loopPad=0;
       const midpoint=Math.ceil(list.length/2),top=list.slice(0,midpoint),bottom=list.slice(midpoint);
       host.innerHTML=`<div class="home-carousel-row">${top.map((b,i)=>card(b,i)).join("")}</div><div class="home-carousel-row">${bottom.map((b,i)=>card(b,i+top.length)).join("")}</div>`;
-    }else host.innerHTML=list.map((b,i)=>card(b,i)).join("");
-    bindDynamicActions(host);renderFavButtons();renderDots();move();
+    }else{
+      const loop=list.length>vis;
+      const lead=loop?list.slice(-vis):[];
+      const tail=loop?list.slice(0,vis):[];
+      loopPad=lead.length;
+      host.innerHTML=[...lead,...list,...tail].map((b,i)=>card(b,i)).join("");
+    }
+    bindDynamicActions(host);renderFavButtons();renderDots();move(false);
   }
   async function setMode(nextMode){
     mode=enabledModes.includes(nextMode)?nextMode:enabledModes[0];
@@ -2358,21 +2390,42 @@ async function setupHomeCarousel(){
     }catch(error){if(error?.name!=="AbortError"){console.error("Homepage carousel query failed.",error);host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';dotsHost.innerHTML=""}}
   }
   async function next(){
+    if(!list.length)return;
+    const vis=visibleCount();
     const cached=modeCache.get(mode);
-    if(index>=maxIndex()&&cached?.hasMore&&cached.items.length<24){
-      try{const loaded=await loadMode(mode,true);list=loaded.items;draw();index=Math.min(1,maxIndex());move();return}catch(error){if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error)}
+    if(!isDual()&&index>=list.length-vis&&cached?.hasMore&&cached.items.length<24){
+      try{
+        const keep=index;
+        const loaded=await loadMode(mode,true);
+        list=loaded.items;draw();index=Math.min(keep,Math.max(0,list.length-1));move(false);
+      }catch(error){if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error)}
     }
-    index=index>=maxIndex()?0:index+1;move();
+    if(isDual()){index=index>=maxIndex()?0:index+1;move(true);return}
+    if(list.length<=vis){index=0;move(true);return}
+    index+=1;move(true);
   }
-  function prev(){index=index<=0?maxIndex():index-1;move()}
+  function prev(){
+    if(!list.length)return;
+    if(isDual()){index=index<=0?maxIndex():index-1;move(true);return}
+    if(list.length<=visibleCount()){index=0;move(true);return}
+    index-=1;move(true);
+  }
   function stop(){if(timer){clearInterval(timer);timer=null}}
   function start(){
     stop();
-    const mobile=window.innerWidth<=700;
-    if(reducedMotion||!featureEnabled("autoCarousel")||carousel.autoPlayEnabled===false||(mobile&&carousel.mobileAutoPlayEnabled!==true)||document.hidden)return;
-    timer=setInterval(()=>{next()},Math.max(5000,Number(carousel.autoplayDelay)||6000));
+    if(!featureEnabled("autoCarousel"))return;
+    if(!carouselShouldAutoplay(list.length,visibleCount(),{
+      reducedMotion,hidden:document.hidden,autoPlayEnabled:carousel.autoPlayEnabled,
+      mobile:window.innerWidth<=700,mobileAutoPlayEnabled:carousel.mobileAutoPlayEnabled
+    }))return;
+    timer=setInterval(()=>{next()},Math.max(5000,Number(carousel.autoplayDelay)||5000));
   }
   function restart(){start()}
+  function settleLoop(){
+    if(isDual()||list.length<=visibleCount())return;
+    if(index>=list.length){snapping=true;index=0;move(false);snapping=false}
+    else if(index<0){snapping=true;index=list.length-1;move(false);snapping=false}
+  }
 
   let userPickedMode=false;
   async function resolveInitialMode(){
@@ -2396,8 +2449,11 @@ async function setupHomeCarousel(){
   tabs.forEach(button=>button.addEventListener("click",()=>{userPickedMode=true;setMode(button.dataset.carouselMode)}));
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
-  viewport.addEventListener("mouseenter",stop);viewport.addEventListener("mouseleave",start);
+  const carouselRoot=viewport.closest("#newBooksCarousel")||viewport;
+  carouselRoot.addEventListener("mouseenter",stop);
+  carouselRoot.addEventListener("mouseleave",start);
   viewport.addEventListener("focusin",stop);viewport.addEventListener("focusout",start);
+  host.addEventListener("transitionend",event=>{if(event.target===host&&event.propertyName==="transform")settleLoop()});
   viewport.addEventListener("touchstart",event=>{
     if(window.innerWidth<=768)return;
     touchX=event.touches[0]?.clientX??null;stop();
@@ -2409,7 +2465,8 @@ async function setupHomeCarousel(){
   },{passive:true});
   viewport.addEventListener("keydown",event=>{if(event.key==="ArrowLeft"){event.preventDefault();next();restart()}else if(event.key==="ArrowRight"){event.preventDefault();prev();restart()}});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
-  window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{index=Math.min(index,maxIndex());renderDots();move()}restart()});
+  window.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("change",event=>{reducedMotion=event.matches;if(reducedMotion)stop();else restart()});
+  window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{if(isDual())index=Math.min(index,maxIndex());renderDots();move(false)}restart()});
   resolveInitialMode().then(initial=>{if(!userPickedMode)setMode(initial)});
 }
 
@@ -2516,7 +2573,7 @@ function init(){
 let bootStarted=false;
 async function boot(){
   if(bootStarted)return;
-  bootStarted=true;  try{await loadAssetScript("app-config.js?v=1","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  bootStarted=true;  try{await loadAssetScript("app-config.js?v=2","kutadguAppConfigScript")}catch(error){console.warn(error)}
   initStaticShell();
   await loadRemoteCatalog();
   await hydratePageBook();

@@ -2750,3 +2750,14 @@ label {
   }
 }
 
+@media (min-width: 1101px){
+  #newBooksCarousel .home-carousel-track{
+    gap:16px !important;
+    transition:transform .8s cubic-bezier(.22,.61,.36,1);
+  }
+  #newBooksCarousel .home-carousel-track.is-single-row > .home-carousel-card{
+    flex:0 0 calc((100% - 48px) / 4) !important;
+    max-width:calc((100% - 48px) / 4);
+  }
+}
+

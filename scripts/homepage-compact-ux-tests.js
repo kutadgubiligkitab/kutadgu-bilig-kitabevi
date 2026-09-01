@@ -51,8 +51,8 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=9/);
-  assert.match(html, /shop\.js\?v=75/);
+  assert.match(html, /index\.css\?v=10/);
+  assert.match(html, /shop\.js\?v=76/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
   assert.match(html, /srcset="kutadgu-logo\.webp"/);
@@ -62,18 +62,41 @@ test("carousel opens the first enabled mode that has books", () => {
   const start = shop.indexOf("function firstPopulatedCarouselMode");
   const end = shop.indexOf("async function setupHomeCarousel");
   assert.ok(start >= 0 && end > start, "firstPopulatedCarouselMode must sit next to setupHomeCarousel");
-  const firstPopulatedCarouselMode = new Function(`${shop.slice(start, end)}; return firstPopulatedCarouselMode;`)();
+  const helpers = new Function(`${shop.slice(start, end)}; return {firstPopulatedCarouselMode, carouselVisibleCount, carouselShouldAutoplay};`)();
   const modes = ["recommended", "bestseller", "newest"];
-  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, newest: 4 }), "newest");
-  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 3, newest: 0 }), "recommended");
-  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 2, newest: 5 }), "recommended");
-  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 3, newest: 5 }), "bestseller");
-  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 0, newest: 0 }), "recommended");
+  assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 0, newest: 4 }), "newest");
+  assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 3, newest: 0 }), "recommended");
+  assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 2, newest: 5 }), "recommended");
+  assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 3, newest: 5 }), "bestseller");
+  assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 0, newest: 0 }), "recommended");
   const carousel = shop.slice(shop.indexOf("async function setupHomeCarousel"), shop.indexOf("function loadMemberSystem"));
   assert.match(carousel, /resolveInitialMode\(\)\.then\(initial=>\{if\(!userPickedMode\)setMode\(initial\)\}\)/);
   assert.match(carousel, /modeCache\.get\(candidate\)\|\|await loadMode\(candidate,false\)/);
   assert.doesNotMatch(carousel, /setMode\(enabledModes\[0\]\)/);
   assert.match(carousel, /tabs\.forEach\(button=>\{button\.hidden=!enabledModes\.includes\(button\.dataset\.carouselMode\)\}\)/);
+});
+
+test("homepage carousel auto-slides one book every 5s when more than 4 books are visible", () => {
+  const start = shop.indexOf("function firstPopulatedCarouselMode");
+  const end = shop.indexOf("async function setupHomeCarousel");
+  const helpers = new Function(`${shop.slice(start, end)}; return {carouselVisibleCount, carouselShouldAutoplay};`)();
+  assert.strictEqual(helpers.carouselVisibleCount(1280, { desktopCardsPerRow: 4, tabletVisibleCards: 4 }), 4);
+  assert.strictEqual(helpers.carouselVisibleCount(900, { desktopCardsPerRow: 4, tabletVisibleCards: 4 }), 3);
+  assert.strictEqual(helpers.carouselVisibleCount(800, { desktopCardsPerRow: 4, tabletVisibleCards: 4 }), 2);
+  assert.strictEqual(helpers.carouselVisibleCount(390, { desktopCardsPerRow: 4, tabletVisibleCards: 4 }), 1);
+  assert.strictEqual(helpers.carouselShouldAutoplay(6, 4, { autoPlayEnabled: true }), true);
+  assert.strictEqual(helpers.carouselShouldAutoplay(4, 4, { autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.carouselShouldAutoplay(8, 4, { reducedMotion: true, autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.carouselShouldAutoplay(8, 1, { mobile: true, mobileAutoPlayEnabled: false, autoPlayEnabled: true }), false);
+  const carousel = shop.slice(shop.indexOf("async function setupHomeCarousel"), shop.indexOf("function loadMemberSystem"));
+  assert.match(carousel, /autoplayDelay:5000/);
+  assert.match(carousel, /desktopRows:1/);
+  assert.match(carousel, /carouselRoot\.addEventListener\("mouseenter",stop\)/);
+  assert.match(carousel, /carouselRoot\.addEventListener\("mouseleave",start\)/);
+  assert.match(carousel, /list\.slice\(-vis\)/);
+  assert.match(carousel, /prefers-reduced-motion: reduce/);
+  assert.match(css, /@media \(min-width: 1101px\)/);
+  assert.match(css, /flex:0 0 calc\(\(100% - 48px\) \/ 4\)/);
 });
 
 if (failed) {
