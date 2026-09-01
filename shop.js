@@ -2315,7 +2315,13 @@ function setupHomeFeaturedMarquee(host){
       reducedMotion,hidden:document.hidden,autoPlayEnabled:true,mobile:isMobile(),mobileAutoPlayEnabled:false
     });
     row.dataset.autoplay=canPlay?"1":"0";
-    if(!isMobile()&&itemCount>visible){
+    if(isMobile()){
+      states.set(row,{track,dir,itemCount,step:0,setWidth:0,offset:0,canPlay:false});
+      track.style.transition="";
+      track.style.transform="";
+      return;
+    }
+    if(itemCount>visible){
       items.forEach(card=>{
         const clone=card.cloneNode(true);
         clone.dataset.featuredClone="1";
