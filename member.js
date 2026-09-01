@@ -4,6 +4,9 @@
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const CART_KEY="kutadgu-cart-v1";
 const FAV_KEY="kutadgu-favorites-v1";
+const SHOP_OWNER_KEY="kutadgu-shop-owner-v1";
+const SHOP_OWNER_GUEST="guest";
+const SHOP_OWNER_STALE="stale";
 const SDK_URL="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
 let db=null,user=null,profile=null,blocked=false,initError=null;
 let applyChain=Promise.resolve(),lastLoginRecordedAt=0;
@@ -218,6 +221,10 @@ async function replaceCart(values){
     return {ok:false,reason:"not-ready"};
   }
   const helpers=window.KutadguLegacyIds;
+  previewShopDebug("replace-cart",{
+    writeUser:idSuffix(user.id),
+    rowCount:(Array.isArray(values)?values:[]).filter(x=>x&&x.id).length
+  });
   const rows=(Array.isArray(values)?values:[])
     .filter(x=>x&&x.id)
     .map(x=>({user_id:user.id,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
@@ -263,6 +270,7 @@ async function replaceCart(values){
 }
 let mergedForUserId=null;
 let shopSyncInFlight=null;
+let shopSyncUserId=null;
 const MERGE_LOCK_KEY="kutadgu-member-shop-merged-v3";
 function readMergeLock(){
   try{return String(localStorage.getItem(MERGE_LOCK_KEY)||"")}catch(e){return ""}
@@ -274,14 +282,119 @@ function writeMergeLock(id){
     else localStorage.removeItem(MERGE_LOCK_KEY);
   }catch(e){}
 }
+function readShopOwner(){
+  try{return String(localStorage.getItem(SHOP_OWNER_KEY)||"").trim()}catch(e){return ""}
+}
+function writeShopOwner(owner){
+  try{
+    if(owner)localStorage.setItem(SHOP_OWNER_KEY,owner);
+    else localStorage.removeItem(SHOP_OWNER_KEY);
+  }catch(e){}
+}
+function stampShopOwnerForCurrentUser(){
+  writeShopOwner(user?.id?String(user.id):SHOP_OWNER_GUEST);
+}
+function shouldMergeLocalForUser(userId){
+  const owner=readShopOwner();
+  if(!owner||owner===SHOP_OWNER_GUEST)return true;
+  if(owner===SHOP_OWNER_STALE)return false;
+  return owner===String(userId||"");
+}
+function localItemsForMerge(userId,localCart,localFav){
+  if(shouldMergeLocalForUser(userId)){
+    return {
+      localCart:Array.isArray(localCart)?localCart:[],
+      localFav:Array.isArray(localFav)?localFav:[]
+    };
+  }
+  return {localCart:[],localFav:[]};
+}
+function stillMergingFor(userId){
+  return !!(db&&user&&!blocked&&String(user.id)===String(userId||""));
+}
+function idSuffix(value){
+  const text=String(value||"").trim();
+  if(!text)return "(empty)";
+  if(text===SHOP_OWNER_GUEST||text===SHOP_OWNER_STALE)return text;
+  return text.slice(-4);
+}
+function isPreviewShopDebug(){
+  try{
+    const host=String(location.hostname||"").toLowerCase();
+    if(host==="www.kutadgubilig.com"||host==="kutadgubilig.com")return false;
+    if(typeof window.kutadguIsProductionAuthHost==="function"&&window.kutadguIsProductionAuthHost(host))return false;
+    return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
+  }catch(e){return false}
+}
+function previewShopDebug(event,fields){
+  if(!isPreviewShopDebug())return;
+  const safe={event:String(event||"")};
+  Object.keys(fields||{}).forEach(key=>{
+    if(/(email|token|password|secret|anon|jwt|authorization|apikey)/i.test(key))return;
+    const val=fields[key];
+    if(typeof val==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)){
+      safe[key]=idSuffix(val);
+      return;
+    }
+    safe[key]=val;
+  });
+  console.info("[kutadgu-shop-debug]",safe);
+}
+function mergeSourceDecision(userId,rawLocalCount,cloudCount){
+  const owner=readShopOwner();
+  const mergeLocal=shouldMergeLocalForUser(userId);
+  let reason="cloud-only";
+  if(!owner)reason="union-local-missing-owner";
+  else if(owner===SHOP_OWNER_GUEST)reason="union-local-guest";
+  else if(owner===SHOP_OWNER_STALE)reason="cloud-only-stale-owner";
+  else if(owner===String(userId||""))reason="union-local-same-owner";
+  else reason="cloud-only-foreign-owner";
+  if(!mergeLocal&&(reason.startsWith("union-")))reason="cloud-only";
+  return {owner:owner?idSuffix(owner):"(empty)",mergeLocal,reason,rawLocalCount,cloudCount};
+}
+function clearLocalCartAndFavorites(){
+  try{
+    localStorage.removeItem(CART_KEY);
+    localStorage.removeItem(FAV_KEY);
+  }catch(e){}
+  emit("kutadgu-member-state-synced");
+}
+function abandonMemberShopSync(){
+  user=null;
+  profile=null;
+  blocked=false;
+  writeMergeLock("");
+  writeShopOwner(SHOP_OWNER_STALE);
+  clearLocalCartAndFavorites();
+  previewShopDebug("abandon-sync",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
+  });
+  const pending=shopSyncInFlight;
+  if(pending){
+    Promise.resolve(pending).finally(()=>{
+      if(!user){
+        writeShopOwner(SHOP_OWNER_STALE);
+        clearLocalCartAndFavorites();
+      }
+    });
+  }
+  return pending;
+}
 async function mergeShopState(){
   if(!db||!user||blocked)return;
-  if(shopSyncInFlight)return shopSyncInFlight;
+  const mergeForUserId=user.id;
+  if(shopSyncInFlight){
+    if(shopSyncUserId===mergeForUserId)return shopSyncInFlight;
+    try{await shopSyncInFlight}catch(e){}
+    if(!stillMergingFor(mergeForUserId))return;
+  }
+  shopSyncUserId=mergeForUserId;
   shopSyncInFlight=(async()=>{
     try{
       const [{data:favRows,error:favError},{data:cartRows,error:cartError}]=await Promise.all([
-        db.from("member_favorites").select("book_id").eq("user_id",user.id),
-        db.from("member_cart_items").select("book_id,quantity").eq("user_id",user.id)
+        db.from("member_favorites").select("book_id,user_id").eq("user_id",mergeForUserId),
+        db.from("member_cart_items").select("book_id,quantity,user_id").eq("user_id",mergeForUserId)
       ]);
       if(favError){
         memberLog("error","fetch-cloud-favorites",favError);
@@ -291,11 +404,29 @@ async function mergeShopState(){
         memberLog("error","fetch-cloud-cart",cartError);
         throw cartError;
       }
+      if(!stillMergingFor(mergeForUserId))return;
 
       const cloudFav=(favRows||[]).map(x=>x.book_id).filter(Boolean);
       const cloudCart=(cartRows||[]).map(x=>({id:x.book_id,qty:x.quantity}));
-      const localFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
-      const localCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
+      const rawLocalFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
+      const rawLocalCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
+      const gated=localItemsForMerge(mergeForUserId,rawLocalCart,rawLocalFav);
+      const localFav=gated.localFav;
+      const localCart=gated.localCart;
+      const foreignCart=(cartRows||[]).filter(row=>row&&row.user_id&&String(row.user_id)!==String(mergeForUserId)).length;
+      const decision=mergeSourceDecision(mergeForUserId,Array.isArray(rawLocalCart)?rawLocalCart.length:0,cloudCart.length);
+      previewShopDebug("merge-fetch",{
+        user:idSuffix(mergeForUserId),
+        liveUser:idSuffix(user&&user.id),
+        owner:decision.owner,
+        localCart:decision.rawLocalCount,
+        cloudCart:decision.cloudCount,
+        gatedLocalCart:localCart.length,
+        mergeSource:decision.reason,
+        mergeLocal:decision.mergeLocal,
+        filterEqUser:idSuffix(mergeForUserId),
+        foreignCartRows:foreignCart
+      });
       const pendingIds=[
         ...cloudFav,
         ...cloudCart.map(x=>x.id),
@@ -303,9 +434,11 @@ async function mergeShopState(){
         ...localCart.map(x=>x?.id)
       ].map(String).filter(Boolean);
       const idMap=await fetchCanonicalIdMap(pendingIds);
+      if(!stillMergingFor(mergeForUserId))return;
       if(typeof window.kutadguShop?.hydrateBooksByIds==="function"){
         await window.kutadguShop.hydrateBooksByIds(pendingIds);
       }
+      if(!stillMergingFor(mergeForUserId))return;
 
       const helpers=window.KutadguLegacyIds;
       const aliases={...idMap,...(helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{})};
@@ -319,6 +452,14 @@ async function mergeShopState(){
 
       const mergedFav=synced.fav;
       const mergedCart=synced.cart;
+      if(!stillMergingFor(mergeForUserId))return;
+      previewShopDebug("merge-write",{
+        mergeUser:idSuffix(mergeForUserId),
+        liveUser:idSuffix(user&&user.id),
+        writeMismatch:String(user&&user.id)!==String(mergeForUserId),
+        mergedCart:mergedCart.length,
+        mergeSource:decision.reason
+      });
       try{
         await replaceFavorites(mergedFav);
         await replaceCart(mergedCart);
@@ -326,23 +467,44 @@ async function mergeShopState(){
         writeMergeLock("");
         throw saveErr;
       }
+      if(!stillMergingFor(mergeForUserId))return;
       localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
       localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
-      writeMergeLock(user.id);
+      writeShopOwner(String(mergeForUserId));
+      writeMergeLock(mergeForUserId);
+      previewShopDebug("merge-applied",{
+        user:idSuffix(mergeForUserId),
+        owner:idSuffix(readShopOwner()),
+        localCart:mergedCart.length,
+        cloudCart:cloudCart.length,
+        mergeSource:decision.reason
+      });
       emit("kutadgu-member-state-synced");
     }catch(err){
       writeMergeLock("");
       memberLog("error","member-shop-sync",err);
     }
-  })().finally(()=>{shopSyncInFlight=null});
+  })().finally(()=>{
+    if(shopSyncUserId===mergeForUserId){
+      shopSyncInFlight=null;
+      shopSyncUserId=null;
+    }
+  });
   return shopSyncInFlight;
 }
 const syncTimers=new Map();
 function syncKey(key,value){
   if(!user||blocked||![CART_KEY,FAV_KEY].includes(key))return;
+  const syncForUserId=user.id;
+  previewShopDebug("sync-key",{
+    key:key===CART_KEY?"cart":"fav",
+    user:idSuffix(syncForUserId),
+    count:Array.isArray(value)?value.length:0
+  });
   clearTimeout(syncTimers.get(key));
   const run=async()=>{
     try{
+      if(!stillMergingFor(syncForUserId))return;
       if(key===FAV_KEY)await replaceFavorites(value);
       if(key===CART_KEY)await replaceCart(value);
     }catch(err){memberLog("error","member-state-save",err)}
@@ -352,6 +514,13 @@ function syncKey(key,value){
 }
 async function applySession(session,{trackLogin=false,sync=false}={}){
   user=session?.user||null;profile=null;blocked=false;
+  previewShopDebug("apply-session",{
+    user:idSuffix(user&&user.id),
+    sync:!!sync,
+    trackLogin:!!trackLogin,
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
+  });
   if(user){
     try{
       await fetchProfile();
@@ -388,6 +557,11 @@ async function signIn({email,password}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const {data,error}=await db.auth.signInWithPassword({email,password});
   if(error)throw error;
+  previewShopDebug("sign-in",{
+    user:idSuffix(data.user&&data.user.id),
+    sessionUser:idSuffix(data.session&&data.session.user&&data.session.user.id),
+    sameUser:String(data.user&&data.user.id)===String(data.session&&data.session.user&&data.session.user.id)
+  });
   await queueSession(data.session,{trackLogin:true,sync:true});
   return data;
 }
@@ -414,9 +588,24 @@ async function signInWithGoogle(){
   return data;
 }
 async function signOut(){
+  const pending=abandonMemberShopSync();
+  previewShopDebug("sign-out",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
+    liveUser:idSuffix(user&&user.id)
+  });
   if(db)await db.auth.signOut();
-  writeMergeLock("");
-  user=null;profile=null;blocked=false;renderButton();emit();
+  if(pending)try{await pending}catch(e){}
+  if(!user){
+    writeShopOwner(SHOP_OWNER_STALE);
+    clearLocalCartAndFavorites();
+  }
+  previewShopDebug("sign-out-done",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
+    liveUser:idSuffix(user&&user.id)
+  });
+  renderButton();emit();
 }
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
@@ -476,7 +665,9 @@ const api=window.KutadguMember={
   getProfile:()=>profile,
   isBlocked:()=>blocked,
   refreshProfile:fetchProfile,
-  signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections
+  signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections,
+  readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,
+  SHOP_OWNER_KEY,SHOP_OWNER_GUEST,SHOP_OWNER_STALE
 };
 
 async function init(){
@@ -489,9 +680,9 @@ async function init(){
     });
     const {data,error}=await db.auth.getSession();
     if(error)throw error;
-    await queueSession(data.session,{sync:false});
+    await queueSession(data.session,{sync:!!data.session?.user});
     db.auth.onAuthStateChange((event,session)=>{
-      if(event==="SIGNED_OUT")writeMergeLock("");
+      if(event==="SIGNED_OUT")abandonMemberShopSync();
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED")return;
       const isLogin=event==="SIGNED_IN";
       setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);

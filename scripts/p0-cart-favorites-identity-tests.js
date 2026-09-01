@@ -406,6 +406,300 @@ test("static slug resolver cannot keep children-3 as a second line",()=>{
   assert.deepStrictEqual(out,[{id:"102",qty:1}]);
 });
 
+const CART_KEY="kutadgu-cart-v1";
+const FAV_KEY="kutadgu-favorites-v1";
+const REC_KEY="kutadgu-recent-v1";
+const CUSTOMER_KEY="kutadgu-customer-v1";
+function clearLocalCartAndFavorites(store){
+  delete store[CART_KEY];
+  delete store[FAV_KEY];
+}
+
+test("A logout then B login does not carry A cart/favorites into B",()=>{
+  const store={
+    [CART_KEY]:JSON.stringify([{id:"102",qty:2}]),
+    [FAV_KEY]:JSON.stringify(["102"]),
+    [REC_KEY]:JSON.stringify(["102"]),
+    [CUSTOMER_KEY]:JSON.stringify({name:"A"})
+  };
+  clearLocalCartAndFavorites(store);
+  assert.strictEqual(store[CART_KEY],undefined);
+  assert.strictEqual(store[FAV_KEY],undefined);
+  assert.strictEqual(store[REC_KEY],JSON.stringify(["102"]));
+  assert.strictEqual(store[CUSTOMER_KEY],JSON.stringify({name:"A"}));
+  const localCart=store[CART_KEY]?JSON.parse(store[CART_KEY]):[];
+  const localFav=store[FAV_KEY]?JSON.parse(store[FAV_KEY]):[];
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart,
+    localFav,
+    cloudCart:[{id:"79",qty:1}],
+    cloudFav:["79"],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:1}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("guest cart/favorites still merge on first login",()=>{
+  const localCart=[{id:"102",qty:3}];
+  const localFav=["102"];
+  const out=Legacy.syncAuthenticatedShopState({
+    localCart,
+    localFav,
+    cloudCart:[],
+    cloudFav:[],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"102",qty:3}]);
+  assert.deepStrictEqual(out.fav,["102"]);
+});
+
+test("member.js clears only cart/favorites on signOut and SIGNED_OUT",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/function clearLocalCartAndFavorites\(\)\{/);
+  assert.match(src,/function abandonMemberShopSync\(\)\{/);
+  assert.match(src,/localStorage\.removeItem\(CART_KEY\)/);
+  assert.match(src,/localStorage\.removeItem\(FAV_KEY\)/);
+  assert.match(src,/emit\("kutadgu-member-state-synced"\)/);
+  assert.match(src,/async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
+  assert.match(src,/if\(event==="SIGNED_OUT"\)abandonMemberShopSync\(\);/);
+  assert.match(src,/Promise\.resolve\(pending\)\.finally/);
+  assert.match(src,/if\(!user\)\{\s*writeShopOwner\(SHOP_OWNER_STALE\);\s*clearLocalCartAndFavorites\(\);/);
+  assert.doesNotMatch(src,/localStorage\.removeItem\(REC_KEY\)/);
+  assert.doesNotMatch(src,/removeItem\("kutadgu-recent-v1"\)/);
+  assert.doesNotMatch(src,/removeItem\("kutadgu-customer-v1"\)/);
+});
+
+test("guest items login A logout A login B does not give B A's local cart",()=>{
+  const guestCart=[{id:"102",qty:2}];
+  const guestFav=["102"];
+  const aCloudCart=[];
+  const aCloudFav=[];
+  const mergedA=Legacy.syncAuthenticatedShopState({
+    localCart:guestCart,
+    localFav:guestFav,
+    cloudCart:aCloudCart,
+    cloudFav:aCloudFav,
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(mergedA.cart,[{id:"102",qty:2}]);
+  assert.deepStrictEqual(mergedA.fav,["102"]);
+
+  const store={
+    [CART_KEY]:JSON.stringify(mergedA.cart),
+    [FAV_KEY]:JSON.stringify(mergedA.fav),
+    [REC_KEY]:JSON.stringify(["79"]),
+    [CUSTOMER_KEY]:JSON.stringify({name:"A"})
+  };
+
+  clearLocalCartAndFavorites(store);
+  store[CART_KEY]=JSON.stringify(mergedA.cart);
+  store[FAV_KEY]=JSON.stringify(mergedA.fav);
+  clearLocalCartAndFavorites(store);
+
+  assert.strictEqual(store[CART_KEY],undefined);
+  assert.strictEqual(store[FAV_KEY],undefined);
+  assert.strictEqual(store[REC_KEY],JSON.stringify(["79"]));
+
+  const bOut=Legacy.syncAuthenticatedShopState({
+    localCart:store[CART_KEY]?JSON.parse(store[CART_KEY]):[],
+    localFav:store[FAV_KEY]?JSON.parse(store[FAV_KEY]):[],
+    cloudCart:[{id:"79",qty:1}],
+    cloudFav:["79"],
+    resolveId:resolve,
+    aliasMap:{}
+  });
+  assert.deepStrictEqual(bOut.cart,[{id:"79",qty:1}]);
+  assert.deepStrictEqual(bOut.fav,["79"]);
+  assert.ok(!JSON.stringify(bOut).includes("102"));
+});
+
+test("homepage recently-added view-all points to public catalog not my-books",()=>{
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/class="home-featured-all" href="#books"/);
+  assert.doesNotMatch(shop,/class="home-featured-all" href="my-books\.html"/);
+  assert.match(shop,/class="shop-selector-all-link" href="my-books\.html"/);
+  assert.match(shop,/kutadgu-shop-owner-v1/);
+  assert.match(shop,/function stampShopOwner\(\)/);
+});
+
+const OWNER_KEY="kutadgu-shop-owner-v1";
+function shouldMergeLocalForUser(owner,userId){
+  if(!owner||owner==="guest")return true;
+  if(owner==="stale")return false;
+  return owner===String(userId||"");
+}
+function localItemsForMerge(owner,userId,localCart,localFav){
+  if(shouldMergeLocalForUser(owner,userId)){
+    return {localCart:Array.isArray(localCart)?localCart:[],localFav:Array.isArray(localFav)?localFav:[]};
+  }
+  return {localCart:[],localFav:[]};
+}
+
+test("Guest → login A: guest items merge into A",()=>{
+  const gated=localItemsForMerge("guest","user-a",[{id:"102",qty:2}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"102",qty:2}]);
+  assert.deepStrictEqual(out.fav,["102"]);
+});
+
+test("A logout → B login: A items do not appear in B",()=>{
+  const leftover=[{id:"102",qty:2}];
+  const gated=localItemsForMerge("stale","user-b",leftover,["102"]);
+  assert.deepStrictEqual(gated.localCart,[]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"79",qty:1}],cloudFav:["79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:1}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("B adds item → logout → A login: B item does not appear in A",()=>{
+  const gated=localItemsForMerge("user-b","user-a",[{id:"102",qty:1}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"79",qty:3}],cloudFav:["79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:3}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("A logout → guest: A items do not become guest items",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/writeShopOwner\(SHOP_OWNER_STALE\)/);
+  assert.match(src,/function abandonMemberShopSync\(\)\{[\s\S]*writeShopOwner\(SHOP_OWNER_STALE\)/);
+  const gated=localItemsForMerge("stale","",[{id:"102",qty:2}],["102"]);
+  assert.deepStrictEqual(gated.localCart,[]);
+  assert.deepStrictEqual(gated.localFav,[]);
+});
+
+test("authenticated page refresh hydrates from current user cloud",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/queueSession\(data\.session,\{sync:!!data\.session\?\.user\}\)/);
+  const gated=localItemsForMerge("user-a","user-a",[{id:"102",qty:1}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"102",qty:1},{id:"79",qty:1}],cloudFav:["102","79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.ok(out.cart.some(x=>x.id==="102"));
+  assert.ok(out.cart.some(x=>x.id==="79"));
+});
+
+test("stale in-flight A merge cannot write into B",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/const mergeForUserId=user\.id/);
+  assert.match(src,/function stillMergingFor\(userId\)/);
+  assert.match(src,/if\(!stillMergingFor\(mergeForUserId\)\)return/);
+  assert.match(src,/if\(shopSyncUserId===mergeForUserId\)return shopSyncInFlight/);
+  const aMerge={userId:"user-a",payload:[{id:"102",qty:2}]};
+  const currentUser="user-b";
+  const allowWrite=currentUser===aMerge.userId;
+  assert.strictEqual(allowWrite,false);
+  const gated=localItemsForMerge("user-a","user-b",aMerge.payload,["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[]);
+});
+
+test("member.js owner-stamp wiring",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/SHOP_OWNER_KEY="kutadgu-shop-owner-v1"/);
+  assert.match(src,/function shouldMergeLocalForUser/);
+  assert.match(src,/function localItemsForMerge/);
+  assert.match(src,/writeShopOwner\(String\(mergeForUserId\)\)/);
+  assert.doesNotMatch(src,/queueSession\(data\.session,\{sync:false\}\)/);
+  assert.strictEqual(shouldMergeLocalForUser("","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("guest","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("u1","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("stale","u1"),false);
+  assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
+});
+
+test("storefront pages share shop.js v=73",()=>{
+  const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
+  const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
+  const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
+  const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
+  assert.match(html,/shop\.js\?v=73/);
+  assert.match(fav,/shop\.js\?v=73/);
+  assert.match(home,/shop\.js\?v=73/);
+  assert.doesNotMatch(html,/shop\.js\?v=64/);
+  assert.match(shop,/member\.js\?v=15/);
+  assert.match(account,/member\.js\?v=15/);
+  assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
+  assert.match(member,/\.eq\("user_id",user\.id\)/);
+  assert.match(member,/function previewShopDebug/);
+  assert.match(member,/\[kutadgu-shop-debug\]/);
+  assert.doesNotMatch(member,/previewShopDebug\([^\)]*email/);
+});
+
+test("ABC inspect-before-add: distinct users + filtered cloud stay isolated",()=>{
+  const uniqueA=[{id:"102",qty:1}];
+  const afterLogout=localItemsForMerge("stale","user-b",uniqueA,["102"]);
+  const bOut=Legacy.syncAuthenticatedShopState({
+    ...afterLogout,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(bOut.cart,[]);
+  const cOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("stale","user-c",uniqueA,["102"]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(cOut.cart,[]);
+});
+
+test("ABC leak path: stale rewritten to guest while leftover local remains",()=>{
+  const leftover=[{id:"102",qty:1}];
+  const bOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("guest","user-b",leftover,[]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(bOut.cart,[{id:"102",qty:1}]);
+  const cOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("guest","user-c",leftover,[]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(cOut.cart,[{id:"102",qty:1}]);
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/if\(current&&current!==SHOP_OWNER_GUEST&&current!==SHOP_OWNER_STALE\)return;/);
+  assert.match(shop,/writeShopOwner\(SHOP_OWNER_GUEST\)/);
+});
+
+test("favorites.html re-renders after member-state-synced",()=>{
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/function refreshAfterMemberSync\(\)\{/);
+  assert.match(shop,/if\(document\.querySelector\("#favoritesList"\)\)\{/);
+  assert.match(shop,/hydrateBooksByIds\(ids\)/);
+  assert.match(shop,/renderFavoritesPage\(\)/);
+  const fn=shop.slice(shop.indexOf("function refreshAfterMemberSync"),shop.indexOf("function loadAssetScript"));
+  assert.match(fn,/querySelector\("#favoritesList"\)/);
+  assert.match(fn,/renderFavoritesPage/);
+  assert.match(fn,/querySelector\("#cartItems"\)/);
+});
+
+test("authenticated favorites display waits for matching user id",()=>{
+  function allows(owner,uid){
+    if(!owner||owner==="guest")return true;
+    if(owner==="stale")return false;
+    if(!uid)return false;
+    return String(uid)===owner;
+  }
+  assert.strictEqual(allows("guest",null),true);
+  assert.strictEqual(allows("stale",null),false);
+  assert.strictEqual(allows("user-a",null),false);
+  assert.strictEqual(allows("user-a","user-a"),true);
+  assert.strictEqual(allows("user-a","user-b"),false);
+});
+
+
 
 
 if(failed){
