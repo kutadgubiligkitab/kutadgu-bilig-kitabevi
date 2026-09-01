@@ -372,4 +372,64 @@ test.describe("homepage compact first-view", () => {
     await card.locator("[data-cart-id]").click();
     await expect.poll(async () => H.badgeCount(page)).toBeGreaterThan(beforeCart);
   });
+
+  for (const width of [360, 390, 430]) {
+    test(`mobile P1 homepage UX at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await H.openFresh(page, "/");
+      await expect(page.locator(".mobile-filter-toggle")).toBeVisible();
+      await expect(page.locator("#homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
+      await page.waitForTimeout(800);
+
+      await expect(page.locator(".home-search-card .mobile-filter-toggle")).toBeVisible();
+      const visibleCount = await page.locator(".home-search-card .mobile-filter-toggle, .home-search-card .premium-filter-toggle").evaluateAll((els) => els.filter((el) => {
+        const style = getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden" && !el.hidden && el.getClientRects().length > 0;
+      }).length);
+      expect(visibleCount).toBe(1);
+
+      const panel = page.locator("#advancedSearchPanel, .home-search-card .advanced-search-panel").first();
+      await expect(panel).toHaveClass(/is-collapsed/);
+      await page.locator(".mobile-filter-toggle").click();
+      await expect(panel).not.toHaveClass(/is-collapsed/);
+      await expect.poll(async () => panel.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(20);
+      await expect(page.locator("#searchCategory, .advanced-search-panel select, .advanced-search-panel input").first()).toBeVisible();
+      await page.locator(".mobile-filter-toggle").click();
+      await expect(panel).toHaveClass(/is-collapsed/);
+
+      const metrics = await page.evaluate(() => {
+        const tab = [...document.querySelectorAll("#newBooksCarousel .home-carousel-tab")].find((el) => !el.hidden);
+        const arrow = document.querySelector("#newBooksCarousel .home-carousel-arrow");
+        const input = document.querySelector("#searchInput");
+        const button = document.querySelector("#searchButton");
+        const track = document.querySelector("#homeCarouselTrack");
+        const featured = document.querySelector('[data-featured-row="top"]');
+        const featuredTrack = document.querySelector('[data-featured-row="top"] .home-featured-track');
+        return {
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          tabH: tab ? tab.getBoundingClientRect().height : 0,
+          arrowW: arrow ? arrow.getBoundingClientRect().width : 0,
+          arrowH: arrow ? arrow.getBoundingClientRect().height : 0,
+          inputH: input ? input.getBoundingClientRect().height : 0,
+          buttonH: button ? button.getBoundingClientRect().height : 0,
+          carouselTransform: track ? track.style.transform : "",
+          featuredAutoplay: featured ? featured.dataset.autoplay : "",
+          featuredDisplay: featuredTrack ? getComputedStyle(featuredTrack).display : "",
+          clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length
+        };
+      });
+      expect(metrics.overflow).toBeLessThanOrEqual(4);
+      expect(metrics.tabH).toBeGreaterThanOrEqual(44);
+      expect(metrics.arrowW).toBeGreaterThanOrEqual(44);
+      expect(metrics.arrowH).toBeGreaterThanOrEqual(44);
+      expect(metrics.inputH).toBeGreaterThanOrEqual(44);
+      expect(metrics.buttonH).toBeGreaterThanOrEqual(44);
+      expect(metrics.featuredAutoplay).toBe("0");
+      expect(metrics.featuredDisplay).toBe("contents");
+      expect(metrics.clones).toBe(0);
+      await page.waitForTimeout(2200);
+      const afterCarousel = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
+      expect(afterCarousel).toBe(metrics.carouselTransform);
+    });
+  }
 });

@@ -52,7 +52,10 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 
 test("homepage assets bumped; hero image paths unchanged", () => {
   assert.match(html, /index\.css\?v=11/);
+  assert.match(html, /shop\.css\?v=42/);
+  assert.match(html, /mobile\.css\?v=20/);
   assert.match(html, /shop\.js\?v=77/);
+  assert.match(html, /mobile\.js\?v=4/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
   assert.match(html, /srcset="kutadgu-logo\.webp"/);
@@ -160,6 +163,23 @@ test("recently-added rows move in opposite directions without changing the catal
   assert.match(css, /flex:0 0 calc\(\(100% - 56px\) \/ 5\)/);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*display:contents/);
   assert.match(css, /prefers-reduced-motion: reduce/);
+});
+
+test("homepage mobile P1 keeps one working filter toggle and 44px carousel targets", () => {
+  const mobileJs = fs.readFileSync(path.join(root, "mobile.js"), "utf8");
+  const mobileCss = fs.readFileSync(path.join(root, "mobile.css"), "utf8");
+  const shopCss = fs.readFileSync(path.join(root, "shop.css"), "utf8");
+  assert.match(mobileJs, /function setFilterPanelOpen/);
+  assert.match(mobileJs, /is-collapsed/);
+  assert.match(mobileJs, /hideHomepagePremiumFilterToggle/);
+  assert.match(mobileJs, /\.premium-filter-toggle/);
+  assert.doesNotMatch(mobileJs, /createElement\("button"\);[^;]*premium-filter-toggle/);
+  assert.match(mobileCss, /\.home-search-card \.premium-filter-toggle\s*\{\s*display:\s*none !important/);
+  assert.match(mobileCss, /#newBooksCarousel \.home-carousel-tab[\s\S]{0,80}min-height:\s*44px/);
+  assert.match(mobileCss, /#newBooksCarousel \.home-carousel-arrow[\s\S]{0,120}min-width:\s*44px/);
+  assert.match(mobileCss, /\.home-search-card-section\s*\{\s*margin:\s*8px auto 8px !important/);
+  assert.match(shopCss, /@media\(max-width:700px\)\{[\s\S]*\.home-search-card-section\{[^}]*margin:8px auto 8px/);
+  assert.match(shopCss, /#searchButton\{min-width:92px;min-height:50px/);
 });
 
 if (failed) {
