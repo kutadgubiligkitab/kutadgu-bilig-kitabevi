@@ -152,4 +152,31 @@ test.describe("guest cart and favorites", () => {
     expect(text).toMatch(/Playwright Test/);
     expect(text).toMatch(/زاكاز نومۇرى/);
   });
+
+  test("stale leftover cart is not shown as guest cart", async ({ page }) => {
+    await H.openFresh(page, "/cart.html");
+    await page.evaluate(() => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "102", qty: 2 }]));
+      localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["102"]));
+      localStorage.setItem("kutadgu-shop-owner-v1", "stale");
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    const visible = await page.evaluate(() => window.kutadguShop.cart());
+    expect(visible).toEqual([]);
+    await expect(page.locator("#cartItems")).toContainText(/سېۋەت ھازىرچە بوش/);
+  });
+
+  test("guest-owned cart still displays before login", async ({ page }) => {
+    await H.openFresh(page, "/cart.html");
+    await page.evaluate(() => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "102", qty: 1 }]));
+      localStorage.setItem("kutadgu-shop-owner-v1", "guest");
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    const visible = await page.evaluate(() => window.kutadguShop.cart());
+    expect(visible.some((row) => String(row.id) === "102")).toBe(true);
+    await expect(page.locator("#cartItems")).not.toContainText(/سېۋەت ھازىرچە بوش/);
+  });
 });

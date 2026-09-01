@@ -68,6 +68,7 @@ async function clearShopStorage(page) {
       localStorage.removeItem("kutadgu-favorites-v1");
       localStorage.removeItem("kutadgu-recent-v1");
       localStorage.removeItem("kutadgu-customer-v1");
+      localStorage.removeItem("kutadgu-shop-owner-v1");
     } catch (e) {}
   });
 }

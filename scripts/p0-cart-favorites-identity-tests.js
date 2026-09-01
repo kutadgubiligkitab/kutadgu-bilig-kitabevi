@@ -467,7 +467,7 @@ test("member.js clears only cart/favorites on signOut and SIGNED_OUT",()=>{
   assert.match(src,/async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
   assert.match(src,/if\(event==="SIGNED_OUT"\)abandonMemberShopSync\(\);/);
   assert.match(src,/Promise\.resolve\(pending\)\.finally/);
-  assert.match(src,/if\(!user\)clearLocalCartAndFavorites\(\)/);
+  assert.match(src,/if\(!user\)\{\s*writeShopOwner\(SHOP_OWNER_STALE\);\s*clearLocalCartAndFavorites\(\);/);
   assert.doesNotMatch(src,/localStorage\.removeItem\(REC_KEY\)/);
   assert.doesNotMatch(src,/removeItem\("kutadgu-recent-v1"\)/);
   assert.doesNotMatch(src,/removeItem\("kutadgu-customer-v1"\)/);
@@ -523,6 +523,113 @@ test("homepage recently-added view-all points to public catalog not my-books",()
   assert.match(shop,/class="home-featured-all" href="#books"/);
   assert.doesNotMatch(shop,/class="home-featured-all" href="my-books\.html"/);
   assert.match(shop,/class="shop-selector-all-link" href="my-books\.html"/);
+  assert.match(shop,/kutadgu-shop-owner-v1/);
+  assert.match(shop,/function stampShopOwner\(\)/);
+});
+
+const OWNER_KEY="kutadgu-shop-owner-v1";
+function shouldMergeLocalForUser(owner,userId){
+  if(!owner||owner==="guest")return true;
+  if(owner==="stale")return false;
+  return owner===String(userId||"");
+}
+function localItemsForMerge(owner,userId,localCart,localFav){
+  if(shouldMergeLocalForUser(owner,userId)){
+    return {localCart:Array.isArray(localCart)?localCart:[],localFav:Array.isArray(localFav)?localFav:[]};
+  }
+  return {localCart:[],localFav:[]};
+}
+
+test("Guest → login A: guest items merge into A",()=>{
+  const gated=localItemsForMerge("guest","user-a",[{id:"102",qty:2}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"102",qty:2}]);
+  assert.deepStrictEqual(out.fav,["102"]);
+});
+
+test("A logout → B login: A items do not appear in B",()=>{
+  const leftover=[{id:"102",qty:2}];
+  const gated=localItemsForMerge("stale","user-b",leftover,["102"]);
+  assert.deepStrictEqual(gated.localCart,[]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"79",qty:1}],cloudFav:["79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:1}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("B adds item → logout → A login: B item does not appear in A",()=>{
+  const gated=localItemsForMerge("user-b","user-a",[{id:"102",qty:1}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"79",qty:3}],cloudFav:["79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[{id:"79",qty:3}]);
+  assert.deepStrictEqual(out.fav,["79"]);
+  assert.ok(!JSON.stringify(out).includes("102"));
+});
+
+test("A logout → guest: A items do not become guest items",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/writeShopOwner\(SHOP_OWNER_STALE\)/);
+  assert.match(src,/function abandonMemberShopSync\(\)\{[\s\S]*writeShopOwner\(SHOP_OWNER_STALE\)/);
+  const gated=localItemsForMerge("stale","",[{id:"102",qty:2}],["102"]);
+  assert.deepStrictEqual(gated.localCart,[]);
+  assert.deepStrictEqual(gated.localFav,[]);
+});
+
+test("authenticated page refresh hydrates from current user cloud",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/queueSession\(data\.session,\{sync:!!data\.session\?\.user\}\)/);
+  const gated=localItemsForMerge("user-a","user-a",[{id:"102",qty:1}],["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[{id:"102",qty:1},{id:"79",qty:1}],cloudFav:["102","79"],resolveId:resolve,aliasMap:{}
+  });
+  assert.ok(out.cart.some(x=>x.id==="102"));
+  assert.ok(out.cart.some(x=>x.id==="79"));
+});
+
+test("stale in-flight A merge cannot write into B",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/const mergeForUserId=user\.id/);
+  assert.match(src,/function stillMergingFor\(userId\)/);
+  assert.match(src,/if\(!stillMergingFor\(mergeForUserId\)\)return/);
+  assert.match(src,/if\(shopSyncUserId===mergeForUserId\)return shopSyncInFlight/);
+  const aMerge={userId:"user-a",payload:[{id:"102",qty:2}]};
+  const currentUser="user-b";
+  const allowWrite=currentUser===aMerge.userId;
+  assert.strictEqual(allowWrite,false);
+  const gated=localItemsForMerge("user-a","user-b",aMerge.payload,["102"]);
+  const out=Legacy.syncAuthenticatedShopState({
+    ...gated,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(out.cart,[]);
+});
+
+test("member.js owner-stamp wiring",()=>{
+  const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  assert.match(src,/SHOP_OWNER_KEY="kutadgu-shop-owner-v1"/);
+  assert.match(src,/function shouldMergeLocalForUser/);
+  assert.match(src,/function localItemsForMerge/);
+  assert.match(src,/writeShopOwner\(String\(mergeForUserId\)\)/);
+  assert.doesNotMatch(src,/queueSession\(data\.session,\{sync:false\}\)/);
+  assert.strictEqual(shouldMergeLocalForUser("","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("guest","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("u1","u1"),true);
+  assert.strictEqual(shouldMergeLocalForUser("stale","u1"),false);
+  assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
+});
+
+test("storefront pages share shop.js v=71",()=>{
+  const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
+  const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
+  const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
+  assert.match(html,/shop\.js\?v=71/);
+  assert.match(fav,/shop\.js\?v=71/);
+  assert.match(home,/shop\.js\?v=71/);
+  assert.doesNotMatch(html,/shop\.js\?v=64/);
 });
 
 

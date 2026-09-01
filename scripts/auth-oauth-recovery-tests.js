@@ -141,9 +141,9 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
-  assert.match(account, /member\.js\?v=13/);
-  assert.match(read("shop.js"), /member\.js\?v=13/);
-  assert.match(index, /shop\.js\?v=70/);
+  assert.match(account, /member\.js\?v=14/);
+  assert.match(read("shop.js"), /member\.js\?v=14/);
+  assert.match(index, /shop\.js\?v=71/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
