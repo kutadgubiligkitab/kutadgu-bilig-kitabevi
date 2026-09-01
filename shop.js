@@ -1526,7 +1526,7 @@ function searchEnhance(){
   async function run(append=false){
     if(!hasFilter()){
       controller?.abort();items=[];
-      res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+      res.innerHTML=fallbackNotice();
       return;
     }
     if(loadingMore)return;
@@ -1556,7 +1556,7 @@ function searchEnhance(){
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
   if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run(false)};
-  res.innerHTML=fallbackNotice()+'<div class="advanced-search-hint">🔎 كىتاب نامى ياكى ئاپتور يېزىڭ، ياكى تۈر/باھا سۈزگۈچىنى تاللاڭ.</div>';
+  res.innerHTML=fallbackNotice();
 }
 
 function dynamicListingCard(b){return bookCardMarkup(b,"listing")}
