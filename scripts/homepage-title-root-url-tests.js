@@ -82,9 +82,10 @@ test("admin storefront shortcut still uses relative index.html", () => {
 
 test("robots and sitemap origin strategy unchanged", () => {
   const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
-  assert.match(robots, /Sitemap: https:\/\/kutadgu-bilig-kitab\.vercel\.app\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/www\.kutadgubilig\.com\/sitemap\.xml/);
   const sitemap = fs.readFileSync(path.join(root, "kutadgu-sitemap.js"), "utf8");
-  assert.match(sitemap, /const SITE_ORIGIN = "https:\/\/kutadgu-bilig-kitab\.vercel\.app"/);
+  assert.match(sitemap, /const SITE_ORIGIN = "https:\/\/www\.kutadgubilig\.com"/);
+  assert.doesNotMatch(robots, /kutadgu-bilig-kitab\.vercel\.app/);
 });
 
 if (failed) process.exit(1);

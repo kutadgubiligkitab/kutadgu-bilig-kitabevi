@@ -38,12 +38,12 @@ const jobs = [];
 
 jobs.push(test("A urlset is valid XML without invented changefreq/priority", () => {
   const xml = sitemap.buildUrlsetXml([
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/book.html?id=102", lastmod: "2026-08-28" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/book.html?id=103" }
+    { loc: "https://www.kutadgubilig.com/book.html?id=102", lastmod: "2026-08-28" },
+    { loc: "https://www.kutadgubilig.com/book.html?id=103" }
   ]);
   assert.ok(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
   assert.ok(xml.includes("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
-  assert.ok(xml.includes("<loc>https://kutadgu-bilig-kitab.vercel.app/book.html?id=102</loc>"));
+  assert.ok(xml.includes("<loc>https://www.kutadgubilig.com/book.html?id=102</loc>"));
   assert.ok(xml.includes("<lastmod>2026-08-28</lastmod>"));
   assert.ok(!xml.includes("changefreq"));
   assert.ok(!xml.includes("priority"));
@@ -59,18 +59,18 @@ jobs.push(test("C inactive books excluded; D no duplicate ids; no legacy loc", (
     { id: "children-3", legacy_id: "", is_active: true }
   ]);
   assert.strictEqual(entries.length, 1);
-  assert.strictEqual(entries[0].loc, "https://kutadgu-bilig-kitab.vercel.app/book.html?id=102");
+  assert.strictEqual(entries[0].loc, "https://www.kutadgubilig.com/book.html?id=102");
   assert.ok(!entries.some(e => /children-3/.test(e.loc)));
 }));
 
 jobs.push(test("F private URLs never emitted", () => {
   const xml = sitemap.buildUrlsetXml([
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/admin.html" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/cart.html" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/account.html" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/favorites.html" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/my-books.html" },
-    { loc: "https://kutadgu-bilig-kitab.vercel.app/book.html?id=1" }
+    { loc: "https://www.kutadgubilig.com/admin.html" },
+    { loc: "https://www.kutadgubilig.com/cart.html" },
+    { loc: "https://www.kutadgubilig.com/account.html" },
+    { loc: "https://www.kutadgubilig.com/favorites.html" },
+    { loc: "https://www.kutadgubilig.com/my-books.html" },
+    { loc: "https://www.kutadgubilig.com/book.html?id=1" }
   ]);
   assert.ok(!xml.includes("admin.html"));
   assert.ok(!xml.includes("cart.html"));
@@ -82,7 +82,7 @@ jobs.push(test("F private URLs never emitted", () => {
 
 jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
   const xml = sitemap.buildUrlsetXml(sitemap.publicPageEntries());
-  assert.ok(xml.includes("https://kutadgu-bilig-kitab.vercel.app/</loc>"));
+  assert.ok(xml.includes("https://www.kutadgubilig.com/</loc>"));
   assert.ok(xml.includes("/children.html"));
   assert.ok(xml.includes("/privacy.html"));
   assert.ok(xml.includes("/returns.html"));
@@ -90,18 +90,20 @@ jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
   assert.ok(!xml.includes("/admin.html"));
   assert.ok(!xml.includes("/cart.html"));
   assert.ok(!xml.includes("localhost"));
+  assert.ok(!xml.includes("ozumuzni-etirap-qilayli.html"));
+  assert.ok(!xml.includes("kutadgu-bilig-kitab.vercel.app"));
 }));
 
 jobs.push(test("K 20k books stay in one sitemap; 50k uses index split", () => {
   assert.strictEqual(sitemap.sitemapPageCount(84), 1);
   assert.strictEqual(sitemap.sitemapPageCount(5000), 1);
   assert.strictEqual(sitemap.sitemapPageCount(20000), 1);
-  assert.deepStrictEqual(sitemap.bookSitemapLocs(20000), ["https://kutadgu-bilig-kitab.vercel.app/sitemap-books.xml"]);
+  assert.deepStrictEqual(sitemap.bookSitemapLocs(20000), ["https://www.kutadgubilig.com/sitemap-books.xml"]);
   assert.strictEqual(sitemap.sitemapPageCount(40001), 2);
   const locs = sitemap.indexLocs(40001);
-  assert.strictEqual(locs[0], "https://kutadgu-bilig-kitab.vercel.app/sitemap-pages.xml");
-  assert.ok(locs.includes("https://kutadgu-bilig-kitab.vercel.app/sitemap-books-1.xml"));
-  assert.ok(locs.includes("https://kutadgu-bilig-kitab.vercel.app/sitemap-books-2.xml"));
+  assert.strictEqual(locs[0], "https://www.kutadgubilig.com/sitemap-pages.xml");
+  assert.ok(locs.includes("https://www.kutadgubilig.com/sitemap-books-1.xml"));
+  assert.ok(locs.includes("https://www.kutadgubilig.com/sitemap-books-2.xml"));
   const fake = Array.from({ length: 20000 }, (_, i) => ({ loc: sitemap.bookCanonicalUrl(i + 1) }));
   const xml = sitemap.buildUrlsetXml(fake);
   assert.ok(xml.length < 50 * 1024 * 1024);
@@ -111,8 +113,8 @@ jobs.push(test("K 20k books stay in one sitemap; 50k uses index split", () => {
 }));
 
 jobs.push(test("H I canonical helpers never use preview/localhost", () => {
-  assert.strictEqual(seo.productionOrigin(), "https://kutadgu-bilig-kitab.vercel.app");
-  assert.strictEqual(seo.bookCanonicalUrl("102"), "https://kutadgu-bilig-kitab.vercel.app/book.html?id=102");
+  assert.strictEqual(seo.productionOrigin(), "https://www.kutadgubilig.com");
+  assert.strictEqual(seo.bookCanonicalUrl("102"), "https://www.kutadgubilig.com/book.html?id=102");
   assert.ok(!seo.bookCanonicalUrl("102").includes("localhost"));
   assert.ok(!seo.buildBookJsonLd({ title: "T", id: "5" })["@graph"][0].url.includes("localhost"));
 }));
@@ -155,9 +157,20 @@ jobs.push(test("J missing author/ISBN/description omitted; placeholder author sk
   assert.ok(!seo.datePublishedIfTrustworthy({ publishYear: "999" }));
 }));
 
+jobs.push(test("category hubs use www canonical; pagination stays noindex to www hub", () => {
+  const universal = fs.readFileSync(path.join(__dirname, "..", "universal.html"), "utf8");
+  const page2 = fs.readFileSync(path.join(__dirname, "..", "universal-2.html"), "utf8");
+  assert.ok(universal.includes('rel="canonical" href="https://www.kutadgubilig.com/universal.html"'));
+  assert.ok(universal.includes('og:url" content="https://www.kutadgubilig.com/universal.html"'));
+  assert.ok(universal.includes('content="index, follow"'));
+  assert.ok(!universal.includes("kutadgu-bilig-kitab.vercel.app"));
+  assert.ok(page2.includes('content="noindex, follow"'));
+  assert.ok(page2.includes('rel="canonical" href="https://www.kutadgubilig.com/universal.html"'));
+}));
+
 jobs.push(test("G robots.txt sitemap location and private disallows", () => {
   const robots = fs.readFileSync(path.join(__dirname, "..", "robots.txt"), "utf8");
-  assert.ok(robots.includes("Sitemap: https://kutadgu-bilig-kitab.vercel.app/sitemap.xml"));
+  assert.ok(robots.includes("Sitemap: https://www.kutadgubilig.com/sitemap.xml"));
   assert.ok(robots.includes("Disallow: /admin.html"));
   assert.ok(robots.includes("Disallow: /admin-quality-preview.html"));
   assert.ok(robots.includes("Disallow: /cart.html"));
@@ -166,17 +179,65 @@ jobs.push(test("G robots.txt sitemap location and private disallows", () => {
   assert.ok(!/Disallow: \/\*\.css/.test(robots));
 }));
 
-jobs.push(test("book.html indexes only canonical numeric ids before JS hydrate", () => {
+jobs.push(test("book.html shell stays noindex until a visible book is resolved", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "book.html"), "utf8");
-  assert.ok(html.includes('var origin="https://kutadgu-bilig-kitab.vercel.app"'));
-  assert.ok(html.includes("canonicalId=/^\\d+$/.test"));
+  assert.ok(html.includes('content="noindex, follow"'));
+  assert.ok(html.includes('href="https://www.kutadgubilig.com/book.html"'));
+  assert.ok(html.includes('var origin="https://www.kutadgubilig.com"'));
+  assert.ok(!html.includes('content="index, follow"'));
+  assert.ok(!html.includes("kutadgu-bilig-kitab.vercel.app"));
   assert.ok(!html.includes("localhost"));
+  const shop = fs.readFileSync(path.join(__dirname, "..", "shop.js"), "utf8");
+  assert.ok(shop.includes("applyUnresolvedDetailDocument"));
+  const js = fs.readFileSync(path.join(__dirname, "..", "kutadgu-book-seo.js"), "utf8");
+  assert.ok(js.includes("function applyUnresolvedDetailDocument"));
 }));
 
-jobs.push(test("shop.js uses production origin and KutadguBookSeo", () => {
+jobs.push(test("unresolved detail SEO never indexes placeholder or emits Book JSON-LD", () => {
+  const fake = {
+    head: {
+      nodes: [],
+      querySelector(sel) {
+        return this.nodes.find(n =>
+          (sel === 'meta[name="robots"]' && n.name === "robots")
+          || (sel === 'link[rel="canonical"]' && n.rel === "canonical")
+          || (sel === "#kutadguBookSchema" && n.id === "kutadguBookSchema")
+        ) || null;
+      },
+      createElement(tag) {
+        return {
+          tag,
+          id: "",
+          name: "",
+          rel: "",
+          content: "",
+          href: "",
+          parentNode: null,
+          setAttribute(k, v) { this[k] = v; }
+        };
+      },
+      appendChild(node) {
+        node.parentNode = this;
+        this.nodes.push(node);
+      }
+    }
+  };
+  seo.applyUnresolvedDetailDocument(fake);
+  const robots = fake.head.nodes.find(n => n.name === "robots");
+  const canonical = fake.head.nodes.find(n => n.rel === "canonical");
+  assert.ok(robots);
+  assert.strictEqual(robots.content, "noindex, follow");
+  assert.ok(canonical);
+  assert.strictEqual(canonical.href, "https://www.kutadgubilig.com/book.html");
+  assert.ok(!canonical.href.includes("id="));
+  assert.strictEqual(fake.head.nodes.filter(n => n.id === "kutadguBookSchema").length, 0);
+}));
+
+jobs.push(test("shop.js uses www production origin and KutadguBookSeo", () => {
   const js = fs.readFileSync(path.join(__dirname, "..", "shop.js"), "utf8");
-  assert.ok(js.includes("https://kutadgu-bilig-kitab.vercel.app"));
+  assert.ok(js.includes("https://www.kutadgubilig.com"));
   assert.ok(js.includes("KutadguBookSeo"));
+  assert.ok(!js.includes("kutadgu-bilig-kitab.vercel.app"));
   assert.ok(!/return String\(window\.KUTADGU_SITE_ORIGIN\|\|""\)\.replace\(\/\\\/\+\$\/,""\)\|\|location\.origin/.test(js));
 }));
 
@@ -184,17 +245,20 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
   const indexXml = fs.readFileSync(path.join(__dirname, "..", "sitemap.xml"), "utf8");
   const pagesXml = fs.readFileSync(path.join(__dirname, "..", "sitemap-pages.xml"), "utf8");
   assert.ok(indexXml.includes("<sitemapindex"));
-  assert.ok(indexXml.includes("/sitemap-pages.xml"));
-  assert.ok(indexXml.includes("/sitemap-books.xml"));
+  assert.ok(indexXml.includes("https://www.kutadgubilig.com/sitemap-pages.xml"));
+  assert.ok(indexXml.includes("https://www.kutadgubilig.com/sitemap-books.xml"));
   assert.ok(!pagesXml.includes("changefreq"));
   assert.ok(!pagesXml.includes("/admin.html"));
   assert.ok(!pagesXml.includes("/cart.html"));
   assert.ok(!pagesXml.includes("book.html?id="));
+  assert.ok(!pagesXml.includes("ozumuzni-etirap-qilayli.html"));
+  assert.ok(!pagesXml.includes("kutadgu-bilig-kitab.vercel.app"));
+  assert.ok(!indexXml.includes("kutadgu-bilig-kitab.vercel.app"));
 }));
 
 jobs.push(test("lastmod omitted when timestamp is untrustworthy", () => {
   const entry = sitemap.rowToSitemapEntry({ id: 8, is_active: true, updated_at: "not-a-date", created_at: "" });
-  assert.strictEqual(entry.loc, "https://kutadgu-bilig-kitab.vercel.app/book.html?id=8");
+  assert.strictEqual(entry.loc, "https://www.kutadgubilig.com/book.html?id=8");
   assert.ok(!entry.lastmod);
   const badYear = sitemap.trustworthyLastmod("1800-01-01T00:00:00Z");
   assert.strictEqual(badYear, "");
@@ -220,12 +284,12 @@ jobs.push(test("live: 84 active books, valid XML, production locs, no private (A
   assert.ok(locs.length >= 80 && locs.length <= 84);
   assert.strictEqual(new Set(locs).size, locs.length);
   locs.forEach(loc => {
-    assert.ok(loc.startsWith("https://kutadgu-bilig-kitab.vercel.app/book.html?id="));
+    assert.ok(loc.startsWith("https://www.kutadgubilig.com/book.html?id="));
     const id = loc.split("id=")[1];
     assert.ok(/^\d+$/.test(id));
   });
-  assert.ok(locs.includes("https://kutadgu-bilig-kitab.vercel.app/book.html?id=102"));
-  assert.ok(locs.includes("https://kutadgu-bilig-kitab.vercel.app/book.html?id=103"));
+  assert.ok(locs.includes("https://www.kutadgubilig.com/book.html?id=102"));
+  assert.ok(locs.includes("https://www.kutadgubilig.com/book.html?id=103"));
   assert.ok(!xml.includes("/admin.html"));
   assert.ok(!xml.includes("/cart.html"));
   const indexXml = await sitemap.buildIndexSitemapXml();

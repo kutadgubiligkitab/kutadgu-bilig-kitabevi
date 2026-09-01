@@ -896,7 +896,7 @@ function setHeadMeta(selector,attributes){
 
 function siteOrigin(){
   if(window.KutadguBookSeo&&window.KutadguBookSeo.productionOrigin)return window.KutadguBookSeo.productionOrigin();
-  return "https://kutadgu-bilig-kitab.vercel.app";
+  return "https://www.kutadgubilig.com";
 }
 
 function absoluteUrl(value){
@@ -1147,7 +1147,17 @@ function decorateDetail(){
     return;
   }
   if(!isBookDetailDocument())return;
-  let b=getDetailBook(); if(!b)return;
+  let b=getDetailBook();
+  if(!b){
+    const Seo=window.KutadguBookSeo||{};
+    if(Seo.applyUnresolvedDetailDocument)Seo.applyUnresolvedDetailDocument(document);
+    else{
+      setHeadMeta('meta[name="robots"]',{name:"robots",content:"noindex, follow"});
+      setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:siteOrigin()+"/book.html"});
+      document.head.querySelector("#kutadguBookSchema")?.remove();
+    }
+    return;
+  }
   populateDynamicBookPage(b);
   updateBookSeo(b);
   renderBookGallery(b);

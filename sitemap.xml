@@ -2,9 +2,9 @@
 <!-- Stage 7 sitemap index. On Vercel, /sitemap.xml is rewritten to /api/sitemap-index so book children can split at 40k URLs. This static file is the same shape used when the catalog has one book sitemap. -->
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
-    <loc>https://kutadgu-bilig-kitab.vercel.app/sitemap-pages.xml</loc>
+    <loc>https://www.kutadgubilig.com/sitemap-pages.xml</loc>
   </sitemap>
   <sitemap>
-    <loc>https://kutadgu-bilig-kitab.vercel.app/sitemap-books.xml</loc>
+    <loc>https://www.kutadgubilig.com/sitemap-books.xml</loc>
   </sitemap>
 </sitemapindex>

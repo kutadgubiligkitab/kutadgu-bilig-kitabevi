@@ -5,7 +5,7 @@
 (function (root) {
   "use strict";
 
-  const PRODUCTION_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+  const PRODUCTION_ORIGIN = "https://www.kutadgubilig.com";
 
   function productionOrigin() {
     return PRODUCTION_ORIGIN;
@@ -118,6 +118,31 @@
     return { "@context": "https://schema.org", "@graph": graph };
   }
 
+  function applyUnresolvedDetailDocument(doc) {
+    const documentRef = doc || (typeof document !== "undefined" ? document : null);
+    if (!documentRef || !documentRef.head) return;
+    const origin = productionOrigin();
+    const canonical = origin + "/book.html";
+    function upsert(selector, tagName, attrs) {
+      let node = documentRef.head.querySelector(selector);
+      if (!node) {
+        const create = typeof documentRef.createElement === "function"
+          ? documentRef.createElement.bind(documentRef)
+          : documentRef.head.createElement.bind(documentRef.head);
+        node = create(tagName);
+        documentRef.head.appendChild(node);
+      }
+      Object.keys(attrs).forEach(function (key) {
+        node.setAttribute(key, attrs[key]);
+      });
+      return node;
+    }
+    upsert('meta[name="robots"]', "meta", { name: "robots", content: "noindex, follow" });
+    upsert('link[rel="canonical"]', "link", { rel: "canonical", href: canonical });
+    const schema = documentRef.head.querySelector("#kutadguBookSchema");
+    if (schema && schema.parentNode) schema.parentNode.removeChild(schema);
+  }
+
   const api = {
     PRODUCTION_ORIGIN,
     productionOrigin,
@@ -130,7 +155,8 @@
     datePublishedIfTrustworthy,
     metaDescription,
     absoluteUrl,
-    buildBookJsonLd
+    buildBookJsonLd,
+    applyUnresolvedDetailDocument
   };
 
   if (typeof module === "object" && module.exports) module.exports = api;
