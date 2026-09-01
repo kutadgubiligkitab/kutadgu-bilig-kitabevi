@@ -1342,8 +1342,8 @@ async function renderHomeFeaturedBooks(){
   </section>`;
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
-    // Only the latest twelve rows are requested; remoteOrder("new") maps to created_at DESC.
-    const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
+    // Only the latest twenty rows are requested; remoteOrder("new") maps to created_at DESC.
+    const result=await queryCatalog({offset:0,pageSize:20,sort:"new"});
     const books=result.items.filter(isStorefrontVisible);
     const grid=host.querySelector(".home-featured-grid");
     if(grid){
@@ -2284,96 +2284,119 @@ function setupHomeFeaturedMarquee(host){
   const delay=5500,duration=900;
   const motionMq=window.matchMedia?.("(prefers-reduced-motion: reduce)");
   let reducedMotion=motionMq?.matches===true;
-  let paused=false;
+  let hoverPaused=false;
+  let focusPaused=false;
   const states=new WeakMap();
   let timer=null;
   const pendingSnaps=new Set();
+  const pendingTimers=new Set();
+  function interactionPaused(){return hoverPaused||focusPaused}
 
   function isMobile(){return window.innerWidth<=700}
 
-  function uniqueCards(track){
-    return [...track.querySelectorAll(".home-feature-card")].filter(el=>el.dataset.featuredClone!=="1");
+  function rowCards(track){
+    return [...track.querySelectorAll(".home-feature-card")];
   }
 
   function apply(track,offset,animate){
     const enable=animate&&!reducedMotion;
     track.style.transition=enable?`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`:"none";
     track.style.transform=`translateX(${offset}px)`;
-    if(!enable){void track.offsetWidth;track.style.transition=`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`}
+    if(!enable)void track.offsetWidth;
+  }
+
+  function sizeCards(row,track){
+    const items=rowCards(track);
+    items.forEach(el=>{el.style.flex="";el.style.width="";el.style.maxWidth=""});
+    if(isMobile())return {items,itemCount:items.length,visible:featuredRowVisibleCount(window.innerWidth),step:0};
+    const visible=featuredRowVisibleCount(window.innerWidth);
+    const gap=parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14;
+    const rowWidth=row.clientWidth;
+    const cardWidth=visible>0?(rowWidth-gap*(visible-1))/visible:0;
+    items.forEach(el=>{
+      el.style.flex=`0 0 ${cardWidth}px`;
+      el.style.width=`${cardWidth}px`;
+      el.style.maxWidth=`${cardWidth}px`;
+    });
+    return {items,itemCount:items.length,visible,step:cardWidth+gap};
+  }
+
+  function clearPending(track){
+    pendingSnaps.forEach(fn=>{if(track)track.removeEventListener("transitionend",fn)});
+    pendingTimers.forEach(id=>clearTimeout(id));
+    pendingTimers.clear();
+  }
+
+  function afterTransform(track,fn){
+    let done=false;
+    let tid=null;
+    const finish=event=>{
+      if(done)return;
+      if(event&&event.propertyName!=="transform")return;
+      if(event&&event.target!==track)return;
+      done=true;
+      track.removeEventListener("transitionend",finish);
+      pendingSnaps.delete(finish);
+      if(tid!=null){clearTimeout(tid);pendingTimers.delete(tid)}
+      fn();
+    };
+    pendingSnaps.add(finish);
+    track.addEventListener("transitionend",finish);
+    tid=setTimeout(()=>finish(),duration+150);
+    pendingTimers.add(tid);
   }
 
   function drawRow(row){
     const track=row.querySelector(".home-featured-track");
     if(!track)return;
-    pendingSnaps.forEach(fn=>{track.removeEventListener("transitionend",fn)});
-    track.querySelectorAll("[data-featured-clone]").forEach(n=>n.remove());
-    const items=uniqueCards(track);
-    const itemCount=items.length;
-    const visible=featuredRowVisibleCount(window.innerWidth);
+    clearPending(track);
+    const sized=sizeCards(row,track);
     const dir=row.dataset.direction||featuredRowDirection(row.dataset.featuredRow);
-    const canPlay=featuredRowShouldAutoplay(itemCount,visible,{
+    const canPlay=featuredRowShouldAutoplay(sized.itemCount,sized.visible,{
       reducedMotion,hidden:document.hidden,autoPlayEnabled:true,mobile:isMobile(),mobileAutoPlayEnabled:false
     });
     row.dataset.autoplay=canPlay?"1":"0";
     if(isMobile()){
-      states.set(row,{track,dir,itemCount,step:0,setWidth:0,offset:0,canPlay:false});
+      states.set(row,{track,dir,itemCount:sized.itemCount,step:0,offset:0,canPlay:false,busy:false});
       track.style.transition="";
       track.style.transform="";
       return;
     }
-    if(itemCount>visible){
-      items.forEach(card=>{
-        const clone=card.cloneNode(true);
-        clone.dataset.featuredClone="1";
-        clone.setAttribute("aria-hidden","true");
-        if(dir==="ltr")track.insertBefore(clone,track.firstChild);
-        else track.appendChild(clone);
-      });
-    }
-    const card=track.querySelector(".home-feature-card");
-    const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
-    const step=card?card.getBoundingClientRect().width+gap:0;
-    const setWidth=step*itemCount;
-    const offset=dir==="ltr"&&itemCount>visible&&!isMobile()?-setWidth:0;
-    states.set(row,{track,dir,itemCount,step,setWidth,offset,canPlay});
-    apply(track,offset,false);
+    states.set(row,{track,dir,itemCount:sized.itemCount,step:sized.step,offset:0,canPlay,busy:false});
+    apply(track,0,false);
   }
 
   function draw(){rowEls.forEach(drawRow)}
 
   function tick(){
-    if(paused||document.hidden||reducedMotion||isMobile())return;
+    if(interactionPaused()||document.hidden||reducedMotion||isMobile())return;
     rowEls.forEach(row=>{
       const st=states.get(row);
-      if(!st||!st.canPlay||!st.step)return;
+      if(!st||!st.canPlay||!st.step||st.busy)return;
+      const items=rowCards(st.track);
+      if(items.length<2)return;
+      st.busy=true;
       if(st.dir==="rtl"){
-        st.offset-=st.step;
-        apply(st.track,st.offset,true);
-        if(st.offset<=-st.setWidth+0.5){
-          const snap=event=>{
-            if(event.propertyName!=="transform"||event.target!==st.track)return;
-            st.track.removeEventListener("transitionend",snap);
-            pendingSnaps.delete(snap);
-            st.offset=0;
-            apply(st.track,0,false);
-          };
-          pendingSnaps.add(snap);
-          st.track.addEventListener("transitionend",snap);
-        }
+        st.offset=-st.step;
+        apply(st.track,-st.step,true);
+        afterTransform(st.track,()=>{
+          const first=st.track.querySelector(".home-feature-card");
+          if(first)st.track.appendChild(first);
+          st.offset=0;
+          apply(st.track,0,false);
+          st.busy=false;
+        });
       }else{
-        st.offset+=st.step;
-        apply(st.track,st.offset,true);
-        if(st.offset>=-0.5){
-          const snap=event=>{
-            if(event.propertyName!=="transform"||event.target!==st.track)return;
-            st.track.removeEventListener("transitionend",snap);
-            pendingSnaps.delete(snap);
-            st.offset=-st.setWidth;
-            apply(st.track,-st.setWidth,false);
-          };
-          pendingSnaps.add(snap);
-          st.track.addEventListener("transitionend",snap);
-        }
+        const last=st.track.querySelector(".home-feature-card:last-child");
+        if(last)st.track.insertBefore(last,st.track.firstChild);
+        st.offset=-st.step;
+        apply(st.track,-st.step,false);
+        st.offset=0;
+        apply(st.track,0,true);
+        afterTransform(st.track,()=>{
+          st.offset=0;
+          st.busy=false;
+        });
       }
     });
   }
@@ -2381,12 +2404,18 @@ function setupHomeFeaturedMarquee(host){
   function stop(){if(timer){clearInterval(timer);timer=null}}
   function start(){
     stop();
-    if(paused||isMobile()||reducedMotion||document.hidden)return;
+    if(interactionPaused()||isMobile()||reducedMotion||document.hidden)return;
     if(!rowEls.some(row=>states.get(row)?.canPlay))return;
     timer=setInterval(tick,delay);
   }
-  function onEnter(){paused=true;stop()}
-  function onLeave(){paused=false;start()}
+  function onEnter(){hoverPaused=true;stop()}
+  function onLeave(){hoverPaused=false;if(!focusPaused)start()}
+  function onFocusIn(){focusPaused=true;stop()}
+  function onFocusOut(event){
+    if(section.contains(event.relatedTarget))return;
+    focusPaused=false;
+    if(!hoverPaused)start();
+  }
   function onVis(){if(document.hidden)stop();else start()}
   function onMotion(event){reducedMotion=event.matches;draw();if(reducedMotion)stop();else start()}
   function onResize(){draw();start()}
@@ -2394,6 +2423,8 @@ function setupHomeFeaturedMarquee(host){
   draw();
   section.addEventListener("mouseenter",onEnter);
   section.addEventListener("mouseleave",onLeave);
+  section.addEventListener("focusin",onFocusIn);
+  section.addEventListener("focusout",onFocusOut);
   document.addEventListener("visibilitychange",onVis);
   motionMq?.addEventListener?.("change",onMotion);
   window.addEventListener("resize",onResize);
@@ -2407,8 +2438,12 @@ function setupHomeFeaturedMarquee(host){
       });
     });
     pendingSnaps.clear();
+    pendingTimers.forEach(id=>clearTimeout(id));
+    pendingTimers.clear();
     section.removeEventListener("mouseenter",onEnter);
     section.removeEventListener("mouseleave",onLeave);
+    section.removeEventListener("focusin",onFocusIn);
+    section.removeEventListener("focusout",onFocusOut);
     document.removeEventListener("visibilitychange",onVis);
     motionMq?.removeEventListener?.("change",onMotion);
     window.removeEventListener("resize",onResize);

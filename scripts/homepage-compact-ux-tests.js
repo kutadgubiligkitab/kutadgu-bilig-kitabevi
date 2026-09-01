@@ -51,10 +51,10 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=12/);
+  assert.match(html, /index\.css\?v=16/);
   assert.match(html, /shop\.css\?v=43/);
   assert.match(html, /mobile\.css\?v=21/);
-  assert.match(html, /shop\.js\?v=77/);
+  assert.match(html, /shop\.js\?v=80/);
   assert.match(html, /mobile\.js\?v=4/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
@@ -132,7 +132,7 @@ test("homepage sections keep ids and put books before category cards", () => {
 
 test("recently-added rows move in opposite directions without changing the catalog query", () => {
   const featured = shop.slice(shop.indexOf("async function renderHomeFeaturedBooks"), shop.indexOf("function renderHomeSections"));
-  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:12,sort:"new"\}\)/);
+  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:20,sort:"new"\}\)/);
   assert.doesNotMatch(featured, /newOnly:true/);
   assert.match(featured, /splitFeaturedRows\(books\)/);
   assert.match(featured, /setupHomeFeaturedMarquee\(host\)/);
@@ -153,14 +153,26 @@ test("recently-added rows move in opposite directions without changing the catal
   const split = helpers.splitFeaturedRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   assert.deepStrictEqual(split.top, [1, 2, 3, 4, 5, 6]);
   assert.deepStrictEqual(split.bottom, [7, 8, 9, 10, 11, 12]);
+  const split20 = helpers.splitFeaturedRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  assert.deepStrictEqual(split20.top, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepStrictEqual(split20.bottom, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
   const marquee = shop.slice(shop.indexOf("function setupHomeFeaturedMarquee"), shop.indexOf("async function setupHomeCarousel"));
   assert.match(marquee, /delay=5500/);
   assert.match(marquee, /mouseenter/);
   assert.match(marquee, /mouseleave/);
+  assert.match(marquee, /focusin/);
+  assert.match(marquee, /hoverPaused/);
+  assert.match(marquee, /focusPaused/);
+  assert.doesNotMatch(marquee, /cloneNode/);
+  assert.doesNotMatch(marquee, /featuredClone|data-featured-clone/);
+  assert.match(marquee, /appendChild\(first\)/);
+  assert.match(marquee, /insertBefore\(last/);
+  assert.match(marquee, /clientWidth/);
   assert.match(marquee, /prefers-reduced-motion: reduce/);
   assert.match(marquee, /innerWidth<=700/);
-  assert.match(css, /home-featured-grid\.is-marquee/);
-  assert.match(css, /flex:0 0 calc\(\(100% - 56px\) \/ 5\)/);
+  assert.match(css, /#homeFeaturedBooks \.home-featured-grid\.is-marquee/);
+  assert.match(css, /flex:0 0 calc\(\(100cqw - 56px\) \/ 5\)/);
+  assert.doesNotMatch(css, /#homeFeaturedBooks[\s\S]{0,400}mask-image:linear-gradient/);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*display:contents/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });

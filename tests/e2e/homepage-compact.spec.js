@@ -255,13 +255,67 @@ test.describe("homepage compact first-view", () => {
     expect(tops.homeFeaturedBooks).toBeLessThan(tops.bookCategories);
   });
 
-  function parseTranslateX(transform) {
-    const px = /translateX\((-?[\d.]+)px\)/.exec(transform || "");
-    if (px) return Number(px[1]);
-    const matrix = /matrix\(([-.\d]+),\s*[-.\d]+,\s*[-.\d]+,\s*[-.\d]+,\s*(-?[.\d]+)/.exec(transform || "");
-    if (matrix) return Number(matrix[2]);
-    return 0;
-  }
+  test("featured desktop marquee shows two visible rows without page overflow", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 20 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks [data-featured-row]")).toHaveCount(2);
+    await expect(page.locator('[data-featured-row="top"]')).toBeVisible();
+    await expect(page.locator('[data-featured-row="bottom"]')).toBeVisible();
+    const metrics = await page.evaluate(() => {
+      const top = document.querySelector('[data-featured-row="top"]');
+      const bottom = document.querySelector('[data-featured-row="bottom"]');
+      const topBox = top ? top.getBoundingClientRect() : null;
+      const bottomBox = bottom ? bottom.getBoundingClientRect() : null;
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      const display = getComputedStyle(document.querySelector("#homeFeaturedBooks .home-featured-grid.is-marquee")).display;
+      const maskOf = (el) => {
+        const style = el ? getComputedStyle(el) : null;
+        return style ? `${style.maskImage || ""} ${style.webkitMaskImage || ""}` : "";
+      };
+      const filled = (rowEl) => {
+        if (!rowEl) return { full: 0, lead: 99, trail: 99, half: 99 };
+        const rowBox = rowEl.getBoundingClientRect();
+        const cards = [...rowEl.querySelectorAll(".home-feature-card")].map((el) => el.getBoundingClientRect());
+        const full = cards.filter((box) => box.left >= rowBox.left - 2 && box.right <= rowBox.right + 2);
+        const overlapping = cards.filter((box) => box.right > rowBox.left + 2 && box.left < rowBox.right - 2);
+        const half = overlapping.length - full.length;
+        const lead = full.length ? Math.abs(full[0].left - rowBox.left) : 99;
+        const trail = full.length ? Math.abs(rowBox.right - full[full.length - 1].right) : 99;
+        return { full: full.length, lead, trail, half };
+      };
+      return {
+        overflow,
+        display,
+        clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length,
+        overlays: document.querySelectorAll("#homeFeaturedBooks [data-edge-fade], #homeFeaturedBooks .featured-edge-fade").length,
+        topMask: maskOf(top),
+        bottomMask: maskOf(bottom),
+        topFill: filled(top),
+        bottomFill: filled(bottom),
+        topH: topBox ? topBox.height : 0,
+        bottomH: bottomBox ? bottomBox.height : 0,
+        stacked: !!(topBox && bottomBox && bottomBox.top >= topBox.bottom - 1)
+      };
+    });
+    expect(metrics.display).toBe("flex");
+    expect(metrics.clones).toBe(0);
+    expect(metrics.overlays).toBe(0);
+    expect(metrics.topMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
+    expect(metrics.bottomMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
+    expect(metrics.topFill.full).toBe(5);
+    expect(metrics.bottomFill.full).toBe(5);
+    expect(metrics.topFill.half).toBe(0);
+    expect(metrics.bottomFill.half).toBe(0);
+    expect(metrics.topFill.lead).toBeLessThan(3);
+    expect(metrics.bottomFill.lead).toBeLessThan(3);
+    expect(metrics.topFill.trail).toBeLessThan(3);
+    expect(metrics.bottomFill.trail).toBeLessThan(3);
+    expect(metrics.topH).toBeGreaterThan(40);
+    expect(metrics.bottomH).toBeGreaterThan(40);
+    expect(metrics.stacked).toBe(true);
+    expect(metrics.overflow).toBeLessThanOrEqual(4);
+  });
 
   test("featured top and bottom rows move in opposite directions", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
@@ -271,20 +325,121 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator('[data-featured-row="bottom"]')).toHaveAttribute("data-direction", "ltr");
     await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "1");
     await expect(page.locator('[data-featured-row="bottom"]')).toHaveAttribute("data-autoplay", "1");
-    const before = await page.evaluate(() => ({
-      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
-      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
-    }));
-    await expect.poll(async () => page.evaluate(() => ({
-      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
-      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
-    })), { timeout: 8_000 }).not.toEqual(before);
-    const after = await page.evaluate(() => ({
-      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
-      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
-    }));
-    expect(parseTranslateX(after.top)).toBeLessThan(parseTranslateX(before.top));
-    expect(parseTranslateX(after.bottom)).toBeGreaterThan(parseTranslateX(before.bottom));
+    const before = await page.evaluate(() => {
+      const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+      return { top: ids("top"), bottom: ids("bottom") };
+    });
+    await expect.poll(async () => page.evaluate(() => {
+      const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+      return { top: ids("top"), bottom: ids("bottom") };
+    }), { timeout: 9_000 }).not.toEqual(before);
+    await expect.poll(async () => {
+      const now = await page.evaluate(() => {
+        const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+        return { top: ids("top"), bottom: ids("bottom") };
+      });
+      return now.top[0] !== before.top[0] && now.bottom[0] !== before.bottom[0];
+    }, { timeout: 9_000 }).toBe(true);
+    const after = await page.evaluate(() => {
+      const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+      return { top: ids("top"), bottom: ids("bottom") };
+    });
+    expect(after.top[0]).toBe(before.top[1]);
+    expect(after.top[after.top.length - 1]).toBe(before.top[0]);
+    expect(after.bottom[0]).toBe(before.bottom[before.bottom.length - 1]);
+    expect(after.bottom[1]).toBe(before.bottom[0]);
+    expect(new Set(after.top).size).toBe(after.top.length);
+    expect(new Set(after.bottom).size).toBe(after.bottom.length);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(4);
+  });
+
+  test("featured marquee recycles original cards without clones or gaps", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 20 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks [data-featured-clone]")).toHaveCount(0);
+    const before = await page.evaluate(() => {
+      const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+      return {
+        top: ids("top"),
+        bottom: ids("bottom"),
+        topCount: document.querySelectorAll('[data-featured-row="top"] .home-feature-card').length,
+        bottomCount: document.querySelectorAll('[data-featured-row="bottom"] .home-feature-card').length
+      };
+    });
+    expect(before.topCount).toBe(10);
+    expect(before.bottomCount).toBe(10);
+    expect(new Set(before.top).size).toBe(before.top.length);
+    expect(new Set(before.bottom).size).toBe(before.bottom.length);
+    await expect.poll(async () => {
+      const now = await page.evaluate(() => {
+        const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+        return { top: ids("top"), bottom: ids("bottom") };
+      });
+      return now.top[0] !== before.top[0] && now.bottom[0] !== before.bottom[0];
+    }, { timeout: 9_000 }).toBe(true);
+    const after = await page.evaluate(() => {
+      const ids = (which) => [...document.querySelectorAll(`[data-featured-row="${which}"] .home-feature-card [data-fav-id]`)].map((el) => el.getAttribute("data-fav-id"));
+      const gaps = (which) => {
+        const row = document.querySelector(`[data-featured-row="${which}"]`);
+        const rowBox = row.getBoundingClientRect();
+        const cards = [...row.querySelectorAll(".home-feature-card")]
+          .map((el) => el.getBoundingClientRect())
+          .filter((box) => box.right > rowBox.left + 2 && box.left < rowBox.right - 2)
+          .sort((a, b) => a.left - b.left);
+        let maxGap = 0;
+        for (let i = 1; i < cards.length; i++) maxGap = Math.max(maxGap, cards[i].left - cards[i - 1].right);
+        const trailing = cards.length ? rowBox.right - cards[cards.length - 1].right : rowBox.width;
+        const full = cards.filter((box) => box.left >= rowBox.left - 2 && box.right <= rowBox.right + 2);
+        return { maxGap, trailing, visible: cards.length, full: full.length, half: cards.length - full.length };
+      };
+      return {
+        top: ids("top"),
+        bottom: ids("bottom"),
+        clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        topCount: document.querySelectorAll('[data-featured-row="top"] .home-feature-card').length,
+        bottomCount: document.querySelectorAll('[data-featured-row="bottom"] .home-feature-card').length,
+        topGaps: gaps("top"),
+        bottomGaps: gaps("bottom")
+      };
+    });
+    expect(after.clones).toBe(0);
+    expect(after.topCount).toBe(before.topCount);
+    expect(after.bottomCount).toBe(before.bottomCount);
+    expect(new Set(after.top).size).toBe(after.top.length);
+    expect(new Set(after.bottom).size).toBe(after.bottom.length);
+    expect(after.top[0]).toBe(before.top[1]);
+    expect(after.bottom[0]).toBe(before.bottom[before.bottom.length - 1]);
+    expect(after.topGaps.visible).toBe(5);
+    expect(after.bottomGaps.visible).toBe(5);
+    expect(after.topGaps.full).toBe(5);
+    expect(after.bottomGaps.full).toBe(5);
+    expect(after.topGaps.half).toBe(0);
+    expect(after.bottomGaps.half).toBe(0);
+    expect(after.topGaps.maxGap).toBeLessThan(24);
+    expect(after.bottomGaps.maxGap).toBeLessThan(24);
+    expect(after.topGaps.trailing).toBeLessThan(4);
+    expect(after.bottomGaps.trailing).toBeLessThan(4);
+    expect(after.overflow).toBeLessThanOrEqual(4);
+  });
+
+  test("featured controls still work after a rotation", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 20 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    const beforeFirst = await page.locator('[data-featured-row="top"] .home-feature-card [data-fav-id]').first().getAttribute("data-fav-id");
+    await expect.poll(async () => page.locator('[data-featured-row="top"] .home-feature-card [data-fav-id]').first().getAttribute("data-fav-id"), { timeout: 9_000 }).not.toBe(beforeFirst);
+    const card = page.locator('[data-featured-row="top"] .home-feature-card').first();
+    await expect(card).toBeVisible();
+    const href = await card.locator("a").first().getAttribute("href");
+    expect(href).toMatch(/book\.html/);
+    await card.locator(".home-feature-heart").click();
+    await expect(card.locator(".home-feature-heart")).toHaveAttribute("aria-pressed", "true");
+    const beforeCart = await H.badgeCount(page);
+    await card.locator("[data-cart-id]").click();
+    await expect.poll(async () => H.badgeCount(page)).toBeGreaterThan(beforeCart);
   });
 
   test("featured rows with too few books do not autoplay", async ({ page }) => {
@@ -349,22 +504,26 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
     await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
     const metrics = await page.evaluate(() => {
+      const row = document.querySelector('[data-featured-row="top"]');
       const track = document.querySelector('[data-featured-row="top"] .home-featured-track');
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const display = track ? getComputedStyle(track).display : "";
       const transform = track ? track.style.transform : "";
-      return { overflow, display, transform };
+      const style = row ? getComputedStyle(row) : null;
+      const mask = style ? `${style.maskImage || ""} ${style.webkitMaskImage || ""}` : "";
+      return { overflow, display, transform, mask };
     });
     expect(metrics.overflow).toBeLessThanOrEqual(4);
     expect(metrics.display).toBe("contents");
     expect(!metrics.transform || metrics.transform === "none" || metrics.transform === "").toBeTruthy();
+    expect(metrics.mask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
   });
 
   test("featured card heart, cart, and links stay usable", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    const card = page.locator('[data-featured-row="top"] .home-feature-card:not([data-featured-clone])').first();
+    const card = page.locator('[data-featured-row="top"] .home-feature-card').first();
     await expect(card).toBeVisible();
     await expect(card.locator(".home-feature-price")).toBeVisible();
     await expect(card.locator(".home-feature-author")).toBeVisible();
@@ -409,6 +568,7 @@ test.describe("homepage compact first-view", () => {
         const track = document.querySelector("#homeCarouselTrack");
         const featured = document.querySelector('[data-featured-row="top"]');
         const featuredTrack = document.querySelector('[data-featured-row="top"] .home-featured-track');
+        const featuredStyle = featured ? getComputedStyle(featured) : null;
         return {
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           tabH: tab ? tab.getBoundingClientRect().height : 0,
@@ -419,6 +579,7 @@ test.describe("homepage compact first-view", () => {
           carouselTransform: track ? track.style.transform : "",
           featuredAutoplay: featured ? featured.dataset.autoplay : "",
           featuredDisplay: featuredTrack ? getComputedStyle(featuredTrack).display : "",
+          featuredMask: featuredStyle ? `${featuredStyle.maskImage || ""} ${featuredStyle.webkitMaskImage || ""}` : "",
           clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length
         };
       });
@@ -430,6 +591,7 @@ test.describe("homepage compact first-view", () => {
       expect(metrics.buttonH).toBeGreaterThanOrEqual(44);
       expect(metrics.featuredAutoplay).toBe("0");
       expect(metrics.featuredDisplay).toBe("contents");
+      expect(metrics.featuredMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
       expect(metrics.clones).toBe(0);
       await page.waitForTimeout(2200);
       const afterCarousel = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
