@@ -124,7 +124,8 @@ async function installCarouselCatalogStub(page, flags) {
   const newest = flags.newest === true;
   const bestseller = flags.bestseller === true;
   const bookCount = Math.max(1, Number(flags.bookCount) || 1);
-  await page.addInitScript(({ recommended, newest, bestseller, bookCount }) => {
+  const featuredCount = flags.featuredCount == null ? null : Math.max(0, Number(flags.featuredCount) || 0);
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount }) => {
     window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
     let catalog = [];
     Object.defineProperty(window, "KITAP_CATALOG", {
@@ -132,7 +133,8 @@ async function installCarouselCatalogStub(page, flags) {
       enumerable: true,
       get() { return catalog; },
       set(arr) {
-        const rows = Array.isArray(arr) ? arr : [];
+        let rows = Array.isArray(arr) ? arr : [];
+        if (featuredCount != null) rows = rows.slice(0, featuredCount);
         catalog = rows.map((book, i) => ({
           ...book,
           is_recommended: !!(recommended && i < bookCount),
@@ -190,9 +192,15 @@ async function installCarouselCatalogStub(page, flags) {
       if (url.includes("sales_count=gt.0")) {
         return jsonResponse(bestseller ? stubBooks({ sales_count: 4, id: 93001, title: "Bestseller Stub" }) : []);
       }
+      if (featuredCount != null) {
+        return jsonResponse(Array.from({ length: featuredCount }, (_, i) => stubBook({
+          id: 94001 + i,
+          title: `Featured Stub ${i + 1}`
+        })));
+      }
       return jsonResponse([]);
     };
-  }, { recommended, newest, bestseller, bookCount });
+  }, { recommended, newest, bestseller, bookCount, featuredCount });
 }
 
 module.exports = {

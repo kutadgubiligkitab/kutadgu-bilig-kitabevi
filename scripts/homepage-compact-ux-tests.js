@@ -51,8 +51,8 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=10/);
-  assert.match(html, /shop\.js\?v=76/);
+  assert.match(html, /index\.css\?v=11/);
+  assert.match(html, /shop\.js\?v=77/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
   assert.match(html, /srcset="kutadgu-logo\.webp"/);
@@ -125,6 +125,41 @@ test("homepage sections keep ids and put books before category cards", () => {
   const catBlock = html.slice(categories, order);
   assert.doesNotMatch(catBlock, /id="homeFeaturedBooks"/);
   assert.doesNotMatch(html, /id="homeShopSections"/);
+});
+
+test("recently-added rows move in opposite directions without changing the catalog query", () => {
+  const featured = shop.slice(shop.indexOf("async function renderHomeFeaturedBooks"), shop.indexOf("function renderHomeSections"));
+  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:12,sort:"new"\}\)/);
+  assert.doesNotMatch(featured, /newOnly:true/);
+  assert.match(featured, /splitFeaturedRows\(books\)/);
+  assert.match(featured, /setupHomeFeaturedMarquee\(host\)/);
+  assert.match(featured, /data-featured-row/);
+  const start = shop.indexOf("function firstPopulatedCarouselMode");
+  const end = shop.indexOf("async function setupHomeCarousel");
+  const helpers = new Function(`${shop.slice(start, end)}; return {featuredRowVisibleCount, featuredRowShouldAutoplay, splitFeaturedRows, featuredRowDirection};`)();
+  assert.strictEqual(helpers.featuredRowDirection("top"), "rtl");
+  assert.strictEqual(helpers.featuredRowDirection("bottom"), "ltr");
+  assert.strictEqual(helpers.featuredRowVisibleCount(1280), 5);
+  assert.strictEqual(helpers.featuredRowVisibleCount(900), 3);
+  assert.strictEqual(helpers.featuredRowVisibleCount(390), 2);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(6, 5, { autoPlayEnabled: true }), true);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(5, 5, { autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(2, 5, { autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(8, 5, { reducedMotion: true, autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(8, 2, { mobile: true, mobileAutoPlayEnabled: false, autoPlayEnabled: true }), false);
+  const split = helpers.splitFeaturedRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepStrictEqual(split.top, [1, 2, 3, 4, 5, 6]);
+  assert.deepStrictEqual(split.bottom, [7, 8, 9, 10, 11, 12]);
+  const marquee = shop.slice(shop.indexOf("function setupHomeFeaturedMarquee"), shop.indexOf("async function setupHomeCarousel"));
+  assert.match(marquee, /delay=5500/);
+  assert.match(marquee, /mouseenter/);
+  assert.match(marquee, /mouseleave/);
+  assert.match(marquee, /prefers-reduced-motion: reduce/);
+  assert.match(marquee, /innerWidth<=700/);
+  assert.match(css, /home-featured-grid\.is-marquee/);
+  assert.match(css, /flex:0 0 calc\(\(100% - 56px\) \/ 5\)/);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*display:contents/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
 if (failed) {

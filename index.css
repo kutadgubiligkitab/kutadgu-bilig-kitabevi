@@ -2636,6 +2636,26 @@ label {
     }
 }
 
+@media (max-width: 700px){
+  .home-featured-grid.is-marquee{
+    display:grid !important;
+  }
+  .home-featured-row,
+  .home-featured-track{
+    display:contents;
+  }
+  .home-featured-track{
+    transform:none !important;
+    transition:none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .home-featured-track{
+    transition:none !important;
+  }
+}
+
 /* PR #35 — desktop/tablet homepage first-view compaction only */
 @media (min-width: 701px){
   .home-bookstore-hero{
@@ -2748,6 +2768,31 @@ label {
   #newBooksCarousel{
     margin-top:8px !important;
   }
+
+  .home-featured-grid.is-marquee{
+    display:flex !important;
+    flex-direction:column;
+    gap:14px !important;
+    grid-template-columns:none !important;
+  }
+  .home-featured-row{
+    overflow:hidden;
+    width:100%;
+  }
+  .home-featured-track{
+    display:flex;
+    gap:14px;
+    width:100%;
+    will-change:transform;
+  }
+  .home-featured-track > .home-feature-card{
+    flex:0 0 calc((100% - 28px) / 3);
+    max-width:calc((100% - 28px) / 3);
+    min-width:0;
+  }
+  .home-featured-track [data-featured-clone]{
+    pointer-events:none;
+  }
 }
 
 @media (min-width: 1101px){
@@ -2758,6 +2803,10 @@ label {
   #newBooksCarousel .home-carousel-track.is-single-row > .home-carousel-card{
     flex:0 0 calc((100% - 48px) / 4) !important;
     max-width:calc((100% - 48px) / 4);
+  }
+  .home-featured-track > .home-feature-card{
+    flex:0 0 calc((100% - 56px) / 5) !important;
+    max-width:calc((100% - 56px) / 5);
   }
 }
 

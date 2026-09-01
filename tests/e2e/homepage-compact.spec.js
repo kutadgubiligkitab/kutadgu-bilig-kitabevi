@@ -250,4 +250,126 @@ test.describe("homepage compact first-view", () => {
     expect(tops.newBooksCarousel).toBeLessThan(tops.homeFeaturedBooks);
     expect(tops.homeFeaturedBooks).toBeLessThan(tops.bookCategories);
   });
+
+  function parseTranslateX(transform) {
+    const px = /translateX\((-?[\d.]+)px\)/.exec(transform || "");
+    if (px) return Number(px[1]);
+    const matrix = /matrix\(([-.\d]+),\s*[-.\d]+,\s*[-.\d]+,\s*[-.\d]+,\s*(-?[.\d]+)/.exec(transform || "");
+    if (matrix) return Number(matrix[2]);
+    return 0;
+  }
+
+  test("featured top and bottom rows move in opposite directions", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-direction", "rtl");
+    await expect(page.locator('[data-featured-row="bottom"]')).toHaveAttribute("data-direction", "ltr");
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "1");
+    await expect(page.locator('[data-featured-row="bottom"]')).toHaveAttribute("data-autoplay", "1");
+    const before = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    await expect.poll(async () => page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    })), { timeout: 8_000 }).not.toEqual(before);
+    const after = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    expect(parseTranslateX(after.top)).toBeLessThan(parseTranslateX(before.top));
+    expect(parseTranslateX(after.bottom)).toBeGreaterThan(parseTranslateX(before.bottom));
+  });
+
+  test("featured rows with too few books do not autoplay", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 4 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
+    await expect(page.locator('[data-featured-row="bottom"]')).toHaveAttribute("data-autoplay", "0");
+    const before = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    await page.waitForTimeout(5800);
+    const after = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    expect(after).toEqual(before);
+  });
+
+  test("featured hover pauses both rows and mouse leave resumes", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "1");
+    await page.locator("#homeFeaturedBooks .home-featured-section").hover();
+    const paused = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    await page.waitForTimeout(5800);
+    const still = await page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    }));
+    expect(still).toEqual(paused);
+    await page.locator("header").hover();
+    await expect.poll(async () => page.evaluate(() => ({
+      top: document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "",
+      bottom: document.querySelector('[data-featured-row="bottom"] .home-featured-track')?.style.transform || ""
+    })), { timeout: 8_000 }).not.toEqual(paused);
+  });
+
+  test("reduced motion disables featured autoplay", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
+    const before = await page.evaluate(() => document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "");
+    await page.waitForTimeout(5800);
+    const after = await page.evaluate(() => document.querySelector('[data-featured-row="top"] .home-featured-track')?.style.transform || "");
+    expect(after).toBe(before);
+  });
+
+  test("mobile featured has no forced autoplay or horizontal overflow", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
+    await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
+    const metrics = await page.evaluate(() => {
+      const track = document.querySelector('[data-featured-row="top"] .home-featured-track");
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      const display = track ? getComputedStyle(track).display : "";
+      const transform = track ? track.style.transform : "";
+      return { overflow, display, transform };
+    });
+    expect(metrics.overflow).toBeLessThanOrEqual(4);
+    expect(metrics.display).toBe("contents");
+    expect(!metrics.transform || metrics.transform === "none" || metrics.transform === "").toBeTruthy();
+  });
+
+  test("featured card heart, cart, and links stay usable", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    const card = page.locator('[data-featured-row="top"] .home-feature-card:not([data-featured-clone])').first();
+    await expect(card).toBeVisible();
+    await expect(card.locator(".home-feature-price")).toBeVisible();
+    await expect(card.locator(".home-feature-author")).toBeVisible();
+    const href = await card.locator("a").first().getAttribute("href");
+    expect(href).toMatch(/book\.html/);
+    await card.locator(".home-feature-heart").click();
+    await expect(card.locator(".home-feature-heart")).toHaveAttribute("aria-pressed", "true");
+    const beforeCart = await H.badgeCount(page);
+    await card.locator("[data-cart-id]").click();
+    await expect.poll(async () => H.badgeCount(page)).toBeGreaterThan(beforeCart);
+  });
 });

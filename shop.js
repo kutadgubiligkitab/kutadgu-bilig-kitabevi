@@ -1346,8 +1346,19 @@ async function renderHomeFeaturedBooks(){
     const result=await queryCatalog({offset:0,pageSize:12,sort:"new"});
     const books=result.items.filter(isStorefrontVisible);
     const grid=host.querySelector(".home-featured-grid");
-    if(grid)grid.innerHTML=books.length?books.map(card).join(""):'<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+    if(grid){
+      if(!books.length){
+        grid.classList.remove("is-marquee");
+        grid.innerHTML='<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+      }else{
+        const split=splitFeaturedRows(books);
+        const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(card).join("")}</div></div>`;
+        grid.classList.add("is-marquee");
+        grid.innerHTML=`${rowMarkup(split.top,"top")}${split.bottom.length?rowMarkup(split.bottom,"bottom"):""}`;
+      }
+    }
     bindDynamicActions(host);
+    setupHomeFeaturedMarquee(host);
   }catch(error){
     console.error("Recently added books query failed.",error);
     const grid=host.querySelector(".home-featured-grid");
@@ -2241,6 +2252,161 @@ function carouselShouldAutoplay(itemCount,visible,options){
   if(opts.reducedMotion||opts.hidden||opts.autoPlayEnabled===false)return false;
   if(opts.mobile&&opts.mobileAutoPlayEnabled!==true)return false;
   return Number(itemCount)>Number(visible);
+}
+
+function featuredRowVisibleCount(width){
+  const w=Number(width)||0;
+  if(w<=700)return 2;
+  if(w<=1100)return 3;
+  return 5;
+}
+
+function featuredRowShouldAutoplay(itemCount,visible,options){
+  return carouselShouldAutoplay(itemCount,visible,options);
+}
+
+function splitFeaturedRows(books){
+  const list=Array.isArray(books)?books:[];
+  const mid=Math.ceil(list.length/2);
+  return {top:list.slice(0,mid),bottom:list.slice(mid)};
+}
+
+function featuredRowDirection(which){
+  return which==="bottom"?"ltr":"rtl";
+}
+
+function setupHomeFeaturedMarquee(host){
+  if(!host)return;
+  if(typeof host._featuredMarqueeCleanup==="function")host._featuredMarqueeCleanup();
+  const section=host.querySelector(".home-featured-section")||host;
+  const rowEls=[...host.querySelectorAll(".home-featured-row")];
+  if(!rowEls.length)return;
+  const delay=5500,duration=900;
+  const motionMq=window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  let reducedMotion=motionMq?.matches===true;
+  let paused=false;
+  const states=new WeakMap();
+  let timer=null;
+  const pendingSnaps=new Set();
+
+  function isMobile(){return window.innerWidth<=700}
+
+  function uniqueCards(track){
+    return [...track.querySelectorAll(".home-feature-card")].filter(el=>el.dataset.featuredClone!=="1");
+  }
+
+  function apply(track,offset,animate){
+    const enable=animate&&!reducedMotion;
+    track.style.transition=enable?`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`:"none";
+    track.style.transform=`translateX(${offset}px)`;
+    if(!enable){void track.offsetWidth;track.style.transition=`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`}
+  }
+
+  function drawRow(row){
+    const track=row.querySelector(".home-featured-track");
+    if(!track)return;
+    pendingSnaps.forEach(fn=>{track.removeEventListener("transitionend",fn)});
+    track.querySelectorAll("[data-featured-clone]").forEach(n=>n.remove());
+    const items=uniqueCards(track);
+    const itemCount=items.length;
+    const visible=featuredRowVisibleCount(window.innerWidth);
+    const dir=row.dataset.direction||featuredRowDirection(row.dataset.featuredRow);
+    const canPlay=featuredRowShouldAutoplay(itemCount,visible,{
+      reducedMotion,hidden:document.hidden,autoPlayEnabled:true,mobile:isMobile(),mobileAutoPlayEnabled:false
+    });
+    row.dataset.autoplay=canPlay?"1":"0";
+    if(!isMobile()&&itemCount>visible){
+      items.forEach(card=>{
+        const clone=card.cloneNode(true);
+        clone.dataset.featuredClone="1";
+        clone.setAttribute("aria-hidden","true");
+        if(dir==="ltr")track.insertBefore(clone,track.firstChild);
+        else track.appendChild(clone);
+      });
+    }
+    const card=track.querySelector(".home-feature-card");
+    const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
+    const step=card?card.getBoundingClientRect().width+gap:0;
+    const setWidth=step*itemCount;
+    const offset=dir==="ltr"&&itemCount>visible&&!isMobile()?-setWidth:0;
+    states.set(row,{track,dir,itemCount,step,setWidth,offset,canPlay});
+    apply(track,offset,false);
+  }
+
+  function draw(){rowEls.forEach(drawRow)}
+
+  function tick(){
+    if(paused||document.hidden||reducedMotion||isMobile())return;
+    rowEls.forEach(row=>{
+      const st=states.get(row);
+      if(!st||!st.canPlay||!st.step)return;
+      if(st.dir==="rtl"){
+        st.offset-=st.step;
+        apply(st.track,st.offset,true);
+        if(st.offset<=-st.setWidth+0.5){
+          const snap=event=>{
+            if(event.propertyName!=="transform"||event.target!==st.track)return;
+            st.track.removeEventListener("transitionend",snap);
+            pendingSnaps.delete(snap);
+            st.offset=0;
+            apply(st.track,0,false);
+          };
+          pendingSnaps.add(snap);
+          st.track.addEventListener("transitionend",snap);
+        }
+      }else{
+        st.offset+=st.step;
+        apply(st.track,st.offset,true);
+        if(st.offset>=-0.5){
+          const snap=event=>{
+            if(event.propertyName!=="transform"||event.target!==st.track)return;
+            st.track.removeEventListener("transitionend",snap);
+            pendingSnaps.delete(snap);
+            st.offset=-st.setWidth;
+            apply(st.track,-st.setWidth,false);
+          };
+          pendingSnaps.add(snap);
+          st.track.addEventListener("transitionend",snap);
+        }
+      }
+    });
+  }
+
+  function stop(){if(timer){clearInterval(timer);timer=null}}
+  function start(){
+    stop();
+    if(paused||isMobile()||reducedMotion||document.hidden)return;
+    if(!rowEls.some(row=>states.get(row)?.canPlay))return;
+    timer=setInterval(tick,delay);
+  }
+  function onEnter(){paused=true;stop()}
+  function onLeave(){paused=false;start()}
+  function onVis(){if(document.hidden)stop();else start()}
+  function onMotion(event){reducedMotion=event.matches;draw();if(reducedMotion)stop();else start()}
+  function onResize(){draw();start()}
+
+  draw();
+  section.addEventListener("mouseenter",onEnter);
+  section.addEventListener("mouseleave",onLeave);
+  document.addEventListener("visibilitychange",onVis);
+  motionMq?.addEventListener?.("change",onMotion);
+  window.addEventListener("resize",onResize);
+  start();
+  host._featuredMarqueeCleanup=()=>{
+    stop();
+    pendingSnaps.forEach(fn=>{
+      rowEls.forEach(row=>{
+        const track=row.querySelector(".home-featured-track");
+        if(track)track.removeEventListener("transitionend",fn);
+      });
+    });
+    pendingSnaps.clear();
+    section.removeEventListener("mouseenter",onEnter);
+    section.removeEventListener("mouseleave",onLeave);
+    document.removeEventListener("visibilitychange",onVis);
+    motionMq?.removeEventListener?.("change",onMotion);
+    window.removeEventListener("resize",onResize);
+  };
 }
 
 async function setupHomeCarousel(){
