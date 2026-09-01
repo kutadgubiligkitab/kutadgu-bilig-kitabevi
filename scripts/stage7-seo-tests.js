@@ -180,16 +180,19 @@ jobs.push(test("G robots.txt sitemap location and private disallows", () => {
   assert.ok(!/Disallow: \/\*\.css/.test(robots));
 }));
 
-jobs.push(test("book.html shell stays noindex until a visible book is resolved", () => {
+jobs.push(test("book.html shell does not ship a first-byte robots or canonical veto", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "book.html"), "utf8");
-  assert.ok(html.includes('content="noindex, follow"'));
-  assert.ok(html.includes('href="https://www.kutadgubilik.com/book.html"'));
-  assert.ok(html.includes('var origin="https://www.kutadgubilik.com"'));
+  assert.ok(!/meta[^>]*name=["']robots["']/i.test(html));
+  assert.ok(!/rel=["']canonical["']/i.test(html));
+  assert.ok(!html.includes("kutadguRobots"));
+  assert.ok(!html.includes("noindex"));
   assert.ok(!html.includes('content="index, follow"'));
   assert.ok(!html.includes("kutadgu-bilig-kitab.vercel.app"));
   assert.ok(!html.includes("localhost"));
   const shop = fs.readFileSync(path.join(__dirname, "..", "shop.js"), "utf8");
   assert.ok(shop.includes("applyUnresolvedDetailDocument"));
+  assert.ok(shop.includes('indexable?"index, follow":"noindex, follow"'));
+  assert.ok(shop.includes("isStorefrontVisible(book)"));
   const js = fs.readFileSync(path.join(__dirname, "..", "kutadgu-book-seo.js"), "utf8");
   assert.ok(js.includes("function applyUnresolvedDetailDocument"));
 }));
@@ -224,14 +227,17 @@ jobs.push(test("unresolved detail SEO never indexes placeholder or emits Book JS
     }
   };
   seo.applyUnresolvedDetailDocument(fake);
-  const robots = fake.head.nodes.find(n => n.name === "robots");
-  const canonical = fake.head.nodes.find(n => n.rel === "canonical");
-  assert.ok(robots);
-  assert.strictEqual(robots.content, "noindex, follow");
-  assert.ok(canonical);
-  assert.strictEqual(canonical.href, "https://www.kutadgubilik.com/book.html");
-  assert.ok(!canonical.href.includes("id="));
+  const robots = fake.head.nodes.filter(n => n.name === "robots");
+  const canonical = fake.head.nodes.filter(n => n.rel === "canonical");
+  assert.strictEqual(robots.length, 1);
+  assert.strictEqual(robots[0].content, "noindex, follow");
+  assert.strictEqual(canonical.length, 1);
+  assert.strictEqual(canonical[0].href, "https://www.kutadgubilik.com/book.html");
+  assert.ok(!canonical[0].href.includes("id="));
   assert.strictEqual(fake.head.nodes.filter(n => n.id === "kutadguBookSchema").length, 0);
+  seo.applyUnresolvedDetailDocument(fake);
+  assert.strictEqual(fake.head.nodes.filter(n => n.name === "robots").length, 1);
+  assert.strictEqual(fake.head.nodes.filter(n => n.rel === "canonical").length, 1);
 }));
 
 jobs.push(test("shop.js uses www production origin and KutadguBookSeo", () => {
