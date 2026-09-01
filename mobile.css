@@ -88,7 +88,7 @@
     position: fixed !important;
     inset-block-start: 0;
     inset-inline: 0;
-    z-index: 12000;
+    z-index: 12000 !important;
     width: 100%;
     min-height: calc(var(--mobile-header-height) + env(safe-area-inset-top, 0px)) !important;
     padding: calc(7px + env(safe-area-inset-top, 0px)) 62px 7px !important;
