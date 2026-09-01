@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=17">
+  <link rel="stylesheet" href="admin.css?v=18">
 </head>
 <body>
 <div class="admin-shell">
@@ -42,6 +42,31 @@
     </section>
 
     <section id="dashboardPanel" hidden>
+      <div class="admin-dashboard-layout">
+        <nav class="admin-sidenav" aria-label="باشقۇرۇش بۆلەكلىرى">
+          <p class="admin-sidenav-title">باشقۇرۇش تىزىملىكى</p>
+          <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="overview">📊 ئومۇمىي كۆرۈنۈش</button>
+          <button type="button" class="admin-nav-item" data-admin-section="storefront">📢 توربەت مەزمۇنى</button>
+          <button type="button" class="admin-nav-item" data-admin-section="import-covers">📥 ئىمپورت ۋە مۇقاۋا</button>
+          <button type="button" class="admin-nav-item" data-admin-section="insights">📈 ستاتىستىكا</button>
+          <button type="button" class="admin-nav-item" data-admin-section="customers">👥 ئەزالار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="system">⚙️ سىستېما</button>
+        </nav>
+        <div class="admin-dashboard-main">
+          <div class="admin-section-picker">
+            <label for="adminSectionSelect">باشقۇرۇش بۆلىكى</label>
+            <select id="adminSectionSelect" aria-label="باشقۇرۇش بۆلىكى">
+              <option value="books">📚 كىتابلار</option>
+              <option value="overview">📊 ئومۇمىي كۆرۈنۈش</option>
+              <option value="storefront">📢 توربەت مەزمۇنى</option>
+              <option value="import-covers">📥 ئىمپورت ۋە مۇقاۋا</option>
+              <option value="insights">📈 ستاتىستىكا</option>
+              <option value="customers">👥 ئەزالار</option>
+              <option value="system">⚙️ سىستېما</option>
+            </select>
+          </div>
+      <div id="overviewSection" data-admin-section-panel="overview" hidden>
       <div id="adminStatus" class="admin-status ok">Admin ھالىتى تەييار.</div>
 
       <section class="admin-stats">
@@ -54,14 +79,18 @@
         <div class="admin-stat admin-stat-order"><strong id="statOrders">0</strong><span>زاكاز سانى</span></div>
         <div class="admin-stat admin-stat-order"><strong id="statRevenue">0 ₺</strong><span>زاكاز ئومۇمىي سوممىسى</span></div>
       </section>
+      </div>
 
+      <div data-admin-section-panel="system" hidden>
       <section class="admin-card admin-maint-card is-inactive" id="maintenanceCard">
         <h2>🛠 تور بەت ئاسراش ھالىتى</h2>
         <p class="admin-help">ئاسراش ئوچۇق بولسا ئادەتتىكى زىيارەتچى ۋە ئەزالار كاتالوگنى كۆرەلمەيدۇ. پەقەت ھەقىقىي Admin ھېساباتى تور بەتنى نورمال كۆرەلەيدۇ. بۇ تەڭشەك Database دا ساقلىنىدۇ؛ قايتا ئېلان قىلىش ھاجەتسىز.</p>
         <div id="maintenanceStatus" class="admin-status">ئاسراش ھالىتى تەكشۈرۈلىۋاتىدۇ...</div>
         <button class="admin-primary" id="maintenanceToggleBtn" type="button" disabled>ئاسراشنى باشلاش</button>
       </section>
+      </div>
 
+      <div data-admin-section-panel="storefront" hidden>
       <section class="admin-card" id="announcementCard">
         <h2>📢 ئېلان بالدىقى</h2>
         <p class="admin-help">بۇ يەردىكى ئېلانلار تور بەتنىڭ چوققىسىدىكى قوڭۇر header نىڭ ئاستىدا كۆرۈنىدۇ. پەقەت قوزغىتىلغان ۋە ۋاقتى كەلگەن ئېلانلار ئايلىنىدۇ. بوش قالسا بالداق كۆرۈنمەيدۇ.</p>
@@ -104,8 +133,9 @@
         </form>
         <div id="announcementList" class="admin-announce-list"></div>
       </section>
+      </div>
 
-      <section class="admin-card">
+      <section class="admin-card" id="booksCard" data-admin-section-panel="books">
         <div class="admin-toolbar">
           <div class="admin-toolbar-group">
             <button class="admin-primary" id="newBookBtn" type="button">➕ يېڭى كىتاب قوشۇش</button>
@@ -175,6 +205,7 @@
         <div id="adminPager" class="admin-pager"></div>
       </section>
 
+      <div data-admin-section-panel="import-covers" hidden>
       <section class="admin-card" id="coverRepairCard">
         <h2>🖼 مۇقاۋا رېمونت / قايتا باغلاش</h2>
         <p class="admin-help">توپلام كىرگۈزۈشتە مۇقاۋا يۈكلەنمىگەن كىتابقا پەقەت رەسىم باغلايدۇ. باشقا مەيدانلار (نام، باھا، sales_count قاتارلىق) ئۆزگەرمەيدۇ. پەقەت كىتاب ID ياكى بىر ISBN؛ ئىسىم بىلەن پەرەز قىلىنمايدۇ. جەزملەشتۈرمىگۈچە يېزىلمايدۇ.</p>
@@ -200,7 +231,9 @@
           <div id="lastImportCoverQueueBody"></div>
         </div>
       </section>
+      </div>
 
+      <div data-admin-section-panel="insights" hidden>
       <section class="admin-card" id="analyticsManagement">
         <div class="admin-toolbar">
           <div>
@@ -237,7 +270,9 @@
           <div><h3>🚫 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
         </div>
       </section>
+      </div>
 
+      <div data-admin-section-panel="customers" hidden>
       <section class="admin-card" id="memberManagement">
         <div class="admin-toolbar">
           <div>
@@ -252,6 +287,9 @@
         <p class="admin-help">تىزىملاتقان ۋاقىت، ئاخىرقى كىرىش، ئاخىرقى زىيارەت، زىيارەت سانى ۋە زاكاز تارىخى بۇ يەردە كۆرۈنىدۇ.</p>
         <div id="adminMemberList" class="admin-member-list"><div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div></div>
       </section>
+      </div>
+        </div>
+      </div>
     </section>
   </main>
 </div>
@@ -395,6 +433,6 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=32"></script>
+<script defer src="admin.js?v=33"></script>
 </body>
 </html>

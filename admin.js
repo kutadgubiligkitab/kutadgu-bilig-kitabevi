@@ -153,6 +153,62 @@ function renderSourceOptions(){
 function show(id){
   ["setupPanel","loginPanel","dashboardPanel"].forEach(x=>$("#"+x).hidden=x!==id);
 }
+const ADMIN_SECTIONS=["overview","books","storefront","import-covers","insights","customers","system"];
+const DEFAULT_ADMIN_SECTION="books";
+let applyingAdminSection=false;
+function parseAdminSectionHash(hash){
+  const raw=String(hash==null?"":hash).replace(/^#/,"").trim().toLowerCase();
+  return ADMIN_SECTIONS.includes(raw)?raw:DEFAULT_ADMIN_SECTION;
+}
+function dashboardAuthorized(){
+  const panel=$("#dashboardPanel");
+  return !!(panel&&!panel.hidden);
+}
+function showAdminSection(sectionId,opts){
+  const options=opts||{};
+  const id=ADMIN_SECTIONS.includes(sectionId)?sectionId:DEFAULT_ADMIN_SECTION;
+  document.querySelectorAll("[data-admin-section-panel]").forEach(el=>{
+    el.hidden=el.getAttribute("data-admin-section-panel")!==id;
+  });
+  document.querySelectorAll("[data-admin-section]").forEach(btn=>{
+    const active=btn.getAttribute("data-admin-section")===id;
+    btn.classList.toggle("is-active",active);
+    if(active)btn.setAttribute("aria-current","page");
+    else btn.removeAttribute("aria-current");
+  });
+  const select=$("#adminSectionSelect");
+  if(select&&select.value!==id)select.value=id;
+  if(options.updateHash===false||!dashboardAuthorized())return;
+  const next="#"+id;
+  if((location.hash||"")===next)return;
+  applyingAdminSection=true;
+  if(options.replace&&history.replaceState)history.replaceState(null,"",next);
+  else location.hash=id;
+  applyingAdminSection=false;
+}
+function onAdminHashChange(){
+  if(applyingAdminSection||!dashboardAuthorized())return;
+  showAdminSection(parseAdminSectionHash(location.hash),{updateHash:false});
+}
+function applyDashboardSectionFromLocation(opts){
+  if(!dashboardAuthorized())return;
+  showAdminSection(parseAdminSectionHash(location.hash),opts||{replace:true});
+}
+function bindAdminNavigation(){
+  if(window.__kutadguAdminNavBound)return;
+  window.__kutadguAdminNavBound=true;
+  document.querySelectorAll("[data-admin-section]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      if(!dashboardAuthorized())return;
+      showAdminSection(btn.getAttribute("data-admin-section"));
+    });
+  });
+  $("#adminSectionSelect")&&$("#adminSectionSelect").addEventListener("change",()=>{
+    if(!dashboardAuthorized())return;
+    showAdminSection($("#adminSectionSelect").value);
+  });
+  window.addEventListener("hashchange",onAdminHashChange);
+}
 function modal(open){
   $("#bookModal").hidden=!open;
 }
@@ -736,6 +792,7 @@ async function routeSession(){
   user=session.user;
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
+  applyDashboardSectionFromLocation({replace:true});
   await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard()]);
 }
 
@@ -2038,6 +2095,7 @@ function openCoverRepairFromQueue(id){
   invalidateCoverRepairOnLookupChange();
   if(lookup)lookup.value=safe;
   const card=$("#coverRepairCard");
+  if(dashboardAuthorized())showAdminSection("import-covers");
   if(card&&card.scrollIntoView)card.scrollIntoView({block:"start"});
   if($("#importModal")&&!$("#importModal").hidden)closeImport();
   previewCoverRepair();
@@ -2188,12 +2246,20 @@ function init(){
   window.__kutadguAdminInit=true;
   applyBooksSchema();
   applyFieldDirections();
+  bindAdminNavigation();
   if(window.__kutadguSkipAdminAuth){
     show("dashboardPanel");
+    applyDashboardSectionFromLocation({replace:true});
     books=Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[];
     listTotal=books.length;
     if($("#adminBookList"))renderBooks();
     if($("#adminPager"))renderPager();
+    $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
+    $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)});
+    $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)});
+    $("#importCsvBtn")&&($("#importCsvBtn").onclick=openImport);
+    $("#closeImportModal")&&($("#closeImportModal").onclick=closeImport);
+    $("#cancelImportBtn")&&($("#cancelImportBtn").onclick=closeImport);
     return;
   }
   if(!configured()){
@@ -2302,6 +2368,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized
 };
 })();
