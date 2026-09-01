@@ -269,10 +269,17 @@ test.describe("homepage compact first-view", () => {
       const bottomBox = bottom ? bottom.getBoundingClientRect() : null;
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const display = getComputedStyle(document.querySelector("#homeFeaturedBooks .home-featured-grid.is-marquee")).display;
+      const maskOf = (el) => {
+        const style = el ? getComputedStyle(el) : null;
+        return style ? `${style.maskImage || ""} ${style.webkitMaskImage || ""}` : "";
+      };
       return {
         overflow,
         display,
         clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length,
+        overlays: document.querySelectorAll("#homeFeaturedBooks [data-edge-fade], #homeFeaturedBooks .featured-edge-fade").length,
+        topMask: maskOf(top),
+        bottomMask: maskOf(bottom),
         topH: topBox ? topBox.height : 0,
         bottomH: bottomBox ? bottomBox.height : 0,
         stacked: !!(topBox && bottomBox && bottomBox.top >= topBox.bottom - 1)
@@ -280,6 +287,9 @@ test.describe("homepage compact first-view", () => {
     });
     expect(metrics.display).toBe("flex");
     expect(metrics.clones).toBe(0);
+    expect(metrics.overlays).toBe(0);
+    expect(metrics.topMask).toMatch(/linear-gradient/i);
+    expect(metrics.bottomMask).toMatch(/linear-gradient/i);
     expect(metrics.topH).toBeGreaterThan(40);
     expect(metrics.bottomH).toBeGreaterThan(40);
     expect(metrics.stacked).toBe(true);
@@ -468,15 +478,19 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator("#homeFeaturedBooks .home-feature-card").first()).toBeVisible();
     await expect(page.locator('[data-featured-row="top"]')).toHaveAttribute("data-autoplay", "0");
     const metrics = await page.evaluate(() => {
+      const row = document.querySelector('[data-featured-row="top"]');
       const track = document.querySelector('[data-featured-row="top"] .home-featured-track');
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       const display = track ? getComputedStyle(track).display : "";
       const transform = track ? track.style.transform : "";
-      return { overflow, display, transform };
+      const style = row ? getComputedStyle(row) : null;
+      const mask = style ? `${style.maskImage || ""} ${style.webkitMaskImage || ""}` : "";
+      return { overflow, display, transform, mask };
     });
     expect(metrics.overflow).toBeLessThanOrEqual(4);
     expect(metrics.display).toBe("contents");
     expect(!metrics.transform || metrics.transform === "none" || metrics.transform === "").toBeTruthy();
+    expect(metrics.mask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
   });
 
   test("featured card heart, cart, and links stay usable", async ({ page }) => {
@@ -528,6 +542,7 @@ test.describe("homepage compact first-view", () => {
         const track = document.querySelector("#homeCarouselTrack");
         const featured = document.querySelector('[data-featured-row="top"]');
         const featuredTrack = document.querySelector('[data-featured-row="top"] .home-featured-track');
+        const featuredStyle = featured ? getComputedStyle(featured) : null;
         return {
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           tabH: tab ? tab.getBoundingClientRect().height : 0,
@@ -538,6 +553,7 @@ test.describe("homepage compact first-view", () => {
           carouselTransform: track ? track.style.transform : "",
           featuredAutoplay: featured ? featured.dataset.autoplay : "",
           featuredDisplay: featuredTrack ? getComputedStyle(featuredTrack).display : "",
+          featuredMask: featuredStyle ? `${featuredStyle.maskImage || ""} ${featuredStyle.webkitMaskImage || ""}` : "",
           clones: document.querySelectorAll("#homeFeaturedBooks [data-featured-clone]").length
         };
       });
@@ -549,6 +565,7 @@ test.describe("homepage compact first-view", () => {
       expect(metrics.buttonH).toBeGreaterThanOrEqual(44);
       expect(metrics.featuredAutoplay).toBe("0");
       expect(metrics.featuredDisplay).toBe("contents");
+      expect(metrics.featuredMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
       expect(metrics.clones).toBe(0);
       await page.waitForTimeout(2200);
       const afterCarousel = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);

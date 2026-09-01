@@ -2648,6 +2648,10 @@ label {
     transform:none !important;
     transition:none !important;
   }
+  #homeFeaturedBooks .home-featured-row{
+    -webkit-mask-image:none;
+    mask-image:none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -2831,6 +2835,12 @@ label {
     max-width:100%;
     height:auto !important;
     min-height:0;
+    -webkit-mask-image:linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%);
+    mask-image:linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%);
+    -webkit-mask-size:100% 100%;
+    mask-size:100% 100%;
+    -webkit-mask-repeat:no-repeat;
+    mask-repeat:no-repeat;
   }
   #homeFeaturedBooks .home-featured-grid.is-marquee .home-featured-row[data-direction="rtl"]{
     direction:rtl;

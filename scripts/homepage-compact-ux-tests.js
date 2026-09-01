@@ -51,7 +51,7 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=14/);
+  assert.match(html, /index\.css\?v=15/);
   assert.match(html, /shop\.css\?v=43/);
   assert.match(html, /mobile\.css\?v=21/);
   assert.match(html, /shop\.js\?v=79/);
@@ -171,7 +171,9 @@ test("recently-added rows move in opposite directions without changing the catal
   assert.match(marquee, /innerWidth<=700/);
   assert.match(css, /#homeFeaturedBooks \.home-featured-grid\.is-marquee/);
   assert.match(css, /flex:0 0 calc\(\(100cqw - 56px\) \/ 5\)/);
+  assert.match(css, /@media \(min-width: 701px\)[\s\S]*#homeFeaturedBooks \.home-featured-grid\.is-marquee \.home-featured-row\{[\s\S]*mask-image:linear-gradient\(to right, transparent 0%, #000 4%, #000 96%, transparent 100%\)/);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*display:contents/);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*#homeFeaturedBooks \.home-featured-row\{[\s\S]*mask-image:none/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
