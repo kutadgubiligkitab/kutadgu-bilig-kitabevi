@@ -16,11 +16,13 @@ test.describe("homepage compact first-view", () => {
   });
 
   test("search still returns results after typing", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/");
-    await page.locator("#searchInput").fill("بالىلار");
+    await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
     const box = await page.locator("#searchResults").boundingBox();
     expect(box && box.height).toBeGreaterThan(40);
   });
@@ -220,10 +222,12 @@ test.describe("homepage compact first-view", () => {
     });
     expect(ordered.missing || []).toEqual([]);
     expect(ordered.ok).toBe(true);
-    await page.locator("#searchInput").fill("بالىلار");
+    const book = await H.discoverLiveBook(page);
+    await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
     await page.locator("#premiumDiscovery [data-premium-group]").first().click();
     await expect(page.locator("#premiumDiscoveryResults .premium-book-grid, #premiumDiscoveryResults .premium-friendly-empty").first()).toBeVisible();
     await expect(page.locator('#bookCategories a.card[href="adabiyat.html"]')).toBeVisible();

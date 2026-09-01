@@ -3,16 +3,19 @@ const H = require("./helpers");
 
 const LEGACY_IDS = ["children-3", "children-4"];
 
-async function startEmptyOnBook(page, id = "102") {
-  await H.openFresh(page, `/book.html?id=${id}`);
-  await H.waitForDetailTitle(page);
+async function startEmptyOnBook(page) {
+  const book = await H.discoverLiveBook(page);
+  await H.openFresh(page, book.detailPath);
+  await H.waitForDetailTitle(page, book.title);
   await H.clearShopStorage(page);
+  return book;
 }
 
-async function addBookOnce(page, id = "102") {
-  await startEmptyOnBook(page, id);
+async function addBookOnce(page) {
+  const book = await startEmptyOnBook(page);
   await page.locator(".detail-main-cart").click();
   await expect.poll(async () => H.badgeCount(page)).toBeGreaterThan(0);
+  return book;
 }
 
 test.describe("guest cart and favorites", () => {
@@ -21,25 +24,28 @@ test.describe("guest cart and favorites", () => {
   });
 
   test("6 add to cart once — badge and cart page agree", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     const badge = await H.badgeCount(page);
     expect(badge).toBe(1);
     const stored = await H.readCart(page);
     expect(stored).toHaveLength(1);
-    expect(String(stored[0].id)).toBe("102");
+    expect(String(stored[0].id)).toBe(String(book.id));
     expect(Number(stored[0].qty)).toBe(1);
 
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
     await expect(page.locator("#cartItems .qty-control")).toHaveCount(1);
     const badgeOnCart = await H.badgeCount(page);
     expect(badgeOnCart).toBe(1);
   });
 
   test("7 quantity change persists after refresh", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+    await expect(page.locator("#cartItems [data-plus]")).toBeEnabled();
     await page.locator("#cartItems [data-plus]").click();
     await expect.poll(async () => {
       const cart = await H.readCart(page);
@@ -54,9 +60,10 @@ test.describe("guest cart and favorites", () => {
   });
 
   test("8 remove from cart stays removed after refresh", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
     await page.locator("#cartItems [data-remove]").click();
     await expect.poll(async () => (await H.readCart(page)).length).toBe(0);
 
@@ -67,20 +74,20 @@ test.describe("guest cart and favorites", () => {
   });
 
   test("9 add/remove favorite persists", async ({ page }) => {
-    await startEmptyOnBook(page, "102");
+    const book = await startEmptyOnBook(page);
     await page.locator(".detail-purchase-panel [data-fav-id]").click();
-    await expect.poll(async () => (await H.readFavs(page)).map(String)).toContain("102");
+    await expect.poll(async () => (await H.readFavs(page)).map(String)).toContain(String(book.id));
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    expect((await H.readFavs(page)).map(String)).toContain("102");
+    expect((await H.readFavs(page)).map(String)).toContain(String(book.id));
 
     await page.locator(".detail-purchase-panel [data-fav-id]").click();
-    await expect.poll(async () => (await H.readFavs(page)).map(String).includes("102")).toBe(false);
+    await expect.poll(async () => (await H.readFavs(page)).map(String).includes(String(book.id))).toBe(false);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    expect((await H.readFavs(page)).map(String)).not.toContain("102");
+    expect((await H.readFavs(page)).map(String)).not.toContain(String(book.id));
   });
 
   test("10 cart/favorites do not auto-add children-3 / children-4", async ({ page }) => {
@@ -101,33 +108,35 @@ test.describe("guest cart and favorites", () => {
   });
 
   test("11 cart quantity never multiplies on refresh", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     for (let i = 0; i < 4; i++) {
       await page.reload({ waitUntil: "domcontentloaded" });
       await H.waitForShop(page);
     }
     const cart = await H.readCart(page);
     expect(cart).toHaveLength(1);
-    expect(String(cart[0].id)).toBe("102");
+    expect(String(cart[0].id)).toBe(String(book.id));
     expect(Number(cart[0].qty)).toBe(1);
     expect(await H.badgeCount(page)).toBe(1);
   });
 
   test("12 guest cart works without login", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     const member = await page.evaluate(() => !!(window.KutadguMember && window.KutadguMember.user));
     expect(member).toBeFalsy();
     expect((await H.readCart(page))[0].qty).toBe(1);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
     await expect(page.locator("#cartItems .qty-control")).toHaveCount(1);
     await expect(page.locator("#whatsappOrder")).toBeVisible();
   });
 
   test("13 WhatsApp order button generates a valid target/message", async ({ page }) => {
-    await addBookOnce(page, "102");
+    const book = await addBookOnce(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
     await expect(page.locator("#checkoutCard")).toBeVisible();
     await page.locator("#customerName").fill("Playwright Test", { force: true });
     await page.locator("#customerPhone").fill("5550000111", { force: true });
@@ -148,7 +157,8 @@ test.describe("guest cart and favorites", () => {
     const url = opened[0];
     expect(url).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
     const text = decodeURIComponent(url.split("text=")[1] || "");
-    expect(text).toMatch(/بالىلار|كىتاب/);
+    expect(text).toContain(book.title);
+    expect(text).toMatch(/كىتاب/);
     expect(text).toMatch(/Playwright Test/);
     expect(text).toMatch(/زاكاز نومۇرى/);
   });
@@ -168,22 +178,23 @@ test.describe("guest cart and favorites", () => {
   });
 
   test("guest-owned cart still displays before login", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/cart.html");
-    await page.evaluate(() => {
-      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "102", qty: 1 }]));
+    await page.evaluate((id) => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id, qty: 1 }]));
       localStorage.setItem("kutadgu-shop-owner-v1", "guest");
-    });
+    }, book.id);
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     const visible = await page.evaluate(() => window.kutadguShop.cart());
-    expect(visible.some((row) => String(row.id) === "102")).toBe(true);
+    expect(visible.some((row) => String(row.id) === String(book.id))).toBe(true);
     await expect(page.locator("#cartItems")).not.toContainText(/سېۋەت ھازىرچە بوش/);
   });
 
   test("favorited book appears on favorites.html and survives refresh", async ({ page }) => {
-    await startEmptyOnBook(page, "102");
+    const book = await startEmptyOnBook(page);
     await page.locator(".detail-purchase-panel [data-fav-id]").click();
-    await expect.poll(async () => (await H.readFavs(page)).map(String)).toContain("102");
+    await expect.poll(async () => (await H.readFavs(page)).map(String)).toContain(String(book.id));
     await expect(page.locator(".detail-purchase-panel [data-fav-id]")).toHaveClass(/is-favorite/);
 
     await page.goto("/favorites.html", { waitUntil: "domcontentloaded" });
@@ -194,17 +205,18 @@ test.describe("guest cart and favorites", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await expect(page.locator("#favoritesList .favorites-grid")).toBeVisible();
-    expect((await H.readFavs(page)).map(String)).toContain("102");
+    expect((await H.readFavs(page)).map(String)).toContain(String(book.id));
   });
 
   test("favorites.html re-renders after authenticated member sync", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     const owner = "11111111-1111-4111-8111-111111111111";
     await H.openFresh(page, "/favorites.html");
     await H.waitForShop(page);
-    await page.evaluate((ownerId) => {
-      localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["102"]));
+    await page.evaluate(({ ownerId, bookId }) => {
+      localStorage.setItem("kutadgu-favorites-v1", JSON.stringify([bookId]));
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
-    }, owner);
+    }, { ownerId: owner, bookId: book.id });
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await expect(page.locator("#favoritesList")).toContainText(/ھازىرچە ياقتۇرغان كىتاب يوق/);
@@ -214,6 +226,12 @@ test.describe("guest cart and favorites", () => {
       window.KutadguMember = Object.assign({}, prev, { getUser: () => ({ id: ownerId }) });
       document.dispatchEvent(new CustomEvent("kutadgu-member-state-synced"));
     }, owner);
+    await expect.poll(async () => page.evaluate((id) => {
+      const shop = window.kutadguShop;
+      if (!shop) return false;
+      const favs = shop.favorites ? shop.favorites() : [];
+      return favs.map(String).includes(String(id)) && !!shop.find(id);
+    }, book.id), { timeout: 20_000 }).toBe(true);
     await expect(page.locator("#favoritesList .favorites-grid")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#favoritesList")).not.toContainText(/ھازىرچە ياقتۇرغان كىتاب يوق/);
   });
