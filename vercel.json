@@ -4,6 +4,81 @@
       "source": "/index.html",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/adabiyat.html",
+      "destination": "/adabiyat",
+      "permanent": true
+    },
+    {
+      "source": "/romanlar.html",
+      "destination": "/romanlar",
+      "permanent": true
+    },
+    {
+      "source": "/tarikhiy-romanlar.html",
+      "destination": "/tarikhiy-romanlar",
+      "permanent": true
+    },
+    {
+      "source": "/sheirlar.html",
+      "destination": "/sheirlar",
+      "permanent": true
+    },
+    {
+      "source": "/hekayiler.html",
+      "destination": "/hekayiler",
+      "permanent": true
+    },
+    {
+      "source": "/dastanlar.html",
+      "destination": "/dastanlar",
+      "permanent": true
+    },
+    {
+      "source": "/dunya-edebiyati.html",
+      "destination": "/dunya-edebiyati",
+      "permanent": true
+    },
+    {
+      "source": "/adabiyat-roman.html",
+      "destination": "/adabiyat-roman",
+      "permanent": true
+    },
+    {
+      "source": "/uyghur-adabiyati.html",
+      "destination": "/uyghur-adabiyati",
+      "permanent": true
+    },
+    {
+      "source": "/universal.html",
+      "destination": "/universal",
+      "permanent": true
+    },
+    {
+      "source": "/tibb.html",
+      "destination": "/tibb",
+      "permanent": true
+    },
+    {
+      "source": "/derslik.html",
+      "destination": "/derslik",
+      "permanent": true
+    },
+    {
+      "source": "/terbiye.html",
+      "destination": "/terbiye",
+      "permanent": true
+    },
+    {
+      "source": "/dini.html",
+      "destination": "/dini",
+      "permanent": true
+    },
+    {
+      "source": "/children.html",
+      "destination": "/children",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -18,6 +93,66 @@
     {
       "source": "/sitemap-books-:page(\\d+).xml",
       "destination": "/api/sitemap-books?page=:page"
+    },
+    {
+      "source": "/adabiyat",
+      "destination": "/adabiyat.html"
+    },
+    {
+      "source": "/romanlar",
+      "destination": "/romanlar.html"
+    },
+    {
+      "source": "/tarikhiy-romanlar",
+      "destination": "/tarikhiy-romanlar.html"
+    },
+    {
+      "source": "/sheirlar",
+      "destination": "/sheirlar.html"
+    },
+    {
+      "source": "/hekayiler",
+      "destination": "/hekayiler.html"
+    },
+    {
+      "source": "/dastanlar",
+      "destination": "/dastanlar.html"
+    },
+    {
+      "source": "/dunya-edebiyati",
+      "destination": "/dunya-edebiyati.html"
+    },
+    {
+      "source": "/adabiyat-roman",
+      "destination": "/adabiyat-roman.html"
+    },
+    {
+      "source": "/uyghur-adabiyati",
+      "destination": "/uyghur-adabiyati.html"
+    },
+    {
+      "source": "/universal",
+      "destination": "/universal.html"
+    },
+    {
+      "source": "/tibb",
+      "destination": "/tibb.html"
+    },
+    {
+      "source": "/derslik",
+      "destination": "/derslik.html"
+    },
+    {
+      "source": "/terbiye",
+      "destination": "/terbiye.html"
+    },
+    {
+      "source": "/dini",
+      "destination": "/dini.html"
+    },
+    {
+      "source": "/children",
+      "destination": "/children.html"
     }
   ],
   "headers": [
