@@ -273,6 +273,17 @@ test.describe("homepage compact first-view", () => {
         const style = el ? getComputedStyle(el) : null;
         return style ? `${style.maskImage || ""} ${style.webkitMaskImage || ""}` : "";
       };
+      const filled = (rowEl) => {
+        if (!rowEl) return { full: 0, lead: 99, trail: 99, half: 99 };
+        const rowBox = rowEl.getBoundingClientRect();
+        const cards = [...rowEl.querySelectorAll(".home-feature-card")].map((el) => el.getBoundingClientRect());
+        const full = cards.filter((box) => box.left >= rowBox.left - 2 && box.right <= rowBox.right + 2);
+        const overlapping = cards.filter((box) => box.right > rowBox.left + 2 && box.left < rowBox.right - 2);
+        const half = overlapping.length - full.length;
+        const lead = full.length ? Math.abs(full[0].left - rowBox.left) : 99;
+        const trail = full.length ? Math.abs(rowBox.right - full[full.length - 1].right) : 99;
+        return { full: full.length, lead, trail, half };
+      };
       return {
         overflow,
         display,
@@ -280,6 +291,8 @@ test.describe("homepage compact first-view", () => {
         overlays: document.querySelectorAll("#homeFeaturedBooks [data-edge-fade], #homeFeaturedBooks .featured-edge-fade").length,
         topMask: maskOf(top),
         bottomMask: maskOf(bottom),
+        topFill: filled(top),
+        bottomFill: filled(bottom),
         topH: topBox ? topBox.height : 0,
         bottomH: bottomBox ? bottomBox.height : 0,
         stacked: !!(topBox && bottomBox && bottomBox.top >= topBox.bottom - 1)
@@ -288,8 +301,16 @@ test.describe("homepage compact first-view", () => {
     expect(metrics.display).toBe("flex");
     expect(metrics.clones).toBe(0);
     expect(metrics.overlays).toBe(0);
-    expect(metrics.topMask).toMatch(/linear-gradient/i);
-    expect(metrics.bottomMask).toMatch(/linear-gradient/i);
+    expect(metrics.topMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
+    expect(metrics.bottomMask.replace(/\s+/g, " ").trim()).toMatch(/^(none none|none)$/i);
+    expect(metrics.topFill.full).toBe(5);
+    expect(metrics.bottomFill.full).toBe(5);
+    expect(metrics.topFill.half).toBe(0);
+    expect(metrics.bottomFill.half).toBe(0);
+    expect(metrics.topFill.lead).toBeLessThan(3);
+    expect(metrics.bottomFill.lead).toBeLessThan(3);
+    expect(metrics.topFill.trail).toBeLessThan(3);
+    expect(metrics.bottomFill.trail).toBeLessThan(3);
     expect(metrics.topH).toBeGreaterThan(40);
     expect(metrics.bottomH).toBeGreaterThan(40);
     expect(metrics.stacked).toBe(true);
@@ -370,7 +391,8 @@ test.describe("homepage compact first-view", () => {
         let maxGap = 0;
         for (let i = 1; i < cards.length; i++) maxGap = Math.max(maxGap, cards[i].left - cards[i - 1].right);
         const trailing = cards.length ? rowBox.right - cards[cards.length - 1].right : rowBox.width;
-        return { maxGap, trailing, visible: cards.length };
+        const full = cards.filter((box) => box.left >= rowBox.left - 2 && box.right <= rowBox.right + 2);
+        return { maxGap, trailing, visible: cards.length, full: full.length, half: cards.length - full.length };
       };
       return {
         top: ids("top"),
@@ -390,12 +412,16 @@ test.describe("homepage compact first-view", () => {
     expect(new Set(after.bottom).size).toBe(after.bottom.length);
     expect(after.top[0]).toBe(before.top[1]);
     expect(after.bottom[0]).toBe(before.bottom[before.bottom.length - 1]);
-    expect(after.topGaps.visible).toBeGreaterThanOrEqual(4);
-    expect(after.bottomGaps.visible).toBeGreaterThanOrEqual(4);
+    expect(after.topGaps.visible).toBe(5);
+    expect(after.bottomGaps.visible).toBe(5);
+    expect(after.topGaps.full).toBe(5);
+    expect(after.bottomGaps.full).toBe(5);
+    expect(after.topGaps.half).toBe(0);
+    expect(after.bottomGaps.half).toBe(0);
     expect(after.topGaps.maxGap).toBeLessThan(24);
     expect(after.bottomGaps.maxGap).toBeLessThan(24);
-    expect(after.topGaps.trailing).toBeLessThan(80);
-    expect(after.bottomGaps.trailing).toBeLessThan(80);
+    expect(after.topGaps.trailing).toBeLessThan(4);
+    expect(after.bottomGaps.trailing).toBeLessThan(4);
     expect(after.overflow).toBeLessThanOrEqual(4);
   });
 

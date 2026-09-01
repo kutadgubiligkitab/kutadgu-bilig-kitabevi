@@ -2302,7 +2302,23 @@ function setupHomeFeaturedMarquee(host){
     const enable=animate&&!reducedMotion;
     track.style.transition=enable?`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`:"none";
     track.style.transform=`translateX(${offset}px)`;
-    if(!enable){void track.offsetWidth;track.style.transition=`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`}
+    if(!enable)void track.offsetWidth;
+  }
+
+  function sizeCards(row,track){
+    const items=rowCards(track);
+    items.forEach(el=>{el.style.flex="";el.style.width="";el.style.maxWidth=""});
+    if(isMobile())return {items,itemCount:items.length,visible:featuredRowVisibleCount(window.innerWidth),step:0};
+    const visible=featuredRowVisibleCount(window.innerWidth);
+    const gap=parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14;
+    const rowWidth=row.clientWidth;
+    const cardWidth=visible>0?(rowWidth-gap*(visible-1))/visible:0;
+    items.forEach(el=>{
+      el.style.flex=`0 0 ${cardWidth}px`;
+      el.style.width=`${cardWidth}px`;
+      el.style.maxWidth=`${cardWidth}px`;
+    });
+    return {items,itemCount:items.length,visible,step:cardWidth+gap};
   }
 
   function clearPending(track){
@@ -2334,24 +2350,19 @@ function setupHomeFeaturedMarquee(host){
     const track=row.querySelector(".home-featured-track");
     if(!track)return;
     clearPending(track);
-    const items=rowCards(track);
-    const itemCount=items.length;
-    const visible=featuredRowVisibleCount(window.innerWidth);
+    const sized=sizeCards(row,track);
     const dir=row.dataset.direction||featuredRowDirection(row.dataset.featuredRow);
-    const canPlay=featuredRowShouldAutoplay(itemCount,visible,{
+    const canPlay=featuredRowShouldAutoplay(sized.itemCount,sized.visible,{
       reducedMotion,hidden:document.hidden,autoPlayEnabled:true,mobile:isMobile(),mobileAutoPlayEnabled:false
     });
     row.dataset.autoplay=canPlay?"1":"0";
     if(isMobile()){
-      states.set(row,{track,dir,itemCount,step:0,offset:0,canPlay:false,busy:false});
+      states.set(row,{track,dir,itemCount:sized.itemCount,step:0,offset:0,canPlay:false,busy:false});
       track.style.transition="";
       track.style.transform="";
       return;
     }
-    const card=items[0];
-    const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
-    const step=card?card.getBoundingClientRect().width+gap:0;
-    states.set(row,{track,dir,itemCount,step,offset:0,canPlay,busy:false});
+    states.set(row,{track,dir,itemCount:sized.itemCount,step:sized.step,offset:0,canPlay,busy:false});
     apply(track,0,false);
   }
 
@@ -2380,16 +2391,11 @@ function setupHomeFeaturedMarquee(host){
         if(last)st.track.insertBefore(last,st.track.firstChild);
         st.offset=-st.step;
         apply(st.track,-st.step,false);
-        requestAnimationFrame(()=>{
-          requestAnimationFrame(()=>{
-            if(!states.get(row)||st.busy!==true)return;
-            st.offset=0;
-            apply(st.track,0,true);
-            afterTransform(st.track,()=>{
-              st.offset=0;
-              st.busy=false;
-            });
-          });
+        st.offset=0;
+        apply(st.track,0,true);
+        afterTransform(st.track,()=>{
+          st.offset=0;
+          st.busy=false;
         });
       }
     });
