@@ -73,9 +73,9 @@ test.describe("seo + admin", () => {
   test("book.html numeric id stays noindex until a real book is resolved", async ({ page }) => {
     await page.goto("/book.html?id=999999999", { waitUntil: "domcontentloaded" });
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(1);
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
-    await page.waitForTimeout(1500);
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
     expect(canonical).not.toContain("999999999");
     expect(await page.locator("#kutadguBookSchema").count()).toBe(0);
@@ -86,10 +86,13 @@ test.describe("seo + admin", () => {
     await H.openFresh(page, book.detailPath);
     await H.waitForDetailTitle(page, book.title);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(1);
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
       `https://www.kutadgubilik.com/book.html?id=${encodeURIComponent(book.id)}`
     );
+    expect(await page.locator("#kutadguBookSchema").count()).toBe(1);
   });
 
   test("category hub is indexable on www; pagination is noindex", async ({ page }) => {
