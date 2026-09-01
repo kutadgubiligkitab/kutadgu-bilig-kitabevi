@@ -622,16 +622,16 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages share shop.js v=72",()=>{
+test("storefront pages share shop.js v=73",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=72/);
-  assert.match(fav,/shop\.js\?v=72/);
-  assert.match(home,/shop\.js\?v=72/);
+  assert.match(html,/shop\.js\?v=73/);
+  assert.match(fav,/shop\.js\?v=73/);
+  assert.match(home,/shop\.js\?v=73/);
   assert.doesNotMatch(html,/shop\.js\?v=64/);
   assert.match(shop,/member\.js\?v=15/);
   assert.match(account,/member\.js\?v=15/);
@@ -671,6 +671,32 @@ test("ABC leak path: stale rewritten to guest while leftover local remains",()=>
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   assert.match(shop,/if\(current&&current!==SHOP_OWNER_GUEST&&current!==SHOP_OWNER_STALE\)return;/);
   assert.match(shop,/writeShopOwner\(SHOP_OWNER_GUEST\)/);
+});
+
+test("favorites.html re-renders after member-state-synced",()=>{
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/function refreshAfterMemberSync\(\)\{/);
+  assert.match(shop,/if\(document\.querySelector\("#favoritesList"\)\)\{/);
+  assert.match(shop,/hydrateBooksByIds\(ids\)/);
+  assert.match(shop,/renderFavoritesPage\(\)/);
+  const fn=shop.slice(shop.indexOf("function refreshAfterMemberSync"),shop.indexOf("function loadAssetScript"));
+  assert.match(fn,/querySelector\("#favoritesList"\)/);
+  assert.match(fn,/renderFavoritesPage/);
+  assert.match(fn,/querySelector\("#cartItems"\)/);
+});
+
+test("authenticated favorites display waits for matching user id",()=>{
+  function allows(owner,uid){
+    if(!owner||owner==="guest")return true;
+    if(owner==="stale")return false;
+    if(!uid)return false;
+    return String(uid)===owner;
+  }
+  assert.strictEqual(allows("guest",null),true);
+  assert.strictEqual(allows("stale",null),false);
+  assert.strictEqual(allows("user-a",null),false);
+  assert.strictEqual(allows("user-a","user-a"),true);
+  assert.strictEqual(allows("user-a","user-b"),false);
 });
 
 

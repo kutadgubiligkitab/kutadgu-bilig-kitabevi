@@ -2407,6 +2407,12 @@ function refreshAfterMemberSync(){
   }
   updateBadge();renderFavButtons();
   if(document.querySelector("#cartItems"))cartPage();
+  if(document.querySelector("#favoritesList")){
+    const ids=favs().map(String).filter(Boolean);
+    const draw=()=>renderFavoritesPage();
+    if(ids.length)Promise.resolve(hydrateBooksByIds(ids)).then(draw,draw);
+    else draw();
+  }
   if(document.querySelector("#myBooksApp"))renderMyBooks();
   loadMemberProfileIntoCheckout();
 }
