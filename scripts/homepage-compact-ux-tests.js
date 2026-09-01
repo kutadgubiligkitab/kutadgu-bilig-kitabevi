@@ -51,10 +51,10 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=12/);
+  assert.match(html, /index\.css\?v=13/);
   assert.match(html, /shop\.css\?v=43/);
   assert.match(html, /mobile\.css\?v=21/);
-  assert.match(html, /shop\.js\?v=77/);
+  assert.match(html, /shop\.js\?v=78/);
   assert.match(html, /mobile\.js\?v=4/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
@@ -150,18 +150,26 @@ test("recently-added rows move in opposite directions without changing the catal
   assert.strictEqual(helpers.featuredRowShouldAutoplay(2, 5, { autoPlayEnabled: true }), false);
   assert.strictEqual(helpers.featuredRowShouldAutoplay(8, 5, { reducedMotion: true, autoPlayEnabled: true }), false);
   assert.strictEqual(helpers.featuredRowShouldAutoplay(8, 2, { mobile: true, mobileAutoPlayEnabled: false, autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(6, 2, { mobile: true, mobileAutoPlayEnabled: true, autoPlayEnabled: true }), true);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(2, 2, { mobile: true, mobileAutoPlayEnabled: true, autoPlayEnabled: true }), false);
+  assert.strictEqual(helpers.featuredRowShouldAutoplay(6, 2, { mobile: true, mobileAutoPlayEnabled: true, autoPlayEnabled: true, reducedMotion: true }), false);
   const split = helpers.splitFeaturedRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   assert.deepStrictEqual(split.top, [1, 2, 3, 4, 5, 6]);
   assert.deepStrictEqual(split.bottom, [7, 8, 9, 10, 11, 12]);
   const marquee = shop.slice(shop.indexOf("function setupHomeFeaturedMarquee"), shop.indexOf("async function setupHomeCarousel"));
   assert.match(marquee, /delay=5500/);
+  assert.match(marquee, /mobileDelay=6500/);
+  assert.match(marquee, /resumeAfterMs=1800/);
+  assert.match(marquee, /mobileAutoPlayEnabled:true/);
   assert.match(marquee, /mouseenter/);
   assert.match(marquee, /mouseleave/);
   assert.match(marquee, /prefers-reduced-motion: reduce/);
   assert.match(marquee, /innerWidth<=700/);
+  assert.match(marquee, /pointerdown/);
   assert.match(css, /home-featured-grid\.is-marquee/);
   assert.match(css, /flex:0 0 calc\(\(100% - 56px\) \/ 5\)/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*display:contents/);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*home-featured-row[\s\S]*overflow-x:\s*auto/);
+  assert.doesNotMatch(css, /@media \(max-width: 700px\)[\s\S]{0,400}home-featured-row[\s\S]{0,80}display:\s*contents/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 

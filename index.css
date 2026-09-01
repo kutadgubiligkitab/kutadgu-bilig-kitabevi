@@ -2637,16 +2637,51 @@ label {
 }
 
 @media (max-width: 700px){
+  #homeFeaturedBooks,
+  .home-featured-section{
+    max-width:100% !important;
+    min-width:0;
+    overflow-x:clip;
+  }
   .home-featured-grid.is-marquee{
-    display:grid !important;
+    display:flex !important;
+    flex-direction:column !important;
+    gap:12px !important;
+    grid-template-columns:none !important;
+    width:100% !important;
+    max-width:100% !important;
+    min-width:0 !important;
   }
-  .home-featured-row,
-  .home-featured-track{
-    display:contents;
+  .home-featured-row{
+    display:block;
+    direction:ltr;
+    overflow-x:auto;
+    overflow-y:hidden;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    container-type:inline-size;
+  }
+  .home-featured-row::-webkit-scrollbar{
+    display:none;
   }
   .home-featured-track{
+    display:flex;
+    gap:14px;
+    width:max-content;
+    max-width:none;
     transform:none !important;
     transition:none !important;
+    will-change:auto;
+  }
+  .home-featured-track > .home-feature-card{
+    flex:0 0 calc((100cqi - 14px) / 2);
+    width:calc((100cqi - 14px) / 2);
+    max-width:calc((100cqi - 14px) / 2);
+    min-width:0;
   }
 }
 

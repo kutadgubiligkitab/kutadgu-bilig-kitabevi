@@ -631,7 +631,7 @@ test("storefront pages share shop.js v=77",()=>{
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
   assert.match(html,/shop\.js\?v=77/);
   assert.match(fav,/shop\.js\?v=77/);
-  assert.match(home,/shop\.js\?v=77/);
+  assert.match(home,/shop\.js\?v=78/);
   assert.doesNotMatch(html,/shop\.js\?v=64/);
   assert.match(shop,/member\.js\?v=15/);
   assert.match(account,/member\.js\?v=15/);
