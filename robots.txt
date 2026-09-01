@@ -9,4 +9,4 @@ Disallow: /cart.html
 Disallow: /favorites.html
 Disallow: /my-books.html
 
-Sitemap: https://www.kutadgubilig.com/sitemap.xml
+Sitemap: https://www.kutadgubilik.com/sitemap.xml

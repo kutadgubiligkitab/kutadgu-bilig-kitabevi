@@ -18,7 +18,7 @@ function hostnameOf(url) {
 
 function isProductionOrigin(url) {
   const host = hostnameOf(url).replace(/^www\./, "");
-  return host === "kutadgu-bilig-kitab.vercel.app" || host === "kutadgubilig.com";
+  return host === "kutadgu-bilig-kitab.vercel.app" || host === "kutadgubilik.com";
 }
 
 if (EVENT === "pull_request" && isProductionOrigin(baseURL)) {

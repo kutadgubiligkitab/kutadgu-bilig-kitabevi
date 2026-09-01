@@ -111,7 +111,7 @@ const SHOP_OWNER_KEY="kutadgu-shop-owner-v1", SHOP_OWNER_GUEST="guest", SHOP_OWN
 function isPreviewShopDebug(){
   try{
     const host=String(location.hostname||"").toLowerCase();
-    if(host==="www.kutadgubilig.com"||host==="kutadgubilig.com")return false;
+    if(host==="www.kutadgubilik.com"||host==="kutadgubilik.com")return false;
     if(typeof window.kutadguIsProductionAuthHost==="function"&&window.kutadguIsProductionAuthHost(host))return false;
     return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
   }catch(e){return false}
@@ -896,7 +896,7 @@ function setHeadMeta(selector,attributes){
 
 function siteOrigin(){
   if(window.KutadguBookSeo&&window.KutadguBookSeo.productionOrigin)return window.KutadguBookSeo.productionOrigin();
-  return "https://www.kutadgubilig.com";
+  return "https://www.kutadgubilik.com";
 }
 
 function absoluteUrl(value){

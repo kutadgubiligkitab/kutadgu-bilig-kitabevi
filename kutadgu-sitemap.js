@@ -9,7 +9,7 @@
 */
 "use strict";
 
-const SITE_ORIGIN = "https://www.kutadgubilig.com";
+const SITE_ORIGIN = "https://www.kutadgubilik.com";
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const FETCH_PAGE_SIZE = 1000;

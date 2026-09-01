@@ -2,15 +2,15 @@
   قۇتادغۇبىلىك كىتابخانىسى — Supabase public config
   پەقەت PUBLIC Project URL ۋە PUBLIC Publishable key ئىشلىتىلىدۇ.
 */
-window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilig.com";
+window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilik.com";
 
 window.kutadguIsProductionAuthHost = function(host){
   const h=String(host||"").toLowerCase();
-  return h==="www.kutadgubilig.com"||h==="kutadgubilig.com"||h==="kutadgu-bilig-kitab.vercel.app";
+  return h==="www.kutadgubilik.com"||h==="kutadgubilik.com"||h==="kutadgu-bilig-kitab.vercel.app";
 };
 
 window.kutadguAuthCallbackOrigin = function(){
-  const canonical="https://www.kutadgubilig.com";
+  const canonical="https://www.kutadgubilik.com";
   try{
     const host=String(location.hostname||"");
     const origin=String(location.origin||"").replace(/\/+$/,"");
@@ -27,7 +27,7 @@ window.kutadguGoogleAccountRedirectTo = function(){
 };
 
 window.kutadguPasswordResetRedirectTo = function(next){
-  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilig.com").replace(/\/+$/,"");
+  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilik.com").replace(/\/+$/,"");
   const url=origin+"/reset-password.html";
   if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
   return url+"?next=account";
@@ -58,7 +58,7 @@ window.kutadguIsPasswordRecoveryType = function(search,hash){
 
 (function kutadguCanonicalizeApexAuthCallback(){
   try{
-    if(location.hostname!=="kutadgubilig.com")return;
+    if(location.hostname!=="kutadgubilik.com")return;
     const search=location.search||"";
     const hash=location.hash||"";
     const auth=window.kutadguIsPasswordRecoveryType(search,hash)
@@ -66,7 +66,7 @@ window.kutadguIsPasswordRecoveryType = function(search,hash){
       ||/[?&]code=/.test(search)
       ||/[?&]token_hash=/.test(search);
     if(!auth)return;
-    location.replace("https://www.kutadgubilig.com"+location.pathname+search+hash);
+    location.replace("https://www.kutadgubilik.com"+location.pathname+search+hash);
   }catch(error){}
 })();
 

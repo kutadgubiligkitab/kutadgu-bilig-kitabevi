@@ -6,7 +6,7 @@ test.describe("seo + admin", () => {
     const res = await request.get(new URL("/sitemap.xml", baseURL).href);
     expect(res.status(), await res.text().then((t) => t.slice(0, 200)).catch(() => "")).toBe(200);
     const body = await res.text();
-    expect(body).toContain("www.kutadgubilig.com");
+    expect(body).toContain("www.kutadgubilik.com");
     expect(body).toMatch(/sitemapindex|urlset/);
   });
 
@@ -16,7 +16,7 @@ test.describe("seo + admin", () => {
     const body = await res.text();
     expect(body).toContain("<urlset");
     expect(body).toMatch(/book\.html\?id=\d+/);
-    expect(body).toContain("https://www.kutadgubilig.com/book.html?id=");
+    expect(body).toContain("https://www.kutadgubilik.com/book.html?id=");
     expect(body).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
 
@@ -24,7 +24,7 @@ test.describe("seo + admin", () => {
     const res = await request.get(new URL("/robots.txt", baseURL).href);
     expect(res.status()).toBe(200);
     const body = await res.text();
-    expect(body).toContain("Sitemap: https://www.kutadgubilig.com/sitemap.xml");
+    expect(body).toContain("Sitemap: https://www.kutadgubilik.com/sitemap.xml");
     expect(body).toContain("Disallow: /admin.html");
   });
 
@@ -73,7 +73,7 @@ test.describe("seo + admin", () => {
   test("book.html numeric id stays noindex until a real book is resolved", async ({ page }) => {
     await page.goto("/book.html?id=999999999", { waitUntil: "domcontentloaded" });
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilig.com/book.html");
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
     await page.waitForTimeout(1500);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
@@ -88,7 +88,7 @@ test.describe("seo + admin", () => {
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      `https://www.kutadgubilig.com/book.html?id=${encodeURIComponent(book.id)}`
+      `https://www.kutadgubilik.com/book.html?id=${encodeURIComponent(book.id)}`
     );
   });
 
@@ -96,14 +96,14 @@ test.describe("seo + admin", () => {
     await page.goto("/universal.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://www.kutadgubilig.com/universal.html"
+      "https://www.kutadgubilik.com/universal.html"
     );
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
     await page.goto("/universal-2.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://www.kutadgubilig.com/universal.html"
+      "https://www.kutadgubilik.com/universal.html"
     );
   });
 });

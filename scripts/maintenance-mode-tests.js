@@ -81,7 +81,7 @@ test("Admin UI is Uyghur with confirm, no English ON/OFF labels", () => {
 test("homepage title and root URL files were not rewritten by this feature", () => {
   const index = read("index.html");
   assert.match(index, /<title>قۇتادغۇبىلىك كىتابخانىسى<\/title>/);
-  assert.match(index, /rel="canonical" href="https:\/\/www\.kutadgubilig\.com\/"/);
+  assert.match(index, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/"/);
   assert.match(index, /<a href="\/" class="logo">/);
   const shop = read("shop.js");
   assert.match(shop, /const HOMEPAGE_DOCUMENT_TITLE="قۇتادغۇبىلىك كىتابخانىسى"/);

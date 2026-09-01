@@ -26,8 +26,8 @@ function isProductionOrigin(url) {
   const host = hostnameOf(url);
   if (!host) return false;
   return host === "kutadgu-bilig-kitab.vercel.app"
-    || host === "www.kutadgubilig.com"
-    || host === "kutadgubilig.com";
+    || host === "www.kutadgubilik.com"
+    || host === "kutadgubilik.com";
 }
 
 function isPreviewOrigin(url) {

@@ -5,7 +5,7 @@
 (function (root) {
   "use strict";
 
-  const PRODUCTION_ORIGIN = "https://www.kutadgubilig.com";
+  const PRODUCTION_ORIGIN = "https://www.kutadgubilik.com";
 
   function productionOrigin() {
     return PRODUCTION_ORIGIN;
