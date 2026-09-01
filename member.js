@@ -321,7 +321,7 @@ function idSuffix(value){
 function isPreviewShopDebug(){
   try{
     const host=String(location.hostname||"").toLowerCase();
-    if(host==="www.kutadgubilig.com"||host==="kutadgubilig.com")return false;
+    if(host==="www.kutadgubilik.com"||host==="kutadgubilik.com")return false;
     if(typeof window.kutadguIsProductionAuthHost==="function"&&window.kutadguIsProductionAuthHost(host))return false;
     return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
   }catch(e){return false}
@@ -566,10 +566,10 @@ async function signIn({email,password}){
   return data;
 }
 function googleAccountRedirectTo(){
-  const wwwAccount="https://www.kutadgubilig.com/account.html";
+  const wwwAccount="https://www.kutadgubilik.com/account.html";
   const host=String(location.hostname||"");
   const origin=String(location.origin||"").replace(/\/+$/,"");
-  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilig.com"||host==="kutadgubilig.com"||host==="kutadgu-bilig-kitab.vercel.app")){
+  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilik.com"||host==="kutadgubilik.com"||host==="kutadgu-bilig-kitab.vercel.app")){
     return wwwAccount;
   }
   if(origin && origin!=="null")return origin+"/account.html";
@@ -610,7 +610,7 @@ async function signOut(){
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const redirectTo=(window.kutadguPasswordResetRedirectTo||function(n){
-    return "https://www.kutadgubilig.com/reset-password.html?next="+encodeURIComponent(n==="admin"?"admin":"account");
+    return "https://www.kutadgubilik.com/reset-password.html?next="+encodeURIComponent(n==="admin"?"admin":"account");
   })(next);
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error)throw error;

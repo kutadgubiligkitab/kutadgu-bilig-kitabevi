@@ -9,7 +9,7 @@
 */
 "use strict";
 
-const SITE_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+const SITE_ORIGIN = "https://www.kutadgubilik.com";
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const FETCH_PAGE_SIZE = 1000;
@@ -41,7 +41,6 @@ const PUBLIC_PAGE_PATHS = [
   "/terbiye.html",
   "/dini.html",
   "/children.html",
-  "/ozumuzni-etirap-qilayli.html",
   "/order-info.html",
   "/privacy.html",
   "/returns.html"

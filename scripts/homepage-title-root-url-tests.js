@@ -28,9 +28,10 @@ test("homepage <title> is exactly the store name", () => {
 
 test("homepage canonical and og:url are custom-domain root, not index.html", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  assert.match(html, /<link rel="canonical" href="https:\/\/www\.kutadgubilig\.com\/">/);
-  assert.match(html, /<meta property="og:url" content="https:\/\/www\.kutadgubilig\.com\/">/);
-  assert.doesNotMatch(html, /kutadgubilig\.com\/index\.html/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/">/);
+  assert.match(html, /<meta property="og:url" content="https:\/\/www\.kutadgubilik\.com\/">/);
+  assert.doesNotMatch(html, /kutadgubilik\.com\/index\.html/);
+  assert.doesNotMatch(html, /kutadgubilig\.com/);
   assert.doesNotMatch(html, /rel="canonical" href="https:\/\/kutadgu-bilig-kitab\.vercel\.app\/"/);
 });
 
@@ -82,9 +83,12 @@ test("admin storefront shortcut still uses relative index.html", () => {
 
 test("robots and sitemap origin strategy unchanged", () => {
   const robots = fs.readFileSync(path.join(root, "robots.txt"), "utf8");
-  assert.match(robots, /Sitemap: https:\/\/kutadgu-bilig-kitab\.vercel\.app\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/www\.kutadgubilik\.com\/sitemap\.xml/);
   const sitemap = fs.readFileSync(path.join(root, "kutadgu-sitemap.js"), "utf8");
-  assert.match(sitemap, /const SITE_ORIGIN = "https:\/\/kutadgu-bilig-kitab\.vercel\.app"/);
+  assert.match(sitemap, /const SITE_ORIGIN = "https:\/\/www\.kutadgubilik\.com"/);
+  assert.doesNotMatch(robots, /kutadgu-bilig-kitab\.vercel\.app/);
+  assert.doesNotMatch(robots, /kutadgubilig\.com/);
+  assert.doesNotMatch(sitemap, /kutadgubilig\.com/);
 });
 
 if (failed) process.exit(1);

@@ -14,7 +14,7 @@ test.describe("homepage title and root URL", () => {
     await expect(page).toHaveTitle(HOME_TITLE);
     expect(new URL(page.url()).pathname).toBe("/");
     const canonical = String(await page.locator('link[rel="canonical"]').first().getAttribute("href") || "").trim();
-    expect(canonical.replace(/\/+$/, "/")).toMatch(/^https:\/\/www\.kutadgubilig\.com\/$/);
+    expect(canonical.replace(/\/+$/, "/")).toMatch(/^https:\/\/www\.kutadgubilik\.com\/$/);
     await expect(page.locator("a.logo")).toHaveAttribute("href", "/");
   });
 

@@ -36,9 +36,9 @@ function loadConfig(location) {
       pathname: "/index.html",
       search: "",
       hash: "",
-      href: "https://www.kutadgubilig.com/",
-      hostname: "www.kutadgubilig.com",
-      origin: "https://www.kutadgubilig.com",
+      href: "https://www.kutadgubilik.com/",
+      hostname: "www.kutadgubilik.com",
+      origin: "https://www.kutadgubilik.com",
       replace() {}
     }, location || {})
   };
@@ -54,28 +54,47 @@ function loadConfig(location) {
 }
 
 test("auth origin is www custom domain, not Vercel", () => {
-  assert.match(cfg, /window\.KUTADGU_SITE_ORIGIN = "https:\/\/www\.kutadgubilig\.com"/);
+  assert.match(cfg, /window\.KUTADGU_SITE_ORIGIN = "https:\/\/www\.kutadgubilik\.com"/);
   assert.doesNotMatch(cfg, /KUTADGU_SITE_ORIGIN = "https:\/\/kutadgu-bilig-kitab\.vercel\.app"/);
-  assert.match(member, /https:\/\/www\.kutadgubilig\.com\/reset-password\.html\?next=/);
-  assert.match(admin, /https:\/\/www\.kutadgubilig\.com\/reset-password\.html\?next=admin/);
+  assert.match(member, /https:\/\/www\.kutadgubilik\.com\/reset-password\.html\?next=/);
+  assert.match(admin, /https:\/\/www\.kutadgubilik\.com\/reset-password\.html\?next=admin/);
   assert.doesNotMatch(member, /kutadgu-bilig-kitab\.vercel\.app\/reset-password/);
   assert.doesNotMatch(admin, /kutadgu-bilig-kitab\.vercel\.app\/reset-password/);
 });
 
+test("production custom domain is kutadgubilik.com, never kutadgubilig.com", () => {
+  const files = [
+    "supabase-config.js",
+    "member.js",
+    "admin.js",
+    "shop.js",
+    "kutadgu-book-seo.js",
+    "kutadgu-sitemap.js",
+    "robots.txt",
+    "index.html"
+  ];
+  files.forEach((rel) => {
+    const text = read(rel);
+    assert.match(text, /kutadgubilik\.com/, rel + " missing correct custom domain");
+    assert.doesNotMatch(text, /kutadgubilig\.com/, rel + " still has the unrelated kutadgubilig.com host");
+  });
+  assert.match(cfg, /kutadgu-bilig-kitab\.vercel\.app/);
+});
+
 test("password reset helper always uses www and next=account|admin", () => {
   const w = loadConfig();
-  assert.strictEqual(w.KUTADGU_SITE_ORIGIN, "https://www.kutadgubilig.com");
+  assert.strictEqual(w.KUTADGU_SITE_ORIGIN, "https://www.kutadgubilik.com");
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo("account"),
-    "https://www.kutadgubilig.com/reset-password.html?next=account"
+    "https://www.kutadgubilik.com/reset-password.html?next=account"
   );
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo("admin"),
-    "https://www.kutadgubilig.com/reset-password.html?next=admin"
+    "https://www.kutadgubilik.com/reset-password.html?next=admin"
   );
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo(),
-    "https://www.kutadgubilig.com/reset-password.html?next=account"
+    "https://www.kutadgubilik.com/reset-password.html?next=account"
   );
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("?type=recovery", ""), true);
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=abc", ""), false);
@@ -90,17 +109,17 @@ test("password reset helper always uses www and next=account|admin", () => {
 
 test("Google OAuth redirectTo stays on the start origin except production hosts", () => {
   const www = loadConfig({
-    hostname: "www.kutadgubilig.com",
-    origin: "https://www.kutadgubilig.com"
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com"
   });
-  assert.strictEqual(www.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  assert.strictEqual(www.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilik.com/account.html");
   assert.ok(!www.kutadguGoogleAccountRedirectTo().includes("reset-password"));
   const apex = loadConfig({
-    hostname: "kutadgubilig.com",
-    origin: "https://kutadgubilig.com"
+    hostname: "kutadgubilik.com",
+    origin: "https://kutadgubilik.com"
   });
-  assert.strictEqual(apex.kutadguAuthCallbackOrigin(), "https://www.kutadgubilig.com");
-  assert.strictEqual(apex.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  assert.strictEqual(apex.kutadguAuthCallbackOrigin(), "https://www.kutadgubilik.com");
+  assert.strictEqual(apex.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilik.com/account.html");
   const previewHost = "kutadgu-bilig-kitab-git-cursor-auth-oauth-recovery-domain-fd87.vercel.app";
   const preview = loadConfig({
     hostname: previewHost,
@@ -111,7 +130,7 @@ test("Google OAuth redirectTo stays on the start origin except production hosts"
     hostname: "kutadgu-bilig-kitab.vercel.app",
     origin: "https://kutadgu-bilig-kitab.vercel.app"
   });
-  assert.strictEqual(prodVercel.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilig.com/account.html");
+  assert.strictEqual(prodVercel.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilik.com/account.html");
   const otherPreview = loadConfig({
     hostname: "pr-33-auth.example.com",
     origin: "https://pr-33-auth.example.com"
@@ -124,7 +143,7 @@ test("Google OAuth redirectTo stays on the start origin except production hosts"
   assert.strictEqual(local.kutadguGoogleAccountRedirectTo(), "http://127.0.0.1:4173/account.html");
   assert.strictEqual(
     preview.kutadguPasswordResetRedirectTo("account"),
-    "https://www.kutadgubilig.com/reset-password.html?next=account"
+    "https://www.kutadgubilik.com/reset-password.html?next=account"
   );
 });
 
@@ -143,7 +162,7 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
   assert.match(account, /member\.js\?v=15/);
   assert.match(read("shop.js"), /member\.js\?v=15/);
-  assert.match(index, /shop\.js\?v=80/);
+  assert.match(index, /shop\.js\?v=81/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {

@@ -24,12 +24,17 @@ function send(res, status, headers, body) {
   res.end(body);
 }
 
-const SITEMAP_ORIGIN = "https://kutadgu-bilig-kitab.vercel.app";
+const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
 
 function isSitemapPath(pathname) {
   return pathname === "/sitemap.xml"
     || pathname === "/sitemap-books.xml"
     || /^\/sitemap-books-\d+\.xml$/.test(pathname);
+}
+
+function sitemapPageFromPath(pathname) {
+  const match = String(pathname || "").match(/^\/sitemap-books-(\d+)\.xml$/i);
+  return match ? Number(match[1]) : 1;
 }
 
 const server = http.createServer((req, res) => {
@@ -39,12 +44,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (isSitemapPath(url.pathname)) {
-    const dest = `${SITEMAP_ORIGIN}${url.pathname}${url.search}`;
-    fetch(dest).then(async (upstream) => {
-      const buf = Buffer.from(await upstream.arrayBuffer());
-      send(res, upstream.status, {
-        "Content-Type": upstream.headers.get("content-type") || "application/xml; charset=utf-8"
-      }, buf);
+    const build = url.pathname === "/sitemap.xml"
+      ? sitemap.buildIndexSitemapXml()
+      : sitemap.buildBooksSitemapXml(sitemapPageFromPath(url.pathname));
+    build.then((xml) => {
+      send(res, 200, { "Content-Type": "application/xml; charset=utf-8" }, xml);
     }).catch(() => {
       send(res, 502, { "Content-Type": "text/plain; charset=utf-8" }, "sitemap proxy failed");
     });
