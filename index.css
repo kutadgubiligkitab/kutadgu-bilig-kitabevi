@@ -2791,9 +2791,6 @@ label {
     max-width:calc((100% - 28px) / 3);
     min-width:0;
   }
-  .home-featured-track [data-featured-clone]{
-    pointer-events:none;
-  }
 }
 
 @media (min-width: 1101px){
@@ -2846,6 +2843,7 @@ label {
     flex-direction:row;
     flex-wrap:nowrap;
     align-items:flex-start;
+    direction:ltr;
     gap:14px;
     width:max-content !important;
     max-width:none !important;
@@ -2862,9 +2860,6 @@ label {
   }
   #homeFeaturedBooks .home-featured-grid.is-marquee .home-feature-card > a{
     height:auto !important;
-  }
-  #homeFeaturedBooks .home-featured-grid.is-marquee [data-featured-clone]{
-    pointer-events:none;
   }
 }
 @media (min-width: 701px) and (max-width: 1100px){

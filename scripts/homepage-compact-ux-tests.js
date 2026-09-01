@@ -51,10 +51,10 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=13/);
+  assert.match(html, /index\.css\?v=14/);
   assert.match(html, /shop\.css\?v=43/);
   assert.match(html, /mobile\.css\?v=21/);
-  assert.match(html, /shop\.js\?v=78/);
+  assert.match(html, /shop\.js\?v=79/);
   assert.match(html, /mobile\.js\?v=4/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
@@ -161,9 +161,12 @@ test("recently-added rows move in opposite directions without changing the catal
   assert.match(marquee, /mouseenter/);
   assert.match(marquee, /mouseleave/);
   assert.match(marquee, /focusin/);
-  assert.match(marquee, /tabindex/);
   assert.match(marquee, /hoverPaused/);
   assert.match(marquee, /focusPaused/);
+  assert.doesNotMatch(marquee, /cloneNode/);
+  assert.doesNotMatch(marquee, /featuredClone|data-featured-clone/);
+  assert.match(marquee, /appendChild\(first\)/);
+  assert.match(marquee, /insertBefore\(last/);
   assert.match(marquee, /prefers-reduced-motion: reduce/);
   assert.match(marquee, /innerWidth<=700/);
   assert.match(css, /#homeFeaturedBooks \.home-featured-grid\.is-marquee/);

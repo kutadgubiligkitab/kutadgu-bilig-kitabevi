@@ -2289,12 +2289,13 @@ function setupHomeFeaturedMarquee(host){
   const states=new WeakMap();
   let timer=null;
   const pendingSnaps=new Set();
+  const pendingTimers=new Set();
   function interactionPaused(){return hoverPaused||focusPaused}
 
   function isMobile(){return window.innerWidth<=700}
 
-  function uniqueCards(track){
-    return [...track.querySelectorAll(".home-feature-card")].filter(el=>el.dataset.featuredClone!=="1");
+  function rowCards(track){
+    return [...track.querySelectorAll(".home-feature-card")];
   }
 
   function apply(track,offset,animate){
@@ -2304,12 +2305,36 @@ function setupHomeFeaturedMarquee(host){
     if(!enable){void track.offsetWidth;track.style.transition=`transform ${duration}ms cubic-bezier(.22,.61,.36,1)`}
   }
 
+  function clearPending(track){
+    pendingSnaps.forEach(fn=>{if(track)track.removeEventListener("transitionend",fn)});
+    pendingTimers.forEach(id=>clearTimeout(id));
+    pendingTimers.clear();
+  }
+
+  function afterTransform(track,fn){
+    let done=false;
+    let tid=null;
+    const finish=event=>{
+      if(done)return;
+      if(event&&event.propertyName!=="transform")return;
+      if(event&&event.target!==track)return;
+      done=true;
+      track.removeEventListener("transitionend",finish);
+      pendingSnaps.delete(finish);
+      if(tid!=null){clearTimeout(tid);pendingTimers.delete(tid)}
+      fn();
+    };
+    pendingSnaps.add(finish);
+    track.addEventListener("transitionend",finish);
+    tid=setTimeout(()=>finish(),duration+150);
+    pendingTimers.add(tid);
+  }
+
   function drawRow(row){
     const track=row.querySelector(".home-featured-track");
     if(!track)return;
-    pendingSnaps.forEach(fn=>{track.removeEventListener("transitionend",fn)});
-    track.querySelectorAll("[data-featured-clone]").forEach(n=>n.remove());
-    const items=uniqueCards(track);
+    clearPending(track);
+    const items=rowCards(track);
     const itemCount=items.length;
     const visible=featuredRowVisibleCount(window.innerWidth);
     const dir=row.dataset.direction||featuredRowDirection(row.dataset.featuredRow);
@@ -2318,37 +2343,16 @@ function setupHomeFeaturedMarquee(host){
     });
     row.dataset.autoplay=canPlay?"1":"0";
     if(isMobile()){
-      states.set(row,{track,dir,itemCount,step:0,setWidth:0,offset:0,canPlay:false});
+      states.set(row,{track,dir,itemCount,step:0,offset:0,canPlay:false,busy:false});
       track.style.transition="";
       track.style.transform="";
       return;
     }
-    if(itemCount>visible){
-      items.forEach(card=>{
-        const clone=card.cloneNode(true);
-        clone.dataset.featuredClone="1";
-        clone.setAttribute("aria-hidden","true");
-        clone.querySelectorAll("a,button,input,select,textarea,[tabindex]").forEach(el=>{
-          el.setAttribute("tabindex","-1");
-        });
-        if(dir==="ltr")track.insertBefore(clone,track.firstChild);
-        else track.appendChild(clone);
-      });
-    }
-    const card=track.querySelector(".home-feature-card");
+    const card=items[0];
     const gap=card?parseFloat(window.getComputedStyle(track).columnGap||window.getComputedStyle(track).gap)||14:14;
-    const originals=uniqueCards(track);
-    const firstOriginal=originals[0];
-    const lastOriginal=originals[originals.length-1];
-    const step=firstOriginal?firstOriginal.getBoundingClientRect().width+gap:0;
-    const measured=firstOriginal&&lastOriginal
-      ?Math.abs(lastOriginal.getBoundingClientRect().right-firstOriginal.getBoundingClientRect().left)
-      :step*itemCount;
-    const ltrStart=dir==="ltr"&&itemCount>visible&&firstOriginal?-Math.round(firstOriginal.offsetLeft):0;
-    const setWidth=ltrStart?Math.abs(ltrStart):measured;
-    const offset=ltrStart;
-    states.set(row,{track,dir,itemCount,step,setWidth,offset,canPlay});
-    apply(track,offset,false);
+    const step=card?card.getBoundingClientRect().width+gap:0;
+    states.set(row,{track,dir,itemCount,step,offset:0,canPlay,busy:false});
+    apply(track,0,false);
   }
 
   function draw(){rowEls.forEach(drawRow)}
@@ -2357,35 +2361,36 @@ function setupHomeFeaturedMarquee(host){
     if(interactionPaused()||document.hidden||reducedMotion||isMobile())return;
     rowEls.forEach(row=>{
       const st=states.get(row);
-      if(!st||!st.canPlay||!st.step)return;
+      if(!st||!st.canPlay||!st.step||st.busy)return;
+      const items=rowCards(st.track);
+      if(items.length<2)return;
+      st.busy=true;
       if(st.dir==="rtl"){
-        st.offset-=st.step;
-        apply(st.track,st.offset,true);
-        if(st.offset<=-st.setWidth+0.5){
-          const snap=event=>{
-            if(event.propertyName!=="transform"||event.target!==st.track)return;
-            st.track.removeEventListener("transitionend",snap);
-            pendingSnaps.delete(snap);
-            st.offset=0;
-            apply(st.track,0,false);
-          };
-          pendingSnaps.add(snap);
-          st.track.addEventListener("transitionend",snap);
-        }
+        st.offset=-st.step;
+        apply(st.track,-st.step,true);
+        afterTransform(st.track,()=>{
+          const first=st.track.querySelector(".home-feature-card");
+          if(first)st.track.appendChild(first);
+          st.offset=0;
+          apply(st.track,0,false);
+          st.busy=false;
+        });
       }else{
-        st.offset+=st.step;
-        apply(st.track,st.offset,true);
-        if(st.offset>=-0.5){
-          const snap=event=>{
-            if(event.propertyName!=="transform"||event.target!==st.track)return;
-            st.track.removeEventListener("transitionend",snap);
-            pendingSnaps.delete(snap);
-            st.offset=-st.setWidth;
-            apply(st.track,-st.setWidth,false);
-          };
-          pendingSnaps.add(snap);
-          st.track.addEventListener("transitionend",snap);
-        }
+        const last=st.track.querySelector(".home-feature-card:last-child");
+        if(last)st.track.insertBefore(last,st.track.firstChild);
+        st.offset=-st.step;
+        apply(st.track,-st.step,false);
+        requestAnimationFrame(()=>{
+          requestAnimationFrame(()=>{
+            if(!states.get(row)||st.busy!==true)return;
+            st.offset=0;
+            apply(st.track,0,true);
+            afterTransform(st.track,()=>{
+              st.offset=0;
+              st.busy=false;
+            });
+          });
+        });
       }
     });
   }
@@ -2427,6 +2432,8 @@ function setupHomeFeaturedMarquee(host){
       });
     });
     pendingSnaps.clear();
+    pendingTimers.forEach(id=>clearTimeout(id));
+    pendingTimers.clear();
     section.removeEventListener("mouseenter",onEnter);
     section.removeEventListener("mouseleave",onLeave);
     section.removeEventListener("focusin",onFocusIn);

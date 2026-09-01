@@ -622,16 +622,16 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages share shop.js v=78",()=>{
+test("storefront pages share shop.js v=79",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=78/);
-  assert.match(fav,/shop\.js\?v=78/);
-  assert.match(home,/shop\.js\?v=78/);
+  assert.match(html,/shop\.js\?v=79/);
+  assert.match(fav,/shop\.js\?v=79/);
+  assert.match(home,/shop\.js\?v=79/);
   assert.doesNotMatch(html,/shop\.js\?v=64/);
   assert.match(shop,/member\.js\?v=15/);
   assert.match(account,/member\.js\?v=15/);
