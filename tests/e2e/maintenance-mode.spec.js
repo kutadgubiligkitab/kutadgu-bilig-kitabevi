@@ -62,14 +62,16 @@ test.describe("maintenance mode", () => {
     expect(new URL(page.url()).pathname).toBe("/");
     await expect(page.locator("#searchInput")).toBeVisible();
 
-    await page.locator("#searchInput").fill("بالىلار");
+    const book = await H.discoverLiveBook(page);
+    await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
 
-    await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
-    const title = await H.waitForDetailTitle(page);
-    expect(title).toMatch(/بالىلار/);
+    await page.goto(book.detailPath, { waitUntil: "domcontentloaded" });
+    const title = await H.waitForDetailTitle(page, book.title);
+    expect(title.trim()).toBe(book.title);
 
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
@@ -96,7 +98,7 @@ test.describe("maintenance mode", () => {
     await expect(page.locator("#searchInput")).toBeHidden();
     await expect(page.locator("#kutadgu-maint-admin-note")).toHaveCount(0);
 
-    await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
+    await page.goto("/book.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
     await expect(page.locator(".book-detail-info h1")).toBeHidden();
 
@@ -141,9 +143,10 @@ test.describe("maintenance mode", () => {
     await expect(page.locator("#searchInput")).toBeVisible();
     await expect(page.locator("#kutadgu-maint-admin-note")).toBeVisible();
 
-    await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
-    const title = await H.waitForDetailTitle(page);
-    expect(title).toMatch(/بالىلار/);
+    const book = await H.discoverLiveBook(page);
+    await page.goto(book.detailPath, { waitUntil: "domcontentloaded" });
+    const title = await H.waitForDetailTitle(page, book.title);
+    expect(title.trim()).toBe(book.title);
     await expect(page.locator(OVERLAY)).toHaveCount(0);
 
     await page.evaluate(() => {
