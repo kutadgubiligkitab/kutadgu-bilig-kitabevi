@@ -622,14 +622,55 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages share shop.js v=71",()=>{
+test("storefront pages share shop.js v=72",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/shop\.js\?v=71/);
-  assert.match(fav,/shop\.js\?v=71/);
-  assert.match(home,/shop\.js\?v=71/);
+  const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
+  assert.match(html,/shop\.js\?v=72/);
+  assert.match(fav,/shop\.js\?v=72/);
+  assert.match(home,/shop\.js\?v=72/);
   assert.doesNotMatch(html,/shop\.js\?v=64/);
+  assert.match(shop,/member\.js\?v=15/);
+  assert.match(account,/member\.js\?v=15/);
+  assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
+  assert.match(member,/\.eq\("user_id",user\.id\)/);
+  assert.match(member,/function previewShopDebug/);
+  assert.match(member,/\[kutadgu-shop-debug\]/);
+  assert.doesNotMatch(member,/previewShopDebug\([^\)]*email/);
+});
+
+test("ABC inspect-before-add: distinct users + filtered cloud stay isolated",()=>{
+  const uniqueA=[{id:"102",qty:1}];
+  const afterLogout=localItemsForMerge("stale","user-b",uniqueA,["102"]);
+  const bOut=Legacy.syncAuthenticatedShopState({
+    ...afterLogout,cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(bOut.cart,[]);
+  const cOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("stale","user-c",uniqueA,["102"]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(cOut.cart,[]);
+});
+
+test("ABC leak path: stale rewritten to guest while leftover local remains",()=>{
+  const leftover=[{id:"102",qty:1}];
+  const bOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("guest","user-b",leftover,[]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(bOut.cart,[{id:"102",qty:1}]);
+  const cOut=Legacy.syncAuthenticatedShopState({
+    ...localItemsForMerge("guest","user-c",leftover,[]),
+    cloudCart:[],cloudFav:[],resolveId:resolve,aliasMap:{}
+  });
+  assert.deepStrictEqual(cOut.cart,[{id:"102",qty:1}]);
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
+  assert.match(shop,/if\(current&&current!==SHOP_OWNER_GUEST&&current!==SHOP_OWNER_STALE\)return;/);
+  assert.match(shop,/writeShopOwner\(SHOP_OWNER_GUEST\)/);
 });
 
 

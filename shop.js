@@ -108,6 +108,14 @@ const remoteCatalog={configured:false,available:false,total:null};
 const CATALOG_BOOT_TIMEOUT_MS=8000;
 const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1", SHOP_OWNER_GUEST="guest", SHOP_OWNER_STALE="stale";
+function isPreviewShopDebug(){
+  try{
+    const host=String(location.hostname||"").toLowerCase();
+    if(host==="www.kutadgubilig.com"||host==="kutadgubilig.com")return false;
+    if(typeof window.kutadguIsProductionAuthHost==="function"&&window.kutadguIsProductionAuthHost(host))return false;
+    return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
+  }catch(e){return false}
+}
 const FALLBACK_COVER="sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
 const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
@@ -125,6 +133,9 @@ function stampShopOwner(){
   if(uid){writeShopOwner(String(uid));return}
   const current=readShopOwner();
   if(current&&current!==SHOP_OWNER_GUEST&&current!==SHOP_OWNER_STALE)return;
+  if(typeof console!=="undefined"&&isPreviewShopDebug()){
+    console.info("[kutadgu-shop-debug]",{event:"stamp-owner",from:current||"(empty)",to:"guest",hadUser:false});
+  }
   writeShopOwner(SHOP_OWNER_GUEST);
 }
 function shopOwnerAllowsLocalDisplay(){
@@ -2376,10 +2387,24 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=14";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="member.js?v=15";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
+  if(isPreviewShopDebug()){
+    const owner=readShopOwner();
+    const uid=window.KutadguMember?.getUser?.()?.id;
+    let raw=0;
+    try{const value=JSON.parse(localStorage.getItem(CART_KEY));raw=Array.isArray(value)?value.length:0}catch(e){}
+    console.info("[kutadgu-shop-debug]",{
+      event:"display",
+      user:uid?String(uid).slice(-4):"(empty)",
+      owner:owner?(/^[0-9a-f-]{36}$/i.test(owner)?String(owner).slice(-4):owner):"(empty)",
+      localCartRaw:raw,
+      localCartDisplay:cart().length,
+      allowDisplay:shopOwnerAllowsLocalDisplay()
+    });
+  }
   updateBadge();renderFavButtons();
   if(document.querySelector("#cartItems"))cartPage();
   if(document.querySelector("#myBooksApp"))renderMyBooks();

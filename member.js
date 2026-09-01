@@ -221,6 +221,10 @@ async function replaceCart(values){
     return {ok:false,reason:"not-ready"};
   }
   const helpers=window.KutadguLegacyIds;
+  previewShopDebug("replace-cart",{
+    writeUser:idSuffix(user.id),
+    rowCount:(Array.isArray(values)?values:[]).filter(x=>x&&x.id).length
+  });
   const rows=(Array.isArray(values)?values:[])
     .filter(x=>x&&x.id)
     .map(x=>({user_id:user.id,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
@@ -308,6 +312,46 @@ function localItemsForMerge(userId,localCart,localFav){
 function stillMergingFor(userId){
   return !!(db&&user&&!blocked&&String(user.id)===String(userId||""));
 }
+function idSuffix(value){
+  const text=String(value||"").trim();
+  if(!text)return "(empty)";
+  if(text===SHOP_OWNER_GUEST||text===SHOP_OWNER_STALE)return text;
+  return text.slice(-4);
+}
+function isPreviewShopDebug(){
+  try{
+    const host=String(location.hostname||"").toLowerCase();
+    if(host==="www.kutadgubilig.com"||host==="kutadgubilig.com")return false;
+    if(typeof window.kutadguIsProductionAuthHost==="function"&&window.kutadguIsProductionAuthHost(host))return false;
+    return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
+  }catch(e){return false}
+}
+function previewShopDebug(event,fields){
+  if(!isPreviewShopDebug())return;
+  const safe={event:String(event||"")};
+  Object.keys(fields||{}).forEach(key=>{
+    if(/(email|token|password|secret|anon|jwt|authorization|apikey)/i.test(key))return;
+    const val=fields[key];
+    if(typeof val==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)){
+      safe[key]=idSuffix(val);
+      return;
+    }
+    safe[key]=val;
+  });
+  console.info("[kutadgu-shop-debug]",safe);
+}
+function mergeSourceDecision(userId,rawLocalCount,cloudCount){
+  const owner=readShopOwner();
+  const mergeLocal=shouldMergeLocalForUser(userId);
+  let reason="cloud-only";
+  if(!owner)reason="union-local-missing-owner";
+  else if(owner===SHOP_OWNER_GUEST)reason="union-local-guest";
+  else if(owner===SHOP_OWNER_STALE)reason="cloud-only-stale-owner";
+  else if(owner===String(userId||""))reason="union-local-same-owner";
+  else reason="cloud-only-foreign-owner";
+  if(!mergeLocal&&(reason.startsWith("union-")))reason="cloud-only";
+  return {owner:owner?idSuffix(owner):"(empty)",mergeLocal,reason,rawLocalCount,cloudCount};
+}
 function clearLocalCartAndFavorites(){
   try{
     localStorage.removeItem(CART_KEY);
@@ -322,6 +366,10 @@ function abandonMemberShopSync(){
   writeMergeLock("");
   writeShopOwner(SHOP_OWNER_STALE);
   clearLocalCartAndFavorites();
+  previewShopDebug("abandon-sync",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
+  });
   const pending=shopSyncInFlight;
   if(pending){
     Promise.resolve(pending).finally(()=>{
@@ -345,8 +393,8 @@ async function mergeShopState(){
   shopSyncInFlight=(async()=>{
     try{
       const [{data:favRows,error:favError},{data:cartRows,error:cartError}]=await Promise.all([
-        db.from("member_favorites").select("book_id").eq("user_id",mergeForUserId),
-        db.from("member_cart_items").select("book_id,quantity").eq("user_id",mergeForUserId)
+        db.from("member_favorites").select("book_id,user_id").eq("user_id",mergeForUserId),
+        db.from("member_cart_items").select("book_id,quantity,user_id").eq("user_id",mergeForUserId)
       ]);
       if(favError){
         memberLog("error","fetch-cloud-favorites",favError);
@@ -365,6 +413,20 @@ async function mergeShopState(){
       const gated=localItemsForMerge(mergeForUserId,rawLocalCart,rawLocalFav);
       const localFav=gated.localFav;
       const localCart=gated.localCart;
+      const foreignCart=(cartRows||[]).filter(row=>row&&row.user_id&&String(row.user_id)!==String(mergeForUserId)).length;
+      const decision=mergeSourceDecision(mergeForUserId,Array.isArray(rawLocalCart)?rawLocalCart.length:0,cloudCart.length);
+      previewShopDebug("merge-fetch",{
+        user:idSuffix(mergeForUserId),
+        liveUser:idSuffix(user&&user.id),
+        owner:decision.owner,
+        localCart:decision.rawLocalCount,
+        cloudCart:decision.cloudCount,
+        gatedLocalCart:localCart.length,
+        mergeSource:decision.reason,
+        mergeLocal:decision.mergeLocal,
+        filterEqUser:idSuffix(mergeForUserId),
+        foreignCartRows:foreignCart
+      });
       const pendingIds=[
         ...cloudFav,
         ...cloudCart.map(x=>x.id),
@@ -391,6 +453,13 @@ async function mergeShopState(){
       const mergedFav=synced.fav;
       const mergedCart=synced.cart;
       if(!stillMergingFor(mergeForUserId))return;
+      previewShopDebug("merge-write",{
+        mergeUser:idSuffix(mergeForUserId),
+        liveUser:idSuffix(user&&user.id),
+        writeMismatch:String(user&&user.id)!==String(mergeForUserId),
+        mergedCart:mergedCart.length,
+        mergeSource:decision.reason
+      });
       try{
         await replaceFavorites(mergedFav);
         await replaceCart(mergedCart);
@@ -403,6 +472,13 @@ async function mergeShopState(){
       localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
       writeShopOwner(String(mergeForUserId));
       writeMergeLock(mergeForUserId);
+      previewShopDebug("merge-applied",{
+        user:idSuffix(mergeForUserId),
+        owner:idSuffix(readShopOwner()),
+        localCart:mergedCart.length,
+        cloudCart:cloudCart.length,
+        mergeSource:decision.reason
+      });
       emit("kutadgu-member-state-synced");
     }catch(err){
       writeMergeLock("");
@@ -420,6 +496,11 @@ const syncTimers=new Map();
 function syncKey(key,value){
   if(!user||blocked||![CART_KEY,FAV_KEY].includes(key))return;
   const syncForUserId=user.id;
+  previewShopDebug("sync-key",{
+    key:key===CART_KEY?"cart":"fav",
+    user:idSuffix(syncForUserId),
+    count:Array.isArray(value)?value.length:0
+  });
   clearTimeout(syncTimers.get(key));
   const run=async()=>{
     try{
@@ -433,6 +514,13 @@ function syncKey(key,value){
 }
 async function applySession(session,{trackLogin=false,sync=false}={}){
   user=session?.user||null;profile=null;blocked=false;
+  previewShopDebug("apply-session",{
+    user:idSuffix(user&&user.id),
+    sync:!!sync,
+    trackLogin:!!trackLogin,
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
+  });
   if(user){
     try{
       await fetchProfile();
@@ -469,6 +557,11 @@ async function signIn({email,password}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const {data,error}=await db.auth.signInWithPassword({email,password});
   if(error)throw error;
+  previewShopDebug("sign-in",{
+    user:idSuffix(data.user&&data.user.id),
+    sessionUser:idSuffix(data.session&&data.session.user&&data.session.user.id),
+    sameUser:String(data.user&&data.user.id)===String(data.session&&data.session.user&&data.session.user.id)
+  });
   await queueSession(data.session,{trackLogin:true,sync:true});
   return data;
 }
@@ -496,12 +589,22 @@ async function signInWithGoogle(){
 }
 async function signOut(){
   const pending=abandonMemberShopSync();
+  previewShopDebug("sign-out",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
+    liveUser:idSuffix(user&&user.id)
+  });
   if(db)await db.auth.signOut();
   if(pending)try{await pending}catch(e){}
   if(!user){
     writeShopOwner(SHOP_OWNER_STALE);
     clearLocalCartAndFavorites();
   }
+  previewShopDebug("sign-out-done",{
+    owner:idSuffix(readShopOwner()),
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
+    liveUser:idSuffix(user&&user.id)
+  });
   renderButton();emit();
 }
 async function resetPassword(email,next="account"){
