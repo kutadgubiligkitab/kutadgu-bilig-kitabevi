@@ -16,12 +16,14 @@ test.describe("storefront smoke", () => {
   });
 
   test("2 search returns results", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/index.html");
-    await page.locator("#searchInput").fill("بالىلار");
+    await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator(".advanced-search-result").first()).toBeVisible();
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
   });
 
   test("3 zero-result search shows empty state", async ({ page }) => {
@@ -33,27 +35,29 @@ test.describe("storefront smoke", () => {
     await expect(page.locator("#searchResults")).toContainText(/نەتىجە تېپىلمىدى|ئىزدەش نەتىجىسى تېپىلمىدى/);
   });
 
-  test("4 book detail opens by bigint id", async ({ page }) => {
-    await H.openFresh(page, "/book.html?id=102");
-    const title = await H.waitForDetailTitle(page);
-    expect(title).toMatch(/بالىلار/);
+  test("4 book detail opens by live catalog id", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
+    await H.openFresh(page, book.detailPath);
+    const title = await H.waitForDetailTitle(page, book.title);
+    expect(title.trim()).toBe(book.title);
     await expect(page.locator(".detail-main-cart, .detail-unavailable-panel").first()).toBeVisible();
-    expect(page.url()).toMatch(/id=102/);
+    expect(page.url()).toContain(`id=${encodeURIComponent(book.id)}`);
   });
 
   test("5 legacy id resolves to the same book", async ({ page }) => {
-    await H.openFresh(page, "/book.html?id=102");
-    const canonicalTitle = (await H.waitForDetailTitle(page)).trim();
-    const canonicalId = await page.evaluate(() => window.kutadguShop.find("children-3")?.id || window.kutadguShop.find("102")?.id);
+    const book = await H.discoverLiveBookWithLegacy(page);
+    test.skip(!book, "No active catalog book with legacy_id available for live E2E");
+    await H.openFresh(page, book.detailPath);
+    const canonicalTitle = (await H.waitForDetailTitle(page, book.title)).trim();
+    const canonicalId = await page.evaluate((legacyId) => {
+      const found = window.kutadguShop.find(legacyId);
+      return found && found.id != null ? String(found.id) : "";
+    }, book.legacyId);
+    expect(canonicalId).toBe(String(book.id));
 
-    await H.openFresh(page, "/children-3.html");
-    const legacyTitle = (await H.waitForDetailTitle(page)).trim();
-    expect(legacyTitle).toBe(canonicalTitle);
-
-    await H.openFresh(page, "/book.html?id=children-3");
-    const queryTitle = (await H.waitForDetailTitle(page)).trim();
+    await H.openFresh(page, book.legacyDetailPath);
+    const queryTitle = (await H.waitForDetailTitle(page, book.title)).trim();
     expect(queryTitle).toBe(canonicalTitle);
-    expect(String(canonicalId)).toBe("102");
   });
 
   test("14 hidden/inactive books are not listed", async ({ page }) => {
@@ -86,22 +90,24 @@ test.describe("storefront smoke", () => {
   });
 
   test("15 mobile viewport has no horizontal overflow", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/index.html");
     await page.waitForTimeout(800);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(4);
 
-    await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
+    await page.goto(book.detailPath, { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await H.waitForDetailTitle(page);
+    await H.waitForDetailTitle(page, book.title);
     const overflowDetail = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflowDetail).toBeLessThanOrEqual(4);
   });
 
   test("16 desktop main pages render without JS errors", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     const errors = H.collectPageErrors(page);
-    for (const path of ["/index.html", "/children.html", "/romanlar.html", "/book.html?id=102", "/cart.html"]) {
+    for (const path of ["/index.html", "/children.html", "/romanlar.html", book.detailPath, "/cart.html"]) {
       await page.goto(path, { waitUntil: "domcontentloaded" });
       await H.waitForShop(page);
     }

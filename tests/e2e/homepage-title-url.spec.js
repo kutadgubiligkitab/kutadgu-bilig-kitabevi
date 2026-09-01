@@ -19,12 +19,15 @@ test.describe("homepage title and root URL", () => {
   });
 
   test("book detail keeps a book-specific title then home resets", async ({ page }) => {
-    await page.goto("/book.html?id=102", { waitUntil: "domcontentloaded" });
+    const book = await H.discoverLiveBook(page);
+    await page.goto(book.detailPath, { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await H.waitForDetailTitle(page, book.title);
     const detailTitle = await page.title();
+    expect(detailTitle).toContain(book.title);
     expect(detailTitle).toContain(" - قۇتادغۇبىلىك كىتابخانىسى");
     expect(detailTitle).not.toBe(HOME_TITLE);
-    expect(page.url()).toMatch(/book\.html\?id=102/);
+    expect(page.url()).toContain(`id=${encodeURIComponent(book.id)}`);
 
     await page.locator("a.detail-brand").click();
     await page.waitForURL((url) => new URL(url).pathname === "/", { timeout: 20_000 });
@@ -60,11 +63,13 @@ test.describe("homepage title and root URL", () => {
   });
 
   test("search, cart, and favorites still open", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/");
-    await page.locator("#searchInput").fill("بالىلار");
+    await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
+    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
 
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
