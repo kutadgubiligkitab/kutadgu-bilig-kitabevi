@@ -52,10 +52,28 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 
 test("homepage assets bumped; hero image paths unchanged", () => {
   assert.match(html, /index\.css\?v=9/);
-  assert.match(html, /shop\.js\?v=74/);
+  assert.match(html, /shop\.js\?v=75/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
   assert.match(html, /srcset="kutadgu-logo\.webp"/);
+});
+
+test("carousel opens the first enabled mode that has books", () => {
+  const start = shop.indexOf("function firstPopulatedCarouselMode");
+  const end = shop.indexOf("async function setupHomeCarousel");
+  assert.ok(start >= 0 && end > start, "firstPopulatedCarouselMode must sit next to setupHomeCarousel");
+  const firstPopulatedCarouselMode = new Function(`${shop.slice(start, end)}; return firstPopulatedCarouselMode;`)();
+  const modes = ["recommended", "bestseller", "newest"];
+  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, newest: 4 }), "newest");
+  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 3, newest: 0 }), "recommended");
+  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 2, newest: 5 }), "recommended");
+  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 3, newest: 5 }), "bestseller");
+  assert.strictEqual(firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 0, newest: 0 }), "recommended");
+  const carousel = shop.slice(shop.indexOf("async function setupHomeCarousel"), shop.indexOf("function loadMemberSystem"));
+  assert.match(carousel, /resolveInitialMode\(\)\.then\(initial=>\{if\(!userPickedMode\)setMode\(initial\)\}\)/);
+  assert.match(carousel, /modeCache\.get\(candidate\)\|\|await loadMode\(candidate,false\)/);
+  assert.doesNotMatch(carousel, /setMode\(enabledModes\[0\]\)/);
+  assert.match(carousel, /tabs\.forEach\(button=>\{button\.hidden=!enabledModes\.includes\(button\.dataset\.carouselMode\)\}\)/);
 });
 
 if (failed) {

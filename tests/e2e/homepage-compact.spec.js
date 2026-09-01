@@ -46,6 +46,48 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator("#homeCarouselTrack, .home-carousel-card").first()).toBeVisible();
   });
 
+  test("recommended empty + new books → newest tab opens", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: false, newest: true, bestseller: false });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+  });
+
+  test("recommended books + new empty → recommended tab opens", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+  });
+
+  test("both recommended and new books keep both tabs usable", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: true, bestseller: false });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await expect(page.locator('[data-carousel-mode="newest"]')).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+  });
+
+  test("all carousel modes empty keep the existing empty state", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: false, newest: false, bestseller: false });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#newBooksCarousel")).toBeVisible();
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card")).toHaveCount(0);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+  });
+
   test("mobile homepage search tap target is not cramped", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");

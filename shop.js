@@ -2217,6 +2217,16 @@ async function countPositiveSales(){
   return n;
 }
 
+function firstPopulatedCarouselMode(enabledModes,itemCounts){
+  const modes=Array.isArray(enabledModes)?enabledModes.filter(Boolean):[];
+  if(!modes.length)return "";
+  for(let i=0;i<modes.length;i++){
+    const mode=modes[i];
+    if(Number(itemCounts&&itemCounts[mode])>0)return mode;
+  }
+  return modes[0];
+}
+
 async function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
@@ -2364,7 +2374,26 @@ async function setupHomeCarousel(){
   }
   function restart(){start()}
 
-  tabs.forEach(button=>button.addEventListener("click",()=>setMode(button.dataset.carouselMode)));
+  let userPickedMode=false;
+  async function resolveInitialMode(){
+    const itemCounts={};
+    for(const candidate of enabledModes){
+      try{
+        const loaded=modeCache.get(candidate)||await loadMode(candidate,false);
+        itemCounts[candidate]=loaded.items.length;
+        if(loaded.items.length)break;
+      }catch(error){
+        if(error?.name==="AbortError"){
+          if(userPickedMode)return mode;
+          continue;
+        }
+        console.warn("Homepage carousel mode probe failed.",candidate,error);
+        itemCounts[candidate]=0;
+      }
+    }
+    return firstPopulatedCarouselMode(enabledModes,itemCounts);
+  }
+  tabs.forEach(button=>button.addEventListener("click",()=>{userPickedMode=true;setMode(button.dataset.carouselMode)}));
   document.querySelector("#carouselNext")?.addEventListener("click",()=>{next();restart()});
   document.querySelector("#carouselPrev")?.addEventListener("click",()=>{prev();restart()});
   viewport.addEventListener("mouseenter",stop);viewport.addEventListener("mouseleave",start);
@@ -2381,7 +2410,7 @@ async function setupHomeCarousel(){
   viewport.addEventListener("keydown",event=>{if(event.key==="ArrowLeft"){event.preventDefault();next();restart()}else if(event.key==="ArrowRight"){event.preventDefault();prev();restart()}});
   document.addEventListener("visibilitychange",()=>document.hidden?stop():start());
   window.addEventListener("resize",()=>{const changed=dualLayout!==isDual();dualLayout=isDual();if(changed)draw();else{index=Math.min(index,maxIndex());renderDots();move()}restart()});
-  setMode(enabledModes[0]);
+  resolveInitialMode().then(initial=>{if(!userPickedMode)setMode(initial)});
 }
 
 function loadMemberSystem(){
