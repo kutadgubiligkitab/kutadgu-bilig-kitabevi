@@ -41,6 +41,12 @@ button{cursor:pointer}
 .admin-maint-card.is-inactive{border-color:#96b89e}
 .admin-maint-card.is-active #maintenanceToggleBtn{background:#a74f45}
 .admin-maint-card.is-missing{border-color:#d8bd7d}
+#announcementCard.is-missing{border-color:#d8bd7d}
+.admin-announce-settings{margin:12px 0 18px}
+.admin-announce-form{margin-bottom:16px}
+.admin-announce-list{display:grid;gap:8px}
+.admin-announce-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid #e8dccb;border-radius:11px;background:#fff}
+.admin-announce-message{font-weight:800;line-height:1.6}
 .admin-book-list{display:grid;gap:10px}
 .admin-book-row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px;border:1px solid #e8dccb;border-radius:11px;background:#fff}
 .admin-book-row img{width:54px;height:72px;object-fit:contain;background:#eee9e1;border-radius:6px}

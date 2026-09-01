@@ -1,5 +1,11 @@
 
 /* قۇتادغۇبىلىك كىتابخانىسى — سېۋەت / ياقتۇرۇش / ئىزدەش */
+body > header:not(.account-topbar):not(.admin-topbar){
+  position:sticky;
+  top:0;
+  z-index:1000;
+  flex-wrap:wrap;
+}
 .shop-floating{position:fixed;left:18px;bottom:18px;z-index:9998;display:flex;gap:8px;align-items:center}
 .shop-float-btn{border:1px solid var(--site-border,#e8dccb);background:var(--site-card,#fffdf9);color:var(--site-text,#44352d);box-shadow:0 8px 25px rgba(0,0,0,.12);border-radius:999px;padding:10px 14px;font-family:inherit;cursor:pointer;font-size:14px}
 .shop-float-btn:hover{transform:translateY(-2px)}
@@ -1391,6 +1397,7 @@ body:not(.dark-mode) .about-points strong{
   width:min(1180px,calc(100% - 40px));
   margin:24px auto 18px;
   scroll-margin-top:96px;
+  scroll-margin-top:calc(var(--kutadgu-sticky-header-height, 80px) + 16px);
 }
 .home-search-card{
   position:relative;
@@ -1479,7 +1486,7 @@ body:not(.dark-mode) .about-points strong{
   .home-search-card #advancedSearchPanel{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 }
 @media(max-width:700px){
-  .home-search-card-section{width:calc(100% - 22px);margin:8px auto 8px;scroll-margin-top:78px}
+  .home-search-card-section{width:calc(100% - 22px);margin:8px auto 8px;scroll-margin-top:78px;scroll-margin-top:calc(var(--kutadgu-sticky-header-height, 62px) + 16px)}
   .home-search-card{padding:10px 12px;border-radius:15px}
   .home-search-card .home-search-heading{margin-bottom:8px!important;gap:8px!important}
   .home-search-card .home-search-heading h2{font-size:21px!important;line-height:1.55}

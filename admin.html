@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=15">
+  <link rel="stylesheet" href="admin.css?v=16">
 </head>
 <body>
 <div class="admin-shell">
@@ -60,6 +60,49 @@
         <p class="admin-help">ئاسراش ئوچۇق بولسا ئادەتتىكى زىيارەتچى ۋە ئەزالار كاتالوگنى كۆرەلمەيدۇ. پەقەت ھەقىقىي Admin ھېساباتى تور بەتنى نورمال كۆرەلەيدۇ. بۇ تەڭشەك Database دا ساقلىنىدۇ؛ قايتا ئېلان قىلىش ھاجەتسىز.</p>
         <div id="maintenanceStatus" class="admin-status">ئاسراش ھالىتى تەكشۈرۈلىۋاتىدۇ...</div>
         <button class="admin-primary" id="maintenanceToggleBtn" type="button" disabled>ئاسراشنى باشلاش</button>
+      </section>
+
+      <section class="admin-card" id="announcementCard">
+        <h2>📢 ئېلان بالدىقى</h2>
+        <p class="admin-help">بۇ يەردىكى ئېلانلار تور بەتنىڭ چوققىسىدىكى قوڭۇر header نىڭ ئاستىدا كۆرۈنىدۇ. پەقەت قوزغىتىلغان ۋە ۋاقتى كەلگەن ئېلانلار ئايلىنىدۇ. بوش قالسا بالداق كۆرۈنمەيدۇ.</p>
+        <div id="announcementStatus" class="admin-status">ئېلانلار تەكشۈرۈلىۋاتىدۇ...</div>
+        <form id="announcementSettingsForm" class="admin-form admin-announce-settings">
+          <label>
+            <span>ئايلىنىش ئارىلىقى (سېكۇنت، 2–60)</span>
+            <input id="announceInterval" type="number" min="2" max="60" step="1" value="5" dir="ltr">
+          </label>
+          <div class="admin-wide">
+            <button class="admin-secondary" id="announceIntervalSave" type="submit">ئارىلىقنى ساقلاش</button>
+          </div>
+        </form>
+        <form id="announcementForm" class="admin-form admin-announce-form">
+          <input type="hidden" id="announceEditId">
+          <label class="admin-wide">
+            <span>ئېلان تېكىستى</span>
+            <textarea id="announceMessage" rows="2" maxlength="280" required placeholder="قىسقا ئۇچۇر يېزىڭ"></textarea>
+          </label>
+          <label class="admin-check">
+            <input id="announceEnabled" type="checkbox" checked>
+            <span>قوزغىتىلغان</span>
+          </label>
+          <label>
+            <span>تەرتىپ نومۇرى</span>
+            <input id="announceSort" type="number" step="1" value="0" dir="ltr">
+          </label>
+          <label>
+            <span>باشلىنىش ۋاقتى (ئىختىيارىي)</span>
+            <input id="announceStart" type="datetime-local">
+          </label>
+          <label>
+            <span>ئاخىرلىشىش ۋاقتى (ئىختىيارىي)</span>
+            <input id="announceEnd" type="datetime-local">
+          </label>
+          <div class="admin-wide admin-toolbar-group">
+            <button class="admin-primary" id="announceSaveBtn" type="submit">ئېلاننى ساقلاش</button>
+            <button class="admin-secondary" id="announceResetBtn" type="button">يېڭى ئېلان</button>
+          </div>
+        </form>
+        <div id="announcementList" class="admin-announce-list"></div>
       </section>
 
       <section class="admin-card">
@@ -346,6 +389,6 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=30"></script>
+<script defer src="admin.js?v=31"></script>
 </body>
 </html>
