@@ -32,8 +32,8 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=25, admin.js v=42, admin-mfa.js v=2, and admin-idle.js v=2", () => {
-  assert.match(adminHtml, /admin\.css\?v=25/);
+test("cache pins are admin.css v=26, admin.js v=42, admin-mfa.js v=2, and admin-idle.js v=2", () => {
+  assert.match(adminHtml, /admin\.css\?v=26/);
   assert.match(adminHtml, /admin\.js\?v=42/);
   assert.match(adminHtml, /admin-mfa\.js\?v=2/);
   assert.match(adminHtml, /admin-idle\.js\?v=2/);
