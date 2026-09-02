@@ -26,17 +26,20 @@ function send(res, status, headers, body) {
 
 const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
 const seo = require(path.join(root, "kutadgu-book-seo.js"));
-const CATEGORY_HUBS = new Set(sitemap.CATEGORY_HUB_SLUGS || []);
+const CLEAN_HTML_SLUGS = new Set([
+  ...(sitemap.CATEGORY_HUB_SLUGS || []),
+  ...(sitemap.PUBLIC_INFO_SLUGS || [])
+]);
 
 function hubSlugFromPathname(pathname) {
   const raw = String(pathname || "");
   if (!raw.startsWith("/") || raw === "/") return "";
   const rest = raw.slice(1);
   if (rest.includes("/") || rest.includes("\\")) return "";
-  if (CATEGORY_HUBS.has(rest)) return rest;
+  if (CLEAN_HTML_SLUGS.has(rest)) return rest;
   if (rest.endsWith(".html")) {
     const slug = rest.slice(0, -5);
-    if (CATEGORY_HUBS.has(slug)) return slug;
+    if (CLEAN_HTML_SLUGS.has(slug)) return slug;
   }
   return "";
 }

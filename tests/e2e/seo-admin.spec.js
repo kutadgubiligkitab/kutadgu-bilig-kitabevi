@@ -121,7 +121,10 @@ test.describe("seo + admin", () => {
     const cart = await request.get(`${origin}/cart.html`, { maxRedirects: 0 });
     expect(cart.status()).toBe(200);
     const trust = await request.get(`${origin}/privacy.html`, { maxRedirects: 0 });
-    expect(trust.status()).toBe(200);
+    expect(trust.status()).toBe(308);
+    expect(new URL(trust.headers().location || "", origin).pathname).toBe("/privacy");
+    const trustClean = await request.get(`${origin}/privacy`, { maxRedirects: 0 });
+    expect(trustClean.status()).toBe(200);
     const homeHtml = await request.get(`${origin}/index.html`, { maxRedirects: 0 });
     expect(homeHtml.status()).toBe(308);
     expect(new URL(homeHtml.headers().location || "/", origin).pathname).toBe("/");
@@ -131,7 +134,8 @@ test.describe("seo + admin", () => {
     const pagesXml = await pages.text();
     expect(pagesXml).toContain("https://www.kutadgubilik.com/universal</loc>");
     expect(pagesXml).not.toContain("https://www.kutadgubilik.com/universal.html");
-    expect(pagesXml).toContain("https://www.kutadgubilik.com/privacy.html");
+    expect(pagesXml).toContain("https://www.kutadgubilik.com/privacy</loc>");
+    expect(pagesXml).not.toContain("https://www.kutadgubilik.com/privacy.html");
 
     await page.goto("/universal.html", { waitUntil: "domcontentloaded" });
     expect(new URL(page.url()).pathname).toBe("/universal");

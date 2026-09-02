@@ -85,9 +85,12 @@ jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
   assert.ok(xml.includes("https://www.kutadgubilik.com/</loc>"));
   assert.ok(xml.includes("/children</loc>"));
   assert.ok(!xml.includes("/children.html"));
-  assert.ok(xml.includes("/privacy.html"));
-  assert.ok(xml.includes("/returns.html"));
-  assert.ok(xml.includes("/order-info.html"));
+  assert.ok(xml.includes("/privacy</loc>"));
+  assert.ok(xml.includes("/returns</loc>"));
+  assert.ok(xml.includes("/order-info</loc>"));
+  assert.ok(!xml.includes("/privacy.html"));
+  assert.ok(!xml.includes("/returns.html"));
+  assert.ok(!xml.includes("/order-info.html"));
   assert.ok(!xml.includes("/admin.html"));
   assert.ok(!xml.includes("/cart.html"));
   assert.ok(!xml.includes("localhost"));
@@ -159,6 +162,15 @@ jobs.push(test("J missing author/ISBN/description omitted; placeholder author sk
   assert.ok(!seo.datePublishedIfTrustworthy({ publishYear: "999" }));
 }));
 
+jobs.push(test("public info pages use www clean canonicals", () => {
+  sitemap.PUBLIC_INFO_SLUGS.forEach(slug => {
+    const html = fs.readFileSync(path.join(__dirname, "..", `${slug}.html`), "utf8");
+    assert.ok(html.includes(`rel="canonical" href="https://www.kutadgubilik.com/${slug}"`));
+    assert.ok(!html.includes(`kutadgubilik.com/${slug}.html`));
+    assert.ok(!html.includes("kutadgubilig.com"));
+  });
+}));
+
 jobs.push(test("category hubs use www canonical; numbered stubs stay noindex to old hub URL", () => {
   const universal = fs.readFileSync(path.join(__dirname, "..", "universal.html"), "utf8");
   const page2 = fs.readFileSync(path.join(__dirname, "..", "universal-2.html"), "utf8");
@@ -209,9 +221,18 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
   assert.ok(htmlIdx >= 0 && htmlIdx < pathIdx, "/book.html numeric rewrite must precede /book/:id");
   assert.ok(queryIdx >= 0 && queryIdx < pathIdx, "/book?id= rewrite must precede /book/:id");
   assert.ok(pathIdx >= 0 && pathIdx < shellIdx, "/book/:id rewrite must precede bare /book shell");
+  sitemap.PUBLIC_INFO_SLUGS.forEach(slug => {
+    const redirect = (vercel.redirects || []).find(r => r.source === `/${slug}.html`);
+    const rewrite = (vercel.rewrites || []).find(r => r.source === `/${slug}`);
+    assert.ok(redirect, `missing redirect for ${slug}`);
+    assert.strictEqual(redirect.destination, `/${slug}`);
+    assert.strictEqual(redirect.permanent, true);
+    assert.ok(rewrite, `missing rewrite for ${slug}`);
+    assert.strictEqual(rewrite.destination, `/${slug}.html`);
+    assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
+  });
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/cart.html"));
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/account.html"));
-  assert.ok(!(vercel.redirects || []).some(r => r.source === "/order-info.html"));
   assert.ok(!(vercel.rewrites || []).some(r => r.source === "/universal-2"));
 }));
 
@@ -360,7 +381,10 @@ jobs.push(test("shop.js uses www production origin and KutadguBookSeo", () => {
   assert.ok(js.includes("KutadguBookSeo"));
   assert.ok(!js.includes("kutadgubilig.com"));
   assert.ok(!js.includes("kutadgu-bilig-kitab.vercel.app"));
-  assert.ok(!/return String\(window\.KUTADGU_SITE_ORIGIN\|\|""\)\.replace\(\/\\\/\+\$\/,""\)\|\|location\.origin/.test(js));
+  assert.ok(js.includes('href="/privacy"'));
+  assert.ok(js.includes('href="/returns"'));
+  assert.ok(js.includes('href="/order-info"'));
+  assert.ok(!js.includes("href=\"privacy.html\""));
 }));
 
 jobs.push(test("static sitemap files are indexes/pages without private URLs", () => {
@@ -371,7 +395,8 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
   assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-books.xml"));
   assert.ok(!pagesXml.includes("changefreq"));
   assert.ok(pagesXml.includes("/children</loc>"));
-  assert.ok(pagesXml.includes("/privacy.html"));
+  assert.ok(pagesXml.includes("/privacy</loc>"));
+  assert.ok(!pagesXml.includes("/privacy.html"));
   assert.ok(!pagesXml.includes("/children.html"));
   assert.ok(!pagesXml.includes("/admin.html"));
   assert.ok(!pagesXml.includes("/cart.html"));
