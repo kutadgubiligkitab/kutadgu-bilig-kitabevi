@@ -79,6 +79,21 @@
       "source": "/children.html",
       "destination": "/children",
       "permanent": true
+    },
+    {
+      "source": "/order-info.html",
+      "destination": "/order-info",
+      "permanent": true
+    },
+    {
+      "source": "/privacy.html",
+      "destination": "/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/returns.html",
+      "destination": "/returns",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -175,6 +190,18 @@
     {
       "source": "/children",
       "destination": "/children.html"
+    },
+    {
+      "source": "/order-info",
+      "destination": "/order-info.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/returns",
+      "destination": "/returns.html"
     },
     {
       "source": "/book/:id",

@@ -42,12 +42,16 @@ const CATEGORY_HUB_SLUGS = [
   "children"
 ];
 
+const PUBLIC_INFO_SLUGS = [
+  "order-info",
+  "privacy",
+  "returns"
+];
+
 const PUBLIC_PAGE_PATHS = [
   "/",
   ...CATEGORY_HUB_SLUGS.map(slug => `/${slug}`),
-  "/order-info.html",
-  "/privacy.html",
-  "/returns.html"
+  ...PUBLIC_INFO_SLUGS.map(slug => `/${slug}`)
 ];
 
 function productionOrigin() {
@@ -242,6 +246,7 @@ const api = {
   FETCH_PAGE_SIZE,
   URLS_PER_SITEMAP,
   CATEGORY_HUB_SLUGS,
+  PUBLIC_INFO_SLUGS,
   PUBLIC_PAGE_PATHS,
   PRIVATE_PATH_MARKERS,
   productionOrigin,
