@@ -3,23 +3,23 @@
  * Fail-open: missing table / request failure → no bar.
  * Mounts inside the existing brown header. Does not wrap header.
  * Announcement text is always assigned with textContent (never innerHTML).
+ * Short copy stays static; long copy clamps to two lines with in-place expand.
  */
 (function (root) {
   "use strict";
 
   var BAR_ID = "kutadguAnnounceBar";
+  var INNER_ID = "kutadguAnnounceInner";
   var TEXT_ID = "kutadguAnnounceText";
-  var VIEW_ID = "kutadguAnnounceViewport";
-  var TRACK_ID = "kutadguAnnounceTrack";
+  var TOGGLE_ID = "kutadguAnnounceToggle";
   var STYLE_ID = "kutadgu-announce-style";
   var HEIGHT_VAR = "--kutadgu-sticky-header-height";
   var DEFAULT_INTERVAL = 5;
   var MIN_INTERVAL = 2;
   var MAX_INTERVAL = 60;
   var FADE_MS = 280;
-  var TICKER_PX_PER_SEC = 42;
-  var TICKER_MIN_MS = 8000;
-  var TICKER_MAX_MS = 90000;
+  var EXPAND_LABEL = "تەپسىلات";
+  var COLLAPSE_LABEL = "يىغىش";
 
   var timer = null;
   var index = 0;
@@ -28,8 +28,9 @@
   var paused = false;
   var headerObserver = null;
   var booted = false;
-  var tickerRaf = 0;
-  var layoutKey = "";
+  var measureRaf = 0;
+  var expanded = false;
+  var lastMessage = "";
 
   function pageName() {
     if (typeof location === "undefined") return "";
@@ -68,20 +69,11 @@
     return true;
   }
 
-  function isTickerOverflow(scrollWidth, clientWidth) {
-    var sw = Number(scrollWidth);
-    var cw = Number(clientWidth);
-    if (!Number.isFinite(sw) || !Number.isFinite(cw)) return false;
-    return sw > cw + 1;
-  }
-
-  function computeTickerDurationMs(distancePx) {
-    var d = Number(distancePx);
-    if (!Number.isFinite(d) || d <= 0) return TICKER_MIN_MS;
-    var ms = Math.round((d / TICKER_PX_PER_SEC) * 1000);
-    if (ms < TICKER_MIN_MS) return TICKER_MIN_MS;
-    if (ms > TICKER_MAX_MS) return TICKER_MAX_MS;
-    return ms;
+  function isLineOverflowing(scrollHeight, clientHeight) {
+    var sh = Number(scrollHeight);
+    var ch = Number(clientHeight);
+    if (!Number.isFinite(sh) || !Number.isFinite(ch)) return false;
+    return sh > ch + 1;
   }
 
   function isAnnouncementCurrent(row, nowMs) {
@@ -187,52 +179,36 @@
       "flex-wrap:wrap;}" +
       "#" + BAR_ID + "{" +
       "flex:1 0 100%;width:100%;max-width:100%;box-sizing:border-box;" +
-      "display:none;align-items:center;justify-content:center;" +
+      "display:none;flex-direction:column;align-items:center;justify-content:center;" +
       "min-height:0;padding:5px 14px;margin:0;" +
       "background:rgba(226,201,141,.16);color:#f6ead7;" +
       "border-top:1px solid rgba(226,201,141,.28);" +
       "font-size:13px;font-weight:700;line-height:1.45;" +
-      "text-align:center;overflow:hidden;pointer-events:auto;}" +
+      "text-align:center;overflow-x:hidden;overflow-y:visible;pointer-events:auto;}" +
       "#" + BAR_ID + ".is-visible{display:flex;}" +
-      "#" + VIEW_ID + "{" +
-      "flex:1 1 auto;min-width:0;width:100%;max-width:100%;overflow:hidden;" +
-      "display:flex;align-items:center;justify-content:center;direction:ltr;}" +
-      "#" + BAR_ID + ".is-ticker #" + VIEW_ID + "{justify-content:flex-start;}" +
-      "#" + TRACK_ID + "{" +
-      "display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:0;" +
-      "width:max-content;max-width:none;white-space:nowrap;direction:ltr;" +
-      "transform:none;will-change:auto;margin:0;padding:0;}" +
-      "#" + BAR_ID + ".is-ticker #" + TRACK_ID + "{" +
-      "animation-name:kutadgu-announce-ltr;" +
-      "animation-timing-function:linear;" +
-      "animation-iteration-count:infinite;" +
-      "animation-delay:0s;" +
-      "animation-fill-mode:both;" +
-      "will-change:transform;}" +
-      "#" + BAR_ID + ".is-paused #" + TRACK_ID + "," +
-      "#" + BAR_ID + ":hover #" + TRACK_ID + "," +
-      "#" + BAR_ID + ":focus-within #" + TRACK_ID + "{" +
-      "animation-play-state:paused;}" +
-      "#" + TEXT_ID + ",#" + TRACK_ID + " [data-announce-clone]{" +
-      "display:block;flex:0 0 auto;flex-shrink:0;" +
-      "white-space:nowrap;overflow:visible;text-overflow:clip;" +
-      "max-width:none;margin:0;padding:0;box-sizing:border-box;" +
-      "line-clamp:none;-webkit-line-clamp:unset;" +
-      "direction:rtl;unicode-bidi:isolate;" +
-      "color:inherit;" +
+      "#" + INNER_ID + "{" +
+      "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+      "gap:2px;width:100%;max-width:100%;min-width:0;margin:0;}" +
+      "#" + TEXT_ID + "{" +
+      "display:block;width:100%;max-width:100%;margin:0;padding:0;box-sizing:border-box;" +
+      "color:inherit;font:inherit;font-weight:700;line-height:inherit;" +
+      "text-align:center;white-space:normal;overflow-wrap:anywhere;word-break:break-word;" +
+      "overflow:visible;text-overflow:clip;" +
       "transition:opacity " + FADE_MS + "ms ease;}" +
-      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;overflow:visible;width:auto;flex:1 1 auto;}" +
-      "#" + BAR_ID + ".is-wrap #" + VIEW_ID + "{justify-content:center;}" +
-      "@keyframes kutadgu-announce-ltr{" +
-      "from{transform:translate3d(calc(-1 * var(--kutadgu-announce-travel, 0px)),0,0);}" +
-      "to{transform:translate3d(0,0,0);}" +
-      "}" +
+      "#" + TEXT_ID + ".is-clamped{" +
+      "display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;" +
+      "overflow:hidden;}" +
+      "#" + TOGGLE_ID + "{" +
+      "appearance:none;background:transparent;border:0;color:inherit;font:inherit;" +
+      "font-size:11px;font-weight:700;line-height:1.2;padding:0 2px;margin:0;" +
+      "cursor:pointer;text-decoration:underline;text-underline-offset:2px;opacity:.9;}" +
+      "#" + TOGGLE_ID + ":hover,#" + TOGGLE_ID + ":focus-visible{opacity:1;}" +
+      "#" + TOGGLE_ID + "[hidden]{display:none!important;}" +
       "@media (max-width:700px){" +
       "#" + BAR_ID + "{padding:4px 48px;font-size:12px;line-height:1.35;}" +
       "}" +
       "@media (prefers-reduced-motion:reduce){" +
-      "#" + BAR_ID + " #" + TRACK_ID + "{animation:none!important;transform:none!important;}" +
-      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;}" +
+      "#" + TEXT_ID + "{transition:none;}" +
       "}" +
       ".home-search-card-section,.home-search-card-section#books,#books{" +
       "scroll-margin-top:calc(var(" + HEIGHT_VAR + ", 80px) + 16px);}";
@@ -246,11 +222,64 @@
     }
   }
 
+  function setToggleUi(isExpanded, overflowing) {
+    var bar = document.getElementById(BAR_ID);
+    var text = document.getElementById(TEXT_ID);
+    var toggle = document.getElementById(TOGGLE_ID);
+    expanded = !!(isExpanded && overflowing);
+    if (toggle) {
+      toggle.hidden = !overflowing;
+      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      toggle.textContent = expanded ? COLLAPSE_LABEL : EXPAND_LABEL;
+    }
+    if (bar) bar.classList.toggle("is-expanded", expanded);
+    if (text) text.classList.toggle("is-clamped", overflowing && !expanded);
+  }
+
+  function measureAndApplyClamp() {
+    var bar = document.getElementById(BAR_ID);
+    var text = document.getElementById(TEXT_ID);
+    if (!bar || !text || !bar.classList.contains("is-visible")) {
+      setToggleUi(false, false);
+      return;
+    }
+    var keepExpanded = expanded;
+    bar.classList.remove("is-expanded");
+    text.classList.add("is-clamped");
+    var overflowing = isLineOverflowing(text.scrollHeight, text.clientHeight);
+    setToggleUi(keepExpanded, overflowing);
+  }
+
+  function scheduleMeasure() {
+    if (typeof requestAnimationFrame !== "function") {
+      measureAndApplyClamp();
+      syncHeaderOffset();
+      return;
+    }
+    if (measureRaf) cancelAnimationFrame(measureRaf);
+    measureRaf = requestAnimationFrame(function () {
+      measureRaf = requestAnimationFrame(function () {
+        measureRaf = 0;
+        measureAndApplyClamp();
+        syncHeaderOffset();
+      });
+    });
+  }
+
+  function resetExpandedForNewCopy(message) {
+    var next = String(message || "").trim();
+    if (next !== lastMessage) {
+      expanded = false;
+      lastMessage = next;
+    }
+  }
+
   function setText(message) {
     var el = document.getElementById(TEXT_ID);
     if (!el) return;
+    resetExpandedForNewCopy(message);
     el.textContent = String(message || "").trim();
-    scheduleTicker();
+    scheduleMeasure();
   }
 
   function showIndex(next, animate) {
@@ -259,19 +288,18 @@
     var el = document.getElementById(TEXT_ID);
     var msg = String(items[index].message || "").trim();
     if (!el) return;
+    resetExpandedForNewCopy(msg);
     if (!animate) {
-      if (el.textContent !== msg) layoutKey = "";
       el.style.opacity = "1";
       el.textContent = msg;
-      scheduleTicker();
+      scheduleMeasure();
       return;
     }
     el.style.opacity = "0";
     setTimeout(function () {
-      if (el.textContent !== msg) layoutKey = "";
       el.textContent = msg;
       el.style.opacity = "1";
-      scheduleTicker();
+      scheduleMeasure();
     }, FADE_MS);
   }
 
@@ -283,167 +311,6 @@
       if (paused) return;
       showIndex(index + 1, true);
     }, ms);
-  }
-
-  function removeTickerClone(track) {
-    if (!track) return;
-    var clones = track.querySelectorAll("[data-announce-clone]");
-    for (var i = 0; i < clones.length; i++) clones[i].parentNode.removeChild(clones[i]);
-  }
-
-  function teardownTicker(bar) {
-    if (!bar) bar = document.getElementById(BAR_ID);
-    if (!bar) return;
-    bar.classList.remove("is-ticker", "is-wrap");
-    bar.removeAttribute("tabindex");
-    var track = document.getElementById(TRACK_ID);
-    if (track) {
-      track.style.animationDuration = "";
-      track.style.removeProperty("--kutadgu-announce-travel");
-      track.classList.remove("is-prepared");
-      removeTickerClone(track);
-    }
-    var text = document.getElementById(TEXT_ID);
-    if (text) clearCopyLock(text);
-  }
-
-  function clearCopyLock(el) {
-    if (!el || !el.style) return;
-    el.style.removeProperty("width");
-    el.style.removeProperty("flex");
-    el.style.removeProperty("flex-basis");
-    el.style.removeProperty("min-width");
-    el.style.removeProperty("max-width");
-  }
-
-  function lockCopyWidth(el, px) {
-    if (!el) return;
-    var w = Math.round(px) + "px";
-    el.style.boxSizing = "border-box";
-    el.style.margin = "0";
-    el.style.padding = "0";
-    el.style.whiteSpace = "nowrap";
-    el.style.flex = "0 0 " + w;
-    el.style.width = w;
-    el.style.minWidth = w;
-    el.style.maxWidth = w;
-  }
-
-  function measureContentWidth(text) {
-    if (!text) return 0;
-    text.style.whiteSpace = "nowrap";
-    clearCopyLock(text);
-    var sw = Number(text.scrollWidth) || 0;
-    var ow = Number(text.offsetWidth) || 0;
-    var rw = text.getBoundingClientRect ? text.getBoundingClientRect().width : 0;
-    return Math.ceil(Math.max(sw, ow, rw, 0));
-  }
-
-  function measureAndApplyTicker() {
-    var bar = document.getElementById(BAR_ID);
-    var viewport = document.getElementById(VIEW_ID);
-    var track = document.getElementById(TRACK_ID);
-    var text = document.getElementById(TEXT_ID);
-    if (!bar || !viewport || !track || !text || !items.length) {
-      teardownTicker(bar);
-      return;
-    }
-    var message = String(text.textContent || "").trim();
-    if (!message) {
-      layoutKey = "";
-      teardownTicker(bar);
-      return;
-    }
-    var viewportW = Math.round(viewport.clientWidth);
-    var reduced = prefersReducedMotion();
-    var existing = track.querySelector("[data-announce-clone]");
-    text.style.whiteSpace = "nowrap";
-    var parts = layoutKey.split("|");
-    var viewportChanged = !layoutKey || parts[1] !== String(viewportW);
-    if (!layoutKey || viewportChanged || !text.style.width) {
-      clearCopyLock(text);
-      if (existing) clearCopyLock(existing);
-    }
-    var contentW = Math.ceil(Math.max(Number(text.scrollWidth) || 0, Number(text.offsetWidth) || 0, 0));
-    var overflowing = isTickerOverflow(contentW, viewportW);
-    var mode = !overflowing ? "static" : (reduced ? "wrap" : "ticker");
-    var prefix = message + "|" + viewportW + "|" + contentW + "|" + mode;
-    if (layoutKey === prefix) {
-      if (mode === "wrap") text.style.whiteSpace = "normal";
-      return;
-    }
-    layoutKey = prefix;
-    if (!(viewportW > 0) || !(contentW > 0)) {
-      layoutKey = "";
-      teardownTicker(bar);
-      return;
-    }
-    if (mode === "static") {
-      bar.classList.remove("is-ticker", "is-wrap");
-      bar.removeAttribute("tabindex");
-      track.classList.remove("is-prepared");
-      track.style.removeProperty("--kutadgu-announce-travel");
-      if (existing) existing.parentNode.removeChild(existing);
-      track.style.animationDuration = "";
-      clearCopyLock(text);
-      text.style.whiteSpace = "nowrap";
-      return;
-    }
-    if (mode === "wrap") {
-      if (existing) existing.parentNode.removeChild(existing);
-      bar.classList.remove("is-ticker");
-      track.classList.remove("is-prepared");
-      track.style.removeProperty("--kutadgu-announce-travel");
-      clearCopyLock(text);
-      bar.classList.add("is-wrap");
-      text.style.whiteSpace = "normal";
-      bar.removeAttribute("tabindex");
-      track.style.animationDuration = "";
-      return;
-    }
-    bar.classList.remove("is-wrap", "is-ticker");
-    if (!existing) {
-      existing = text.cloneNode(true);
-      existing.removeAttribute("id");
-      existing.setAttribute("aria-hidden", "true");
-      existing.setAttribute("data-announce-clone", "1");
-    } else if (existing.textContent !== text.textContent) {
-      existing.textContent = text.textContent;
-    }
-    if (existing.parentNode !== track || existing.nextSibling !== text) {
-      track.insertBefore(existing, text);
-    }
-    lockCopyWidth(text, contentW);
-    lockCopyWidth(existing, contentW);
-    track.classList.add("is-prepared");
-    var travel = Math.round(text.offsetLeft);
-    if (!(travel > 0)) travel = Math.round(existing.offsetWidth) || contentW;
-    if (Math.abs(travel - contentW) > 2) travel = contentW;
-    if (!(travel > 0)) {
-      layoutKey = "";
-      teardownTicker(bar);
-      return;
-    }
-    track.style.setProperty("--kutadgu-announce-travel", travel + "px");
-    track.style.animationDuration = computeTickerDurationMs(travel) + "ms";
-    bar.classList.add("is-ticker");
-    bar.setAttribute("tabindex", "0");
-  }
-
-  function scheduleTicker() {
-    if (typeof requestAnimationFrame !== "function") {
-      measureAndApplyTicker();
-      syncHeaderOffset();
-      return;
-    }
-    if (tickerRaf) cancelAnimationFrame(tickerRaf);
-    tickerRaf = requestAnimationFrame(function () {
-      tickerRaf = requestAnimationFrame(function () {
-        tickerRaf = 0;
-        measureAndApplyTicker();
-        syncHeaderOffset();
-      });
-    });
   }
 
   function syncHeaderOffset() {
@@ -460,15 +327,24 @@
     stopTimer();
     items = [];
     index = 0;
-    layoutKey = "";
+    expanded = false;
+    lastMessage = "";
     var bar = document.getElementById(BAR_ID);
-    teardownTicker(bar);
     if (bar) {
-      bar.classList.remove("is-visible");
+      bar.classList.remove("is-visible", "is-expanded");
       bar.hidden = true;
       bar.style.display = "none";
     }
+    setToggleUi(false, false);
     setText("");
+    syncHeaderOffset();
+  }
+
+  function onToggleClick(event) {
+    if (event) event.preventDefault();
+    var toggle = document.getElementById(TOGGLE_ID);
+    if (!toggle || toggle.hidden) return;
+    setToggleUi(!expanded, true);
     syncHeaderOffset();
   }
 
@@ -479,40 +355,40 @@
     bar.addEventListener("mouseleave", function () { paused = false; });
     bar.addEventListener("focusin", function () { paused = true; });
     bar.addEventListener("focusout", function () { paused = false; });
-    bar.addEventListener("pointerdown", function () {
-      paused = true;
-      bar.classList.add("is-paused");
-    });
-    bar.addEventListener("pointerup", function () {
-      paused = false;
-      bar.classList.remove("is-paused");
-    });
-    bar.addEventListener("pointercancel", function () {
-      paused = false;
-      bar.classList.remove("is-paused");
-    });
   }
 
-  function ensureTrack(bar) {
+  function bindToggle(toggle) {
+    if (!toggle || toggle.dataset.toggleBound === "1") return;
+    toggle.dataset.toggleBound = "1";
+    toggle.addEventListener("click", onToggleClick);
+  }
+
+  function ensureStructure(bar) {
+    var inner = document.getElementById(INNER_ID);
+    if (!inner) {
+      inner = document.createElement("div");
+      inner.id = INNER_ID;
+    }
     var text = document.getElementById(TEXT_ID);
     if (!text) {
-      text = document.createElement("span");
+      text = document.createElement("p");
       text.id = TEXT_ID;
     }
-    var viewport = document.getElementById(VIEW_ID);
-    if (!viewport) {
-      viewport = document.createElement("div");
-      viewport.id = VIEW_ID;
+    var toggle = document.getElementById(TOGGLE_ID);
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.id = TOGGLE_ID;
+      toggle.type = "button";
     }
-    var track = document.getElementById(TRACK_ID);
-    if (!track) {
-      track = document.createElement("div");
-      track.id = TRACK_ID;
-    }
-    if (text.parentElement !== track) track.appendChild(text);
-    if (track.parentElement !== viewport) viewport.appendChild(track);
-    if (viewport.parentElement !== bar) bar.appendChild(viewport);
-    return { viewport: viewport, track: track, text: text };
+    toggle.setAttribute("aria-controls", TEXT_ID);
+    toggle.setAttribute("aria-expanded", "false");
+    if (!toggle.textContent) toggle.textContent = EXPAND_LABEL;
+    toggle.hidden = true;
+    if (text.parentElement !== inner) inner.appendChild(text);
+    if (toggle.parentElement !== inner) inner.appendChild(toggle);
+    if (inner.parentElement !== bar) bar.appendChild(inner);
+    bindToggle(toggle);
+    return { inner: inner, text: text, toggle: toggle };
   }
 
   function ensureBar(header) {
@@ -527,23 +403,24 @@
     } else if (bar.parentElement !== header) {
       header.appendChild(bar);
     }
-    ensureTrack(bar);
+    ensureStructure(bar);
     bindBarPause(bar);
     return bar;
   }
 
   function observeLayout(header) {
     if (headerObserver) headerObserver.disconnect();
-    if (typeof ResizeObserver === "undefined") return;
+    if (typeof ResizeObserver === "undefined") {
+      scheduleMeasure();
+      return;
+    }
     headerObserver = new ResizeObserver(function () {
-      scheduleTicker();
+      scheduleMeasure();
     });
     headerObserver.observe(header);
-    var viewport = document.getElementById(VIEW_ID);
-    if (viewport) headerObserver.observe(viewport);
-    var track = document.getElementById(TRACK_ID);
-    if (track) headerObserver.observe(track);
+    var bar = document.getElementById(BAR_ID);
     var text = document.getElementById(TEXT_ID);
+    if (bar) headerObserver.observe(bar);
     if (text) headerObserver.observe(text);
   }
 
@@ -560,6 +437,7 @@
     bar.style.display = "flex";
     bar.classList.add("is-visible");
     paused = false;
+    expanded = false;
     showIndex(0, false);
     startTimer();
     requestAnimationFrame(function () {
@@ -618,13 +496,12 @@
       run();
     }
     if (root.addEventListener) {
-      root.addEventListener("resize", function () { layoutKey = ""; scheduleTicker(); });
-      root.addEventListener("orientationchange", function () { layoutKey = ""; scheduleTicker(); });
+      root.addEventListener("resize", scheduleMeasure);
+      root.addEventListener("orientationchange", scheduleMeasure);
     }
     if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
       document.fonts.ready.then(function () {
-        layoutKey = "";
-        scheduleTicker();
+        scheduleMeasure();
       }).catch(function () {});
     }
   }
@@ -633,8 +510,7 @@
     BAR_ID: BAR_ID,
     clampInterval: clampInterval,
     shouldAutoplay: shouldAutoplay,
-    isTickerOverflow: isTickerOverflow,
-    computeTickerDurationMs: computeTickerDurationMs,
+    isLineOverflowing: isLineOverflowing,
     isAnnouncementCurrent: isAnnouncementCurrent,
     filterActive: filterActive,
     sortAnnouncements: sortAnnouncements,
@@ -644,7 +520,7 @@
     apply: apply,
     boot: boot,
     _state: function () {
-      return { items: items, index: index, intervalSec: intervalSec, paused: paused, timer: !!timer };
+      return { items: items, index: index, intervalSec: intervalSec, paused: paused, timer: !!timer, expanded: expanded };
     }
   };
 
