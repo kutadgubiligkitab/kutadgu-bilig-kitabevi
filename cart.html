@@ -8,10 +8,10 @@
 <meta name="robots" content="noindex, follow">
 
     <link rel="stylesheet" href="theme.css?v=9">
-    <link rel="stylesheet" href="shop.css?v=41">
+    <link rel="stylesheet" href="shop.css?v=45">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 
-  <link rel="stylesheet" href="mobile.css?v=20">
+  <link rel="stylesheet" href="mobile.css?v=21">
 </head>
 <body>
 
@@ -24,8 +24,12 @@
 
     <h1 class="cart-page-title">🛒 سېۋىتىم</h1>
 
+    <div class="cart-layout" id="cartLayout" data-empty="true">
+    <div class="cart-layout-main">
     <div id="cartItems"></div>
-
+    </div>
+    <aside class="cart-layout-aside" id="cartAside" hidden>
+    <div id="cartSummaryHost"></div>
     <section class="checkout-card" id="checkoutCard">
         <div class="checkout-heading">
             <div>
@@ -94,12 +98,14 @@
             </p>
         </div>
     </section>
+    </aside>
+    </div>
 
 </main>
 
 <script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=10"></script><script defer src="catalog.js?v=1"></script><script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=86"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=87"></script>
   <script defer src="mobile.js?v=3"></script>
 </body>
 </html>

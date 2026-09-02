@@ -52,6 +52,19 @@ test.describe("guest cart and favorites", () => {
       return Number(cart[0] && cart[0].qty);
     }).toBe(2);
 
+    await expect(page.locator("#cartItems [data-minus]")).toBeEnabled();
+    await page.locator("#cartItems [data-minus]").click();
+    await expect.poll(async () => {
+      const cart = await H.readCart(page);
+      return Number(cart[0] && cart[0].qty);
+    }).toBe(1);
+
+    await page.locator("#cartItems [data-plus]").click();
+    await expect.poll(async () => {
+      const cart = await H.readCart(page);
+      return Number(cart[0] && cart[0].qty);
+    }).toBe(2);
+
     await page.reload({ waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     const after = await H.readCart(page);
@@ -158,6 +171,7 @@ test.describe("guest cart and favorites", () => {
     expect(url).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
     const text = decodeURIComponent(url.split("text=")[1] || "");
     expect(text).toContain(book.title);
+    expect(text).toMatch(/1 دانە/);
     expect(text).toMatch(/كىتاب/);
     expect(text).toMatch(/Playwright Test/);
     expect(text).toMatch(/زاكاز نومۇرى/);
@@ -261,5 +275,62 @@ test.describe("guest cart and favorites", () => {
       document.dispatchEvent(new CustomEvent("kutadgu-member-state-synced"));
     });
     await expect(page.locator("#favoritesList")).toContainText(/ھازىرچە ياقتۇرغان كىتاب يوق/);
+  });
+
+  test("cart line total and grand total follow quantity", async ({ page }) => {
+    const book = await addBookOnce(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+
+    const expectedOnce = await page.evaluate(() => {
+      const shop = window.kutadguShop;
+      const line = shop.cart()[0];
+      const book = shop.find(line.id);
+      const n = (Number(book && book.price) || 0) * Number(line.qty || 1);
+      return `${Number(n).toLocaleString("tr-TR")} ₺`;
+    });
+    await expect(page.locator("#cartItems .cart-line-price strong")).toContainText(expectedOnce);
+    await expect(page.locator("#cartSummaryHost .cart-total strong")).toContainText(expectedOnce);
+
+    await page.locator("#cartItems [data-plus]").click();
+    await expect.poll(async () => {
+      const cart = await H.readCart(page);
+      return Number(cart[0] && cart[0].qty);
+    }).toBe(2);
+    const expectedTwice = await page.evaluate(() => {
+      const shop = window.kutadguShop;
+      const line = shop.cart()[0];
+      const book = shop.find(line.id);
+      const n = (Number(book && book.price) || 0) * Number(line.qty || 1);
+      return `${Number(n).toLocaleString("tr-TR")} ₺`;
+    });
+    await expect(page.locator("#cartItems .cart-line-price strong")).toContainText(expectedTwice);
+    await expect(page.locator("#cartSummaryHost .cart-total strong")).toContainText(expectedTwice);
+  });
+
+  test("cart grouped layout stays inside the viewport", async ({ page }) => {
+    const book = await addBookOnce(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+    await expect(page.locator(".cart-layout")).toBeVisible();
+    await expect(page.locator("#cartItems .cart-item-cover")).toHaveCount(1);
+    await expect(page.locator("#cartItems .cart-item-toolbar .qty-control")).toHaveCount(1);
+    await expect(page.locator("#cartSummaryHost .cart-summary")).toBeVisible();
+    await expect(page.locator("#whatsappOrder")).toBeVisible();
+
+    for (const width of [1280, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect.poll(async () => page.evaluate(() => (
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1
+      ))).toBe(true);
+      const columns = await page.locator(".cart-layout").evaluate((el) => getComputedStyle(el).gridTemplateColumns);
+      if (width >= 960) {
+        expect(columns.split(" ").length).toBeGreaterThanOrEqual(2);
+      } else {
+        expect(columns.split(" ").filter(Boolean).length).toBe(1);
+      }
+    }
   });
 });

@@ -1019,16 +1019,16 @@
     padding: 11px !important;
   }
 
-  .cart-item img {
-    width: 68px !important;
-    height: 92px !important;
-    object-fit: contain !important;
+  .cart-item-cover {
+    width: 72px !important;
+    padding: 4px !important;
   }
 
-  .cart-item .qty-control,
-  .cart-item .cart-line-price,
-  .cart-item .remove-cart {
-    grid-column: 2 !important;
+  .cart-item-cover img {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 104px !important;
+    object-fit: contain !important;
   }
 
   .qty-control button {
