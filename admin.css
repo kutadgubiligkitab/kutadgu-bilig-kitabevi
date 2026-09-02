@@ -116,12 +116,13 @@ button{cursor:pointer}
 .admin-mfa-qr,.admin-mfa-enroll img{width:min(180px,70vw);height:auto;max-width:100%;background:#fff;border:1px solid #e8dccb;border-radius:12px;padding:8px}
 .admin-mfa-enroll-fields{flex:1 1 220px;min-width:0}
 #mfaSecret{display:block;overflow-wrap:anywhere;word-break:break-all;direction:ltr;text-align:left;font-size:13px;padding:8px;background:#fbf8f2;border-radius:8px;margin:0 0 10px}
-#mfaOtp,#mfaGateOtp{max-width:12ch;direction:ltr}
+#mfaOtp,#mfaGateOtp,#idleLockOtp{max-width:12ch;direction:ltr}
+#idleLockSubmit,#idleLockLogout{min-height:44px}
 .admin-mfa-confirm:not([hidden]){margin-top:12px;padding:12px;border:1px solid #eadfce;border-radius:12px;background:#fff8f4}
-#mfaCard [hidden],#mfaGatePanel[hidden]{display:none!important}
+#mfaCard [hidden],#mfaGatePanel[hidden],#idleLockPanel[hidden]{display:none!important}
 @media(max-width:520px){
   .admin-mfa-enroll:not([hidden]){flex-direction:column;align-items:stretch}
-  #mfaSetupBtn,#mfaCleanupBtn,#mfaRemoveBtn,#mfaVerifyBtn,#mfaEnrollCancelBtn,#mfaRemoveConfirmBtn,#mfaRemoveCancelBtn,#mfaGateSubmit,#mfaGateLogout{min-height:44px}
+  #mfaSetupBtn,#mfaCleanupBtn,#mfaRemoveBtn,#mfaVerifyBtn,#mfaEnrollCancelBtn,#mfaRemoveConfirmBtn,#mfaRemoveCancelBtn,#mfaGateSubmit,#mfaGateLogout,#idleLockSubmit,#idleLockLogout{min-height:44px}
 }
 #announcementCard.is-missing{border-color:#d8bd7d}
 .admin-announce-settings{margin:12px 0 18px}

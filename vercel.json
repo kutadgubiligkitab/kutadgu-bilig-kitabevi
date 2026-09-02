@@ -222,15 +222,24 @@
         }
       ]
     },
-    {
-      "source": "/admin.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, must-revalidate"
-        }
-      ]
-    },
+      {
+        "source": "/admin.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/admin-idle.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, must-revalidate"
+          }
+        ]
+      },
     {
       "source": "/admin-book-write.js",
       "headers": [
