@@ -1052,7 +1052,7 @@ function populateDynamicBookPage(b){
   if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
       setDynamicMeta("ئاپتورى",storefrontAuthor(b)),
-      setDynamicMeta("تەرجىمانى",b.translator),
+      setDynamicMeta("تەرجىمە قىلغۇچى",b.translator),
       setDynamicMeta("نەشرىيات",b.publisher),
       setDynamicMeta("نەشر يىلى",b.publishYear),
       setDynamicMeta("ISBN",storefrontIsbn(b)),

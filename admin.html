@@ -235,7 +235,6 @@
           <button type="button" class="admin-status-chip" data-problem-filter="missing_stock" data-book-col="stock" aria-pressed="false">ئامبار سانى يوق</button>
           <button type="button" class="admin-status-chip" data-problem-filter="missing_stock_status" data-book-col="stock_status" aria-pressed="false">ئامبار ھالىتى يوق</button>
         </div>
-        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى / يۈكلەنگەن نەتىجىلەرگە تەۋە. «دىققەت تەلەپ» سۈزگۈچلىرى مەۋجۇت ستونلار بويىچە server-side. باھا 0 ئىناۋەتلىك؛ پەقەت بوش ياكى مەنپىي باھا مەسىلە. «يېڭى كەلگەن» بەلگىسى قولدىكى is_new؛ باش بەتتىكى يېقىندا قوشۇلغانلار created_at بويىچە ئايرىم.</p>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
           <span id="adminSelectedCount">تاللانغان: 0 (پەقەت نۆۋەتتىكى بەت / يۈكلەنگەن نەتىجە)</span>
@@ -378,7 +377,7 @@
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label data-book-col="pages"><span>بەت سانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPages" type="number" min="1" step="1"><span class="admin-help">پۈتۈن سان، ئەڭ ئاز 1. بوش قالدۇرۇشقا بولىدۇ.</span></label>
 
-      <label data-book-col="translator"><span>تەرجىمانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
+      <label data-book-col="translator"><span>تەرجىمە قىلغۇچى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
       <label data-book-col="language"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
 
       <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>

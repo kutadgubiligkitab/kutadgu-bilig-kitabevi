@@ -161,6 +161,8 @@ test("import does not require new columns and can map them when present", () => 
 test("storefront detail shows labels when present and hides empty rows", () => {
   assert.match(shop, /setDynamicMeta\("مۇقاۋا تۈرى"/);
   assert.match(shop, /setDynamicMeta\("كىتاب ئۆلچىمى"/);
+  assert.match(shop, /setDynamicMeta\("تەرجىمە قىلغۇچى"/);
+  assert.doesNotMatch(shop, /setDynamicMeta\("تەرجىمانى"/);
   assert.match(shop, /bookSize:\(bibliographicLib\(\)\.normalizeBookSize/);
   assert.doesNotMatch(shop, /value\("dimensions","book_size"/);
   const card = shop.slice(shop.indexOf("function bookCardMarkup"), shop.indexOf("function searchResultCard"));
@@ -177,7 +179,7 @@ test("auth MFA idle lock password reset OAuth files are unchanged by this featur
 test("book.html loads catalog-bibliography before shop.js", () => {
   const bookHtml = read("book.html");
   const bib = bookHtml.indexOf("catalog-bibliography.js?v=2");
-  const shop = bookHtml.indexOf("shop.js?v=84");
+  const shop = bookHtml.indexOf("shop.js?v=85");
   assert.ok(bib > 0 && shop > bib);
 });
 
@@ -185,6 +187,9 @@ test("Admin cache pins include bibliography v=2 and admin.js v=41", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=2/);
   assert.match(adminHtml, /admin\.js\?v=41/);
   assert.match(adminHtml, /admin\.css\?v=24/);
+  assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
+  assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);
+  assert.doesNotMatch(adminHtml, /ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ/);
 });
 
 if (failed) process.exit(1);
