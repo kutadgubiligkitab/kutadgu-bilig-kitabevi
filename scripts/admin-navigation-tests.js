@@ -32,14 +32,14 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=22, admin.js v=40, admin-mfa.js v=2, and admin-idle.js v=2", () => {
-  assert.match(adminHtml, /admin\.css\?v=22/);
-  assert.match(adminHtml, /admin\.js\?v=40/);
+test("cache pins are admin.css v=26, admin.js v=43, admin-mfa.js v=2, and admin-idle.js v=2", () => {
+  assert.match(adminHtml, /admin\.css\?v=26/);
+  assert.match(adminHtml, /admin\.js\?v=43/);
   assert.match(adminHtml, /admin-mfa\.js\?v=2/);
   assert.match(adminHtml, /admin-idle\.js\?v=2/);
   assert.match(adminHtml, /admin-catalog-productivity\.js\?v=2/);
-  assert.doesNotMatch(adminHtml, /admin\.css\?v=21/);
-  assert.doesNotMatch(adminHtml, /admin\.js\?v=39/);
+  assert.doesNotMatch(adminHtml, /admin\.css\?v=24/);
+  assert.doesNotMatch(adminHtml, /admin\.js\?v=41/);
 });
 
 test("section grouping keeps existing Admin cards", () => {

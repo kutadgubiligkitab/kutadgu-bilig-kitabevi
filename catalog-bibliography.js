@@ -2,6 +2,11 @@
 "use strict";
 
 const BIB_OPTIONAL_COLS=["translator","publisher","publish_year","pages"];
+const COVER_SIZE_OPTIONAL_COLS=["cover_type","book_size"];
+const COVER_TYPE_VALUES=["hardcover","paperback","other"];
+const BOOK_SIZE_VALUES=["A4","A5","B5","other"];
+const COVER_TYPE_LABELS={hardcover:"قاتتىق مۇقاۋىلىق",paperback:"يۇمشاق مۇقاۋىلىق",other:"باشقا"};
+const BOOK_SIZE_LABELS={A4:"A4",A5:"A5",B5:"B5",other:"باشقا"};
 
 function schemaOptional(spec,col){
   const optional=(spec&&spec.optionalColumns)||{};
@@ -61,13 +66,71 @@ function staticSearchHaystack(book){
   ].filter(Boolean).join(" ");
 }
 
+function normalizeCoverType(value){
+  if(value==null)return null;
+  const s=String(value).trim();
+  if(!s)return null;
+  const key=s.toLowerCase().replace(/[\s_-]+/g,"");
+  if(key==="hardcover"||key==="hard"||key==="hardback")return "hardcover";
+  if(key==="paperback"||key==="softcover"||key==="soft")return "paperback";
+  if(key==="other")return "other";
+  return null;
+}
+
+function normalizeBookSize(value){
+  if(value==null)return null;
+  const s=String(value).trim();
+  if(!s)return null;
+  const u=s.toUpperCase();
+  if(u==="A4"||u==="A5"||u==="B5")return u;
+  if(s.toLowerCase()==="other")return "other";
+  return null;
+}
+
+function coverTypeLabel(value){
+  const n=normalizeCoverType(value);
+  return n?COVER_TYPE_LABELS[n]:"";
+}
+
+function bookSizeLabel(value){
+  const n=normalizeBookSize(value);
+  return n?BOOK_SIZE_LABELS[n]:"";
+}
+
+function detailMetaVisible(value){
+  if(value===null||value===undefined)return false;
+  const s=String(value).trim();
+  if(!s)return false;
+  if(/^(undefined|null|unknown)$/i.test(s))return false;
+  return true;
+}
+
+function canonicalOptionalForSave(selectValue,previous,isEdit,normalize){
+  const fn=typeof normalize==="function"?normalize:function(){return null};
+  const n=fn(selectValue);
+  if(n)return {include:true,value:n};
+  const prev=previous==null?"":String(previous);
+  if(isEdit&&prev.trim()&&!fn(prev))return {include:false};
+  return {include:true,value:null};
+}
+
 function missingColumnsFromError(error){
   const msg=String(error&&error.message||error||"");
   const code=error&&error.code;
   const hit=code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg);
   if(!hit)return [];
   const found=BIB_OPTIONAL_COLS.filter(col=>new RegExp(`\\b${col}\\b`,"i").test(msg));
-  return found.length?found:BIB_OPTIONAL_COLS.slice();
+  if(found.length)return found;
+  if(COVER_SIZE_OPTIONAL_COLS.some(col=>new RegExp(`\\b${col}\\b`,"i").test(msg)))return [];
+  return BIB_OPTIONAL_COLS.slice();
+}
+
+function missingCoverSizeColumnsFromError(error){
+  const msg=String(error&&error.message||error||"");
+  const code=error&&error.code;
+  const hit=code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg);
+  if(!hit)return [];
+  return COVER_SIZE_OPTIONAL_COLS.filter(col=>new RegExp(`\\b${col}\\b`,"i").test(msg));
 }
 
 function disableOptionalColumns(spec,cols){
@@ -83,14 +146,26 @@ function qualityIgnoresOptionalBibliography(){
 
 const api={
   BIB_OPTIONAL_COLS,
+  COVER_SIZE_OPTIONAL_COLS,
+  COVER_TYPE_VALUES,
+  BOOK_SIZE_VALUES,
+  COVER_TYPE_LABELS,
+  BOOK_SIZE_LABELS,
   schemaOptional,
   parsePublishYear,
   parsePages,
+  normalizeCoverType,
+  normalizeBookSize,
+  coverTypeLabel,
+  bookSizeLabel,
+  detailMetaVisible,
+  canonicalOptionalForSave,
   normalizeIsbnDigits,
   storefrontSearchColumns,
   adminSearchColumns,
   staticSearchHaystack,
   missingColumnsFromError,
+  missingCoverSizeColumnsFromError,
   disableOptionalColumns,
   qualityIgnoresOptionalBibliography
 };

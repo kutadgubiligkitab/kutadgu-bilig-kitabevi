@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=22">
+  <link rel="stylesheet" href="admin.css?v=26">
 </head>
 <body>
 <div class="admin-shell">
@@ -194,7 +194,7 @@
           </div>
         </div>
         <div class="admin-filter-row">
-          <input id="adminSearch" class="admin-search" type="search" placeholder="كىتاب، ئاپتور ياكى ISBN ئىزدەڭ..." autocomplete="off">
+          <input id="adminSearch" class="admin-search" type="text" inputmode="search" dir="rtl" lang="ug" placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى" autocomplete="off">
           <select id="adminFilterSource" aria-label="تۈر سۈزگۈچى"><option value="">بارلىق تۈرلەر</option></select>
           <select id="adminFilterActive" aria-label="كۆرۈنۈش"><option value="">بارلىق ھالەت</option><option value="yes">كۆرۈنىدۇ</option><option value="no">يوشۇرۇلغان</option></select>
           <select id="adminFilterRecommended" aria-label="تەۋسىيە"><option value="">تەۋسىيە: ھەممىسى</option><option value="yes">تەۋسىيەلىك</option><option value="no">تەۋسىيەسىز</option></select>
@@ -235,7 +235,6 @@
           <button type="button" class="admin-status-chip" data-problem-filter="missing_stock" data-book-col="stock" aria-pressed="false">ئامبار سانى يوق</button>
           <button type="button" class="admin-status-chip" data-problem-filter="missing_stock_status" data-book-col="stock_status" aria-pressed="false">ئامبار ھالىتى يوق</button>
         </div>
-        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى / يۈكلەنگەن نەتىجىلەرگە تەۋە. «دىققەت تەلەپ» سۈزگۈچلىرى مەۋجۇت ستونلار بويىچە server-side. باھا 0 ئىناۋەتلىك؛ پەقەت بوش ياكى مەنپىي باھا مەسىلە. «يېڭى كەلگەن» بەلگىسى قولدىكى is_new؛ باش بەتتىكى يېقىندا قوشۇلغانلار created_at بويىچە ئايرىم.</p>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
           <span id="adminSelectedCount">تاللانغان: 0 (پەقەت نۆۋەتتىكى بەت / يۈكلەنگەن نەتىجە)</span>
@@ -378,14 +377,29 @@
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label data-book-col="pages"><span>بەت سانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPages" type="number" min="1" step="1"><span class="admin-help">پۈتۈن سان، ئەڭ ئاز 1. بوش قالدۇرۇشقا بولىدۇ.</span></label>
 
-      <label data-book-col="translator"><span>تەرجىمانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
+      <label data-book-col="translator"><span>تەرجىمە قىلغۇچى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
       <label data-book-col="language"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
 
       <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
       <label data-book-col="publish_year"><span>نەشر يىلى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublishYear" type="number" min="1000" max="2100" step="1" inputmode="numeric"><span class="admin-help">مىلادىيە يىلى، 1000–2100. بوش قالدۇرۇشقا بولىدۇ.</span></label>
       <label data-book-col="publisher"><span>نەشرىيات <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublisher"></label>
-      <label data-book-col="cover_type"><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
-      <label data-book-col="dimensions"><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
+      <label data-book-col="cover_type"><span>مۇقاۋا تۈرى <small class="admin-optional">(ئىختىيارىي)</small></span>
+        <select id="bookCoverType">
+          <option value="">تاللانمىغان</option>
+          <option value="hardcover">قاتتىق مۇقاۋىلىق</option>
+          <option value="paperback">يۇمشاق مۇقاۋىلىق</option>
+          <option value="other">باشقا</option>
+        </select>
+      </label>
+      <label data-book-col="book_size"><span>كىتاب ئۆلچىمى <small class="admin-optional">(ئىختىيارىي)</small></span>
+        <select id="bookSize">
+          <option value="">تاللانمىغان</option>
+          <option value="A4">A4</option>
+          <option value="A5">A5</option>
+          <option value="B5">B5</option>
+          <option value="other">باشقا</option>
+        </select>
+      </label>
 
       <label class="admin-wide"><span>كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
 
@@ -526,7 +540,7 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=13"></script>
+<script defer src="supabase-config.js?v=14"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=2"></script>
@@ -535,7 +549,7 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
-<script defer src="catalog-bibliography.js?v=1"></script>
+<script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
@@ -543,6 +557,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-<script defer src="admin.js?v=40"></script>
+  <script defer src="admin.js?v=43"></script>
 </body>
 </html>

@@ -35,7 +35,8 @@ create table if not exists public.books (
   publish_date text not null default '',
   publish_year text not null default '',
   publisher text not null default '',
-  cover_type text not null default '',
+  cover_type text,
+  book_size text,
   dimensions text not null default '',
   description text not null default '',
   stock integer check (stock is null or stock >= 0),
@@ -52,7 +53,26 @@ create table if not exists public.books (
 
 -- بۇرۇن قۇرۇلغان Database نىمۇ سانلىق مەلۇمات ئۆچۈرمەي يېڭىلاش
 alter table public.books add column if not exists publish_year text not null default '';
-alter table public.books add column if not exists cover_type text not null default '';
+alter table public.books add column if not exists cover_type text;
+alter table public.books add column if not exists book_size text;
+alter table public.books alter column cover_type drop not null;
+alter table public.books alter column cover_type drop default;
+alter table public.books drop constraint if exists books_cover_type_chk;
+alter table public.books
+  add constraint books_cover_type_chk
+  check (
+    cover_type is null
+    or cover_type = ''
+    or cover_type in ('hardcover', 'paperback', 'other')
+  );
+alter table public.books drop constraint if exists books_book_size_chk;
+alter table public.books
+  add constraint books_book_size_chk
+  check (
+    book_size is null
+    or book_size = ''
+    or book_size in ('A4', 'A5', 'B5', 'other')
+  );
 alter table public.books add column if not exists dimensions text not null default '';
 alter table public.books add column if not exists stock_status text not null default 'in_stock';
 alter table public.books add column if not exists is_bestseller boolean not null default false;
