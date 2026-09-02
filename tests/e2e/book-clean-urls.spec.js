@@ -28,18 +28,61 @@ test.describe("book clean URLs", () => {
     expect(failed, failed.join("\n")).toEqual([]);
   });
 
+  function assertCleanBookLocation(location, origin, bookId) {
+    expect(location, "missing Location").toBeTruthy();
+    const dest = new URL(location, origin);
+    expect(dest.pathname).toBe(`/book/${bookId}`);
+    expect(dest.searchParams.has("id")).toBe(false);
+    expect(String(location)).not.toMatch(/[?&]id=/);
+    expect(dest.pathname + dest.search).not.toBe(`/book?id=${bookId}`);
+  }
+
   test("B legacy /book.html?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
     const book = await H.discoverLiveBook(page);
     const origin = String(baseURL || "").replace(/\/$/, "");
     const redirect = await request.get(`${origin}/book.html?id=${encodeURIComponent(book.id)}`, { maxRedirects: 0 });
     expect(redirect.status()).toBe(308);
-    expect(new URL(redirect.headers().location, origin).pathname).toBe(`/book/${book.id}`);
+    assertCleanBookLocation(redirect.headers().location, origin, book.id);
 
     await page.goto(H.legacyBookHtmlPath(book.id), { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForDetailTitle(page, book.title);
-    expect(new URL(page.url()).pathname).toBe(`/book/${book.id}`);
+    const landed = new URL(page.url());
+    expect(landed.pathname).toBe(`/book/${book.id}`);
+    expect(landed.searchParams.has("id")).toBe(false);
     expect(page.url()).not.toMatch(/book\.html/);
+    expect(page.url()).not.toMatch(/[?&]id=/);
+  });
+
+  test("B2 legacy /book?id={id} permanently lands on /book/{id} without leftover id query", async ({ page, request, baseURL }) => {
+    const book = await H.discoverLiveBook(page);
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const redirect = await request.get(`${origin}/book?id=${encodeURIComponent(book.id)}`, { maxRedirects: 0 });
+    expect(redirect.status()).toBe(308);
+    assertCleanBookLocation(redirect.headers().location, origin, book.id);
+
+    await page.goto(`/book?id=${encodeURIComponent(book.id)}`, { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForDetailTitle(page, book.title);
+    const landed = new URL(page.url());
+    expect(landed.pathname).toBe(`/book/${book.id}`);
+    expect(landed.searchParams.has("id")).toBe(false);
+    expect(page.url()).not.toMatch(/[?&]id=/);
+  });
+
+  test("B3 /book/{id} stays put with no redirect loop", async ({ page, request, baseURL }) => {
+    const book = await H.discoverLiveBook(page);
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const first = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
+    expect(first.status()).toBe(200);
+    expect(first.headers().location || "").toBe("");
+    await page.goto(`/book/${book.id}`, { waitUntil: "domcontentloaded" });
+    await H.waitForDetailTitle(page, book.title);
+    expect(new URL(page.url()).pathname).toBe(`/book/${book.id}`);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForDetailTitle(page, book.title);
+    expect(new URL(page.url()).pathname).toBe(`/book/${book.id}`);
+    expect(page.url()).not.toMatch(/[?&]id=/);
   });
 
   test("C invalid /book/not-a-number stays safe and noindex", async ({ page, request, baseURL }) => {
@@ -116,19 +159,26 @@ test.describe("book clean URLs", () => {
 
   test("non-numeric legacy query does not 308 into /book/{slug}", async ({ request, baseURL }) => {
     const origin = String(baseURL || "").replace(/\/$/, "");
-    const res = await request.get(`${origin}/book.html?id=children-3`, { maxRedirects: 0 });
-    expect(res.status()).toBe(200);
-    expect(res.headers().location || "").toBe("");
+    for (const path of [`${origin}/book.html?id=children-3`, `${origin}/book?id=children-3`]) {
+      const res = await request.get(path, { maxRedirects: 0 });
+      expect(res.status(), path).toBe(200);
+      expect(res.headers().location || "").toBe("");
+      const loc = String(res.headers().location || "");
+      expect(loc).not.toMatch(/\/book\/children-3\b/i);
+    }
   });
 
   test("invalid legacy ids do not redirect to /book/undefined|null|NaN", async ({ request, baseURL }) => {
     const origin = String(baseURL || "").replace(/\/$/, "");
-    for (const raw of ["undefined", "null", "NaN", "", "12.5"]) {
-      const path = raw === "" ? `${origin}/book.html` : `${origin}/book.html?id=${encodeURIComponent(raw)}`;
-      const res = await request.get(path, { maxRedirects: 0 });
-      expect(res.status(), raw || "(empty)").toBe(200);
-      const location = String(res.headers().location || "");
-      expect(location).not.toMatch(/\/book\/(undefined|null|NaN)\b/i);
+    for (const prefix of [`${origin}/book.html`, `${origin}/book`]) {
+      for (const raw of ["undefined", "null", "NaN", "", "12.5"]) {
+        const path = raw === "" ? prefix : `${prefix}?id=${encodeURIComponent(raw)}`;
+        const res = await request.get(path, { maxRedirects: 0 });
+        expect(res.status(), path).toBe(200);
+        const location = String(res.headers().location || "");
+        expect(location).not.toMatch(/\/book\/(undefined|null|NaN)\b/i);
+        expect(location).not.toMatch(/\/book\/12\.5\b/);
+      }
     }
   });
 });
@@ -162,10 +212,11 @@ test.describe("book clean URLs — responsive", () => {
   for (const vp of VIEWPORTS) {
     test(`${vp.name} homepage/category/search cards open /book/{id} without overflow`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.emulateMedia({ reducedMotion: "reduce" });
       const book = await H.discoverLiveBook(page);
 
       await H.openFresh(page, "/");
-      const homeCard = page.locator(".home-feature-card a[href^='/book/'], .home-carousel-link[href^='/book/']").first();
+      const homeCard = page.locator(".home-feature-card a[href^='/book/']").first();
       await expect(homeCard).toBeVisible({ timeout: 30_000 });
       const homeHref = await homeCard.getAttribute("href");
       expect(homeHref).toMatch(/^\/book\/\d+$/);

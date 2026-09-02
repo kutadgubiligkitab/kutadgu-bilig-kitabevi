@@ -49,17 +49,20 @@
 
   function isBookDetailPath(pathname) {
     const path = String(pathname || "");
-    return /(?:^|\/)book\.html$/i.test(path) || /^\/book\/[^/]+\/?$/.test(path);
+    return /(?:^|\/)book\.html$/i.test(path)
+      || /^\/book\/?$/i.test(path)
+      || /^\/book\/[^/]+\/?$/.test(path);
   }
 
-  function legacyBookRedirectPath(loc) {
-    const locationRef = loc || (typeof location !== "undefined" ? location : null);
-    if (!locationRef) return "";
-    const file = String(locationRef.pathname || "").split("/").pop() || "";
-    if (file.toLowerCase() !== "book.html") return "";
+  function isLegacyBookQueryPath(pathname) {
+    const path = String(pathname || "");
+    return /(?:^|\/)book\.html$/i.test(path) || /^\/book\/?$/i.test(path);
+  }
+
+  function legacyNumericIdRedirectPath(search) {
     let params;
     try {
-      params = new URLSearchParams(locationRef.search || "");
+      params = new URLSearchParams(search || "");
     } catch (err) {
       return "";
     }
@@ -68,6 +71,13 @@
     params.delete("id");
     const rest = params.toString();
     return `/book/${id}${rest ? `?${rest}` : ""}`;
+  }
+
+  function legacyBookRedirectPath(loc) {
+    const locationRef = loc || (typeof location !== "undefined" ? location : null);
+    if (!locationRef) return "";
+    if (!isLegacyBookQueryPath(locationRef.pathname)) return "";
+    return legacyNumericIdRedirectPath(locationRef.search || "");
   }
 
   function isPlaceholderAuthor(value) {
@@ -199,6 +209,8 @@
     bookCanonicalUrl,
     parseBookIdFromLocation,
     isBookDetailPath,
+    isLegacyBookQueryPath,
+    legacyNumericIdRedirectPath,
     legacyBookRedirectPath,
     isPlaceholderAuthor,
     storefrontAuthor,
