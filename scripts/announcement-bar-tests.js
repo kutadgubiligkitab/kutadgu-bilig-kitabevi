@@ -70,16 +70,25 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.match(js, /credentials: "omit"/);
   assert.doesNotMatch(js, /service_role/);
   assert.doesNotMatch(js, /<marquee/i);
-  assert.doesNotMatch(js, /line-clamp:2/);
-  assert.doesNotMatch(js, /-webkit-line-clamp:2/);
-  assert.match(js, /kutadgu-announce-ltr/);
-  assert.match(js, /data-announce-clone/);
+  assert.match(js, /line-clamp:2/);
+  assert.match(js, /-webkit-line-clamp:2/);
+  assert.match(js, /تەپسىلات ↓/);
+  assert.match(js, /يىغىش ↑/);
+  assert.match(js, /border-radius:999px/);
+  assert.match(js, /max\(48px, 5%\)/);
+  assert.match(js, /aria-expanded/);
+  assert.match(js, /aria-controls/);
+  assert.match(js, /isLineOverflowing/);
+  assert.match(js, /scrollHeight/);
   assert.match(js, /prefers-reduced-motion/);
-  assert.match(js, /isTickerOverflow/);
-  assert.match(js, /--kutadgu-announce-travel/);
-  assert.match(js, /direction:ltr/);
+  assert.doesNotMatch(js, /kutadgu-announce-ltr/);
+  assert.doesNotMatch(js, /data-announce-clone/);
+  assert.doesNotMatch(js, /isTickerOverflow/);
+  assert.doesNotMatch(js, /--kutadgu-announce-travel/);
+  assert.doesNotMatch(js, /lockCopyWidth/);
+  assert.doesNotMatch(js, /padding-inline-end:3em/);
   assert.doesNotMatch(js, /translate3d\(-50%/);
-  assert.match(cfg, /kutadgu-announcements\.js\?v=3/);
+  assert.match(cfg, /kutadgu-announcements\.js\?v=6/);
   assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
 });
 
@@ -107,13 +116,10 @@ test("interval clamp and autoplay rules", () => {
   assert.strictEqual(api.shouldAutoplay(1), false);
   assert.strictEqual(api.shouldAutoplay(3), true);
   assert.strictEqual(api.shouldAutoplay(3, { reducedMotion: true }), false);
-  assert.strictEqual(api.isTickerOverflow(400, 200), true);
-  assert.strictEqual(api.isTickerOverflow(200, 200), false);
-  assert.strictEqual(api.isTickerOverflow(201, 200), false);
-  assert.strictEqual(api.isTickerOverflow(202, 200), true);
-  assert.strictEqual(api.computeTickerDurationMs(42), 8000);
-  assert.strictEqual(api.computeTickerDurationMs(42 * 20), 20000);
-  assert.strictEqual(api.computeTickerDurationMs(42 * 400), 90000);
+  assert.strictEqual(api.isLineOverflowing(80, 40), true);
+  assert.strictEqual(api.isLineOverflowing(40, 40), false);
+  assert.strictEqual(api.isLineOverflowing(41, 40), false);
+  assert.strictEqual(api.isLineOverflowing(42, 40), true);
 });
 
 test("Admin card is separate from book CRUD with Uyghur labels", () => {

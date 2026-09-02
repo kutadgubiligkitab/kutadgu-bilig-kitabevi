@@ -163,7 +163,7 @@ test.describe("announcement bar", () => {
 });
 
 const SHORT_MSG = "قىسقا ئېلان";
-const MOBILE_OVERFLOW_MSG = "يېڭى كىتابلار تېخىمۇ ئەرزان باھادا سېتىلىدۇ!";
+const MOBILE_OVERFLOW_MSG = "يېڭى كىتابلار تېخىمۇ ئەرزان باھادا سېتىلىدۇ! پۇرسەتنى قولدىن بەرمەڭ، بۈگۈن زاكاز قىلىڭ.";
 const DESKTOP_OVERFLOW_MSG = Array.from({ length: 24 }, () => "يېڭى كىتابلار تېخىمۇ ئەرزان باھادا سېتىلىدۇ!").join(" ");
 
 function row(message, id) {
@@ -182,36 +182,76 @@ async function announceMetrics(page) {
   return page.evaluate(() => {
     const bar = document.getElementById("kutadguAnnounceBar");
     const text = document.getElementById("kutadguAnnounceText");
-    const viewport = document.getElementById("kutadguAnnounceViewport");
-    const track = document.getElementById("kutadguAnnounceTrack");
-    const clones = track ? [...track.querySelectorAll("[data-announce-clone]")] : [];
+    const inner = document.getElementById("kutadguAnnounceInner");
+    const toggle = document.getElementById("kutadguAnnounceToggle");
+    const clones = document.querySelectorAll("[data-announce-clone]");
     const csText = text ? getComputedStyle(text) : {};
-    const csTrack = track ? getComputedStyle(track) : {};
     const csBar = bar ? getComputedStyle(bar) : {};
+    const csToggle = toggle ? getComputedStyle(toggle) : {};
+    const lineHeight = Number.parseFloat(csText.lineHeight) || 0;
+    const clamped = !!(text && text.classList.contains("is-clamped"));
+    const overflowing = !!(text && clamped && text.scrollHeight > text.clientHeight + 1);
+    const toggleVisible = !!(toggle && !toggle.hidden && getComputedStyle(toggle).display !== "none");
+    const barW = bar ? bar.getBoundingClientRect().width : 0;
+    const innerW = inner ? inner.getBoundingClientRect().width : 0;
     return {
       ticker: !!(bar && bar.classList.contains("is-ticker")),
-      wrap: !!(bar && bar.classList.contains("is-wrap")),
+      expanded: !!(bar && bar.classList.contains("is-expanded")),
       text: text ? String(text.textContent || "") : "",
       cloneCount: clones.length,
-      cloneHidden: clones.every((n) => n.getAttribute("aria-hidden") === "true"),
-      cloneText: clones[0] ? String(clones[0].textContent || "") : "",
-      scrollWidth: text ? text.scrollWidth : 0,
-      clientWidth: viewport ? viewport.clientWidth : 0,
-      overflowing: !!(text && viewport && text.scrollWidth > viewport.clientWidth + 1),
-      webkitLineClamp: String(csText.webkitLineClamp || ""),
-      textOverflow: String(csText.textOverflow || ""),
+      scrollHeight: text ? text.scrollHeight : 0,
+      clientHeight: text ? text.clientHeight : 0,
+      lineHeight,
+      clamped,
+      overflowing,
+      webkitLineClamp: String(csText.webkitLineClamp || csText.lineClamp || ""),
       whiteSpace: String(csText.whiteSpace || ""),
-      animationName: String(csTrack.animationName || ""),
-      playState: String(csTrack.animationPlayState || ""),
-      duration: String(csTrack.animationDuration || ""),
-      justify: String(csBar.justifyContent || csBar.webkitJustifyContent || ""),
-      textAlign: String(csBar.textAlign || ""),
+      textOverflow: String(csText.textOverflow || ""),
+      animationName: String(csText.animationName || csBar.animationName || ""),
+      textAlign: String(csText.textAlign || csBar.textAlign || ""),
+      dir: document.documentElement.getAttribute("dir") || "",
+      toggleVisible,
+      toggleText: toggle ? String(toggle.textContent || "").trim() : "",
+      toggleBorder: String(csToggle.borderTopWidth || ""),
+      toggleRadius: String(csToggle.borderRadius || ""),
+      toggleDecoration: String(csToggle.textDecorationLine || csToggle.textDecoration || ""),
+      ariaExpanded: toggle ? String(toggle.getAttribute("aria-expanded") || "") : "",
+      ariaControls: toggle ? String(toggle.getAttribute("aria-controls") || "") : "",
+      barH: bar ? bar.getBoundingClientRect().height : 0,
+      barW,
+      innerW,
+      innerRatio: barW > 0 ? innerW / barW : 0,
       pageOverflow: document.documentElement.scrollWidth - window.innerWidth
     };
   });
 }
 
-test.describe("announcement responsive ticker", () => {
+async function waitForLongCollapsed(page) {
+  await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+  await expect.poll(async () => {
+    const m = await announceMetrics(page);
+    return m.toggleVisible && m.clamped && !m.expanded;
+  }).toBe(true);
+}
+
+async function expandAndCollapse(page) {
+  const btn = page.locator("#kutadguAnnounceToggle");
+  await expect(btn).toBeVisible();
+  await expect(btn).toHaveText("تەپسىلات ↓");
+  await btn.click();
+  await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(true);
+  await expect(btn).toHaveText("يىغىش ↑");
+  await expect(btn).toHaveAttribute("aria-expanded", "true");
+  const open = await announceMetrics(page);
+  expect(open.clamped).toBe(false);
+  expect(open.scrollHeight).toBeGreaterThan(open.clientHeight - 1);
+  await btn.click();
+  await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(false);
+  await expect(btn).toHaveText("تەپسىلات ↓");
+  await expect(btn).toHaveAttribute("aria-expanded", "false");
+}
+
+test.describe("announcement expandable text", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
   });
@@ -224,50 +264,56 @@ test.describe("announcement responsive ticker", () => {
     await expect.poll(async () => (await announceMetrics(page)).text).toBe(SHORT_MSG);
     const m = await announceMetrics(page);
     expect(m.ticker).toBe(false);
-    expect(m.wrap).toBe(false);
     expect(m.cloneCount).toBe(0);
-    expect(m.overflowing).toBe(false);
+    expect(m.toggleVisible).toBe(false);
+    expect(m.expanded).toBe(false);
     expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
-    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
-    expect(m.textOverflow).not.toBe("ellipsis");
     expect(["center", "start"]).toContain(m.textAlign);
+    expect(m.whiteSpace).not.toBe("nowrap");
+    expect(page.locator("#kutadguAnnounceToggle")).toBeHidden();
   });
 
-  test("B long text enables ticker without ellipsis and keeps full copy in DOM", async ({ page }) => {
+  test("B long text clamps to two lines and expands in place", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 1280, height: 800 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
-    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+    await waitForLongCollapsed(page);
     const m = await announceMetrics(page);
-    expect(m.overflowing).toBe(true);
+    expect(m.ticker).toBe(false);
+    expect(m.cloneCount).toBe(0);
     expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
-    expect(m.cloneCount).toBe(1);
-    expect(m.cloneHidden).toBe(true);
-    expect(m.cloneText).toBe(DESKTOP_OVERFLOW_MSG);
-    expect(m.animationName).toContain("kutadgu-announce-ltr");
-    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
-    expect(m.textOverflow).not.toBe("ellipsis");
-    expect(m.whiteSpace).toContain("nowrap");
+    expect(m.webkitLineClamp === "2" || m.clamped).toBeTruthy();
+    if (m.lineHeight > 0) {
+      expect(m.clientHeight).toBeLessThanOrEqual(m.lineHeight * 2 + 4);
+    }
     expect(m.pageOverflow).toBeLessThanOrEqual(1);
+    expect(Number.parseFloat(m.toggleBorder) || 0).toBeGreaterThan(0);
+    expect(m.toggleDecoration.includes("underline")).toBe(false);
+    await expect(page.locator("#kutadguAnnounceToggle")).toHaveAttribute("aria-controls", "kutadguAnnounceText");
+    await expandAndCollapse(page);
+    await page.locator("#kutadguAnnounceToggle").focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(true);
   });
 
   for (const vp of [
-    { name: "C 390x844", width: 390, height: 844, mobileNav: true },
-    { name: "D 412x915", width: 412, height: 915, mobileNav: true },
-    { name: "E 768 tablet", width: 768, height: 1024, mobileNav: true }
+    { name: "C 390x844", width: 390, height: 844 },
+    { name: "D 412x915", width: 412, height: 915 },
+    { name: "E 768 tablet", width: 768, height: 1024 }
   ]) {
-    test(`${vp.name} long announcement tickers without page overflow`, async ({ page }) => {
+    test(`${vp.name} long announcement expands without page overflow`, async ({ page }) => {
       await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await H.openFresh(page, "/");
-      await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
-      await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+      await waitForLongCollapsed(page);
       const m = await announceMetrics(page);
       expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
-      expect(m.cloneCount).toBe(1);
+      expect(m.cloneCount).toBe(0);
       expect(m.pageOverflow).toBeLessThanOrEqual(1);
-      expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
+      if (vp.width <= 700) {
+        expect(m.innerW / (vp.width - 96)).toBeGreaterThan(0.84);
+      }
+      await expandAndCollapse(page);
       const toggle = page.locator(".mobile-menu-toggle");
       if (await toggle.isVisible()) {
         await toggle.click();
@@ -281,172 +327,62 @@ test.describe("announcement responsive ticker", () => {
     });
   }
 
-  test("F desktop 1280 hover and focus pause the ticker", async ({ page }) => {
+  test("F desktop 1280 stays compact and expands only when needed", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 1280, height: 800 });
     await H.openFresh(page, "/");
-    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
-    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("running");
-    await page.locator("#kutadguAnnounceBar").hover();
-    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("paused");
-    await page.mouse.move(0, 400);
-    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("running");
-    await page.locator("#kutadguAnnounceBar").focus();
-    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("paused");
+    await waitForLongCollapsed(page);
+    const collapsed = await announceMetrics(page);
+    expect(collapsed.barH).toBeLessThan(80);
+    expect(collapsed.pageOverflow).toBeLessThanOrEqual(1);
+    expect(collapsed.innerRatio).toBeGreaterThan(0.5);
+    await page.locator("#kutadguAnnounceToggle").click();
+    await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(true);
+    const open = await announceMetrics(page);
+    expect(open.barH).toBeGreaterThan(collapsed.barH);
+    expect(open.pageOverflow).toBeLessThanOrEqual(1);
   });
 
-  test("G resize switches ticker and static without duplicate clones", async ({ page }) => {
+  test("G resize shows the control only when rendered text overflows two lines", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(MOBILE_OVERFLOW_MSG, "mid")] });
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     await expect.poll(async () => {
       const m = await announceMetrics(page);
-      return m.overflowing ? m.ticker : m.ticker === false;
+      return m.toggleVisible === m.clamped;
     }).toBe(true);
     const narrow = await announceMetrics(page);
-    expect(narrow.cloneCount).toBeLessThanOrEqual(1);
-    if (narrow.overflowing) expect(narrow.ticker).toBe(true);
+    expect(narrow.cloneCount).toBe(0);
+    expect(narrow.toggleVisible).toBe(narrow.clamped);
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect.poll(async () => {
       const m = await announceMetrics(page);
-      if (m.overflowing) return m.ticker === true && m.cloneCount === 1;
-      return m.ticker === false && m.cloneCount === 0;
+      return m.text === MOBILE_OVERFLOW_MSG && m.toggleVisible === m.clamped && m.cloneCount === 0;
     }).toBe(true);
-    const wide = await announceMetrics(page);
-    expect(wide.cloneCount).toBeLessThanOrEqual(1);
-    expect(wide.text).toBe(MOBILE_OVERFLOW_MSG);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(async () => {
       const m = await announceMetrics(page);
-      return m.cloneCount <= 1 && m.text === MOBILE_OVERFLOW_MSG;
+      return m.text === MOBILE_OVERFLOW_MSG && m.toggleVisible === m.clamped;
     }).toBe(true);
   });
 
-  test("H reduced motion does not continuously animate and remains readable", async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
+  test("H RTL wrapping stays readable without clipping or ticker motion", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
-    await expect.poll(async () => (await announceMetrics(page)).text).toBe(DESKTOP_OVERFLOW_MSG);
+    await waitForLongCollapsed(page);
     const m = await announceMetrics(page);
+    expect(m.dir).toBe("rtl");
     expect(m.ticker).toBe(false);
-    expect(m.wrap).toBe(true);
     expect(m.cloneCount).toBe(0);
-    expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
-    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
-    expect(m.textOverflow).not.toBe("ellipsis");
     expect(m.whiteSpace).not.toBe("nowrap");
-    expect(m.pageOverflow).toBeLessThanOrEqual(1);
-  });
-
-  async function announceVisibility(page) {
-    return page.evaluate(() => {
-      function intersect(a, b) {
-        if (!a || !b) return false;
-        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top && a.width > 1 && a.height > 1;
-      }
-      const bar = document.getElementById("kutadguAnnounceBar");
-      const viewport = document.getElementById("kutadguAnnounceViewport");
-      const track = document.getElementById("kutadguAnnounceTrack");
-      const text = document.getElementById("kutadguAnnounceText");
-      const copies = track
-        ? [text, ...track.querySelectorAll("[data-announce-clone]")].filter(Boolean)
-        : (text ? [text] : []);
-      const vpBox = viewport ? viewport.getBoundingClientRect() : null;
-      const csText = text ? getComputedStyle(text) : {};
-      const color = String(csText.color || "");
-      const transparent = color === "transparent" || color === "rgba(0, 0, 0, 0)";
-      const visibleCopy = copies.some((el) => {
-        const cs = getComputedStyle(el);
-        if (Number(cs.opacity) <= 0) return false;
-        if (cs.visibility === "hidden") return false;
-        return intersect(el.getBoundingClientRect(), vpBox);
-      });
-      return {
-        viewportW: viewport ? viewport.clientWidth : 0,
-        viewportH: viewport ? viewport.clientHeight : 0,
-        text: text ? String(text.textContent || "") : "",
-        opacity: Number(csText.opacity),
-        visibility: String(csText.visibility || ""),
-        color,
-        transparent,
-        visibleCopy,
-        barH: bar ? bar.getBoundingClientRect().height : 0,
-        htmlDir: document.documentElement.getAttribute("dir") || ""
-      };
-    });
-  }
-
-  async function sampleTickerHits(page) {
-    return page.evaluate(() => {
-      function intersect(a, b) {
-        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top && a.width > 1 && a.height > 1;
-      }
-      const viewport = document.getElementById("kutadguAnnounceViewport");
-      const track = document.getElementById("kutadguAnnounceTrack");
-      const text = document.getElementById("kutadguAnnounceText");
-      if (!viewport || !track || !text) return [];
-      const copies = [text, ...track.querySelectorAll("[data-announce-clone]")];
-      const vpBox = viewport.getBoundingClientRect();
-      const anims = typeof track.getAnimations === "function" ? track.getAnimations() : [];
-      const anim = anims[0];
-      const duration = anim && anim.effect
-        ? Number(anim.effect.getComputedTiming().duration) || 8000
-        : 8000;
-      const times = [0, 0.15, 0.35, 0.55, 0.75, 0.95];
-      if (!anim) {
-        return [{ p: 0, hit: copies.some((el) => intersect(el.getBoundingClientRect(), vpBox)) }];
-      }
-      const prev = anim.currentTime;
-      const out = times.map((p) => {
-        anim.currentTime = p * duration;
-        const vp = viewport.getBoundingClientRect();
-        const hit = copies.some((el) => intersect(el.getBoundingClientRect(), vp));
-        return { p, hit };
-      });
-      anim.currentTime = prev;
-      return out;
-    });
-  }
-
-  test("short announcement is visible immediately without ticker", async ({ page }) => {
-    await H.installAnnouncementFixtures(page, { announcements: [row(SHORT_MSG)] });
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await H.openFresh(page, "/");
-    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
-    const v = await announceVisibility(page);
-    expect(v.text).toBe(SHORT_MSG);
-    expect(v.viewportW).toBeGreaterThan(0);
-    expect(v.opacity).toBeGreaterThan(0);
-    expect(v.visibility).not.toBe("hidden");
-    expect(v.transparent).toBe(false);
-    expect(v.visibleCopy).toBe(true);
-    const m = await announceMetrics(page);
-    expect(m.ticker).toBe(false);
     expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
-  });
-
-  test("long announcement text intersects viewport at load and throughout ticker", async ({ page }) => {
-    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
-    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
-    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
-    const v = await announceVisibility(page);
-    expect(v.htmlDir).toBe("rtl");
-    expect(v.viewportW).toBeGreaterThan(0);
-    expect(v.viewportH).toBeGreaterThan(0);
-    expect(v.text.length).toBeGreaterThan(0);
-    expect(v.opacity).toBeGreaterThan(0);
-    expect(v.visibility).not.toBe("hidden");
-    expect(v.transparent).toBe(false);
-    expect(v.visibleCopy).toBe(true);
-    const samples = await sampleTickerHits(page);
-    expect(samples.length).toBeGreaterThan(1);
-    samples.forEach((s) => expect(s.hit, "empty ticker at t=" + s.p).toBe(true));
+    expect(m.pageOverflow).toBeLessThanOrEqual(1);
+    expect(m.barH).toBeGreaterThan(8);
+    expect(m.textOverflow).not.toBe("ellipsis");
+    expect(m.innerW / (390 - 96)).toBeGreaterThan(0.84);
   });
 });
