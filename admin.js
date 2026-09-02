@@ -2,6 +2,7 @@
 "use strict";
 const Write=window.KutadguAdminWrite||{};
 const Quality=window.KutadguAdminQuality||{};
+const Prod=window.KutadguAdminProductivity||{};
 const Bib=window.KutadguBibliography||{};
 const ImportCovers=window.KutadguAdminImportCovers||{};
 const CoverRepair=window.KutadguAdminCoverRepair||{};
@@ -45,7 +46,12 @@ let lastImportMissingQueue=[];
 let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
+let quickSaveInFlight=false;
+let bulkInFlight=false;
 let createConflictAck=false;
+let previewBooksMaster=[];
+let quickEditReturnFocus=null;
+let bulkConfirmResolver=null;
 
 const listFilters={
   q:"",
@@ -54,6 +60,7 @@ const listFilters={
   recommended:"",
   isNew:"",
   quality:"",
+  problem:"",
   sort:"created_at.desc"
 };
 
@@ -95,7 +102,7 @@ function applyStatusChip(which){
   listFilters.isNew=preset.isNew;
   listPage=0;
   syncStatusFilterUi();
-  loadBooks();
+  refreshBookList();
 }
 
 function statusBadgesHtml(book){
@@ -145,8 +152,9 @@ function resolveCategory(value){
   return null;
 }
 function renderSourceOptions(){
-  const sel=$("#bookSource");if(!sel)return;
-  sel.innerHTML='<option value="">تۈر تاللاڭ</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
+  const html='<option value="">تۈر تاللاڭ</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
+  const sel=$("#bookSource");if(sel)sel.innerHTML=html;
+  const quick=$("#quickSource");if(quick)quick.innerHTML=html;
   const filter=$("#adminFilterSource");
   if(filter)filter.innerHTML='<option value="">بارلىق تۈرلەر</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
 }
@@ -810,6 +818,9 @@ function applyListFilters(query){
   if(listFilters.quality){
     if(Quality.applyQualityFilter)query=Quality.applyQualityFilter(query,listFilters.quality);
   }
+  if(listFilters.problem){
+    if(Prod.applyProblemFilter)query=Prod.applyProblemFilter(query,listFilters.problem);
+  }
   const term=searchSafe(listFilters.q);
   if(term){
     query=query.or(searchOrFilter(listFilters.q,isbnColumn));
@@ -889,7 +900,7 @@ async function loadBooks(){
   listTotal=count||0;
   const maxPage=Math.max(0,Math.ceil(listTotal/PAGE_SIZE)-1);
   if(listPage>maxPage){listPage=maxPage;return loadBooks()}
-  selectedIds=new Set([...selectedIds].filter(id=>books.some(b=>b.id===id)));
+  selectedIds=new Set([...selectedIds].map(id=>String(id)).filter(id=>books.some(b=>String(b.id)===id)));
   if(!migrationWarned||isbnColumn){
     status($("#adminStatus"),`Admin كىرىش مۇۋەپپەقىيەتلىك — ${user?.email||""}`,"ok");
   }
@@ -915,8 +926,10 @@ function renderBooks(){
   const host=$("#adminBookList");
   if(!books.length){host.innerHTML='<div class="admin-empty">كىتاب تېپىلمىدى.</div>';renderSelection();return}
   host.innerHTML=books.map(b=>`
-    <article class="admin-book-row ${b.is_active===false?"admin-hidden-book":""}">
-      <input class="admin-book-check" type="checkbox" data-select="${esc(b.id)}" ${selectedIds.has(b.id)?"checked":""} aria-label="تاللاش">
+    <article class="admin-book-row ${b.is_active===false?"admin-hidden-book":""}" data-book-id="${esc(b.id)}">
+      <label class="admin-book-check-wrap">
+        <input class="admin-book-check" type="checkbox" data-select="${esc(b.id)}" ${selectedIds.has(String(b.id))||selectedIds.has(b.id)?"checked":""} aria-label="تاللاش: ${esc(b.title||b.id)}">
+      </label>
       ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
@@ -927,6 +940,7 @@ function renderBooks(){
       </div>
       <div class="admin-book-actions">
         <a href="${esc(/^\d+$/.test(String(b.id||"").trim())?`/book/${encodeURIComponent(String(b.id).trim())}`:(b.href||`book.html?id=${encodeURIComponent(b.id)}`))}" target="_blank">👁️ كۆرۈش</a>
+        <button type="button" data-quick-edit="${esc(b.id)}">تېز تەھرىر</button>
         <button type="button" data-edit="${esc(b.id)}">✏️ تەھرىرلەش</button>
         <button type="button" data-hide="${esc(b.id)}">${b.is_active===false?"♻️ قايتا كۆرسىتىش":"🙈 يوشۇرۇش"}</button>
         <button type="button" class="admin-danger" data-delete="${esc(b.id)}">🗑️ ئۆچۈرۈش</button>
@@ -934,10 +948,11 @@ function renderBooks(){
     </article>`).join("");
 
   host.querySelectorAll("[data-edit]").forEach(btn=>btn.onclick=()=>openEdit(btn.dataset.edit));
+  host.querySelectorAll("[data-quick-edit]").forEach(btn=>btn.onclick=()=>openQuickEdit(btn.dataset.quickEdit,btn));
   host.querySelectorAll("[data-hide]").forEach(btn=>btn.onclick=()=>toggleActive(btn.dataset.hide));
   host.querySelectorAll("[data-delete]").forEach(btn=>btn.onclick=()=>deleteBook(btn.dataset.delete));
   host.querySelectorAll("[data-select]").forEach(box=>box.onchange=()=>{
-    if(box.checked)selectedIds.add(box.dataset.select);else selectedIds.delete(box.dataset.select);
+    if(box.checked)selectedIds.add(String(box.dataset.select));else selectedIds.delete(String(box.dataset.select));
     renderSelection();
   });
   renderSelection();
@@ -1166,6 +1181,165 @@ async function openEdit(id){
   modal(true);
   logSavePlan(planCurrentSave());
 }
+function setQuickEditError(msg){
+  const err=$("#quickEditError");
+  const st=$("#quickEditStatus");
+  if(err){
+    err.hidden=!msg;
+    err.textContent=msg||"";
+  }
+  if(st&&msg)st.textContent="";
+}
+function closeQuickEdit(){
+  const modalEl=$("#quickEditModal");
+  if(modalEl)modalEl.hidden=true;
+  quickSaveInFlight=false;
+  const save=$("#quickEditSave");
+  if(save){save.disabled=false;save.textContent="ساقلاش"}
+  if(quickEditReturnFocus&&typeof quickEditReturnFocus.focus==="function"){
+    quickEditReturnFocus.focus();
+  }
+  quickEditReturnFocus=null;
+}
+async function openQuickEdit(id,trigger){
+  let b=books.find(x=>String(x.id)===String(id));
+  if(!b&&db){
+    try{b=await fetchBook(id)}catch(err){alert(err.message||err);return}
+  }
+  if(!b)return;
+  quickEditReturnFocus=trigger||document.activeElement;
+  renderSourceOptions();
+  $("#quickEditId").value=b.id;
+  $("#quickTitle").value=b.title||"";
+  $("#quickAuthor").value=b.author||"";
+  $("#quickPrice").value=b.price??"";
+  $("#quickSource").value=b.source||"";
+  if($("#quickStock"))$("#quickStock").value=b.stock==null?"":b.stock;
+  if($("#quickStockStatus"))$("#quickStockStatus").value=b.stock_status||"in_stock";
+  $("#quickCoverUrl").value=b.image_url||"";
+  $("#quickIsActive").checked=b.is_active!==false;
+  $("#quickIsRecommended").checked=b.is_recommended===true;
+  $("#quickIsNew").checked=b.is_new===true;
+  setQuickEditError("");
+  const st=$("#quickEditStatus");
+  if(st)st.textContent="";
+  $("#quickEditModal").hidden=false;
+  $("#quickTitle").focus();
+}
+function collectQuickEditInput(){
+  return {
+    title:$("#quickTitle")?$("#quickTitle").value:"",
+    author:$("#quickAuthor")?$("#quickAuthor").value:"",
+    price:$("#quickPrice")?$("#quickPrice").value:"",
+    source:$("#quickSource")?$("#quickSource").value:"",
+    category:sourceCategory($("#quickSource")?$("#quickSource").value:""),
+    stock:$("#quickStock")?$("#quickStock").value:"",
+    stock_status:$("#quickStockStatus")?$("#quickStockStatus").value:"in_stock",
+    image_url:$("#quickCoverUrl")?$("#quickCoverUrl").value:"",
+    is_active:$("#quickIsActive")?$("#quickIsActive").checked:true,
+    is_recommended:$("#quickIsRecommended")?$("#quickIsRecommended").checked:false,
+    is_new:$("#quickIsNew")?$("#quickIsNew").checked:false
+  };
+}
+async function persistQuickEdit(id,patch){
+  if(typeof window.__kutadguAdminPersistQuick==="function"){
+    return window.__kutadguAdminPersistQuick(id,patch);
+  }
+  if(!db)return {error:null};
+  const payload=Prod.stripProtectedFields?Prod.stripProtectedFields(patch):patch;
+  return persistBookRow(payload,"UPDATE",id);
+}
+async function saveQuickEdit(e){
+  if(e)e.preventDefault();
+  if(quickSaveInFlight)return;
+  const id=$("#quickEditId")?$("#quickEditId").value:"";
+  if(!id){setQuickEditError("كىتاب ID تېپىلمىدى.");return}
+  const built=Prod.buildQuickEditPatch?Prod.buildQuickEditPatch(collectQuickEditInput(),{presentBookCols}):{ok:false,error:"تېز تەھرىر يوق"};
+  if(!built.ok){setQuickEditError(built.error);return}
+  const save=$("#quickEditSave");
+  quickSaveInFlight=true;
+  if(save){save.disabled=true;save.textContent="ساقلىنىۋاتىدۇ..."}
+  setQuickEditError("");
+  const st=$("#quickEditStatus");
+  if(st)st.textContent="ساقلىنىۋاتىدۇ...";
+  try{
+    const {error}=await persistQuickEdit(id,built.patch);
+    if(error)throw error;
+    if(Prod.mergeBookPatch)books=Prod.mergeBookPatch(books,id,built.patch);
+    if(previewBooksMaster.length)previewBooksMaster=Prod.mergeBookPatch(previewBooksMaster,id,built.patch);
+    renderBooks();
+    if(st)st.textContent="ساقلاندى ✅";
+    if(db)await Promise.all([loadBooks(),loadStats()]);
+  }catch(err){
+    setQuickEditError("ساقلاش مەغلۇپ بولدى: "+(err.message||err));
+    if(st)st.textContent="";
+  }finally{
+    quickSaveInFlight=false;
+    if(save){save.disabled=false;save.textContent="ساقلاش"}
+  }
+}
+function syncProblemFilterUi(){
+  const current=String(listFilters.problem||"");
+  document.querySelectorAll("[data-problem-filter]").forEach(btn=>{
+    const on=String(btn.dataset.problemFilter||"")===current;
+    btn.classList.toggle("is-active",on);
+    btn.setAttribute("aria-pressed",on?"true":"false");
+  });
+}
+function applyProblemChip(which){
+  listFilters.problem=String(which||"");
+  listPage=0;
+  syncProblemFilterUi();
+  refreshBookList();
+}
+function previewFilterOpts(){
+  return {
+    stockSupported:presentBookCols.has("stock"),
+    stockStatusSupported:presentBookCols.has("stock_status"),
+    isbnSupported:isbnColumn,
+    descriptionSupported:true
+  };
+}
+function refreshPreviewBooks(){
+  const master=previewBooksMaster.length?previewBooksMaster:(Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:books);
+  const filtered=Prod.filterLoadedBooks?Prod.filterLoadedBooks(master,listFilters,previewFilterOpts()):master;
+  books=filtered;
+  listTotal=filtered.length;
+  renderBooks();
+  renderPager();
+  renderSelection();
+}
+function refreshBookList(){
+  if(db)loadBooks();
+  else refreshPreviewBooks();
+}
+function setBulkResult(msg,type){
+  const el=$("#adminBulkResult");
+  if(!el)return;
+  el.hidden=!msg;
+  el.textContent=msg||"";
+  el.className=`admin-help admin-bulk-result ${type||""}`.trim();
+}
+function closeBulkConfirm(result){
+  const modalEl=$("#bulkConfirmModal");
+  if(modalEl)modalEl.hidden=true;
+  const resolve=bulkConfirmResolver;
+  bulkConfirmResolver=null;
+  if(resolve)resolve(!!result);
+}
+function requestBulkConfirm({count,field,value}){
+  const text=Prod.formatBulkConfirm?Prod.formatBulkConfirm({count,field,value}):`${count} ${field} ${value}`;
+  const countEl=$("#bulkConfirmCount");
+  if(countEl)countEl.textContent=`تاللانغان: ${count} دانە كىتاب`;
+  const pre=$("#bulkConfirmText");
+  if(pre)pre.textContent=text;
+  const modalEl=$("#bulkConfirmModal");
+  if(!modalEl)return Promise.resolve(window.confirm(text));
+  modalEl.hidden=false;
+  $("#bulkConfirmOk")&&$("#bulkConfirmOk").focus();
+  return new Promise(resolve=>{bulkConfirmResolver=resolve});
+}
+
 async function detectOptionalGalleryColumn(){
   if(!db)return;
   const {error}=await db.from("books").select("gallery_images").limit(1);
@@ -1555,46 +1729,80 @@ function updateBulkValueUi(){
   }
 }
 async function applyBulk(){
+  if(bulkInFlight)return;
   const ids=selectedIdList();
   const action=$("#bulkAction").value;
   if(!ids.length){alert("ئالدى بىلەن نۆۋەتتىكى بەتتىن كىتاب تاللاڭ.");return}
   if(!action){alert("توپلام مەشغۇلات تاللاڭ.");return}
-  let patch=null,label=action;
-  if(action==="category"){
-    const source=$("#bulkValueSelect").value;
-    if(!source){alert("تۈر تاللاڭ.");return}
-    patch={source,category:sourceCategory(source)};
-    label=`تۈرنى «${sourceCategory(source)}» قىلىش`;
-  }else if(action==="stock_status"){
-    patch={stock_status:$("#bulkValueSelect").value};
-    label="ئامبار ھالىتىنى ئۆزگەرتىش";
-  }else if(action==="stock"){
-    const n=Number($("#bulkValueInput").value);
-    if(!Number.isInteger(n)||n<0){alert("ئامبار سانى توغرا پۈتۈن سان بولسۇن.");return}
-    patch={stock:n};
-    label=`ئامبار سانىنى ${n} قىلىش`;
-  }else if(action==="publisher"){
-    patch={publisher:$("#bulkValueInput").value.trim()};
-    label="نەشرىياتنى ئۆزگەرتىش";
-  }else if(action==="recommended_on"){patch={is_recommended:true};label="تەۋسىيە قىلىش"}
-  else if(action==="recommended_off"){patch={is_recommended:false};label="تەۋسىيەنى ئېلىش"}
-  else if(action==="new_on"){patch={is_new:true};label="يېڭى بەلگىسى قويۇش"}
-  else if(action==="new_off"){patch={is_new:false};label="يېڭى بەلگىسىنى ئېلىش"}
-  else if(action==="activate"){patch={is_active:true};label="كۆرسىتىش"}
-  else if(action==="deactivate"){patch={is_active:false};label="يوشۇرۇش"}
-  if(!patch)return;
-  const missingPatch=Object.keys(patch).filter(k=>OPTIONAL_BOOK_COLS.includes(k)&&!presentBookCols.has(k));
+  const values={
+    source:$("#bulkValueSelect")?$("#bulkValueSelect").value:"",
+    category:sourceCategory($("#bulkValueSelect")?$("#bulkValueSelect").value:""),
+    stock_status:$("#bulkValueSelect")?$("#bulkValueSelect").value:"",
+    stock:$("#bulkValueInput")?$("#bulkValueInput").value:"",
+    publisher:$("#bulkValueInput")?$("#bulkValueInput").value:""
+  };
+  const built=Prod.buildBulkPatch?Prod.buildBulkPatch(action,values,{
+    presentBookCols,
+    stockSupported:presentBookCols.has("stock"),
+    stockStatusSupported:presentBookCols.has("stock_status"),
+    publisherSupported:presentBookCols.has("publisher")
+  }):null;
+  if(!built||!built.ok){
+    alert((built&&built.error)||"توپلام مەشغۇلات ئىناۋەتسىز.");
+    return;
+  }
+  const missingPatch=Object.keys(built.patch).filter(k=>OPTIONAL_BOOK_COLS.includes(k)&&!presentBookCols.has(k));
   if(missingPatch.length){
     alert("بۇ توپلام مەشغۇلات بۇ Database لايىھەسىدە يوق ستونغا يېزىلىدۇ: "+missingPatch.join(", "));
     return;
   }
-  if(!confirm(`تاللانغان ${ids.length} دانە كىتابقا «${label}» قىلامسىز؟\nپەقەت تاللانغان ID لار يېڭىلىنىدۇ.`))return;
-  try{assertSelectedIds(ids)}catch(err){alert("توپلام يېڭىلاش توختىتىلدى: تاللانغان ID يوق ياكى بەت چېكىدىن ئېشىپ كەتتى.");return}
-  const {error}=await db.from("books").update(patch).in("id",ids);
-  if(error){alert("توپلام يېڭىلاش مەغلۇپ بولدى:\n"+error.message);return}
-  selectedIds.clear();
-  await Promise.all([loadBooks(),loadStats()]);
-  alert(`${ids.length} دانە كىتاب يېڭىلاندى ✅`);
+  try{
+    if(Prod.assertVisibleSelection)Prod.assertVisibleSelection(ids,PAGE_SIZE);
+    else assertSelectedIds(ids);
+  }catch(err){
+    alert("توپلام يېڭىلاش توختىتىلدى: تاللانغان ID يوق ياكى بەت چېكىدىن ئېشىپ كەتتى.");
+    return;
+  }
+  const confirmed=await requestBulkConfirm({count:ids.length,field:built.field,value:built.valueLabel});
+  if(!confirmed)return;
+  bulkInFlight=true;
+  const btn=$("#bulkApplyBtn");
+  if(btn){btn.disabled=true;btn.textContent="يېڭىلىنىۋاتىدۇ..."}
+  setBulkResult("");
+  try{
+    const updateOne=async(id,patch)=>{
+      if(typeof window.__kutadguAdminBulkUpdateOne==="function"){
+        return window.__kutadguAdminBulkUpdateOne(id,patch);
+      }
+      if(!db){
+        books=Prod.mergeBookPatch?Prod.mergeBookPatch(books,id,patch):books;
+        previewBooksMaster=Prod.mergeBookPatch?Prod.mergeBookPatch(previewBooksMaster,id,patch):previewBooksMaster;
+        return {error:null};
+      }
+      const {data,error}=await db.from("books").update(patch).eq("id",id).select("id");
+      if(error)return {error};
+      if(!Array.isArray(data)||!data.length)return {error:new Error("يېڭىلانمىدى")};
+      return {error:null,data};
+    };
+    const result=Prod.applyBulkUpdates
+      ?await Prod.applyBulkUpdates(updateOne,ids,built.patch)
+      :{ok:ids,fail:[],okCount:ids.length,failCount:0,text:`${ids.length} يېڭىلاندى، 0 مەغلۇپ`,fullSuccess:true};
+    const failedIds=new Set((result.fail||[]).map(row=>String(row.id)));
+    selectedIds=new Set([...selectedIds].filter(id=>failedIds.has(String(id))));
+    setBulkResult(result.text,result.fullSuccess?"ok":"warn");
+    if(db)await Promise.all([loadBooks(),loadStats()]);
+    else refreshPreviewBooks();
+    if(!result.fullSuccess){
+      const detail=(result.fail||[]).map(row=>`${row.id}: ${row.error}`).join("\n");
+      alert(`${result.text}\n${detail}`);
+    }
+  }catch(err){
+    setBulkResult("توپلام يېڭىلاش مەغلۇپ بولدى: "+(err.message||err),"error");
+    alert("توپلام يېڭىلاش مەغلۇپ بولدى:\n"+(err.message||err));
+  }finally{
+    bulkInFlight=false;
+    if(btn){btn.disabled=false;btn.textContent="ئىجرا قىلىش"}
+  }
 }
 
 async function loadAnalytics(){
@@ -2232,12 +2440,52 @@ async function confirmImport(){
   }
 }
 
+function bindBookListUx(){
+  renderSourceOptions();
+  $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
+  $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)});
+  $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)});
+  $("#bookForm")&&$("#bookForm").addEventListener("submit",saveBook);
+  $("#adminSearch")&&$("#adminSearch").addEventListener("input",scheduleSearch);
+  $("#adminFilterSource")&&($("#adminFilterSource").onchange=()=>{listFilters.source=$("#adminFilterSource").value;listPage=0;refreshBookList()});
+  $("#adminFilterActive")&&($("#adminFilterActive").onchange=()=>{listFilters.active=$("#adminFilterActive").value;listPage=0;refreshBookList()});
+  $("#adminFilterRecommended")&&($("#adminFilterRecommended").onchange=()=>{listFilters.recommended=$("#adminFilterRecommended").value;listPage=0;syncStatusFilterUi();refreshBookList()});
+  $("#adminFilterNew")&&($("#adminFilterNew").onchange=()=>{listFilters.isNew=$("#adminFilterNew").value;listPage=0;syncStatusFilterUi();refreshBookList()});
+  document.querySelectorAll("[data-status-filter]").forEach(btn=>{
+    btn.onclick=()=>applyStatusChip(btn.dataset.statusFilter);
+  });
+  syncStatusFilterUi();
+  $("#adminFilterQuality")&&($("#adminFilterQuality").onchange=()=>{listFilters.quality=$("#adminFilterQuality").value;listPage=0;refreshBookList()});
+  document.querySelectorAll("[data-problem-filter]").forEach(btn=>{
+    btn.onclick=()=>applyProblemChip(btn.dataset.problemFilter);
+  });
+  syncProblemFilterUi();
+  $("#adminSort")&&($("#adminSort").onchange=()=>{listFilters.sort=$("#adminSort").value;listPage=0;refreshBookList()});
+  $("#selectPageBtn")&&($("#selectPageBtn").onclick=()=>{books.forEach(b=>selectedIds.add(String(b.id)));renderBooks()});
+  $("#clearSelectionBtn")&&($("#clearSelectionBtn").onclick=()=>{selectedIds.clear();renderBooks()});
+  $("#bulkAction")&&($("#bulkAction").onchange=updateBulkValueUi);
+  $("#bulkApplyBtn")&&($("#bulkApplyBtn").onclick=applyBulk);
+  $("#quickEditForm")&&$("#quickEditForm").addEventListener("submit",saveQuickEdit);
+  $("#quickEditCancel")&&($("#quickEditCancel").onclick=()=>{if(!quickSaveInFlight)closeQuickEdit()});
+  $("#closeQuickEdit")&&($("#closeQuickEdit").onclick=()=>{if(!quickSaveInFlight)closeQuickEdit()});
+  $("#quickEditModal")&&$("#quickEditModal").addEventListener("click",e=>{if(quickSaveInFlight)return;if(e.target===$("#quickEditModal"))closeQuickEdit()});
+  $("#bulkConfirmOk")&&($("#bulkConfirmOk").onclick=()=>closeBulkConfirm(true));
+  $("#bulkConfirmCancel")&&($("#bulkConfirmCancel").onclick=()=>closeBulkConfirm(false));
+  $("#closeBulkConfirm")&&($("#closeBulkConfirm").onclick=()=>closeBulkConfirm(false));
+  $("#bulkConfirmModal")&&$("#bulkConfirmModal").addEventListener("click",e=>{if(e.target===$("#bulkConfirmModal"))closeBulkConfirm(false)});
+  document.addEventListener("keydown",e=>{
+    if(e.key!=="Escape")return;
+    if($("#bulkConfirmModal")&&!$("#bulkConfirmModal").hidden){e.preventDefault();closeBulkConfirm(false);return}
+    if($("#quickEditModal")&&!$("#quickEditModal").hidden&&!quickSaveInFlight){e.preventDefault();closeQuickEdit()}
+  });
+}
+
 function scheduleSearch(){
   clearTimeout(searchTimer);
   searchTimer=setTimeout(()=>{
     listFilters.q=$("#adminSearch").value||"";
     listPage=0;
-    loadBooks();
+    refreshBookList();
   },300);
 }
 
@@ -2250,13 +2498,9 @@ function init(){
   if(window.__kutadguSkipAdminAuth){
     show("dashboardPanel");
     applyDashboardSectionFromLocation({replace:true});
-    books=Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[];
-    listTotal=books.length;
-    if($("#adminBookList"))renderBooks();
-    if($("#adminPager"))renderPager();
-    $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
-    $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)});
-    $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)});
+    previewBooksMaster=(Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[]).map(b=>({...b}));
+    bindBookListUx();
+    refreshPreviewBooks();
     $("#importCsvBtn")&&($("#importCsvBtn").onclick=openImport);
     $("#closeImportModal")&&($("#closeImportModal").onclick=closeImport);
     $("#cancelImportBtn")&&($("#cancelImportBtn").onclick=closeImport);
@@ -2272,28 +2516,13 @@ function init(){
     return;
   }
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
-  renderSourceOptions();
+  bindBookListUx();
   $("#loginForm").addEventListener("submit",login);
   $("#forgotPasswordBtn").onclick=requestPasswordReset;
   $("#adminLogout").onclick=logout;
   $("#maintenanceToggleBtn")&&($("#maintenanceToggleBtn").onclick=toggleMaintenanceMode);
   bindAnnouncementAdmin();
-  $("#newBookBtn").onclick=openNew;
-  $("#closeBookModal").onclick=()=>{if(!saveInFlight)modal(false)};
-  $("#cancelBookEdit").onclick=()=>{if(!saveInFlight)modal(false)};
-  $("#bookForm").addEventListener("submit",saveBook);
   $("#importStaticBtn").onclick=importStatic;
-  $("#adminSearch").addEventListener("input",scheduleSearch);
-  $("#adminFilterSource").onchange=()=>{listFilters.source=$("#adminFilterSource").value;listPage=0;loadBooks()};
-  $("#adminFilterActive").onchange=()=>{listFilters.active=$("#adminFilterActive").value;listPage=0;loadBooks()};
-  $("#adminFilterRecommended").onchange=()=>{listFilters.recommended=$("#adminFilterRecommended").value;listPage=0;syncStatusFilterUi();loadBooks()};
-  $("#adminFilterNew").onchange=()=>{listFilters.isNew=$("#adminFilterNew").value;listPage=0;syncStatusFilterUi();loadBooks()};
-  document.querySelectorAll("[data-status-filter]").forEach(btn=>{
-    btn.onclick=()=>applyStatusChip(btn.dataset.statusFilter);
-  });
-  syncStatusFilterUi();
-  $("#adminFilterQuality")&&($("#adminFilterQuality").onchange=()=>{listFilters.quality=$("#adminFilterQuality").value;listPage=0;loadBooks()});
-  $("#adminSort").onchange=()=>{listFilters.sort=$("#adminSort").value;listPage=0;loadBooks()};
   $("#createDuplicateConfirm")&&($("#createDuplicateConfirm").onchange=()=>{createConflictAck=!!$("#createDuplicateConfirm").checked});
   $("#clearCoverPick")&&($("#clearCoverPick").onclick=()=>{
     $("#bookCover").value="";
@@ -2308,10 +2537,6 @@ function init(){
     }
   });
   $("#bookIsbn")&&$("#bookIsbn").addEventListener("blur",()=>{$("#bookIsbn").value=formatIsbn($("#bookIsbn").value)});
-  $("#selectPageBtn").onclick=()=>{books.forEach(b=>selectedIds.add(b.id));renderBooks()};
-  $("#clearSelectionBtn").onclick=()=>{selectedIds.clear();renderBooks()};
-  $("#bulkAction").onchange=updateBulkValueUi;
-  $("#bulkApplyBtn").onclick=applyBulk;
   $("#importCsvBtn").onclick=openImport;
   $("#closeImportModal").onclick=closeImport;
   $("#cancelImportBtn").onclick=closeImport;
@@ -2368,6 +2593,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,selectedIds
 };
 })();
