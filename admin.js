@@ -266,6 +266,8 @@ function applyBooksSchema(){
   const search=$("#adminSearch");
   if(search){
     search.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى";
+    search.setAttribute("dir","rtl");
+    search.dir="rtl";
   }
   const staticBtn=$("#importStaticBtn");
   if(staticBtn){

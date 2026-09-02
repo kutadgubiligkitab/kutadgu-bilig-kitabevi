@@ -74,7 +74,7 @@ test("Admin UI is Uyghur with confirm, no English ON/OFF labels", () => {
   assert.match(adminJs, /from\("store_settings"\)\.update/);
   assert.doesNotMatch(adminHtml, />\s*ON\s*</);
   assert.doesNotMatch(adminHtml, />\s*OFF\s*</);
-  assert.match(adminHtml, /admin\.js\?v=42/);
+  assert.match(adminHtml, /admin\.js\?v=43/);
   assert.match(adminHtml, /admin\.css\?v=26/);
 });
 

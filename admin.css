@@ -306,9 +306,9 @@ button{cursor:pointer}
 @media(max-width:520px){
   #adminSearch,
   .admin-filter-row #adminSearch{
-    font-size:11px;
-    padding-inline:10px 8px;
-    min-height:42px;
+    font-size:13px;
+    padding-inline:12px 10px;
+    min-height:44px;
   }
 }
 .admin-bulk-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px;margin-bottom:12px;border:1px dashed #d8bd7d;border-radius:12px;background:#fffaf0}
