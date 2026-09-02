@@ -1869,7 +1869,8 @@ async function requestPasswordReset(){
   }
   status($("#loginStatus"),"پارول يېڭىلاش ئۇلانمىسى ئەۋەتىلىۋاتىدۇ...");
   const redirectTo=(window.kutadguPasswordResetRedirectTo||function(){
-    return "https://www.kutadgubilik.com/reset-password.html?next=admin";
+    const origin=(typeof window.kutadguAuthCallbackOrigin==="function"?window.kutadguAuthCallbackOrigin():"https://www.kutadgubilik.com").replace(/\/+$/,"");
+    return origin+"/reset-password.html?type=recovery&next=admin";
   })("admin");
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error){

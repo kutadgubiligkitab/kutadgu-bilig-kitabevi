@@ -35,9 +35,15 @@ function recoveryHashTokens(info){
   return {access_token:access,refresh_token:refresh};
 }
 
+function isPkceRecoveryCallback(info){
+  if(!info||info.hasProviderToken)return false;
+  return !!(info.code && !info.tokenHash);
+}
+
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
   if(recoveryHashTokens(info))return true;
+  if(isPkceRecoveryCallback(info))return true;
   if(!info.tokenHash)return false;
   if(isExplicitRecoveryType(info.type))return true;
   if(info.next==="account"||info.next==="admin")return true;
@@ -47,7 +53,6 @@ function isIntendedRecoveryLink(info){
 function isGenericOauthCallback(info){
   if(info.hasProviderToken)return true;
   if(info.hasAccessToken && !isExplicitRecoveryType(info.type))return true;
-  if(info.code && !info.tokenHash)return true;
   return false;
 }
 
@@ -99,14 +104,22 @@ async function establishRecoverySession(info){
     return waitForSession();
   }
   const tokens=recoveryHashTokens(info);
-  if(!tokens)return null;
-  const {data,error}=await db.auth.setSession({
-    access_token:tokens.access_token,
-    refresh_token:tokens.refresh_token
-  });
-  if(error)throw error;
-  if(data?.session)return data.session;
-  return waitForSession();
+  if(tokens){
+    const {data,error}=await db.auth.setSession({
+      access_token:tokens.access_token,
+      refresh_token:tokens.refresh_token
+    });
+    if(error)throw error;
+    if(data?.session)return data.session;
+    return waitForSession();
+  }
+  if(info.code){
+    const {data,error}=await db.auth.exchangeCodeForSession(info.code);
+    if(error)throw error;
+    if(data?.session)return data.session;
+    return waitForSession();
+  }
+  return null;
 }
 
 async function init(){
@@ -207,10 +220,11 @@ async function init(){
 window.kutadguResetPasswordTest={
   returnTarget,
   isExplicitRecoveryType,
+  isPkceRecoveryCallback,
   isIntendedRecoveryLink,
   isGenericOauthCallback,
   recoveryHashTokens,
-  usesPkceCodeExchange:false
+  usesPkceCodeExchange:true
 };
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
