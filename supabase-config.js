@@ -99,7 +99,9 @@ window.KUTADGU_SUPABASE_CONFIG = {
   category, source, description, is_active, is_new, is_recommended, sales_count.
   description is live-supported optional text.
   translator/publisher/publish_year/pages: true after STAGE61_BIBLIOGRAPHIC_METADATA.sql.
-  If that SQL has not been run, Admin/storefront drop those columns on the first 42703 write/search (no boot probe).
+  cover_type/book_size: true after STAGE62_COVER_TYPE_BOOK_SIZE.sql.
+  If that SQL has not been run, Admin drops those columns on the first 42703 write (no boot probe).
+  dimensions stays unused in Admin create/edit (no width/height UI).
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -114,7 +116,8 @@ window.KUTADGU_BOOKS_SCHEMA = {
     language: false,
     publish_date: false,
     publish_year: true,
-    cover_type: false,
+    cover_type: true,
+    book_size: true,
     dimensions: false,
     /* true after STAGE45_LEGACY_ID_MIGRATION.sql. Importer never writes books.id. */
     legacy_id: true,

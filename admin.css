@@ -89,6 +89,7 @@ button{cursor:pointer}
 .admin-form label{display:grid;gap:6px;min-width:0}
 .admin-form label>span{font-size:13px;font-weight:700}
 .admin-form input,.admin-form textarea,.admin-form select{width:100%;min-width:0;border:1px solid #dccdb9;border-radius:9px;padding:11px 12px;background:#fff;color:#44352d;outline:none}
+#bookCoverType,#bookSize{min-height:44px}
 .admin-form input:focus,.admin-form textarea:focus,.admin-form select:focus{border-color:#70503d;box-shadow:0 0 0 3px rgba(112,80,61,.09)}
 .admin-wide{grid-column:1/-1}
 .admin-check{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;gap:8px!important}
@@ -298,8 +299,7 @@ button{cursor:pointer}
   .admin-book-actions{display:flex;flex-wrap:wrap;gap:8px}
   .admin-book-actions button,.admin-book-actions a{min-height:40px}
 }
-@media(max-width:412px){
-  html,body{overflow-x:hidden}
-  .admin-card,.admin-bulk-bar,.admin-problem-filters{max-width:100%}
+@media(max-width:390px){
+  #bookCoverType,#bookSize{min-height:44px;font-size:16px}
 }
 

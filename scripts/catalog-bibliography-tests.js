@@ -72,5 +72,40 @@ test("42703 disables bibliographic columns without guessing extras",()=>{
   assert.strictEqual(spec.optionalColumns.publisher,true);
 });
 
+test("42703 for book_size does not disable bibliographic columns",()=>{
+  const cols=B.missingColumnsFromError({code:"42703",message:'column books.book_size does not exist'});
+  assert.deepStrictEqual(cols,[]);
+  assert.deepStrictEqual(B.missingCoverSizeColumnsFromError({code:"42703",message:'column books.book_size does not exist'}),["book_size"]);
+});
+
+test("cover type and book size normalize to canonical stored values",()=>{
+  assert.strictEqual(B.normalizeCoverType(""),null);
+  assert.strictEqual(B.normalizeCoverType(null),null);
+  assert.strictEqual(B.normalizeCoverType("hardcover"),"hardcover");
+  assert.strictEqual(B.normalizeCoverType("Paperback"),"paperback");
+  assert.strictEqual(B.normalizeCoverType("other"),"other");
+  assert.strictEqual(B.normalizeCoverType("14 x 21"),null);
+  assert.strictEqual(B.normalizeBookSize("a5"),"A5");
+  assert.strictEqual(B.normalizeBookSize("B5"),"B5");
+  assert.strictEqual(B.normalizeBookSize("other"),"other");
+  assert.strictEqual(B.normalizeBookSize("14cm"),null);
+  assert.strictEqual(B.coverTypeLabel("hardcover"),"قاتتىق مۇقاۋىلىق");
+  assert.strictEqual(B.bookSizeLabel("A5"),"A5");
+  assert.strictEqual(B.coverTypeLabel(""), "");
+  assert.strictEqual(B.detailMetaVisible(null),false);
+  assert.strictEqual(B.detailMetaVisible(""),false);
+  assert.strictEqual(B.detailMetaVisible("undefined"),false);
+  assert.strictEqual(B.detailMetaVisible("A5"),true);
+});
+
+test("unrelated edit omits unknown legacy cover_type instead of wiping it",()=>{
+  const plan=B.canonicalOptionalForSave("", "free text", true, B.normalizeCoverType);
+  assert.strictEqual(plan.include,false);
+  const blank=B.canonicalOptionalForSave("", "", true, B.normalizeCoverType);
+  assert.deepStrictEqual(blank,{include:true,value:null});
+  const set=B.canonicalOptionalForSave("hardcover", "", true, B.normalizeCoverType);
+  assert.deepStrictEqual(set,{include:true,value:"hardcover"});
+});
+
 if(failed)process.exit(1);
 console.log("catalog-bibliography-tests ok");

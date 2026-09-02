@@ -15,7 +15,7 @@ const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
-const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","dimensions","legacy_id","gallery_images"];
+const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images"];
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -27,12 +27,13 @@ const OPTIONAL_COL_ALIASES={
   language:["language"],
   publish_date:["publish_date"],
   publish_year:["publish_year","year","نەشر_يىلى"],
-  cover_type:["cover_type"],
+  cover_type:["cover_type","مۇقاۋا_تۈرى"],
+  book_size:["book_size","كىتاب_ئۆلچىمى"],
   dimensions:["dimensions"],
   legacy_id:["legacy_id","legacyid","static_id"],
   gallery_images:["gallery_images","gallery"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:false,dimensions:false,legacy_id:false,gallery_images:false};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let isbnColumn=true,migrationWarned=false;
@@ -364,6 +365,18 @@ function rowsToObjects(rows){
     return obj;
   });
 }
+function headerPresent(row,names){
+  return (names||[]).some(name=>Object.prototype.hasOwnProperty.call(row||{},name));
+}
+function mapCanonicalImportField(raw,aliases,normalize,field){
+  if(!headerPresent(raw,aliases))return {present:false};
+  const rawVal=headerAlias(raw,aliases);
+  const n=normalize?normalize(rawVal):null;
+  if(String(rawVal??"").trim()&&!n){
+    return {present:true,value:null,warning:`${field} ئىناۋەتسىز — كىرگۈزۈلمەيدۇ`};
+  }
+  return {present:true,value:n};
+}
 function headerAlias(row,names){
   for(const name of names){
     if(row[name]!=null&&String(row[name]).trim()!=="")return row[name];
@@ -427,6 +440,10 @@ function mapImportRow(raw){
   const act=parseBoolCell(headerAlias(raw,["is_active","active"]),"is_active");
   if(!act.ok)errors.push(act.error);
   if(isbn&&!isbnLooksValid(isbn))errors.push("ISBN 10 ياكى 13 خانىلىق بولسۇن");
+  const coverMap=mapCanonicalImportField(raw,OPTIONAL_COL_ALIASES.cover_type,Bib.normalizeCoverType,"cover_type");
+  const sizeMap=mapCanonicalImportField(raw,OPTIONAL_COL_ALIASES.book_size,Bib.normalizeBookSize,"book_size");
+  if(coverMap.warning)warnings.push(coverMap.warning);
+  if(sizeMap.warning)warnings.push(sizeMap.warning);
   const allowedStock=["","in_stock","low_stock","out_of_stock","in","low","out"];
   if(stockStatus&&!allowedStock.includes(stockStatus))errors.push("stock_status ئىناۋەتسىز");
   let stock_status=stockStatus;
@@ -442,7 +459,7 @@ function mapImportRow(raw){
     errors.push("legacy_id ستونى Database دا يوق — STAGE45_LEGACY_ID_MIGRATION.sql نى ئىجرا قىلىڭ");
   }
   nonEmptyIgnoredValues(raw).forEach(col=>warnings.push(`${col} بۇ Database لايىھەسىدە يوق — كىرگۈزۈلمەيدۇ`));
-  return {
+  const mapped={
     row:raw._row,
     title,
     author,
@@ -470,6 +487,9 @@ function mapImportRow(raw){
     warnings,
     status:errors.length?"error":"ok"
   };
+  if(coverMap.present)mapped.cover_type=coverMap.value;
+  if(sizeMap.present)mapped.book_size=sizeMap.value;
+  return mapped;
 }
 
 async function checkAdmin(u){
@@ -1318,6 +1338,8 @@ function clearForm(){
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
   $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
+  if($("#bookCoverType"))$("#bookCoverType").value="";
+  if($("#bookSize"))$("#bookSize").value="";
   resetGalleryDraft([]);
   $("#bookModalTitle").textContent="➕ يېڭى كىتاب";
 }
@@ -1353,8 +1375,8 @@ async function openEdit(id){
   $("#bookPublishDate").value=b.publish_date||"";
   $("#bookPublishYear").value=b.publish_year||"";
   $("#bookPublisher").value=b.publisher||"";
-  $("#bookCoverType").value=b.cover_type||"";
-  $("#bookDimensions").value=b.dimensions||"";
+  if($("#bookCoverType"))$("#bookCoverType").value=(Bib.normalizeCoverType?Bib.normalizeCoverType(b.cover_type):"")||"";
+  if($("#bookSize"))$("#bookSize").value=(Bib.normalizeBookSize?Bib.normalizeBookSize(b.book_size):"")||"";
   $("#bookDescription").value=b.description||"";
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
@@ -1794,8 +1816,6 @@ async function saveBook(e){
       publish_date:$("#bookPublishDate").value.trim(),
       publish_year:year.value,
       publisher:$("#bookPublisher").value.trim()||null,
-      cover_type:$("#bookCoverType").value.trim(),
-      dimensions:$("#bookDimensions").value.trim(),
       description:$("#bookDescription").value.trim(),
       stock:Number($("#bookStock").value)||0,
       stock_status:$("#bookStockStatus").value,
@@ -1804,6 +1824,14 @@ async function saveBook(e){
       is_new:$("#bookIsNew").checked,
       is_recommended:$("#bookIsRecommended").checked
     };
+    const coverPlan=Bib.canonicalOptionalForSave
+      ?Bib.canonicalOptionalForSave($("#bookCoverType")?$("#bookCoverType").value:"",editing&&editing.cover_type,isEdit,Bib.normalizeCoverType)
+      :{include:true,value:($("#bookCoverType")&&$("#bookCoverType").value)||null};
+    if(coverPlan.include)row.cover_type=coverPlan.value;
+    const sizePlan=Bib.canonicalOptionalForSave
+      ?Bib.canonicalOptionalForSave($("#bookSize")?$("#bookSize").value:"",editing&&editing.book_size,isEdit,Bib.normalizeBookSize)
+      :{include:true,value:($("#bookSize")&&$("#bookSize").value)||null};
+    if(sizePlan.include)row.book_size=sizePlan.value;
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
     if(isbnColumn)row.isbn=isbn;
     let payload=writeBookRow(row,{mode:isEdit?"update":"insert",omitId:!isEdit});
@@ -1828,6 +1856,19 @@ async function saveBook(e){
       if(!error){
         alert("تەرجىمان / نەشرىيات / نەشر يىلى / بەت سانى ستونى تېخى Database دا يوق. STAGE61_BIBLIOGRAPHIC_METADATA.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
+    }
+    const sizeMissing=Bib.missingCoverSizeColumnsFromError?Bib.missingCoverSizeColumnsFromError(error):[];
+    if(error&&sizeMissing.length){
+      disableBibColumns(sizeMissing);
+      sizeMissing.forEach(col=>delete payload[col]);
+      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      if(!error){
+        alert("مۇقاۋا تۈرى / كىتاب ئۆلچىمى ستونى تېخى Database دا يوق. STAGE62_COVER_TYPE_BOOK_SIZE.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
+      }
+    }
+    if(error&&payload&&payload.cover_type==null&&/null value/i.test(String(error.message||""))&&/cover_type/i.test(String(error.message||""))){
+      payload.cover_type="";
+      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
     }
     if(error)throw error;
     modal(false);
@@ -2470,6 +2511,8 @@ function rowToInsert(row,id){
   };
   if(isbnColumn)rec.isbn=row.isbn||"";
   if(presentBookCols.has("legacy_id")&&row.legacy_id)rec.legacy_id=row.legacy_id;
+  if(presentBookCols.has("cover_type")&&Object.prototype.hasOwnProperty.call(row,"cover_type"))rec.cover_type=row.cover_type;
+  if(presentBookCols.has("book_size")&&Object.prototype.hasOwnProperty.call(row,"book_size"))rec.book_size=row.book_size;
   return rec;
 }
 function rowToUpdate(row){
@@ -2493,6 +2536,8 @@ function rowToUpdate(row){
   };
   if(row.image_url)rec.image_url=row.image_url;
   if(isbnColumn)rec.isbn=row.isbn||"";
+  if(presentBookCols.has("cover_type")&&Object.prototype.hasOwnProperty.call(row,"cover_type"))rec.cover_type=row.cover_type;
+  if(presentBookCols.has("book_size")&&Object.prototype.hasOwnProperty.call(row,"book_size"))rec.book_size=row.book_size;
   return rec;
 }
 
@@ -2839,6 +2884,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField
 };
 })();

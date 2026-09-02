@@ -68,8 +68,9 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     publishDate:value("publishDate","publish_date","")||"",
     publishYear:value("publishYear","publish_year","")||"",
     publisher:book.publisher||"",
-    coverType:value("coverType","cover_type","")||"",
-    dimensions:value("dimensions","book_size",value("dimensions","dimensions",""))||"",
+    coverType:(bibliographicLib().normalizeCoverType?bibliographicLib().normalizeCoverType(value("coverType","cover_type","")):String(value("coverType","cover_type","")||"").trim())||"",
+    bookSize:(bibliographicLib().normalizeBookSize?bibliographicLib().normalizeBookSize(value("bookSize","book_size","")):String(value("bookSize","book_size","")||"").trim())||"",
+    dimensions:value("dimensions","dimensions","")||"",
     description:book.description||"",
     stock:book.stock??null,
     stockStatus:value("stockStatus","stock_status","")||"",
@@ -954,8 +955,13 @@ function getDetailBook(){
 }
 
 function setDynamicMeta(label,value){
-  if(value===null||value===undefined||String(value).trim()==="")return "";
-  return `<div class="book-meta-row"><div class="book-meta-label">${escapeHtml(label)}</div><div class="book-meta-value">${escapeHtml(value)}</div></div>`;
+  const lib=bibliographicLib();
+  if(lib.detailMetaVisible){
+    if(!lib.detailMetaVisible(value))return "";
+  }else if(value===null||value===undefined||String(value).trim()==="")return "";
+  const shown=String(value).trim();
+  if(/^(undefined|null|unknown)$/i.test(shown))return "";
+  return `<div class="book-meta-row"><div class="book-meta-label">${escapeHtml(label)}</div><div class="book-meta-value">${escapeHtml(shown)}</div></div>`;
 }
 
 function setHeadMeta(selector,attributes){
@@ -1051,6 +1057,8 @@ function populateDynamicBookPage(b){
       setDynamicMeta("نەشر يىلى",b.publishYear),
       setDynamicMeta("ISBN",storefrontIsbn(b)),
       setDynamicMeta("بەت سانى",b.pages),
+      setDynamicMeta("مۇقاۋا تۈرى",bibliographicLib().coverTypeLabel?bibliographicLib().coverTypeLabel(b.coverType):b.coverType),
+      setDynamicMeta("كىتاب ئۆلچىمى",bibliographicLib().bookSizeLabel?bibliographicLib().bookSizeLabel(b.bookSize):b.bookSize),
       setDynamicMeta("كىتاب تۈرى",b.category)
     ].join("");
   }
@@ -2914,5 +2922,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook};
 })();

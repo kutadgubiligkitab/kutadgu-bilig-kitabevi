@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=22">
+  <link rel="stylesheet" href="admin.css?v=23">
 </head>
 <body>
 <div class="admin-shell">
@@ -384,8 +384,23 @@
       <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
       <label data-book-col="publish_year"><span>نەشر يىلى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublishYear" type="number" min="1000" max="2100" step="1" inputmode="numeric"><span class="admin-help">مىلادىيە يىلى، 1000–2100. بوش قالدۇرۇشقا بولىدۇ.</span></label>
       <label data-book-col="publisher"><span>نەشرىيات <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublisher"></label>
-      <label data-book-col="cover_type"><span>مۇقاۋا تۈرى</span><input id="bookCoverType"></label>
-      <label data-book-col="dimensions"><span>كىتاب ئۆلچىمى</span><input id="bookDimensions" placeholder="مەسىلەن 14 × 21 cm"></label>
+      <label data-book-col="cover_type"><span>مۇقاۋا تۈرى <small class="admin-optional">(ئىختىيارىي)</small></span>
+        <select id="bookCoverType">
+          <option value="">تاللانمىغان</option>
+          <option value="hardcover">قاتتىق مۇقاۋىلىق</option>
+          <option value="paperback">يۇمشاق مۇقاۋىلىق</option>
+          <option value="other">باشقا</option>
+        </select>
+      </label>
+      <label data-book-col="book_size"><span>كىتاب ئۆلچىمى <small class="admin-optional">(ئىختىيارىي)</small></span>
+        <select id="bookSize">
+          <option value="">تاللانمىغان</option>
+          <option value="A4">A4</option>
+          <option value="A5">A5</option>
+          <option value="B5">B5</option>
+          <option value="other">باشقا</option>
+        </select>
+      </label>
 
       <label class="admin-wide"><span>كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
 
@@ -526,7 +541,7 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=13"></script>
+<script defer src="supabase-config.js?v=14"></script>
 <script defer src="app-config.js?v=1"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=2"></script>
@@ -535,7 +550,7 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
-<script defer src="catalog-bibliography.js?v=1"></script>
+<script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
@@ -543,6 +558,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-<script defer src="admin.js?v=40"></script>
+<script defer src="admin.js?v=41"></script>
 </body>
 </html>
