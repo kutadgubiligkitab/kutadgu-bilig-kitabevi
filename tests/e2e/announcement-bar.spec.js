@@ -182,14 +182,18 @@ async function announceMetrics(page) {
   return page.evaluate(() => {
     const bar = document.getElementById("kutadguAnnounceBar");
     const text = document.getElementById("kutadguAnnounceText");
+    const inner = document.getElementById("kutadguAnnounceInner");
     const toggle = document.getElementById("kutadguAnnounceToggle");
     const clones = document.querySelectorAll("[data-announce-clone]");
     const csText = text ? getComputedStyle(text) : {};
     const csBar = bar ? getComputedStyle(bar) : {};
+    const csToggle = toggle ? getComputedStyle(toggle) : {};
     const lineHeight = Number.parseFloat(csText.lineHeight) || 0;
     const clamped = !!(text && text.classList.contains("is-clamped"));
     const overflowing = !!(text && clamped && text.scrollHeight > text.clientHeight + 1);
     const toggleVisible = !!(toggle && !toggle.hidden && getComputedStyle(toggle).display !== "none");
+    const barW = bar ? bar.getBoundingClientRect().width : 0;
+    const innerW = inner ? inner.getBoundingClientRect().width : 0;
     return {
       ticker: !!(bar && bar.classList.contains("is-ticker")),
       expanded: !!(bar && bar.classList.contains("is-expanded")),
@@ -202,14 +206,21 @@ async function announceMetrics(page) {
       overflowing,
       webkitLineClamp: String(csText.webkitLineClamp || csText.lineClamp || ""),
       whiteSpace: String(csText.whiteSpace || ""),
+      textOverflow: String(csText.textOverflow || ""),
       animationName: String(csText.animationName || csBar.animationName || ""),
       textAlign: String(csText.textAlign || csBar.textAlign || ""),
       dir: document.documentElement.getAttribute("dir") || "",
       toggleVisible,
       toggleText: toggle ? String(toggle.textContent || "").trim() : "",
+      toggleBorder: String(csToggle.borderTopWidth || ""),
+      toggleRadius: String(csToggle.borderRadius || ""),
+      toggleDecoration: String(csToggle.textDecorationLine || csToggle.textDecoration || ""),
       ariaExpanded: toggle ? String(toggle.getAttribute("aria-expanded") || "") : "",
       ariaControls: toggle ? String(toggle.getAttribute("aria-controls") || "") : "",
       barH: bar ? bar.getBoundingClientRect().height : 0,
+      barW,
+      innerW,
+      innerRatio: barW > 0 ? innerW / barW : 0,
       pageOverflow: document.documentElement.scrollWidth - window.innerWidth
     };
   });
@@ -226,17 +237,17 @@ async function waitForLongCollapsed(page) {
 async function expandAndCollapse(page) {
   const btn = page.locator("#kutadguAnnounceToggle");
   await expect(btn).toBeVisible();
-  await expect(btn).toHaveText("تەپسىلات");
+  await expect(btn).toHaveText("تەپسىلات ↓");
   await btn.click();
   await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(true);
-  await expect(btn).toHaveText("يىغىش");
+  await expect(btn).toHaveText("يىغىش ↑");
   await expect(btn).toHaveAttribute("aria-expanded", "true");
   const open = await announceMetrics(page);
   expect(open.clamped).toBe(false);
   expect(open.scrollHeight).toBeGreaterThan(open.clientHeight - 1);
   await btn.click();
   await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(false);
-  await expect(btn).toHaveText("تەپسىلات");
+  await expect(btn).toHaveText("تەپسىلات ↓");
   await expect(btn).toHaveAttribute("aria-expanded", "false");
 }
 
@@ -276,6 +287,8 @@ test.describe("announcement expandable text", () => {
       expect(m.clientHeight).toBeLessThanOrEqual(m.lineHeight * 2 + 4);
     }
     expect(m.pageOverflow).toBeLessThanOrEqual(1);
+    expect(Number.parseFloat(m.toggleBorder) || 0).toBeGreaterThan(0);
+    expect(m.toggleDecoration.includes("underline")).toBe(false);
     await expect(page.locator("#kutadguAnnounceToggle")).toHaveAttribute("aria-controls", "kutadguAnnounceText");
     await expandAndCollapse(page);
     await page.locator("#kutadguAnnounceToggle").focus();
@@ -297,6 +310,9 @@ test.describe("announcement expandable text", () => {
       expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
       expect(m.cloneCount).toBe(0);
       expect(m.pageOverflow).toBeLessThanOrEqual(1);
+      if (vp.width <= 700) {
+        expect(m.innerW / (vp.width - 96)).toBeGreaterThan(0.84);
+      }
       await expandAndCollapse(page);
       const toggle = page.locator(".mobile-menu-toggle");
       if (await toggle.isVisible()) {
@@ -317,8 +333,9 @@ test.describe("announcement expandable text", () => {
     await H.openFresh(page, "/");
     await waitForLongCollapsed(page);
     const collapsed = await announceMetrics(page);
-    expect(collapsed.barH).toBeLessThan(90);
+    expect(collapsed.barH).toBeLessThan(80);
     expect(collapsed.pageOverflow).toBeLessThanOrEqual(1);
+    expect(collapsed.innerRatio).toBeGreaterThan(0.5);
     await page.locator("#kutadguAnnounceToggle").click();
     await expect.poll(async () => (await announceMetrics(page)).expanded).toBe(true);
     const open = await announceMetrics(page);
@@ -365,5 +382,7 @@ test.describe("announcement expandable text", () => {
     expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
     expect(m.pageOverflow).toBeLessThanOrEqual(1);
     expect(m.barH).toBeGreaterThan(8);
+    expect(m.textOverflow).not.toBe("ellipsis");
+    expect(m.innerW / (390 - 96)).toBeGreaterThan(0.84);
   });
 });

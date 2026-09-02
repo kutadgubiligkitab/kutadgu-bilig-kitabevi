@@ -72,8 +72,10 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.doesNotMatch(js, /<marquee/i);
   assert.match(js, /line-clamp:2/);
   assert.match(js, /-webkit-line-clamp:2/);
-  assert.match(js, /تەپسىلات/);
-  assert.match(js, /يىغىش/);
+  assert.match(js, /تەپسىلات ↓/);
+  assert.match(js, /يىغىش ↑/);
+  assert.match(js, /border-radius:999px/);
+  assert.match(js, /max\(48px, 5%\)/);
   assert.match(js, /aria-expanded/);
   assert.match(js, /aria-controls/);
   assert.match(js, /isLineOverflowing/);
@@ -86,7 +88,7 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.doesNotMatch(js, /lockCopyWidth/);
   assert.doesNotMatch(js, /padding-inline-end:3em/);
   assert.doesNotMatch(js, /translate3d\(-50%/);
-  assert.match(cfg, /kutadgu-announcements\.js\?v=5/);
+  assert.match(cfg, /kutadgu-announcements\.js\?v=6/);
   assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
 });
 
