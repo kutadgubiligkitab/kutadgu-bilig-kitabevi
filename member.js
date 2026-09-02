@@ -7,7 +7,7 @@ const FAV_KEY="kutadgu-favorites-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1";
 const SHOP_OWNER_GUEST="guest";
 const SHOP_OWNER_STALE="stale";
-const SDK_URL="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+const SDK_URL="/vendor/supabase-js-2.45.4.umd.js";
 let db=null,user=null,profile=null,blocked=false,initError=null;
 let applyChain=Promise.resolve(),lastLoginRecordedAt=0;
 let readyResolve;

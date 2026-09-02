@@ -19,8 +19,16 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8"
 };
 
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "frame-ancestors 'none'"
+};
+
 function send(res, status, headers, body) {
-  res.writeHead(status, headers);
+  res.writeHead(status, Object.assign({}, SECURITY_HEADERS, headers));
   res.end(body);
 }
 

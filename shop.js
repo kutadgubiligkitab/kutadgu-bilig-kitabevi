@@ -34,6 +34,7 @@ function normalizeGalleryImages(value,coverUrl){
   value.forEach(item=>{
     const url=String(item||"").trim();
     if(!url||url.startsWith("data:")||/[<>"']/.test(url))return;
+    if(safeUrlApi()&&safeUrlApi().isSafeCoverUrl&&!safeUrlApi().isSafeCoverUrl(url))return;
     if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)&&!/^https?:\/\//i.test(url))return;
     if((cover&&url===cover)||seen.has(url))return;
     seen.add(url);
@@ -118,7 +119,45 @@ function isPreviewShopDebug(){
 }
 const FALLBACK_COVER="/sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
-const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:storefrontAssetPath(book?.image||FALLBACK_COVER);
+function safeUrlApi(){return window.KutadguSafeUrl||null}
+function escapeHtml(v){
+  const api=safeUrlApi();
+  if(api&&api.escapeHtml)return api.escapeHtml(v);
+  return String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+}
+function escapeAttr(v){return escapeHtml(v)}
+function isSafeCoverUrl(raw){
+  const api=safeUrlApi();
+  if(api&&api.isSafeCoverUrl)return api.isSafeCoverUrl(raw);
+  const t=String(raw||"").trim();
+  if(!t||/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(t)||/[<>"'\s]/.test(t)||t.startsWith("//"))return false;
+  if(/^https?:\/\//i.test(t))return true;
+  if(t.startsWith("/")&&!t.startsWith("//"))return true;
+  return !/^[a-z][a-z0-9+.-]*:/i.test(t);
+}
+function safeCoverUrl(raw,opts){
+  const api=safeUrlApi();
+  if(api&&api.safeCoverUrl)return api.safeCoverUrl(raw,opts&&typeof opts==="object"?opts:{fallback:FALLBACK_COVER});
+  const t=String(raw||"").trim();
+  if(!t)return FALLBACK_COVER;
+  return isSafeCoverUrl(t)?t:FALLBACK_COVER;
+}
+function safeHref(raw,fallback){
+  const api=safeUrlApi();
+  if(api&&api.safeHref)return api.safeHref(raw,fallback);
+  const t=String(raw||"").trim();
+  if(!t)return fallback==null?"#":fallback;
+  if(/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(t)||t.startsWith("//"))return fallback==null?"#":fallback;
+  if(/^https?:\/\//i.test(t)||t.startsWith("#")||t.startsWith("?")||t.startsWith("/")||t.startsWith("./")||t.startsWith("../"))return t;
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(t))return t;
+  return fallback==null?"#":fallback;
+}
+function coverSrc(book){
+  if(COVER_LAYOUT_TEST_MODE)return FALLBACK_COVER;
+  const raw=book?.image||FALLBACK_COVER;
+  const safe=safeCoverUrl(raw,{fallback:FALLBACK_COVER});
+  return storefrontAssetPath(safe||FALLBACK_COVER);
+}
 function readShopOwner(){
   try{return String(localStorage.getItem(SHOP_OWNER_KEY)||"").trim()}catch(e){return ""}
 }
@@ -251,7 +290,8 @@ function bookDetailHref(id, fallbackHref){
 function storefrontAssetPath(src){
   const value=String(src||"").trim();
   if(!value||value==="#")return value;
-  if(/^(https?:)?\/\//i.test(value)||value.startsWith("/")||value.startsWith("data:"))return value;
+  if(/^(javascript|data|vbscript|file|blob):/i.test(value))return FALLBACK_COVER;
+  if(/^(https?:)?\/\//i.test(value)||value.startsWith("/"))return value;
   return "/"+value.replace(/^\.\//,"");
 }
 function storefrontPageFile(){
@@ -915,7 +955,7 @@ function getDetailBook(){
 
 function setDynamicMeta(label,value){
   if(value===null||value===undefined||String(value).trim()==="")return "";
-  return `<div class="book-meta-row"><div class="book-meta-label">${label}</div><div class="book-meta-value">${value}</div></div>`;
+  return `<div class="book-meta-row"><div class="book-meta-label">${escapeHtml(label)}</div><div class="book-meta-value">${escapeHtml(value)}</div></div>`;
 }
 
 function setHeadMeta(selector,attributes){
@@ -1032,21 +1072,23 @@ function detailRecommendations(book,limit=4){
 
 function detailGallerySlides(book){
   const main=coverSrc(book);
-  const extras=normalizeGalleryImages(book?.galleryImages||[],book?.image||"");
-  return [main,...extras].filter(Boolean);
+  const extras=normalizeGalleryImages(book?.galleryImages||[],book?.image||"")
+    .map(src=>safeCoverUrl(src,{fallback:"",fallbackOnInvalid:false}))
+    .filter(Boolean);
+  return [main,...extras].filter(src=>isSafeCoverUrl(src));
 }
 
 function setDetailHeroImage(src,alt){
   const img=document.querySelector(".book-cover-box img");
   if(!img)return;
-  img.src=src;
+  img.src=isSafeCoverUrl(src)?src:FALLBACK_COVER;
   img.alt=alt||img.alt||"";
   img.hidden=false;
   img.style.visibility="visible";
 }
 
 function openCoverLightbox(slides,startIndex,alt){
-  const list=(slides||[]).filter(Boolean);
+  const list=(slides||[]).map(src=>isSafeCoverUrl(src)?src:"").filter(Boolean);
   if(!list.length)return;
   let index=Math.max(0,Math.min(startIndex||0,list.length-1));
   const overlay=document.createElement("div");
@@ -1054,15 +1096,37 @@ function openCoverLightbox(slides,startIndex,alt){
   overlay.setAttribute("role","dialog");
   overlay.setAttribute("aria-modal","true");
   overlay.setAttribute("aria-label","كىتاب رەسىمىنى چوڭ كۆرۈش");
-  const nav=list.length>1
-    ? `<button type="button" class="cover-zoom-prev" aria-label="ئالدىنقى رەسىم">›</button><button type="button" class="cover-zoom-next" aria-label="كېيىنكى رەسىم">‹</button><div class="cover-zoom-count"></div>`
-    : "";
-  overlay.innerHTML=`<button type="button" class="cover-zoom-close" aria-label="تاقاش">✕</button>${nav}<img src="${list[index]}" alt="${alt||""}">`;
+  const closeBtn=document.createElement("button");
+  closeBtn.type="button";
+  closeBtn.className="cover-zoom-close";
+  closeBtn.setAttribute("aria-label","تاقاش");
+  closeBtn.textContent="✕";
+  overlay.appendChild(closeBtn);
+  let prevBtn=null,nextBtn=null,count=null;
+  if(list.length>1){
+    prevBtn=document.createElement("button");
+    prevBtn.type="button";
+    prevBtn.className="cover-zoom-prev";
+    prevBtn.setAttribute("aria-label","ئالدىنقى رەسىم");
+    prevBtn.textContent="›";
+    nextBtn=document.createElement("button");
+    nextBtn.type="button";
+    nextBtn.className="cover-zoom-next";
+    nextBtn.setAttribute("aria-label","كېيىنكى رەسىم");
+    nextBtn.textContent="‹";
+    count=document.createElement("div");
+    count.className="cover-zoom-count";
+    overlay.appendChild(prevBtn);
+    overlay.appendChild(nextBtn);
+    overlay.appendChild(count);
+  }
+  const picture=document.createElement("img");
+  picture.alt=String(alt||"");
+  overlay.appendChild(picture);
   document.body.appendChild(overlay);
-  const picture=overlay.querySelector("img");
-  const count=overlay.querySelector(".cover-zoom-count");
   const show=()=>{
-    picture.src=list[index];
+    const url=list[index];
+    picture.src=isSafeCoverUrl(url)?url:FALLBACK_COVER;
     if(count)count.textContent=`${index+1} / ${list.length}`;
   };
   show();
@@ -1081,9 +1145,9 @@ function openCoverLightbox(slides,startIndex,alt){
       step(e.key==="ArrowLeft"?1:-1);
     }
   }
-  overlay.querySelector(".cover-zoom-close").onclick=close;
-  overlay.querySelector(".cover-zoom-prev")?.addEventListener("click",e=>{e.stopPropagation();step(-1)});
-  overlay.querySelector(".cover-zoom-next")?.addEventListener("click",e=>{e.stopPropagation();step(1)});
+  closeBtn.onclick=close;
+  prevBtn?.addEventListener("click",e=>{e.stopPropagation();step(-1)});
+  nextBtn?.addEventListener("click",e=>{e.stopPropagation();step(1)});
   overlay.onclick=e=>{if(e.target===overlay)close()};
   document.addEventListener("keydown",onKey);
 }
@@ -1113,9 +1177,12 @@ function renderBookGallery(book){
   strip.className="book-gallery-thumbs";
   strip.setAttribute("role","list");
   strip.setAttribute("aria-label","كىتاب رەسىملىرى");
-  strip.innerHTML=slides.map((src,index)=>`<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
-      <img src="${src}" alt="" ${index===0?"":'loading="lazy"'} decoding="async">
-    </button>`).join("");
+  strip.innerHTML=slides.map((src,index)=>{
+    const safe=isSafeCoverUrl(src)?src:FALLBACK_COVER;
+    return `<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
+      <img src="${escapeAttr(safe)}" alt="" ${index===0?"":'loading="lazy"'} decoding="async">
+    </button>`;
+  }).join("");
   col.appendChild(strip);
   strip.querySelectorAll(".book-gallery-thumb").forEach(btn=>{
     btn.onclick=()=>{
@@ -1282,34 +1349,39 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  return `<img src="${coverSrc(b)}" alt="${b.title}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
+  const title=escapeAttr(b.title||"");
+  return `<img src="${escapeAttr(coverSrc(b))}" alt="${title}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
 }
 
-function miniCard(b){return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${b.id}">♡</button><a href="${b.href}">${miniCover(b)}<div class="shop-mini-title">${b.title}</div><div class="shop-mini-meta">${b.author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${b.id}">🔗</button></div></article>`}
+function miniCard(b){
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author);
+  return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${id}">♡</button><a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button></div></article>`;
+}
 
 function favoriteCard(b){
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
   if(!isStorefrontVisible(b)){
     return `<article class="favorite-card favorite-card-unavailable">
-    <a class="favorite-cover" href="${b.href}">${miniCover(b)}</a>
+    <a class="favorite-cover" href="${href}">${miniCover(b)}</a>
     <div class="favorite-card-info">
-      <a class="favorite-card-title" href="${b.href}">${b.title}</a>
-      <div class="favorite-card-author">${b.author||"—"}</div>
+      <a class="favorite-card-title" href="${href}">${title}</a>
+      <div class="favorite-card-author">${author}</div>
       <div class="favorite-card-row"><span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span></div>
       <div class="favorite-card-actions">
-        <button type="button" class="favorite-remove" data-remove-favorite="${b.id}">ياقتۇرغانلاردىن چىقىرىش</button>
+        <button type="button" class="favorite-remove" data-remove-favorite="${id}">ياقتۇرغانلاردىن چىقىرىش</button>
       </div>
     </div>
   </article>`;
   }
   return `<article class="favorite-card">
-    <a class="favorite-cover" href="${b.href}">${miniCover(b)}</a>
+    <a class="favorite-cover" href="${href}">${miniCover(b)}</a>
     <div class="favorite-card-info">
-      <a class="favorite-card-title" href="${b.href}">${b.title}</a>
-      <div class="favorite-card-author">${b.author||"—"}</div>
+      <a class="favorite-card-title" href="${href}">${title}</a>
+      <div class="favorite-card-author">${author}</div>
       <div class="favorite-card-row"><strong>${money(b.price)}</strong>${stockBadge(b)}</div>
       <div class="favorite-card-actions">
         ${cartButton(b)}
-        <button type="button" class="favorite-remove" data-remove-favorite="${b.id}">ياقتۇرغانلاردىن چىقىرىش</button>
+        <button type="button" class="favorite-remove" data-remove-favorite="${id}">ياقتۇرغانلاردىن چىقىرىش</button>
       </div>
     </div>
   </article>`;
@@ -1346,23 +1418,19 @@ function recommendedBooks(limit=12){
 }
 
 
-async function renderHomeFeaturedBooks(){
-  const host=document.querySelector("#homeFeaturedBooks");
-  if(!host)return;
-  if(!featureEnabled("newArrivals")){host.hidden=true;return}
-
-  function card(b){
-    return `<article class="home-feature-card">
-      <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
-      <a href="${b.href}">
+function homeFeatureCard(b){
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
+  return `<article class="home-feature-card">
+      <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
+      <a href="${href}">
         <div class="home-feature-cover">
           <div class="home-feature-cover-frame">
-            <img src="${coverSrc(b)}" alt="${b.title} كىتاب مۇقاۋىسى" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+            <img src="${escapeAttr(coverSrc(b))}" alt="${escapeAttr(b.title)} كىتاب مۇقاۋىسى" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
           </div>
         </div>
         <div class="home-feature-info">
-          <div class="home-feature-title">${b.title}</div>
-          <div class="home-feature-author">${b.author||"—"}</div>
+          <div class="home-feature-title">${title}</div>
+          <div class="home-feature-author">${author}</div>
           <div class="home-feature-bottom">
             <span class="home-feature-price">${money(b.price)}</span>
             ${cartButton(b,"🛒","add-to-cart home-feature-cart")}
@@ -1370,7 +1438,12 @@ async function renderHomeFeaturedBooks(){
         </div>
       </a>
     </article>`;
-  }
+}
+
+async function renderHomeFeaturedBooks(){
+  const host=document.querySelector("#homeFeaturedBooks");
+  if(!host)return;
+  if(!featureEnabled("newArrivals")){host.hidden=true;return}
 
   host.innerHTML=`<section class="home-featured-section">
     <div class="home-featured-head">
@@ -1394,7 +1467,7 @@ async function renderHomeFeaturedBooks(){
         grid.innerHTML='<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
       }else{
         const split=splitFeaturedRows(books);
-        const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(card).join("")}</div></div>`;
+        const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(homeFeatureCard).join("")}</div></div>`;
         grid.classList.add("is-marquee");
         grid.innerHTML=`${rowMarkup(split.top,"top")}${split.bottom.length?rowMarkup(split.bottom,"bottom"):""}`;
       }
@@ -1444,8 +1517,6 @@ function renderHomeSections(){
 function normalizeText(v){
   return String(v||"").toLocaleLowerCase("ug").replace(/\s+/g," ").trim();
 }
-function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
-function escapeAttr(v){return escapeHtml(v)}
 function bookTime(book){const value=Date.parse(book?.createdAt||"");return Number.isFinite(value)?value:Number.NEGATIVE_INFINITY}
 function uniqueCategories(){
   let seen=new Set(),out=[];
@@ -1472,7 +1543,7 @@ function bindDynamicActions(scope){
   renderFavButtons();
 }
 function bookCardMarkup(b,variant="listing"){
-  const id=escapeAttr(b.id),href=escapeAttr(b.href),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
   if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
     <a class="advanced-search-cover" href="${href}"><img src="${cover}" alt="${escapeAttr(b.title)}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
@@ -1521,7 +1592,7 @@ function searchEnhance(){
     panel.innerHTML=`
       <div class="advanced-search-field">
         <label for="searchCategory">كىتاب تۈرى</label>
-        <select id="searchCategory"><option value="">بارلىق تۈرلەر</option>${uniqueCategories().map(x=>`<option value="${x}">${x}</option>`).join("")}</select>
+        <select id="searchCategory"><option value="">بارلىق تۈرلەر</option>${uniqueCategories().map(x=>`<option value="${escapeAttr(x)}">${escapeHtml(x)}</option>`).join("")}</select>
       </div>
       <div class="advanced-search-field">
         <label for="searchCollection">تاللانما</label>
@@ -1863,10 +1934,10 @@ function cartPage(){
     const visible=isStorefrontVisible(x.b);
     const stock=stockInfo(x.b);
     return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
-      <img src="${coverSrc(x.b)}" alt="${x.b.title}" width="75" height="95" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+      <img src="${escapeAttr(coverSrc(x.b))}" alt="${escapeAttr(x.b.title)}" width="75" height="95" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
       <div>
-        <div class="cart-title">${x.b.title}</div>
-        <div class="cart-meta">${x.b.author} · ${x.b.category}</div>
+        <div class="cart-title">${escapeHtml(x.b.title)}</div>
+        <div class="cart-meta">${escapeHtml(x.b.author)} · ${escapeHtml(x.b.category)}</div>
         <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}</div>
         <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
       </div>
@@ -2553,13 +2624,15 @@ async function setupHomeCarousel(){
   }
   function card(b,i=0){
     const loading=i<4?"eager":"lazy";
+    const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
+    const authorName=storefrontAuthor(b);
     return `<article class="home-carousel-card">
-      <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${b.id}" aria-label="ياقتۇرۇش">♡</button>
-      <a href="${b.href}" class="home-carousel-link">
-        <div class="home-carousel-cover"><img src="${coverSrc(b)}" alt="${b.title||'كىتاب مۇقاۋىسى'}" width="320" height="460" loading="${loading}" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+      <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
+      <a href="${href}" class="home-carousel-link">
+        <div class="home-carousel-cover"><img src="${escapeAttr(coverSrc(b))}" alt="${escapeAttr(b.title||"كىتاب مۇقاۋىسى")}" width="320" height="460" loading="${loading}" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
       </a>
       <div class="home-carousel-info">
-        <a href="${b.href}" class="home-carousel-meta-link"><div class="home-carousel-title">${b.title||"كىتاب"}</div>${storefrontAuthor(b)?`<div class="home-carousel-author">${storefrontAuthor(b)}</div>`:""}</a>
+        <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
         <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div>
       </div>
     </article>`;
@@ -2722,7 +2795,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="/member.js?v=15";script.async=true;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=16";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -2841,5 +2914,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl};
 })();

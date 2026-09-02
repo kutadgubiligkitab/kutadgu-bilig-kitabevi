@@ -148,5 +148,14 @@ test("quality helper still classifies placeholder author",()=>{
   assert.strictEqual(Q.isMissingAuthor("ئاپتور ئىسمى"),true);
 });
 
-if(failed)process.exit(1);
+test("quick edit rejects javascript cover URL",()=>{
+  const built=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"javascript:alert(1)"},{presentBookCols:new Set()});
+  assert.strictEqual(built.ok,false);
+});
+
+test("quick edit keeps https cover URL",()=>{
+  const built=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"https://cdn.example/x.webp"},{presentBookCols:new Set()});
+  assert.strictEqual(built.ok,true);
+  assert.strictEqual(built.patch.image_url,"https://cdn.example/x.webp");
+});
 console.log("admin-catalog-productivity-tests ok");

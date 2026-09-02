@@ -26,6 +26,8 @@ function normalizeGalleryImages(value,opts){
     const url=String(item==null?"":item).trim();
     if(!url||url.startsWith("data:"))return;
     if(/[<>"']/.test(url))return;
+    const Safe=root.KutadguSafeUrl;
+    if(Safe&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(url))return;
     if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)&&!/^https?:\/\//i.test(url))return;
     if(cover&&url===cover)return;
     if(seen.has(url))return;

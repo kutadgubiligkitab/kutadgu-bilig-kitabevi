@@ -3,6 +3,7 @@
 
 const Quality=root.KutadguAdminQuality||(typeof require==="function"?require("./admin-book-quality.js"):{});
 const Write=root.KutadguAdminWrite||(typeof require==="function"?require("./admin-book-write.js"):{});
+const Safe=root.KutadguSafeUrl||(typeof require==="function"?require("./kutadgu-safe-url.js"):{});
 
 const PROTECTED_FIELDS=["id","legacy_id","sales_count","created_at","updated_at"];
 const QUICK_EDIT_FIELDS=["title","author","price","source","category","stock","stock_status","is_active","is_recommended","is_new","image_url"];
@@ -192,7 +193,12 @@ function buildQuickEditPatch(input,opts={}){
   }
   if(!stock.omit)patch.stock=stock.value;
   const cover=String(input&&input.image_url||"").trim();
-  if(Object.prototype.hasOwnProperty.call(input||{},"image_url"))patch.image_url=cover;
+  if(Object.prototype.hasOwnProperty.call(input||{},"image_url")){
+    if(cover&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(cover)){
+      return {ok:false,error:Safe.COVER_URL_ERROR||"مۇقاۋا URL بىخەتەر ئەمەس."};
+    }
+    patch.image_url=cover;
+  }
   const safe=stripProtectedFields(patch);
   const leaked=PROTECTED_FIELDS.filter(k=>Object.prototype.hasOwnProperty.call(safe,k));
   if(leaked.length)return {ok:false,error:"قوغدىلىدىغان مەيدان يېزىلمايدۇ"};

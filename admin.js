@@ -3,6 +3,7 @@
 const Write=window.KutadguAdminWrite||{};
 const Quality=window.KutadguAdminQuality||{};
 const Prod=window.KutadguAdminProductivity||{};
+const Safe=window.KutadguSafeUrl||{};
 const Bib=window.KutadguBibliography||{};
 const ImportCovers=window.KutadguAdminImportCovers||{};
 const CoverRepair=window.KutadguAdminCoverRepair||{};
@@ -930,7 +931,7 @@ function renderBooks(){
       <label class="admin-book-check-wrap">
         <input class="admin-book-check" type="checkbox" data-select="${esc(b.id)}" ${selectedIds.has(String(b.id))||selectedIds.has(b.id)?"checked":""} aria-label="تاللاش: ${esc(b.title||b.id)}">
       </label>
-      ${b.image_url?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
+      ${Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
         ${statusBadgesHtml(b)}
@@ -1173,8 +1174,9 @@ async function openEdit(id){
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
   $("#bookIsRecommended").checked=b.is_recommended===true;
-  $("#bookCoverPreview").src=b.image_url||"";
-  $("#bookCoverPreview").style.visibility=b.image_url?"visible":"hidden";
+  const coverPreview=Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?b.image_url:"";
+  $("#bookCoverPreview").src=coverPreview;
+  $("#bookCoverPreview").style.visibility=coverPreview?"visible":"hidden";
   $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ":"مۇقاۋا يوق";
   hideCreateConflict();
   resetGalleryDraft(normalizeGalleryField(b.gallery_images,b.image_url));
@@ -1586,6 +1588,9 @@ async function saveBook(e){
     }
     const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
     const imageUrl=await uploadCover(storageId,$("#bookCover").files[0]);
+    if(imageUrl&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(imageUrl)){
+      throw new Error(Safe.COVER_URL_ERROR||"مۇقاۋا URL بىخەتەر ئەمەس.");
+    }
     const galleryUrls=await collectGalleryUrls(storageId);
     const row={
       title,
