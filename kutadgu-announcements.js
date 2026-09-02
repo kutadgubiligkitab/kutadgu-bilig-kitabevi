@@ -196,16 +196,19 @@
       "#" + BAR_ID + ".is-visible{display:flex;}" +
       "#" + VIEW_ID + "{" +
       "flex:1 1 auto;min-width:0;width:100%;max-width:100%;overflow:hidden;" +
-      "display:flex;align-items:center;justify-content:center;}" +
+      "display:flex;align-items:center;justify-content:center;direction:ltr;}" +
       "#" + BAR_ID + ".is-ticker #" + VIEW_ID + "{justify-content:flex-start;}" +
       "#" + TRACK_ID + "{" +
       "display:inline-flex;flex-direction:row;align-items:center;gap:0;" +
-      "width:max-content;max-width:none;white-space:nowrap;" +
-      "will-change:auto;}" +
+      "width:max-content;max-width:none;white-space:nowrap;direction:ltr;" +
+      "transform:none;will-change:auto;}" +
+      "#" + TRACK_ID + ".is-prepared #" + TEXT_ID + "," +
+      "#" + TRACK_ID + ".is-prepared [data-announce-clone]{padding-inline-end:3em;}" +
       "#" + BAR_ID + ".is-ticker #" + TRACK_ID + "{" +
       "animation-name:kutadgu-announce-ltr;" +
       "animation-timing-function:linear;" +
       "animation-iteration-count:infinite;" +
+      "animation-delay:0s;" +
       "will-change:transform;}" +
       "#" + BAR_ID + ".is-paused #" + TRACK_ID + "," +
       "#" + BAR_ID + ":hover #" + TRACK_ID + "," +
@@ -215,13 +218,13 @@
       "display:inline-block;flex:0 0 auto;white-space:nowrap;" +
       "overflow:visible;text-overflow:clip;max-width:none;" +
       "line-clamp:none;-webkit-line-clamp:unset;" +
+      "direction:rtl;unicode-bidi:isolate;" +
+      "color:inherit;" +
       "transition:opacity " + FADE_MS + "ms ease;}" +
-      "#" + BAR_ID + ".is-ticker #" + TEXT_ID + "," +
-      "#" + BAR_ID + ".is-ticker [data-announce-clone]{padding-inline-end:3em;}" +
-      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;overflow:visible;}" +
+      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;overflow:visible;padding-inline-end:0;}" +
       "#" + BAR_ID + ".is-wrap #" + VIEW_ID + "{justify-content:center;}" +
       "@keyframes kutadgu-announce-ltr{" +
-      "from{transform:translate3d(-50%,0,0);}" +
+      "from{transform:translate3d(calc(-1 * var(--kutadgu-announce-travel, 0px)),0,0);}" +
       "to{transform:translate3d(0,0,0);}" +
       "}" +
       "@media (max-width:700px){" +
@@ -296,6 +299,8 @@
     var track = document.getElementById(TRACK_ID);
     if (track) {
       track.style.animationDuration = "";
+      track.style.removeProperty("--kutadgu-announce-travel");
+      track.classList.remove("is-prepared");
       removeTickerClone(track);
     }
   }
@@ -323,13 +328,21 @@
     }
     var reduced = prefersReducedMotion();
     text.style.whiteSpace = "nowrap";
-    var overflowing = isTickerOverflow(text.scrollWidth, viewport.clientWidth);
+    var textW = text.scrollWidth;
+    if (!(viewportW > 0) || !(textW > 0)) {
+      layoutKey = "";
+      teardownTicker(bar);
+      return;
+    }
+    var overflowing = isTickerOverflow(textW, viewportW);
     var existing = track.querySelector("[data-announce-clone]");
     var mode = !overflowing ? "static" : (reduced ? "wrap" : "ticker");
     layoutKey = prefix + mode;
     if (mode === "static") {
       bar.classList.remove("is-ticker", "is-wrap");
       bar.removeAttribute("tabindex");
+      track.classList.remove("is-prepared");
+      track.style.removeProperty("--kutadgu-announce-travel");
       if (existing) existing.parentNode.removeChild(existing);
       track.style.animationDuration = "";
       text.style.whiteSpace = "nowrap";
@@ -338,6 +351,8 @@
     if (mode === "wrap") {
       if (existing) existing.parentNode.removeChild(existing);
       bar.classList.remove("is-ticker");
+      track.classList.remove("is-prepared");
+      track.style.removeProperty("--kutadgu-announce-travel");
       bar.classList.add("is-wrap");
       text.style.whiteSpace = "normal";
       bar.removeAttribute("tabindex");
@@ -350,14 +365,23 @@
       existing.removeAttribute("id");
       existing.setAttribute("aria-hidden", "true");
       existing.setAttribute("data-announce-clone", "1");
-      track.appendChild(existing);
     } else if (existing.textContent !== text.textContent) {
       existing.textContent = text.textContent;
     }
+    if (existing.parentNode !== track || existing.nextSibling !== text) {
+      track.insertBefore(existing, text);
+    }
+    track.classList.add("is-prepared");
+    var copyW = Math.round(text.getBoundingClientRect().width);
+    if (!(copyW > 0)) {
+      layoutKey = "";
+      teardownTicker(bar);
+      return;
+    }
+    track.style.setProperty("--kutadgu-announce-travel", copyW + "px");
+    track.style.animationDuration = computeTickerDurationMs(copyW) + "ms";
     bar.classList.add("is-ticker");
     bar.setAttribute("tabindex", "0");
-    var distance = Math.max(text.scrollWidth, Math.round(track.scrollWidth / 2));
-    track.style.animationDuration = computeTickerDurationMs(distance) + "ms";
   }
 
   function scheduleTicker() {

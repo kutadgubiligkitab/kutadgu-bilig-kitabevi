@@ -342,4 +342,111 @@ test.describe("announcement responsive ticker", () => {
     expect(m.whiteSpace).not.toBe("nowrap");
     expect(m.pageOverflow).toBeLessThanOrEqual(1);
   });
+
+  async function announceVisibility(page) {
+    return page.evaluate(() => {
+      function intersect(a, b) {
+        if (!a || !b) return false;
+        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top && a.width > 1 && a.height > 1;
+      }
+      const bar = document.getElementById("kutadguAnnounceBar");
+      const viewport = document.getElementById("kutadguAnnounceViewport");
+      const track = document.getElementById("kutadguAnnounceTrack");
+      const text = document.getElementById("kutadguAnnounceText");
+      const copies = track
+        ? [text, ...track.querySelectorAll("[data-announce-clone]")].filter(Boolean)
+        : (text ? [text] : []);
+      const vpBox = viewport ? viewport.getBoundingClientRect() : null;
+      const csText = text ? getComputedStyle(text) : {};
+      const color = String(csText.color || "");
+      const transparent = color === "transparent" || color === "rgba(0, 0, 0, 0)";
+      const visibleCopy = copies.some((el) => {
+        const cs = getComputedStyle(el);
+        if (Number(cs.opacity) <= 0) return false;
+        if (cs.visibility === "hidden") return false;
+        return intersect(el.getBoundingClientRect(), vpBox);
+      });
+      return {
+        viewportW: viewport ? viewport.clientWidth : 0,
+        viewportH: viewport ? viewport.clientHeight : 0,
+        text: text ? String(text.textContent || "") : "",
+        opacity: Number(csText.opacity),
+        visibility: String(csText.visibility || ""),
+        color,
+        transparent,
+        visibleCopy,
+        barH: bar ? bar.getBoundingClientRect().height : 0,
+        htmlDir: document.documentElement.getAttribute("dir") || ""
+      };
+    });
+  }
+
+  async function sampleTickerHits(page) {
+    return page.evaluate(() => {
+      function intersect(a, b) {
+        return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top && a.width > 1 && a.height > 1;
+      }
+      const viewport = document.getElementById("kutadguAnnounceViewport");
+      const track = document.getElementById("kutadguAnnounceTrack");
+      const text = document.getElementById("kutadguAnnounceText");
+      if (!viewport || !track || !text) return [];
+      const copies = [text, ...track.querySelectorAll("[data-announce-clone]")];
+      const vpBox = viewport.getBoundingClientRect();
+      const anims = typeof track.getAnimations === "function" ? track.getAnimations() : [];
+      const anim = anims[0];
+      const duration = anim && anim.effect
+        ? Number(anim.effect.getComputedTiming().duration) || 8000
+        : 8000;
+      const times = [0, 0.15, 0.35, 0.55, 0.75, 0.95];
+      if (!anim) {
+        return [{ p: 0, hit: copies.some((el) => intersect(el.getBoundingClientRect(), vpBox)) }];
+      }
+      const prev = anim.currentTime;
+      const out = times.map((p) => {
+        anim.currentTime = p * duration;
+        const vp = viewport.getBoundingClientRect();
+        const hit = copies.some((el) => intersect(el.getBoundingClientRect(), vp));
+        return { p, hit };
+      });
+      anim.currentTime = prev;
+      return out;
+    });
+  }
+
+  test("short announcement is visible immediately without ticker", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(SHORT_MSG)] });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    const v = await announceVisibility(page);
+    expect(v.text).toBe(SHORT_MSG);
+    expect(v.viewportW).toBeGreaterThan(0);
+    expect(v.opacity).toBeGreaterThan(0);
+    expect(v.visibility).not.toBe("hidden");
+    expect(v.transparent).toBe(false);
+    expect(v.visibleCopy).toBe(true);
+    const m = await announceMetrics(page);
+    expect(m.ticker).toBe(false);
+    expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
+  });
+
+  test("long announcement text intersects viewport at load and throughout ticker", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+    const v = await announceVisibility(page);
+    expect(v.htmlDir).toBe("rtl");
+    expect(v.viewportW).toBeGreaterThan(0);
+    expect(v.viewportH).toBeGreaterThan(0);
+    expect(v.text.length).toBeGreaterThan(0);
+    expect(v.opacity).toBeGreaterThan(0);
+    expect(v.visibility).not.toBe("hidden");
+    expect(v.transparent).toBe(false);
+    expect(v.visibleCopy).toBe(true);
+    const samples = await sampleTickerHits(page);
+    expect(samples.length).toBeGreaterThan(1);
+    samples.forEach((s) => expect(s.hit, "empty ticker at t=" + s.p).toBe(true));
+  });
 });
