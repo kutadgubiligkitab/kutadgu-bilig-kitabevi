@@ -32,11 +32,12 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=18 and admin.js v=33", () => {
-  assert.match(adminHtml, /admin\.css\?v=18/);
-  assert.match(adminHtml, /admin\.js\?v=33/);
-  assert.doesNotMatch(adminHtml, /admin\.css\?v=17/);
-  assert.doesNotMatch(adminHtml, /admin\.js\?v=32/);
+test("cache pins are admin.css v=19 and admin.js v=34", () => {
+  assert.match(adminHtml, /admin\.css\?v=19/);
+  assert.match(adminHtml, /admin\.js\?v=34/);
+  assert.match(adminHtml, /admin-catalog-productivity\.js\?v=1/);
+  assert.doesNotMatch(adminHtml, /admin\.css\?v=18/);
+  assert.doesNotMatch(adminHtml, /admin\.js\?v=33/);
 });
 
 test("section grouping keeps existing Admin cards", () => {
@@ -62,7 +63,10 @@ test("modals stay outside dashboard section panels", () => {
   const dashEnd = adminHtml.indexOf("</main>");
   const bookModal = adminHtml.indexOf('id="bookModal"');
   const importModal = adminHtml.indexOf('id="importModal"');
+  const quickModal = adminHtml.indexOf('id="quickEditModal"');
+  const bulkModal = adminHtml.indexOf('id="bulkConfirmModal"');
   assert.ok(dashEnd > 0 && bookModal > dashEnd && importModal > dashEnd);
+  assert.ok(quickModal > dashEnd && bulkModal > dashEnd);
 });
 
 test("login/setup panels ignore dashboard section markup", () => {

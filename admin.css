@@ -230,8 +230,9 @@ button{cursor:pointer}
 .admin-pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin-top:14px}
 .admin-pager button{border:1px solid #dccdb9;background:#fbf8f2;border-radius:8px;padding:8px 12px}
 .admin-pager button[disabled]{opacity:.45}
-.admin-book-row{grid-template-columns:28px 54px minmax(0,1fr) auto}
-.admin-book-check{width:18px;height:18px}
+.admin-book-row{grid-template-columns:44px 54px minmax(0,1fr) auto}
+.admin-book-check-wrap{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
+.admin-book-check{width:22px;height:22px;margin:0}
 .admin-isbn{font-family:ui-monospace,Menlo,monospace;direction:ltr;unicode-bidi:isolate;font-size:12px}
 .admin-import-card{width:min(96%,1080px)}
 .admin-table-scroll{overflow:auto;max-height:min(50vh,420px);margin-top:10px;border:1px solid #eadfce;border-radius:10px}
@@ -263,10 +264,30 @@ button{cursor:pointer}
   .admin-dup-match{grid-template-columns:1fr 1fr; }
 }
 @media(max-width:850px){
-  .admin-book-row{grid-template-columns:24px 48px 1fr}
+  .admin-book-row{grid-template-columns:44px 48px 1fr}
 }
 @media(max-width:520px){
   .admin-filter-row{flex-direction:column}
   .admin-filter-row .admin-search,.admin-filter-row select{width:100%;min-width:0}
+  .admin-bulk-bar{padding:10px}
+  .admin-bulk-actions,.admin-toolbar-group{width:100%}
+  .admin-bulk-actions select,.admin-bulk-actions input{max-width:100%;width:100%}
+}
+
+.admin-problem-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px;padding:10px;border:1px solid #eadfce;border-radius:12px;background:#fffdf8}
+.admin-problem-label{font-size:12px;font-weight:800;color:#70503d}
+.admin-bulk-result{flex-basis:100%;margin:0}
+.admin-quick-edit-card,.admin-bulk-confirm-card{width:min(96%,440px);max-height:92vh;overflow:auto;display:flex;flex-direction:column}
+.admin-quick-edit-actions{position:sticky;bottom:0;background:#fffdf9;padding:12px 0 0;margin-top:8px}
+.admin-bulk-confirm-text{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;padding:12px;border:1px solid #eadfce;border-radius:10px;background:#fbf8f2;overflow-wrap:anywhere}
+@media(max-width:768px){
+  .admin-modal.admin-sheet{align-items:flex-end;padding:0}
+  .admin-sheet .admin-quick-edit-card,.admin-sheet .admin-bulk-confirm-card{width:100%;max-width:100%;max-height:92vh;border-radius:16px 16px 0 0;margin:0}
+  .admin-book-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .admin-book-actions button,.admin-book-actions a{min-height:40px}
+}
+@media(max-width:412px){
+  html,body{overflow-x:hidden}
+  .admin-card,.admin-bulk-bar,.admin-problem-filters{max-width:100%}
 }
 

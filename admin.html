@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=18">
+  <link rel="stylesheet" href="admin.css?v=19">
 </head>
 <body>
 <div class="admin-shell">
@@ -174,10 +174,22 @@
           <button type="button" class="admin-status-chip" data-status-filter="new" aria-pressed="false">يېڭى كەلگەن</button>
           <button type="button" class="admin-status-chip" data-status-filter="unmarked" aria-pressed="false">بەلگىلەنمىگەن</button>
         </div>
-        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى نەتىجىلەرگە تەۋە. «يېڭى كەلگەن» بەلگىسى قولدىكى is_new؛ باش بەتتىكى يېقىندا قوشۇلغانلار created_at بويىچە ئايرىم.</p>
+        <div class="admin-problem-filters" id="adminProblemFilters" role="group" aria-label="دىققەت تەلەپ / كەمچىل مەلۇمات">
+          <span class="admin-problem-label">دىققەت تەلەپ</span>
+          <button type="button" class="admin-status-chip is-active" data-problem-filter="" aria-pressed="true">ھەممىسى</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_title" aria-pressed="false">نام يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_author" aria-pressed="false">ئاپتور يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_category" aria-pressed="false">تۈر يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_price" aria-pressed="false">باھا يوق / ئىناۋەتسىز</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_cover" aria-pressed="false">مۇقاۋا يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="inactive" aria-pressed="false">يوشۇرۇلغان</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock" data-book-col="stock" aria-pressed="false">ئامبار سانى يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock_status" data-book-col="stock_status" aria-pressed="false">ئامبار ھالىتى يوق</button>
+        </div>
+        <p class="admin-help">ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ؛ بىر بەتتە پۈتۈن كاتالوگ يۈكلەنمەيدۇ. تاللاش پەقەت نۆۋەتتىكى بەتتىكى / يۈكلەنگەن نەتىجىلەرگە تەۋە. «دىققەت تەلەپ» سۈزگۈچلىرى مەۋجۇت ستونلار بويىچە server-side. باھا 0 ئىناۋەتلىك؛ پەقەت بوش ياكى مەنپىي باھا مەسىلە. «يېڭى كەلگەن» بەلگىسى قولدىكى is_new؛ باش بەتتىكى يېقىندا قوشۇلغانلار created_at بويىچە ئايرىم.</p>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
-          <span id="adminSelectedCount">تاللانغان: 0 (نۆۋەتتىكى بەت)</span>
+          <span id="adminSelectedCount">تاللانغان: 0 (پەقەت نۆۋەتتىكى بەت / يۈكلەنگەن نەتىجە)</span>
           <div class="admin-toolbar-group">
             <button type="button" class="admin-secondary" id="selectPageBtn">نۆۋەتتىكى بەتنى تاللاش</button>
             <button type="button" class="admin-secondary" id="clearSelectionBtn">تاللاشنى تازىلاش</button>
@@ -200,6 +212,7 @@
             <input id="bulkValueInput" hidden>
             <button type="button" class="admin-primary" id="bulkApplyBtn">ئىجرا قىلىش</button>
           </div>
+          <p id="adminBulkResult" class="admin-help admin-bulk-result" role="status" aria-live="polite" hidden></p>
         </div>
         <div id="adminBookList" class="admin-book-list"></div>
         <div id="adminPager" class="admin-pager"></div>
@@ -365,6 +378,50 @@
   </div>
 </div>
 
+<div id="quickEditModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-quick-edit-card" role="dialog" aria-modal="true" aria-labelledby="quickEditTitle">
+    <div class="admin-modal-head">
+      <h2 id="quickEditTitle">تېز تەھرىر</h2>
+      <button id="closeQuickEdit" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <form id="quickEditForm" class="admin-form">
+      <input id="quickEditId" type="hidden">
+      <p id="quickEditProtected" class="admin-help">id، legacy_id، sales_count ۋە created_at بۇ يەردە ئۆزگەرمەيدۇ.</p>
+      <label><span>كىتاب ئىسمى *</span><input id="quickTitle" required></label>
+      <label><span>ئاپتورى</span><input id="quickAuthor"></label>
+      <label><span>باھاسى (₺)</span><input id="quickPrice" type="number" min="0" step="0.01"></label>
+      <label><span>كىتاب تۈرى *</span><select id="quickSource" required></select></label>
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="quickStock" type="number" min="0" step="1"></label>
+      <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="quickStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+      <label><span>مۇقاۋا URL</span><input id="quickCoverUrl" dir="ltr" inputmode="url" autocomplete="off"></label>
+      <label class="admin-check"><input id="quickIsActive" type="checkbox"><span>تور بەتتە كۆرۈنسۇن</span></label>
+      <label class="admin-check"><input id="quickIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
+      <label class="admin-check"><input id="quickIsNew" type="checkbox"><span>🆕 يېڭى بەلگىسى</span></label>
+      <p id="quickEditStatus" class="admin-help" role="status" aria-live="polite"></p>
+      <p id="quickEditError" class="admin-status error" hidden></p>
+      <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+        <button class="admin-primary" id="quickEditSave" type="submit">ساقلاش</button>
+        <button class="admin-secondary" id="quickEditCancel" type="button">بىكار قىلىش</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="bulkConfirmModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-confirm-card" role="dialog" aria-modal="true" aria-labelledby="bulkConfirmTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkConfirmTitle">توپلام يېڭىلاشنى جەزملەش</h2>
+      <button id="closeBulkConfirm" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p id="bulkConfirmCount" class="admin-help"></p>
+    <pre id="bulkConfirmText" class="admin-bulk-confirm-text"></pre>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="bulkConfirmOk" type="button">جەزملەش</button>
+      <button class="admin-secondary" id="bulkConfirmCancel" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
 <div id="importModal" class="admin-modal" hidden>
   <div class="admin-modal-card admin-import-card">
     <div class="admin-modal-head">
@@ -427,12 +484,13 @@
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
+<script defer src="admin-catalog-productivity.js?v=1"></script>
 <script defer src="catalog-bibliography.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=33"></script>
+<script defer src="admin.js?v=34"></script>
 </body>
 </html>

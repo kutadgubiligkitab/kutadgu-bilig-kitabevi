@@ -128,8 +128,8 @@ test("Admin card is separate from book CRUD with Uyghur labels", () => {
   assert.match(adminHtml, /id="announceSaveBtn"/);
   assert.match(adminHtml, /id="maintenanceToggleBtn"/);
   assert.match(adminHtml, /ئېلان بالدىقى/);
-  assert.match(adminHtml, /admin\.js\?v=33/);
-  assert.match(adminHtml, /admin\.css\?v=18/);
+  assert.match(adminHtml, /admin\.js\?v=34/);
+  assert.match(adminHtml, /admin\.css\?v=19/);
   assert.match(adminJs, /from\("store_announcements"\)\.insert/);
   assert.match(adminJs, /from\("store_announcements"\)\.update/);
   assert.match(adminJs, /from\("store_announcements"\)\.delete/);
