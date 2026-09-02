@@ -80,6 +80,12 @@ test("enroll options are TOTP without AAL2", () => {
   assert.ok(o.friendlyName);
 });
 
+test("MFA hidden panels stay display:none so enrollment UI is not visible by default", () => {
+  const css = read("admin.css");
+  assert.match(css, /#mfaCard \[hidden\]\{display:none!important\}/);
+  assert.match(css, /\.admin-mfa-enroll:not\(\[hidden\]\)\{display:flex/);
+});
+
 test("MFA UI lives in System section and not on login", () => {
   const login = adminHtml.slice(adminHtml.indexOf('id="loginPanel"'), adminHtml.indexOf('id="dashboardPanel"'));
   const system = adminHtml.slice(adminHtml.indexOf('data-admin-section-panel="system"'), adminHtml.indexOf('data-admin-section-panel="storefront"'));
