@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=20">
+  <link rel="stylesheet" href="admin.css?v=21">
 </head>
 <body>
 <div class="admin-shell">
@@ -38,6 +38,16 @@
         <label class="admin-wide"><span>پارول</span><input id="adminPassword" type="password" autocomplete="current-password" required></label>
         <button class="admin-primary admin-wide" type="submit">كىرىش</button>
         <button class="admin-secondary admin-wide" id="forgotPasswordBtn" type="button">🔑 پارولنى ئۇنتۇپ قالدىڭىزمۇ؟</button>
+      </form>
+    </section>
+
+    <section id="mfaGatePanel" class="admin-card admin-login" hidden>
+      <h1>🔐 2 باسقۇچلۇق دەلىللەش</h1>
+      <div id="mfaGateStatus" class="admin-status">Authenticator دىكى 6 خانىلىق كودنى كىرگۈزۈڭ.</div>
+      <form id="mfaGateForm" class="admin-form">
+        <label class="admin-wide"><span>6 خانىلىق كود</span><input id="mfaGateOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" required></label>
+        <button class="admin-primary admin-wide" id="mfaGateSubmit" type="submit">جەزملەش</button>
+        <button class="admin-secondary admin-wide" id="mfaGateLogout" type="button">چىقىش</button>
       </form>
     </section>
 
@@ -90,7 +100,7 @@
       </section>
       <section class="admin-card" id="mfaCard">
         <h2>🔐 2 باسقۇچلۇق قوغداش</h2>
-        <p class="admin-help">Authenticator ئەپى بىلەن قوشۇمچە قوغداش. ھازىرچە ئىختىيارىي — تەڭشىمىسىڭىزمۇ Admin نورمال ئىشلەيدۇ. پارول ئەسلىگە كەلتۈرۈش ۋە Google كىرىش ئۆزگەرمەيدۇ.</p>
+        <p class="admin-help">Authenticator ئەپى بىلەن قوشۇمچە قوغداش. تەڭشەلگەن ھېسابات كىرىشتە 6 خانىلىق كود تەلەپ قىلىدۇ. تەڭشەلمىگەن Admin ھازىرچە قۇلۇپلانمايدۇ. پارول ئەسلىگە كەلتۈرۈش ۋە Google كىرىش ئۆزگەرمەيدۇ.</p>
         <div id="mfaStatus" class="admin-status">تەڭشەلمىگەن — Authenticator تېخى ئۇلانمىغان. Admin نورمال ئىشلەيدۇ.</div>
         <div class="admin-toolbar-group">
           <button class="admin-primary" id="mfaSetupBtn" type="button">Authenticator تەڭشەش</button>
@@ -521,7 +531,7 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin-mfa.js?v=1"></script>
-<script defer src="admin.js?v=37"></script>
+<script defer src="admin-mfa.js?v=2"></script>
+<script defer src="admin.js?v=38"></script>
 </body>
 </html>

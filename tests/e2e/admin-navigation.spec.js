@@ -38,6 +38,7 @@ test.describe("admin navigation", () => {
     await expect(page.locator("#loginForm")).toBeVisible();
     await expect(page.locator("#maintenanceCard")).toBeHidden();
     await expect(page.locator("#mfaCard")).toBeHidden();
+    await expect(page.locator("#mfaGatePanel")).toBeHidden();
     await expect(page.locator("#booksCard")).toBeHidden();
   });
 

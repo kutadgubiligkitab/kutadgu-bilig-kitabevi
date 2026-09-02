@@ -1,6 +1,6 @@
 /**
- * Stage 2C Phase 1 — optional Admin TOTP enrollment/management.
- * Does not enforce AAL2. Does not persist TOTP secrets or QR URIs.
+ * Stage 2C — optional Admin TOTP enrollment plus UI AAL2 gate.
+ * Does not persist TOTP secrets or QR URIs. Does not change RLS.
  */
 (function (root, factory) {
   const api = factory();
@@ -70,6 +70,152 @@
     if (configured) return "configured";
     if (hasUnverified) return "unverified";
     return "not_configured";
+  }
+
+  function normalizeLevel(level) {
+    return String(level == null ? "" : level).toLowerCase();
+  }
+
+  function evaluateAccess(assurance, classified) {
+    const current = normalizeLevel(assurance && assurance.currentLevel);
+    const verified = !!(classified && classified.configured);
+    if (current === "aal2") {
+      return { surface: "dashboard", gate: false, warnMissingMfa: !verified };
+    }
+    if (verified) {
+      return { surface: "gate", gate: true, warnMissingMfa: false };
+    }
+    return { surface: "dashboard", gate: false, warnMissingMfa: true };
+  }
+
+  function chooseVerifiedTotp(verified) {
+    const list = asList(verified).filter(function (f) { return !!factorId(f); });
+    list.sort(function (a, b) { return factorId(a).localeCompare(factorId(b)); });
+    return list[0] || null;
+  }
+
+  async function inspectAccess(getDb) {
+    const stub = typeof globalThis !== "undefined" ? globalThis.__kutadguAdminAalTest : null;
+    if (stub) {
+      const classified = classifyFactors({ all: stub.factors || stub.all || [] });
+      const assurance = {
+        currentLevel: stub.currentLevel || null,
+        nextLevel: stub.nextLevel || null
+      };
+      return { assurance: assurance, classified: classified, decision: evaluateAccess(assurance, classified) };
+    }
+    const api = resolveMfaApi(getDb);
+    let classified = classifyFactors({ all: [] });
+    let assurance = { currentLevel: null, nextLevel: null };
+    if (api && typeof api.getAuthenticatorAssuranceLevel === "function") {
+      try {
+        const res = await api.getAuthenticatorAssuranceLevel();
+        if (res && !res.error && res.data) {
+          assurance = {
+            currentLevel: res.data.currentLevel,
+            nextLevel: res.data.nextLevel
+          };
+        }
+      } catch (err) {}
+    }
+    if (api && typeof api.listFactors === "function") {
+      try {
+        const res = await api.listFactors();
+        if (res && !res.error) classified = classifyFactors(res.data);
+      } catch (err) {}
+    }
+    return { assurance: assurance, classified: classified, decision: evaluateAccess(assurance, classified) };
+  }
+
+  function attachGate(opts) {
+    const options = opts || {};
+    const $ = options.$ || function (sel) {
+      return document.querySelector(sel);
+    };
+    let busy = false;
+    let bound = false;
+
+    function setGateStatus(text, type) {
+      const el = $("#mfaGateStatus");
+      if (!el) return;
+      el.textContent = text;
+      el.className = "admin-status" + (type ? " " + type : "");
+    }
+
+    async function submit(e) {
+      if (e && typeof e.preventDefault === "function") e.preventDefault();
+      if (busy) return;
+      const otp = $("#mfaGateOtp");
+      const code = digitsOnly(otp && otp.value);
+      if (code.length !== 6) {
+        setGateStatus("6 خانىلىق كودنى كىرگۈزۈڭ.", "warn");
+        return;
+      }
+      const api = resolveMfaApi(options.getDb);
+      if (!api || typeof api.challengeAndVerify !== "function") {
+        setGateStatus("MFA API يوق", "error");
+        return;
+      }
+      busy = true;
+      const submitBtn = $("#mfaGateSubmit");
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        let classified = classifyFactors({ all: [] });
+        if (typeof api.listFactors === "function") {
+          const listed = await api.listFactors();
+          if (listed && listed.error) throw listed.error;
+          classified = classifyFactors(listed && listed.data);
+        }
+        const factor = chooseVerifiedTotp(classified.verified);
+        if (!factor) {
+          setGateStatus("تەڭشەلگەن Authenticator تېپىلمىدى. Admin قۇلۇپلانمايدۇ.", "warn");
+          if (typeof options.onNoFactor === "function") await options.onNoFactor();
+          return;
+        }
+        const res = await api.challengeAndVerify({ factorId: factorId(factor), code: code });
+        if (res && res.error) throw res.error;
+        if (otp) otp.value = "";
+        if (typeof api.getAuthenticatorAssuranceLevel !== "function") {
+          setGateStatus("دەلىللەش تامام بولمىدى. قايتا سىناڭ.", "error");
+          return;
+        }
+        const aal = await api.getAuthenticatorAssuranceLevel();
+        if (aal && aal.error) throw aal.error;
+        const level = normalizeLevel(aal && aal.data && aal.data.currentLevel);
+        if (level !== "aal2") {
+          setGateStatus("دەلىللەش تامام بولمىدى. قايتا سىناڭ.", "error");
+          return;
+        }
+        if (typeof globalThis !== "undefined" && globalThis.__kutadguAdminAalTest) {
+          globalThis.__kutadguAdminAalTest.currentLevel = "aal2";
+        }
+        if (typeof options.onAal2 === "function") await options.onAal2();
+      } catch (err) {
+        if (otp) otp.value = "";
+        setGateStatus("كود توغرا ئەمەس. قايتا سىناڭ — سىز چىقىرىلمايسىز.", "error");
+      } finally {
+        busy = false;
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    }
+
+    function bind() {
+      if (bound) return;
+      bound = true;
+      const form = $("#mfaGateForm");
+      if (form) form.addEventListener("submit", submit);
+      const logoutBtn = $("#mfaGateLogout");
+      if (logoutBtn) logoutBtn.onclick = function () {
+        if (typeof options.onLogout === "function") options.onLogout();
+      };
+      const otp = $("#mfaGateOtp");
+      if (otp) otp.addEventListener("input", function () {
+        otp.value = digitsOnly(otp.value);
+      });
+    }
+
+    bind();
+    return { submit: submit, bind: bind };
   }
 
   function attach(opts) {
@@ -348,6 +494,11 @@
     enrollOptions: enrollOptions,
     statusKind: statusKind,
     resolveMfaApi: resolveMfaApi,
-    attach: attach
+    normalizeLevel: normalizeLevel,
+    evaluateAccess: evaluateAccess,
+    chooseVerifiedTotp: chooseVerifiedTotp,
+    inspectAccess: inspectAccess,
+    attach: attach,
+    attachGate: attachGate
   };
 });

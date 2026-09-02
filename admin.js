@@ -55,6 +55,8 @@ let previewBooksMaster=[];
 let quickEditReturnFocus=null;
 let bulkConfirmResolver=null;
 let mfaCtl=null;
+let mfaGateCtl=null;
+let routeGen=0;
 
 const listFilters={
   q:"",
@@ -162,7 +164,10 @@ function renderSourceOptions(){
   if(filter)filter.innerHTML='<option value="">بارلىق تۈرلەر</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
 }
 function show(id){
-  ["setupPanel","loginPanel","dashboardPanel"].forEach(x=>$("#"+x).hidden=x!==id);
+  ["setupPanel","loginPanel","mfaGatePanel","dashboardPanel"].forEach(x=>{
+    const el=$("#"+x);
+    if(el)el.hidden=x!==id;
+  });
 }
 const ADMIN_SECTIONS=["overview","books","storefront","import-covers","insights","customers","system"];
 const DEFAULT_ADMIN_SECTION="books";
@@ -789,6 +794,23 @@ function bindAnnouncementAdmin(){
 }
 
 async function routeSession(){
+  const gen=++routeGen;
+  bindMfaGate();
+  if(window.__kutadguSkipAdminAuth){
+    if(!window.__kutadguAdminAalTest)return;
+    user=user||{id:"preview-admin"};
+    const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
+    if(gen!==routeGen)return;
+    if(inspect.decision&&inspect.decision.gate){
+      $("#adminLogout").hidden=true;
+      show("mfaGatePanel");
+      const otp=$("#mfaGateOtp");
+      if(otp)otp.focus();
+      return;
+    }
+    await openAuthorizedDashboard();
+    return;
+  }
   const {data}=await db.auth.getSession();
   const session=data.session;
   if(!session){show("loginPanel");$("#adminLogout").hidden=true;return}
@@ -799,11 +821,30 @@ async function routeSession(){
     status($("#loginStatus"),"بۇ ھېسابات Admin تىزىملىكىدە يوق.","error");
     return;
   }
-  await detectOptionalGalleryColumn();
+  if(gen!==routeGen)return;
   user=session.user;
+  const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
+  if(gen!==routeGen)return;
+  if(inspect.decision&&inspect.decision.gate){
+    $("#adminLogout").hidden=true;
+    show("mfaGatePanel");
+    const otp=$("#mfaGateOtp");
+    if(otp)otp.focus();
+    return;
+  }
+  await detectOptionalGalleryColumn();
+  await openAuthorizedDashboard();
+}
+
+async function openAuthorizedDashboard(){
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
   applyDashboardSectionFromLocation({replace:true});
+  if(window.__kutadguSkipAdminAuth){
+    bindMfaCard();
+    if(mfaCtl&&typeof mfaCtl.refresh==="function")await mfaCtl.refresh();
+    return;
+  }
   await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadMfaCard()]);
 }
 
@@ -1870,6 +1911,16 @@ function bindMfaCard(){
     isAdminSession:()=>!!(window.__kutadguSkipAdminAuth||user)
   });
 }
+function bindMfaGate(){
+  if(mfaGateCtl||typeof Mfa.attachGate!=="function")return;
+  mfaGateCtl=Mfa.attachGate({
+    $:$,
+    getDb:()=>db,
+    onAal2:()=>routeSession(),
+    onNoFactor:()=>routeSession(),
+    onLogout:()=>logout()
+  });
+}
 async function loadMfaCard(){
   bindMfaCard();
   if(mfaCtl&&typeof mfaCtl.refresh==="function")await mfaCtl.refresh();
@@ -1904,7 +1955,12 @@ async function login(e){
   if(error){status($("#loginStatus"),"كىرىش مەغلۇپ بولدى: "+error.message,"error");return}
   await routeSession();
 }
-async function logout(){await db.auth.signOut();user=null;show("loginPanel");$("#adminLogout").hidden=true}
+async function logout(){
+  if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut();
+  user=null;
+  show("loginPanel");
+  $("#adminLogout").hidden=true;
+}
 
 function openImport(){
   importRows=[];
@@ -2517,7 +2573,14 @@ function init(){
   applyBooksSchema();
   applyFieldDirections();
   bindAdminNavigation();
+  bindMfaGate();
   if(window.__kutadguSkipAdminAuth){
+    if(window.__kutadguAdminAalTest){
+      bindBookListUx();
+      bindMfaCard();
+      routeSession();
+      return;
+    }
     show("dashboardPanel");
     applyDashboardSectionFromLocation({replace:true});
     previewBooksMaster=(Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[]).map(b=>({...b}));
@@ -2547,6 +2610,7 @@ function init(){
   $("#maintenanceToggleBtn")&&($("#maintenanceToggleBtn").onclick=toggleMaintenanceMode);
   bindAnnouncementAdmin();
   bindMfaCard();
+  bindMfaGate();
   $("#importStaticBtn").onclick=importStatic;
   $("#createDuplicateConfirm")&&($("#createDuplicateConfirm").onchange=()=>{createConflictAck=!!$("#createDuplicateConfirm").checked});
   $("#clearCoverPick")&&($("#clearCoverPick").onclick=()=>{
@@ -2618,6 +2682,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,selectedIds,Mfa,loadMfaCard,bindMfaCard
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard
 };
 })();

@@ -74,35 +74,68 @@ test("OTP keeps 6 digits only", () => {
   assert.strictEqual(Mfa.digitsOnly("12a34b56c78"), "123456");
 });
 
-test("enroll options are TOTP without AAL2", () => {
-  const o = Mfa.enrollOptions();
-  assert.strictEqual(o.factorType, "totp");
-  assert.ok(o.friendlyName);
+test("evaluateAccess routing for aal2, aal1+verified, and aal1 without factor", () => {
+  const none = Mfa.classifyFactors({ all: [] });
+  const verified = Mfa.classifyFactors({ all: [{ id: "f1", factor_type: "totp", status: "verified" }] });
+  const aal2 = Mfa.evaluateAccess({ currentLevel: "aal2" }, verified);
+  assert.strictEqual(aal2.surface, "dashboard");
+  assert.strictEqual(aal2.gate, false);
+  const gate = Mfa.evaluateAccess({ currentLevel: "aal1" }, verified);
+  assert.strictEqual(gate.surface, "gate");
+  assert.strictEqual(gate.gate, true);
+  const open = Mfa.evaluateAccess({ currentLevel: "aal1" }, none);
+  assert.strictEqual(open.surface, "dashboard");
+  assert.strictEqual(open.gate, false);
+  assert.strictEqual(open.warnMissingMfa, true);
+});
+
+test("multiple verified TOTP factors pick the lowest factor id", () => {
+  const chosen = Mfa.chooseVerifiedTotp([
+    { id: "z-factor", factor_type: "totp", status: "verified" },
+    { id: "a-factor", factor_type: "totp", status: "verified" }
+  ]);
+  assert.strictEqual(chosen.id, "a-factor");
+});
+
+test("gate submit does not sign out or unenroll on failure", () => {
+  const gate = mfaJs.match(/function attachGate\([\s\S]*?function attach\(/);
+  assert.ok(gate, "attachGate must exist");
+  assert.doesNotMatch(gate[0], /signOut/);
+  assert.doesNotMatch(gate[0], /unenroll/);
+  assert.match(gate[0], /challengeAndVerify/);
+  assert.match(gate[0], /getAuthenticatorAssuranceLevel/);
 });
 
 test("MFA hidden panels stay display:none so enrollment UI is not visible by default", () => {
   const css = read("admin.css");
-  assert.match(css, /#mfaCard \[hidden\]\{display:none!important\}/);
+  assert.match(css, /#mfaCard \[hidden\],#mfaGatePanel\[hidden\]\{display:none!important\}/);
   assert.match(css, /\.admin-mfa-enroll:not\(\[hidden\]\)\{display:flex/);
 });
 
 test("MFA UI lives in System section and not on login", () => {
-  const login = adminHtml.slice(adminHtml.indexOf('id="loginPanel"'), adminHtml.indexOf('id="dashboardPanel"'));
+  const login = adminHtml.slice(adminHtml.indexOf('id="loginPanel"'), adminHtml.indexOf('id="mfaGatePanel"'));
   const system = adminHtml.slice(adminHtml.indexOf('data-admin-section-panel="system"'), adminHtml.indexOf('data-admin-section-panel="storefront"'));
   assert.doesNotMatch(login, /id="mfaCard"/);
   assert.match(system, /id="mfaCard"/);
   assert.match(system, /id="mfaSetupBtn"/);
   assert.match(system, /id="mfaEnrollPanel"/);
+  assert.match(adminHtml, /id="mfaGatePanel"/);
   assert.match(system, /hidden/);
 });
 
-test("no AAL2 enforcement in Admin auth or MFA module", () => {
-  assert.doesNotMatch(adminJs, /getAuthenticatorAssuranceLevel/);
-  assert.doesNotMatch(mfaJs, /getAuthenticatorAssuranceLevel/);
-  assert.doesNotMatch(mfaJs, /currentLevel/);
-  assert.doesNotMatch(mfaJs, /nextLevel/);
+test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
+  assert.match(mfaJs, /getAuthenticatorAssuranceLevel/);
+  assert.match(mfaJs, /function evaluateAccess/);
+  assert.match(adminJs, /checkAdmin\(session\.user\)/);
+  const route = adminJs.match(/async function routeSession\(\)\{[\s\S]*?async function openAuthorizedDashboard/);
+  assert.ok(route);
+  assert.match(route[0], /checkAdmin/);
+  const live = route[0].slice(route[0].indexOf("getSession"));
+  assert.ok(live.indexOf("checkAdmin") >= 0);
+  assert.ok(live.indexOf("inspectAccess") > live.indexOf("checkAdmin"));
+  assert.match(route[0], /decision\.gate/);
+  assert.doesNotMatch(adminJs, /from\("books"\).*aal2/s);
   assert.match(adminJs, /async function loadMfaCard/);
-  assert.doesNotMatch(adminJs, /blockAdminIfAal/);
 });
 
 test("MFA never persists or logs secrets", () => {
