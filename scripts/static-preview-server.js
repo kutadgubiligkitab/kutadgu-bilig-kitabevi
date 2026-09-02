@@ -25,6 +25,7 @@ function send(res, status, headers, body) {
 }
 
 const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
+const seo = require(path.join(root, "kutadgu-book-seo.js"));
 const CATEGORY_HUBS = new Set(sitemap.CATEGORY_HUB_SLUGS || []);
 
 function hubSlugFromPathname(pathname) {
@@ -62,13 +63,19 @@ const server = http.createServer((req, res) => {
     send(res, 308, { Location: `/${hubSlug}${url.search}` }, "");
     return;
   }
-  if (/^\/book\.html$/i.test(url.pathname)) {
-    const bookId = String(url.searchParams.get("id") || "").trim();
-    if (/^\d+$/.test(bookId)) {
-      const params = new URLSearchParams(url.search);
-      params.delete("id");
-      const rest = params.toString();
-      send(res, 308, { Location: `/book/${bookId}${rest ? `?${rest}` : ""}` }, "");
+  if (/^\/api\/legacy-book-redirect\/?$/i.test(url.pathname)) {
+    const location = seo.legacyNumericIdRedirectPath(url.search);
+    if (!location) {
+      send(res, 404, { "Content-Type": "text/plain; charset=utf-8" }, "not found");
+      return;
+    }
+    send(res, 308, { Location: location, "Cache-Control": "public, max-age=0, must-revalidate" }, "");
+    return;
+  }
+  if (seo.isLegacyBookQueryPath(url.pathname)) {
+    const location = seo.legacyNumericIdRedirectPath(url.search);
+    if (location) {
+      send(res, 308, { Location: location, "Cache-Control": "public, max-age=0, must-revalidate" }, "");
       return;
     }
   }
@@ -85,7 +92,7 @@ const server = http.createServer((req, res) => {
   }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
-  if (/^\/book\/[^/]+\/?$/.test(url.pathname)) rel = "book.html";
+  if (/^\/book\/?$/i.test(url.pathname) || /^\/book\/[^/]+\/?$/.test(url.pathname)) rel = "book.html";
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const abs = path.join(root, rel);
   if (!abs.startsWith(root + path.sep) && abs !== root) {

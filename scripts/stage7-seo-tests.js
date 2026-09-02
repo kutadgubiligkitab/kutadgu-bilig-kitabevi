@@ -187,17 +187,28 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
     assert.strictEqual(rewrite.destination, `/${slug}.html`);
     assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
   });
-  const bookRedirect = (vercel.redirects || []).find(r => r.source === "/book.html");
-  assert.ok(bookRedirect, "missing /book.html legacy redirect");
-  assert.strictEqual(bookRedirect.destination, "/book/:id");
-  assert.strictEqual(bookRedirect.permanent, true);
-  assert.ok(Array.isArray(bookRedirect.has));
-  assert.strictEqual(bookRedirect.has[0].type, "query");
-  assert.strictEqual(bookRedirect.has[0].key, "id");
-  assert.strictEqual(bookRedirect.has[0].value, "(?<id>\\d+)");
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"), "vercel.json must not 308 /book.html with unsubstituted :id");
+  const bookHtmlLegacy = (vercel.rewrites || []).find(r => r.source === "/book.html");
+  const bookQueryLegacy = (vercel.rewrites || []).find(r => r.source === "/book" && r.destination === "/api/legacy-book-redirect");
+  const bookShell = (vercel.rewrites || []).find(r => r.source === "/book" && r.destination === "/book.html");
+  assert.ok(bookHtmlLegacy, "missing /book.html numeric-id rewrite to redirect function");
+  assert.strictEqual(bookHtmlLegacy.destination, "/api/legacy-book-redirect");
+  assert.strictEqual(bookHtmlLegacy.has[0].type, "query");
+  assert.strictEqual(bookHtmlLegacy.has[0].key, "id");
+  assert.strictEqual(bookHtmlLegacy.has[0].value, "\\d+");
+  assert.ok(bookQueryLegacy, "missing /book?id= rewrite to redirect function");
+  assert.strictEqual(bookQueryLegacy.has[0].value, "\\d+");
   const bookRewrite = (vercel.rewrites || []).find(r => r.source === "/book/:id");
   assert.ok(bookRewrite, "missing /book/:id rewrite");
   assert.strictEqual(bookRewrite.destination, "/book.html");
+  assert.ok(bookShell, "missing /book rewrite to book.html");
+  const htmlIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html");
+  const queryIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/api/legacy-book-redirect");
+  const pathIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book/:id");
+  const shellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/book.html");
+  assert.ok(htmlIdx >= 0 && htmlIdx < pathIdx, "/book.html numeric rewrite must precede /book/:id");
+  assert.ok(queryIdx >= 0 && queryIdx < pathIdx, "/book?id= rewrite must precede /book/:id");
+  assert.ok(pathIdx >= 0 && pathIdx < shellIdx, "/book/:id rewrite must precede bare /book shell");
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/cart.html"));
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/account.html"));
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/order-info.html"));
@@ -242,12 +253,49 @@ jobs.push(test("book clean URL helpers parse path/query and never invent NaN pat
   assert.strictEqual(seo.parseBookIdFromLocation({ pathname: "/book.html", search: "?id=children-3" }), "children-3");
   assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=126" }), "/book/126");
   assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=126&utm=1" }), "/book/126?utm=1");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book", search: "?id=122" }), "/book/122");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book", search: "?id=122&utm=1" }), "/book/122?utm=1");
+  assert.strictEqual(seo.legacyNumericIdRedirectPath("?id=122"), "/book/122");
+  assert.strictEqual(seo.legacyNumericIdRedirectPath("?id=122&utm=x"), "/book/122?utm=x");
+  assert.ok(!seo.legacyNumericIdRedirectPath("?id=122").includes("id="));
   assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=children-3" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book", search: "?id=undefined" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book", search: "?id=null" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book", search: "?id=NaN" }), "");
   assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "" }), "");
-  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book/126", search: "" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book/126", search: "?id=99" }), "");
   assert.ok(seo.isBookDetailPath("/book/126"));
   assert.ok(seo.isBookDetailPath("/book.html"));
+  assert.ok(seo.isBookDetailPath("/book"));
   assert.ok(!seo.isBookDetailPath("/universal"));
+}));
+
+jobs.push(test("legacy-book-redirect function 308s numeric id and refuses fake paths", async () => {
+  const handler = require("../api/legacy-book-redirect.js");
+  function invoke(url) {
+    return new Promise((resolve) => {
+      const res = {
+        statusCode: 0,
+        headers: {},
+        setHeader(key, value) { this.headers[String(key).toLowerCase()] = value; },
+        end() { resolve({ status: this.statusCode, location: this.headers.location || "" }); }
+      };
+      Promise.resolve(handler({ url }, res)).catch((err) => resolve({ status: 500, location: String(err) }));
+    });
+  }
+  const html = await invoke("/api/legacy-book-redirect?id=122");
+  assert.strictEqual(html.status, 308);
+  assert.strictEqual(html.location, "/book/122");
+  assert.ok(!/[?&]id=/.test(html.location));
+  const withUtm = await invoke("/book?id=122&utm=src");
+  assert.strictEqual(withUtm.status, 308);
+  assert.strictEqual(withUtm.location, "/book/122?utm=src");
+  assert.ok(!/[?&]id=/.test(withUtm.location.replace("utm=src", "")));
+  for (const raw of ["undefined", "null", "NaN", "children-3"]) {
+    const bad = await invoke(`/api/legacy-book-redirect?id=${raw}`);
+    assert.strictEqual(bad.status, 404, raw);
+    assert.ok(!/\/book\/(undefined|null|NaN|children-3)\b/.test(bad.location), raw);
+  }
 }));
 
 jobs.push(test("book.html nested-route assets are root-relative", () => {
