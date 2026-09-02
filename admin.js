@@ -134,6 +134,11 @@ function money(n){return n!==null&&n!==undefined&&n!==""?`${Number(n).toLocaleSt
 function applyFieldDirections(){
   document.querySelectorAll("input,textarea").forEach(field=>{
     if(field.matches('input[type="checkbox"],input[type="radio"],input[type="file"],input[type="button"],input[type="submit"]'))return;
+    if(field.id==="adminSearch"){
+      field.dir="rtl";
+      field.style.textAlign="start";
+      return;
+    }
     const type=String(field.type||"").toLowerCase();
     field.dir=["email","tel","url","number","password","date","time","datetime-local"].includes(type)||field.id==="bookIsbn"?"ltr":"auto";
     field.style.textAlign="start";
