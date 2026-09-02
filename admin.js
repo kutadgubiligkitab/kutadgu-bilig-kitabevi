@@ -1196,9 +1196,10 @@ function closeQuickEdit(){
   quickSaveInFlight=false;
   const save=$("#quickEditSave");
   if(save){save.disabled=false;save.textContent="ساقلاش"}
-  if(quickEditReturnFocus&&typeof quickEditReturnFocus.focus==="function"){
-    quickEditReturnFocus.focus();
-  }
+  const id=$("#quickEditId")?$("#quickEditId").value:"";
+  const live=id?document.querySelector(`[data-quick-edit="${CSS.escape?CSS.escape(id):id}"]`):null;
+  const target=live||quickEditReturnFocus;
+  if(target&&typeof target.focus==="function")target.focus();
   quickEditReturnFocus=null;
 }
 async function openQuickEdit(id,trigger){

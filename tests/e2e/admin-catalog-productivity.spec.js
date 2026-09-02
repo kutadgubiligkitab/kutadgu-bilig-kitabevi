@@ -203,7 +203,11 @@ test.describe("admin catalog productivity", () => {
       await openAdminBooks(page);
       await page.setViewportSize(viewport);
       await noOverflow(page);
-      await expect(page.locator("#adminSectionSelect, .admin-sidenav").first()).toBeVisible();
+      if (viewport.width <= 850) {
+        await expect(page.locator("#adminSectionSelect")).toBeVisible();
+      } else {
+        await expect(page.locator(".admin-sidenav")).toBeVisible();
+      }
       const check = page.locator('article[data-book-id="1"] [data-select]');
       await expect(check).toBeVisible();
       const box = await check.evaluate((el) => {
