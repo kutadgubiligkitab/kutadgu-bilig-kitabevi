@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=19">
+  <link rel="stylesheet" href="admin.css?v=20">
 </head>
 <body>
 <div class="admin-shell">
@@ -87,6 +87,35 @@
         <p class="admin-help">ئاسراش ئوچۇق بولسا ئادەتتىكى زىيارەتچى ۋە ئەزالار كاتالوگنى كۆرەلمەيدۇ. پەقەت ھەقىقىي Admin ھېساباتى تور بەتنى نورمال كۆرەلەيدۇ. بۇ تەڭشەك Database دا ساقلىنىدۇ؛ قايتا ئېلان قىلىش ھاجەتسىز.</p>
         <div id="maintenanceStatus" class="admin-status">ئاسراش ھالىتى تەكشۈرۈلىۋاتىدۇ...</div>
         <button class="admin-primary" id="maintenanceToggleBtn" type="button" disabled>ئاسراشنى باشلاش</button>
+      </section>
+      <section class="admin-card" id="mfaCard">
+        <h2>🔐 2 باسقۇچلۇق قوغداش</h2>
+        <p class="admin-help">Authenticator ئەپى بىلەن قوشۇمچە قوغداش. ھازىرچە ئىختىيارىي — تەڭشىمىسىڭىزمۇ Admin نورمال ئىشلەيدۇ. پارول ئەسلىگە كەلتۈرۈش ۋە Google كىرىش ئۆزگەرمەيدۇ.</p>
+        <div id="mfaStatus" class="admin-status">تەڭشەلمىگەن — Authenticator تېخى ئۇلانمىغان. Admin نورمال ئىشلەيدۇ.</div>
+        <div class="admin-toolbar-group">
+          <button class="admin-primary" id="mfaSetupBtn" type="button">Authenticator تەڭشەش</button>
+          <button class="admin-secondary" id="mfaCleanupBtn" type="button" hidden>قالدۇق تەڭشەكنى تازىلاش</button>
+          <button class="admin-danger" id="mfaRemoveBtn" type="button" hidden>Authenticator نى ئېلىش</button>
+        </div>
+        <div id="mfaRemoveConfirm" class="admin-mfa-confirm" hidden>
+          <p class="admin-help">راستىنلا ئۆچۈرەمسىز؟ ھازىرچە MFA مەجبۇرىي ئەمەس؛ ئۆچۈرسىڭىزمۇ Admin كىرەلەيسىز.</p>
+          <div class="admin-toolbar-group">
+            <button class="admin-danger" id="mfaRemoveConfirmBtn" type="button">جەزملەش</button>
+            <button class="admin-secondary" id="mfaRemoveCancelBtn" type="button">بىكار قىلىش</button>
+          </div>
+        </div>
+        <div id="mfaEnrollPanel" class="admin-mfa-enroll" hidden>
+          <img id="mfaQr" alt="Authenticator QR" width="180" height="180" hidden>
+          <div class="admin-mfa-enroll-fields">
+            <p class="admin-help">ئەپتە قولدا كىرگۈزۈش كودى پەقەت بۇ ئېكراندا. ساقلانمايدۇ.</p>
+            <code id="mfaSecret" dir="ltr"></code>
+            <label class="admin-wide"><span>6 خانىلىق كود</span><input id="mfaOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr"></label>
+            <div class="admin-toolbar-group">
+              <button class="admin-primary" id="mfaVerifyBtn" type="button">كودنى جەزملەش</button>
+              <button class="admin-secondary" id="mfaEnrollCancelBtn" type="button">بىكار قىلىش</button>
+            </div>
+          </div>
+        </div>
       </section>
       </div>
 
@@ -492,6 +521,7 @@
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
-<script defer src="admin.js?v=36"></script>
+<script defer src="admin-mfa.js?v=1"></script>
+<script defer src="admin.js?v=37"></script>
 </body>
 </html>
