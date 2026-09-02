@@ -178,6 +178,9 @@ returns void language plpgsql security definer set search_path = public
 as $$
 begin
   if not public.is_kutadgu_admin() then raise exception 'Admin permission required'; end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
+  end if;
   if new_status not in ('active','suspended') then raise exception 'Invalid member status'; end if;
   update public.profiles set status = new_status, updated_at = now() where id = member_id;
 end;
@@ -262,6 +265,12 @@ drop policy if exists "admin can update books" on public.books;
 create policy "admin can update books" on public.books for update to authenticated using (public.is_kutadgu_admin()) with check (public.is_kutadgu_admin());
 drop policy if exists "admin can delete books" on public.books;
 create policy "admin can delete books" on public.books for delete to authenticated using (public.is_kutadgu_admin());
+drop policy if exists "aal2 required to insert books" on public.books;
+create policy "aal2 required to insert books" on public.books as restrictive for insert to authenticated with check ((select auth.jwt()->>'aal') = 'aal2');
+drop policy if exists "aal2 required to update books" on public.books;
+create policy "aal2 required to update books" on public.books as restrictive for update to authenticated using ((select auth.jwt()->>'aal') = 'aal2') with check ((select auth.jwt()->>'aal') = 'aal2');
+drop policy if exists "aal2 required to delete books" on public.books;
+create policy "aal2 required to delete books" on public.books as restrictive for delete to authenticated using ((select auth.jwt()->>'aal') = 'aal2');
 
 drop policy if exists "member can read own profile" on public.profiles;
 create policy "member can read own profile" on public.profiles for select to authenticated using (id = auth.uid());

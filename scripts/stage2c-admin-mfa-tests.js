@@ -158,10 +158,13 @@ test("failed verify does not sign out", () => {
   assert.doesNotMatch(verifyFn[0], /signOut/);
 });
 
-test("no service_role and no SQL/AAL2 policy edits in this phase", () => {
+test("no service_role; grant function and Stage 2B SELECT stay without AAL2", () => {
   assert.doesNotMatch(mfaJs, /service_role/);
   assert.doesNotMatch(adminJs, /service_role/);
-  assert.doesNotMatch(setupSql, /aal2/i);
+  const fn = setupSql.match(/create or replace function public\.is_kutadgu_admin\(\)[\s\S]*?\$\$;/);
+  assert.ok(fn);
+  assert.doesNotMatch(fn[0], /aal2/i);
+  assert.doesNotMatch(fn[0], /auth\.jwt\(\)/);
   assert.doesNotMatch(stage2b, /aal2/i);
 });
 
