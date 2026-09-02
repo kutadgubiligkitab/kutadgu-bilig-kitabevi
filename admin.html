@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=21">
+  <link rel="stylesheet" href="admin.css?v=22">
 </head>
 <body>
 <div class="admin-shell">
@@ -48,6 +48,16 @@
         <label class="admin-wide"><span>6 خانىلىق كود</span><input id="mfaGateOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" required></label>
         <button class="admin-primary admin-wide" id="mfaGateSubmit" type="submit">جەزملەش</button>
         <button class="admin-secondary admin-wide" id="mfaGateLogout" type="button">چىقىش</button>
+      </form>
+    </section>
+
+    <section id="idleLockPanel" class="admin-card admin-login" hidden>
+      <h1>🔐 Admin قۇلۇپلانغان</h1>
+      <div id="idleLockStatus" class="admin-status">Authenticator دىكى 6 خانىلىق كودنى كىرگۈزۈڭ.</div>
+      <form id="idleLockForm" class="admin-form">
+        <label class="admin-wide"><span>6 خانىلىق كود</span><input id="idleLockOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" required></label>
+        <button class="admin-primary admin-wide" id="idleLockSubmit" type="submit">ئېچىش</button>
+        <button class="admin-secondary admin-wide" id="idleLockLogout" type="button">چىقىش</button>
       </form>
     </section>
 
@@ -532,6 +542,7 @@
 <script defer src="admin-cover-repair.js?v=2"></script>
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
-<script defer src="admin.js?v=38"></script>
+<script defer src="admin-idle.js?v=1"></script>
+<script defer src="admin.js?v=39"></script>
 </body>
 </html>
