@@ -167,7 +167,7 @@ window.KUTADGU_CONTACT_CONFIG = {
     if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html")return;
     if(document.querySelector('script[data-kutadgu-announcements="1"]'))return;
     var s=document.createElement("script");
-    s.src="/kutadgu-announcements.js?v=1";
+    s.src="/kutadgu-announcements.js?v=2";
     s.async=true;
     s.dataset.kutadguAnnouncements="1";
     (document.head||document.documentElement).appendChild(s);

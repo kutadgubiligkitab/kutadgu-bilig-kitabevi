@@ -69,7 +69,15 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.match(js, /if \(!res\.ok\) return \{ error: true/);
   assert.match(js, /credentials: "omit"/);
   assert.doesNotMatch(js, /service_role/);
-  assert.match(cfg, /kutadgu-announcements\.js\?v=1/);
+  assert.doesNotMatch(js, /<marquee/i);
+  assert.doesNotMatch(js, /line-clamp:2/);
+  assert.doesNotMatch(js, /-webkit-line-clamp:2/);
+  assert.match(js, /kutadgu-announce-ltr/);
+  assert.match(js, /data-announce-clone/);
+  assert.match(js, /prefers-reduced-motion/);
+  assert.match(js, /isTickerOverflow/);
+  assert.match(js, /computeTickerDurationMs/);
+  assert.match(cfg, /kutadgu-announcements\.js\?v=2/);
   assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
 });
 
@@ -97,6 +105,13 @@ test("interval clamp and autoplay rules", () => {
   assert.strictEqual(api.shouldAutoplay(1), false);
   assert.strictEqual(api.shouldAutoplay(3), true);
   assert.strictEqual(api.shouldAutoplay(3, { reducedMotion: true }), false);
+  assert.strictEqual(api.isTickerOverflow(400, 200), true);
+  assert.strictEqual(api.isTickerOverflow(200, 200), false);
+  assert.strictEqual(api.isTickerOverflow(201, 200), false);
+  assert.strictEqual(api.isTickerOverflow(202, 200), true);
+  assert.strictEqual(api.computeTickerDurationMs(42), 8000);
+  assert.strictEqual(api.computeTickerDurationMs(42 * 20), 20000);
+  assert.strictEqual(api.computeTickerDurationMs(42 * 400), 90000);
 });
 
 test("Admin card is separate from book CRUD with Uyghur labels", () => {

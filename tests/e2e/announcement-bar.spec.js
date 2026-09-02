@@ -161,3 +161,185 @@ test.describe("announcement bar", () => {
     await expect(page.locator("#newBookBtn")).toBeAttached();
   });
 });
+
+const SHORT_MSG = "قىسقا ئېلان";
+const MOBILE_OVERFLOW_MSG = "يېڭى كىتابلار تېخىمۇ ئەرزان باھادا سېتىلىدۇ!";
+const DESKTOP_OVERFLOW_MSG = Array.from({ length: 24 }, () => "يېڭى كىتابلار تېخىمۇ ئەرزان باھادا سېتىلىدۇ!").join(" ");
+
+function row(message, id) {
+  return {
+    id: id || "row-1",
+    message,
+    enabled: true,
+    sort_order: 1,
+    starts_at: null,
+    ends_at: null,
+    created_at: "2026-01-01T00:00:00Z"
+  };
+}
+
+async function announceMetrics(page) {
+  return page.evaluate(() => {
+    const bar = document.getElementById("kutadguAnnounceBar");
+    const text = document.getElementById("kutadguAnnounceText");
+    const viewport = document.getElementById("kutadguAnnounceViewport");
+    const track = document.getElementById("kutadguAnnounceTrack");
+    const clones = track ? [...track.querySelectorAll("[data-announce-clone]")] : [];
+    const csText = text ? getComputedStyle(text) : {};
+    const csTrack = track ? getComputedStyle(track) : {};
+    const csBar = bar ? getComputedStyle(bar) : {};
+    return {
+      ticker: !!(bar && bar.classList.contains("is-ticker")),
+      wrap: !!(bar && bar.classList.contains("is-wrap")),
+      text: text ? String(text.textContent || "") : "",
+      cloneCount: clones.length,
+      cloneHidden: clones.every((n) => n.getAttribute("aria-hidden") === "true"),
+      cloneText: clones[0] ? String(clones[0].textContent || "") : "",
+      scrollWidth: text ? text.scrollWidth : 0,
+      clientWidth: viewport ? viewport.clientWidth : 0,
+      overflowing: !!(text && viewport && text.scrollWidth > viewport.clientWidth + 1),
+      webkitLineClamp: String(csText.webkitLineClamp || ""),
+      textOverflow: String(csText.textOverflow || ""),
+      whiteSpace: String(csText.whiteSpace || ""),
+      animationName: String(csTrack.animationName || ""),
+      playState: String(csTrack.animationPlayState || ""),
+      duration: String(csTrack.animationDuration || ""),
+      justify: String(csBar.justifyContent || csBar.webkitJustifyContent || ""),
+      textAlign: String(csBar.textAlign || ""),
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth
+    };
+  });
+}
+
+test.describe("announcement responsive ticker", () => {
+  test.beforeEach(async ({ page }) => {
+    await H.installReadSafeNetwork(page);
+  });
+
+  test("A short text stays static, centered, and untruncated", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(SHORT_MSG)] });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    await expect.poll(async () => (await announceMetrics(page)).text).toBe(SHORT_MSG);
+    const m = await announceMetrics(page);
+    expect(m.ticker).toBe(false);
+    expect(m.wrap).toBe(false);
+    expect(m.cloneCount).toBe(0);
+    expect(m.overflowing).toBe(false);
+    expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
+    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
+    expect(m.textOverflow).not.toBe("ellipsis");
+    expect(["center", "start"]).toContain(m.textAlign);
+  });
+
+  test("B long text enables ticker without ellipsis and keeps full copy in DOM", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+    const m = await announceMetrics(page);
+    expect(m.overflowing).toBe(true);
+    expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
+    expect(m.cloneCount).toBe(1);
+    expect(m.cloneHidden).toBe(true);
+    expect(m.cloneText).toBe(DESKTOP_OVERFLOW_MSG);
+    expect(m.animationName).toContain("kutadgu-announce-ltr");
+    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
+    expect(m.textOverflow).not.toBe("ellipsis");
+    expect(m.whiteSpace).toContain("nowrap");
+    expect(m.pageOverflow).toBeLessThanOrEqual(1);
+  });
+
+  for (const vp of [
+    { name: "C 390x844", width: 390, height: 844, mobileNav: true },
+    { name: "D 412x915", width: 412, height: 915, mobileNav: true },
+    { name: "E 768 tablet", width: 768, height: 1024, mobileNav: true }
+  ]) {
+    test(`${vp.name} long announcement tickers without page overflow`, async ({ page }) => {
+      await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await H.openFresh(page, "/");
+      await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+      await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+      const m = await announceMetrics(page);
+      expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
+      expect(m.cloneCount).toBe(1);
+      expect(m.pageOverflow).toBeLessThanOrEqual(1);
+      expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
+      const toggle = page.locator(".mobile-menu-toggle");
+      if (await toggle.isVisible()) {
+        await toggle.click();
+        await expect(page.locator("nav#mobileSiteMenu.mobile-site-menu")).toHaveClass(/is-open/);
+        await toggle.click();
+        await expect(page.locator("nav#mobileSiteMenu.mobile-site-menu")).not.toHaveClass(/is-open/);
+      }
+      if (vp.width <= 700) {
+        await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+      }
+    });
+  }
+
+  test("F desktop 1280 hover and focus pause the ticker", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await H.openFresh(page, "/");
+    await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("running");
+    await page.locator("#kutadguAnnounceBar").hover();
+    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("paused");
+    await page.mouse.move(0, 400);
+    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("running");
+    await page.locator("#kutadguAnnounceBar").focus();
+    await expect.poll(async () => (await announceMetrics(page)).playState).toBe("paused");
+  });
+
+  test("G resize switches ticker and static without duplicate clones", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(MOBILE_OVERFLOW_MSG, "mid")] });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    await expect.poll(async () => {
+      const m = await announceMetrics(page);
+      return m.overflowing ? m.ticker : m.ticker === false;
+    }).toBe(true);
+    const narrow = await announceMetrics(page);
+    expect(narrow.cloneCount).toBeLessThanOrEqual(1);
+    if (narrow.overflowing) expect(narrow.ticker).toBe(true);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(async () => {
+      const m = await announceMetrics(page);
+      if (m.overflowing) return m.ticker === true && m.cloneCount === 1;
+      return m.ticker === false && m.cloneCount === 0;
+    }).toBe(true);
+    const wide = await announceMetrics(page);
+    expect(wide.cloneCount).toBeLessThanOrEqual(1);
+    expect(wide.text).toBe(MOBILE_OVERFLOW_MSG);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(async () => {
+      const m = await announceMetrics(page);
+      return m.cloneCount <= 1 && m.text === MOBILE_OVERFLOW_MSG;
+    }).toBe(true);
+  });
+
+  test("H reduced motion does not continuously animate and remains readable", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+    await expect.poll(async () => (await announceMetrics(page)).text).toBe(DESKTOP_OVERFLOW_MSG);
+    const m = await announceMetrics(page);
+    expect(m.ticker).toBe(false);
+    expect(m.wrap).toBe(true);
+    expect(m.cloneCount).toBe(0);
+    expect(m.animationName === "none" || !m.animationName.includes("kutadgu-announce-ltr")).toBeTruthy();
+    expect(m.webkitLineClamp === "" || m.webkitLineClamp === "none").toBeTruthy();
+    expect(m.textOverflow).not.toBe("ellipsis");
+    expect(m.whiteSpace).not.toBe("nowrap");
+    expect(m.pageOverflow).toBeLessThanOrEqual(1);
+  });
+});
