@@ -112,6 +112,16 @@ button{cursor:pointer}
 .admin-maint-card.is-inactive{border-color:#96b89e}
 .admin-maint-card.is-active #maintenanceToggleBtn{background:#a74f45}
 .admin-maint-card.is-missing{border-color:#d8bd7d}
+.admin-mfa-enroll{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:14px}
+.admin-mfa-qr,.admin-mfa-enroll img{width:min(180px,70vw);height:auto;max-width:100%;background:#fff;border:1px solid #e8dccb;border-radius:12px;padding:8px}
+.admin-mfa-enroll-fields{flex:1 1 220px;min-width:0}
+#mfaSecret{display:block;overflow-wrap:anywhere;word-break:break-all;direction:ltr;text-align:left;font-size:13px;padding:8px;background:#fbf8f2;border-radius:8px;margin:0 0 10px}
+#mfaOtp{max-width:12ch;direction:ltr}
+.admin-mfa-confirm{margin-top:12px;padding:12px;border:1px solid #eadfce;border-radius:12px;background:#fff8f4}
+@media(max-width:520px){
+  .admin-mfa-enroll{flex-direction:column;align-items:stretch}
+  #mfaSetupBtn,#mfaCleanupBtn,#mfaRemoveBtn,#mfaVerifyBtn,#mfaEnrollCancelBtn,#mfaRemoveConfirmBtn,#mfaRemoveCancelBtn{min-height:44px}
+}
 #announcementCard.is-missing{border-color:#d8bd7d}
 .admin-announce-settings{margin:12px 0 18px}
 .admin-announce-form{margin-bottom:16px}
