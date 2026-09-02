@@ -15,7 +15,7 @@
     ...(config.featureFlags||{})
   };
   const REC_KEY=config.storageKeys?.recentlyViewed||"kutadgu-recent-v1";
-  const fallbackCover="sample-book-cover.png";
+  const fallbackCover="/sample-book-cover.png";
 
   const catalog=()=>{
     const rows=window.kutadguShop?.getCatalog?.()||window.KUTADGU_LIVE_CATALOG||window.KITAP_CATALOG||[];
@@ -24,7 +24,18 @@
   const normalize=value=>String(value||"").trim().toLocaleLowerCase("ug");
   const escapeHtml=value=>String(value??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]));
   const money=value=>value!==null&&value!==undefined&&value!==""?`${Number(value).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن";
-  const cover=book=>escapeHtml(book?.image||fallbackCover);
+  const assetPath=src=>{
+    const value=String(src||"").trim();
+    if(!value)return fallbackCover;
+    if(/^(https?:)?\/\//i.test(value)||value.startsWith("/")||value.startsWith("data:"))return value;
+    return "/"+value.replace(/^\.\//,"");
+  };
+  const cover=book=>escapeHtml(assetPath(book?.image||fallbackCover));
+  const bookHref=book=>{
+    const id=String(book&&book.id||"").trim();
+    if(/^\d+$/.test(id))return `/book/${id}`;
+    return book&&book.href?String(book.href):(`book.html?id=${encodeURIComponent(id)}`);
+  };
   const enabled=name=>features[name]!==false;
 
   function badges(book){
@@ -45,7 +56,7 @@
   function compactCard(book){
     return `<article class="premium-book-card" data-premium-book-id="${escapeHtml(book.id)}">
       <button type="button" class="premium-card-favorite" data-premium-favorite="${escapeHtml(book.id)}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
-      <a class="premium-card-link" href="${escapeHtml(book.href||"book.html?id="+encodeURIComponent(book.id))}">
+      <a class="premium-card-link" href="${escapeHtml(bookHref(book))}">
         <span class="premium-card-cover"><img src="${cover(book)}" alt="${escapeHtml(book.title)} كىتاب مۇقاۋىسى" loading="lazy" decoding="async"></span>
         ${badges(book)?`<span class="premium-card-badges">${badges(book)}</span>`:""}
         <strong>${escapeHtml(book.title)}</strong>

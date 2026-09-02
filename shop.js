@@ -60,7 +60,7 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     source:book.source||"universal.html",
     image:value("image","image_url","")||"",
     galleryImages:normalizeGalleryImages(value("galleryImages","gallery_images",[]),value("image","image_url","")||""),
-    href:isRemote?`book.html?id=${encodeURIComponent(id)}`:(book.href||`book.html?id=${encodeURIComponent(id)}`),
+    href:bookDetailHref(id,isRemote?"":book.href),
     pages:book.pages??null,
     translator:book.translator||"",
     language:book.language||"",
@@ -116,9 +116,9 @@ function isPreviewShopDebug(){
     return host.endsWith(".vercel.app")||host==="localhost"||host==="127.0.0.1";
   }catch(e){return false}
 }
-const FALLBACK_COVER="sample-book-cover.png";
+const FALLBACK_COVER="/sample-book-cover.png";
 const COVER_LAYOUT_TEST_MODE=window.KUTADGU_COVER_LAYOUT_TEST_MODE===true;
-const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:(book?.image||FALLBACK_COVER);
+const coverSrc=book=>COVER_LAYOUT_TEST_MODE?FALLBACK_COVER:storefrontAssetPath(book?.image||FALLBACK_COVER);
 function readShopOwner(){
   try{return String(localStorage.getItem(SHOP_OWNER_KEY)||"").trim()}catch(e){return ""}
 }
@@ -236,6 +236,24 @@ function canonicalId(id){
   return book?.id||String(id||"");
 }
 const HOMEPAGE_DOCUMENT_TITLE="قۇتادغۇبىلىك كىتابخانىسى";
+function bookDetailHref(id, fallbackHref){
+  const Seo=window.KutadguBookSeo||{};
+  const raw=String(id||"").trim();
+  if(Seo.bookPath){
+    const path=Seo.bookPath(raw);
+    if(path)return path;
+  }
+  if(/^\d+$/.test(raw))return `/book/${raw}`;
+  const fallback=String(fallbackHref||"").trim();
+  if(fallback)return fallback;
+  return raw?`book.html?id=${encodeURIComponent(raw)}`:"/book.html";
+}
+function storefrontAssetPath(src){
+  const value=String(src||"").trim();
+  if(!value||value==="#")return value;
+  if(/^(https?:)?\/\//i.test(value)||value.startsWith("/")||value.startsWith("data:"))return value;
+  return "/"+value.replace(/^\.\//,"");
+}
 function storefrontPageFile(){
   return (location.pathname||"/").split("/").pop().split(/[?#]/)[0]||"";
 }
@@ -246,8 +264,17 @@ function isStorefrontHomepage(){
 function isBookDetailDocument(){
   if(isStorefrontHomepage())return false;
   if(document.body.hasAttribute("data-dynamic-book"))return true;
+  const Seo=window.KutadguBookSeo||{};
+  if(Seo.isBookDetailPath&&Seo.isBookDetailPath(location.pathname))return true;
   if(storefrontPageFile()==="book.html")return true;
   return !!document.querySelector(".book-detail-page,.book-detail-info");
+}
+function maybeRedirectLegacyBookUrl(){
+  const Seo=window.KutadguBookSeo||{};
+  const next=Seo.legacyBookRedirectPath?Seo.legacyBookRedirectPath(location):"";
+  if(!next)return false;
+  location.replace(next+(location.hash||""));
+  return true;
 }
 function applyHomepageDocumentTitle(){
   document.title=HOMEPAGE_DOCUMENT_TITLE;
@@ -537,7 +564,8 @@ async function hydrateBooksByIds(ids=[]){
 
 async function hydratePageBook(){
   if(isStorefrontHomepage())return;
-  const id=new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
+  const Seo=window.KutadguBookSeo||{};
+  const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
   if(!id||!remoteCatalog.available)return;
   try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
   catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
@@ -621,7 +649,7 @@ function cartBookForLine(line){
     category:"",
     price:null,
     image:"",
-    href:`book.html?id=${encodeURIComponent(id)}`,
+    href:bookDetailHref(id),
     isActive:true
   };
 }
@@ -754,6 +782,8 @@ function cardIdentityKeys(card){
     try{
       const url=new URL(href,location.href);
       add(url.searchParams.get("id"));
+      const parts=url.pathname.replace(/\/+$/,"").split("/").filter(Boolean);
+      if(parts.length>=2&&parts[parts.length-2]==="book")add(parts[parts.length-1]);
       add((url.pathname.split("/").pop()||"").replace(/\.html$/i,""));
     }catch(error){
       add(href.replace(/\.html$/i,"").split("id=").pop());
@@ -866,9 +896,10 @@ function decorateCards(){
 }
 function renderFavButtons(){document.querySelectorAll("[data-fav-id]").forEach(b=>{let yes=favHas(b.dataset.favId);b.classList.toggle("is-favorite",yes);if(b.classList.contains("mini-heart")||b.classList.contains("home-feature-heart")){b.textContent=yes?"♥":"♡";b.setAttribute("aria-pressed",yes?"true":"false");b.setAttribute("aria-label",yes?"ياقتۇرۇلدى":"ياقتۇرۇش");}else if(b.textContent.includes("ياقتۇرۇش")||b.textContent.includes("♡")||b.textContent.includes("♥"))b.textContent=yes?"♥ ياقتۇرۇلدى":"♡ ياقتۇرۇش"})}
 function getDetailBook(){
+  const Seo=window.KutadguBookSeo||{};
   let id=document.body.dataset.bookId;
   let b=find(id); if(b)return b;
-  let queryId=new URLSearchParams(location.search).get("id");
+  let queryId=Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):new URLSearchParams(location.search).get("id");
   if(queryId){b=find(queryId);if(b)return b}
   let file=(location.pathname.split("/").pop()||"").split("?")[0];
   const slug=file.replace(/\.html$/i,"");
@@ -908,7 +939,7 @@ function updateBookSeo(book){
   if(!book||!isBookDetailDocument())return;
   const Seo=window.KutadguBookSeo||{};
   const origin=siteOrigin();
-  const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}/book.html?id=${encodeURIComponent(String(book.id||"").trim())}`;
+  const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}${bookDetailHref(book.id)}`;
   const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
   const authorName=storefrontAuthor(book);
   const description=Seo.metaDescription?Seo.metaDescription(book):(String(book.description||"").trim()||`${book.title} — قۇتادغۇبىلىك كىتابخانىسى`);
@@ -1142,6 +1173,7 @@ function renderDetailExtras(book){
 }
 
 function decorateDetail(){
+  if(maybeRedirectLegacyBookUrl())return;
   if(isStorefrontHomepage()){
     applyHomepageDocumentTitle();
     return;
@@ -2690,7 +2722,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-  script.src="member.js?v=15";script.async=true;script.dataset.kutadguMemberScript="1";
+  script.src="/member.js?v=15";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -2722,7 +2754,7 @@ function refreshAfterMemberSync(){
 function loadAssetScript(src,id){
   if(document.getElementById(id))return Promise.resolve();
   return new Promise((resolve,reject)=>{
-    const script=document.createElement("script");script.id=id;script.src=src;script.defer=true;
+    const script=document.createElement("script");script.id=id;script.src=storefrontAssetPath(src);script.defer=true;
     script.onload=resolve;script.onerror=()=>reject(new Error(`${src} could not be loaded`));
     document.head.appendChild(script);
   });
@@ -2732,17 +2764,17 @@ function ensureCoverSystemCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="covers.css?v=2";
+    el.href="/covers.css?v=2";
     el.dataset.kutadguCovers="1";
   }
   document.head.appendChild(el);
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="premium-ux.css?v=8";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=8";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   ensureCoverSystemCss();
-  return loadAssetScript("premium-ux.js?v=9","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=11","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -2764,6 +2796,7 @@ function initStaticShell(){
   setupCheckout();
 }
 function init(){
+  if(maybeRedirectLegacyBookUrl())return;
   initStaticShell();
   if(isStorefrontHomepage())applyHomepageDocumentTitle();
   applyDetailCoverFallback();
@@ -2790,7 +2823,9 @@ function init(){
 let bootStarted=false;
 async function boot(){
   if(bootStarted)return;
-  bootStarted=true;  try{await loadAssetScript("app-config.js?v=2","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  bootStarted=true;
+  if(maybeRedirectLegacyBookUrl())return;
+  try{await loadAssetScript("/app-config.js?v=2","kutadguAppConfigScript")}catch(error){console.warn(error)}
   initStaticShell();
   await loadRemoteCatalog();
   await hydratePageBook();

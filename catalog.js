@@ -931,11 +931,12 @@ window.KITAP_CATALOG = [
 window.KUTADGU_CATALOG_SCHEMA_V1 = true;
 window.KITAP_CATALOG = (window.KITAP_CATALOG || []).map(function(book,index){
   var price=(book.price===null||book.price===undefined||book.price==='')?null:Number(book.price);
+  var catalogId=String(book.id||('book-'+(index+1)));
   return Object.assign({
-    id:String(book.id||('book-'+(index+1))),
+    id:catalogId,
     title:'', author:'', price:Number.isFinite(price)?price:null,
     category:'', source:'universal.html', image:'sample-book-cover.png',
-    href:'book.html?id='+encodeURIComponent(book.id||('book-'+(index+1))),
+    href:/^\d+$/.test(catalogId)?'/book/'+encodeURIComponent(catalogId):'book.html?id='+encodeURIComponent(catalogId),
     stock:null, stock_status:'', description:'', pages:null,
     translator:'', language:'', publisher:'', publish_date:'', publish_year:'',
     cover_type:'', dimensions:'', is_active:true, is_new:false,

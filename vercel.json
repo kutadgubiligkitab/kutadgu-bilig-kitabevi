@@ -79,6 +79,18 @@
       "source": "/children.html",
       "destination": "/children",
       "permanent": true
+    },
+    {
+      "source": "/book.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "(?<id>\\d+)"
+        }
+      ],
+      "destination": "/book/:id",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -153,6 +165,10 @@
     {
       "source": "/children",
       "destination": "/children.html"
+    },
+    {
+      "source": "/book/:id",
+      "destination": "/book.html"
     }
   ],
   "headers": [

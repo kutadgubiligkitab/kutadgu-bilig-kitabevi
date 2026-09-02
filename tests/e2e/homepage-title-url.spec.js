@@ -27,7 +27,8 @@ test.describe("homepage title and root URL", () => {
     expect(detailTitle).toContain(book.title);
     expect(detailTitle).toContain(" - قۇتادغۇبىلىك كىتابخانىسى");
     expect(detailTitle).not.toBe(HOME_TITLE);
-    expect(page.url()).toContain(`id=${encodeURIComponent(book.id)}`);
+    expect(page.url()).toContain(`/book/${encodeURIComponent(book.id)}`);
+    expect(page.url()).not.toContain("book.html");
 
     await page.locator("a.detail-brand").click();
     await page.waitForURL((url) => new URL(url).pathname === "/", { timeout: 20_000 });
