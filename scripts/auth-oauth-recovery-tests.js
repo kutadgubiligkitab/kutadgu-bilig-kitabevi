@@ -176,8 +176,10 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
   assert.doesNotMatch(resetJs, /event==="PASSWORD_RECOVERY" \|\| event==="SIGNED_IN"/);
   assert.match(resetJs, /detectSessionInUrl:false/);
   assert.match(resetJs, /verifyOtp\(\{token_hash:info\.tokenHash,type:"recovery"\}\)/);
-  assert.match(resetJs, /exchangeCodeForSession\(info\.code\)/);
-  assert.match(resetJs, /function isPkceRecoveryCallback/);
+  assert.doesNotMatch(resetJs, /exchangeCodeForSession/);
+  assert.doesNotMatch(resetJs, /isPkceRecoveryCallback/);
+  assert.match(resetJs, /usesPkceCodeExchange:false/);
+  assert.match(resetJs, /stripRecoverySecretsFromUrl/);
   assert.match(resetJs, /if\(session\)markRecoveryReady/);
   assert.doesNotMatch(resetJs, /if\(session && info\.tokenHash\)markRecoveryReady/);
   assert.match(resetJs, /setSession\(\{/);
@@ -187,8 +189,8 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
   assert.doesNotMatch(resetJs, /console\.(log|info|debug|warn)\([^)]*token_hash/);
 });
 
-test("reset-password.html loads reset-password.js v=8", () => {
-  assert.match(read("reset-password.html"), /reset-password\.js\?v=8/);
+test("reset-password.html loads reset-password.js v=9", () => {
+  assert.match(read("reset-password.html"), /reset-password\.js\?v=9/);
   assert.match(read("reset-password.html"), /supabase-config\.js\?v=13/);
   assert.match(account, /supabase-config\.js\?v=13/);
   assert.match(index, /supabase-config\.js\?v=13/);
@@ -196,10 +198,11 @@ test("reset-password.html loads reset-password.js v=8", () => {
   assert.match(read("admin.html"), /admin\.js\?v=36/);
 });
 
-test("recovery email CTA documents TokenHash not ConfirmationURL PKCE", () => {
+test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {
   assert.match(cfg, /\{\{ \.RedirectTo \}\}&token_hash=\{\{ \.TokenHash \}\}&type=recovery/);
   assert.match(cfg, /TokenHash/);
-  assert.match(cfg, /\{\{\s*\.RedirectTo\s*\}\}&token_hash=\{\{\s*\.TokenHash\s*\}\}/);
+  assert.match(cfg, /must NOT use \{\{ \.ConfirmationURL \}\}/);
+  assert.doesNotMatch(cfg, /Recovery email uses \{\{ \.ConfirmationURL \}\}/);
 });
 
 function isExplicitRecoveryType(type){
@@ -213,18 +216,11 @@ function recoveryHashTokens(info){
   if(!access||!refresh)return null;
   return {access_token:access,refresh_token:refresh};
 }
-function isPkceRecoveryCallback(info){
-  if(!info||info.hasProviderToken)return false;
-  return !!(info.code && !info.tokenHash);
-}
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
   if(recoveryHashTokens(info))return true;
-  if(isPkceRecoveryCallback(info))return true;
   if(!info.tokenHash)return false;
-  if(isExplicitRecoveryType(info.type))return true;
-  if(info.next==="account"||info.next==="admin")return true;
-  return false;
+  return isExplicitRecoveryType(info.type);
 }
 function isGenericOauthCallback(info){
   if(info.hasProviderToken)return true;
@@ -236,12 +232,11 @@ test("recovery detection matches reset-password.js rules", () => {
   assert.match(resetJs, /function isIntendedRecoveryLink/);
   assert.strictEqual(isExplicitRecoveryType("recovery"), true);
   assert.strictEqual(isExplicitRecoveryType(""), false);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "x", tokenHash: "", hasProviderToken: false }), true);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "x", tokenHash: "", hasProviderToken: false }), false);
   assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "account", code: "", tokenHash: "th", hasProviderToken: false }), true);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "account", code: "x", tokenHash: "", hasProviderToken: false }), true);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "admin", code: "", tokenHash: "th", hasProviderToken: false }), true);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "", code: "oauth-code", tokenHash: "", hasProviderToken: false }), true);
-  assert.strictEqual(isPkceRecoveryCallback({ type: "", next: "account", code: "x", tokenHash: "", hasProviderToken: false }), true);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "account", code: "x", tokenHash: "", hasProviderToken: false }), false);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "admin", code: "", tokenHash: "th", hasProviderToken: false }), false);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "", code: "oauth-code", tokenHash: "", hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "", next: "", code: "oauth-code", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "", next: "account", code: "x", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "recovery", next: "account", code: "", tokenHash: "th", hasAccessToken: false, hasProviderToken: false }), false);
@@ -253,19 +248,13 @@ test("recovery detection matches reset-password.js rules", () => {
   assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "", code: "", tokenHash: "", hasProviderToken: false, hashParams: new URLSearchParams("access_token=a&refresh_token=b"), params: new URLSearchParams() }), false);
 });
 
-test("cross-device recovery uses verifyOtp; PKCE recovery code uses exchangeCodeForSession", () => {
+test("cross-device recovery uses verifyOtp and never PKCE code exchange", () => {
   const calls={verify:0,exchange:0};
   function establishRecoverySession(info,auth){
     if(!isIntendedRecoveryLink(info))return {session:null,error:null};
     if(info.tokenHash){
       calls.verify++;
       const result=auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
-      if(result.error)return {session:null,error:result.error};
-      return {session:result.data&&result.data.session,error:null};
-    }
-    if(info.code){
-      calls.exchange++;
-      const result=auth.exchangeCodeForSession(info.code);
       if(result.error)return {session:null,error:result.error};
       return {session:result.data&&result.data.session,error:null};
     }
@@ -312,16 +301,21 @@ test("cross-device recovery uses verifyOtp; PKCE recovery code uses exchangeCode
   assert.match(String(expired.error.message),/expired|invalid/i);
   const recoveryCode={type:"recovery",next:"account",code:"pkce-recovery-code",tokenHash:"",hasProviderToken:false,hasAccessToken:false};
   assert.strictEqual(isGenericOauthCallback(recoveryCode),false);
-  assert.strictEqual(isIntendedRecoveryLink(recoveryCode),true);
-  const exchanged=establishRecoverySession(recoveryCode,{
+  assert.strictEqual(isIntendedRecoveryLink(recoveryCode),false);
+  const skippedPkce=establishRecoverySession(recoveryCode,{
     verifyOtp(){throw new Error("token_hash path should not run");},
-    exchangeCodeForSession(code){
-      assert.strictEqual(code,"pkce-recovery-code");
+    exchangeCodeForSession(){
+      calls.exchange++;
       return {data:{session:{user:{id:"u1"}}},error:null};
     }
   });
-  assert.ok(exchanged.session);
-  assert.strictEqual(calls.exchange,1);
+  assert.strictEqual(skippedPkce.session,null);
+  assert.strictEqual(calls.exchange,0);
+  const missingType=establishRecoverySession(
+    {type:"",next:"account",code:"",tokenHash:"no-type-hash",hasProviderToken:false},
+    phoneAuth
+  );
+  assert.strictEqual(missingType.session,null);
   const oauthHash={type:"",next:"account",code:"",tokenHash:"",hasProviderToken:true,hasAccessToken:true};
   assert.strictEqual(isGenericOauthCallback(oauthHash),true);
   assert.strictEqual(isIntendedRecoveryLink(oauthHash),false);

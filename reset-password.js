@@ -35,19 +35,11 @@ function recoveryHashTokens(info){
   return {access_token:access,refresh_token:refresh};
 }
 
-function isPkceRecoveryCallback(info){
-  if(!info||info.hasProviderToken)return false;
-  return !!(info.code && !info.tokenHash);
-}
-
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
   if(recoveryHashTokens(info))return true;
-  if(isPkceRecoveryCallback(info))return true;
   if(!info.tokenHash)return false;
-  if(isExplicitRecoveryType(info.type))return true;
-  if(info.next==="account"||info.next==="admin")return true;
-  return false;
+  return isExplicitRecoveryType(info.type);
 }
 
 function isGenericOauthCallback(info){
@@ -80,9 +72,20 @@ function setFormEnabled(enabled){
   form.querySelectorAll("input,button").forEach(el=>el.disabled=!enabled);
 }
 
+function stripRecoverySecretsFromUrl(){
+  try{
+    const next=new URLSearchParams(location.search).get("next");
+    const dest=new URL(location.pathname,location.href);
+    dest.searchParams.set("type","recovery");
+    if(next==="admin"||next==="account")dest.searchParams.set("next",next);
+    history.replaceState(null,"",dest.pathname+dest.search);
+  }catch(error){}
+}
+
 function markRecoveryReady(){
   recoveryReady=true;
   setFormEnabled(true);
+  stripRecoverySecretsFromUrl();
   status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
 }
 
@@ -109,12 +112,6 @@ async function establishRecoverySession(info){
       access_token:tokens.access_token,
       refresh_token:tokens.refresh_token
     });
-    if(error)throw error;
-    if(data?.session)return data.session;
-    return waitForSession();
-  }
-  if(info.code){
-    const {data,error}=await db.auth.exchangeCodeForSession(info.code);
     if(error)throw error;
     if(data?.session)return data.session;
     return waitForSession();
@@ -220,11 +217,10 @@ async function init(){
 window.kutadguResetPasswordTest={
   returnTarget,
   isExplicitRecoveryType,
-  isPkceRecoveryCallback,
   isIntendedRecoveryLink,
   isGenericOauthCallback,
   recoveryHashTokens,
-  usesPkceCodeExchange:true
+  usesPkceCodeExchange:false
 };
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();

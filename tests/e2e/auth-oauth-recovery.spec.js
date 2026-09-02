@@ -48,7 +48,7 @@ test.describe("auth oauth vs recovery", () => {
     await expect(page.locator("#newPassword")).toBeDisabled();
   });
 
-  test("C PKCE code on reset-password stays on reset and is not proven recovery", async ({ page }) => {
+  test("C PKCE code on reset-password is not treated as recovery and is not bounced", async ({ page }) => {
     await page.goto("/reset-password.html?code=oauth-test-code", { waitUntil: "domcontentloaded" });
     await expect.poll(() => new URL(page.url()).pathname).toBe("/reset-password.html");
     expect(page.url()).not.toMatch(/\/account\.html/);
@@ -90,11 +90,10 @@ test.describe("auth oauth vs recovery", () => {
     expect(JSON.stringify(urls)).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
 
-  test("C next=account PKCE recovery code does not bounce to account.html", async ({ page }) => {
+  test("C next=account PKCE code does not bounce to account.html or enable reset", async ({ page }) => {
     await page.goto("/reset-password.html?next=account&code=pkce-recovery-code", { waitUntil: "domcontentloaded" });
     await expect.poll(() => new URL(page.url()).pathname).toBe("/reset-password.html");
     expect(page.url()).not.toMatch(/\/account\.html\?code=/);
-    expect(new URL(page.url()).searchParams.get("code")).toBe("pkce-recovery-code");
     await expect(page.locator("#resetPasswordForm")).toBeVisible();
     await expect(page.locator("#newPassword")).toBeDisabled();
   });

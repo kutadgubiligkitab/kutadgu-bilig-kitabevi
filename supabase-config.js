@@ -31,10 +31,9 @@ window.kutadguPasswordResetRedirectTo = function(next){
   const dest=next==="admin"?"admin":"account";
   return origin+"/reset-password.html?type=recovery&next="+encodeURIComponent(dest);
 };
-/* Recovery email uses {{ .ConfirmationURL }}. App redirectTo is the dedicated
-   reset-password page (preview origin, or www on production hosts) so PKCE
-   recovery codes are not delivered to account.html.
-   Cross-device TokenHash CTA (manual template, not ConfirmationURL):
+/* Password recovery email must NOT use {{ .ConfirmationURL }} (PKCE).
+   RedirectTo is origin/reset-password.html?type=recovery&next=account|admin.
+   Template CTA:
    {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery */
 
 window.kutadguAuthHashParams = function(hash){
