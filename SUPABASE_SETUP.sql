@@ -16,7 +16,8 @@ as $$
   select exists (select 1 from public.admin_users where user_id = auth.uid());
 $$;
 revoke all on function public.is_kutadgu_admin() from public;
-grant execute on function public.is_kutadgu_admin() to anon, authenticated;
+revoke execute on function public.is_kutadgu_admin() from anon;
+grant execute on function public.is_kutadgu_admin() to authenticated;
 
 -- 2) كىتابلار
 create table if not exists public.books (
@@ -249,8 +250,12 @@ grant select,insert,update on public.orders to authenticated;
 drop policy if exists "admin can read own admin row" on public.admin_users;
 create policy "admin can read own admin row" on public.admin_users for select to authenticated using (user_id = auth.uid());
 
+drop policy if exists "Public can view books" on public.books;
 drop policy if exists "public can read books" on public.books;
-create policy "public can read books" on public.books for select to anon,authenticated using (true);
+drop policy if exists "public can read active books" on public.books;
+create policy "public can read active books" on public.books for select to anon,authenticated using (is_active = true);
+drop policy if exists "admin can read all books" on public.books;
+create policy "admin can read all books" on public.books for select to authenticated using (public.is_kutadgu_admin());
 drop policy if exists "admin can insert books" on public.books;
 create policy "admin can insert books" on public.books for insert to authenticated with check (public.is_kutadgu_admin());
 drop policy if exists "admin can update books" on public.books;
