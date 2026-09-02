@@ -78,8 +78,10 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.match(js, /isTickerOverflow/);
   assert.match(js, /--kutadgu-announce-travel/);
   assert.match(js, /direction:ltr/);
+  assert.match(js, /lockCopyWidth/);
+  assert.doesNotMatch(js, /padding-inline-end:3em/);
   assert.doesNotMatch(js, /translate3d\(-50%/);
-  assert.match(cfg, /kutadgu-announcements\.js\?v=3/);
+  assert.match(cfg, /kutadgu-announcements\.js\?v=4/);
   assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
 });
 

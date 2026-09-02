@@ -397,7 +397,7 @@ test.describe("announcement responsive ticker", () => {
       const duration = anim && anim.effect
         ? Number(anim.effect.getComputedTiming().duration) || 8000
         : 8000;
-      const times = [0, 0.15, 0.35, 0.55, 0.75, 0.95];
+      const times = [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1];
       if (!anim) {
         return [{ p: 0, hit: copies.some((el) => intersect(el.getBoundingClientRect(), vpBox)) }];
       }
@@ -446,7 +446,102 @@ test.describe("announcement responsive ticker", () => {
     expect(v.transparent).toBe(false);
     expect(v.visibleCopy).toBe(true);
     const samples = await sampleTickerHits(page);
-    expect(samples.length).toBeGreaterThan(1);
+    expect(samples.length).toBeGreaterThan(10);
     samples.forEach((s) => expect(s.hit, "empty ticker at t=" + s.p).toBe(true));
+    const beforeAfter = samples.filter((s) => s.p === 0.99 || s.p === 1 || s.p === 0);
+    expect(beforeAfter.length).toBeGreaterThan(1);
+    beforeAfter.forEach((s) => expect(s.hit, "loop boundary empty at t=" + s.p).toBe(true));
+  });
+
+  for (const vp of [
+    { name: "portrait 390x844", width: 390, height: 844 },
+    { name: "portrait 412x915", width: 412, height: 915 }
+  ]) {
+    test(`${vp.name} ticker stays filled through a full cycle`, async ({ page }) => {
+      await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await H.openFresh(page, "/");
+      await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
+      await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+      const v = await announceVisibility(page);
+      expect(v.visibleCopy).toBe(true);
+      expect(v.opacity).toBeGreaterThan(0);
+      expect(v.visibility).not.toBe("hidden");
+      expect(v.transparent).toBe(false);
+      expect(v.viewportW).toBeGreaterThan(0);
+      const m = await announceMetrics(page);
+      expect(m.cloneCount).toBe(1);
+      expect(m.pageOverflow).toBeLessThanOrEqual(1);
+      const samples = await sampleTickerHits(page);
+      expect(samples.length).toBeGreaterThan(10);
+      samples.forEach((s) => expect(s.hit, `${vp.name} empty at t=${s.p}`).toBe(true));
+    });
+  }
+
+  for (const vp of [
+    { name: "landscape 844x390", width: 844, height: 390 },
+    { name: "landscape 915x412", width: 915, height: 412 },
+    { name: "tablet 768", width: 768, height: 1024 },
+    { name: "desktop 1280", width: 1280, height: 800 }
+  ]) {
+    test(`${vp.name} long ticker is filled immediately`, async ({ page }) => {
+      await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await H.openFresh(page, "/");
+      await expect.poll(async () => (await announceMetrics(page)).ticker).toBe(true);
+      const v = await announceVisibility(page);
+      expect(v.visibleCopy).toBe(true);
+      expect(v.opacity).toBeGreaterThan(0);
+      const m = await announceMetrics(page);
+      expect(m.cloneCount).toBe(1);
+      expect(m.pageOverflow).toBeLessThanOrEqual(1);
+      const samples = await sampleTickerHits(page);
+      samples.forEach((s) => expect(s.hit, `${vp.name} empty at t=${s.p}`).toBe(true));
+    });
+  }
+
+  test("portrait→landscape→portrait keeps one clone and a filled viewport", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    const cycle = [
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 390, height: 844 }
+    ];
+    await page.setViewportSize(cycle[0]);
+    await H.openFresh(page, "/");
+    for (const size of cycle) {
+      await page.setViewportSize(size);
+      await expect.poll(async () => {
+        const m = await announceMetrics(page);
+        const vis = await announceVisibility(page);
+        return m.ticker === true && m.cloneCount === 1 && vis.visibleCopy === true;
+      }).toBe(true);
+      const m = await announceMetrics(page);
+      expect(m.cloneCount).toBe(1);
+      expect(m.pageOverflow).toBeLessThanOrEqual(1);
+      const samples = await sampleTickerHits(page);
+      samples.forEach((s) => expect(s.hit, `empty after ${size.width}x${size.height} at t=${s.p}`).toBe(true));
+    }
+  });
+
+  test("412 portrait→landscape→portrait keeps a filled viewport", async ({ page }) => {
+    await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
+    const cycle = [
+      { width: 412, height: 915 },
+      { width: 915, height: 412 },
+      { width: 412, height: 915 }
+    ];
+    await page.setViewportSize(cycle[0]);
+    await H.openFresh(page, "/");
+    for (const size of cycle) {
+      await page.setViewportSize(size);
+      await expect.poll(async () => {
+        const m = await announceMetrics(page);
+        const vis = await announceVisibility(page);
+        return m.ticker === true && m.cloneCount === 1 && vis.visibleCopy === true;
+      }).toBe(true);
+      const samples = await sampleTickerHits(page);
+      samples.forEach((s) => expect(s.hit, `empty after ${size.width}x${size.height} at t=${s.p}`).toBe(true));
+    }
   });
 });

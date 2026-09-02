@@ -199,29 +199,29 @@
       "display:flex;align-items:center;justify-content:center;direction:ltr;}" +
       "#" + BAR_ID + ".is-ticker #" + VIEW_ID + "{justify-content:flex-start;}" +
       "#" + TRACK_ID + "{" +
-      "display:inline-flex;flex-direction:row;align-items:center;gap:0;" +
+      "display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:0;" +
       "width:max-content;max-width:none;white-space:nowrap;direction:ltr;" +
-      "transform:none;will-change:auto;}" +
-      "#" + TRACK_ID + ".is-prepared #" + TEXT_ID + "," +
-      "#" + TRACK_ID + ".is-prepared [data-announce-clone]{padding-inline-end:3em;}" +
+      "transform:none;will-change:auto;margin:0;padding:0;}" +
       "#" + BAR_ID + ".is-ticker #" + TRACK_ID + "{" +
       "animation-name:kutadgu-announce-ltr;" +
       "animation-timing-function:linear;" +
       "animation-iteration-count:infinite;" +
       "animation-delay:0s;" +
+      "animation-fill-mode:both;" +
       "will-change:transform;}" +
       "#" + BAR_ID + ".is-paused #" + TRACK_ID + "," +
       "#" + BAR_ID + ":hover #" + TRACK_ID + "," +
       "#" + BAR_ID + ":focus-within #" + TRACK_ID + "{" +
       "animation-play-state:paused;}" +
       "#" + TEXT_ID + ",#" + TRACK_ID + " [data-announce-clone]{" +
-      "display:inline-block;flex:0 0 auto;white-space:nowrap;" +
-      "overflow:visible;text-overflow:clip;max-width:none;" +
+      "display:block;flex:0 0 auto;flex-shrink:0;" +
+      "white-space:nowrap;overflow:visible;text-overflow:clip;" +
+      "max-width:none;margin:0;padding:0;box-sizing:border-box;" +
       "line-clamp:none;-webkit-line-clamp:unset;" +
       "direction:rtl;unicode-bidi:isolate;" +
       "color:inherit;" +
       "transition:opacity " + FADE_MS + "ms ease;}" +
-      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;overflow:visible;padding-inline-end:0;}" +
+      "#" + BAR_ID + ".is-wrap #" + TEXT_ID + "{white-space:normal;overflow:visible;width:auto;flex:1 1 auto;}" +
       "#" + BAR_ID + ".is-wrap #" + VIEW_ID + "{justify-content:center;}" +
       "@keyframes kutadgu-announce-ltr{" +
       "from{transform:translate3d(calc(-1 * var(--kutadgu-announce-travel, 0px)),0,0);}" +
@@ -303,6 +303,40 @@
       track.classList.remove("is-prepared");
       removeTickerClone(track);
     }
+    var text = document.getElementById(TEXT_ID);
+    if (text) clearCopyLock(text);
+  }
+
+  function clearCopyLock(el) {
+    if (!el || !el.style) return;
+    el.style.removeProperty("width");
+    el.style.removeProperty("flex");
+    el.style.removeProperty("flex-basis");
+    el.style.removeProperty("min-width");
+    el.style.removeProperty("max-width");
+  }
+
+  function lockCopyWidth(el, px) {
+    if (!el) return;
+    var w = Math.round(px) + "px";
+    el.style.boxSizing = "border-box";
+    el.style.margin = "0";
+    el.style.padding = "0";
+    el.style.whiteSpace = "nowrap";
+    el.style.flex = "0 0 " + w;
+    el.style.width = w;
+    el.style.minWidth = w;
+    el.style.maxWidth = w;
+  }
+
+  function measureContentWidth(text) {
+    if (!text) return 0;
+    text.style.whiteSpace = "nowrap";
+    clearCopyLock(text);
+    var sw = Number(text.scrollWidth) || 0;
+    var ow = Number(text.offsetWidth) || 0;
+    var rw = text.getBoundingClientRect ? text.getBoundingClientRect().width : 0;
+    return Math.ceil(Math.max(sw, ow, rw, 0));
   }
 
   function measureAndApplyTicker() {
@@ -321,23 +355,29 @@
       return;
     }
     var viewportW = Math.round(viewport.clientWidth);
-    var prefix = message + "|" + viewportW + "|";
-    if (layoutKey.indexOf(prefix) === 0) {
-      if (bar.classList.contains("is-wrap")) text.style.whiteSpace = "normal";
+    var reduced = prefersReducedMotion();
+    var existing = track.querySelector("[data-announce-clone]");
+    text.style.whiteSpace = "nowrap";
+    var parts = layoutKey.split("|");
+    var viewportChanged = !layoutKey || parts[1] !== String(viewportW);
+    if (!layoutKey || viewportChanged || !text.style.width) {
+      clearCopyLock(text);
+      if (existing) clearCopyLock(existing);
+    }
+    var contentW = Math.ceil(Math.max(Number(text.scrollWidth) || 0, Number(text.offsetWidth) || 0, 0));
+    var overflowing = isTickerOverflow(contentW, viewportW);
+    var mode = !overflowing ? "static" : (reduced ? "wrap" : "ticker");
+    var prefix = message + "|" + viewportW + "|" + contentW + "|" + mode;
+    if (layoutKey === prefix) {
+      if (mode === "wrap") text.style.whiteSpace = "normal";
       return;
     }
-    var reduced = prefersReducedMotion();
-    text.style.whiteSpace = "nowrap";
-    var textW = text.scrollWidth;
-    if (!(viewportW > 0) || !(textW > 0)) {
+    layoutKey = prefix;
+    if (!(viewportW > 0) || !(contentW > 0)) {
       layoutKey = "";
       teardownTicker(bar);
       return;
     }
-    var overflowing = isTickerOverflow(textW, viewportW);
-    var existing = track.querySelector("[data-announce-clone]");
-    var mode = !overflowing ? "static" : (reduced ? "wrap" : "ticker");
-    layoutKey = prefix + mode;
     if (mode === "static") {
       bar.classList.remove("is-ticker", "is-wrap");
       bar.removeAttribute("tabindex");
@@ -345,6 +385,7 @@
       track.style.removeProperty("--kutadgu-announce-travel");
       if (existing) existing.parentNode.removeChild(existing);
       track.style.animationDuration = "";
+      clearCopyLock(text);
       text.style.whiteSpace = "nowrap";
       return;
     }
@@ -353,13 +394,14 @@
       bar.classList.remove("is-ticker");
       track.classList.remove("is-prepared");
       track.style.removeProperty("--kutadgu-announce-travel");
+      clearCopyLock(text);
       bar.classList.add("is-wrap");
       text.style.whiteSpace = "normal";
       bar.removeAttribute("tabindex");
       track.style.animationDuration = "";
       return;
     }
-    bar.classList.remove("is-wrap");
+    bar.classList.remove("is-wrap", "is-ticker");
     if (!existing) {
       existing = text.cloneNode(true);
       existing.removeAttribute("id");
@@ -371,15 +413,19 @@
     if (existing.parentNode !== track || existing.nextSibling !== text) {
       track.insertBefore(existing, text);
     }
+    lockCopyWidth(text, contentW);
+    lockCopyWidth(existing, contentW);
     track.classList.add("is-prepared");
-    var copyW = Math.round(text.getBoundingClientRect().width);
-    if (!(copyW > 0)) {
+    var travel = Math.round(text.offsetLeft);
+    if (!(travel > 0)) travel = Math.round(existing.offsetWidth) || contentW;
+    if (Math.abs(travel - contentW) > 2) travel = contentW;
+    if (!(travel > 0)) {
       layoutKey = "";
       teardownTicker(bar);
       return;
     }
-    track.style.setProperty("--kutadgu-announce-travel", copyW + "px");
-    track.style.animationDuration = computeTickerDurationMs(copyW) + "ms";
+    track.style.setProperty("--kutadgu-announce-travel", travel + "px");
+    track.style.animationDuration = computeTickerDurationMs(travel) + "ms";
     bar.classList.add("is-ticker");
     bar.setAttribute("tabindex", "0");
   }
@@ -495,6 +541,10 @@
     headerObserver.observe(header);
     var viewport = document.getElementById(VIEW_ID);
     if (viewport) headerObserver.observe(viewport);
+    var track = document.getElementById(TRACK_ID);
+    if (track) headerObserver.observe(track);
+    var text = document.getElementById(TEXT_ID);
+    if (text) headerObserver.observe(text);
   }
 
   function renderBar(header) {
@@ -568,7 +618,14 @@
       run();
     }
     if (root.addEventListener) {
-      root.addEventListener("resize", function () { scheduleTicker(); });
+      root.addEventListener("resize", function () { layoutKey = ""; scheduleTicker(); });
+      root.addEventListener("orientationchange", function () { layoutKey = ""; scheduleTicker(); });
+    }
+    if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        layoutKey = "";
+        scheduleTicker();
+      }).catch(function () {});
     }
   }
 
