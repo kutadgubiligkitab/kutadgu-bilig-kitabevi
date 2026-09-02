@@ -17,11 +17,13 @@ alter table public.books
 
 alter table public.books alter column cover_type drop not null;
 alter table public.books alter column cover_type drop default;
+alter table public.books alter column book_size drop not null;
+alter table public.books alter column book_size drop default;
 
 comment on column public.books.cover_type is
   'Optional cover binding: hardcover | paperback | other. NULL/empty = unset.';
 comment on column public.books.book_size is
-  'Optional paper size: A4 | A5 | B5 | other. NULL = unset. Not width/height.';
+  'Optional paper size: A4 | A5 | B5 | other. NULL/empty = unset. Not width/height.';
 
 alter table public.books drop constraint if exists books_cover_type_chk;
 alter table public.books
