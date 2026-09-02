@@ -3,6 +3,115 @@ const { test, expect } = require("@playwright/test");
 const VERIFIED = [{ id: "factor-v", factor_type: "totp", status: "verified" }];
 const IDLE_KEY = "kutadgu-admin-idle-v1";
 
+async function installLiveAal2Admin(page) {
+  const factors = VERIFIED;
+  await page.addInitScript(({ factors }) => {
+    const session = { user: { id: "admin-1", email: "admin@example.com" }, access_token: "test-access" };
+    window.__kutadguMockSession = session;
+    window.__kutadguAuthCbs = [];
+    window.__kutadguSignOutCalls = 0;
+    window.__kutadguAdminAalTest = { currentLevel: "aal2", factors };
+    window.__kutadguMfaFactors = factors.map((f) => ({ ...f }));
+    window.__kutadguMfaUnenrollLog = [];
+    window.__kutadguMfaApi = {
+      async listFactors() {
+        const all = (window.__kutadguMfaFactors || []).map((f) => ({ ...f }));
+        return {
+          data: {
+            all,
+            totp: all.filter((f) => f.factor_type === "totp" && f.status === "verified"),
+            phone: []
+          },
+          error: null
+        };
+      },
+      async getAuthenticatorAssuranceLevel() {
+        const level = window.__kutadguAdminAalTest && window.__kutadguAdminAalTest.currentLevel;
+        return { data: { currentLevel: level, nextLevel: "aal2" }, error: null };
+      },
+      async challengeAndVerify({ code }) {
+        if (String(code) !== "123456") {
+          return { data: null, error: { message: "Invalid code" } };
+        }
+        return { data: {}, error: null };
+      },
+      async enroll() {
+        return { data: null, error: { message: "not used" } };
+      },
+      async unenroll({ factorId }) {
+        window.__kutadguMfaUnenrollLog.push(factorId);
+        return { data: { id: factorId }, error: null };
+      }
+    };
+    function chain(result) {
+      const q = {};
+      ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((m) => {
+        q[m] = () => q;
+      });
+      q.update = async () => result;
+      q.insert = async () => result;
+      q.delete = async () => result;
+      q.maybeSingle = async () => result;
+      q.single = async () => result;
+      q.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+      return q;
+    }
+    function wrapClient() {
+      return {
+        auth: {
+          getSession: async () => ({ data: { session: window.__kutadguMockSession }, error: null }),
+          onAuthStateChange: (cb) => {
+            window.__kutadguAuthCbs.push(cb);
+            setTimeout(() => cb("INITIAL_SESSION", window.__kutadguMockSession), 0);
+            return { data: { subscription: { unsubscribe() {} } } };
+          },
+          signOut: async () => {
+            window.__kutadguSignOutCalls += 1;
+            window.__kutadguMockSession = null;
+            return { error: null };
+          },
+          signInWithPassword: async () => ({ error: null }),
+          mfa: window.__kutadguMfaApi
+        },
+        from(table) {
+          if (table === "admin_users") {
+            return chain({ data: { user_id: "admin-1" }, error: null, count: 1 });
+          }
+          return chain({ data: [], error: null, count: 0 });
+        },
+        storage: {
+          from() {
+            return {
+              upload: async () => ({ error: null }),
+              getPublicUrl() { return { data: { publicUrl: "" } }; }
+            };
+          }
+        }
+      };
+    }
+    let supabaseValue;
+    Object.defineProperty(window, "supabase", {
+      configurable: true,
+      enumerable: true,
+      get() { return supabaseValue; },
+      set(v) {
+        if (v && typeof v.createClient === "function") {
+          v.createClient = function () { return wrapClient(); };
+        }
+        supabaseValue = v;
+      }
+    });
+  }, { factors });
+}
+
+async function preloadExactIdleLock(page) {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: 1, locked: true }));
+    } catch (e) {}
+  });
+}
+
 async function installIdleAdmin(page, opts = {}) {
   const currentLevel = opts.currentLevel || "aal2";
   const factors = opts.factors || VERIFIED;
@@ -103,18 +212,32 @@ test.describe("stage 2C Admin idle lock", () => {
     await expect(page.locator("#idleLockPanel")).toBeHidden();
   });
 
-  test("pointerdown resets timer so tick does not lock", async ({ page }) => {
+  test("trusted pointerdown resets timer so tick does not lock", async ({ page }) => {
     await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#dashboardPanel")).toBeVisible();
     await page.evaluate(() => { window.__kutadguIdleClock += 20; });
-    await page.locator("#dashboardPanel").dispatchEvent("pointerdown");
+    await page.locator("#dashboardPanel").click({ position: { x: 24, y: 24 } });
     await page.evaluate(() => {
       window.__kutadguIdleClock += 20;
       window.__kutadguAdminTest.tickAdminIdle();
     });
     await expect(page.locator("#dashboardPanel")).toBeVisible();
     await expect(page.locator("#idleLockPanel")).toBeHidden();
+  });
+
+  test("untrusted synthetic pointerdown does not reset the idle timer", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await page.locator("#dashboardPanel").dispatchEvent("pointerdown");
+    await page.locator("#dashboardPanel").dispatchEvent("keydown");
+    await page.locator("#dashboardPanel").dispatchEvent("touchstart");
+    await page.evaluate(() => {
+      window.__kutadguIdleClock += 50;
+      window.__kutadguAdminTest.tickAdminIdle();
+    });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
   });
 
   test("inactivity then tickAdminIdle locks without signOut", async ({ page }) => {
@@ -155,19 +278,13 @@ test.describe("stage 2C Admin idle lock", () => {
     await expect(page.locator("#idleLockPanel")).toBeVisible();
   });
 
-  test("keydown and touchstart reset the idle timer", async ({ page }) => {
+  test("trusted keydown resets the idle timer", async ({ page }) => {
     await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#dashboardPanel")).toBeVisible();
     await page.evaluate(() => { window.__kutadguIdleClock += 20; });
-    await page.locator("#dashboardPanel").dispatchEvent("keydown");
-    await page.evaluate(() => {
-      window.__kutadguIdleClock += 20;
-      window.__kutadguAdminTest.tickAdminIdle();
-    });
-    await expect(page.locator("#dashboardPanel")).toBeVisible();
-    await page.evaluate(() => { window.__kutadguIdleClock += 20; });
-    await page.locator("#dashboardPanel").dispatchEvent("touchstart");
+    await page.locator("#adminSearch").click();
+    await page.keyboard.press("a");
     await page.evaluate(() => {
       window.__kutadguIdleClock += 20;
       window.__kutadguAdminTest.tickAdminIdle();
@@ -289,7 +406,7 @@ test.describe("idle lock shared Admin tabs", () => {
     await page2.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page2.locator("#dashboardPanel")).toBeVisible();
     await page1.evaluate(() => { window.__kutadguIdleClock += 20; });
-    await page1.locator("#dashboardPanel").dispatchEvent("pointerdown");
+    await page1.locator("#dashboardPanel").click({ position: { x: 24, y: 24 } });
     await page2.evaluate(() => {
       window.__kutadguIdleClock += 50;
       window.__kutadguAdminTest.tickAdminIdle();
@@ -298,5 +415,57 @@ test.describe("idle lock shared Admin tabs", () => {
     await expect(page2.locator("#idleLockPanel")).toBeHidden();
     await page1.close();
     await page2.close();
+  });
+});
+
+test.describe("exact Preview persisted lock reproduction", () => {
+  test("localStorage locked true on live aal2 boot keeps dashboard hidden", async ({ page }) => {
+    await preloadExactIdleLock(page);
+    await installLiveAal2Admin(page);
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#mfaGatePanel")).toBeHidden();
+    const snap = await page.evaluate(() => localStorage.getItem("kutadgu-admin-idle-v1"));
+    expect(snap).toBe("{\"lastActivity\":1,\"locked\":true}");
+    const signOuts = await page.evaluate(() => window.__kutadguSignOutCalls || 0);
+    expect(signOuts).toBe(0);
+    await page.evaluate(async () => {
+      (window.__kutadguAuthCbs || []).forEach((cb) => cb("TOKEN_REFRESHED", window.__kutadguMockSession));
+      await window.__kutadguAdminTest.routeSession();
+      await window.__kutadguAdminTest.openAuthorizedDashboard();
+    });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    const snap2 = await page.evaluate(() => localStorage.getItem("kutadgu-admin-idle-v1"));
+    expect(snap2).toBe("{\"lastActivity\":1,\"locked\":true}");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    const snap3 = await page.evaluate(() => localStorage.getItem("kutadgu-admin-idle-v1"));
+    expect(snap3).toBe("{\"lastActivity\":1,\"locked\":true}");
+  });
+
+  test("activity cannot unlock persisted lock; TOTP unlock can", async ({ page }) => {
+    await preloadExactIdleLock(page);
+    await installLiveAal2Admin(page);
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await page.mouse.click(40, 40);
+    await page.keyboard.press("a");
+    const stillLocked = await page.evaluate(() => localStorage.getItem("kutadgu-admin-idle-v1"));
+    expect(stillLocked).toBe("{\"lastActivity\":1,\"locked\":true}");
+    await page.locator("#idleLockOtp").fill("000000");
+    await page.locator("#idleLockSubmit").click();
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")).locked)).toBe(true);
+    expect(await page.evaluate(() => window.__kutadguSignOutCalls || 0)).toBe(0);
+    await page.locator("#idleLockOtp").fill("123456");
+    await page.locator("#idleLockSubmit").click();
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await expect(page.locator("#idleLockPanel")).toBeHidden();
+    const unlocked = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
+    expect(unlocked.locked).toBe(false);
+    expect(unlocked.lastActivity).toBeGreaterThan(1);
   });
 });

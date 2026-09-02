@@ -133,8 +133,8 @@ test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
   const live = route[0].slice(route[0].indexOf("getSession"));
   assert.ok(live.indexOf("checkAdmin") >= 0);
   assert.ok(live.indexOf("inspectAccess") > live.indexOf("checkAdmin"));
-  assert.ok(live.indexOf("shouldLock") > live.indexOf("checkAdmin"));
-  assert.ok(live.indexOf("inspectAccess") > live.indexOf("shouldLock"));
+  assert.ok(live.indexOf("adminShouldHoldIdleLock") > live.indexOf("checkAdmin"));
+  assert.ok(live.indexOf("inspectAccess") > live.indexOf("adminShouldHoldIdleLock"));
   assert.match(route[0], /decision\.gate/);
   assert.doesNotMatch(adminJs, /from\("books"\).*aal2/s);
   assert.match(adminJs, /async function loadMfaCard/);

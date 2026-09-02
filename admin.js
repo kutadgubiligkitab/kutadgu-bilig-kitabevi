@@ -179,6 +179,9 @@ function parseAdminSectionHash(hash){
   return ADMIN_SECTIONS.includes(raw)?raw:DEFAULT_ADMIN_SECTION;
 }
 function dashboardAuthorized(){
+  if(persistedIdleLocked())return false;
+  const lock=$("#idleLockPanel");
+  if(lock&&!lock.hidden)return false;
   const panel=$("#dashboardPanel");
   return !!(panel&&!panel.hidden);
 }
@@ -795,12 +798,45 @@ function bindAnnouncementAdmin(){
   $("#announceResetBtn")&&($("#announceResetBtn").onclick=resetAnnounceForm);
 }
 
+function idleApi(){
+  return window.KutadguAdminIdle||Idle;
+}
+function idleStorageKey(){
+  const api=idleApi();
+  return (api&&api.STORAGE_KEY)||"kutadgu-admin-idle-v1";
+}
+function persistedIdleLocked(){
+  try{
+    const api=idleApi();
+    if(api&&typeof api.readState==="function"){
+      const snap=api.readState();
+      if(snap&&snap.locked)return true;
+    }
+    const raw=localStorage.getItem(idleStorageKey());
+    if(!raw)return false;
+    const parsed=JSON.parse(raw);
+    return !!(parsed&&parsed.locked);
+  }catch(err){
+    return false;
+  }
+}
+function adminShouldHoldIdleLock(){
+  if(persistedIdleLocked())return true;
+  const api=idleApi();
+  if(api&&typeof api.shouldLock==="function"){
+    const snap=typeof api.readState==="function"?api.readState():null;
+    const at=typeof api.now==="function"?api.now():Date.now();
+    return api.shouldLock(snap,at,isIdleBusy());
+  }
+  return false;
+}
 function isIdleBusy(){
   return !!(saveInFlight||importRunning||quickSaveInFlight||bulkInFlight);
 }
 function bindIdleLock(){
-  if(idleLockCtl||typeof Idle.attachLock!=="function")return;
-  idleLockCtl=Idle.attachLock({
+  const api=idleApi();
+  if(idleLockCtl||typeof api.attachLock!=="function")return;
+  idleLockCtl=api.attachLock({
     $:$,
     Mfa:Mfa,
     getDb:()=>db,
@@ -815,43 +851,52 @@ function showIdleLock(){
   const otp=$("#idleLockOtp");
   if(otp)otp.focus();
 }
+function enforceAdminIdleLock(){
+  const api=idleApi();
+  if(api&&typeof api.markLocked==="function")api.markLocked();
+  showIdleLock();
+}
 function adminIdleSurfaceActive(){
   const dash=$("#dashboardPanel");
   const lock=$("#idleLockPanel");
   return !!(dash&&!dash.hidden)||!!(lock&&!lock.hidden);
 }
 function tickAdminIdle(){
-  if(typeof Idle.shouldLock!=="function")return;
-  if(isIdleBusy())Idle.noteActivity({force:true});
-  if(!adminIdleSurfaceActive())return;
-  if(Idle.shouldLock(Idle.readState(),Idle.now(),isIdleBusy())){
-    Idle.markLocked();
-    if($("#idleLockPanel")&&$("#idleLockPanel").hidden)showIdleLock();
+  const api=idleApi();
+  if(typeof api.shouldLock!=="function"&&!persistedIdleLocked())return;
+  if(isIdleBusy()&&!persistedIdleLocked()&&typeof api.noteActivity==="function")api.noteActivity({force:true});
+  if(!adminIdleSurfaceActive()&&!persistedIdleLocked())return;
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
   }
 }
 function onAdminActivity(e){
-  if(!Idle.activityFromEvent||!Idle.activityFromEvent(e))return;
-  if(Idle.lockPanelContains&&Idle.lockPanelContains(e.target))return;
+  const api=idleApi();
+  if(!api.activityFromEvent||!api.activityFromEvent(e))return;
+  if(persistedIdleLocked())return;
+  if(api.lockPanelContains&&api.lockPanelContains(e.target))return;
   const lock=$("#idleLockPanel");
   if(lock&&!lock.hidden)return;
   const login=$("#loginPanel");
   if(login&&!login.hidden)return;
   const setup=$("#setupPanel");
   if(setup&&!setup.hidden)return;
-  Idle.noteActivity();
+  if(typeof api.noteActivity==="function")api.noteActivity();
 }
 function onAdminIdleStorage(e){
-  if(!e||e.key!==Idle.STORAGE_KEY)return;
-  if(Idle.isAuthStorageKey&&Idle.isAuthStorageKey(e.key))return;
+  const api=idleApi();
+  if(!e||e.key!==idleStorageKey())return;
+  if(api.isAuthStorageKey&&api.isAuthStorageKey(e.key))return;
   tickAdminIdle();
   const lock=$("#idleLockPanel");
-  if(lock&&!lock.hidden&&!Idle.shouldLock(Idle.readState(),Idle.now(),isIdleBusy())){
+  if(lock&&!lock.hidden&&!adminShouldHoldIdleLock()){
     routeSession();
   }
 }
 function startAdminIdleWatch(){
-  if(typeof Idle.ACTIVITY_EVENTS==="undefined")return;
-  Idle.ACTIVITY_EVENTS.forEach(type=>{
+  const api=idleApi();
+  const events=api.ACTIVITY_EVENTS||["pointerdown","keydown","touchstart"];
+  events.forEach(type=>{
     document.addEventListener(type,onAdminActivity,{passive:true});
   });
   window.addEventListener("storage",onAdminIdleStorage);
@@ -862,16 +907,20 @@ async function routeSession(){
   const gen=++routeGen;
   bindMfaGate();
   bindIdleLock();
+  if(persistedIdleLocked())enforceAdminIdleLock();
   if(window.__kutadguSkipAdminAuth){
     if(!window.__kutadguAdminAalTest)return;
     user=user||{id:"preview-admin"};
-    if(typeof Idle.shouldLock==="function"&&Idle.shouldLock(Idle.readState(),Idle.now(),isIdleBusy())){
-      Idle.markLocked();
-      showIdleLock();
+    if(adminShouldHoldIdleLock()){
+      enforceAdminIdleLock();
       return;
     }
     const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
     if(gen!==routeGen)return;
+    if(adminShouldHoldIdleLock()){
+      enforceAdminIdleLock();
+      return;
+    }
     if(inspect.decision&&inspect.decision.gate){
       $("#adminLogout").hidden=true;
       show("mfaGatePanel");
@@ -879,10 +928,15 @@ async function routeSession(){
       if(otp)otp.focus();
       return;
     }
+    if(adminShouldHoldIdleLock()){
+      enforceAdminIdleLock();
+      return;
+    }
     await openAuthorizedDashboard();
     return;
   }
   const {data}=await db.auth.getSession();
+  if(gen!==routeGen)return;
   const session=data.session;
   if(!session){show("loginPanel");$("#adminLogout").hidden=true;return}
   const ok=await checkAdmin(session.user);
@@ -894,13 +948,16 @@ async function routeSession(){
   }
   if(gen!==routeGen)return;
   user=session.user;
-  if(typeof Idle.shouldLock==="function"&&Idle.shouldLock(Idle.readState(),Idle.now(),isIdleBusy())){
-    Idle.markLocked();
-    showIdleLock();
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
     return;
   }
   const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
   if(gen!==routeGen)return;
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
+    return;
+  }
   if(inspect.decision&&inspect.decision.gate){
     $("#adminLogout").hidden=true;
     show("mfaGatePanel");
@@ -909,17 +966,19 @@ async function routeSession(){
     return;
   }
   await detectOptionalGalleryColumn();
+  if(gen!==routeGen)return;
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
+    return;
+  }
   await openAuthorizedDashboard();
 }
 
 async function openAuthorizedDashboard(){
-  if(typeof Idle.shouldLock==="function"&&Idle.shouldLock(Idle.readState(),Idle.now(),isIdleBusy())){
-    Idle.markLocked();
-    showIdleLock();
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
     return;
   }
-  const idleSnap=Idle.readState?Idle.readState():null;
-  if(Idle.noteActivity&&idleSnap&&!idleSnap.locked&&!idleSnap.lastActivity)Idle.noteActivity({force:true});
   $("#adminLogout").hidden=false;
   show("dashboardPanel");
   applyDashboardSectionFromLocation({replace:true});
@@ -2039,11 +2098,13 @@ async function login(e){
   status($("#loginStatus"),"كىرىۋاتىدۇ...");
   const {error}=await db.auth.signInWithPassword({email,password});
   if(error){status($("#loginStatus"),"كىرىش مەغلۇپ بولدى: "+error.message,"error");return}
-  if(Idle.noteActivity)Idle.noteActivity({force:true,forceUnlock:true});
+  const api=idleApi();
+  if(api.noteActivity&&!persistedIdleLocked())api.noteActivity({force:true});
   await routeSession();
 }
 async function logout(){
-  if(Idle.clearState)Idle.clearState();
+  const api=idleApi();
+  if(api.clearState)api.clearState();
   if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut();
   user=null;
   show("loginPanel");
@@ -2670,6 +2731,10 @@ function init(){
       bindIdleLock();
       startAdminIdleWatch();
       routeSession();
+      return;
+    }
+    if(adminShouldHoldIdleLock()){
+      enforceAdminIdleLock();
       return;
     }
     show("dashboardPanel");

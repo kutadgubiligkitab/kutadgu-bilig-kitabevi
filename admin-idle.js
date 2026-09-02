@@ -84,10 +84,15 @@
     return AUTH_KEY_RE.test(String(key || ""));
   }
 
+  function isPersistedLock(state) {
+    const snap = state || readState();
+    return !!snap.locked;
+  }
+
   function shouldLock(state, at, busy) {
     const snap = state || readState();
-    if (busy) return false;
     if (snap.locked) return true;
+    if (busy) return false;
     const last = Number(snap.lastActivity) || 0;
     if (!last) return false;
     return at - last >= idleMs();
@@ -120,7 +125,9 @@
 
   function activityFromEvent(event) {
     const type = String((event && event.type) || "");
-    return ACTIVITY_EVENTS.indexOf(type) !== -1;
+    if (ACTIVITY_EVENTS.indexOf(type) === -1) return false;
+    if (event && event.isTrusted === false) return false;
+    return true;
   }
 
   function lockPanelContains(target) {
@@ -242,6 +249,7 @@
     writeState: writeState,
     clearState: clearState,
     isAuthStorageKey: isAuthStorageKey,
+    isPersistedLock: isPersistedLock,
     shouldLock: shouldLock,
     noteActivity: noteActivity,
     markLocked: markLocked,
