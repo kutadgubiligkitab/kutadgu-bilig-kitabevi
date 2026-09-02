@@ -194,6 +194,7 @@ test("Admin cache pins include bibliography v=2 and admin.js v=43", () => {
   assert.match(adminHtml, /id="adminSearch"[^>]*dir="rtl"/);
   assert.match(adminHtml, /placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
   assert.match(adminJs, /search\.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
+  assert.match(adminJs, /search\.dir="rtl"/);
   assert.match(adminJs, /if\(field\.id==="adminSearch"\)/);
 });
 
