@@ -32,7 +32,7 @@
 <link rel="preload" href="UKIJCJK.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="index.css?v=16">
 <link rel="stylesheet" href="theme.css?v=10">
-<link rel="stylesheet" href="shop.css?v=43">
+<link rel="stylesheet" href="shop.css?v=44">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 <link rel="stylesheet" href="mobile.css?v=22">
 <script>
@@ -52,7 +52,7 @@
 <script defer src="supabase-config.js?v=14"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=85"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=86"></script>
 <script defer src="mobile.js?v=5"></script>
 </head>
 
@@ -233,13 +233,44 @@
             </div>
         </div>
         <div class="home-carousel-viewport" id="homeCarouselViewport">
-            <div class="home-carousel-track" id="homeCarouselTrack"></div>
+            <div class="home-carousel-track" id="homeCarouselTrack" aria-busy="true">
+                <article class="home-carousel-card is-skeleton" aria-hidden="true"><div class="home-carousel-cover"><span class="home-skel-cover"></span></div><div class="home-carousel-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-carousel-card is-skeleton" aria-hidden="true"><div class="home-carousel-cover"><span class="home-skel-cover"></span></div><div class="home-carousel-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-carousel-card is-skeleton" aria-hidden="true"><div class="home-carousel-cover"><span class="home-skel-cover"></span></div><div class="home-carousel-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-carousel-card is-skeleton" aria-hidden="true"><div class="home-carousel-cover"><span class="home-skel-cover"></span></div><div class="home-carousel-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+            </div>
         </div>
         <div class="home-carousel-dots" id="homeCarouselDots" aria-label="Carousel pages"></div>
     </div>
 </section>
 
-<div id="homeFeaturedBooks"></div>
+<div id="homeFeaturedBooks">
+    <section class="home-featured-section" data-home-featured-shell="1">
+        <div class="home-featured-head">
+            <div>
+                <h3>🕘 يېقىندا قوشۇلغانلار</h3>
+                <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
+            </div>
+            <a class="home-featured-all" href="#books">ھەممىسىنى كۆرۈش ←</a>
+        </div>
+        <div class="home-featured-grid is-skeleton-grid" aria-busy="true">
+            <div class="home-featured-row"><div class="home-featured-track">
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+            </div></div>
+            <div class="home-featured-row"><div class="home-featured-track">
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+                <article class="home-feature-card is-skeleton" aria-hidden="true"><div class="home-feature-cover"><span class="home-skel-cover"></span></div><div class="home-feature-info"><div class="home-skel-line home-skel-line-title"></div><div class="home-skel-line home-skel-line-meta"></div></div></article>
+            </div></div>
+        </div>
+    </section>
+</div>
 
 
 <!-- =========================

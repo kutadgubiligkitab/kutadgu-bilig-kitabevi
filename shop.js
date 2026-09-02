@@ -159,6 +159,38 @@ function coverSrc(book){
   const safe=safeCoverUrl(raw,{fallback:FALLBACK_COVER});
   return storefrontAssetPath(safe||FALLBACK_COVER);
 }
+function isSampleDemoCover(src){
+  return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src||"").trim());
+}
+function homepageVisibleBooks(result){
+  const items=(result&&result.items||[]).filter(isStorefrontVisible);
+  if(remoteCatalog.configured&&result&&result.source==="static"){
+    return items.filter(book=>!isSampleDemoCover(book.image));
+  }
+  return items;
+}
+function homeCarouselSkeletonMarkup(count=4){
+  const n=Math.max(1,Number(count)||4);
+  return Array.from({length:n},()=>`<article class="home-carousel-card is-skeleton" aria-hidden="true">
+      <div class="home-carousel-cover"><span class="home-skel-cover"></span></div>
+      <div class="home-carousel-info">
+        <div class="home-skel-line home-skel-line-title"></div>
+        <div class="home-skel-line home-skel-line-meta"></div>
+      </div>
+    </article>`).join("");
+}
+function homeFeatureCardSkeletonMarkup(){
+  return `<article class="home-feature-card is-skeleton" aria-hidden="true">
+      <div class="home-feature-cover"><span class="home-skel-cover"></span></div>
+      <div class="home-feature-info">
+        <div class="home-skel-line home-skel-line-title"></div>
+        <div class="home-skel-line home-skel-line-meta"></div>
+      </div>
+    </article>`;
+}
+function homeFeaturedSkeletonTrack(count){
+  return `<div class="home-featured-row"><div class="home-featured-track">${Array.from({length:count},homeFeatureCardSkeletonMarkup).join("")}</div></div>`;
+}
 function readShopOwner(){
   try{return String(localStorage.getItem(SHOP_OWNER_KEY)||"").trim()}catch(e){return ""}
 }
@@ -1448,12 +1480,14 @@ function homeFeatureCard(b){
     </article>`;
 }
 
+let homeFeaturedRequestId=0;
 async function renderHomeFeaturedBooks(){
   const host=document.querySelector("#homeFeaturedBooks");
   if(!host)return;
   if(!featureEnabled("newArrivals")){host.hidden=true;return}
 
-  host.innerHTML=`<section class="home-featured-section">
+  if(!host.querySelector("[data-home-featured-shell]")){
+    host.innerHTML=`<section class="home-featured-section" data-home-featured-shell="1">
     <div class="home-featured-head">
       <div>
         <h3>🕘 يېقىندا قوشۇلغانلار</h3>
@@ -1461,23 +1495,30 @@ async function renderHomeFeaturedBooks(){
       </div>
       <a class="home-featured-all" href="#books">ھەممىسىنى كۆرۈش ←</a>
     </div>
-    <div class="home-featured-grid"><div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>يېقىندا قوشۇلغان كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>
+    <div class="home-featured-grid is-skeleton-grid" aria-busy="true">${homeFeaturedSkeletonTrack(5)}${homeFeaturedSkeletonTrack(5)}</div>
   </section>`;
+  }
+  const token=++homeFeaturedRequestId;
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
     // Only the latest twenty rows are requested; remoteOrder("new") maps to created_at DESC.
     const result=await queryCatalog({offset:0,pageSize:20,sort:"new"});
-    const books=result.items.filter(isStorefrontVisible);
+    if(token!==homeFeaturedRequestId)return;
+    const books=homepageVisibleBooks(result);
     const grid=host.querySelector(".home-featured-grid");
     if(grid){
       if(!books.length){
-        grid.classList.remove("is-marquee");
+        grid.classList.remove("is-marquee","is-skeleton-grid");
+        grid.removeAttribute("aria-busy");
         grid.innerHTML='<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
       }else{
         const split=splitFeaturedRows(books);
         const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(homeFeatureCard).join("")}</div></div>`;
         grid.classList.add("is-marquee");
+        grid.classList.remove("is-skeleton-grid");
+        grid.removeAttribute("aria-busy");
         grid.innerHTML=`${rowMarkup(split.top,"top")}${split.bottom.length?rowMarkup(split.bottom,"bottom"):""}`;
+        grid.classList.add("home-catalog-fade");
       }
     }
     bindDynamicActions(host);
@@ -2625,7 +2666,7 @@ async function setupHomeCarousel(){
     if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
     const merged=append?[...existing.items]:[];
     const known=new Set(merged.map(book=>book.id));
-    result.items.filter(isStorefrontVisible).forEach(book=>{if(!known.has(book.id)){known.add(book.id);merged.push(book)}});
+    homepageVisibleBooks(result).forEach(book=>{if(!known.has(book.id)){known.add(book.id);merged.push(book)}});
     const value={items:merged,hasMore:result.hasMore&&merged.length<24,total:result.total};
     modeCache.set(currentMode,value);
     return value;
@@ -2688,6 +2729,7 @@ async function setupHomeCarousel(){
     index=canRotate?(new Date().getDate()%Math.min(3,maxIndex()+1)):0;
     host.style.transform="translateX(0)";
     host.classList.toggle("is-dual-row",isDual());host.classList.toggle("is-single-row",!isDual());
+    const fadeFromSkel=!!host.querySelector(".home-carousel-card.is-skeleton");
     if(isDual()){
       loopPad=0;
       const midpoint=Math.ceil(list.length/2),top=list.slice(0,midpoint),bottom=list.slice(midpoint);
@@ -2700,12 +2742,14 @@ async function setupHomeCarousel(){
       host.innerHTML=[...lead,...list,...tail].map((b,i)=>card(b,i)).join("");
     }
     bindDynamicActions(host);renderFavButtons();renderDots();move(false);
+    host.removeAttribute("aria-busy");
+    if(fadeFromSkel)host.classList.add("home-catalog-fade");
   }
   async function setMode(nextMode){
     mode=enabledModes.includes(nextMode)?nextMode:enabledModes[0];
     tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
     const requestedMode=mode;
-    host.innerHTML='<div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div>';
+    if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
     try{
       const loaded=modeCache.get(requestedMode)||await loadMode(requestedMode,false);
       if(mode!==requestedMode)return;
@@ -2867,7 +2911,6 @@ function initStaticShell(){
   syncStaticCards();
   decorateCards();
   searchEnhance();
-  renderHomeFeaturedBooks();
   renderHomeSections();
   renderMyBooks();
   renderFavoritesPage();
