@@ -367,7 +367,7 @@ body > header:not(.account-topbar):not(.admin-topbar){
     gap:9px;
     flex-wrap:wrap
 }
-.cart-summary-actions .add-to-cart,
+.cart-summary-actions .checkout-secondary,
 .cart-summary-actions .clear-cart{
     flex:1 1 140px
 }

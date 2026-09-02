@@ -2021,7 +2021,7 @@ function cartPage(){
        <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
        <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        <div class="cart-summary-actions">
-         ${blocked?"":`<button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
+         ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
