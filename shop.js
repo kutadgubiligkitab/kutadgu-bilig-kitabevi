@@ -2795,7 +2795,7 @@ async function setupHomeCarousel(){
 function loadMemberSystem(){
   if(document.querySelector('script[data-kutadgu-member-script]')||window.KutadguMember)return;
   const script=document.createElement("script");
-        script.src="/member.js?v=16";script.async=true;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=17";script.async=true;script.dataset.kutadguMemberScript="1";
   document.body.appendChild(script);
 }
 function refreshAfterMemberSync(){

@@ -633,8 +633,8 @@ test("storefront pages share shop.js v=83",()=>{
   assert.match(fav,/shop\.js\?v=83/);
   assert.match(home,/shop\.js\?v=83/);
   assert.doesNotMatch(html,/shop\.js\?v=64/);
-  assert.match(shop,/member\.js\?v=16/);
-  assert.match(account,/member\.js\?v=16/);
+  assert.match(shop,/member\.js\?v=17/);
+  assert.match(account,/member\.js\?v=17/);
   assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
   assert.match(member,/\.eq\("user_id",user\.id\)/);
   assert.match(member,/function previewShopDebug/);

@@ -610,7 +610,8 @@ async function signOut(){
 async function resetPassword(email,next="account"){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const redirectTo=(window.kutadguPasswordResetRedirectTo||function(n){
-    return "https://www.kutadgubilik.com/reset-password.html?next="+encodeURIComponent(n==="admin"?"admin":"account");
+    const origin=(typeof window.kutadguAuthCallbackOrigin==="function"?window.kutadguAuthCallbackOrigin():"https://www.kutadgubilik.com").replace(/\/+$/,"");
+    return origin+"/reset-password.html?type=recovery&next="+encodeURIComponent(n==="admin"?"admin":"account");
   })(next);
   const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
   if(error)throw error;

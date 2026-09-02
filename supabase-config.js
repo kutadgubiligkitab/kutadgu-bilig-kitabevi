@@ -27,14 +27,14 @@ window.kutadguGoogleAccountRedirectTo = function(){
 };
 
 window.kutadguPasswordResetRedirectTo = function(next){
-  const origin=String(window.KUTADGU_SITE_ORIGIN||"https://www.kutadgubilik.com").replace(/\/+$/,"");
-  const url=origin+"/reset-password.html";
-  if(next==="admin"||next==="account")return url+"?next="+encodeURIComponent(next);
-  return url+"?next=account";
+  const origin=String(window.kutadguAuthCallbackOrigin()).replace(/\/+$/,"");
+  const dest=next==="admin"?"admin":"account";
+  return origin+"/reset-password.html?type=recovery&next="+encodeURIComponent(dest);
 };
-/* Recovery email CTA (manual Supabase template, not ConfirmationURL):
-   {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery
-   RedirectTo is www reset-password.html?next=account|admin. TokenHash is cross-device. */
+/* Password recovery email must NOT use {{ .ConfirmationURL }} (PKCE).
+   RedirectTo is origin/reset-password.html?type=recovery&next=account|admin.
+   Template CTA:
+   {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=recovery */
 
 window.kutadguAuthHashParams = function(hash){
   return new URLSearchParams(String(hash||"").replace(/^#/,""));

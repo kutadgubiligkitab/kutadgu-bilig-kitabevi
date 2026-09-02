@@ -56,8 +56,8 @@ function loadConfig(location) {
 test("auth origin is www custom domain, not Vercel", () => {
   assert.match(cfg, /window\.KUTADGU_SITE_ORIGIN = "https:\/\/www\.kutadgubilik\.com"/);
   assert.doesNotMatch(cfg, /KUTADGU_SITE_ORIGIN = "https:\/\/kutadgu-bilig-kitab\.vercel\.app"/);
-  assert.match(member, /https:\/\/www\.kutadgubilik\.com\/reset-password\.html\?next=/);
-  assert.match(admin, /https:\/\/www\.kutadgubilik\.com\/reset-password\.html\?next=admin/);
+  assert.match(member, /reset-password\.html\?type=recovery&next=/);
+  assert.match(admin, /reset-password\.html\?type=recovery&next=admin/);
   assert.doesNotMatch(member, /kutadgu-bilig-kitab\.vercel\.app\/reset-password/);
   assert.doesNotMatch(admin, /kutadgu-bilig-kitab\.vercel\.app\/reset-password/);
 });
@@ -81,24 +81,26 @@ test("production custom domain is kutadgubilik.com, never kutadgubilig.com", () 
   assert.match(cfg, /kutadgu-bilig-kitab\.vercel\.app/);
 });
 
-test("password reset helper always uses www and next=account|admin", () => {
+test("password reset helper uses auth callback origin and dedicated reset page", () => {
   const w = loadConfig();
   assert.strictEqual(w.KUTADGU_SITE_ORIGIN, "https://www.kutadgubilik.com");
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo("account"),
-    "https://www.kutadgubilik.com/reset-password.html?next=account"
+    "https://www.kutadgubilik.com/reset-password.html?type=recovery&next=account"
   );
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo("admin"),
-    "https://www.kutadgubilik.com/reset-password.html?next=admin"
+    "https://www.kutadgubilik.com/reset-password.html?type=recovery&next=admin"
   );
   assert.strictEqual(
     w.kutadguPasswordResetRedirectTo(),
-    "https://www.kutadgubilik.com/reset-password.html?next=account"
+    "https://www.kutadgubilik.com/reset-password.html?type=recovery&next=account"
   );
+  assert.ok(!w.kutadguPasswordResetRedirectTo("account").includes("account.html"));
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("?type=recovery", ""), true);
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=abc", ""), false);
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=abc&type=signup", ""), false);
+  assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=abc&type=recovery", ""), true);
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("", "#access_token=x&type=recovery"), true);
   assert.strictEqual(w.kutadguIsPasswordRecoveryType("", "#access_token=x&token_type=bearer"), false);
   assert.strictEqual(w.kutadguIsGenericOauthHash("#access_token=x&token_type=bearer"), true);
@@ -143,7 +145,11 @@ test("Google OAuth redirectTo stays on the start origin except production hosts"
   assert.strictEqual(local.kutadguGoogleAccountRedirectTo(), "http://127.0.0.1:4173/account.html");
   assert.strictEqual(
     preview.kutadguPasswordResetRedirectTo("account"),
-    "https://www.kutadgubilik.com/reset-password.html?next=account"
+    "https://"+previewHost+"/reset-password.html?type=recovery&next=account"
+  );
+  assert.strictEqual(
+    local.kutadguPasswordResetRedirectTo("admin"),
+    "http://127.0.0.1:4173/reset-password.html?type=recovery&next=admin"
   );
 });
 
@@ -160,8 +166,8 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
-  assert.match(account, /member\.js\?v=16/);
-  assert.match(read("shop.js"), /member\.js\?v=16/);
+  assert.match(account, /member\.js\?v=17/);
+  assert.match(read("shop.js"), /member\.js\?v=17/);
   assert.match(index, /shop\.js\?v=83/);
 });
 
@@ -171,42 +177,54 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
   assert.match(resetJs, /detectSessionInUrl:false/);
   assert.match(resetJs, /verifyOtp\(\{token_hash:info\.tokenHash,type:"recovery"\}\)/);
   assert.doesNotMatch(resetJs, /exchangeCodeForSession/);
-  assert.match(resetJs, /if\(session && info\.tokenHash\)markRecoveryReady/);
+  assert.doesNotMatch(resetJs, /isPkceRecoveryCallback/);
+  assert.match(resetJs, /usesPkceCodeExchange:false/);
+  assert.match(resetJs, /stripRecoverySecretsFromUrl/);
+  assert.match(resetJs, /if\(session\)markRecoveryReady/);
+  assert.doesNotMatch(resetJs, /if\(session && info\.tokenHash\)markRecoveryReady/);
+  assert.match(resetJs, /setSession\(\{/);
   assert.match(resetJs, /isGenericOauthCallback/);
   assert.match(resetJs, /sendGenericOauthToAccount/);
   assert.doesNotMatch(resetJs, /console\.(log|info|debug|warn)\([^)]*access_token/);
   assert.doesNotMatch(resetJs, /console\.(log|info|debug|warn)\([^)]*token_hash/);
 });
 
-test("reset-password.html loads reset-password.js v=6", () => {
-  assert.match(read("reset-password.html"), /reset-password\.js\?v=6/);
-  assert.match(read("reset-password.html"), /supabase-config\.js\?v=12/);
-  assert.match(account, /supabase-config\.js\?v=12/);
-  assert.match(index, /supabase-config\.js\?v=12/);
-  assert.match(read("admin.html"), /supabase-config\.js\?v=12/);
-  assert.match(read("admin.html"), /admin\.js\?v=35/);
+test("reset-password.html loads reset-password.js v=9", () => {
+  assert.match(read("reset-password.html"), /reset-password\.js\?v=9/);
+  assert.match(read("reset-password.html"), /supabase-config\.js\?v=13/);
+  assert.match(account, /supabase-config\.js\?v=13/);
+  assert.match(index, /supabase-config\.js\?v=13/);
+  assert.match(read("admin.html"), /supabase-config\.js\?v=13/);
+  assert.match(read("admin.html"), /admin\.js\?v=36/);
 });
 
-test("recovery email CTA documents TokenHash not ConfirmationURL PKCE", () => {
+test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {
   assert.match(cfg, /\{\{ \.RedirectTo \}\}&token_hash=\{\{ \.TokenHash \}\}&type=recovery/);
   assert.match(cfg, /TokenHash/);
-  assert.match(cfg, /\{\{\s*\.RedirectTo\s*\}\}&token_hash=\{\{\s*\.TokenHash\s*\}\}/);
+  assert.match(cfg, /must NOT use \{\{ \.ConfirmationURL \}\}/);
+  assert.doesNotMatch(cfg, /Recovery email uses \{\{ \.ConfirmationURL \}\}/);
 });
 
 function isExplicitRecoveryType(type){
   return type==="recovery";
 }
+function recoveryHashTokens(info){
+  if(!info||info.hasProviderToken)return null;
+  if(!isExplicitRecoveryType(info.type))return null;
+  const access=String((info.hashParams&&info.hashParams.get("access_token"))||(info.params&&info.params.get("access_token"))||"").trim();
+  const refresh=String((info.hashParams&&info.hashParams.get("refresh_token"))||(info.params&&info.params.get("refresh_token"))||"").trim();
+  if(!access||!refresh)return null;
+  return {access_token:access,refresh_token:refresh};
+}
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
+  if(recoveryHashTokens(info))return true;
   if(!info.tokenHash)return false;
-  if(isExplicitRecoveryType(info.type))return true;
-  if(info.next==="account"||info.next==="admin")return true;
-  return false;
+  return isExplicitRecoveryType(info.type);
 }
 function isGenericOauthCallback(info){
   if(info.hasProviderToken)return true;
   if(info.hasAccessToken && !isExplicitRecoveryType(info.type))return true;
-  if(info.code && !info.tokenHash)return true;
   return false;
 }
 
@@ -217,26 +235,30 @@ test("recovery detection matches reset-password.js rules", () => {
   assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "x", tokenHash: "", hasProviderToken: false }), false);
   assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "account", code: "", tokenHash: "th", hasProviderToken: false }), true);
   assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "account", code: "x", tokenHash: "", hasProviderToken: false }), false);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "admin", code: "", tokenHash: "th", hasProviderToken: false }), true);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "admin", code: "", tokenHash: "th", hasProviderToken: false }), false);
   assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "", code: "oauth-code", tokenHash: "", hasProviderToken: false }), false);
-  assert.strictEqual(isGenericOauthCallback({ type: "", next: "", code: "oauth-code", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), true);
-  assert.strictEqual(isGenericOauthCallback({ type: "", next: "account", code: "x", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), true);
+  assert.strictEqual(isGenericOauthCallback({ type: "", next: "", code: "oauth-code", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), false);
+  assert.strictEqual(isGenericOauthCallback({ type: "", next: "account", code: "x", tokenHash: "", hasAccessToken: false, hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "recovery", next: "account", code: "", tokenHash: "th", hasAccessToken: false, hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "", next: "", code: "", tokenHash: "", hasAccessToken: true, hasProviderToken: false }), true);
   assert.strictEqual(isGenericOauthCallback({ type: "recovery", next: "", code: "", tokenHash: "", hasAccessToken: true, hasProviderToken: false }), false);
   assert.strictEqual(isGenericOauthCallback({ type: "recovery", next: "", code: "", tokenHash: "", hasAccessToken: true, hasProviderToken: true }), true);
-  assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "", tokenHash: "", hasProviderToken: true }), false);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "", tokenHash: "", hasProviderToken: false, hashParams: new URLSearchParams("access_token=a&refresh_token=b"), params: new URLSearchParams() }), true);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "recovery", next: "", code: "", tokenHash: "", hasProviderToken: false, hashParams: new URLSearchParams("access_token=a"), params: new URLSearchParams() }), false);
+  assert.strictEqual(isIntendedRecoveryLink({ type: "", next: "", code: "", tokenHash: "", hasProviderToken: false, hashParams: new URLSearchParams("access_token=a&refresh_token=b"), params: new URLSearchParams() }), false);
 });
 
 test("cross-device recovery uses verifyOtp and never PKCE code exchange", () => {
   const calls={verify:0,exchange:0};
   function establishRecoverySession(info,auth){
-    if(!info.tokenHash)return {session:null,error:null};
     if(!isIntendedRecoveryLink(info))return {session:null,error:null};
-    calls.verify++;
-    const result=auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
-    if(result.error)return {session:null,error:result.error};
-    return {session:result.data&&result.data.session,error:null};
+    if(info.tokenHash){
+      calls.verify++;
+      const result=auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
+      if(result.error)return {session:null,error:result.error};
+      return {session:result.data&&result.data.session,error:null};
+    }
+    return {session:null,error:null};
   }
   const desktopVerifier={"supabase.auth.token-code-verifier":"desktop-only-verifier"};
   const phoneStorage={};
@@ -277,9 +299,26 @@ test("cross-device recovery uses verifyOtp and never PKCE code exchange", () => 
   );
   assert.ok(expired.error);
   assert.match(String(expired.error.message),/expired|invalid/i);
-  const oauth={type:"",next:"account",code:"oauth-code",tokenHash:"",hasProviderToken:false,hasAccessToken:false};
-  assert.strictEqual(isGenericOauthCallback(oauth),true);
-  assert.strictEqual(isIntendedRecoveryLink(oauth),false);
+  const recoveryCode={type:"recovery",next:"account",code:"pkce-recovery-code",tokenHash:"",hasProviderToken:false,hasAccessToken:false};
+  assert.strictEqual(isGenericOauthCallback(recoveryCode),false);
+  assert.strictEqual(isIntendedRecoveryLink(recoveryCode),false);
+  const skippedPkce=establishRecoverySession(recoveryCode,{
+    verifyOtp(){throw new Error("token_hash path should not run");},
+    exchangeCodeForSession(){
+      calls.exchange++;
+      return {data:{session:{user:{id:"u1"}}},error:null};
+    }
+  });
+  assert.strictEqual(skippedPkce.session,null);
+  assert.strictEqual(calls.exchange,0);
+  const missingType=establishRecoverySession(
+    {type:"",next:"account",code:"",tokenHash:"no-type-hash",hasProviderToken:false},
+    phoneAuth
+  );
+  assert.strictEqual(missingType.session,null);
+  const oauthHash={type:"",next:"account",code:"",tokenHash:"",hasProviderToken:true,hasAccessToken:true};
+  assert.strictEqual(isGenericOauthCallback(oauthHash),true);
+  assert.strictEqual(isIntendedRecoveryLink(oauthHash),false);
 });
 
 if (failed) process.exit(1);

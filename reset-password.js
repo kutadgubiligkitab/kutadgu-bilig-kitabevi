@@ -26,18 +26,25 @@ function isExplicitRecoveryType(type){
   return type==="recovery";
 }
 
+function recoveryHashTokens(info){
+  if(!info||info.hasProviderToken)return null;
+  if(!isExplicitRecoveryType(info.type))return null;
+  const access=String((info.hashParams&&info.hashParams.get("access_token"))||(info.params&&info.params.get("access_token"))||"").trim();
+  const refresh=String((info.hashParams&&info.hashParams.get("refresh_token"))||(info.params&&info.params.get("refresh_token"))||"").trim();
+  if(!access||!refresh)return null;
+  return {access_token:access,refresh_token:refresh};
+}
+
 function isIntendedRecoveryLink(info){
   if(info.hasProviderToken)return false;
+  if(recoveryHashTokens(info))return true;
   if(!info.tokenHash)return false;
-  if(isExplicitRecoveryType(info.type))return true;
-  if(info.next==="account"||info.next==="admin")return true;
-  return false;
+  return isExplicitRecoveryType(info.type);
 }
 
 function isGenericOauthCallback(info){
   if(info.hasProviderToken)return true;
   if(info.hasAccessToken && !isExplicitRecoveryType(info.type))return true;
-  if(info.code && !info.tokenHash)return true;
   return false;
 }
 
@@ -65,22 +72,49 @@ function setFormEnabled(enabled){
   form.querySelectorAll("input,button").forEach(el=>el.disabled=!enabled);
 }
 
+function stripRecoverySecretsFromUrl(){
+  try{
+    const next=new URLSearchParams(location.search).get("next");
+    const dest=new URL(location.pathname,location.href);
+    dest.searchParams.set("type","recovery");
+    if(next==="admin"||next==="account")dest.searchParams.set("next",next);
+    history.replaceState(null,"",dest.pathname+dest.search);
+  }catch(error){}
+}
+
 function markRecoveryReady(){
   recoveryReady=true;
   setFormEnabled(true);
+  stripRecoverySecretsFromUrl();
   status("✅ پارول يېڭىلاش رۇخسىتى توغرا. يېڭى پارولىڭىزنى كىرگۈزۈڭ.","ok");
 }
 
-async function establishRecoverySession(info){
-  if(!info.tokenHash)return null;
-  if(!isIntendedRecoveryLink(info))return null;
-  const {data,error}=await db.auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
-  if(error)throw error;
-  if(data?.session)return data.session;
+async function waitForSession(){
   for(let i=0;i<12;i++){
     const {data:now}=await db.auth.getSession();
     if(now?.session)return now.session;
     await new Promise(r=>setTimeout(r,250));
+  }
+  return null;
+}
+
+async function establishRecoverySession(info){
+  if(!isIntendedRecoveryLink(info))return null;
+  if(info.tokenHash){
+    const {data,error}=await db.auth.verifyOtp({token_hash:info.tokenHash,type:"recovery"});
+    if(error)throw error;
+    if(data?.session)return data.session;
+    return waitForSession();
+  }
+  const tokens=recoveryHashTokens(info);
+  if(tokens){
+    const {data,error}=await db.auth.setSession({
+      access_token:tokens.access_token,
+      refresh_token:tokens.refresh_token
+    });
+    if(error)throw error;
+    if(data?.session)return data.session;
+    return waitForSession();
   }
   return null;
 }
@@ -127,7 +161,7 @@ async function init(){
 
     const session=await establishRecoverySession(info);
 
-    if(session && info.tokenHash)markRecoveryReady();
+    if(session)markRecoveryReady();
     else if(!recoveryReady && !isExplicitRecoveryType(info.type)){
       status("بۇ بەتنى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.","warn");
     }else if(!recoveryReady){
@@ -185,6 +219,7 @@ window.kutadguResetPasswordTest={
   isExplicitRecoveryType,
   isIntendedRecoveryLink,
   isGenericOauthCallback,
+  recoveryHashTokens,
   usesPkceCodeExchange:false
 };
 

@@ -48,11 +48,12 @@ test.describe("auth oauth vs recovery", () => {
     await expect(page.locator("#newPassword")).toBeDisabled();
   });
 
-  test("C generic OAuth code on reset-password is not treated as recovery", async ({ page }) => {
+  test("C PKCE code on reset-password is not treated as recovery and is not bounced", async ({ page }) => {
     await page.goto("/reset-password.html?code=oauth-test-code", { waitUntil: "domcontentloaded" });
-    await page.waitForURL((url) => new URL(url).pathname === "/account.html", { timeout: 10_000 });
-    expect(new URL(page.url()).searchParams.get("code")).toBe("oauth-test-code");
-    await expect(page.locator("#resetPasswordForm")).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/reset-password.html");
+    expect(page.url()).not.toMatch(/\/account\.html/);
+    await expect(page.locator("#resetPasswordForm")).toBeVisible();
+    await expect(page.locator("#newPassword")).toBeDisabled();
   });
 
   test("C generic OAuth hash on reset-password is not treated as recovery", async ({ page }) => {
@@ -82,16 +83,19 @@ test.describe("auth oauth vs recovery", () => {
     expect(urls.google).not.toContain("reset-password.html");
     expect(urls.google).not.toContain("kutadgubilik.com");
     expect(JSON.stringify(urls)).not.toContain("kutadgubilig.com");
-    expect(urls.account).toBe("https://www.kutadgubilik.com/reset-password.html?next=account");
-    expect(urls.admin).toBe("https://www.kutadgubilik.com/reset-password.html?next=admin");
+    const origin = new URL(page.url()).origin;
+    expect(urls.account).toBe(`${origin}/reset-password.html?type=recovery&next=account`);
+    expect(urls.admin).toBe(`${origin}/reset-password.html?type=recovery&next=admin`);
+    expect(urls.account).not.toMatch(/account\.html/);
     expect(JSON.stringify(urls)).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
 
-  test("C next=account PKCE code is OAuth, not recovery", async ({ page }) => {
-    await page.goto("/reset-password.html?next=account&code=oauth-test-code", { waitUntil: "domcontentloaded" });
-    await page.waitForURL((url) => new URL(url).pathname === "/account.html", { timeout: 10_000 });
-    expect(new URL(page.url()).searchParams.get("code")).toBe("oauth-test-code");
-    await expect(page.locator("#resetPasswordForm")).toHaveCount(0);
+  test("C next=account PKCE code does not bounce to account.html or enable reset", async ({ page }) => {
+    await page.goto("/reset-password.html?next=account&code=pkce-recovery-code", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/reset-password.html");
+    expect(page.url()).not.toMatch(/\/account\.html\?code=/);
+    await expect(page.locator("#resetPasswordForm")).toBeVisible();
+    await expect(page.locator("#newPassword")).toBeDisabled();
   });
 });
 
