@@ -183,13 +183,15 @@ test("book.html loads catalog-bibliography before shop.js", () => {
   assert.ok(bib > 0 && shop > bib);
 });
 
-test("Admin cache pins include bibliography v=2 and admin.js v=41", () => {
+test("Admin cache pins include bibliography v=2 and admin.js v=42", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=2/);
-  assert.match(adminHtml, /admin\.js\?v=41/);
-  assert.match(adminHtml, /admin\.css\?v=24/);
+  assert.match(adminHtml, /admin\.js\?v=42/);
+  assert.match(adminHtml, /admin\.css\?v=25/);
   assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
   assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);
   assert.doesNotMatch(adminHtml, /ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ/);
+  assert.match(adminHtml, /placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
+  assert.match(adminJs, /search\.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
 });
 
 if (failed) process.exit(1);

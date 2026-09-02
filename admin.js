@@ -265,7 +265,7 @@ function applyBooksSchema(){
   });
   const search=$("#adminSearch");
   if(search){
-    search.placeholder="كىتاب، ئاپتور، تەرجىمان، نەشرىيات ياكى ISBN ئىزدەڭ...";
+    search.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى";
   }
   const staticBtn=$("#importStaticBtn");
   if(staticBtn){
