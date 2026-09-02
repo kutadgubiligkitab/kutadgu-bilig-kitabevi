@@ -118,6 +118,48 @@ CREATE POLICY store_announcement_settings_insert_admin
   TO authenticated
   WITH CHECK (public.is_kutadgu_admin() AND id = 1);
 
+DROP POLICY IF EXISTS "aal2 required to insert store_announcements" ON public.store_announcements;
+CREATE POLICY "aal2 required to insert store_announcements"
+  ON public.store_announcements
+  AS RESTRICTIVE
+  FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
+DROP POLICY IF EXISTS "aal2 required to update store_announcements" ON public.store_announcements;
+CREATE POLICY "aal2 required to update store_announcements"
+  ON public.store_announcements
+  AS RESTRICTIVE
+  FOR UPDATE
+  TO authenticated
+  USING ((select auth.jwt()->>'aal') = 'aal2')
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
+DROP POLICY IF EXISTS "aal2 required to delete store_announcements" ON public.store_announcements;
+CREATE POLICY "aal2 required to delete store_announcements"
+  ON public.store_announcements
+  AS RESTRICTIVE
+  FOR DELETE
+  TO authenticated
+  USING ((select auth.jwt()->>'aal') = 'aal2');
+
+DROP POLICY IF EXISTS "aal2 required to insert store_announcement_settings" ON public.store_announcement_settings;
+CREATE POLICY "aal2 required to insert store_announcement_settings"
+  ON public.store_announcement_settings
+  AS RESTRICTIVE
+  FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
+DROP POLICY IF EXISTS "aal2 required to update store_announcement_settings" ON public.store_announcement_settings;
+CREATE POLICY "aal2 required to update store_announcement_settings"
+  ON public.store_announcement_settings
+  AS RESTRICTIVE
+  FOR UPDATE
+  TO authenticated
+  USING ((select auth.jwt()->>'aal') = 'aal2')
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
 REVOKE ALL ON TABLE public.store_announcements FROM PUBLIC;
 REVOKE ALL ON TABLE public.store_announcement_settings FROM PUBLIC;
 

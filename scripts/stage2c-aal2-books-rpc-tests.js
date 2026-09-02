@@ -22,8 +22,6 @@ function read(rel) {
 const sql = read("STAGE2C_AAL2_BOOKS_WRITE_RLS.sql");
 const setup = read("SUPABASE_SETUP.sql");
 const stage2b = read("STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql");
-const maintenance = read("SITE_MAINTENANCE_MODE.sql");
-const announce = read("SITE_ANNOUNCEMENT_BAR.sql");
 const adminJs = read("admin.js");
 const adminMfa = read("admin-mfa.js");
 const member = read("member.js");
@@ -184,7 +182,7 @@ test("no table-wide profiles AAL2 policy", () => {
   assert.match(setup, /create policy "member can update own profile" on public\.profiles for update to authenticated/);
 });
 
-test("storage, store settings, announcements, orders, analytics INSERT stay without AAL2", () => {
+test("PR1 migration does not rewrite storage, store settings, announcements, or analytics", () => {
   assert.doesNotMatch(sql, /storage\.objects/);
   assert.doesNotMatch(sql, /store_settings/);
   assert.doesNotMatch(sql, /store_announcements/);
@@ -193,20 +191,20 @@ test("storage, store settings, announcements, orders, analytics INSERT stay with
   assert.doesNotMatch(sql, /analytics_events/);
   assert.doesNotMatch(sql, /get_kutadgu_analytics/);
   assert.doesNotMatch(sql, /get_kutadgu_book_stock_sum/);
-  assert.doesNotMatch(maintenance, /aal2/i);
-  assert.doesNotMatch(announce, /aal2/i);
   assert.match(setup, /create policy "public can insert analytics" on public\.analytics_events for insert to anon,authenticated with check \(true\)/);
   assert.match(setup, /create policy "admin can upload book covers" on storage\.objects for insert to authenticated\nwith check \(bucket_id = 'book-covers' and public\.is_kutadgu_admin\(\)\)/);
 });
 
-test("member cart/favorites/order writes are not AAL2-gated", () => {
+test("member cart/favorites/order INSERT are not AAL2-gated", () => {
   assert.match(setup, /create policy "favorite owner access" on public\.member_favorites for all to authenticated\nusing \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
   assert.match(setup, /create policy "cart owner access" on public\.member_cart_items for all to authenticated\nusing \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
   assert.match(setup, /create policy "member can create own orders" on public\.orders for insert to authenticated\nwith check \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
   const fav = policyBlock(setup, "favorite owner access");
   const cart = policyBlock(setup, "cart owner access");
-  const orders = [...setup.matchAll(/create policy "[^"]+" on public\.orders[\s\S]*?;/gi)].map((m) => m[0]);
-  [fav, cart, ...orders].forEach((block) => {
+  const memberInsert = policyBlock(setup, "member can create own orders");
+  const memberSelect = policyBlock(setup, "member can read own orders");
+  const adminSelect = policyBlock(setup, "admin can read all orders");
+  [fav, cart, memberInsert, memberSelect, adminSelect].forEach((block) => {
     assert.doesNotMatch(block, /aal2/i);
   });
 });

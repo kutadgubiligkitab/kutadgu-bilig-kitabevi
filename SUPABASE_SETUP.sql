@@ -297,6 +297,8 @@ create policy "admin can read all orders" on public.orders for select to authent
 drop policy if exists "admin can update orders" on public.orders;
 create policy "admin can update orders" on public.orders for update to authenticated
 using (public.is_kutadgu_admin()) with check (public.is_kutadgu_admin());
+drop policy if exists "aal2 required to update orders" on public.orders;
+create policy "aal2 required to update orders" on public.orders as restrictive for update to authenticated using ((select auth.jwt()->>'aal') = 'aal2') with check ((select auth.jwt()->>'aal') = 'aal2');
 
 -- خېرىدار status/visit_count نى ئۆزى ئۆزگەرتەلمەيدۇ؛ پەقەت ئارخىپ مەيدانىنىلا تەھرىرلەيدۇ.
 revoke update on public.profiles from authenticated;
@@ -317,6 +319,12 @@ using (bucket_id = 'book-covers' and public.is_kutadgu_admin()) with check (buck
 drop policy if exists "admin can delete book covers" on storage.objects;
 create policy "admin can delete book covers" on storage.objects for delete to authenticated
 using (bucket_id = 'book-covers' and public.is_kutadgu_admin());
+drop policy if exists "aal2 required to insert book covers" on storage.objects;
+create policy "aal2 required to insert book covers" on storage.objects as restrictive for insert to authenticated with check ((bucket_id = 'book-covers' and (select auth.jwt()->>'aal') = 'aal2') or (bucket_id is distinct from 'book-covers'));
+drop policy if exists "aal2 required to update book covers" on storage.objects;
+create policy "aal2 required to update book covers" on storage.objects as restrictive for update to authenticated using ((bucket_id = 'book-covers' and (select auth.jwt()->>'aal') = 'aal2') or (bucket_id is distinct from 'book-covers')) with check ((bucket_id = 'book-covers' and (select auth.jwt()->>'aal') = 'aal2') or (bucket_id is distinct from 'book-covers'));
+drop policy if exists "aal2 required to delete book covers" on storage.objects;
+create policy "aal2 required to delete book covers" on storage.objects as restrictive for delete to authenticated using ((bucket_id = 'book-covers' and (select auth.jwt()->>'aal') = 'aal2') or (bucket_id is distinct from 'book-covers'));
 
 -- 8) Admin ھېساباتىنى بەلگىلەش
 -- Supabase > Authentication > Users دىن ئۆزىڭىزنىڭ UUID سىنى كۆچۈرۈپ، تۆۋەندىكى UUID نى ئالماشتۇرۇپ ئايرىم Run قىلىڭ:

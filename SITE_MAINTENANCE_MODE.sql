@@ -55,6 +55,23 @@ CREATE POLICY store_settings_insert_admin
   TO authenticated
   WITH CHECK (public.is_kutadgu_admin() AND key = 'maintenance_mode');
 
+DROP POLICY IF EXISTS "aal2 required to insert store_settings" ON public.store_settings;
+CREATE POLICY "aal2 required to insert store_settings"
+  ON public.store_settings
+  AS RESTRICTIVE
+  FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
+DROP POLICY IF EXISTS "aal2 required to update store_settings" ON public.store_settings;
+CREATE POLICY "aal2 required to update store_settings"
+  ON public.store_settings
+  AS RESTRICTIVE
+  FOR UPDATE
+  TO authenticated
+  USING ((select auth.jwt()->>'aal') = 'aal2')
+  WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
+
 REVOKE ALL ON TABLE public.store_settings FROM PUBLIC;
 GRANT SELECT ON TABLE public.store_settings TO anon, authenticated;
 GRANT INSERT, UPDATE ON TABLE public.store_settings TO authenticated;
