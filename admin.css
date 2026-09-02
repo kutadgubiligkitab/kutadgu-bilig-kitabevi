@@ -130,7 +130,7 @@ button{cursor:pointer}
   -webkit-appearance:none;
   appearance:none;
   box-sizing:border-box;
-  direction:rtl;
+  direction:rtl !important;
   text-align:start;
   unicode-bidi:isolate;
   min-height:44px;
