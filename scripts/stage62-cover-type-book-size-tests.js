@@ -190,6 +190,7 @@ test("Admin cache pins include bibliography v=2 and admin.js v=42", () => {
   assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
   assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);
   assert.doesNotMatch(adminHtml, /ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ/);
+  assert.match(adminHtml, /id="adminSearch"[^>]*dir="rtl"/);
   assert.match(adminHtml, /placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
   assert.match(adminJs, /search\.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى"/);
 });
