@@ -15,8 +15,9 @@ test.describe("seo + admin", () => {
     expect(res.status()).toBe(200);
     const body = await res.text();
     expect(body).toContain("<urlset");
-    expect(body).toMatch(/book\.html\?id=\d+/);
-    expect(body).toContain("https://www.kutadgubilik.com/book.html?id=");
+    expect(body).toMatch(/\/book\/\d+/);
+    expect(body).toContain("https://www.kutadgubilik.com/book/");
+    expect(body).not.toContain("book.html?id=");
     expect(body).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
 
@@ -70,8 +71,9 @@ test.describe("seo + admin", () => {
     });
   });
 
-  test("book.html numeric id stays noindex until a real book is resolved", async ({ page }) => {
+  test("missing numeric book stays noindex after clean URL landing", async ({ page }) => {
     await page.goto("/book.html?id=999999999", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/book/999999999");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
     await expect(page.locator('meta[name="robots"]')).toHaveCount(1);
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
@@ -90,7 +92,11 @@ test.describe("seo + admin", () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      `https://www.kutadgubilik.com/book.html?id=${encodeURIComponent(book.id)}`
+      `https://www.kutadgubilik.com/book/${encodeURIComponent(book.id)}`
+    );
+    await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+      "content",
+      `https://www.kutadgubilik.com/book/${encodeURIComponent(book.id)}`
     );
     expect(await page.locator("#kutadguBookSchema").count()).toBe(1);
   });

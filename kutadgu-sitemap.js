@@ -82,7 +82,7 @@ function trustworthyLastmod(value) {
 function bookCanonicalUrl(id) {
   const canonical = String(id == null ? "" : id).trim();
   if (!isCanonicalBookId(canonical)) return "";
-  return `${SITE_ORIGIN}/book.html?id=${encodeURIComponent(canonical)}`;
+  return `${SITE_ORIGIN}/book/${canonical}`;
 }
 
 function rowToSitemapEntry(row) {

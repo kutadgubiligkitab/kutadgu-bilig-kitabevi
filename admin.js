@@ -926,7 +926,7 @@ function renderBooks(){
         <div class="admin-book-meta">${b.is_active===false?"🙈 يوشۇرۇلغان":"✅ كۆرۈنىدۇ"} ${Number(b.sales_count)>0?` · 🔥 سېتىلغان ${Number(b.sales_count)}`:""}${b.isbn?` · ISBN <span class="admin-isbn">${esc(b.isbn)}</span>`:""}${b.publisher?` · ${esc(b.publisher)}`:""}</div>
       </div>
       <div class="admin-book-actions">
-        <a href="${esc(b.href||`book.html?id=${encodeURIComponent(b.id)}`)}" target="_blank">👁️ كۆرۈش</a>
+        <a href="${esc(/^\d+$/.test(String(b.id||"").trim())?`/book/${encodeURIComponent(String(b.id).trim())}`:(b.href||`book.html?id=${encodeURIComponent(b.id)}`))}" target="_blank">👁️ كۆرۈش</a>
         <button type="button" data-edit="${esc(b.id)}">✏️ تەھرىرلەش</button>
         <button type="button" data-hide="${esc(b.id)}">${b.is_active===false?"♻️ قايتا كۆرسىتىش":"🙈 يوشۇرۇش"}</button>
         <button type="button" class="admin-danger" data-delete="${esc(b.id)}">🗑️ ئۆچۈرۈش</button>

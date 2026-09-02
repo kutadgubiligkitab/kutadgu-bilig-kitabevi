@@ -41,7 +41,8 @@ test.describe("storefront smoke", () => {
     const title = await H.waitForDetailTitle(page, book.title);
     expect(title.trim()).toBe(book.title);
     await expect(page.locator(".detail-main-cart, .detail-unavailable-panel").first()).toBeVisible();
-    expect(page.url()).toContain(`id=${encodeURIComponent(book.id)}`);
+    expect(page.url()).toContain(`/book/${encodeURIComponent(book.id)}`);
+    expect(page.url()).not.toContain("book.html");
   });
 
   test("5 legacy id resolves to the same book", async ({ page }) => {

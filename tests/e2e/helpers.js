@@ -124,6 +124,12 @@ function collectPageErrors(page) {
 }
 
 function detailPathFor(id) {
+  const raw = String(id || "").trim();
+  if (/^\d+$/.test(raw)) return `/book/${raw}`;
+  return `/book.html?id=${encodeURIComponent(raw)}`;
+}
+
+function legacyBookHtmlPath(id) {
   return `/book.html?id=${encodeURIComponent(String(id || "").trim())}`;
 }
 
@@ -419,6 +425,7 @@ module.exports = {
   waitForDetailTitle,
   waitForHydratedCartTitle,
   detailPathFor,
+  legacyBookHtmlPath,
   searchTokenFromTitle,
   discoverLiveBook,
   discoverLiveBookWithLegacy

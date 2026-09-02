@@ -434,7 +434,8 @@ test.describe("homepage compact first-view", () => {
     const card = page.locator('[data-featured-row="top"] .home-feature-card').first();
     await expect(card).toBeVisible();
     const href = await card.locator("a").first().getAttribute("href");
-    expect(href).toMatch(/book\.html/);
+    expect(href).toMatch(/\/book\/\d+/);
+    expect(href).not.toMatch(/book\.html/);
     await card.locator(".home-feature-heart").click();
     await expect(card.locator(".home-feature-heart")).toHaveAttribute("aria-pressed", "true");
     const beforeCart = await H.badgeCount(page);
@@ -528,7 +529,8 @@ test.describe("homepage compact first-view", () => {
     await expect(card.locator(".home-feature-price")).toBeVisible();
     await expect(card.locator(".home-feature-author")).toBeVisible();
     const href = await card.locator("a").first().getAttribute("href");
-    expect(href).toMatch(/book\.html/);
+    expect(href).toMatch(/\/book\/\d+/);
+    expect(href).not.toMatch(/book\.html/);
     await card.locator(".home-feature-heart").click();
     await expect(card.locator(".home-feature-heart")).toHaveAttribute("aria-pressed", "true");
     const beforeCart = await H.badgeCount(page);

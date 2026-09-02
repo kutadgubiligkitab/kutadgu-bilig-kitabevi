@@ -62,6 +62,16 @@ const server = http.createServer((req, res) => {
     send(res, 308, { Location: `/${hubSlug}${url.search}` }, "");
     return;
   }
+  if (/^\/book\.html$/i.test(url.pathname)) {
+    const bookId = String(url.searchParams.get("id") || "").trim();
+    if (/^\d+$/.test(bookId)) {
+      const params = new URLSearchParams(url.search);
+      params.delete("id");
+      const rest = params.toString();
+      send(res, 308, { Location: `/book/${bookId}${rest ? `?${rest}` : ""}` }, "");
+      return;
+    }
+  }
   if (isSitemapPath(url.pathname)) {
     const build = url.pathname === "/sitemap.xml"
       ? sitemap.buildIndexSitemapXml()
@@ -75,6 +85,7 @@ const server = http.createServer((req, res) => {
   }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
+  if (/^\/book\/[^/]+\/?$/.test(url.pathname)) rel = "book.html";
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const abs = path.join(root, rel);
   if (!abs.startsWith(root + path.sep) && abs !== root) {

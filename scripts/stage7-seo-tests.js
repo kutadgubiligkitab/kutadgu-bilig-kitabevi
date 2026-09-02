@@ -38,17 +38,17 @@ const jobs = [];
 
 jobs.push(test("A urlset is valid XML without invented changefreq/priority", () => {
   const xml = sitemap.buildUrlsetXml([
-    { loc: "https://www.kutadgubilik.com/book.html?id=102", lastmod: "2026-08-28" },
-    { loc: "https://www.kutadgubilik.com/book.html?id=103" }
+    { loc: "https://www.kutadgubilik.com/book/102", lastmod: "2026-08-28" },
+    { loc: "https://www.kutadgubilik.com/book/103" }
   ]);
   assert.ok(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
   assert.ok(xml.includes("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
-  assert.ok(xml.includes("<loc>https://www.kutadgubilik.com/book.html?id=102</loc>"));
+  assert.ok(xml.includes("<loc>https://www.kutadgubilik.com/book/102</loc>"));
   assert.ok(xml.includes("<lastmod>2026-08-28</lastmod>"));
   assert.ok(!xml.includes("changefreq"));
   assert.ok(!xml.includes("priority"));
   assert.ok(!xml.includes("<lastmod></lastmod>"));
-  assert.ok(xml.includes("id=103"));
+  assert.ok(xml.includes("/book/103"));
 }));
 
 jobs.push(test("C inactive books excluded; D no duplicate ids; no legacy loc", () => {
@@ -59,7 +59,7 @@ jobs.push(test("C inactive books excluded; D no duplicate ids; no legacy loc", (
     { id: "children-3", legacy_id: "", is_active: true }
   ]);
   assert.strictEqual(entries.length, 1);
-  assert.strictEqual(entries[0].loc, "https://www.kutadgubilik.com/book.html?id=102");
+  assert.strictEqual(entries[0].loc, "https://www.kutadgubilik.com/book/102");
   assert.ok(!entries.some(e => /children-3/.test(e.loc)));
 }));
 
@@ -70,14 +70,14 @@ jobs.push(test("F private URLs never emitted", () => {
     { loc: "https://www.kutadgubilik.com/account.html" },
     { loc: "https://www.kutadgubilik.com/favorites.html" },
     { loc: "https://www.kutadgubilik.com/my-books.html" },
-    { loc: "https://www.kutadgubilik.com/book.html?id=1" }
+    { loc: "https://www.kutadgubilik.com/book/1" }
   ]);
   assert.ok(!xml.includes("admin.html"));
   assert.ok(!xml.includes("cart.html"));
   assert.ok(!xml.includes("account.html"));
   assert.ok(!xml.includes("favorites.html"));
   assert.ok(!xml.includes("my-books.html"));
-  assert.ok(xml.includes("book.html?id=1"));
+  assert.ok(xml.includes("/book/1"));
 }));
 
 jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
@@ -115,7 +115,7 @@ jobs.push(test("K 20k books stay in one sitemap; 50k uses index split", () => {
 
 jobs.push(test("H I canonical helpers never use preview/localhost", () => {
   assert.strictEqual(seo.productionOrigin(), "https://www.kutadgubilik.com");
-  assert.strictEqual(seo.bookCanonicalUrl("102"), "https://www.kutadgubilik.com/book.html?id=102");
+  assert.strictEqual(seo.bookCanonicalUrl("102"), "https://www.kutadgubilik.com/book/102");
   assert.ok(!seo.productionOrigin().includes("kutadgubilig.com"));
   assert.ok(!seo.bookCanonicalUrl("102").includes("localhost"));
   assert.ok(!seo.buildBookJsonLd({ title: "T", id: "5" })["@graph"][0].url.includes("localhost"));
@@ -187,7 +187,17 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
     assert.strictEqual(rewrite.destination, `/${slug}.html`);
     assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
   });
-  assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"));
+  const bookRedirect = (vercel.redirects || []).find(r => r.source === "/book.html");
+  assert.ok(bookRedirect, "missing /book.html legacy redirect");
+  assert.strictEqual(bookRedirect.destination, "/book/:id");
+  assert.strictEqual(bookRedirect.permanent, true);
+  assert.ok(Array.isArray(bookRedirect.has));
+  assert.strictEqual(bookRedirect.has[0].type, "query");
+  assert.strictEqual(bookRedirect.has[0].key, "id");
+  assert.strictEqual(bookRedirect.has[0].value, "(?<id>\\d+)");
+  const bookRewrite = (vercel.rewrites || []).find(r => r.source === "/book/:id");
+  assert.ok(bookRewrite, "missing /book/:id rewrite");
+  assert.strictEqual(bookRewrite.destination, "/book.html");
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/cart.html"));
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/account.html"));
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/order-info.html"));
@@ -220,6 +230,37 @@ jobs.push(test("book.html shell does not ship a first-byte robots or canonical v
   assert.ok(shop.includes("isStorefrontVisible(book)"));
   const js = fs.readFileSync(path.join(__dirname, "..", "kutadgu-book-seo.js"), "utf8");
   assert.ok(js.includes("function applyUnresolvedDetailDocument"));
+}));
+
+jobs.push(test("book clean URL helpers parse path/query and never invent NaN paths", () => {
+  assert.strictEqual(seo.bookPath("126"), "/book/126");
+  assert.strictEqual(seo.bookPath(" 122 "), "/book/122");
+  assert.strictEqual(seo.bookPath("children-3"), "");
+  assert.strictEqual(seo.bookPath(""), "");
+  assert.strictEqual(seo.parseBookIdFromLocation({ pathname: "/book/122", search: "" }), "122");
+  assert.strictEqual(seo.parseBookIdFromLocation({ pathname: "/book.html", search: "?id=122" }), "122");
+  assert.strictEqual(seo.parseBookIdFromLocation({ pathname: "/book.html", search: "?id=children-3" }), "children-3");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=126" }), "/book/126");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=126&utm=1" }), "/book/126?utm=1");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "?id=children-3" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book.html", search: "" }), "");
+  assert.strictEqual(seo.legacyBookRedirectPath({ pathname: "/book/126", search: "" }), "");
+  assert.ok(seo.isBookDetailPath("/book/126"));
+  assert.ok(seo.isBookDetailPath("/book.html"));
+  assert.ok(!seo.isBookDetailPath("/universal"));
+}));
+
+jobs.push(test("book.html nested-route assets are root-relative", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "book.html"), "utf8");
+  assert.ok(html.includes('href="/theme.css?'));
+  assert.ok(html.includes('href="/shop.css?'));
+  assert.ok(html.includes('href="/covers.css?'));
+  assert.ok(html.includes('href="/mobile.css?'));
+  assert.ok(html.includes('src="/shop.js?'));
+  assert.ok(html.includes('src="/kutadgu-book-seo.js?'));
+  assert.ok(html.includes('src="/mobile.js?'));
+  assert.ok(!/href="theme\.css/.test(html));
+  assert.ok(!/src="shop\.js/.test(html));
 }));
 
 jobs.push(test("unresolved detail SEO never indexes placeholder or emits Book JSON-LD", () => {
@@ -294,7 +335,7 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
 
 jobs.push(test("lastmod omitted when timestamp is untrustworthy", () => {
   const entry = sitemap.rowToSitemapEntry({ id: 8, is_active: true, updated_at: "not-a-date", created_at: "" });
-  assert.strictEqual(entry.loc, "https://www.kutadgubilik.com/book.html?id=8");
+  assert.strictEqual(entry.loc, "https://www.kutadgubilik.com/book/8");
   assert.ok(!entry.lastmod);
   const badYear = sitemap.trustworthyLastmod("1800-01-01T00:00:00Z");
   assert.strictEqual(badYear, "");
@@ -313,14 +354,13 @@ jobs.push(test("B mocked generator emits one loc per active id", async () => {
   assert.ok(xml.includes("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
   assert.strictEqual(locs.length, 3);
   assert.deepStrictEqual(locs, [
-    "https://www.kutadgubilik.com/book.html?id=1",
-    "https://www.kutadgubilik.com/book.html?id=102",
-    "https://www.kutadgubilik.com/book.html?id=103"
+    "https://www.kutadgubilik.com/book/1",
+    "https://www.kutadgubilik.com/book/102",
+    "https://www.kutadgubilik.com/book/103"
   ]);
   assert.strictEqual(new Set(locs).size, 3);
   locs.forEach(loc => {
-    assert.ok(loc.startsWith("https://www.kutadgubilik.com/book.html?id="));
-    assert.ok(/^\d+$/.test(loc.split("id=")[1]));
+    assert.ok(/^https:\/\/www\.kutadgubilik\.com\/book\/\d+$/.test(loc));
   });
   assert.ok(!xml.includes("id=500"));
   assert.ok(!xml.includes("children-3"));
@@ -343,8 +383,7 @@ if (LIVE_SEO) {
     assert.ok(locs.length > 0, "live sitemap returned no book locs");
     assert.strictEqual(new Set(locs).size, locs.length);
     locs.forEach(loc => {
-      assert.ok(loc.startsWith("https://www.kutadgubilik.com/book.html?id="));
-      assert.ok(/^\d+$/.test(loc.split("id=")[1]));
+      assert.ok(/^https:\/\/www\.kutadgubilik\.com\/book\/\d+$/.test(loc));
     });
     assert.ok(!xml.includes("/admin.html"));
     assert.ok(!xml.includes("/cart.html"));

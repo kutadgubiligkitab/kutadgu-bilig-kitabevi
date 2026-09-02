@@ -15,11 +15,59 @@
     return /^\d+$/.test(String(value == null ? "" : value).trim());
   }
 
-  function bookCanonicalUrl(id, origin) {
+  function bookPath(id) {
     const canonical = String(id == null ? "" : id).trim();
+    if (!isCanonicalBookId(canonical)) return "";
+    return `/book/${canonical}`;
+  }
+
+  function bookCanonicalUrl(id, origin) {
+    const path = bookPath(id);
     const base = productionOrigin(origin);
-    if (!isCanonicalBookId(canonical)) return `${base}/book.html`;
-    return `${base}/book.html?id=${encodeURIComponent(canonical)}`;
+    if (!path) return `${base}/book.html`;
+    return `${base}${path}`;
+  }
+
+  function parseBookIdFromLocation(loc) {
+    const locationRef = loc || (typeof location !== "undefined" ? location : null);
+    if (!locationRef) return "";
+    const path = String(locationRef.pathname || "");
+    const pathMatch = path.match(/^\/book\/([^/]+)\/?$/);
+    if (pathMatch) {
+      try {
+        return decodeURIComponent(pathMatch[1] || "").trim();
+      } catch (err) {
+        return String(pathMatch[1] || "").trim();
+      }
+    }
+    try {
+      return String(new URLSearchParams(locationRef.search || "").get("id") || "").trim();
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function isBookDetailPath(pathname) {
+    const path = String(pathname || "");
+    return /(?:^|\/)book\.html$/i.test(path) || /^\/book\/[^/]+\/?$/.test(path);
+  }
+
+  function legacyBookRedirectPath(loc) {
+    const locationRef = loc || (typeof location !== "undefined" ? location : null);
+    if (!locationRef) return "";
+    const file = String(locationRef.pathname || "").split("/").pop() || "";
+    if (file.toLowerCase() !== "book.html") return "";
+    let params;
+    try {
+      params = new URLSearchParams(locationRef.search || "");
+    } catch (err) {
+      return "";
+    }
+    const id = String(params.get("id") || "").trim();
+    if (!isCanonicalBookId(id)) return "";
+    params.delete("id");
+    const rest = params.toString();
+    return `/book/${id}${rest ? `?${rest}` : ""}`;
   }
 
   function isPlaceholderAuthor(value) {
@@ -147,7 +195,11 @@
     PRODUCTION_ORIGIN,
     productionOrigin,
     isCanonicalBookId,
+    bookPath,
     bookCanonicalUrl,
+    parseBookIdFromLocation,
+    isBookDetailPath,
+    legacyBookRedirectPath,
     isPlaceholderAuthor,
     storefrontAuthor,
     storefrontIsbn,
