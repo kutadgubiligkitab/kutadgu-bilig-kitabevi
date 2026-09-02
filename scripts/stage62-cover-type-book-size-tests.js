@@ -174,6 +174,13 @@ test("auth MFA idle lock password reset OAuth files are unchanged by this featur
   assert.match(oauthJs, /kutadguIsGenericOauthHash/);
 });
 
+test("book.html loads catalog-bibliography before shop.js", () => {
+  const bookHtml = read("book.html");
+  const bib = bookHtml.indexOf("catalog-bibliography.js?v=2");
+  const shop = bookHtml.indexOf("shop.js?v=84");
+  assert.ok(bib > 0 && shop > bib);
+});
+
 test("Admin cache pins include bibliography v=2 and admin.js v=41", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=2/);
   assert.match(adminHtml, /admin\.js\?v=41/);

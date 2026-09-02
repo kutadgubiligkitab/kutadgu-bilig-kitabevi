@@ -44,11 +44,17 @@ test.describe("book cover type and size", () => {
       await expect(page.locator("#bookCoverType")).toHaveValue("hardcover");
       await expect(page.locator("#bookSize")).toHaveValue("A5");
       await noOverflow(page);
+      if (width === 1280) {
+        await page.screenshot({ path: "/opt/cursor/artifacts/admin_book_form_cover_type_size_1280.png", fullPage: false });
+      }
+      if (width === 390) {
+        await page.screenshot({ path: "/opt/cursor/artifacts/admin_book_form_cover_type_size_390.png", fullPage: false });
+      }
     });
   }
 
   test("storefront detail meta shows labels and hides empty or invalid values", async ({ page }) => {
-    await page.goto("/book.html", { waitUntil: "domcontentloaded" });
+    await page.goto("/index.html", { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => window.kutadguShop && window.KutadguBibliography, { timeout: 30_000 });
     const out = await page.evaluate(() => {
       const Shop = window.kutadguShop;
