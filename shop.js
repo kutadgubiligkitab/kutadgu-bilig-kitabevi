@@ -155,12 +155,66 @@ function safeHref(raw,fallback){
 }
 function coverSrc(book){
   if(COVER_LAYOUT_TEST_MODE)return FALLBACK_COVER;
-  const raw=book?.image||FALLBACK_COVER;
-  const safe=safeCoverUrl(raw,{fallback:FALLBACK_COVER});
-  return storefrontAssetPath(safe||FALLBACK_COVER);
+  const raw=String(book&&(book.image||book.image_url)||"").trim();
+  if(!raw||isSampleDemoCover(raw))return "";
+  const safe=safeCoverUrl(raw,{fallback:""});
+  if(!safe||isSampleDemoCover(safe))return "";
+  return storefrontAssetPath(safe);
 }
 function isSampleDemoCover(src){
   return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src||"").trim());
+}
+function markCoverUnavailable(img){
+  if(!img||!img.parentNode)return;
+  img.onerror=null;
+  const span=document.createElement("span");
+  span.className="book-cover-unavailable";
+  span.setAttribute("aria-hidden","true");
+  img.replaceWith(span);
+}
+window.kutadguMarkCoverUnavailable=markCoverUnavailable;
+function coverImgHtml(book,opts={}){
+  const src=coverSrc(book);
+  const alt=escapeAttr(`${book&&book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
+  const width=opts.width||320;
+  const height=opts.height||460;
+  const loading=opts.loading||"lazy";
+  if(!src)return `<span class="book-cover-unavailable" aria-hidden="true"></span>`;
+  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" onerror="this.onerror=null;window.kutadguMarkCoverUnavailable&&window.kutadguMarkCoverUnavailable(this)">`;
+}
+function listingCardSkeletonMarkup(){
+  return `<article class="book-card is-skeleton" aria-hidden="true">
+    <div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+    <div class="book-info">
+      <div class="home-skel-line home-skel-line-title"></div>
+      <div class="home-skel-line home-skel-line-meta"></div>
+      <div class="home-skel-line listing-skel-price"></div>
+    </div>
+  </article>`;
+}
+function listingBootSkeletonMarkup(count=6){
+  const n=Math.max(3,Math.min(12,Number(count)||6));
+  return Array.from({length:n},listingCardSkeletonMarkup).join("");
+}
+function liveListingGrid(){
+  return document.querySelector(".books-grid[data-catalog-source]");
+}
+function liveListingWaiting(){
+  const grid=liveListingGrid();
+  if(!grid)return false;
+  return !grid.hasAttribute("data-catalog-ready");
+}
+function paintListingBootState(){
+  const grid=liveListingGrid();
+  if(!grid)return;
+  grid.setAttribute("aria-busy","true");
+  grid.removeAttribute("data-catalog-ready");
+  const hasDemo=!!grid.querySelector(".book-card:not(.is-skeleton), img[src*='sample-book-cover']");
+  const hasSkeleton=!!grid.querySelector(".book-card.is-skeleton");
+  if(hasDemo||!hasSkeleton)grid.innerHTML=listingBootSkeletonMarkup(6);
+}
+function listingErrorMarkup(){
+  return `<div class="catalog-error-state" role="alert"><p>كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى. قايتا سىناڭ.</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button></div>`;
 }
 function supabaseStorefrontConfigured(){
   const cfg=supabasePublicConfig();
@@ -377,7 +431,7 @@ function bookDetailHref(id, fallbackHref){
 function storefrontAssetPath(src){
   const value=String(src||"").trim();
   if(!value||value==="#")return value;
-  if(/^(javascript|data|vbscript|file|blob):/i.test(value))return FALLBACK_COVER;
+  if(/^(javascript|data|vbscript|file|blob):/i.test(value))return "";
   if(/^(https?:)?\/\//i.test(value)||value.startsWith("/"))return value;
   return "/"+value.replace(/^\.\//,"");
 }
@@ -596,11 +650,19 @@ async function queryCatalog(input={},options={}){
     try{return await fetchRemotePage(state,options)}
     catch(error){
       if(error?.name==="AbortError")throw error;
+      if(remoteCatalog.configured){
+        catalogStatus={...catalogStatus,source:"error",error:String(error?.message||error)};
+        window.KUTADGU_CATALOG_STATUS=catalogStatus;
+        throw error;
+      }
       console.error("Supabase catalog query failed; static fallback is being used.",error);
       restoreStaticVisibleCatalog();
       catalogStatus={...catalogStatus,source:"static",error:String(error?.message||error)};
       window.KUTADGU_CATALOG_STATUS=catalogStatus;
     }
+  }
+  if(remoteCatalog.configured){
+    throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
   }
   return staticQueryPage(state);
 }
@@ -664,17 +726,22 @@ async function loadRemoteCatalog(){
     });
     if(!response.ok)throw new Error(`Catalog availability check failed (HTTP ${response.status})`);
     const total=totalFromContentRange(response.headers.get("content-range"));
-    remoteCatalog.available=Number(total)>0;
+    remoteCatalog.available=true;
     remoteCatalog.total=Number.isFinite(total)?total:null;
-    if(remoteCatalog.available)await loadInactiveRemoteIndex();
-    else restoreStaticVisibleCatalog();
-    catalogStatus={source:remoteCatalog.available?"supabase":"static",remoteCount:0,total:remoteCatalog.available?total:STATIC_CATALOG.length,migrated:remoteCatalog.available,error:""};
+    beginRemoteVisibleCatalog();
+    rebuildVisibleCatalog();
+    if(Number(total)>0)await loadInactiveRemoteIndex();
+    catalogStatus={source:"supabase",remoteCount:C.length,total:Number.isFinite(total)?total:0,migrated:true,error:""};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }catch(err){
-    console.warn("Remote catalog load failed; static catalog is being used.",err);
+    console.warn("Remote catalog load failed.",err);
     remoteCatalog.available=false;
-    restoreStaticVisibleCatalog();
-    catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:String(err?.message||err)};
+    if(!remoteCatalog.configured){
+      restoreStaticVisibleCatalog();
+      catalogStatus={source:"static",remoteCount:0,total:C.length,migrated:false,error:String(err?.message||err)};
+    }else{
+      catalogStatus={source:"error",remoteCount:0,total:0,migrated:false,error:String(err?.message||err)};
+    }
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
   }finally{clearTimeout(timeoutId)}
 }
@@ -929,6 +996,8 @@ function cardId(card){
 }
 function syncStaticCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
+    if(card.classList.contains("is-skeleton"))return;
+    if(liveListingWaiting()&&card.closest("[data-catalog-source]"))return;
     if(card.querySelector(".book-icon")&&!card.querySelector("a.book-image,a.book-cover,.book-title"))return;
     const keys=cardIdentityKeys(card);
     const id=cardId(card);
@@ -944,7 +1013,15 @@ function syncStaticCards(){
     const cover=card.querySelector("a.book-image,a.book-cover");
     const img=cover?.querySelector("img");
     if(cover&&book.href)cover.href=book.href;
-    if(img){img.loading="lazy";img.decoding="async";if(!img.getAttribute("width"))img.setAttribute("width","320");if(!img.getAttribute("height"))img.setAttribute("height","460");img.src=coverSrc(book);img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;}
+    if(img){
+      img.loading="lazy";img.decoding="async";
+      if(!img.getAttribute("width"))img.setAttribute("width","320");
+      if(!img.getAttribute("height"))img.setAttribute("height","460");
+      const src=coverSrc(book);
+      img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;
+      if(!src)markCoverUnavailable(img);
+      else img.src=src;
+    }
     const detail=card.querySelector(".detail-button,.book-button");if(detail&&book.href)detail.href=book.href;
     const title=card.querySelector(".book-title");if(title)title.textContent=book.title||"كىتاب";
     const author=card.querySelector(".book-author");
@@ -957,9 +1034,10 @@ function syncStaticCards(){
   });
 }
 function applyStaticCoverFallbacks(scope=document){
-  scope.querySelectorAll(".book-card .book-cover, .book-card .book-image").forEach(cover=>{
+  scope.querySelectorAll(".book-card:not(.is-skeleton) .book-cover, .book-card:not(.is-skeleton) .book-image").forEach(cover=>{
     let img=cover.matches("img")?cover:cover.querySelector("img");
     if(!img){
+      if(!COVER_LAYOUT_TEST_MODE)return;
       img=document.createElement("img");
       const title=cover.closest(".book-card")?.querySelector(".book-title")?.textContent.trim()||"كىتاب";
       img.alt=`${title} كىتاب مۇقاۋىسى`;
@@ -969,16 +1047,18 @@ function applyStaticCoverFallbacks(scope=document){
     }
     img.onerror=function(){
       this.onerror=null;
-      this.hidden=false;
-      this.style.visibility="visible";
-      this.src=FALLBACK_COVER;
+      if(COVER_LAYOUT_TEST_MODE){this.src=FALLBACK_COVER;return}
+      markCoverUnavailable(this);
     };
     img.loading="lazy";
     img.decoding="async";
     if(!img.getAttribute("width"))img.setAttribute("width","320");
     if(!img.getAttribute("height"))img.setAttribute("height","460");
     const src=(img.getAttribute("src")||"").trim();
-    if(COVER_LAYOUT_TEST_MODE||!src||src==="#")img.src=coverSrc(null);
+    if(COVER_LAYOUT_TEST_MODE&&(!src||src==="#"))img.src=coverSrc(null);
+    else if(!src||src==="#"||isSampleDemoCover(src)){
+      markCoverUnavailable(img);
+    }
   });
 }
 function applyDetailCoverFallback(){
@@ -999,14 +1079,19 @@ function applyDetailCoverFallback(){
   box.classList.remove("no-cover");
   img.onerror=function(){
     this.onerror=null;
-    this.hidden=false;
-    this.style.visibility="visible";
-    this.src=FALLBACK_COVER;
+    if(COVER_LAYOUT_TEST_MODE){this.src=FALLBACK_COVER;return}
+    markCoverUnavailable(this);
   };
-  if(COVER_LAYOUT_TEST_MODE||!current||current==="#")img.src=coverSrc(book);
+  if(COVER_LAYOUT_TEST_MODE){img.src=coverSrc(book);return}
+  const src=coverSrc(book);
+  if(!src||isSampleDemoCover(current)||!current||current==="#"){
+    if(!src){markCoverUnavailable(img);return}
+    img.src=src;
+  }
 }
 function decorateCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
+    if(card.classList.contains("is-skeleton"))return;
     let id=cardId(card); if(!id||card.querySelector(".book-actions"))return;
     let info=card.querySelector(".book-info")||card;
     let detail=info.querySelector(".detail-button");
@@ -1116,11 +1201,13 @@ function populateDynamicBookPage(b){
 
   const img=document.querySelector(".book-cover-box img");
   if(img){
-    img.src=coverSrc(b);
     img.alt=`${b.title} كىتاب مۇقاۋىسى`;
     img.hidden=false;
     img.parentElement.classList.remove("no-cover");
-    img.onerror=()=>{img.onerror=null;img.src=FALLBACK_COVER};
+    img.onerror=()=>{img.onerror=null;if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}markCoverUnavailable(img)};
+    const src=coverSrc(b);
+    if(!src)markCoverUnavailable(img);
+    else img.src=src;
   }
 
   const info=document.querySelector(".book-detail-info");
@@ -1169,16 +1256,18 @@ function detailGallerySlides(book){
   const extras=normalizeGalleryImages(book?.galleryImages||[],book?.image||"")
     .map(src=>safeCoverUrl(src,{fallback:"",fallbackOnInvalid:false}))
     .filter(Boolean);
-  return [main,...extras].filter(src=>isSafeCoverUrl(src));
+  return [main,...extras].filter(src=>src&&isSafeCoverUrl(src)&&!isSampleDemoCover(src));
 }
 
 function setDetailHeroImage(src,alt){
   const img=document.querySelector(".book-cover-box img");
   if(!img)return;
-  img.src=isSafeCoverUrl(src)?src:FALLBACK_COVER;
+  const safe=isSafeCoverUrl(src)&&!isSampleDemoCover(src)?src:"";
   img.alt=alt||img.alt||"";
   img.hidden=false;
   img.style.visibility="visible";
+  if(!safe){if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}markCoverUnavailable(img);return}
+  img.src=safe;
 }
 
 function openCoverLightbox(slides,startIndex,alt){
@@ -1220,7 +1309,8 @@ function openCoverLightbox(slides,startIndex,alt){
   document.body.appendChild(overlay);
   const show=()=>{
     const url=list[index];
-    picture.src=isSafeCoverUrl(url)?url:FALLBACK_COVER;
+    if(!url||!isSafeCoverUrl(url)||isSampleDemoCover(url))return;
+    picture.src=url;
     if(count)count.textContent=`${index+1} / ${list.length}`;
   };
   show();
@@ -1272,11 +1362,11 @@ function renderBookGallery(book){
   strip.setAttribute("role","list");
   strip.setAttribute("aria-label","كىتاب رەسىملىرى");
   strip.innerHTML=slides.map((src,index)=>{
-    const safe=isSafeCoverUrl(src)?src:FALLBACK_COVER;
+    if(!isSafeCoverUrl(src)||isSampleDemoCover(src))return "";
     return `<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
-      <img src="${escapeAttr(safe)}" alt="" ${index===0?"":'loading="lazy"'} decoding="async">
+      <img src="${escapeAttr(src)}" alt="" ${index===0?"":'loading="lazy"'} decoding="async">
     </button>`;
-  }).join("");
+  }).filter(Boolean).join("");
   col.appendChild(strip);
   strip.querySelectorAll(".book-gallery-thumb").forEach(btn=>{
     btn.onclick=()=>{
@@ -1443,8 +1533,7 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  const title=escapeAttr(b.title||"");
-  return `<img src="${escapeAttr(coverSrc(b))}" alt="${title}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">`;
+  return coverImgHtml(b,{width:320,height:460});
 }
 
 function miniCard(b){
@@ -1519,7 +1608,7 @@ function homeFeatureCard(b){
       <a href="${href}">
         <div class="home-feature-cover">
           <div class="home-feature-cover-frame">
-            <img src="${escapeAttr(coverSrc(b))}" alt="${escapeAttr(b.title)} كىتاب مۇقاۋىسى" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+            ${coverImgHtml(b,{width:320,height:460})}
           </div>
         </div>
         <div class="home-feature-info">
@@ -1646,10 +1735,10 @@ function bindDynamicActions(scope){
   renderFavButtons();
 }
 function bookCardMarkup(b,variant="listing"){
-  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||""),cover=escapeAttr(coverSrc(b));
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
   if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
-    <a class="advanced-search-cover" href="${href}"><img src="${cover}" alt="${escapeAttr(b.title)}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'"></a>
+    <a class="advanced-search-cover" href="${href}">${coverImgHtml(b)}</a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${href}">${title}</a>
       ${authorBlock}
@@ -1665,7 +1754,7 @@ function bookCardMarkup(b,variant="listing"){
   </article>`;
   return `<article class="book-card" data-live-book-id="${id}">
     <a class="book-image" href="${href}">
-      <img alt="${escapeAttr(b.title)} كىتاب مۇقاۋىسى" src="${cover}" width="320" height="460" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+      ${coverImgHtml(b)}
     </a>
     <div class="book-info">
       <h2 class="book-title">${title}</h2>
@@ -1726,7 +1815,7 @@ function searchEnhance(){
     panelAnchor.insertAdjacentElement("afterend",panel);
   }
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
-  const fallbackNotice=()=>catalogStatus.error?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
+  const fallbackNotice=()=>(!remoteCatalog.configured&&catalogStatus.error)?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
   function hasFilter(){return !!(input.value.trim()||category?.value||collection?.value||minEl?.value||maxEl?.value)}
   let requestId=0,controller=null,items=[],loadingMore=false;
   function readState(offset=0){
@@ -1808,7 +1897,7 @@ function setupCatalogFilters(){
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
   const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
   let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptyMarkup;controls.insertAdjacentElement("afterend",empty);
-  if(catalogStatus.error){
+  if(catalogStatus.error&&!remoteCatalog.configured){
     const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
   }
 
@@ -1830,6 +1919,8 @@ function setupCatalogFilters(){
       result.items.forEach(book=>{if(!known.has(book.id)){known.add(book.id);items.push(book)}});
     }else items=[...result.items];
     grid.innerHTML=items.map(dynamicListingCard).join("");
+    grid.setAttribute("data-catalog-ready","");
+    grid.setAttribute("aria-busy","false");
     bindDynamicActions(grid);
     count.textContent=`${items.length} / ${result.total} كىتاب كۆرسىتىلدى`;
     controls.innerHTML=result.hasMore?`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${result.pageSize} دانە</button>`:"";
@@ -1852,7 +1943,13 @@ function setupCatalogFilters(){
     loadingMore=append;
     empty.hidden=true;grid.hidden=false;controls.hidden=false;
     if(append){const button=controls.querySelector(".catalog-load-more");if(button){button.disabled=true;button.textContent="يۈكلىنىۋاتىدۇ…"}}
-    else{items=[];grid.innerHTML='<div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div>';controls.innerHTML="";count.textContent=""}
+    else{
+      items=[];
+      grid.removeAttribute("data-catalog-ready");
+      grid.setAttribute("aria-busy","true");
+      if(!grid.querySelector(".book-card.is-skeleton"))grid.innerHTML=listingBootSkeletonMarkup(6);
+      controls.innerHTML="";count.textContent="";
+    }
     try{
       const result=await queryCatalog(state,{signal:controller.signal});
       if(token!==requestId)return;
@@ -1860,8 +1957,14 @@ function setupCatalogFilters(){
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Category catalog query failed.",error);
-        grid.hidden=true;controls.hidden=true;empty.hidden=false;
-        empty.innerHTML='<strong>كىتابلارنى يۈكلەش مۇمكىن بولمىدى.</strong><br><span>تورنى تەكشۈرۈپ قايتا سىناڭ.</span>';
+        empty.hidden=true;controls.hidden=true;grid.hidden=false;
+        grid.removeAttribute("data-catalog-ready");
+        grid.setAttribute("aria-busy","false");
+        grid.innerHTML=listingErrorMarkup();
+        grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{
+          await loadRemoteCatalog();
+          apply(false);
+        });
       }
     }finally{if(token===requestId)loadingMore=false}
   }
@@ -2052,7 +2155,7 @@ function cartPage(){
     const stock=stockInfo(x.b);
     return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
       <div class="cart-item-cover">
-        <img src="${escapeAttr(coverSrc(x.b))}" alt="${escapeAttr(x.b.title)}" width="100" height="127" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+        ${coverImgHtml(x.b,{width:100,height:127})}
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(x.b.title)}</div>
@@ -2714,7 +2817,7 @@ async function setupHomeCarousel(){
     ...(appConfig().carousel||{})
   };
   let reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
-  const gap=10,sampleCover=FALLBACK_COVER;
+  const gap=10;
   let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=false;
   let modeRequestId=0,modeController=null;
   const modeCache=new Map();
@@ -2754,7 +2857,7 @@ async function setupHomeCarousel(){
     return `<article class="home-carousel-card">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${href}" class="home-carousel-link">
-        <div class="home-carousel-cover"><img src="${escapeAttr(coverSrc(b))}" alt="${escapeAttr(b.title||"كىتاب مۇقاۋىسى")}" width="320" height="460" loading="${loading}" decoding="async" onerror="this.onerror=null;this.src='${sampleCover}'"></div>
+        <div class="home-carousel-cover">${coverImgHtml(b,{width:320,height:460,loading})}</div>
       </a>
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
@@ -2983,8 +3086,11 @@ function initStaticShell(){
   staticShellReady=true;
   ensureCoverSystemCss();
   injectFloat();
-  applyStaticCoverFallbacks();
-  syncStaticCards();
+  paintListingBootState();
+  if(!liveListingWaiting()){
+    applyStaticCoverFallbacks();
+    syncStaticCards();
+  }
   decorateCards();
   searchEnhance();
   renderHomeSections();
@@ -3010,7 +3116,7 @@ function init(){
   renderMyBooks();
   renderFavoritesPage();
   cartPage();
-  syncStaticCards();
+  if(!liveListingWaiting())syncStaticCards();
   if(document.documentElement.dataset.kutadguShopListeners!=="1"){
     document.documentElement.dataset.kutadguShopListeners="1";
     document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
@@ -3042,5 +3148,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook};
 })();

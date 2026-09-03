@@ -91,8 +91,9 @@ test.describe("security hardening 2a", () => {
       };
     });
     expect(srcs.https).toBe("https://cdn.example/ok.webp");
-    expect(srcs.root).toBe("/sample-book-cover.png");
-    expect(srcs.relative).toMatch(/sample-book-cover\.png$/);
+    expect(srcs.root).toBe("");
+    expect(srcs.relative).toBe("");
+    expect(srcs.bad).toBe("");
     expect(srcs.bad).not.toMatch(/javascript:/i);
   });
 
