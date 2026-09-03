@@ -203,4 +203,205 @@ test.describe("cover load resilience", () => {
       expect(overflow, `overflow at ${width}`).toBeFalsy();
     }
   });
+
+  test("C same img URL reassignment does not replay the old cover", async ({ page }) => {
+    const hitsA = { n: 0 };
+    const hitsB = { n: 0 };
+    await page.route("**/cover-retry-a.png", async (route) => {
+      hitsA.n += 1;
+      return route.abort();
+    });
+    await page.route("**/cover-retry-b.png", async (route) => {
+      hitsB.n += 1;
+      return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+    });
+    await mockBooks(page, [bookRow({ image_url: "/kutadgu-logo.png" })]);
+    await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await page.evaluate(() => {
+      const img = document.createElement("img");
+      img.id = "cover-retry-harness";
+      img.width = 80;
+      img.height = 120;
+      document.body.appendChild(img);
+      window.kutadguShop.assignCoverImage(img, "/cover-retry-a.png");
+    });
+    await expect.poll(async () => {
+      return page.locator("#cover-retry-harness").evaluate((img) => img.classList.contains("is-cover-retrying")).catch(() => false);
+    }, { timeout: 4_000 }).toBe(true);
+    const aAfterEnter = hitsA.n;
+    await page.evaluate(() => {
+      window.kutadguShop.assignCoverImage(document.getElementById("cover-retry-harness"), "/cover-retry-b.png");
+    });
+    await expect.poll(async () => {
+      return page.locator("#cover-retry-harness").evaluate((img) => {
+        const src = img.getAttribute("src") || "";
+        return img.naturalWidth > 0 && src.includes("cover-retry-b.png") && !img.classList.contains("is-cover-retrying");
+      }).catch(() => false);
+    }, { timeout: 6_000 }).toBe(true);
+    await page.waitForTimeout(1200);
+    expect(hitsA.n).toBe(aAfterEnter);
+    expect(hitsB.n).toBe(1);
+    await expect(page.locator("#cover-retry-harness")).toBeVisible();
+    await expect(page.locator(".book-cover-unavailable")).toHaveCount(0);
+    const debug = await page.evaluate(() => window.kutadguShop.getCoverRetryDebug());
+    expect(debug.inFlight).toBe(0);
+  });
+
+  test("D reassignment resets retry budget for the new URL", async ({ page }) => {
+    const hitsA = { n: 0 };
+    const hitsB = { n: 0 };
+    await page.route("**/cover-retry-a.png", async (route) => {
+      hitsA.n += 1;
+      return route.abort();
+    });
+    await page.route("**/cover-retry-b.png", async (route) => {
+      hitsB.n += 1;
+      if (hitsB.n <= 2) return route.abort();
+      return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+    });
+    await mockBooks(page, [bookRow({ image_url: "/kutadgu-logo.png" })]);
+    await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await page.evaluate(() => {
+      const img = document.createElement("img");
+      img.id = "cover-retry-harness";
+      img.width = 80;
+      img.height = 120;
+      document.body.appendChild(img);
+      window.kutadguShop.assignCoverImage(img, "/cover-retry-a.png");
+    });
+    await expect.poll(() => hitsA.n, { timeout: 4_000 }).toBeGreaterThanOrEqual(2);
+    await expect(page.locator("#cover-retry-harness")).toBeVisible();
+    await page.evaluate(() => {
+      window.kutadguShop.assignCoverImage(document.getElementById("cover-retry-harness"), "/cover-retry-b.png");
+    });
+    await expect.poll(async () => {
+      return page.locator("#cover-retry-harness").evaluate((img) => {
+        const src = img.getAttribute("src") || "";
+        return img.naturalWidth > 0 && src.includes("cover-retry-b.png");
+      }).catch(() => false);
+    }, { timeout: 8_000 }).toBe(true);
+    expect(hitsB.n).toBeGreaterThanOrEqual(3);
+    expect(hitsB.n).toBeLessThanOrEqual(3);
+    await expect(page.locator("#cover-retry-harness")).toHaveCount(1);
+    await expect(page.locator("body > .book-cover-unavailable")).toHaveCount(0);
+  });
+
+  test("E in-flight reassignment does not stall the retry queue", async ({ page }) => {
+    const hitsA = { n: 0 };
+    const otherHits = {};
+    const hangA = { release: null };
+    await page.route("**/cover-retry-a.png", async (route) => {
+      hitsA.n += 1;
+      if (hitsA.n === 1) return route.abort();
+      await new Promise((resolve) => {
+        hangA.release = resolve;
+      });
+      try {
+        await route.abort();
+      } catch (err) {}
+    });
+    for (let i = 0; i < 4; i += 1) {
+      otherHits[i] = { n: 0 };
+      const pathName = `/cover-retry-other-${i}.png`;
+      await page.route(`**${pathName}`, async (route) => {
+        otherHits[i].n += 1;
+        if (otherHits[i].n === 1) return route.abort();
+        return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+      });
+    }
+    await page.route("**/cover-retry-b.png", async (route) => {
+      return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+    });
+    await mockBooks(page, [bookRow({ image_url: "/kutadgu-logo.png" })]);
+    await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await page.evaluate(() => {
+      const img = document.createElement("img");
+      img.id = "cover-retry-harness";
+      img.width = 80;
+      img.height = 120;
+      document.body.appendChild(img);
+      window.kutadguShop.assignCoverImage(img, "/cover-retry-a.png");
+    });
+    await expect.poll(async () => {
+      return page.evaluate(() => window.kutadguShop.getCoverRetryDebug().inFlight);
+    }, { timeout: 4_000 }).toBeGreaterThanOrEqual(1);
+    await page.evaluate(() => {
+      window.kutadguShop.assignCoverImage(document.getElementById("cover-retry-harness"), "/cover-retry-b.png");
+    });
+    await expect.poll(async () => {
+      return page.locator("#cover-retry-harness").evaluate((img) => img.naturalWidth > 0).catch(() => false);
+    }, { timeout: 6_000 }).toBe(true);
+    await page.evaluate(() => {
+      for (let i = 0; i < 4; i += 1) {
+        const img = document.createElement("img");
+        img.id = `cover-retry-other-${i}`;
+        img.width = 80;
+        img.height = 120;
+        document.body.appendChild(img);
+        window.kutadguShop.assignCoverImage(img, `/cover-retry-other-${i}.png`);
+      }
+    });
+    for (let i = 0; i < 4; i += 1) {
+      await expect.poll(async () => {
+        return page.locator(`#cover-retry-other-${i}`).evaluate((img) => img && img.naturalWidth > 0).catch(() => false);
+      }, { timeout: 8_000 }).toBe(true);
+    }
+    await expect.poll(async () => {
+      return page.evaluate(() => window.kutadguShop.getCoverRetryDebug().inFlight);
+    }, { timeout: 6_000 }).toBe(0);
+    const aAfter = hitsA.n;
+    await page.waitForTimeout(1500);
+    expect(hitsA.n).toBe(aAfter);
+    expect(hitsA.n).toBeLessThanOrEqual(2);
+    for (let i = 0; i < 4; i += 1) {
+      expect(otherHits[i].n).toBe(2);
+    }
+    if (hangA.release) hangA.release();
+  });
+
+  test("lightbox-style rapid src switching keeps the last cover", async ({ page }) => {
+    const hits = { a: 0, b: 0, c: 0 };
+    await page.route("**/cover-retry-a.png", async (route) => {
+      hits.a += 1;
+      await page.waitForTimeout(400);
+      return route.abort();
+    });
+    await page.route("**/cover-retry-b.png", async (route) => {
+      hits.b += 1;
+      await page.waitForTimeout(400);
+      return route.abort();
+    });
+    await page.route("**/cover-retry-c.png", async (route) => {
+      hits.c += 1;
+      return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+    });
+    await mockBooks(page, [bookRow({ image_url: "/kutadgu-logo.png" })]);
+    await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await page.evaluate(() => {
+      const img = document.createElement("img");
+      img.id = "cover-retry-harness";
+      img.width = 80;
+      img.height = 120;
+      document.body.appendChild(img);
+      const Shop = window.kutadguShop;
+      Shop.assignCoverImage(img, "/cover-retry-a.png");
+      Shop.assignCoverImage(img, "/cover-retry-b.png");
+      Shop.assignCoverImage(img, "/cover-retry-c.png");
+    });
+    await expect.poll(async () => {
+      return page.locator("#cover-retry-harness").evaluate((img) => {
+        const src = img.getAttribute("src") || "";
+        return img.naturalWidth > 0 && src.includes("cover-retry-c.png");
+      }).catch(() => false);
+    }, { timeout: 6_000 }).toBe(true);
+    await page.waitForTimeout(1200);
+    expect(hits.a).toBeLessThanOrEqual(1);
+    expect(hits.b).toBeLessThanOrEqual(1);
+    expect(hits.c).toBe(1);
+    await expect(page.locator("#cover-retry-harness")).toHaveCount(1);
+  });
 });

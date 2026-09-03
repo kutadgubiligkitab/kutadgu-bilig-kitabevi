@@ -170,6 +170,7 @@ const COVER_RETRY_CONCURRENCY=3;
 const coverRetryStates=new WeakMap();
 let coverRetryQueue=[];
 let coverRetryInFlight=0;
+let coverRetryGenerationSeq=0;
 function isRetryableCoverUrl(src){
   const t=String(src||"").trim();
   if(!t||isSampleDemoCover(t)||!isSafeCoverUrl(t))return false;
@@ -177,7 +178,48 @@ function isRetryableCoverUrl(src){
 }
 function coverRetryState(img){
   let state=coverRetryStates.get(img);
-  if(!state){state={failures:0,timer:0,queued:false};coverRetryStates.set(img,state)}
+  if(!state){
+    state={generation:0,failures:0,timer:0,queued:false,src:"",release:null,replaying:false};
+    coverRetryStates.set(img,state);
+  }
+  return state;
+}
+function approvedCoverSrc(img){
+  return String(img&&(img.getAttribute("data-cover-src")||img.getAttribute("src"))||"").trim();
+}
+function isCoverJobCurrent(img,generation,src){
+  if(!img||!img.isConnected)return false;
+  const state=coverRetryStates.get(img);
+  if(!state)return false;
+  if(state.generation!==generation)return false;
+  if(src&&state.src!==src)return false;
+  if(src&&approvedCoverSrc(img)!==src)return false;
+  return true;
+}
+function releaseCoverRetrySlot(state){
+  if(!state||typeof state.release!=="function")return;
+  const fn=state.release;
+  state.release=null;
+  fn();
+}
+function beginCoverAssignment(img,src){
+  const prev=img?coverRetryStates.get(img):null;
+  if(prev){
+    if(prev.timer){clearTimeout(prev.timer);prev.timer=0}
+    prev.queued=false;
+    prev.replaying=false;
+    releaseCoverRetrySlot(prev);
+  }
+  if(img){
+    img.onload=null;
+    img.onerror=null;
+  }
+  const state={generation:++coverRetryGenerationSeq,failures:0,timer:0,queued:false,src:String(src||""),release:null,replaying:false};
+  if(img){
+    coverRetryStates.set(img,state);
+    if(img.classList)img.classList.remove("is-cover-retrying");
+    if(img.removeAttribute)img.removeAttribute("aria-busy");
+  }
   return state;
 }
 function clearCoverRetry(img){
@@ -185,15 +227,14 @@ function clearCoverRetry(img){
   if(!state)return;
   if(state.timer){clearTimeout(state.timer);state.timer=0}
   state.queued=false;
+  state.replaying=false;
+  releaseCoverRetrySlot(state);
   if(img&&img.classList)img.classList.remove("is-cover-retrying");
   if(img&&img.removeAttribute)img.removeAttribute("aria-busy");
 }
-function approvedCoverSrc(img){
-  return String(img&&(img.getAttribute("data-cover-src")||img.getAttribute("src"))||"").trim();
-}
 function markCoverUnavailable(img){
   if(!img||!img.parentNode)return;
-  clearCoverRetry(img);
+  beginCoverAssignment(img,"");
   img.onload=null;
   img.onerror=null;
   const span=document.createElement("span");
@@ -203,8 +244,9 @@ function markCoverUnavailable(img){
 }
 function handleCoverLoad(img){
   if(!img)return;
+  const state=coverRetryStates.get(img);
+  if(state&&state.replaying)return;
   clearCoverRetry(img);
-  coverRetryStates.delete(img);
 }
 function handleCoverError(img){
   if(!img)return;
@@ -213,69 +255,108 @@ function handleCoverError(img){
     img.src=FALLBACK_COVER;
     return;
   }
-  const src=approvedCoverSrc(img);
+  const state=coverRetryStates.get(img);
+  if(state&&state.replaying)return;
+  const src=state&&state.src?state.src:approvedCoverSrc(img);
   if(!isRetryableCoverUrl(src)){
     markCoverUnavailable(img);
     return;
   }
-  const state=coverRetryState(img);
-  if(state.timer||state.queued)return;
-  state.failures=(state.failures||0)+1;
-  if(state.failures>COVER_RETRY_MAX){
+  if(!state){
+    beginCoverAssignment(img,src);
+  }
+  const current=coverRetryState(img);
+  if(current.src!==src)return;
+  if(current.timer||current.queued)return;
+  current.failures=(current.failures||0)+1;
+  if(current.failures>COVER_RETRY_MAX){
     markCoverUnavailable(img);
     return;
   }
   img.classList.add("is-cover-retrying");
   img.setAttribute("aria-busy","true");
-  const delay=COVER_RETRY_DELAYS[Math.min(state.failures-1,COVER_RETRY_DELAYS.length-1)];
-  state.timer=setTimeout(()=>{
-    state.timer=0;
-    if(!img.isConnected){clearCoverRetry(img);return}
-    enqueueCoverRetry(img);
+  const generation=current.generation;
+  const delay=COVER_RETRY_DELAYS[Math.min(current.failures-1,COVER_RETRY_DELAYS.length-1)];
+  current.timer=setTimeout(()=>{
+    current.timer=0;
+    if(!isCoverJobCurrent(img,generation,src))return;
+    enqueueCoverRetry(img,generation,src);
   },delay);
 }
-function enqueueCoverRetry(img){
-  const state=coverRetryState(img);
+function enqueueCoverRetry(img,generation,src){
+  const state=coverRetryStates.get(img);
+  if(!state||state.generation!==generation||state.src!==src)return;
   if(state.queued)return;
   state.queued=true;
-  coverRetryQueue.push(img);
+  coverRetryQueue.push({img,generation,src});
   pumpCoverRetryQueue();
 }
 function pumpCoverRetryQueue(){
   while(coverRetryInFlight<COVER_RETRY_CONCURRENCY&&coverRetryQueue.length){
-    const img=coverRetryQueue.shift();
-    const state=img?coverRetryStates.get(img):null;
-    if(state)state.queued=false;
-    if(!img||!img.isConnected){if(img)clearCoverRetry(img);continue}
-    replayApprovedCover(img);
+    const job=coverRetryQueue.shift();
+    if(!job)continue;
+    const state=job.img?coverRetryStates.get(job.img):null;
+    if(state&&state.generation===job.generation)state.queued=false;
+    if(!isCoverJobCurrent(job.img,job.generation,job.src))continue;
+    replayApprovedCover(job);
   }
 }
-function replayApprovedCover(img){
-  const src=approvedCoverSrc(img);
-  if(!isRetryableCoverUrl(src)||!img.isConnected){markCoverUnavailable(img);return}
+function replayApprovedCover(job){
+  const img=job&&job.img;
+  const generation=job&&job.generation;
+  const src=job&&job.src;
+  if(!isCoverJobCurrent(img,generation,src)||!isRetryableCoverUrl(src)){
+    if(img&&img.isConnected&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
+    return;
+  }
+  const state=coverRetryState(img);
+  let released=false;
+  const release=()=>{
+    if(released)return;
+    released=true;
+    if(state.release===release)state.release=null;
+    coverRetryInFlight=Math.max(0,coverRetryInFlight-1);
+    pumpCoverRetryQueue();
+  };
+  state.release=release;
   coverRetryInFlight++;
-  const done=()=>{if(coverRetryInFlight>0)coverRetryInFlight--;pumpCoverRetryQueue()};
-  img.onload=function(){done();handleCoverLoad(img)};
-  img.onerror=function(){done();handleCoverError(img)};
+  img.onload=function(){
+    release();
+    if(!isCoverJobCurrent(img,generation,src))return;
+    handleCoverLoad(img);
+  };
+  img.onerror=function(){
+    release();
+    if(!isCoverJobCurrent(img,generation,src))return;
+    handleCoverError(img);
+  };
+  state.replaying=true;
   img.removeAttribute("src");
   try{void img.offsetWidth}catch(e){}
   img.src=src;
+  state.replaying=false;
 }
 function assignCoverImage(img,src,opts={}){
   if(!img)return;
-  clearCoverRetry(img);
   const approved=isRetryableCoverUrl(src)?src:"";
+  const state=beginCoverAssignment(img,approved);
   if(!approved){
     if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}
     markCoverUnavailable(img);
     return;
   }
   img.setAttribute("data-cover-src",approved);
-  img.onload=()=>handleCoverLoad(img);
-  img.onerror=()=>handleCoverError(img);
+  const generation=state.generation;
+  img.onload=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverLoad(img)};
+  img.onerror=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverError(img)};
   if(opts.loading)img.loading=opts.loading;
   if(opts.fetchpriority)img.setAttribute("fetchpriority",opts.fetchpriority);
+  state.replaying=true;
   img.src=approved;
+  state.replaying=false;
+}
+function getCoverRetryDebug(){
+  return {inFlight:coverRetryInFlight,queued:coverRetryQueue.length};
 }
 window.kutadguMarkCoverUnavailable=markCoverUnavailable;
 window.kutadguHandleCoverError=handleCoverError;
@@ -3252,5 +3333,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,COVER_RETRY_MAX,COVER_RETRY_DELAYS};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();

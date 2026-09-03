@@ -30,10 +30,36 @@ test("one shared cover retry mechanism exists with bounded delays", () => {
   assert.match(shop, /const COVER_RETRY_CONCURRENCY=3/);
   assert.match(shop, /function handleCoverError\(img\)/);
   assert.match(shop, /function handleCoverLoad\(img\)/);
-  assert.match(shop, /function replayApprovedCover\(img\)/);
-  assert.match(shop, /function enqueueCoverRetry\(img\)/);
+  assert.match(shop, /function replayApprovedCover\(job\)/);
+  assert.match(shop, /function enqueueCoverRetry\(img,generation,src\)/);
   assert.match(shop, /img\.isConnected/);
   assert.match(shop, /function isRetryableCoverUrl\(src\)/);
+});
+
+test("retry jobs are assignment-generation scoped and skip stale work", () => {
+  assert.match(shop, /let coverRetryGenerationSeq=0/);
+  assert.match(shop, /function beginCoverAssignment\(img,src\)/);
+  assert.match(shop, /function isCoverJobCurrent\(img,generation,src\)/);
+  assert.match(shop, /coverRetryQueue\.push\(\{img,generation,src\}\)/);
+  assert.match(shop, /if\(!isCoverJobCurrent\(job\.img,job\.generation,job\.src\)\)continue/);
+  assert.match(shop, /generation:\+\+coverRetryGenerationSeq,failures:0/);
+  assert.match(shop, /function getCoverRetryDebug\(\)/);
+  assert.match(shop, /getCoverRetryDebug,/);
+  const assign = sliceBetween(shop, "function assignCoverImage(img,src,opts={}){", "function getCoverRetryDebug(){");
+  assert.match(assign, /beginCoverAssignment\(img,approved\)/);
+  assert.match(assign, /if\(!isCoverJobCurrent\(img,generation,approved\)\)return/);
+});
+
+test("in-flight retry slots release exactly once even after reassignment", () => {
+  const replay = sliceBetween(shop, "function replayApprovedCover(job){", "function assignCoverImage(img,src,opts={}){");
+  assert.match(replay, /let released=false/);
+  assert.match(replay, /if\(released\)return/);
+  assert.match(replay, /coverRetryInFlight=Math\.max\(0,coverRetryInFlight-1\)/);
+  assert.match(replay, /state\.release=release/);
+  const begin = sliceBetween(shop, "function beginCoverAssignment(img,src){", "function clearCoverRetry(img){");
+  assert.match(begin, /releaseCoverRetrySlot\(prev\)/);
+  assert.match(begin, /img\.onload=null/);
+  assert.match(begin, /img\.onerror=null/);
 });
 
 test("coverImgHtml retries instead of immediately replacing the img", () => {
