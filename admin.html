@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=26">
+  <link rel="stylesheet" href="admin.css?v=28">
 </head>
 <body>
 <div class="admin-shell">
@@ -241,6 +241,7 @@
           <div class="admin-toolbar-group">
             <button type="button" class="admin-secondary" id="selectPageBtn">نۆۋەتتىكى بەتنى تاللاش</button>
             <button type="button" class="admin-secondary" id="clearSelectionBtn">تاللاشنى تازىلاش</button>
+            <button type="button" class="admin-secondary" id="bulkPriceOpenBtn">توپ باھا ئۆزگەرتىش</button>
           </div>
           <div class="admin-toolbar-group admin-bulk-actions">
             <select id="bulkAction" aria-label="توپلام مەشغۇلات">
@@ -485,6 +486,77 @@
   </div>
 </div>
 
+<div id="bulkPriceModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="bulkPriceTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkPriceTitle">توپ باھا ئۆزگەرتىش</h2>
+      <button id="closeBulkPrice" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p class="admin-help">باھا تارىخى ۋە قايتۇرۇش بۇ قورالدا يوق. ئالدىن كۆرۈش ۋە ئايرىم جەزملەشتۈرۈشتىن كېيىنلا يېزىلىدۇ.</p>
+    <fieldset class="admin-bulk-price-scopes">
+      <legend>دائىرە</legend>
+      <label class="admin-check"><input type="radio" name="bulkPriceScope" value="all" checked><span>بارلىق كىتابلار</span></label>
+      <label class="admin-check"><input type="radio" name="bulkPriceScope" value="category"><span>بىر كاتېگورىيە</span></label>
+      <label class="admin-check"><input type="radio" name="bulkPriceScope" value="selected"><span>تاللانغان كىتابلار</span></label>
+    </fieldset>
+    <label id="bulkPriceCategoryWrap" hidden>
+      <span>كاتېگورىيە</span>
+      <select id="bulkPriceCategory"></select>
+    </label>
+    <p id="bulkPriceSelectedHint" class="admin-help" role="status"></p>
+    <label>
+      <span>مەشغۇلات</span>
+      <select id="bulkPriceOperation">
+        <option value="pct_inc">پىرسەنت بويىچە ئۆستۈرۈش</option>
+        <option value="pct_dec">پىرسەنت بويىچە چۈشۈرۈش</option>
+        <option value="fixed_inc">مۇقىم سومما قوشۇش</option>
+        <option value="fixed_dec">مۇقىم سومما كېمەيتىش</option>
+      </select>
+    </label>
+    <label>
+      <span>قوشۇلىدىغان / ئېلىنىدىغان سان</span>
+      <input id="bulkPriceAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="10">
+    </label>
+    <p class="admin-help">+ ياكى − بەلگىسى يازماڭ. مەسىلەن 10، 15، 20.</p>
+    <div class="admin-wide admin-toolbar-group">
+      <button class="admin-secondary" id="bulkPricePreviewBtn" type="button">ئالدىن كۆرۈش</button>
+    </div>
+    <p id="bulkPriceSummary" class="admin-help" hidden></p>
+    <p id="bulkPriceZeroWarning" class="admin-status warn" hidden></p>
+    <p id="bulkPriceError" class="admin-status error" hidden></p>
+    <div id="bulkPricePreviewWrap" class="admin-bulk-price-preview" hidden>
+      <div id="bulkPricePreviewList"></div>
+    </div>
+    <div id="bulkPricePreviewPager" class="admin-pager" hidden></div>
+    <p id="bulkPriceStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="bulkPriceConfirmBtn" type="button" disabled>باھا ئۆزگەرتىشنى جەزملەشتۈرۈش</button>
+      <button class="admin-secondary" id="bulkPriceCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulkPriceHighRiskModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card admin-bulk-confirm-card" role="dialog" aria-modal="true" aria-labelledby="bulkPriceHighRiskTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkPriceHighRiskTitle">يۇقىرى خەتەرلىك باھا ئۆزگەرتىش</h2>
+      <button id="closeBulkPriceHighRisk" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p class="admin-status warn">دىققەت: بۇ مەشغۇلات كۆپ ھەقىقىي كاتالوگ باھاسىنى ئۆزگەرتىدۇ. ئالدىن كۆرۈشتىكى ساننى قولدا كىرگۈزمىگىچە يېزىلمايدۇ.</p>
+    <pre id="bulkPriceHighRiskText" class="admin-bulk-confirm-text"></pre>
+    <p id="bulkPriceHighRiskZero" class="admin-status warn" hidden></p>
+    <label>
+      <span>يېڭىلىنىدىغان كىتاب سانىنى كىرگۈزۈڭ</span>
+      <input id="bulkPriceHighRiskCount" type="text" inputmode="numeric" autocomplete="off" dir="ltr">
+    </label>
+    <p class="admin-help">ئالدىن كۆرۈشتىكى «يېڭىلىنىدۇ» سانى بىلەن ئوخشاش پۈتۈن سان بولسۇن.</p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-danger" id="bulkPriceHighRiskConfirmBtn" type="button" disabled>باھا ئۆزگەرتىشنى ئاخىرقى جەزملەشتۈرۈش</button>
+      <button class="admin-secondary" id="bulkPriceHighRiskCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
 <div id="importModal" class="admin-modal" hidden>
   <div class="admin-modal-card admin-import-card">
     <div class="admin-modal-head">
@@ -549,6 +621,7 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
+<script defer src="admin-bulk-price.js?v=2"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -557,6 +630,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=43"></script>
+  <script defer src="admin.js?v=45"></script>
 </body>
 </html>
