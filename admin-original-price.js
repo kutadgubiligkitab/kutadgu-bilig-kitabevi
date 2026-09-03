@@ -114,6 +114,42 @@ function isStaleOriginal(loadedOriginal,freshOriginal){
   return !originalsMatch(loadedOriginal,freshOriginal);
 }
 
+const STALE_ORIGINAL_ERROR="ئەسلى باھا باشقا بەتتە ئۆزگەرتىلگەن. كىتابنى قايتا ئېچىپ قايتا سىناڭ.";
+const MISSING_BOOK_ERROR="كىتاب تېپىلمىدى. يېڭى قۇر يېزىلمايدۇ.";
+
+function applyExpectedOriginalFilter(query,expectedOriginal){
+  if(!query)return query;
+  if(isValidPrice(expectedOriginal)){
+    if(typeof query.eq==="function")return query.eq("original_price",roundMoney(expectedOriginal));
+    return query;
+  }
+  if(typeof query.is==="function")return query.is("original_price",null);
+  return query;
+}
+
+function compareAndSwapOriginalPrice(store,opts={}){
+  const patch=opts.patch;
+  assertOriginalPriceOnlyPatch(patch);
+  const key=String(opts.id||"");
+  const row=store&&store[key];
+  if(!row)return {data:[],matched:false,error:null};
+  if(!originalsMatch(row.original_price,opts.expectedOriginal)){
+    return {data:[],matched:false,error:null};
+  }
+  row.original_price=patch.original_price;
+  return {
+    data:[{id:row.id,price:row.price,original_price:row.original_price}],
+    matched:true,
+    error:null
+  };
+}
+
+function originalPriceCasResult(updatedRows,existingRow){
+  if(Array.isArray(updatedRows)&&updatedRows.length===1)return {ok:true,data:updatedRows};
+  if(existingRow)return {ok:false,stale:true,error:STALE_ORIGINAL_ERROR};
+  return {ok:false,missing:true,error:MISSING_BOOK_ERROR};
+}
+
 function assertPriceOnlyPatch(patch){
   const keys=Object.keys(patch||{});
   if(keys.length!==1||keys[0]!=="price")throw new Error("PRICE_ONLY_PATCH");
@@ -213,6 +249,11 @@ const api={
   originalsMatch,
   originalSnapshot,
   isStaleOriginal,
+  STALE_ORIGINAL_ERROR,
+  MISSING_BOOK_ERROR,
+  applyExpectedOriginalFilter,
+  compareAndSwapOriginalPrice,
+  originalPriceCasResult,
   assertPriceOnlyPatch,
   buildResetPreview,
   formatResetLine,

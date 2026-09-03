@@ -1497,20 +1497,32 @@ function openOriginalPriceCorrectModal(){
   if(modalEl)modalEl.hidden=false;
   if(input)input.focus();
 }
-async function persistOriginalPriceCorrection(id,patch){
+async function persistOriginalPriceCorrection(id,patch,expectedOriginal){
   if(Orig.assertOriginalPriceOnlyPatch)Orig.assertOriginalPriceOnlyPatch(patch);
   const canonical=canonicalBookId(id);
   if(!canonical)return {error:new Error("كىتاب ID تېپىلمىدى. يېڭى قۇر يېزىلمايدۇ.")};
+  let result={error:null,data:[]};
   if(typeof window.__kutadguAdminCorrectOriginal==="function"){
-    return window.__kutadguAdminCorrectOriginal(canonical,patch);
+    result=await window.__kutadguAdminCorrectOriginal(canonical,patch,expectedOriginal);
+  }else if(!db){
+    return {error:new Error("Database يوق.")};
+  }else{
+    let query=db.from("books").update(patch).eq("id",canonical);
+    query=Orig.applyExpectedOriginalFilter?Orig.applyExpectedOriginalFilter(query,expectedOriginal):query;
+    const {data,error}=await query.select("id,price,original_price");
+    result={error,data};
   }
-  if(!db)return {error:new Error("Database يوق.")};
-  const {data,error}=await db.from("books").update(patch).eq("id",canonical).select("id,price,original_price");
-  if(error)return {error};
-  if(!Array.isArray(data)||data.length!==1){
-    return {error:new Error("بۇ كىتاب يېڭىلانمىدى. يېڭى قۇر قوشۇلمىدى.")};
-  }
-  return {error:null,data};
+  if(result&&result.error)return {error:result.error};
+  const rows=Array.isArray(result&&result.data)?result.data:[];
+  if(rows.length===1)return {error:null,data:rows};
+  let existing=null;
+  try{existing=await fetchBook(canonical)}catch(err){return {error:err}}
+  const classified=Orig.originalPriceCasResult?Orig.originalPriceCasResult(rows,existing):{
+    ok:false,
+    error:existing?(Orig.STALE_ORIGINAL_ERROR||"ئەسلى باھا باشقا بەتتە ئۆزگەرتىلگەن. كىتابنى قايتا ئېچىپ قايتا سىناڭ."):(Orig.MISSING_BOOK_ERROR||"كىتاب تېپىلمىدى. يېڭى قۇر يېزىلمايدۇ.")
+  };
+  if(classified.ok)return {error:null,data:classified.data};
+  return {error:new Error(classified.error)};
 }
 async function saveOriginalPriceCorrection(){
   if(originalCorrectInFlight)return;
@@ -1543,7 +1555,7 @@ async function saveOriginalPriceCorrection(){
     if(Orig.isStaleOriginal&&Orig.isStaleOriginal(draft.loadedOriginal,fresh.original_price)){
       throw new Error("ئەسلى باھا باشقا بەتتە ئۆزگەرتىلگەن. كىتابنى قايتا ئېچىپ قايتا سىناڭ.");
     }
-    const {error,data}=await persistOriginalPriceCorrection(draft.id,planned.patch);
+    const {error,data}=await persistOriginalPriceCorrection(draft.id,planned.patch,draft.loadedOriginal);
     if(error)throw error;
     const saved=Array.isArray(data)&&data[0]?data[0]:null;
     const nextOriginal=saved&&Object.prototype.hasOwnProperty.call(saved,"original_price")?saved.original_price:planned.original_price;

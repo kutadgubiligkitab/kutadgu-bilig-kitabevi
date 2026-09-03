@@ -44,6 +44,7 @@ async function openAdminBooks(page, books = BASE) {
     window.__kutadguOriginalCorrections = [];
     window.__kutadguBookFetches = 0;
     window.__kutadguStaleOriginal = false;
+    window.__kutadguRaceOriginal = null;
     window.__kutadguAdminFetchBook = async (id) => {
       window.__kutadguBookFetches += 1;
       const master = window.__kutadguAdminPreviewBooks || [];
@@ -54,13 +55,20 @@ async function openAdminBooks(page, books = BASE) {
       }
       return { ...row };
     };
-    window.__kutadguAdminCorrectOriginal = async (id, patch) => {
+    window.__kutadguAdminCorrectOriginal = async (id, patch, expectedOriginal) => {
+      if (typeof window.__kutadguRaceOriginal === "function") {
+        window.__kutadguRaceOriginal(id);
+      }
       window.__kutadguOriginalCorrections.push({ id: String(id), patch: { ...patch } });
       const master = window.__kutadguAdminPreviewBooks || [];
-      const row = master.find((b) => String(b.id) === String(id));
-      const price = row ? row.price : null;
-      if (row) row.original_price = patch.original_price;
-      return { error: null, data: [{ id, price, original_price: patch.original_price }] };
+      const store = {};
+      master.forEach((book) => { store[String(book.id)] = book; });
+      const result = window.KutadguAdminOriginalPrice.compareAndSwapOriginalPrice(store, {
+        id,
+        expectedOriginal,
+        patch
+      });
+      return { error: result.error, data: result.data };
     };
     window.__kutadguAdminPersistBook = async (payload, operation, id) => {
       window.__kutadguBookSaves.push({ payload: { ...payload }, operation, id: String(id || "") });
@@ -356,6 +364,51 @@ test.describe("admin original price reset", () => {
     await page.locator("#originalPriceCorrectSaveBtn").click();
     await expect(page.locator("#originalPriceCorrectModal")).toBeHidden();
     expect(await page.evaluate(() => window.__kutadguOriginalCorrections.slice())).toEqual([]);
+  });
+
+  test("compare-and-swap aborts when original_price races after prefetch", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await expect(page.locator("#originalPriceCorrectValue")).toHaveValue("100");
+    await page.evaluate(() => {
+      window.__kutadguRaceOriginal = (id) => {
+        const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === String(id));
+        if (row) row.original_price = 420;
+      };
+    });
+    await page.locator("#originalPriceCorrectValue").fill("500");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectError")).toContainText("قايتا");
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 135, original_price: 420 });
+    const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
+    expect(calls).toEqual([{ id: "1", patch: { original_price: 500 } }]);
+    expect(await page.evaluate(() => window.__kutadguBookSaves.slice())).toEqual([]);
+  });
+
+  test("NULL compare-and-swap aborts if another session initializes original_price", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="5"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await expect(page.locator("#originalPriceCorrectValue")).toHaveValue("");
+    await page.evaluate(() => {
+      window.__kutadguRaceOriginal = (id) => {
+        const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === String(id));
+        if (row) row.original_price = 350;
+      };
+    });
+    await page.locator("#originalPriceCorrectValue").fill("500");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectError")).toContainText("قايتا");
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "5");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 0, original_price: 350 });
+    const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
+    expect(calls).toEqual([{ id: "5", patch: { original_price: 500 } }]);
   });
 
   test("stale original_price aborts correction without overwrite", async ({ page }) => {

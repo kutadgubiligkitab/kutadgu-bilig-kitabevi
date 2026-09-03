@@ -216,9 +216,9 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/id="bookOriginalPriceStatus"/);
   assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
-  assert.match(html,/admin-original-price\.js\?v=3/);
+  assert.match(html,/admin-original-price\.js\?v=4/);
   assert.match(html,/admin\.css\?v=30/);
-  assert.match(html,/admin\.js\?v=48/);
+  assert.match(html,/admin\.js\?v=49/);
   assert.match(html,/id="bookOriginalPriceCorrectBtn"/);
   assert.match(html,/id="originalPriceCorrectModal"/);
   assert.doesNotMatch(html,/id="bookOriginalPrice"/);
@@ -226,14 +226,18 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(js,/assertPriceOnlyPatch/);
   assert.match(js,/persistOriginalPriceCorrection/);
   assert.match(js,/assertOriginalPriceOnlyPatch/);
+  assert.match(js,/persistOriginalPriceCorrection\(draft\.id,planned\.patch,draft\.loadedOriginal\)/);
   const correctStart=js.indexOf("async function persistOriginalPriceCorrection");
   const correctEnd=js.indexOf("async function saveOriginalPriceCorrection");
   assert.ok(correctStart>0&&correctEnd>correctStart);
   const correctFn=js.slice(correctStart,correctEnd);
   assert.match(correctFn,/\.update\(patch\)/);
+  assert.match(correctFn,/applyExpectedOriginalFilter/);
+  assert.match(correctFn,/originalPriceCasResult/);
   assert.doesNotMatch(correctFn,/\.insert\(/);
   assert.doesNotMatch(correctFn,/\.upsert\(/);
   assert.doesNotMatch(correctFn,/persistBookRow/);
+  assert.doesNotMatch(correctFn,/\bprice\s*:/);
   assert.match(js,/__kutadguAdminBulkResetUpdateOne/);
   assert.match(js,/bulkResetInFlight/);
   const updateFn=js.match(/function rowToUpdate\(row\)\{[\s\S]*?\n\}/);
@@ -296,6 +300,86 @@ test("SQL/AAL2 files were not weakened for original_price writes",()=>{
     assert.strictEqual(result.okCount,1);
     assert.deepStrictEqual(calls.map(c=>c.patch),[{price:100},{price:40}]);
     assert.ok(!calls.some(c=>Object.prototype.hasOwnProperty.call(c.patch,"original_price")));
+  });
+
+  test("compare-and-swap filters numeric originals with eq and NULL with is",()=>{
+    function mockQuery(){
+      const calls=[];
+      return {
+        calls,
+        eq(col,val){calls.push({op:"eq",col,val});return this},
+        is(col,val){calls.push({op:"is",col,val});return this}
+      };
+    }
+    const numeric=mockQuery();
+    Orig.applyExpectedOriginalFilter(numeric,350);
+    assert.deepStrictEqual(numeric.calls,[{op:"eq",col:"original_price",val:350}]);
+    const zero=mockQuery();
+    Orig.applyExpectedOriginalFilter(zero,0);
+    assert.deepStrictEqual(zero.calls,[{op:"eq",col:"original_price",val:0}]);
+    const missing=mockQuery();
+    Orig.applyExpectedOriginalFilter(missing,null);
+    assert.deepStrictEqual(missing.calls,[{op:"is",col:"original_price",val:null}]);
+    const blank=mockQuery();
+    Orig.applyExpectedOriginalFilter(blank,"");
+    assert.deepStrictEqual(blank.calls,[{op:"is",col:"original_price",val:null}]);
+  });
+
+  test("successful compare-and-swap writes original_price only and leaves selling price",()=>{
+    const store={1:{id:1,price:135,original_price:350,title:"A",stock:3}};
+    const result=Orig.compareAndSwapOriginalPrice(store,{
+      id:1,
+      expectedOriginal:350,
+      patch:{original_price:420}
+    });
+    assert.strictEqual(result.matched,true);
+    assert.strictEqual(result.data.length,1);
+    assert.strictEqual(store[1].original_price,420);
+    assert.strictEqual(store[1].price,135);
+    assert.strictEqual(store[1].title,"A");
+    assert.strictEqual(store[1].stock,3);
+    Orig.assertOriginalPriceOnlyPatch({original_price:420});
+  });
+
+  await testAsync("race between prefetch and update does not overwrite original_price",async()=>{
+    const store={1:{id:1,price:135,original_price:350,title:"A",stock:3,sales_count:5}};
+    const loadedOriginal=350;
+    const fresh=store[1].original_price;
+    assert.strictEqual(Orig.isStaleOriginal(loadedOriginal,fresh),false);
+    store[1].original_price=420;
+    const result=Orig.compareAndSwapOriginalPrice(store,{
+      id:1,
+      expectedOriginal:loadedOriginal,
+      patch:{original_price:500}
+    });
+    assert.deepStrictEqual(result.data,[]);
+    assert.strictEqual(result.matched,false);
+    assert.strictEqual(store[1].original_price,420);
+    assert.strictEqual(store[1].price,135);
+    const classified=Orig.originalPriceCasResult(result.data,store[1]);
+    assert.strictEqual(classified.ok,false);
+    assert.strictEqual(classified.stale,true);
+    assert.strictEqual(classified.error,Orig.STALE_ORIGINAL_ERROR);
+  });
+
+  await testAsync("NULL compare-and-swap aborts if another session initializes original_price",async()=>{
+    const store={5:{id:5,price:0,original_price:null}};
+    assert.strictEqual(Orig.isStaleOriginal(null,store[5].original_price),false);
+    store[5].original_price=350;
+    const result=Orig.compareAndSwapOriginalPrice(store,{
+      id:5,
+      expectedOriginal:null,
+      patch:{original_price:500}
+    });
+    assert.deepStrictEqual(result.data,[]);
+    assert.strictEqual(result.matched,false);
+    assert.strictEqual(store[5].original_price,350);
+    assert.strictEqual(store[5].price,0);
+    const classified=Orig.originalPriceCasResult(result.data,store[5]);
+    assert.strictEqual(classified.stale,true);
+    const missing=Orig.originalPriceCasResult([],null);
+    assert.strictEqual(missing.missing,true);
+    assert.strictEqual(missing.error,Orig.MISSING_BOOK_ERROR);
   });
 
   await testAsync("bulk price apply leaves original_price untouched",async()=>{
