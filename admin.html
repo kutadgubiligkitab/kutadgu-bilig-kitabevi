@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=27">
+  <link rel="stylesheet" href="admin.css?v=28">
 </head>
 <body>
 <div class="admin-shell">
@@ -522,6 +522,7 @@
       <button class="admin-secondary" id="bulkPricePreviewBtn" type="button">ئالدىن كۆرۈش</button>
     </div>
     <p id="bulkPriceSummary" class="admin-help" hidden></p>
+    <p id="bulkPriceZeroWarning" class="admin-status warn" hidden></p>
     <p id="bulkPriceError" class="admin-status error" hidden></p>
     <div id="bulkPricePreviewWrap" class="admin-bulk-price-preview" hidden>
       <div id="bulkPricePreviewList"></div>
@@ -531,6 +532,27 @@
     <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
       <button class="admin-primary" id="bulkPriceConfirmBtn" type="button" disabled>باھا ئۆزگەرتىشنى جەزملەشتۈرۈش</button>
       <button class="admin-secondary" id="bulkPriceCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulkPriceHighRiskModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card admin-bulk-confirm-card" role="dialog" aria-modal="true" aria-labelledby="bulkPriceHighRiskTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkPriceHighRiskTitle">يۇقىرى خەتەرلىك باھا ئۆزگەرتىش</h2>
+      <button id="closeBulkPriceHighRisk" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p class="admin-status warn">دىققەت: بۇ مەشغۇلات كۆپ ھەقىقىي كاتالوگ باھاسىنى ئۆزگەرتىدۇ. ئالدىن كۆرۈشتىكى ساننى قولدا كىرگۈزمىگىچە يېزىلمايدۇ.</p>
+    <pre id="bulkPriceHighRiskText" class="admin-bulk-confirm-text"></pre>
+    <p id="bulkPriceHighRiskZero" class="admin-status warn" hidden></p>
+    <label>
+      <span>يېڭىلىنىدىغان كىتاب سانىنى كىرگۈزۈڭ</span>
+      <input id="bulkPriceHighRiskCount" type="text" inputmode="numeric" autocomplete="off" dir="ltr">
+    </label>
+    <p class="admin-help">ئالدىن كۆرۈشتىكى «يېڭىلىنىدۇ» سانى بىلەن ئوخشاش پۈتۈن سان بولسۇن.</p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-danger" id="bulkPriceHighRiskConfirmBtn" type="button" disabled>باھا ئۆزگەرتىشنى ئاخىرقى جەزملەشتۈرۈش</button>
+      <button class="admin-secondary" id="bulkPriceHighRiskCancelBtn" type="button">بىكار قىلىش</button>
     </div>
   </div>
 </div>
@@ -599,7 +621,7 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
-<script defer src="admin-bulk-price.js?v=1"></script>
+<script defer src="admin-bulk-price.js?v=2"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -608,6 +630,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=44"></script>
+  <script defer src="admin.js?v=45"></script>
 </body>
 </html>

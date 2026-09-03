@@ -32,15 +32,15 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=27, admin.js v=44, admin-mfa.js v=2, and admin-idle.js v=2", () => {
-  assert.match(adminHtml, /admin\.css\?v=27/);
-  assert.match(adminHtml, /admin\.js\?v=44/);
+test("cache pins are admin.css v=28, admin.js v=45, admin-mfa.js v=2, and admin-idle.js v=2", () => {
+  assert.match(adminHtml, /admin\.css\?v=28/);
+  assert.match(adminHtml, /admin\.js\?v=45/);
   assert.match(adminHtml, /admin-mfa\.js\?v=2/);
-  assert.doesNotMatch(adminHtml, /admin\.css\?v=26/);
-  assert.doesNotMatch(adminHtml, /admin\.js\?v=43/);
+  assert.doesNotMatch(adminHtml, /admin\.css\?v=27/);
+  assert.doesNotMatch(adminHtml, /admin\.js\?v=44/);
   assert.match(adminHtml, /admin-idle\.js\?v=2/);
   assert.match(adminHtml, /admin-catalog-productivity\.js\?v=2/);
-  assert.match(adminHtml, /admin-bulk-price\.js\?v=1/);
+  assert.match(adminHtml, /admin-bulk-price\.js\?v=2/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=24/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=41/);
 });
@@ -72,8 +72,9 @@ test("modals stay outside dashboard section panels", () => {
   const quickModal = adminHtml.indexOf('id="quickEditModal"');
   const bulkModal = adminHtml.indexOf('id="bulkConfirmModal"');
   const priceModal = adminHtml.indexOf('id="bulkPriceModal"');
+  const riskModal = adminHtml.indexOf('id="bulkPriceHighRiskModal"');
   assert.ok(dashEnd > 0 && bookModal > dashEnd && importModal > dashEnd);
-  assert.ok(quickModal > dashEnd && bulkModal > dashEnd && priceModal > dashEnd);
+  assert.ok(quickModal > dashEnd && bulkModal > dashEnd && priceModal > dashEnd && riskModal > dashEnd);
 });
 
 test("login/setup panels ignore dashboard section markup", () => {

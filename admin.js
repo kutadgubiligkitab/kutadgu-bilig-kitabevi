@@ -1980,6 +1980,7 @@ function syncBulkPriceConfirm(){
 function invalidateBulkPricePreview(){
   bulkPricePreview=null;
   bulkPricePreviewPage=0;
+  closeBulkPriceHighRiskModal();
   syncBulkPriceConfirm();
 }
 function syncBulkPriceScopeUi(){
@@ -2007,16 +2008,29 @@ function renderBulkPricePreview(){
   const wrap=$("#bulkPricePreviewWrap");
   const list=$("#bulkPricePreviewList");
   const pager=$("#bulkPricePreviewPager");
+  const zeroWarn=$("#bulkPriceZeroWarning");
   if(!bulkPricePreview||!bulkPricePreview.ok){
     if(summary){summary.hidden=true;summary.textContent=""}
     if(wrap)wrap.hidden=true;
     if(pager)pager.hidden=true;
+    if(zeroWarn){zeroWarn.hidden=true;zeroWarn.textContent=""}
     return;
   }
   const opBit=Price.operationSummary?Price.operationSummary(bulkPricePreview.operation,bulkPricePreview.amount):"";
   if(summary){
     summary.hidden=false;
-    summary.textContent=`نىشان: ${bulkPricePreview.targeted} · يېڭىلىنىدۇ: ${bulkPricePreview.updateCount} · ئۆتكۈزۈلدى: ${bulkPricePreview.skippedCount} · مەشغۇلات: ${bulkPricePreview.operationLabel||""} (${opBit})`;
+    summary.textContent=`نىشان: ${bulkPricePreview.targeted} · يېڭىلىنىدۇ: ${bulkPricePreview.updateCount} · ئۆتكۈزۈلدى: ${bulkPricePreview.skippedCount} · 0 ₺ بولىدۇ: ${bulkPricePreview.zeroCount||0} · مەشغۇلات: ${bulkPricePreview.operationLabel||""} (${opBit})`;
+  }
+  if(zeroWarn){
+    const warn=bulkPricePreview.zeroWarning||{};
+    if(warn.text){
+      zeroWarn.hidden=false;
+      zeroWarn.textContent=warn.text;
+      zeroWarn.className=`admin-status ${warn.level==="error"?"error":"warn"}`;
+    }else{
+      zeroWarn.hidden=true;
+      zeroWarn.textContent="";
+    }
   }
   const page=Price.previewPage?Price.previewPage(bulkPricePreview.rows,bulkPricePreviewPage,Price.PREVIEW_PAGE_SIZE):{rows:bulkPricePreview.rows||[],page:0,pages:1};
   bulkPricePreviewPage=page.page;
@@ -2058,6 +2072,7 @@ function openBulkPriceModal(){
 }
 function closeBulkPriceModal(){
   if(bulkPriceInFlight)return;
+  closeBulkPriceHighRiskModal();
   const modal=$("#bulkPriceModal");
   if(modal)modal.hidden=true;
   invalidateBulkPricePreview();
@@ -2149,9 +2164,83 @@ async function confirmBulkPrice(){
     setBulkPriceError(bulkPricePreview.error||"ئىجرا قىلىنمايدۇ.");
     return;
   }
+  if(Price.isHighRisk&&Price.isHighRisk(bulkPricePreview,settings)){
+    openBulkPriceHighRiskModal();
+    return;
+  }
+  await applyBulkPriceChange();
+}
+function closeBulkPriceHighRiskModal(){
+  const modal=$("#bulkPriceHighRiskModal");
+  if(modal)modal.hidden=true;
+  const input=$("#bulkPriceHighRiskCount");
+  if(input)input.value="";
+  const btn=$("#bulkPriceHighRiskConfirmBtn");
+  if(btn)btn.disabled=true;
+}
+function openBulkPriceHighRiskModal(){
+  const preview=bulkPricePreview;
+  const settings=readBulkPriceSettings();
+  if(!preview||!preview.canApply)return;
+  const text=$("#bulkPriceHighRiskText");
+  const opBit=Price.operationSummary?Price.operationSummary(preview.operation,preview.amount):"";
+  if(text){
+    text.textContent=`دائىرە: ${preview.scopeLabel||settings.scope}\nمەشغۇلات: ${preview.operationLabel||""} (${opBit})\nيېڭىلىنىدۇ: ${preview.updateCount}\n0 ₺ بولىدۇ: ${preview.zeroCount||0}\nبۇ مەشغۇلات كۆپ ھەقىقىي كاتالوگ باھاسىنى ئۆزگەرتىدۇ.`;
+  }
+  const zeroEl=$("#bulkPriceHighRiskZero");
+  if(zeroEl){
+    const warn=preview.zeroWarning||{};
+    if(warn.text){
+      zeroEl.hidden=false;
+      zeroEl.textContent=warn.text;
+      zeroEl.className=`admin-status ${warn.level==="error"?"error":"warn"}`;
+    }else{
+      zeroEl.hidden=true;
+      zeroEl.textContent="";
+    }
+  }
+  const input=$("#bulkPriceHighRiskCount");
+  if(input)input.value="";
+  syncBulkPriceHighRiskFinal();
+  const modal=$("#bulkPriceHighRiskModal");
+  if(modal)modal.hidden=false;
+  if(input)input.focus();
+}
+function syncBulkPriceHighRiskFinal(){
+  const btn=$("#bulkPriceHighRiskConfirmBtn");
+  if(!btn)return;
+  const typed=$("#bulkPriceHighRiskCount")?$("#bulkPriceHighRiskCount").value:"";
+  const allowed=Price.canFinalizeHighRisk?Price.canFinalizeHighRisk(bulkPricePreview,readBulkPriceSettings(),typed):false;
+  btn.disabled=!allowed||bulkPriceInFlight;
+}
+async function finalizeBulkPriceHighRisk(){
+  if(bulkPriceInFlight)return;
+  const typed=$("#bulkPriceHighRiskCount")?$("#bulkPriceHighRiskCount").value:"";
+  if(!Price.canFinalizeHighRisk||!Price.canFinalizeHighRisk(bulkPricePreview,readBulkPriceSettings(),typed)){
+    setBulkPriceError("يۇقىرى خەتەرلىك جەزملەش ئىناۋەتسىز. قايتا ئالدىن كۆرۈڭ.");
+    syncBulkPriceHighRiskFinal();
+    return;
+  }
+  await applyBulkPriceChange();
+}
+async function applyBulkPriceChange(){
+  if(bulkPriceInFlight)return;
+  const settings=readBulkPriceSettings();
+  if(!Price.canConfirm||!Price.canConfirm(bulkPricePreview,settings)){
+    setBulkPriceError("تەڭشەكلەر ئۆزگەردى. قايتا ئالدىن كۆرۈڭ.");
+    closeBulkPriceHighRiskModal();
+    syncBulkPriceConfirm();
+    return;
+  }
+  if(!bulkPricePreview.canApply){
+    setBulkPriceError(bulkPricePreview.error||"ئىجرا قىلىنمايدۇ.");
+    return;
+  }
   bulkPriceInFlight=true;
   const btn=$("#bulkPriceConfirmBtn");
+  const riskBtn=$("#bulkPriceHighRiskConfirmBtn");
   if(btn){btn.disabled=true;btn.textContent="يېڭىلىنىۋاتىدۇ..."}
+  if(riskBtn)riskBtn.disabled=true;
   const st=$("#bulkPriceStatus");
   if(st)st.textContent="يېزىلىۋاتىدۇ...";
   try{
@@ -2173,6 +2262,7 @@ async function confirmBulkPrice(){
     if(db)await Promise.all([loadBooks(),loadStats()]);
     else refreshPreviewBooks();
     bulkPriceInFlight=false;
+    closeBulkPriceHighRiskModal();
     closeBulkPriceModal();
   }catch(err){
     setBulkPriceError("باھا ئۆزگەرتىش مەغلۇپ بولدى: "+(err.message||err));
@@ -2181,6 +2271,7 @@ async function confirmBulkPrice(){
     bulkPriceInFlight=false;
     if(btn)btn.textContent="باھا ئۆزگەرتىشنى جەزملەشتۈرۈش";
     syncBulkPriceConfirm();
+    syncBulkPriceHighRiskFinal();
   }
 }
 function assertSelectedIds(ids){
@@ -2995,6 +3086,11 @@ function bindBookListUx(){
   $("#bulkPriceCancelBtn")&&($("#bulkPriceCancelBtn").onclick=closeBulkPriceModal);
   $("#bulkPricePreviewBtn")&&($("#bulkPricePreviewBtn").onclick=runBulkPricePreview);
   $("#bulkPriceConfirmBtn")&&($("#bulkPriceConfirmBtn").onclick=confirmBulkPrice);
+  $("#closeBulkPriceHighRisk")&&($("#closeBulkPriceHighRisk").onclick=closeBulkPriceHighRiskModal);
+  $("#bulkPriceHighRiskCancelBtn")&&($("#bulkPriceHighRiskCancelBtn").onclick=closeBulkPriceHighRiskModal);
+  $("#bulkPriceHighRiskConfirmBtn")&&($("#bulkPriceHighRiskConfirmBtn").onclick=finalizeBulkPriceHighRisk);
+  $("#bulkPriceHighRiskCount")&&$("#bulkPriceHighRiskCount").addEventListener("input",syncBulkPriceHighRiskFinal);
+  $("#bulkPriceHighRiskModal")&&$("#bulkPriceHighRiskModal").addEventListener("click",e=>{if(bulkPriceInFlight)return;if(e.target===$("#bulkPriceHighRiskModal"))closeBulkPriceHighRiskModal()});
   $("#bulkPriceModal")&&$("#bulkPriceModal").addEventListener("click",e=>{if(bulkPriceInFlight)return;if(e.target===$("#bulkPriceModal"))closeBulkPriceModal()});
   document.querySelectorAll('input[name="bulkPriceScope"]').forEach(radio=>{
     radio.addEventListener("change",()=>{invalidateBulkPricePreview();syncBulkPriceScopeUi();renderBulkPricePreview()});
@@ -3004,6 +3100,7 @@ function bindBookListUx(){
   $("#bulkPriceAmount")&&$("#bulkPriceAmount").addEventListener("input",()=>{invalidateBulkPricePreview();syncBulkPriceConfirm()});
   document.addEventListener("keydown",e=>{
     if(e.key!=="Escape")return;
+    if($("#bulkPriceHighRiskModal")&&!$("#bulkPriceHighRiskModal").hidden){e.preventDefault();closeBulkPriceHighRiskModal();return}
     if($("#bulkPriceModal")&&!$("#bulkPriceModal").hidden){e.preventDefault();closeBulkPriceModal();return}
     if($("#bulkConfirmModal")&&!$("#bulkConfirmModal").hidden){e.preventDefault();closeBulkConfirm(false);return}
     if($("#quickEditModal")&&!$("#quickEditModal").hidden&&!quickSaveInFlight){e.preventDefault();closeQuickEdit()}
@@ -3141,6 +3238,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk
 };
 })();

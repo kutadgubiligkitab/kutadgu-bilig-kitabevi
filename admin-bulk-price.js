@@ -6,12 +6,18 @@ const OPERATIONS=["pct_inc","pct_dec","fixed_inc","fixed_dec"];
 const FETCH_PAGE=500;
 const PREVIEW_PAGE_SIZE=20;
 const WRITE_CONCURRENCY=4;
+const HIGH_RISK_UPDATE_THRESHOLD=20;
 
 const OPERATION_LABELS={
   pct_inc:"پىرسەنت بويىچە ئۆستۈرۈش",
   pct_dec:"پىرسەنت بويىچە چۈشۈرۈش",
   fixed_inc:"مۇقىم سومما قوشۇش",
   fixed_dec:"مۇقىم سومما كېمەيتىش"
+};
+const SCOPE_LABELS={
+  all:"بارلىق كىتابلار",
+  category:"بىر كاتېگورىيە",
+  selected:"تاللانغان كىتابلار"
 };
 
 function roundMoney(value){
@@ -127,11 +133,16 @@ function buildPreview(books,settings){
   let error="";
   if(hasNegative)error="نەتىجە مەنپىي باھا بولىدۇ. ئۆزگەرتىش ئىجرا قىلىنمايدۇ.";
   else if(!updatable.length)error="يېڭىلىنىدىغان ئىناۋەتلىك باھا تېپىلمىدى.";
-  return {
+  const zeroCount=updatable.filter(row=>Number(row.newPrice)===0).length;
+  const zeroFromPositiveCount=updatable.filter(row=>Number(row.oldPrice)>0&&Number(row.newPrice)===0).length;
+  const allBecomeZero=updatable.length>0&&updatable.every(row=>Number(row.newPrice)===0);
+  const preview={
     ok:true,
     canApply,
     error,
     fingerprint:settingsFingerprint(settings),
+    scope:String(settings&&settings.scope||""),
+    scopeLabel:SCOPE_LABELS[String(settings&&settings.scope||"")]||"",
     operation:op,
     operationLabel:OPERATION_LABELS[op],
     amount:amount.value,
@@ -139,12 +150,52 @@ function buildPreview(books,settings){
     updateCount:updatable.length,
     skippedCount:skipped.length,
     blockedCount:blocked.length,
+    zeroCount,
+    zeroFromPositiveCount,
+    allBecomeZero,
     hasNegative,
     updatable,
     skipped,
     blocked,
     rows:[...updatable,...blocked,...skipped]
   };
+  preview.highRisk=isHighRisk(preview,settings);
+  preview.zeroWarning=zeroPriceWarning(preview);
+  return preview;
+}
+
+function isHighRisk(preview,settings){
+  if(!preview||preview.canApply===false)return false;
+  const scope=String((settings&&settings.scope)||preview.scope||"");
+  if(scope==="all")return true;
+  if(Number(preview.zeroFromPositiveCount||0)>0)return true;
+  if(Number(preview.updateCount||0)>=HIGH_RISK_UPDATE_THRESHOLD)return true;
+  return false;
+}
+
+function zeroPriceWarning(preview){
+  if(!preview||!preview.updateCount)return {level:"",text:""};
+  if(preview.allBecomeZero){
+    return {level:"error",text:"جىددىي ئاگاھلاندۇرۇش: بۇ مەشغۇلات بارلىق نىشان كىتابلارنىڭ باھاسىنى 0 ₺ قىلىدۇ."};
+  }
+  if(Number(preview.zeroCount||0)>0){
+    return {level:"warn",text:`دىققەت: بۇ مەشغۇلاتتىن كېيىن ${preview.zeroCount} كىتابنىڭ باھاسى 0 ₺ بولىدۇ.`};
+  }
+  return {level:"",text:""};
+}
+
+function parseTypedCount(raw){
+  const v=String(raw??"").trim();
+  if(!/^\d+$/.test(v))return {ok:false,value:NaN};
+  return {ok:true,value:Number(v)};
+}
+
+function canFinalizeHighRisk(preview,settings,typedCount){
+  if(!canConfirm(preview,settings))return false;
+  if(!isHighRisk(preview,settings))return false;
+  const typed=parseTypedCount(typedCount);
+  if(!typed.ok)return false;
+  return typed.value===Number(preview.updateCount);
 }
 
 function previewPage(rows,page,pageSize){
@@ -259,7 +310,9 @@ const api={
   OPERATIONS,
   FETCH_PAGE,
   PREVIEW_PAGE_SIZE,
+  HIGH_RISK_UPDATE_THRESHOLD,
   OPERATION_LABELS,
+  SCOPE_LABELS,
   roundMoney,
   parseAdjustmentAmount,
   isValidExistingPrice,
@@ -269,6 +322,10 @@ const api={
   buildPreview,
   previewPage,
   canConfirm,
+  isHighRisk,
+  zeroPriceWarning,
+  parseTypedCount,
+  canFinalizeHighRisk,
   formatMoney,
   operationSummary,
   formatPreviewLine,

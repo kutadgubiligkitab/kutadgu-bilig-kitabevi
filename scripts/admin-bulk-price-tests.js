@@ -119,6 +119,58 @@ test("changing settings invalidates confirmation",()=>{
   assert.strictEqual(P.canConfirm(null,settings),false);
 });
 
+test("small selected increase is not high-risk and does not warn",()=>{
+  const settings={scope:"selected",selectedIds:["1","2"],operation:"pct_inc",amount:"10"};
+  const preview=P.buildPreview(catalog,settings);
+  assert.strictEqual(preview.highRisk,false);
+  assert.strictEqual(P.isHighRisk(preview,settings),false);
+  assert.strictEqual(preview.zeroCount,0);
+  assert.strictEqual(preview.zeroWarning.text,"");
+  assert.strictEqual(P.canFinalizeHighRisk(preview,settings,"2"),false);
+});
+
+test("all-books scope is always high-risk",()=>{
+  const settings={scope:"all",operation:"pct_inc",amount:"10"};
+  const preview=P.buildPreview(catalog,settings);
+  assert.strictEqual(preview.highRisk,true);
+  assert.strictEqual(P.canConfirm(preview,settings),true);
+  assert.strictEqual(P.canFinalizeHighRisk(preview,settings,String(preview.updateCount)),true);
+  assert.strictEqual(P.canFinalizeHighRisk(preview,settings,"999"),false);
+});
+
+test("20+ updatable books are high-risk",()=>{
+  const many=Array.from({length:20},(_,i)=>({id:100+i,title:"B"+i,price:10,source:"universal.html"}));
+  const settings={scope:"selected",selectedIds:many.map(b=>String(b.id)),operation:"fixed_inc",amount:"1"};
+  const preview=P.buildPreview(many,settings);
+  assert.strictEqual(preview.updateCount,20);
+  assert.strictEqual(preview.highRisk,true);
+  assert.ok(P.HIGH_RISK_UPDATE_THRESHOLD<=20);
+});
+
+test("non-zero prices becoming 0 warn and require high-risk confirmation",()=>{
+  const settings={scope:"selected",selectedIds:["1","2"],operation:"pct_dec",amount:"100"};
+  const preview=P.buildPreview(catalog,settings);
+  assert.strictEqual(preview.zeroFromPositiveCount,2);
+  assert.strictEqual(preview.zeroCount,2);
+  assert.strictEqual(preview.allBecomeZero,true);
+  assert.strictEqual(preview.highRisk,true);
+  assert.ok(preview.zeroWarning.text.includes("جىددىي ئاگاھلاندۇرۇش"));
+  assert.strictEqual(P.canFinalizeHighRisk(preview,settings,"1"),false);
+  assert.strictEqual(P.canFinalizeHighRisk(preview,settings,"2"),true);
+  assert.strictEqual(P.canFinalizeHighRisk(preview,{...settings,amount:"90"},"2"),false);
+});
+
+test("partial zeroing shows the milder warning",()=>{
+  const settings={scope:"selected",selectedIds:["1","3"],operation:"fixed_dec",amount:"20"};
+  const preview=P.buildPreview(catalog,settings);
+  assert.strictEqual(preview.canApply,true);
+  assert.strictEqual(preview.zeroFromPositiveCount,1);
+  assert.strictEqual(preview.allBecomeZero,false);
+  assert.ok(preview.zeroWarning.text.includes("دىققەت"));
+  assert.ok(preview.zeroWarning.text.includes("1"));
+  assert.strictEqual(preview.highRisk,true);
+});
+
 test("scope query for all/category does not attach list page range itself",()=>{
   const calls=[];
   const query={

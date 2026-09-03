@@ -171,6 +171,98 @@ test.describe("admin bulk price change", () => {
     await expect(page.locator("#bulkPriceConfirmBtn")).toBeDisabled();
   });
 
+  test("all-books first confirm opens high-risk step and does not write", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="all"]').check();
+    await page.locator("#bulkPriceOperation").selectOption("pct_inc");
+    await page.locator("#bulkPriceAmount").fill("10");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceSummary")).toContainText("0 ₺ بولىدۇ: 1");
+    await page.locator("#bulkPriceConfirmBtn").click();
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeVisible();
+    await expect(page.locator("#bulkPriceHighRiskText")).toContainText("بارلىق كىتابلار");
+    const before = await page.evaluate(() => window.__kutadguPriceCalls.slice());
+    expect(before).toEqual([]);
+    await expect(page.locator("#bulkPriceHighRiskConfirmBtn")).toBeDisabled();
+  });
+
+  test("20+ category books require typed count before write", async ({ page }) => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: 200 + i,
+      title: `Bulk ${i}`,
+      author: "Author",
+      price: 10,
+      source: "hekayiler.html",
+      category: "ھېكايىلەر",
+      image_url: "https://cdn.example/x.webp",
+      is_active: true,
+      stock: 1,
+      stock_status: "in_stock",
+      sales_count: 0,
+      isbn: String(200 + i),
+      description: "d"
+    }));
+    await openAdminBooks(page, many);
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="category"]').check();
+    await page.locator("#bulkPriceCategory").selectOption("hekayiler.html");
+    await page.locator("#bulkPriceOperation").selectOption("fixed_inc");
+    await page.locator("#bulkPriceAmount").fill("1");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceSummary")).toContainText("يېڭىلىنىدۇ: 20");
+    await page.locator("#bulkPriceConfirmBtn").click();
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeVisible();
+    await page.locator("#bulkPriceHighRiskCount").fill("19");
+    await expect(page.locator("#bulkPriceHighRiskConfirmBtn")).toBeDisabled();
+    expect(await page.evaluate(() => window.__kutadguPriceCalls.slice())).toEqual([]);
+    await page.locator("#bulkPriceHighRiskCount").fill("20");
+    await expect(page.locator("#bulkPriceHighRiskConfirmBtn")).toBeEnabled();
+    await page.locator("#bulkPriceHighRiskConfirmBtn").click();
+    await expect(page.locator("#adminBulkResult")).toContainText("20 كىتابنىڭ باھاسى يېڭىلاندى");
+    const calls = await page.evaluate(() => window.__kutadguPriceCalls.slice());
+    expect(calls).toHaveLength(20);
+  });
+
+  test("zeroing non-zero prices shows warning and stronger all-zero warning", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-select]').check();
+    await page.locator('article[data-book-id="3"] [data-select]').check();
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="selected"]').check();
+    await page.locator("#bulkPriceOperation").selectOption("fixed_dec");
+    await page.locator("#bulkPriceAmount").fill("20");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceZeroWarning")).toContainText("دىققەت");
+    await expect(page.locator("#bulkPriceZeroWarning")).toContainText("1");
+
+    await page.locator("#bulkPriceOperation").selectOption("pct_dec");
+    await page.locator("#bulkPriceAmount").fill("100");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceZeroWarning")).toContainText("جىددىي ئاگاھلاندۇرۇش");
+    await page.locator("#bulkPriceConfirmBtn").click();
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeVisible();
+    expect(await page.evaluate(() => window.__kutadguPriceCalls.slice())).toEqual([]);
+    await page.locator("#bulkPriceHighRiskCount").fill("2");
+    await page.locator("#bulkPriceHighRiskConfirmBtn").click();
+    await expect(page.locator("#adminBulkResult")).toContainText("2 كىتابنىڭ باھاسى يېڭىلاندى");
+  });
+
+  test("changing settings closes high-risk confirmation without writing", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="all"]').check();
+    await page.locator("#bulkPriceAmount").fill("10");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await page.locator("#bulkPriceConfirmBtn").click();
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeVisible();
+    await page.locator("#bulkPriceHighRiskCount").fill("4");
+    await page.locator("#bulkPriceAmount").fill("15");
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeHidden();
+    await expect(page.locator("#bulkPriceConfirmBtn")).toBeDisabled();
+    expect(await page.evaluate(() => window.__kutadguPriceCalls.slice())).toEqual([]);
+  });
+
   test("existing quick edit, bulk edit, and admin navigation still work", async ({ page }) => {
     await openAdminBooks(page);
     await page.locator('article[data-book-id="1"] [data-quick-edit]').click();
