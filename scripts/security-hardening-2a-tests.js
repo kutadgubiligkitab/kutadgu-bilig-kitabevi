@@ -91,7 +91,7 @@ test("shop templates escape mini/home/lightbox interpolation",()=>{
   assert.match(shop,/function miniCard\(b\)\{\s*const id=escapeAttr/);
   assert.match(shop,/function homeFeatureCard\(b\)\{\s*const id=escapeAttr/);
   assert.match(shop,/if\(!url\|\|!isSafeCoverUrl\(url\)\|\|isSampleDemoCover\(url\)\)return;/);
-  assert.match(shop,/picture\.src=url;/);
+  assert.match(shop,/assignCoverImage\(picture,url\);/);
   assert.doesNotMatch(shop,/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2\//);
 });
 
