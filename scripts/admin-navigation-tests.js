@@ -32,15 +32,16 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=28, admin.js v=45, admin-mfa.js v=2, and admin-idle.js v=2", () => {
-  assert.match(adminHtml, /admin\.css\?v=28/);
-  assert.match(adminHtml, /admin\.js\?v=45/);
+test("cache pins are admin.css v=31, admin.js v=50, admin-mfa.js v=2, and admin-idle.js v=2", () => {
+  assert.match(adminHtml, /admin\.css\?v=31/);
+  assert.match(adminHtml, /admin\.js\?v=50/);
   assert.match(adminHtml, /admin-mfa\.js\?v=2/);
-  assert.doesNotMatch(adminHtml, /admin\.css\?v=27/);
-  assert.doesNotMatch(adminHtml, /admin\.js\?v=44/);
+  assert.doesNotMatch(adminHtml, /admin\.css\?v=30/);
+  assert.doesNotMatch(adminHtml, /admin\.js\?v=49/);
   assert.match(adminHtml, /admin-idle\.js\?v=2/);
   assert.match(adminHtml, /admin-catalog-productivity\.js\?v=2/);
-  assert.match(adminHtml, /admin-bulk-price\.js\?v=2/);
+  assert.match(adminHtml, /admin-bulk-price\.js\?v=3/);
+  assert.match(adminHtml, /admin-original-price\.js\?v=5/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=24/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=41/);
 });
@@ -73,8 +74,14 @@ test("modals stay outside dashboard section panels", () => {
   const bulkModal = adminHtml.indexOf('id="bulkConfirmModal"');
   const priceModal = adminHtml.indexOf('id="bulkPriceModal"');
   const riskModal = adminHtml.indexOf('id="bulkPriceHighRiskModal"');
+  const resetModal = adminHtml.indexOf('id="bulkResetModal"');
+  const resetRiskModal = adminHtml.indexOf('id="bulkResetHighRiskModal"');
+  const correctModal = adminHtml.indexOf('id="originalPriceCorrectModal"');
+  const singleResetModal = adminHtml.indexOf('id="singleOriginalResetModal"');
   assert.ok(dashEnd > 0 && bookModal > dashEnd && importModal > dashEnd);
   assert.ok(quickModal > dashEnd && bulkModal > dashEnd && priceModal > dashEnd && riskModal > dashEnd);
+  assert.ok(resetModal > dashEnd && resetRiskModal > dashEnd);
+  assert.ok(correctModal > dashEnd && singleResetModal > dashEnd);
 });
 
 test("login/setup panels ignore dashboard section markup", () => {

@@ -14,10 +14,11 @@ const OPERATION_LABELS={
   fixed_inc:"مۇقىم سومما قوشۇش",
   fixed_dec:"مۇقىم سومما كېمەيتىش"
 };
+const EMPTY_SELECTED_MESSAGE="ئالدى بىلەن كىتاب تىزىملىكىدىن كىتاب تاللاڭ.";
 const SCOPE_LABELS={
   all:"بارلىق كىتابلار",
   category:"بىر كاتېگورىيە",
-  selected:"تاللانغان كىتابلار"
+  selected:"تىزىملىكتىن تاللانغان كىتابلار"
 };
 
 function roundMoney(value){
@@ -87,10 +88,44 @@ function selectScopeBooks(books,settings){
   }
   const selected=normalizeSelectedIds(settings&&settings.selectedIds);
   if(!selected.length){
-    return {ok:false,error:"كىتاب تاللانمىدى. بۇ دائىرە نۆۋەتتىكى بەتتە تاللانغان كىتابلارغا ئىشلىتىلىدۇ.",books:[],emptySelected:true};
+    return {ok:false,error:EMPTY_SELECTED_MESSAGE,books:[],emptySelected:true};
   }
   const want=new Set(selected);
   return {ok:true,books:list.filter(book=>want.has(String(book&&book.id)))};
+}
+
+function canRunPricePreview(settings){
+  const op=String(settings&&settings.operation||"");
+  if(!OPERATIONS.includes(op))return false;
+  const amount=parseAdjustmentAmount(settings&&settings.amount);
+  if(!amount.ok)return false;
+  const scope=String(settings&&settings.scope||"");
+  if(scope==="selected")return normalizeSelectedIds(settings&&settings.selectedIds).length>0;
+  if(scope==="category")return !!String(settings&&settings.source||"").trim();
+  return scope==="all";
+}
+
+function describeSelectedScope(selectedIds,catalog){
+  const ids=normalizeSelectedIds(selectedIds);
+  if(!ids.length){
+    return {count:0,empty:true,text:EMPTY_SELECTED_MESSAGE,titles:[]};
+  }
+  const map=new Map();
+  (Array.isArray(catalog)?catalog:[]).forEach(book=>{
+    const id=String(book&&book.id||"");
+    if(id&&!map.has(id))map.set(id,book);
+  });
+  const titles=ids.map(id=>{
+    const book=map.get(id);
+    const title=book&&String(book.title||"").trim();
+    return title||`#${id}`;
+  });
+  return {
+    count:ids.length,
+    empty:false,
+    text:`تاللانغان كىتاب: ${ids.length}`,
+    titles
+  };
 }
 
 function settingsFingerprint(settings){
@@ -311,8 +346,12 @@ const api={
   FETCH_PAGE,
   PREVIEW_PAGE_SIZE,
   HIGH_RISK_UPDATE_THRESHOLD,
+  EMPTY_SELECTED_MESSAGE,
   OPERATION_LABELS,
   SCOPE_LABELS,
+  normalizeSelectedIds,
+  canRunPricePreview,
+  describeSelectedScope,
   roundMoney,
   parseAdjustmentAmount,
   isValidExistingPrice,

@@ -184,6 +184,32 @@ test("scope query for all/category does not attach list page range itself",()=>{
   assert.deepStrictEqual(calls,[["eq","source","dini.html"]]);
 });
 
+test("empty selected scope is explicit and does not use selectedIds for category/all",()=>{
+  assert.strictEqual(P.EMPTY_SELECTED_MESSAGE,"ئالدى بىلەن كىتاب تىزىملىكىدىن كىتاب تاللاڭ.");
+  assert.strictEqual(P.SCOPE_LABELS.selected,"تىزىملىكتىن تاللانغان كىتابلار");
+  const empty=P.selectScopeBooks(catalog,{scope:"selected",selectedIds:[]});
+  assert.strictEqual(empty.ok,false);
+  assert.strictEqual(empty.error,P.EMPTY_SELECTED_MESSAGE);
+  const cat=P.selectScopeBooks(catalog,{scope:"category",source:"romanlar.html",selectedIds:["1","8"]});
+  assert.deepStrictEqual(cat.books.map(b=>b.id),[3]);
+  const all=P.selectScopeBooks(catalog,{scope:"all",selectedIds:["1"]});
+  assert.strictEqual(all.books.length,catalog.length);
+});
+
+test("price preview button enablement follows scope completeness",()=>{
+  assert.strictEqual(P.canRunPricePreview({scope:"selected",selectedIds:[],operation:"pct_inc",amount:"10"}),false);
+  assert.strictEqual(P.canRunPricePreview({scope:"selected",selectedIds:["1"],operation:"pct_inc",amount:"10"}),true);
+  assert.strictEqual(P.canRunPricePreview({scope:"selected",selectedIds:["1"],operation:"pct_inc",amount:""}),false);
+  assert.strictEqual(P.canRunPricePreview({scope:"category",source:"",operation:"pct_inc",amount:"10"}),false);
+  assert.strictEqual(P.canRunPricePreview({scope:"category",source:"romanlar.html",operation:"pct_inc",amount:"10"}),true);
+  assert.strictEqual(P.canRunPricePreview({scope:"all",operation:"pct_inc",amount:""}),false);
+  assert.strictEqual(P.canRunPricePreview({scope:"all",operation:"pct_inc",amount:"10"}),true);
+  const described=P.describeSelectedScope(["1"],catalog);
+  assert.strictEqual(described.count,1);
+  assert.ok(described.titles.includes("Alpha"));
+  assert.strictEqual(P.describeSelectedScope([],catalog).text,P.EMPTY_SELECTED_MESSAGE);
+});
+
 test("existing quick/bulk helpers stay intact",()=>{
   assert.ok(Prod.QUICK_EDIT_FIELDS.includes("price"));
   assert.ok(!Prod.ALLOWED_BULK_ACTIONS.includes("price"));
@@ -193,9 +219,17 @@ test("existing quick/bulk helpers stay intact",()=>{
 test("no SECURITY DEFINER price RPC was added",()=>{
   const js=fs.readFileSync(path.join(__dirname,"../admin-bulk-price.js"),"utf8");
   const admin=fs.readFileSync(path.join(__dirname,"../admin.js"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"../admin.css"),"utf8");
+  const html=fs.readFileSync(path.join(__dirname,"../admin.html"),"utf8");
   assert.doesNotMatch(js,/SECURITY DEFINER/i);
   assert.doesNotMatch(js,/\.rpc\(/);
   assert.doesNotMatch(admin,/admin_bulk_update_book_prices/);
+  assert.match(css,/\.admin-bulk-price-card \[hidden\]\s*\{\s*display:\s*none\s*!important/);
+  assert.match(html,/id="bulkPriceCategoryWrap" hidden/);
+  assert.match(html,/id="bulkResetCategoryWrap" hidden/);
+  assert.match(html,/تىزىملىكتىن تاللانغان كىتابلار/);
+  assert.match(html,/id="bulkPriceSelectedWrap"/);
+  assert.match(html,/id="bulkResetSelectedWrap"/);
 });
 
 (async()=>{

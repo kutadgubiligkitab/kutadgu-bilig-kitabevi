@@ -205,6 +205,9 @@ button{cursor:pointer}
 .admin-gallery-item-actions{display:flex;flex-wrap:wrap;gap:4px}
 .admin-gallery-item-actions button{flex:1;min-width:0;padding:5px 6px;font-size:11px}
 .admin-help{color:#806f62;font-size:12px;line-height:1.8}
+#bookOriginalPriceStatus{overflow-wrap:anywhere}
+.admin-original-price-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;min-width:0}
+.admin-original-price-row .admin-secondary{width:auto;min-height:36px;padding:6px 10px;font-size:12px}
 .admin-modal{position:fixed;inset:0;z-index:40000;background:rgba(31,23,19,.65);display:flex;align-items:center;justify-content:center;padding:20px}
 .admin-modal[hidden]{display:none}
 .admin-modal-card{width:min(96%,900px);max-height:92vh;overflow:auto;background:#fffdf9;border-radius:16px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
@@ -378,6 +381,9 @@ button{cursor:pointer}
 .admin-bulk-price-card select,.admin-bulk-price-card input[type="number"]{width:100%;max-width:100%;min-height:44px;border:1px solid #dccdb9;border-radius:9px;padding:11px 12px;background:#fff}
 .admin-bulk-price-card > label{display:grid;gap:6px}
 .admin-bulk-price-card > label > span{font-size:13px;font-weight:700}
+.admin-bulk-price-card [hidden]{display:none!important}
+.admin-bulk-selected-list{margin:4px 0 0;padding:0 18px;display:grid;gap:2px;max-height:8rem;overflow:auto}
+.admin-bulk-selected-list li{overflow-wrap:anywhere;font-size:13px}
 @media(max-width:520px){
   .admin-bulk-price-card .admin-toolbar-group{width:100%}
   .admin-bulk-price-card .admin-toolbar-group button{width:100%;min-height:44px}
