@@ -630,10 +630,13 @@ test("storefront pages keep cart markup pin shop.js v=88",()=>{
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
   assert.match(html,/shop\.js\?v=88/);
-  assert.match(html,/shop\.css\?v=46/);
+  assert.match(html,/shop\.css\?v=47/);
   assert.match(html,/id="cartLayout"/);
   assert.match(html,/id="cartSummaryHost"/);
   assert.match(html,/id="whatsappOrder"/);
+  assert.match(html,/id="customerName"/);
+  assert.match(html,/id="checkoutCustomerHeading"/);
+  assert.match(html,/href="account.html"/);
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=86/);
   assert.match(home,/shop\.js\?v=86/);

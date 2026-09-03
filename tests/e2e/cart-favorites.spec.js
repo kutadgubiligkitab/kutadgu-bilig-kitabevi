@@ -151,6 +151,11 @@ test.describe("guest cart and favorites", () => {
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
     await expect(page.locator("#checkoutCard")).toBeVisible();
+    await expect(page.locator(".checkout-section-title")).toHaveCount(3);
+    await expect(page.locator("#checkoutForm #customerName")).toBeVisible();
+    await expect(page.locator("#checkoutForm #customerPhone")).toBeVisible();
+    await expect(page.locator("#checkoutForm #customerAddress")).toBeVisible();
+    await expect(page.locator("#checkoutForm #customerNote")).toBeVisible();
     await page.locator("#customerName").fill("Playwright Test", { force: true });
     await page.locator("#customerPhone").fill("5550000111", { force: true });
     await page.locator("#customerAddress").fill("Test street 1", { force: true });

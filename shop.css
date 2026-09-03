@@ -385,34 +385,58 @@ body > header:not(.account-topbar):not(.admin-topbar){
 }
 .checkout-card{
     margin-top:0;
-    padding:24px;
+    padding:18px 16px 20px;
     border:1px solid var(--site-border,#e8dccb);
     border-radius:12px;
     background:var(--site-card,#fffdf9);
-    box-shadow:0 6px 22px rgba(75,51,39,.06)
+    box-shadow:0 5px 18px rgba(75,51,39,.06)
 }
 .checkout-card[hidden]{display:none!important}
 .checkout-heading{
-    margin-bottom:18px
+    margin-bottom:10px
 }
 .checkout-heading h2{
-    margin:0 0 6px;
+    margin:0 0 4px;
+    font-size:18px;
+    line-height:1.4;
     color:var(--site-text,#44352d)
 }
 .checkout-heading p{
     margin:0;
+    font-size:13px;
+    line-height:1.65;
     color:var(--site-text-soft,#806f62)
 }
 .checkout-form{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:14px
+    grid-template-columns:minmax(0,1fr);
+    gap:12px
+}
+.checkout-section{
+    margin:0;
+    min-width:0
+}
+.checkout-section-title{
+    margin:0 0 8px;
+    padding:6px 10px;
+    font-size:13px;
+    font-weight:800;
+    line-height:1.4;
+    color:var(--site-brown-dark,#4b3327);
+    background:var(--site-bg-soft,#fbf8f2);
+    border:1px solid var(--site-border,#e8dccb);
+    border-radius:8px
+}
+.checkout-fields{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:10px
 }
 .checkout-form label{
     display:grid;
-    gap:7px;
+    gap:5px;
     color:var(--site-text,#44352d);
-    font-size:14px
+    font-size:13px
 }
 .checkout-form label span{
     font-weight:700
@@ -423,7 +447,8 @@ body > header:not(.account-topbar):not(.admin-topbar){
     width:100%;
     border:1px solid var(--site-border,#e8dccb);
     border-radius:9px;
-    padding:11px 12px;
+    padding:10px 11px;
+    min-height:42px;
     background:var(--site-bg-soft,#fbf8f2);
     color:var(--site-text,#44352d);
     font-family:inherit;
@@ -436,13 +461,13 @@ body > header:not(.account-topbar):not(.admin-topbar){
     border-color:var(--site-brown,#70503d);
     box-shadow:0 0 0 3px rgba(112,80,61,.10)
 }
-.checkout-form textarea{resize:vertical}
+.checkout-form textarea{min-height:68px;resize:vertical}
 .checkout-wide{grid-column:1/-1}
 .checkout-actions{
     display:flex;
     gap:10px;
     flex-wrap:wrap;
-    margin-top:20px
+    margin-top:14px
 }
 .checkout-primary,
 .checkout-secondary{
@@ -501,7 +526,7 @@ body > header:not(.account-topbar):not(.admin-topbar){
     color:var(--site-text-soft,#806f62);
     font-size:12px
 }
-.checkout-member-note{margin:0 0 18px;padding:12px 14px;border:1px solid var(--site-border,#e8dccb);border-radius:10px;background:var(--site-bg-soft,#fbf8f2);color:var(--site-text-soft,#806f62);font-size:13px;line-height:1.8}
+.checkout-member-note{margin:0 0 10px;padding:8px 10px;border:1px solid var(--site-border,#e8dccb);border-radius:8px;background:var(--site-bg-soft,#fbf8f2);color:var(--site-text-soft,#806f62);font-size:12px;line-height:1.55}
 .checkout-member-note a{color:var(--site-brown,#70503d);font-weight:700}
 @media(min-width:960px){
     .cart-layout{
@@ -518,10 +543,14 @@ body > header:not(.account-topbar):not(.admin-topbar){
     .cart-layout{grid-template-columns:1fr}
     .cart-layout-aside{position:static}
 }
+@media(min-width:651px) and (max-width:959px){
+    .checkout-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media(max-width:650px){
     .cart-page-top{align-items:stretch;flex-direction:column}
-    .checkout-card{padding:18px 14px}
+    .checkout-card{padding:14px 12px}
     .checkout-form{grid-template-columns:1fr}
+    .checkout-fields{grid-template-columns:1fr}
     .checkout-wide{grid-column:auto}
     .checkout-actions{display:grid;grid-template-columns:1fr}
     .checkout-primary,.checkout-secondary{width:100%}
@@ -532,7 +561,7 @@ body > header:not(.account-topbar):not(.admin-topbar){
 
 /* ===== زاكاز فورمىسى — سول/ئوڭ بوشلۇق تۈزىتىشى ===== */
 .checkout-form{
-    padding-inline: 10px;
+    padding-inline: 0;
 }
 
 @media(max-width:650px){
@@ -1749,7 +1778,7 @@ body:not(.dark-mode) .about-points strong{
   font-size:13px;
   line-height:1.7;
 }
-.cart-order-steps{margin:0 0 14px}
+.cart-order-steps{margin:0 0 10px;font-size:12px}
 .checkout-secondary-actions{
   margin-top:14px;
   padding-top:12px;
