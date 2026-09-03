@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=31">
+  <link rel="stylesheet" href="admin.css?v=32">
 </head>
 <body>
 <div class="admin-shell">
@@ -377,6 +377,9 @@
           <button type="button" class="admin-secondary" id="bookOriginalPriceCorrectBtn" hidden>ئەسلى باھانى بەلگىلەش</button>
           <button type="button" class="admin-secondary" id="bookOriginalPriceResetBtn" hidden>ئەسلى باھاغا قايتۇرۇش</button>
         </span>
+        <span class="admin-original-price-row">
+          <button type="button" class="admin-secondary" id="bookPriceHistoryBtn" hidden>باھا تارىخى</button>
+        </span>
         <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
       </label>
       <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
@@ -487,6 +490,46 @@
     <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
       <button class="admin-primary" id="singleOriginalResetSaveBtn" type="button">ئەسلى باھاغا قايتۇرۇش</button>
       <button class="admin-secondary" id="singleOriginalResetCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
+<div id="priceHistoryModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="priceHistoryTitle">
+    <div class="admin-modal-head">
+      <h2 id="priceHistoryTitle">باھا تارىخى</h2>
+      <button id="closePriceHistory" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p id="priceHistoryBook" class="admin-help"></p>
+    <p id="priceHistoryCurrent" class="admin-help">ھازىرقى باھا: —</p>
+    <p id="priceHistoryOriginal" class="admin-help">ئەسلى باھا تېخى ساقلانمىغان</p>
+    <p id="priceHistoryEmpty" class="admin-help" hidden>تېخى باھا ئۆزگىرىش تارىخى يوق.</p>
+    <div id="priceHistoryList" class="admin-price-history-list"></div>
+    <p id="priceHistoryError" class="admin-status error" hidden></p>
+    <p id="priceHistoryStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-secondary" id="priceHistoryMoreBtn" type="button" hidden>تېخىمۇ كۆپ</button>
+      <button class="admin-secondary" id="priceHistoryCloseBtn" type="button">تاقاش</button>
+    </div>
+  </div>
+</div>
+
+<div id="priceRollbackModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="priceRollbackTitle">
+    <div class="admin-modal-head">
+      <h2 id="priceRollbackTitle">بۇ باھاغا قايتۇرۇش</h2>
+      <button id="closePriceRollback" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p id="priceRollbackBook" class="admin-help"></p>
+    <p id="priceRollbackCurrent" class="admin-help">ھازىرقى باھا: —</p>
+    <p id="priceRollbackTarget" class="admin-help">قايتۇرۇلىدىغان باھا: —</p>
+    <p id="priceRollbackWhen" class="admin-help"></p>
+    <p class="admin-status warn">بۇ مەشغۇلات پەقەت ھازىرقى سېتىش باھاسىنى تارىختىكى باھاغا قايتۇرىدۇ. ئەسلى باھا ئۆزگەرمەيدۇ.</p>
+    <p id="priceRollbackError" class="admin-status error" hidden></p>
+    <p id="priceRollbackStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="priceRollbackSaveBtn" type="button">بۇ باھاغا قايتۇرۇش</button>
+      <button class="admin-secondary" id="priceRollbackCancelBtn" type="button">بىكار قىلىش</button>
     </div>
   </div>
 </div>
@@ -732,6 +775,7 @@
 <script defer src="admin-catalog-productivity.js?v=2"></script>
 <script defer src="admin-bulk-price.js?v=3"></script>
 <script defer src="admin-original-price.js?v=5"></script>
+<script defer src="admin-price-history.js?v=1"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -740,6 +784,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=50"></script>
+  <script defer src="admin.js?v=51"></script>
 </body>
 </html>

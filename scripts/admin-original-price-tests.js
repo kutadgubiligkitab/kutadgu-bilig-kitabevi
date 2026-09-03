@@ -42,7 +42,7 @@ test("migration is nullable, no default, and does not backfill price",()=>{
   assert.doesNotMatch(sql,/price\s*=\s*original_price|original_price\s*=\s*price/i);
   assert.doesNotMatch(sql,/DEFAULT\s+0/);
   assert.doesNotMatch(setup,/original_price\s*=\s*price/i);
-  assert.doesNotMatch(setup,/\bUPDATE\s+public\.books\b/i);
+  assert.doesNotMatch(setup,/SET\s+original_price\s*=/i);
   assert.match(setup,/original_price numeric\(12,2\)/);
 });
 
@@ -217,8 +217,8 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
   assert.match(html,/admin-original-price\.js\?v=5/);
-  assert.match(html,/admin\.css\?v=31/);
-  assert.match(html,/admin\.js\?v=50/);
+  assert.match(html,/admin\.css\?v=32/);
+  assert.match(html,/admin\.js\?v=51/);
   assert.match(html,/id="bookOriginalPriceCorrectBtn"/);
   assert.match(html,/id="bookOriginalPriceResetBtn"/);
   assert.match(html,/id="originalPriceCorrectModal"/);
