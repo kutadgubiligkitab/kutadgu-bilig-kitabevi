@@ -5,7 +5,7 @@ const BASE = [
   {id:2,title:"Beta Book",author:"Author B",price:200,original_price:200,source:"universal.html",category:"ئۇنىۋېرسال",image_url:"https://cdn.example/b.webp",is_active:true,is_recommended:false,is_new:false,stock:1,stock_status:"in_stock",sales_count:0,legacy_id:"leg-2",created_at:"2026-01-02",isbn:"9782222222222",description:"desc"},
   {id:3,title:"Gamma Book",author:"Author C",price:20,original_price:15,source:"romanlar.html",category:"رومانلار",image_url:"https://cdn.example/c.webp",is_active:true,is_recommended:false,is_new:false,stock:2,stock_status:"in_stock",sales_count:1,legacy_id:"leg-3",created_at:"2026-01-03",isbn:"9783333333333",description:"desc"},
   {id:4,title:"Zero Original",author:"Author D",price:10,original_price:0,source:"universal.html",category:"ئۇنىۋېرسال",image_url:"https://cdn.example/d.webp",is_active:true,stock:1,stock_status:"in_stock",sales_count:0,isbn:"4",description:"d"},
-  {id:5,title:"Missing Original",author:"Author E",price:0,original_price:null,source:"universal.html",category:"ئۇنىۋېرسال",image_url:"https://cdn.example/e.webp",is_active:true,stock:1,stock_status:"in_stock",sales_count:0,isbn:"5",description:"d"}
+  {id:5,title:"Missing Original",author:"Author E",price:0,original_price:null,source:"universal.html",category:"ئۇنىۋېرسال",image_url:"https://cdn.example/e.webp",is_active:true,stock:1,stock_status:"in_stock",sales_count:0,isbn:"9785555555555",description:"d"}
 ];
 
 function extraBooks() {
@@ -40,6 +40,11 @@ async function openAdminBooks(page, books = BASE) {
     window.__kutadguPriceCalls = [];
     window.__kutadguResetCalls = [];
     window.__kutadguResetFetches = [];
+    window.__kutadguBookSaves = [];
+    window.__kutadguAdminPersistBook = async (payload, operation, id) => {
+      window.__kutadguBookSaves.push({ payload: { ...payload }, operation, id: String(id || "") });
+      return { error: null, data: [{ id }] };
+    };
     window.__kutadguAdminPersistQuick = async (id, patch) => {
       window.__kutadguQuickPatches.push({ id, patch });
       return { error: null };
@@ -226,6 +231,46 @@ test.describe("admin original price reset", () => {
     await page.locator("#cancelBookEdit").click();
     await page.locator('article[data-book-id="5"] [data-edit]').click();
     await expect(page.locator("#bookOriginalPriceStatus")).toHaveText("ئەسلى باھا تېخى ساقلانمىغان");
+  });
+
+  test("unrelated Edit save does not initialize NULL original_price", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="5"] [data-edit]').click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookTitle").fill("Missing Original renamed");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect(page.locator("#bookModal")).toBeHidden();
+    const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
+    expect(saves).toHaveLength(1);
+    expect(saves[0].operation).toBe("UPDATE");
+    expect(saves[0].payload.price).toBe(0);
+    expect(saves[0].payload.original_price).toBeUndefined();
+  });
+
+  test("manual price change initializes NULL original_price once", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="5"] [data-edit]').click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookPrice").fill("125");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect(page.locator("#bookModal")).toBeHidden();
+    const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
+    expect(saves).toHaveLength(1);
+    expect(saves[0].payload.price).toBe(125);
+    expect(saves[0].payload.original_price).toBe(125);
+  });
+
+  test("existing original_price is not overwritten by a later price edit", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookPrice").fill("160");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect(page.locator("#bookModal")).toBeHidden();
+    const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
+    expect(saves).toHaveLength(1);
+    expect(saves[0].payload.price).toBe(160);
+    expect(saves[0].payload.original_price).toBeUndefined();
   });
 
   test("normal bulk price change still writes price only", async ({ page }) => {

@@ -1766,6 +1766,9 @@ async function persistBookRow(payload,operation,editingBookId){
   if(op==="STOP"){
     return {error:new Error("تەھرىرلەش ئۈچۈن كىتاب ID تېپىلمىدى. يېڭى قۇر قوشۇلمايدۇ.")};
   }
+  if(typeof window.__kutadguAdminPersistBook==="function"){
+    return window.__kutadguAdminPersistBook(payload,op,editingBookId);
+  }
   if(op==="UPDATE"){
     const {data,error}=await db.from("books").update(payload).eq("id",editingBookId).select("id");
     if(error)return {error};
@@ -1868,7 +1871,7 @@ async function saveBook(e){
     if(isbnColumn)row.isbn=isbn;
     if(presentBookCols.has("original_price")&&Orig.planInsertOriginalPrice&&Orig.planUpdateOriginalPrice){
       const planned=isEdit
-        ?Orig.planUpdateOriginalPrice(editing&&editing.original_price,row.price)
+        ?Orig.planUpdateOriginalPrice(editing&&editing.original_price,row.price,editing&&editing.price)
         :Orig.planInsertOriginalPrice(row.price);
       if(planned&&planned.include)row.original_price=planned.original_price;
     }

@@ -43,9 +43,20 @@ function planInsertOriginalPrice(price){
   return {include:true,original_price:roundMoney(price)};
 }
 
-function planUpdateOriginalPrice(existingOriginal,savedPrice){
+function priceChanged(loadedPrice,savedPrice){
+  const loadedValid=isValidPrice(loadedPrice);
+  const savedValid=isValidPrice(savedPrice);
+  if(!loadedValid&&!savedValid)return false;
+  if(!loadedValid&&savedValid)return true;
+  if(loadedValid&&!savedValid)return true;
+  return roundMoney(loadedPrice)!==roundMoney(savedPrice);
+}
+
+function planUpdateOriginalPrice(existingOriginal,savedPrice,loadedPrice){
   if(isValidPrice(existingOriginal))return {include:false};
   if(!isValidPrice(savedPrice))return {include:false};
+  if(loadedPrice===undefined)return {include:false};
+  if(!priceChanged(loadedPrice,savedPrice))return {include:false};
   return {include:true,original_price:roundMoney(savedPrice)};
 }
 
@@ -141,6 +152,7 @@ const api={
   originalPriceStatus,
   planInsertOriginalPrice,
   planUpdateOriginalPrice,
+  priceChanged,
   assertPriceOnlyPatch,
   buildResetPreview,
   formatResetLine,

@@ -54,18 +54,28 @@ test("new book insert plan copies valid price once, including 0",()=>{
   assert.deepStrictEqual(Orig.planInsertOriginalPrice(-5),{include:true,original_price:null});
 });
 
-test("existing NULL original_price initializes once on valid manual save",()=>{
-  const first=Orig.planUpdateOriginalPrice(null,125);
-  assert.deepStrictEqual(first,{include:true,original_price:125});
-  const fromZero=Orig.planUpdateOriginalPrice("",0);
-  assert.deepStrictEqual(fromZero,{include:true,original_price:0});
-  const skipInvalid=Orig.planUpdateOriginalPrice(null,null);
+test("existing NULL original_price initializes only when the manual Edit price actually changed",()=>{
+  const changed=Orig.planUpdateOriginalPrice(null,125,0);
+  assert.deepStrictEqual(changed,{include:true,original_price:125});
+  const fromMissing=Orig.planUpdateOriginalPrice(null,125,null);
+  assert.deepStrictEqual(fromMissing,{include:true,original_price:125});
+  const toZero=Orig.planUpdateOriginalPrice(null,0,null);
+  assert.deepStrictEqual(toZero,{include:true,original_price:0});
+  const skipInvalid=Orig.planUpdateOriginalPrice(null,null,0);
   assert.deepStrictEqual(skipInvalid,{include:false});
 });
 
+test("unrelated Edit save does not initialize NULL original_price from the loaded price",()=>{
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(null,0,0),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(null,125,125),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice("",0,0),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(null,0),{include:false});
+});
+
 test("initialized original_price is not overwritten by later price edits",()=>{
-  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(125,200),{include:false});
-  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(0,90),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(125,200,125),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(0,90,0),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(100,100,100),{include:false});
 });
 
 test("admin form status is read-only and does not invent a value",()=>{
@@ -166,11 +176,11 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/id="bookOriginalPriceStatus"/);
   assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
-  assert.match(html,/admin-original-price\.js\?v=1/);
+  assert.match(html,/admin-original-price\.js\?v=2/);
   assert.match(html,/admin\.css\?v=29/);
-  assert.match(html,/admin\.js\?v=46/);
+  assert.match(html,/admin\.js\?v=47/);
   assert.doesNotMatch(html,/id="bookOriginalPrice"/);
-  assert.match(js,/planUpdateOriginalPrice/);
+  assert.match(js,/planUpdateOriginalPrice\(editing&&editing\.original_price,row\.price,editing&&editing\.price\)/);
   assert.match(js,/assertPriceOnlyPatch/);
   assert.match(js,/__kutadguAdminBulkResetUpdateOne/);
   assert.match(js,/bulkResetInFlight/);
