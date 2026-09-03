@@ -5,6 +5,7 @@ const Quality=window.KutadguAdminQuality||{};
 const Prod=window.KutadguAdminProductivity||{};
 const Price=window.KutadguAdminBulkPrice||{};
 const Orig=window.KutadguAdminOriginalPrice||{};
+const Hist=window.KutadguAdminPriceHistory||{};
 const Safe=window.KutadguSafeUrl||{};
 const Bib=window.KutadguBibliography||{};
 const ImportCovers=window.KutadguAdminImportCovers||{};
@@ -60,6 +61,13 @@ let originalCorrectInFlight=false;
 let originalCorrectDraft=null;
 let originalResetInFlight=false;
 let originalResetDraft=null;
+let priceHistoryInFlight=false;
+let priceRollbackInFlight=false;
+let priceHistoryDraft=null;
+let priceHistoryRows=[];
+let priceHistoryOffset=0;
+let priceHistoryHasMore=false;
+let priceRollbackDraft=null;
 let bulkResetPreview=null;
 let bulkResetPreviewPage=0;
 let bulkPricePreview=null;
@@ -249,7 +257,11 @@ function bindAdminNavigation(){
   window.addEventListener("hashchange",onAdminHashChange);
 }
 function modal(open){
-  if(!open)closeOriginalPriceCorrectModal();
+  if(!open){
+    closeOriginalPriceCorrectModal();
+    closePriceRollbackModal();
+    closePriceHistoryModal();
+  }
   $("#bookModal").hidden=!open;
 }
 function normalizeIsbn(value){
@@ -871,7 +883,7 @@ function adminShouldHoldIdleLock(){
   return false;
 }
 function isIdleBusy(){
-  return !!(saveInFlight||importRunning||quickSaveInFlight||bulkInFlight||bulkPriceInFlight||bulkResetInFlight||originalCorrectInFlight||originalResetInFlight);
+  return !!(saveInFlight||importRunning||quickSaveInFlight||bulkInFlight||bulkPriceInFlight||bulkResetInFlight||originalCorrectInFlight||originalResetInFlight||priceHistoryInFlight||priceRollbackInFlight);
 }
 function bindIdleLock(){
   const api=idleApi();
@@ -1446,6 +1458,7 @@ function renderOriginalPriceStatus(value,opts){
     });
     resetBtn.hidden=!show;
   }
+  renderPriceHistoryButton(opts);
 }
 function setOriginalPriceNote(msg){
   const el=$("#bookOriginalPriceNote");
@@ -1731,6 +1744,349 @@ async function saveSingleOriginalReset(){
   }finally{
     originalResetInFlight=false;
     if(save){save.disabled=false;save.textContent="ئەسلى باھاغا قايتۇرۇش"}
+  }
+}
+function renderPriceHistoryButton(opts){
+  const btn=$("#bookPriceHistoryBtn");
+  if(!btn)return;
+  const isCreate=!!(opts&&opts.create);
+  const id=canonicalBookId(editing&&editing.id)||canonicalBookId($("#bookId")&&$("#bookId").value);
+  btn.hidden=isCreate||!id;
+}
+function isMissingPriceHistory(error){
+  const msg=String((error&&(error.message||error.code))||error||"");
+  return /book_price_history|rollback_book_price|does not exist|42P01|42883|PGRST/i.test(msg)||(error&&(error.code==="42P01"||error.code==="42883"||error.code==="PGRST202"||error.code==="PGRST205"));
+}
+function setPriceHistoryError(msg){
+  const el=$("#priceHistoryError");
+  if(!el)return;
+  if(!msg){el.hidden=true;el.textContent="";return}
+  el.hidden=false;
+  el.textContent=msg;
+}
+function setPriceRollbackError(msg){
+  const el=$("#priceRollbackError");
+  if(!el)return;
+  if(!msg){el.hidden=true;el.textContent="";return}
+  el.hidden=false;
+  el.textContent=msg;
+}
+function resetPriceHistoryState(){
+  priceHistoryDraft=null;
+  priceHistoryRows=[];
+  priceHistoryOffset=0;
+  priceHistoryHasMore=false;
+}
+function closePriceHistoryModal(){
+  if(priceRollbackInFlight)return;
+  closePriceRollbackModal();
+  const modalEl=$("#priceHistoryModal");
+  if(modalEl)modalEl.hidden=true;
+  resetPriceHistoryState();
+  const more=$("#priceHistoryMoreBtn");
+  if(more)more.hidden=true;
+  const list=$("#priceHistoryList");
+  if(list)list.innerHTML="";
+  const empty=$("#priceHistoryEmpty");
+  if(empty)empty.hidden=true;
+  setPriceHistoryError("");
+  const st=$("#priceHistoryStatus");
+  if(st)st.textContent="";
+}
+function closePriceRollbackModal(){
+  if(priceRollbackInFlight)return;
+  const modalEl=$("#priceRollbackModal");
+  if(modalEl)modalEl.hidden=true;
+  priceRollbackDraft=null;
+  setPriceRollbackError("");
+  const st=$("#priceRollbackStatus");
+  if(st)st.textContent="";
+  const save=$("#priceRollbackSaveBtn");
+  if(save){save.disabled=false;save.textContent="بۇ باھاغا قايتۇرۇش"}
+}
+function currentEditingPrice(){
+  if(editing&&Object.prototype.hasOwnProperty.call(editing,"price"))return editing.price;
+  const input=$("#bookPrice");
+  if(input&&input.value!=="")return Number(input.value);
+  return null;
+}
+function renderPriceHistoryMeta(){
+  const title=priceHistoryDraft&&priceHistoryDraft.title||(editing&&editing.title)||"";
+  const bookEl=$("#priceHistoryBook");
+  if(bookEl)bookEl.textContent=title||"(نامسىز)";
+  const price=currentEditingPrice();
+  const currentEl=$("#priceHistoryCurrent");
+  if(currentEl)setLabeledLtrMoney(currentEl,"ھازىرقى باھا: ",price);
+  const originalEl=$("#priceHistoryOriginal");
+  if(originalEl){
+    const original=editing?editing.original_price:null;
+    if(Hist.isValidRollbackPrice&&Hist.isValidRollbackPrice(original)){
+      originalEl.hidden=false;
+      setLabeledLtrMoney(originalEl,"ئەسلى باھا: ",original);
+    }else{
+      originalEl.hidden=false;
+      originalEl.textContent="ئەسلى باھا تېخى ساقلانمىغان";
+    }
+  }
+}
+function setLabeledLtrMoney(el,label,value){
+  if(!el)return;
+  const amount=Hist.formatMoney?Hist.formatMoney(value):money(value);
+  el.replaceChildren();
+  el.append(document.createTextNode(label));
+  const bdi=document.createElement("bdi");
+  bdi.className="admin-price-ltr";
+  bdi.dir="ltr";
+  bdi.textContent=amount;
+  el.append(bdi);
+}
+function renderPriceHistoryList(){
+  const list=$("#priceHistoryList");
+  const empty=$("#priceHistoryEmpty");
+  const more=$("#priceHistoryMoreBtn");
+  if(!list)return;
+  const current=currentEditingPrice();
+  if(!priceHistoryRows.length){
+    list.innerHTML="";
+    if(empty){
+      empty.hidden=false;
+      empty.textContent=(Hist.EMPTY_TEXT||"تېخى باھا ئۆزگىرىش تارىخى يوق.");
+    }
+    if(more)more.hidden=true;
+    return;
+  }
+  if(empty)empty.hidden=true;
+  list.innerHTML=priceHistoryRows.map(row=>{
+    const can=Hist.canRollbackHistoryRow?Hist.canRollbackHistoryRow(row,current):false;
+    const already=Hist.pricesEqual?Hist.pricesEqual(row.old_price,current)&&(Hist.isValidRollbackPrice?Hist.isValidRollbackPrice(row.old_price):true):false;
+    const kind=Hist.changeKindLabel?Hist.changeKindLabel(row.change_kind):row.change_kind;
+    const parts=Hist.priceTransitionParts?Hist.priceTransitionParts(row.old_price,row.new_price):null;
+    const prices=parts
+      ?`<bdi class="admin-price-history-old">${esc(parts.oldText)}</bdi> <span class="admin-price-history-arrow" aria-hidden="true">${esc(parts.arrow)}</span> <bdi class="admin-price-history-new">${esc(parts.newText)}</bdi>`
+      :esc(Hist.formatPriceTransition?Hist.formatPriceTransition(row.old_price,row.new_price):`${money(row.old_price)} → ${money(row.new_price)}`);
+    const when=dateText(row.changed_at);
+    const action=can
+      ?`<button type="button" class="admin-secondary" data-history-rollback="${esc(row.id)}">بۇ باھاغا قايتۇرۇش</button>`
+      :(already?`<span class="admin-price-history-current">ھازىرقى باھا</span>`:"");
+    return `<article class="admin-price-history-item" data-history-id="${esc(row.id)}">
+      <div class="admin-price-history-meta">${esc(when)}</div>
+      <div class="admin-price-history-prices" dir="ltr">${prices}</div>
+      <div class="admin-price-history-kind">${esc(kind)}</div>
+      ${action}
+    </article>`;
+  }).join("");
+  list.querySelectorAll("[data-history-rollback]").forEach(btn=>{
+    btn.onclick=()=>openPriceRollbackModal(btn.dataset.historyRollback);
+  });
+  if(more)more.hidden=!priceHistoryHasMore;
+}
+async function fetchPriceHistoryPage(bookId,offset){
+  const limit=Hist.PAGE_SIZE||20;
+  if(typeof window.__kutadguAdminFetchPriceHistory==="function"){
+    const result=await window.__kutadguAdminFetchPriceHistory(bookId,offset,limit);
+    if(result&&result.error)return {error:result.error,rows:[],hasMore:false};
+    return {
+      error:null,
+      rows:Array.isArray(result&&result.rows)?result.rows:[],
+      hasMore:!!(result&&result.hasMore)
+    };
+  }
+  if(!db)return {error:new Error("Database يوق."),rows:[],hasMore:false};
+  const from=Math.max(0,Number(offset)||0);
+  const historyBookId=Hist.decimalId?Hist.decimalId(bookId):canonicalBookId(bookId);
+  if(!historyBookId)return {error:new Error("كىتاب ID تېپىلمىدى."),rows:[],hasMore:false};
+  const {data,error}=await db.from("book_price_history")
+    .select("id,book_id,old_price,new_price,change_kind,changed_at")
+    .eq("book_id",historyBookId)
+    .order("changed_at",{ascending:false})
+    .order("id",{ascending:false})
+    .range(from,from+limit);
+  if(error)return {error,rows:[],hasMore:false};
+  const rows=Array.isArray(data)?data:[];
+  const hasMore=rows.length>limit;
+  return {error:null,rows:hasMore?rows.slice(0,limit):rows,hasMore};
+}
+async function loadPriceHistory({reset=false}={}){
+  const id=priceHistoryDraft&&priceHistoryDraft.id;
+  if(!id)return;
+  if(priceHistoryInFlight||priceRollbackInFlight)return;
+  if(reset){
+    priceHistoryRows=[];
+    priceHistoryOffset=0;
+    priceHistoryHasMore=false;
+  }
+  priceHistoryInFlight=true;
+  const st=$("#priceHistoryStatus");
+  if(st)st.textContent="يۈكلىنىۋاتىدۇ...";
+  setPriceHistoryError("");
+  try{
+    const page=await fetchPriceHistoryPage(id,priceHistoryOffset);
+    if(page.error){
+      if(isMissingPriceHistory(page.error))throw new Error(Hist.MISSING_TABLE_ERROR||"باھا تارىخى جەدۋىلى تېخى Database دا يوق. STAGE65_PRICE_HISTORY.sql نى Supabase SQL Editor دا Run قىلىڭ.");
+      throw page.error;
+    }
+    priceHistoryRows=priceHistoryRows.concat(page.rows||[]);
+    priceHistoryOffset=priceHistoryRows.length;
+    priceHistoryHasMore=!!page.hasMore;
+    renderPriceHistoryMeta();
+    renderPriceHistoryList();
+    if(st)st.textContent="";
+  }catch(err){
+    setPriceHistoryError(err.message||String(err));
+    if(st)st.textContent="";
+    if(!priceHistoryRows.length){
+      const empty=$("#priceHistoryEmpty");
+      if(empty)empty.hidden=true;
+    }
+  }finally{
+    priceHistoryInFlight=false;
+  }
+}
+function openPriceHistoryModal(){
+  if(saveInFlight||priceRollbackInFlight)return;
+  const id=canonicalBookId(editing&&editing.id)||canonicalBookId($("#bookId")&&$("#bookId").value);
+  if(!id){
+    alert("كىتاب ID تېپىلمىدى. يېڭى قۇر يېزىلمايدۇ.");
+    return;
+  }
+  closeOriginalPriceCorrectModal();
+  closeSingleOriginalResetModal();
+  closePriceRollbackModal();
+  priceHistoryDraft={
+    id,
+    title:editing&&editing.title||($("#bookTitle")&&$("#bookTitle").value)||""
+  };
+  priceHistoryRows=[];
+  priceHistoryOffset=0;
+  priceHistoryHasMore=false;
+  setPriceHistoryError("");
+  const list=$("#priceHistoryList");
+  if(list)list.innerHTML="";
+  const empty=$("#priceHistoryEmpty");
+  if(empty){
+    empty.hidden=true;
+    empty.textContent=Hist.EMPTY_TEXT||"تېخى باھا ئۆزگىرىش تارىخى يوق.";
+  }
+  const more=$("#priceHistoryMoreBtn");
+  if(more)more.hidden=true;
+  renderPriceHistoryMeta();
+  const modalEl=$("#priceHistoryModal");
+  if(modalEl)modalEl.hidden=false;
+  loadPriceHistory({reset:true});
+}
+function openPriceRollbackModal(historyId){
+  if(priceRollbackInFlight)return;
+  const row=priceHistoryRows.find(item=>String(item.id)===String(historyId));
+  const id=priceHistoryDraft&&priceHistoryDraft.id||canonicalBookId(editing&&editing.id);
+  const planned=Hist.planRollback?Hist.planRollback({
+    bookId:id,
+    historyRow:row,
+    currentPrice:currentEditingPrice()
+  }):{ok:false,error:"قايتۇرۇش يوق"};
+  if(!planned.ok||!planned.canRollback){
+    if(planned&&planned.alreadyCurrent){
+      renderPriceHistoryList();
+      return;
+    }
+    setPriceHistoryError((planned&&planned.error)||"قايتۇرۇشقا بولمايدۇ.");
+    return;
+  }
+  priceRollbackDraft={
+    bookId:id,
+    historyId:row.id,
+    historyRow:row,
+    loadedPrice:currentEditingPrice(),
+    targetPrice:planned.targetPrice,
+    title:priceHistoryDraft&&priceHistoryDraft.title||(editing&&editing.title)||""
+  };
+  const bookEl=$("#priceRollbackBook");
+  if(bookEl)bookEl.textContent=priceRollbackDraft.title||"(نامسىز)";
+  const currentEl=$("#priceRollbackCurrent");
+  if(currentEl)setLabeledLtrMoney(currentEl,"ھازىرقى باھا: ",priceRollbackDraft.loadedPrice);
+  const targetEl=$("#priceRollbackTarget");
+  if(targetEl)setLabeledLtrMoney(targetEl,"قايتۇرۇلىدىغان باھا: ",priceRollbackDraft.targetPrice);
+  const whenEl=$("#priceRollbackWhen");
+  if(whenEl)whenEl.textContent=dateText(row.changed_at);
+  setPriceRollbackError("");
+  const st=$("#priceRollbackStatus");
+  if(st)st.textContent="";
+  const modalEl=$("#priceRollbackModal");
+  if(modalEl)modalEl.hidden=false;
+}
+async function persistPriceRollback(bookId,historyId,expectedPrice){
+  const args=Hist.rollbackRpcArgs?Hist.rollbackRpcArgs(bookId,historyId,expectedPrice):{
+    p_book_id:Hist.decimalId?Hist.decimalId(bookId):canonicalBookId(bookId),
+    p_history_id:Hist.decimalId?Hist.decimalId(historyId):canonicalBookId(historyId),
+    p_expected_price:expectedPrice
+  };
+  if(!args.p_book_id)return {error:new Error("كىتاب ID تېپىلمىدى."),data:[]};
+  if(!args.p_history_id)return {error:new Error(Hist.MISSING_HISTORY_ERROR||"تارىخ قۇرى تېپىلمىدى."),data:[]};
+  if(typeof window.__kutadguAdminRollbackPrice==="function"){
+    return window.__kutadguAdminRollbackPrice(args.p_book_id,args.p_history_id,args.p_expected_price);
+  }
+  if(!db)return {error:new Error("Database يوق."),data:[]};
+  const {data,error}=await db.rpc("rollback_book_price",args);
+  return {error,data};
+}
+function invalidatePriceRelatedPreviews(){
+  invalidateBulkPricePreview();
+  invalidateBulkResetPreview();
+  closeBulkPriceHighRiskModal();
+  closeBulkResetHighRiskModal();
+  if($("#bulkPriceModal")&&!$("#bulkPriceModal").hidden)renderBulkPricePreview();
+  if($("#bulkResetModal")&&!$("#bulkResetModal").hidden)renderBulkResetPreview();
+}
+async function savePriceRollback(){
+  if(priceRollbackInFlight)return;
+  const draft=priceRollbackDraft;
+  if(!draft)return;
+  priceRollbackInFlight=true;
+  const save=$("#priceRollbackSaveBtn");
+  if(save){save.disabled=true;save.textContent="ساقلىنىۋاتىدۇ..."}
+  const st=$("#priceRollbackStatus");
+  if(st)st.textContent="ساقلىنىۋاتىدۇ...";
+  setPriceRollbackError("");
+  try{
+    const fresh=await fetchBook(draft.bookId);
+    if(!fresh)throw new Error(Hist.MISSING_BOOK_ERROR||"كىتاب تېپىلمىدى.");
+    if(Hist.isStaleCurrentPrice&&Hist.isStaleCurrentPrice(draft.loadedPrice,fresh.price)){
+      throw new Error(Hist.STALE_PRICE_ERROR||"باھا باشقا بەتتە ئۆزگەرتىلگەن. كىتابنى قايتا ئېچىپ قايتا سىناڭ.");
+    }
+    const {error,data}=await persistPriceRollback(draft.bookId,draft.historyId,draft.loadedPrice);
+    if(error){
+      if(isMissingPriceHistory(error))throw new Error(Hist.MISSING_TABLE_ERROR||"باھا تارىخى جەدۋىلى تېخى Database دا يوق. STAGE65_PRICE_HISTORY.sql نى Supabase SQL Editor دا Run قىلىڭ.");
+      throw error;
+    }
+    const saved=Array.isArray(data)&&data[0]?data[0]:null;
+    const nextPrice=saved&&Object.prototype.hasOwnProperty.call(saved,"price")?saved.price:draft.targetPrice;
+    const nextOriginal=saved&&Object.prototype.hasOwnProperty.call(saved,"original_price")
+      ?saved.original_price
+      :(editing&&String(editing.id)===String(draft.bookId)?editing.original_price:null);
+    if(editing&&String(editing.id)===String(draft.bookId)){
+      editing={...editing,price:nextPrice,original_price:nextOriginal};
+    }
+    if($("#bookPrice"))$("#bookPrice").value=nextPrice==null||nextPrice===""?"":nextPrice;
+    if(Prod.mergeBookPatch){
+      books=Prod.mergeBookPatch(books,draft.bookId,{price:nextPrice});
+      if(previewBooksMaster.length)previewBooksMaster=Prod.mergeBookPatch(previewBooksMaster,draft.bookId,{price:nextPrice});
+    }
+    if(Array.isArray(window.__kutadguAdminPreviewBooks)){
+      window.__kutadguAdminPreviewBooks=Prod.mergeBookPatch?Prod.mergeBookPatch(window.__kutadguAdminPreviewBooks,draft.bookId,{price:nextPrice}):window.__kutadguAdminPreviewBooks;
+    }
+    invalidatePriceRelatedPreviews();
+    renderOriginalPriceStatus(nextOriginal,{create:false});
+    priceRollbackInFlight=false;
+    closePriceRollbackModal();
+    renderPriceHistoryMeta();
+    await loadPriceHistory({reset:true});
+    if(db)await Promise.all([loadBooks(),loadStats()]);
+    else renderBooks();
+  }catch(err){
+    setPriceRollbackError(err.message||String(err));
+    if(st)st.textContent="";
+  }finally{
+    priceRollbackInFlight=false;
+    if(save){save.disabled=false;save.textContent="بۇ باھاغا قايتۇرۇش"}
   }
 }
 function setQuickEditError(msg){
@@ -3722,11 +4078,20 @@ async function confirmImport(){
 function bindBookListUx(){
   renderSourceOptions();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
-  $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight)modal(false)});
-  $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight)modal(false)});
+  $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
+  $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#bookForm")&&$("#bookForm").addEventListener("submit",saveBook);
   $("#bookOriginalPriceCorrectBtn")&&($("#bookOriginalPriceCorrectBtn").onclick=openOriginalPriceCorrectModal);
   $("#bookOriginalPriceResetBtn")&&($("#bookOriginalPriceResetBtn").onclick=openSingleOriginalResetModal);
+  $("#bookPriceHistoryBtn")&&($("#bookPriceHistoryBtn").onclick=openPriceHistoryModal);
+  $("#closePriceHistory")&&($("#closePriceHistory").onclick=closePriceHistoryModal);
+  $("#priceHistoryCloseBtn")&&($("#priceHistoryCloseBtn").onclick=closePriceHistoryModal);
+  $("#priceHistoryMoreBtn")&&($("#priceHistoryMoreBtn").onclick=()=>loadPriceHistory({reset:false}));
+  $("#priceHistoryModal")&&$("#priceHistoryModal").addEventListener("click",e=>{if(priceRollbackInFlight)return;if(e.target===$("#priceHistoryModal"))closePriceHistoryModal()});
+  $("#closePriceRollback")&&($("#closePriceRollback").onclick=closePriceRollbackModal);
+  $("#priceRollbackCancelBtn")&&($("#priceRollbackCancelBtn").onclick=closePriceRollbackModal);
+  $("#priceRollbackSaveBtn")&&($("#priceRollbackSaveBtn").onclick=savePriceRollback);
+  $("#priceRollbackModal")&&$("#priceRollbackModal").addEventListener("click",e=>{if(priceRollbackInFlight)return;if(e.target===$("#priceRollbackModal"))closePriceRollbackModal()});
   $("#closeOriginalPriceCorrect")&&($("#closeOriginalPriceCorrect").onclick=closeOriginalPriceCorrectModal);
   $("#originalPriceCorrectCancelBtn")&&($("#originalPriceCorrectCancelBtn").onclick=closeOriginalPriceCorrectModal);
   $("#originalPriceCorrectSaveBtn")&&($("#originalPriceCorrectSaveBtn").onclick=saveOriginalPriceCorrection);
@@ -3796,6 +4161,8 @@ function bindBookListUx(){
   $("#bulkResetCategory")&&$("#bulkResetCategory").addEventListener("change",()=>{invalidateBulkResetPreview();syncBulkResetScopeUi()});
   document.addEventListener("keydown",e=>{
     if(e.key!=="Escape")return;
+    if($("#priceRollbackModal")&&!$("#priceRollbackModal").hidden){e.preventDefault();closePriceRollbackModal();return}
+    if($("#priceHistoryModal")&&!$("#priceHistoryModal").hidden){e.preventDefault();closePriceHistoryModal();return}
     if($("#singleOriginalResetModal")&&!$("#singleOriginalResetModal").hidden){e.preventDefault();closeSingleOriginalResetModal();return}
     if($("#originalPriceCorrectModal")&&!$("#originalPriceCorrectModal").hidden){e.preventDefault();closeOriginalPriceCorrectModal();return}
     if($("#bulkResetHighRiskModal")&&!$("#bulkResetHighRiskModal").hidden){e.preventDefault();closeBulkResetHighRiskModal();return}
@@ -3926,7 +4293,7 @@ function init(){
     addGalleryFiles($("#bookGallery").files||[]);
     $("#bookGallery").value="";
   });
-  $("#bookModal").addEventListener("click",e=>{if(saveInFlight)return;if(e.target===$("#bookModal"))modal(false)});
+  $("#bookModal").addEventListener("click",e=>{if(saveInFlight||priceRollbackInFlight)return;if(e.target===$("#bookModal"))modal(false)});
   $("#importModal").addEventListener("click",e=>{if(e.target===$("#importModal")&&!importRunning)closeImport()});
   db.auth.onAuthStateChange(()=>setTimeout(routeSession,0));
   startAdminIdleWatch();
@@ -3938,6 +4305,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk
 };
 })();

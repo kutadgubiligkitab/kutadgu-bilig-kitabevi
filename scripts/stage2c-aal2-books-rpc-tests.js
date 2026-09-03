@@ -155,7 +155,11 @@ test("bulk price change does not add SECURITY DEFINER shortcuts", () => {
   assert.doesNotMatch(price, /\.rpc\(/);
   assert.match(adminJs, /function persistBulkPriceRow/);
   assert.match(adminJs, /db\.from\("books"\)\.update\(patch\)\.eq\("id",id\)\.select\("id"\)/);
-  assert.doesNotMatch(adminJs, /rpc\(["'][^"']*price/i);
+  const bulkStart = adminJs.indexOf("async function persistBulkPriceRow");
+  const bulkEnd = adminJs.indexOf("async function confirmBulkPrice");
+  assert.ok(bulkStart > 0 && bulkEnd > bulkStart);
+  const bulkFn = adminJs.slice(bulkStart, bulkEnd);
+  assert.doesNotMatch(bulkFn, /\.rpc\(/);
   assert.doesNotMatch(adminJs, /SECURITY DEFINER/i);
 });
 
