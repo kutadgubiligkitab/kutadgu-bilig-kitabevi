@@ -60,6 +60,60 @@ function planUpdateOriginalPrice(existingOriginal,savedPrice,loadedPrice){
   return {include:true,original_price:roundMoney(savedPrice)};
 }
 
+function originalSnapshot(value){
+  if(!isValidPrice(value))return null;
+  return roundMoney(value);
+}
+
+function originalsMatch(a,b){
+  return originalSnapshot(a)===originalSnapshot(b);
+}
+
+function parseCorrectionPrice(raw){
+  if(raw===null||raw===undefined)return {ok:false,error:"ئەسلى باھا كىرگۈزۈڭ."};
+  const text=String(raw).trim();
+  if(!text)return {ok:false,error:"ئەسلى باھا كىرگۈزۈڭ."};
+  const n=Number(text);
+  if(!Number.isFinite(n))return {ok:false,error:"ئەسلى باھا ئىناۋەتلىك سان بولسۇن."};
+  if(n<0)return {ok:false,error:"ئەسلى باھا مەنپىي بولماسلىقى كېرەك."};
+  return {ok:true,value:roundMoney(n)};
+}
+
+function assertOriginalPriceOnlyPatch(patch){
+  const keys=Object.keys(patch||{});
+  if(keys.length!==1||keys[0]!=="original_price")throw new Error("ORIGINAL_ONLY_PATCH");
+  if(Object.prototype.hasOwnProperty.call(patch||{},"price"))throw new Error("PRICE_LOCKED");
+  if(!isValidPrice(patch.original_price))throw new Error("INVALID_ORIGINAL_PRICE");
+  return true;
+}
+
+function planOriginalPriceCorrection({bookId,loadedOriginal,enteredValue}={}){
+  const id=String(bookId||"").trim();
+  if(!/^\d+$/.test(id)){
+    return {ok:false,write:false,error:"كىتاب ID تېپىلمىدى. يېڭى قۇر يېزىلمايدۇ."};
+  }
+  const parsed=parseCorrectionPrice(enteredValue);
+  if(!parsed.ok)return {ok:false,write:false,error:parsed.error};
+  if(originalsMatch(loadedOriginal,parsed.value)){
+    return {ok:true,write:false,noop:true,original_price:parsed.value};
+  }
+  const patch={original_price:parsed.value};
+  assertOriginalPriceOnlyPatch(patch);
+  return {
+    ok:true,
+    write:true,
+    noop:false,
+    method:"update",
+    bookId:id,
+    patch,
+    original_price:parsed.value
+  };
+}
+
+function isStaleOriginal(loadedOriginal,freshOriginal){
+  return !originalsMatch(loadedOriginal,freshOriginal);
+}
+
 function assertPriceOnlyPatch(patch){
   const keys=Object.keys(patch||{});
   if(keys.length!==1||keys[0]!=="price")throw new Error("PRICE_ONLY_PATCH");
@@ -153,6 +207,12 @@ const api={
   planInsertOriginalPrice,
   planUpdateOriginalPrice,
   priceChanged,
+  parseCorrectionPrice,
+  planOriginalPriceCorrection,
+  assertOriginalPriceOnlyPatch,
+  originalsMatch,
+  originalSnapshot,
+  isStaleOriginal,
   assertPriceOnlyPatch,
   buildResetPreview,
   formatResetLine,

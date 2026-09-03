@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=29">
+  <link rel="stylesheet" href="admin.css?v=30">
 </head>
 <body>
 <div class="admin-shell">
@@ -371,7 +371,13 @@
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
       <label data-book-col="isbn"><span>ISBN / باركود <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">بوشلۇق ۋە سىزىقچىلار ئاپتوماتىك تازىلىنىدۇ. ISBN-10 / ISBN-13 ساقلىنىدۇ؛ يوق كىتابلارغا ISBN توختىماڭ.</span></label>
 
-      <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"><span id="bookOriginalPriceStatus" class="admin-help" data-book-col="original_price">ئەسلى باھا تېخى ساقلانمىغان</span></label>
+      <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01">
+        <span class="admin-original-price-row" data-book-col="original_price">
+          <span id="bookOriginalPriceStatus" class="admin-help">ئەسلى باھا تېخى ساقلانمىغان</span>
+          <button type="button" class="admin-secondary" id="bookOriginalPriceCorrectBtn" hidden>ئەسلى باھانى بەلگىلەش</button>
+        </span>
+        <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
+      </label>
       <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
       <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
@@ -440,6 +446,29 @@
       </div>
       <p id="bookSaveDiag" class="admin-help admin-wide" hidden></p>
     </form>
+  </div>
+</div>
+
+<div id="originalPriceCorrectModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="originalPriceCorrectTitle">
+    <div class="admin-modal-head">
+      <h2 id="originalPriceCorrectTitle">ئەسلى باھانى تۈزىتىش</h2>
+      <button id="closeOriginalPriceCorrect" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p id="originalPriceCorrectBook" class="admin-help"></p>
+    <p id="originalPriceCorrectCurrent" class="admin-help"></p>
+    <p id="originalPriceCorrectExisting" class="admin-help"></p>
+    <p class="admin-status warn">بۇ مەشغۇلات پەقەت ئەسلى باھانى ئۆزگەرتىدۇ. ھازىرقى سېتىش باھاسى ئۆزگەرمەيدۇ.</p>
+    <label>
+      <span>يېڭى ئەسلى باھا (₺)</span>
+      <input id="originalPriceCorrectValue" type="number" min="0" step="0.01">
+    </label>
+    <p id="originalPriceCorrectError" class="admin-status error" hidden></p>
+    <p id="originalPriceCorrectStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="originalPriceCorrectSaveBtn" type="button">ئەسلى باھانى ساقلاش</button>
+      <button class="admin-secondary" id="originalPriceCorrectCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
   </div>
 </div>
 
@@ -677,7 +706,7 @@
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
 <script defer src="admin-bulk-price.js?v=2"></script>
-<script defer src="admin-original-price.js?v=2"></script>
+<script defer src="admin-original-price.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -686,6 +715,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=47"></script>
+  <script defer src="admin.js?v=48"></script>
 </body>
 </html>

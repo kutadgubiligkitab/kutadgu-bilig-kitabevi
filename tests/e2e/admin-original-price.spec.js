@@ -41,6 +41,27 @@ async function openAdminBooks(page, books = BASE) {
     window.__kutadguResetCalls = [];
     window.__kutadguResetFetches = [];
     window.__kutadguBookSaves = [];
+    window.__kutadguOriginalCorrections = [];
+    window.__kutadguBookFetches = 0;
+    window.__kutadguStaleOriginal = false;
+    window.__kutadguAdminFetchBook = async (id) => {
+      window.__kutadguBookFetches += 1;
+      const master = window.__kutadguAdminPreviewBooks || [];
+      const row = master.find((b) => String(b.id) === String(id));
+      if (!row) return null;
+      if (window.__kutadguStaleOriginal && window.__kutadguBookFetches > 1) {
+        return { ...row, original_price: 999 };
+      }
+      return { ...row };
+    };
+    window.__kutadguAdminCorrectOriginal = async (id, patch) => {
+      window.__kutadguOriginalCorrections.push({ id: String(id), patch: { ...patch } });
+      const master = window.__kutadguAdminPreviewBooks || [];
+      const row = master.find((b) => String(b.id) === String(id));
+      const price = row ? row.price : null;
+      if (row) row.original_price = patch.original_price;
+      return { error: null, data: [{ id, price, original_price: patch.original_price }] };
+    };
     window.__kutadguAdminPersistBook = async (payload, operation, id) => {
       window.__kutadguBookSaves.push({ payload: { ...payload }, operation, id: String(id || "") });
       return { error: null, data: [{ id }] };
@@ -271,6 +292,103 @@ test.describe("admin original price reset", () => {
     expect(saves).toHaveLength(1);
     expect(saves[0].payload.price).toBe(160);
     expect(saves[0].payload.original_price).toBeUndefined();
+  });
+
+  test("explicit correction sets NULL original_price without changing selling price", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="5"] [data-edit]').click();
+    await expect(page.locator("#bookOriginalPriceCorrectBtn")).toHaveText("ئەسلى باھانى بەلگىلەش");
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await expect(page.locator("#originalPriceCorrectModal")).toBeVisible();
+    await expect(page.locator("#originalPriceCorrectValue")).toHaveValue("");
+    await page.locator("#originalPriceCorrectValue").fill("350");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectModal")).toBeHidden();
+    await expect(page.locator("#bookOriginalPriceStatus")).toContainText("350");
+    await expect(page.locator("#bookPrice")).toHaveValue("0");
+    const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
+    expect(calls).toHaveLength(1);
+    expect(calls[0].patch).toEqual({ original_price: 350 });
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "5");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 0, original_price: 350 });
+    expect(await page.evaluate(() => window.__kutadguBookSaves.slice())).toEqual([]);
+  });
+
+  test("explicit correction updates existing original_price only", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await expect(page.locator("#bookOriginalPriceCorrectBtn")).toHaveText("ئەسلى باھانى تۈزىتىش");
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await expect(page.locator("#originalPriceCorrectValue")).toHaveValue("100");
+    await page.locator("#originalPriceCorrectValue").fill("420");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#bookOriginalPriceStatus")).toContainText("420");
+    await expect(page.locator("#bookPrice")).toHaveValue("135");
+    const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
+    expect(calls).toEqual([{ id: "1", patch: { original_price: 420 } }]);
+  });
+
+  test("correction to 0 is allowed; negative and blank are rejected", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await page.locator("#originalPriceCorrectValue").fill("-1");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectError")).toBeVisible();
+    expect(await page.evaluate(() => window.__kutadguOriginalCorrections.slice())).toEqual([]);
+    await page.locator("#originalPriceCorrectValue").fill("");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectError")).toBeVisible();
+    expect(await page.evaluate(() => window.__kutadguOriginalCorrections.slice())).toEqual([]);
+    await page.locator("#originalPriceCorrectValue").fill("0");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectModal")).toBeHidden();
+    const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
+    expect(calls).toEqual([{ id: "1", patch: { original_price: 0 } }]);
+  });
+
+  test("same original value is a no-op write", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectModal")).toBeHidden();
+    expect(await page.evaluate(() => window.__kutadguOriginalCorrections.slice())).toEqual([]);
+  });
+
+  test("stale original_price aborts correction without overwrite", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await page.evaluate(() => { window.__kutadguStaleOriginal = true; });
+    await page.locator("#originalPriceCorrectValue").fill("420");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#originalPriceCorrectError")).toContainText("قايتا");
+    expect(await page.evaluate(() => window.__kutadguOriginalCorrections.slice())).toEqual([]);
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return row.original_price;
+    })).toBe(100);
+  });
+
+  test("successful original correction invalidates Reset preview", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-select]').check();
+    await page.locator("#bulkResetOpenBtn").click();
+    await page.locator('input[name="bulkResetScope"][value="selected"]').check();
+    await page.locator("#bulkResetPreviewBtn").click();
+    await expect(page.locator("#bulkResetConfirmBtn")).toBeEnabled();
+    await page.evaluate(() => { document.querySelector("#bulkResetModal").hidden = true; });
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceCorrectBtn").click();
+    await page.locator("#originalPriceCorrectValue").fill("420");
+    await page.locator("#originalPriceCorrectSaveBtn").click();
+    await expect(page.locator("#bookOriginalPriceStatus")).toContainText("420");
+    await page.evaluate(() => { document.querySelector("#bulkResetModal").hidden = false; });
+    await expect(page.locator("#bulkResetConfirmBtn")).toBeDisabled();
+    expect(await page.evaluate(() => window.__kutadguResetCalls.slice())).toEqual([]);
   });
 
   test("normal bulk price change still writes price only", async ({ page }) => {

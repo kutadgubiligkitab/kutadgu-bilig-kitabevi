@@ -78,6 +78,46 @@ test("initialized original_price is not overwritten by later price edits",()=>{
   assert.deepStrictEqual(Orig.planUpdateOriginalPrice(100,100,100),{include:false});
 });
 
+test("explicit original_price correction writes only original_price",()=>{
+  const set=Orig.planOriginalPriceCorrection({bookId:"5",loadedOriginal:null,enteredValue:"350"});
+  assert.strictEqual(set.ok,true);
+  assert.strictEqual(set.write,true);
+  assert.strictEqual(set.method,"update");
+  assert.deepStrictEqual(set.patch,{original_price:350});
+  Orig.assertOriginalPriceOnlyPatch(set.patch);
+  const fix=Orig.planOriginalPriceCorrection({bookId:"1",loadedOriginal:350,enteredValue:"420"});
+  assert.deepStrictEqual(fix.patch,{original_price:420});
+  const zero=Orig.planOriginalPriceCorrection({bookId:"1",loadedOriginal:350,enteredValue:"0"});
+  assert.deepStrictEqual(zero.patch,{original_price:0});
+});
+
+test("invalid original_price corrections do not plan a write",()=>{
+  assert.strictEqual(Orig.planOriginalPriceCorrection({bookId:"1",loadedOriginal:350,enteredValue:"-1"}).write,false);
+  assert.strictEqual(Orig.parseCorrectionPrice("-5").ok,false);
+  assert.strictEqual(Orig.parseCorrectionPrice("").ok,false);
+  assert.strictEqual(Orig.parseCorrectionPrice("abc").ok,false);
+  assert.strictEqual(Orig.parseCorrectionPrice("Infinity").ok,false);
+  assert.strictEqual(Orig.planOriginalPriceCorrection({bookId:"",loadedOriginal:null,enteredValue:"350"}).ok,false);
+  assert.strictEqual(Orig.planOriginalPriceCorrection({bookId:"book-abc",loadedOriginal:null,enteredValue:"350"}).ok,false);
+});
+
+test("same original value is a safe no-op",()=>{
+  const same=Orig.planOriginalPriceCorrection({bookId:"1",loadedOriginal:350,enteredValue:"350"});
+  assert.strictEqual(same.ok,true);
+  assert.strictEqual(same.noop,true);
+  assert.strictEqual(same.write,false);
+  const sameZero=Orig.planOriginalPriceCorrection({bookId:"1",loadedOriginal:0,enteredValue:"0"});
+  assert.strictEqual(sameZero.write,false);
+});
+
+test("stale original_price is detected before overwrite",()=>{
+  assert.strictEqual(Orig.isStaleOriginal(350,420),true);
+  assert.strictEqual(Orig.isStaleOriginal(null,350),true);
+  assert.strictEqual(Orig.isStaleOriginal(null,""),false);
+  assert.strictEqual(Orig.isStaleOriginal(0,0),false);
+  assert.strictEqual(Orig.isStaleOriginal(350,350),false);
+});
+
 test("admin form status is read-only and does not invent a value",()=>{
   assert.ok(Orig.originalPriceStatus(125).text.includes("125"));
   assert.ok(Orig.originalPriceStatus(125).text.includes("ئەسلى باھا"));
@@ -176,12 +216,24 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/id="bookOriginalPriceStatus"/);
   assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
-  assert.match(html,/admin-original-price\.js\?v=2/);
-  assert.match(html,/admin\.css\?v=29/);
-  assert.match(html,/admin\.js\?v=47/);
+  assert.match(html,/admin-original-price\.js\?v=3/);
+  assert.match(html,/admin\.css\?v=30/);
+  assert.match(html,/admin\.js\?v=48/);
+  assert.match(html,/id="bookOriginalPriceCorrectBtn"/);
+  assert.match(html,/id="originalPriceCorrectModal"/);
   assert.doesNotMatch(html,/id="bookOriginalPrice"/);
   assert.match(js,/planUpdateOriginalPrice\(editing&&editing\.original_price,row\.price,editing&&editing\.price\)/);
   assert.match(js,/assertPriceOnlyPatch/);
+  assert.match(js,/persistOriginalPriceCorrection/);
+  assert.match(js,/assertOriginalPriceOnlyPatch/);
+  const correctStart=js.indexOf("async function persistOriginalPriceCorrection");
+  const correctEnd=js.indexOf("async function saveOriginalPriceCorrection");
+  assert.ok(correctStart>0&&correctEnd>correctStart);
+  const correctFn=js.slice(correctStart,correctEnd);
+  assert.match(correctFn,/\.update\(patch\)/);
+  assert.doesNotMatch(correctFn,/\.insert\(/);
+  assert.doesNotMatch(correctFn,/\.upsert\(/);
+  assert.doesNotMatch(correctFn,/persistBookRow/);
   assert.match(js,/__kutadguAdminBulkResetUpdateOne/);
   assert.match(js,/bulkResetInFlight/);
   const updateFn=js.match(/function rowToUpdate\(row\)\{[\s\S]*?\n\}/);
