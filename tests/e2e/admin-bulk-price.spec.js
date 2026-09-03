@@ -79,6 +79,11 @@ async function noOverflow(page) {
   expect(overflow.scroll, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.client + 1);
 }
 
+async function expectDisplayNone(locator) {
+  await expect(locator).toBeHidden();
+  expect(await locator.evaluate((el) => getComputedStyle(el).display)).toBe("none");
+}
+
 test.describe("admin bulk price change", () => {
   test("selected books preview then confirm writes only after confirmation", async ({ page }) => {
     await openAdminBooks(page);
@@ -108,9 +113,76 @@ test.describe("admin bulk price change", () => {
     await openAdminBooks(page);
     await page.locator("#bulkPriceOpenBtn").click();
     await page.locator('input[name="bulkPriceScope"][value="selected"]').check();
+    await expectDisplayNone(page.locator("#bulkPriceCategoryWrap"));
+    await expect(page.locator("#bulkPriceSelectedWrap")).toBeVisible();
     await expect(page.locator("#bulkPricePreviewBtn")).toBeDisabled();
-    await expect(page.locator("#bulkPriceSelectedHint")).toContainText("تاللانمىدى");
+    await expect(page.locator("#bulkPriceSelectedHint")).toContainText("ئالدى بىلەن كىتاب تىزىملىكىدىن كىتاب تاللاڭ");
     await expect(page.locator("#bulkPriceConfirmBtn")).toBeDisabled();
+    await page.locator("#bulkPriceOperation").selectOption("pct_inc");
+    await page.locator("#bulkPriceAmount").fill("10");
+    await expect(page.locator("#bulkPricePreviewBtn")).toBeDisabled();
+  });
+
+  test("selected to category no longer depends on selectedIds", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="selected"]').check();
+    await page.locator("#bulkPriceAmount").fill("10");
+    await expect(page.locator("#bulkPricePreviewBtn")).toBeDisabled();
+    await page.locator('input[name="bulkPriceScope"][value="category"]').check();
+    await expect(page.locator("#bulkPriceCategoryWrap")).toBeVisible();
+    expect(await page.locator("#bulkPriceCategoryWrap").evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+    await expectDisplayNone(page.locator("#bulkPriceSelectedWrap"));
+    await page.locator("#bulkPriceCategory").selectOption("romanlar.html");
+    await page.locator("#bulkPriceOperation").selectOption("fixed_inc");
+    await page.locator("#bulkPriceAmount").fill("5");
+    await expect(page.locator("#bulkPricePreviewBtn")).toBeEnabled();
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceSummary")).toContainText("نىشان: 1");
+    await expect(page.locator("#bulkPricePreviewList")).toContainText("Gamma Book");
+    await expect(page.locator("#bulkPricePreviewList")).not.toContainText("Alpha Book");
+    const fetch = await page.evaluate(() => window.__kutadguPriceFetches.slice(-1)[0]);
+    expect(fetch.scope).toBe("category");
+    await page.locator('input[name="bulkPriceScope"][value="selected"]').check();
+    await expectDisplayNone(page.locator("#bulkPriceCategoryWrap"));
+    await expect(page.locator("#bulkPriceConfirmBtn")).toBeDisabled();
+    await page.locator('input[name="bulkPriceScope"][value="all"]').check();
+    await expectDisplayNone(page.locator("#bulkPriceCategoryWrap"));
+    await expectDisplayNone(page.locator("#bulkPriceSelectedWrap"));
+  });
+
+  test("one selected book enables preview and writes only that id", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-select]').check();
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="selected"]').check();
+    await expect(page.locator("#bulkPriceSelectedHint")).toContainText("1");
+    await expect(page.locator("#bulkPriceSelectedList")).toContainText("Alpha Book");
+    await page.locator("#bulkPriceOperation").selectOption("pct_inc");
+    await page.locator("#bulkPriceAmount").fill("10");
+    await expect(page.locator("#bulkPricePreviewBtn")).toBeEnabled();
+    await page.locator("#bulkPricePreviewBtn").click();
+    await expect(page.locator("#bulkPriceSummary")).toContainText("نىشان: 1");
+    await expect(page.locator("#bulkPricePreviewList")).toContainText("110 ₺");
+    await expect(page.locator("#bulkPricePreviewList")).not.toContainText("Beta Book");
+  });
+
+  test("switching bulk price scope closes stale high-risk confirmation", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkPriceOpenBtn").click();
+    await page.locator('input[name="bulkPriceScope"][value="all"]').check();
+    await page.locator("#bulkPriceAmount").fill("10");
+    await page.locator("#bulkPricePreviewBtn").click();
+    await page.locator("#bulkPriceConfirmBtn").click();
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeVisible();
+    await page.evaluate(() => {
+      const el = document.querySelector('input[name="bulkPriceScope"][value="category"]');
+      el.checked = true;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await expect(page.locator("#bulkPriceHighRiskModal")).toBeHidden();
+    await expect(page.locator("#bulkPriceConfirmBtn")).toBeDisabled();
+    expect(await page.evaluate(() => window.__kutadguPriceCalls.slice())).toEqual([]);
   });
 
   test("category and all-books scopes are not limited to 40 page rows", async ({ page }) => {

@@ -381,6 +381,9 @@ button{cursor:pointer}
 .admin-bulk-price-card select,.admin-bulk-price-card input[type="number"]{width:100%;max-width:100%;min-height:44px;border:1px solid #dccdb9;border-radius:9px;padding:11px 12px;background:#fff}
 .admin-bulk-price-card > label{display:grid;gap:6px}
 .admin-bulk-price-card > label > span{font-size:13px;font-weight:700}
+.admin-bulk-price-card [hidden]{display:none!important}
+.admin-bulk-selected-list{margin:4px 0 0;padding:0 18px;display:grid;gap:2px;max-height:8rem;overflow:auto}
+.admin-bulk-selected-list li{overflow-wrap:anywhere;font-size:13px}
 @media(max-width:520px){
   .admin-bulk-price-card .admin-toolbar-group{width:100%}
   .admin-bulk-price-card .admin-toolbar-group button{width:100%;min-height:44px}

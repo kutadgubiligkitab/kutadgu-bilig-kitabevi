@@ -42,15 +42,25 @@ async function openAdminBooks(page, books = BASE) {
     window.__kutadguResetFetches = [];
     window.__kutadguBookSaves = [];
     window.__kutadguOriginalCorrections = [];
+    window.__kutadguSingleResets = [];
     window.__kutadguBookFetches = 0;
     window.__kutadguStaleOriginal = false;
+    window.__kutadguStaleResetPrice = false;
+    window.__kutadguStaleResetOriginal = false;
     window.__kutadguRaceOriginal = null;
+    window.__kutadguRaceReset = null;
     window.__kutadguAdminFetchBook = async (id) => {
       window.__kutadguBookFetches += 1;
       const master = window.__kutadguAdminPreviewBooks || [];
       const row = master.find((b) => String(b.id) === String(id));
       if (!row) return null;
       if (window.__kutadguStaleOriginal && window.__kutadguBookFetches > 1) {
+        return { ...row, original_price: 999 };
+      }
+      if (window.__kutadguStaleResetPrice && window.__kutadguBookFetches > 1) {
+        return { ...row, price: 999 };
+      }
+      if (window.__kutadguStaleResetOriginal && window.__kutadguBookFetches > 1) {
         return { ...row, original_price: 999 };
       }
       return { ...row };
@@ -66,6 +76,22 @@ async function openAdminBooks(page, books = BASE) {
       const result = window.KutadguAdminOriginalPrice.compareAndSwapOriginalPrice(store, {
         id,
         expectedOriginal,
+        patch
+      });
+      return { error: result.error, data: result.data };
+    };
+    window.__kutadguAdminResetOneBook = async (id, patch, expected) => {
+      if (typeof window.__kutadguRaceReset === "function") {
+        window.__kutadguRaceReset(id);
+      }
+      window.__kutadguSingleResets.push({ id: String(id), patch: { ...patch } });
+      const master = window.__kutadguAdminPreviewBooks || [];
+      const store = {};
+      master.forEach((book) => { store[String(book.id)] = book; });
+      const result = window.KutadguAdminOriginalPrice.compareAndSwapSingleReset(store, {
+        id,
+        expectedPrice: expected && expected.price,
+        expectedOriginal: expected && expected.original_price,
         patch
       });
       return { error: result.error, data: result.data };
@@ -126,6 +152,11 @@ async function noOverflow(page) {
     client: document.documentElement.clientWidth
   }));
   expect(overflow.scroll, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.client + 1);
+}
+
+async function expectDisplayNone(locator) {
+  await expect(locator).toBeHidden();
+  expect(await locator.evaluate((el) => getComputedStyle(el).display)).toBe("none");
 }
 
 test.describe("admin original price reset", () => {
@@ -409,6 +440,151 @@ test.describe("admin original price reset", () => {
     })).toEqual({ price: 0, original_price: 350 });
     const calls = await page.evaluate(() => window.__kutadguOriginalCorrections.slice());
     expect(calls).toEqual([{ id: "5", patch: { original_price: 500 } }]);
+  });
+
+  test("reset selected scope UX hides category and explains empty selection", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkResetOpenBtn").click();
+    await page.locator('input[name="bulkResetScope"][value="selected"]').check();
+    await expectDisplayNone(page.locator("#bulkResetCategoryWrap"));
+    await expect(page.locator("#bulkResetSelectedWrap")).toBeVisible();
+    await expect(page.locator("#bulkResetSelectedHint")).toContainText("ئالدى بىلەن كىتاب تىزىملىكىدىن كىتاب تاللاڭ");
+    await expect(page.locator("#bulkResetPreviewBtn")).toBeDisabled();
+    await page.locator("#bulkResetCancelBtn").click();
+    await page.locator('article[data-book-id="1"] [data-select]').check();
+    await page.locator("#bulkResetOpenBtn").click();
+    await page.locator('input[name="bulkResetScope"][value="selected"]').check();
+    await expect(page.locator("#bulkResetSelectedHint")).toContainText("1");
+    await expect(page.locator("#bulkResetSelectedList")).toContainText("كىتاب A");
+    await expect(page.locator("#bulkResetPreviewBtn")).toBeEnabled();
+    await page.locator("#bulkResetPreviewBtn").click();
+    await expect(page.locator("#bulkResetSummary")).toContainText("نىشان: 1");
+    await expect(page.locator("#bulkResetPreviewList")).not.toContainText("Gamma");
+    await page.locator('input[name="bulkResetScope"][value="category"]').check();
+    await expect(page.locator("#bulkResetCategoryWrap")).toBeVisible();
+    await expectDisplayNone(page.locator("#bulkResetSelectedWrap"));
+    await expect(page.locator("#bulkResetConfirmBtn")).toBeDisabled();
+    await expect(page.locator("#bulkResetSummary")).toBeHidden();
+    await page.locator("#bulkResetCategory").selectOption("romanlar.html");
+    await expect(page.locator("#bulkResetPreviewBtn")).toBeEnabled();
+    await page.locator("#bulkResetPreviewBtn").click();
+    await expect(page.locator("#bulkResetSummary")).toContainText("نىشان: 1");
+    await expect(page.locator("#bulkResetPreviewList")).toContainText("Gamma Book");
+    const fetch = await page.evaluate(() => window.__kutadguResetFetches.slice(-1)[0]);
+    expect(fetch.scope).toBe("category");
+    await page.locator('input[name="bulkResetScope"][value="selected"]').check();
+    await expectDisplayNone(page.locator("#bulkResetCategoryWrap"));
+    await page.locator('input[name="bulkResetScope"][value="all"]').check();
+    await expectDisplayNone(page.locator("#bulkResetCategoryWrap"));
+    await expectDisplayNone(page.locator("#bulkResetSelectedWrap"));
+    await expect(page.locator("#bulkResetPreviewBtn")).toBeEnabled();
+  });
+
+  test("reset scope switch closes stale high-risk confirmation", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#bulkResetOpenBtn").click();
+    await page.locator('input[name="bulkResetScope"][value="all"]').check();
+    await page.locator("#bulkResetPreviewBtn").click();
+    await page.locator("#bulkResetConfirmBtn").click();
+    await expect(page.locator("#bulkResetHighRiskModal")).toBeVisible();
+    await page.evaluate(() => {
+      const el = document.querySelector('input[name="bulkResetScope"][value="category"]');
+      el.checked = true;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await expect(page.locator("#bulkResetHighRiskModal")).toBeHidden();
+    await expect(page.locator("#bulkResetConfirmBtn")).toBeDisabled();
+    expect(await page.evaluate(() => window.__kutadguResetCalls.slice())).toEqual([]);
+  });
+
+  test("single-book reset writes price only and keeps original_price", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await expect(page.locator("#bookOriginalPriceResetBtn")).toBeVisible();
+    await page.locator("#bookOriginalPriceResetBtn").click();
+    await expect(page.locator("#singleOriginalResetModal")).toBeVisible();
+    await expect(page.locator("#singleOriginalResetPreview")).toContainText("135");
+    await expect(page.locator("#singleOriginalResetPreview")).toContainText("100");
+    await page.locator("#singleOriginalResetSaveBtn").click();
+    await expect(page.locator("#singleOriginalResetModal")).toBeHidden();
+    await expect(page.locator("#bookPrice")).toHaveValue("100");
+    await expect(page.locator("#bookOriginalPriceStatus")).toContainText("100");
+    const calls = await page.evaluate(() => window.__kutadguSingleResets.slice());
+    expect(calls).toEqual([{ id: "1", patch: { price: 100 } }]);
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 100, original_price: 100 });
+  });
+
+  test("single-book reset is unavailable for NULL original and same price", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="5"] [data-edit]').click();
+    await expect(page.locator("#bookOriginalPriceResetBtn")).toBeHidden();
+    await page.locator("#cancelBookEdit").click();
+    await page.locator('article[data-book-id="2"] [data-edit]').click();
+    await expect(page.locator("#bookOriginalPriceResetBtn")).toBeHidden();
+  });
+
+  test("single-book reset to original 0 writes price only", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="4"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceResetBtn").click();
+    await page.locator("#singleOriginalResetSaveBtn").click();
+    const calls = await page.evaluate(() => window.__kutadguSingleResets.slice());
+    expect(calls).toEqual([{ id: "4", patch: { price: 0 } }]);
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "4");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 0, original_price: 0 });
+  });
+
+  test("single-book reset aborts stale price without overwrite", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceResetBtn").click();
+    await page.evaluate(() => { window.__kutadguStaleResetPrice = true; });
+    await page.locator("#singleOriginalResetSaveBtn").click();
+    await expect(page.locator("#singleOriginalResetError")).toContainText("قايتا");
+    expect(await page.evaluate(() => window.__kutadguSingleResets.slice())).toEqual([]);
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 135, original_price: 100 });
+  });
+
+  test("single-book reset aborts stale original without overwrite", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceResetBtn").click();
+    await page.evaluate(() => { window.__kutadguStaleResetOriginal = true; });
+    await page.locator("#singleOriginalResetSaveBtn").click();
+    await expect(page.locator("#singleOriginalResetError")).toContainText("قايتا");
+    expect(await page.evaluate(() => window.__kutadguSingleResets.slice())).toEqual([]);
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return row.original_price;
+    })).toBe(100);
+  });
+
+  test("single-book reset race after refetch aborts atomically", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator('article[data-book-id="1"] [data-edit]').click();
+    await page.locator("#bookOriginalPriceResetBtn").click();
+    await page.evaluate(() => {
+      window.__kutadguRaceReset = (id) => {
+        const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === String(id));
+        if (row) row.price = 420;
+      };
+    });
+    await page.locator("#singleOriginalResetSaveBtn").click();
+    await expect(page.locator("#singleOriginalResetError")).toContainText("قايتا");
+    expect(await page.evaluate(() => {
+      const row = window.__kutadguAdminPreviewBooks.find((b) => String(b.id) === "1");
+      return { price: row.price, original_price: row.original_price };
+    })).toEqual({ price: 420, original_price: 100 });
+    const calls = await page.evaluate(() => window.__kutadguSingleResets.slice());
+    expect(calls).toEqual([{ id: "1", patch: { price: 100 } }]);
   });
 
   test("stale original_price aborts correction without overwrite", async ({ page }) => {

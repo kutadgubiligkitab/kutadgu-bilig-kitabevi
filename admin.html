@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=30">
+  <link rel="stylesheet" href="admin.css?v=31">
 </head>
 <body>
 <div class="admin-shell">
@@ -375,6 +375,7 @@
         <span class="admin-original-price-row" data-book-col="original_price">
           <span id="bookOriginalPriceStatus" class="admin-help">ئەسلى باھا تېخى ساقلانمىغان</span>
           <button type="button" class="admin-secondary" id="bookOriginalPriceCorrectBtn" hidden>ئەسلى باھانى بەلگىلەش</button>
+          <button type="button" class="admin-secondary" id="bookOriginalPriceResetBtn" hidden>ئەسلى باھاغا قايتۇرۇش</button>
         </span>
         <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
       </label>
@@ -472,6 +473,24 @@
   </div>
 </div>
 
+<div id="singleOriginalResetModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="singleOriginalResetTitle">
+    <div class="admin-modal-head">
+      <h2 id="singleOriginalResetTitle">ئەسلى باھاغا قايتۇرۇش</h2>
+      <button id="closeSingleOriginalReset" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p id="singleOriginalResetBook" class="admin-help"></p>
+    <p id="singleOriginalResetPreview" class="admin-help"></p>
+    <p class="admin-status warn">بۇ مەشغۇلات پەقەت ھازىرقى سېتىش باھاسىنى ئەسلى باھاغا قايتۇرىدۇ. ئەسلى باھا ئۆزگەرمەيدۇ.</p>
+    <p id="singleOriginalResetError" class="admin-status error" hidden></p>
+    <p id="singleOriginalResetStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="singleOriginalResetSaveBtn" type="button">ئەسلى باھاغا قايتۇرۇش</button>
+      <button class="admin-secondary" id="singleOriginalResetCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
 <div id="quickEditModal" class="admin-modal admin-sheet" hidden>
   <div class="admin-modal-card admin-quick-edit-card" role="dialog" aria-modal="true" aria-labelledby="quickEditTitle">
     <div class="admin-modal-head">
@@ -527,13 +546,16 @@
       <legend>دائىرە</legend>
       <label class="admin-check"><input type="radio" name="bulkPriceScope" value="all" checked><span>بارلىق كىتابلار</span></label>
       <label class="admin-check"><input type="radio" name="bulkPriceScope" value="category"><span>بىر كاتېگورىيە</span></label>
-      <label class="admin-check"><input type="radio" name="bulkPriceScope" value="selected"><span>تاللانغان كىتابلار</span></label>
+      <label class="admin-check"><input type="radio" name="bulkPriceScope" value="selected"><span>تىزىملىكتىن تاللانغان كىتابلار</span></label>
     </fieldset>
     <label id="bulkPriceCategoryWrap" hidden>
       <span>كاتېگورىيە</span>
       <select id="bulkPriceCategory"></select>
     </label>
-    <p id="bulkPriceSelectedHint" class="admin-help" role="status"></p>
+    <div id="bulkPriceSelectedWrap" hidden>
+      <p id="bulkPriceSelectedHint" class="admin-help" role="status"></p>
+      <ul id="bulkPriceSelectedList" class="admin-bulk-selected-list" hidden></ul>
+    </div>
     <label>
       <span>مەشغۇلات</span>
       <select id="bulkPriceOperation">
@@ -598,13 +620,16 @@
       <legend>دائىرە</legend>
       <label class="admin-check"><input type="radio" name="bulkResetScope" value="all" checked><span>بارلىق كىتابلار</span></label>
       <label class="admin-check"><input type="radio" name="bulkResetScope" value="category"><span>بىر كاتېگورىيە</span></label>
-      <label class="admin-check"><input type="radio" name="bulkResetScope" value="selected"><span>تاللانغان كىتابلار</span></label>
+      <label class="admin-check"><input type="radio" name="bulkResetScope" value="selected"><span>تىزىملىكتىن تاللانغان كىتابلار</span></label>
     </fieldset>
     <label id="bulkResetCategoryWrap" hidden>
       <span>كاتېگورىيە</span>
       <select id="bulkResetCategory"></select>
     </label>
-    <p id="bulkResetSelectedHint" class="admin-help" role="status"></p>
+    <div id="bulkResetSelectedWrap" hidden>
+      <p id="bulkResetSelectedHint" class="admin-help" role="status"></p>
+      <ul id="bulkResetSelectedList" class="admin-bulk-selected-list" hidden></ul>
+    </div>
     <div class="admin-wide admin-toolbar-group">
       <button class="admin-secondary" id="bulkResetPreviewBtn" type="button">ئالدىن كۆرۈش</button>
     </div>
@@ -705,8 +730,8 @@
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
-<script defer src="admin-bulk-price.js?v=2"></script>
-<script defer src="admin-original-price.js?v=4"></script>
+<script defer src="admin-bulk-price.js?v=3"></script>
+<script defer src="admin-original-price.js?v=5"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -715,6 +740,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=49"></script>
+  <script defer src="admin.js?v=50"></script>
 </body>
 </html>

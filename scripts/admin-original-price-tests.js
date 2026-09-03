@@ -216,11 +216,14 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/id="bookOriginalPriceStatus"/);
   assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
-  assert.match(html,/admin-original-price\.js\?v=4/);
-  assert.match(html,/admin\.css\?v=30/);
-  assert.match(html,/admin\.js\?v=49/);
+  assert.match(html,/admin-original-price\.js\?v=5/);
+  assert.match(html,/admin\.css\?v=31/);
+  assert.match(html,/admin\.js\?v=50/);
   assert.match(html,/id="bookOriginalPriceCorrectBtn"/);
+  assert.match(html,/id="bookOriginalPriceResetBtn"/);
   assert.match(html,/id="originalPriceCorrectModal"/);
+  assert.match(html,/id="singleOriginalResetModal"/);
+  assert.match(html,/تىزىملىكتىن تاللانغان كىتابلار/);
   assert.doesNotMatch(html,/id="bookOriginalPrice"/);
   assert.match(js,/planUpdateOriginalPrice\(editing&&editing\.original_price,row\.price,editing&&editing\.price\)/);
   assert.match(js,/assertPriceOnlyPatch/);
@@ -238,6 +241,18 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.doesNotMatch(correctFn,/\.upsert\(/);
   assert.doesNotMatch(correctFn,/persistBookRow/);
   assert.doesNotMatch(correctFn,/\bprice\s*:/);
+  assert.match(js,/persistSingleBookReset/);
+  assert.match(js,/applySingleResetCasFilter/);
+  const resetStart=js.indexOf("async function persistSingleBookReset");
+  const resetEnd=js.indexOf("async function saveSingleOriginalReset");
+  assert.ok(resetStart>0&&resetEnd>resetStart);
+  const resetFn=js.slice(resetStart,resetEnd);
+  assert.match(resetFn,/\.update\(patch\)/);
+  assert.doesNotMatch(resetFn,/\.insert\(/);
+  assert.doesNotMatch(resetFn,/\.upsert\(/);
+  assert.doesNotMatch(resetFn,/persistBookRow/);
+  const css=read("admin.css");
+  assert.match(css,/\.admin-bulk-price-card \[hidden\]\s*\{\s*display:\s*none\s*!important/);
   assert.match(js,/__kutadguAdminBulkResetUpdateOne/);
   assert.match(js,/bulkResetInFlight/);
   const updateFn=js.match(/function rowToUpdate\(row\)\{[\s\S]*?\n\}/);
@@ -380,6 +395,78 @@ test("SQL/AAL2 files were not weakened for original_price writes",()=>{
     const missing=Orig.originalPriceCasResult([],null);
     assert.strictEqual(missing.missing,true);
     assert.strictEqual(missing.error,Orig.MISSING_BOOK_ERROR);
+  });
+
+  test("reset preview enablement ignores selectedIds unless selected scope",()=>{
+    assert.strictEqual(Orig.canRunResetPreview({scope:"selected",selectedIds:[]}),false);
+    assert.strictEqual(Orig.canRunResetPreview({scope:"selected",selectedIds:["1"]}),true);
+    assert.strictEqual(Orig.canRunResetPreview({scope:"category",source:"",selectedIds:["1"]}),false);
+    assert.strictEqual(Orig.canRunResetPreview({scope:"category",source:"romanlar.html",selectedIds:[]}),true);
+    assert.strictEqual(Orig.canRunResetPreview({scope:"all",selectedIds:[]}),true);
+  });
+
+  test("single-book reset writes price only when original exists and differs",()=>{
+    const planned=Orig.planSingleBookReset({id:1,price:360,original_price:350});
+    assert.strictEqual(planned.ok,true);
+    assert.deepStrictEqual(planned.patch,{price:350});
+    Orig.assertPriceOnlyPatch(planned.patch);
+    assert.strictEqual(Orig.canShowSingleBookReset({id:1,price:360,original_price:350}),true);
+    assert.strictEqual(Orig.canShowSingleBookReset({id:4,price:10,original_price:0}),true);
+    assert.strictEqual(Orig.canShowSingleBookReset({id:5,price:0,original_price:null}),false);
+    assert.strictEqual(Orig.canShowSingleBookReset({id:2,price:80,original_price:80}),false);
+    assert.strictEqual(Orig.planSingleBookReset({id:2,price:80,original_price:80}).write,false);
+  });
+
+  await testAsync("single-book reset CAS aborts stale price, stale original, and post-fetch race",async()=>{
+    const store={1:{id:1,price:360,original_price:350,title:"A",stock:3}};
+    const ok=Orig.compareAndSwapSingleReset(store,{
+      id:1,
+      expectedPrice:360,
+      expectedOriginal:350,
+      patch:{price:350}
+    });
+    assert.strictEqual(ok.matched,true);
+    assert.strictEqual(store[1].price,350);
+    assert.strictEqual(store[1].original_price,350);
+    store[1].price=360;
+    store[1].original_price=350;
+    store[1].price=400;
+    const stalePrice=Orig.compareAndSwapSingleReset(store,{
+      id:1,
+      expectedPrice:360,
+      expectedOriginal:350,
+      patch:{price:350}
+    });
+    assert.deepStrictEqual(stalePrice.data,[]);
+    assert.strictEqual(store[1].price,400);
+    assert.strictEqual(store[1].original_price,350);
+    store[1].price=360;
+    store[1].original_price=420;
+    const staleOrig=Orig.compareAndSwapSingleReset(store,{
+      id:1,
+      expectedPrice:360,
+      expectedOriginal:350,
+      patch:{price:350}
+    });
+    assert.deepStrictEqual(staleOrig.data,[]);
+    assert.strictEqual(store[1].price,360);
+    assert.strictEqual(store[1].original_price,420);
+    store[1].original_price=350;
+    assert.strictEqual(Orig.isStaleSingleReset({price:360,original_price:350},store[1]),false);
+    store[1].price=420;
+    const raced=Orig.compareAndSwapSingleReset(store,{
+      id:1,
+      expectedPrice:360,
+      expectedOriginal:350,
+      patch:{price:350}
+    });
+    assert.strictEqual(raced.matched,false);
+    assert.strictEqual(store[1].price,420);
+    assert.strictEqual(store[1].original_price,350);
+    const queryCalls=[];
+    const query={eq(col,val){queryCalls.push({op:"eq",col,val});return this},is(){queryCalls.push({op:"is"});return this}};
+    Orig.applySingleResetCasFilter(query,{price:360,original_price:350});
+    assert.deepStrictEqual(queryCalls,[{op:"eq",col:"price",val:360},{op:"eq",col:"original_price",val:350}]);
   });
 
   await testAsync("bulk price apply leaves original_price untouched",async()=>{
