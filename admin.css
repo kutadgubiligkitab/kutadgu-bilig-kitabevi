@@ -205,6 +205,7 @@ button{cursor:pointer}
 .admin-gallery-item-actions{display:flex;flex-wrap:wrap;gap:4px}
 .admin-gallery-item-actions button{flex:1;min-width:0;padding:5px 6px;font-size:11px}
 .admin-help{color:#806f62;font-size:12px;line-height:1.8}
+#bookOriginalPriceStatus{display:block;overflow-wrap:anywhere}
 .admin-modal{position:fixed;inset:0;z-index:40000;background:rgba(31,23,19,.65);display:flex;align-items:center;justify-content:center;padding:20px}
 .admin-modal[hidden]{display:none}
 .admin-modal-card{width:min(96%,900px);max-height:92vh;overflow:auto;background:#fffdf9;border-radius:16px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.28)}

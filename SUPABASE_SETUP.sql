@@ -25,6 +25,7 @@ create table if not exists public.books (
   title text not null,
   author text not null default '',
   price numeric(12,2),
+  original_price numeric(12,2),
   category text not null,
   source text not null,
   image_url text not null default '',
@@ -53,6 +54,13 @@ create table if not exists public.books (
 
 -- بۇرۇن قۇرۇلغان Database نىمۇ سانلىق مەلۇمات ئۆچۈرمەي يېڭىلاش
 alter table public.books add column if not exists publish_year text not null default '';
+alter table public.books add column if not exists original_price numeric(12,2);
+alter table public.books alter column original_price drop not null;
+alter table public.books alter column original_price drop default;
+alter table public.books drop constraint if exists books_original_price_chk;
+alter table public.books
+  add constraint books_original_price_chk
+  check (original_price is null or original_price >= 0);
 alter table public.books add column if not exists cover_type text;
 alter table public.books add column if not exists book_size text;
 alter table public.books alter column cover_type drop not null;

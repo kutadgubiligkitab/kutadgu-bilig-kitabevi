@@ -1,0 +1,265 @@
+#!/usr/bin/env node
+"use strict";
+const assert=require("assert");
+const fs=require("fs");
+const path=require("path");
+const Orig=require("../admin-original-price.js");
+const Price=require("../admin-bulk-price.js");
+const Prod=require("../admin-catalog-productivity.js");
+
+let failed=0;
+function test(name,fn){
+  try{fn();console.log("PASS",name)}
+  catch(err){failed++;console.error("FAIL",name,err.message)}
+}
+async function testAsync(name,fn){
+  try{await fn();console.log("PASS",name)}
+  catch(err){failed++;console.error("FAIL",name,err.message)}
+}
+
+const root=path.join(__dirname,"..");
+function read(rel){return fs.readFileSync(path.join(root,rel),"utf8")}
+
+const catalog=[
+  {id:1,title:"كىتاب A",price:135,original_price:100,source:"universal.html"},
+  {id:2,title:"Beta",price:200,original_price:200,source:"universal.html"},
+  {id:3,title:"Gamma",price:20,original_price:15,source:"romanlar.html"},
+  {id:4,title:"ZeroOrig",price:10,original_price:0,source:"universal.html"},
+  {id:5,title:"MissingOrig",price:0,original_price:null,source:"universal.html"},
+  {id:6,title:"BlankOrig",price:50,original_price:"",source:"dini.html"},
+  {id:7,title:"Same",price:80,original_price:80,source:"universal.html"},
+  {id:8,title:"PageTwo",price:50,original_price:40,source:"universal.html"}
+];
+
+test("migration is nullable, no default, and does not backfill price",()=>{
+  const sql=read("STAGE64_ORIGINAL_PRICE.sql");
+  const setup=read("SUPABASE_SETUP.sql");
+  assert.match(sql,/ADD COLUMN IF NOT EXISTS original_price numeric\(12,2\)/);
+  assert.match(sql,/ALTER COLUMN original_price DROP NOT NULL/);
+  assert.match(sql,/ALTER COLUMN original_price DROP DEFAULT/);
+  assert.match(sql,/original_price IS NULL OR original_price >= 0/);
+  assert.doesNotMatch(sql,/\bUPDATE\s+public\.books\b/i);
+  assert.doesNotMatch(sql,/price\s*=\s*original_price|original_price\s*=\s*price/i);
+  assert.doesNotMatch(sql,/DEFAULT\s+0/);
+  assert.doesNotMatch(setup,/original_price\s*=\s*price/i);
+  assert.doesNotMatch(setup,/\bUPDATE\s+public\.books\b/i);
+  assert.match(setup,/original_price numeric\(12,2\)/);
+});
+
+test("new book insert plan copies valid price once, including 0",()=>{
+  assert.deepStrictEqual(Orig.planInsertOriginalPrice(150),{include:true,original_price:150});
+  assert.deepStrictEqual(Orig.planInsertOriginalPrice(0),{include:true,original_price:0});
+  assert.deepStrictEqual(Orig.planInsertOriginalPrice(null),{include:true,original_price:null});
+  assert.deepStrictEqual(Orig.planInsertOriginalPrice(""),{include:true,original_price:null});
+  assert.deepStrictEqual(Orig.planInsertOriginalPrice(-5),{include:true,original_price:null});
+});
+
+test("existing NULL original_price initializes once on valid manual save",()=>{
+  const first=Orig.planUpdateOriginalPrice(null,125);
+  assert.deepStrictEqual(first,{include:true,original_price:125});
+  const fromZero=Orig.planUpdateOriginalPrice("",0);
+  assert.deepStrictEqual(fromZero,{include:true,original_price:0});
+  const skipInvalid=Orig.planUpdateOriginalPrice(null,null);
+  assert.deepStrictEqual(skipInvalid,{include:false});
+});
+
+test("initialized original_price is not overwritten by later price edits",()=>{
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(125,200),{include:false});
+  assert.deepStrictEqual(Orig.planUpdateOriginalPrice(0,90),{include:false});
+});
+
+test("admin form status is read-only and does not invent a value",()=>{
+  assert.ok(Orig.originalPriceStatus(125).text.includes("125"));
+  assert.ok(Orig.originalPriceStatus(125).text.includes("ئەسلى باھا"));
+  assert.strictEqual(Orig.originalPriceStatus(null).text,"ئەسلى باھا تېخى ساقلانمىغان");
+  assert.strictEqual(Orig.originalPriceStatus(0).initialized,true);
+});
+
+test("reset preview shows current → original and skips NULL originals",()=>{
+  const preview=Orig.buildResetPreview(catalog,{scope:"all"});
+  assert.strictEqual(preview.targeted,catalog.length);
+  assert.ok(preview.updateCount>=3);
+  const a=preview.resettable.find(r=>String(r.id)==="1");
+  assert.strictEqual(a.oldPrice,135);
+  assert.strictEqual(a.newPrice,100);
+  const missing=preview.missing.find(r=>String(r.id)==="5");
+  assert.ok(missing);
+  assert.strictEqual(missing.reason,"missing_original");
+  assert.ok(!preview.resettable.some(r=>String(r.id)==="5"));
+  const line=Orig.formatResetLine(a);
+  assert.ok(line.includes("135"));
+  assert.ok(line.includes("100"));
+  const zero=preview.resettable.find(r=>String(r.id)==="4");
+  assert.strictEqual(zero.newPrice,0);
+});
+
+test("already-at-original books are skipped unchanged",()=>{
+  const preview=Orig.buildResetPreview(catalog,{scope:"selected",selectedIds:["2","7"]});
+  assert.strictEqual(preview.updateCount,0);
+  assert.strictEqual(preview.unchangedCount,2);
+  assert.strictEqual(preview.canApply,false);
+});
+
+test("selected / category / all reset scopes are not page-limited",()=>{
+  const page=catalog.slice(0,2);
+  const all=Orig.buildResetPreview(catalog,{scope:"all"});
+  assert.ok(all.targeted>page.length);
+  const cat=Orig.buildResetPreview(catalog,{scope:"category",source:"romanlar.html"});
+  assert.strictEqual(cat.targeted,1);
+  assert.strictEqual(cat.updateCount,1);
+  const sel=Orig.buildResetPreview(catalog,{scope:"selected",selectedIds:["1","8"]});
+  assert.strictEqual(sel.targeted,2);
+  assert.strictEqual(sel.updateCount,2);
+});
+
+test("stale preview / settings cannot confirm reset",()=>{
+  const settings={scope:"selected",selectedIds:["1","8"]};
+  const preview=Orig.buildResetPreview(catalog,settings);
+  assert.strictEqual(Orig.canConfirmReset(preview,settings),true);
+  assert.strictEqual(Orig.canConfirmReset(preview,{...settings,scope:"all"}),false);
+  assert.strictEqual(Orig.canConfirmReset(preview,{...settings,selectedIds:["1"]}),false);
+  assert.strictEqual(Orig.canConfirmReset(null,settings),false);
+});
+
+test("high-risk reset requires typed resettable count",()=>{
+  const all=Orig.buildResetPreview(catalog,{scope:"all"});
+  assert.strictEqual(all.highRisk,true);
+  assert.strictEqual(Orig.canFinalizeReset(all,{scope:"all"},String(all.updateCount)),true);
+  assert.strictEqual(Orig.canFinalizeReset(all,{scope:"all"},"999"),false);
+  const many=Array.from({length:20},(_,i)=>({id:100+i,title:"B"+i,price:10,original_price:5,source:"universal.html"}));
+  const settings={scope:"selected",selectedIds:many.map(b=>String(b.id))};
+  const preview=Orig.buildResetPreview(many,settings);
+  assert.strictEqual(preview.updateCount,20);
+  assert.strictEqual(preview.highRisk,true);
+  const small=Orig.buildResetPreview(catalog,{scope:"selected",selectedIds:["1"]});
+  assert.strictEqual(small.highRisk,false);
+  assert.strictEqual(Orig.canFinalizeReset(small,{scope:"selected",selectedIds:["1"]},"1"),false);
+});
+
+test("bulk price patches are price-only and never carry original_price",()=>{
+  Orig.assertPriceOnlyPatch({price:120});
+  assert.throws(()=>Orig.assertPriceOnlyPatch({price:120,original_price:100}),/ORIGINAL_PRICE_LOCKED|PRICE_ONLY_PATCH/);
+  assert.throws(()=>Orig.assertPriceOnlyPatch({original_price:100}),/PRICE_ONLY_PATCH/);
+});
+
+test("PR #63 bulk increase/decrease does not plan original_price writes",()=>{
+  const books=catalog.map(b=>({...b}));
+  const inc=Price.buildPreview(books,{scope:"selected",selectedIds:["1"],operation:"pct_inc",amount:"20"});
+  assert.strictEqual(inc.updatable[0].newPrice,162);
+  assert.strictEqual(books[0].original_price,100);
+  const dec=Price.buildPreview(books,{scope:"selected",selectedIds:["1"],operation:"pct_dec",amount:"20"});
+  assert.strictEqual(dec.updatable[0].newPrice,108);
+  assert.strictEqual(books[0].original_price,100);
+});
+
+test("quick edit still does not include original_price",()=>{
+  const built=Prod.buildQuickEditPatch({title:"A",source:"universal.html",price:99});
+  assert.strictEqual(built.ok,true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(built.patch,"original_price"));
+});
+
+test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
+  const html=read("admin.html");
+  const js=read("admin.js");
+  assert.match(html,/id="bulkResetOpenBtn"/);
+  assert.match(html,/ئەسلى باھاغا قايتۇرۇش/);
+  assert.match(html,/id="bookOriginalPriceStatus"/);
+  assert.match(html,/ئەسلى باھا تېخى ساقلانمىغان/);
+  assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
+  assert.match(html,/admin-original-price\.js\?v=1/);
+  assert.match(html,/admin\.css\?v=29/);
+  assert.match(html,/admin\.js\?v=46/);
+  assert.doesNotMatch(html,/id="bookOriginalPrice"/);
+  assert.match(js,/planUpdateOriginalPrice/);
+  assert.match(js,/assertPriceOnlyPatch/);
+  assert.match(js,/__kutadguAdminBulkResetUpdateOne/);
+  assert.match(js,/bulkResetInFlight/);
+  const updateFn=js.match(/function rowToUpdate\(row\)\{[\s\S]*?\n\}/);
+  assert.ok(updateFn);
+  assert.doesNotMatch(updateFn[0],/original_price/);
+  assert.doesNotMatch(js,/admin_bulk_reset_original_price/);
+  const origJs=read("admin-original-price.js");
+  assert.doesNotMatch(origJs,/SECURITY DEFINER/i);
+  assert.doesNotMatch(origJs,/\.rpc\(/);
+});
+
+test("CSV mapper does not require or write original_price on updates",()=>{
+  const js=read("admin.js");
+  const mapFn=js.match(/function mapImportRow\(raw\)\{[\s\S]*?\n\}/);
+  assert.ok(mapFn);
+  assert.doesNotMatch(mapFn[0],/original_price/);
+  const insertFn=js.match(/function rowToInsert\(row,id\)\{[\s\S]*?\nfunction rowToUpdate/);
+  assert.ok(insertFn);
+  assert.match(insertFn[0],/planInsertOriginalPrice/);
+});
+
+test("SQL/AAL2 files were not weakened for original_price writes",()=>{
+  const sql=read("STAGE64_ORIGINAL_PRICE.sql");
+  assert.doesNotMatch(sql,/CREATE POLICY/i);
+  assert.doesNotMatch(sql,/DROP POLICY/i);
+  assert.doesNotMatch(sql,/SECURITY DEFINER/i);
+  assert.doesNotMatch(sql,/DISABLE ROW LEVEL SECURITY/i);
+  const aal=read("STAGE2C_AAL2_BOOKS_WRITE_RLS.sql");
+  assert.match(aal,/aal2 required to update books/);
+});
+
+(async()=>{
+  await testAsync("reset apply writes price only and preserves original_price",async()=>{
+    const preview=Orig.buildResetPreview(catalog,{scope:"selected",selectedIds:["1","4"]});
+    const store={
+      1:{price:135,original_price:100},
+      4:{price:10,original_price:0}
+    };
+    const result=await Price.applyPriceUpdates(async(id,patch)=>{
+      Orig.assertPriceOnlyPatch(patch);
+      store[id].price=patch.price;
+      return {error:null};
+    },preview.updatable,{concurrency:1});
+    assert.strictEqual(result.fullSuccess,true);
+    assert.strictEqual(store[1].price,100);
+    assert.strictEqual(store[1].original_price,100);
+    assert.strictEqual(store[4].price,0);
+    assert.strictEqual(store[4].original_price,0);
+  });
+
+  await testAsync("preview does not write and partial reset is not full success",async()=>{
+    const preview=Orig.buildResetPreview(catalog,{scope:"selected",selectedIds:["1","8"]});
+    const calls=[];
+    const result=await Price.applyPriceUpdates(async(id,patch)=>{
+      calls.push({id:String(id),patch});
+      if(String(id)==="8")return {error:new Error("row locked")};
+      return {error:null};
+    },preview.updatable,{concurrency:1});
+    assert.strictEqual(result.fullSuccess,false);
+    assert.strictEqual(result.okCount,1);
+    assert.deepStrictEqual(calls.map(c=>c.patch),[{price:100},{price:40}]);
+    assert.ok(!calls.some(c=>Object.prototype.hasOwnProperty.call(c.patch,"original_price")));
+  });
+
+  await testAsync("bulk price apply leaves original_price untouched",async()=>{
+    const books=[{id:1,title:"A",price:100,original_price:100,source:"universal.html"}];
+    const preview=Price.buildPreview(books,{scope:"selected",selectedIds:["1"],operation:"pct_inc",amount:"20"});
+    const store={1:{price:100,original_price:100}};
+    await Price.applyPriceUpdates(async(id,patch)=>{
+      Orig.assertPriceOnlyPatch(patch);
+      store[id].price=patch.price;
+      return {error:null};
+    },preview.updatable,{concurrency:1});
+    assert.strictEqual(store[1].price,120);
+    assert.strictEqual(store[1].original_price,100);
+    const down=Price.buildPreview([{id:1,title:"A",price:120,original_price:100,source:"universal.html"}],{scope:"selected",selectedIds:["1"],operation:"fixed_dec",amount:"20"});
+    await Price.applyPriceUpdates(async(id,patch)=>{
+      Orig.assertPriceOnlyPatch(patch);
+      store[id].price=patch.price;
+      return {error:null};
+    },down.updatable,{concurrency:1});
+    assert.strictEqual(store[1].price,100);
+    assert.strictEqual(store[1].original_price,100);
+  });
+
+  if(failed){
+    console.error(failed+" failed");
+    process.exit(1);
+  }
+  console.log("admin-original-price-tests ok");
+})();

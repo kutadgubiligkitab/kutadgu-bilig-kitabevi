@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=28">
+  <link rel="stylesheet" href="admin.css?v=29">
 </head>
 <body>
 <div class="admin-shell">
@@ -242,6 +242,7 @@
             <button type="button" class="admin-secondary" id="selectPageBtn">نۆۋەتتىكى بەتنى تاللاش</button>
             <button type="button" class="admin-secondary" id="clearSelectionBtn">تاللاشنى تازىلاش</button>
             <button type="button" class="admin-secondary" id="bulkPriceOpenBtn">توپ باھا ئۆزگەرتىش</button>
+            <button type="button" class="admin-secondary" id="bulkResetOpenBtn">ئەسلى باھاغا قايتۇرۇش</button>
           </div>
           <div class="admin-toolbar-group admin-bulk-actions">
             <select id="bulkAction" aria-label="توپلام مەشغۇلات">
@@ -370,7 +371,7 @@
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
       <label data-book-col="isbn"><span>ISBN / باركود <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">بوشلۇق ۋە سىزىقچىلار ئاپتوماتىك تازىلىنىدۇ. ISBN-10 / ISBN-13 ساقلىنىدۇ؛ يوق كىتابلارغا ISBN توختىماڭ.</span></label>
 
-      <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"></label>
+      <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01"><span id="bookOriginalPriceStatus" class="admin-help" data-book-col="original_price">ئەسلى باھا تېخى ساقلانمىغان</span></label>
       <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
       <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
@@ -557,6 +558,60 @@
   </div>
 </div>
 
+<div id="bulkResetModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card" role="dialog" aria-modal="true" aria-labelledby="bulkResetTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkResetTitle">ئەسلى باھاغا قايتۇرۇش</h2>
+      <button id="closeBulkReset" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p class="admin-help">پەقەت نۆۋەتتىكى باھا ئەسلى باھاغا قايتىدۇ. ئەسلى باھا ئۆزگەرمەيدۇ. ئەسلى باھا يوق كىتابلار ئۆتكۈزۈلىدۇ.</p>
+    <fieldset class="admin-bulk-price-scopes">
+      <legend>دائىرە</legend>
+      <label class="admin-check"><input type="radio" name="bulkResetScope" value="all" checked><span>بارلىق كىتابلار</span></label>
+      <label class="admin-check"><input type="radio" name="bulkResetScope" value="category"><span>بىر كاتېگورىيە</span></label>
+      <label class="admin-check"><input type="radio" name="bulkResetScope" value="selected"><span>تاللانغان كىتابلار</span></label>
+    </fieldset>
+    <label id="bulkResetCategoryWrap" hidden>
+      <span>كاتېگورىيە</span>
+      <select id="bulkResetCategory"></select>
+    </label>
+    <p id="bulkResetSelectedHint" class="admin-help" role="status"></p>
+    <div class="admin-wide admin-toolbar-group">
+      <button class="admin-secondary" id="bulkResetPreviewBtn" type="button">ئالدىن كۆرۈش</button>
+    </div>
+    <p id="bulkResetSummary" class="admin-help" hidden></p>
+    <p id="bulkResetError" class="admin-status error" hidden></p>
+    <div id="bulkResetPreviewWrap" class="admin-bulk-price-preview" hidden>
+      <div id="bulkResetPreviewList"></div>
+    </div>
+    <div id="bulkResetPreviewPager" class="admin-pager" hidden></div>
+    <p id="bulkResetStatus" class="admin-help" role="status" aria-live="polite"></p>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-primary" id="bulkResetConfirmBtn" type="button" disabled>ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش</button>
+      <button class="admin-secondary" id="bulkResetCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
+<div id="bulkResetHighRiskModal" class="admin-modal admin-sheet" hidden>
+  <div class="admin-modal-card admin-bulk-price-card admin-bulk-confirm-card" role="dialog" aria-modal="true" aria-labelledby="bulkResetHighRiskTitle">
+    <div class="admin-modal-head">
+      <h2 id="bulkResetHighRiskTitle">يۇقىرى خەتەرلىك قايتۇرۇش</h2>
+      <button id="closeBulkResetHighRisk" type="button" aria-label="تاقاش">✕</button>
+    </div>
+    <p class="admin-status warn">دىققەت: بۇ مەشغۇلات كۆپ ھەقىقىي كاتالوگ باھاسىنى ئەسلى باھاغا قايتۇرىدۇ. ئالدىن كۆرۈشتىكى ساننى قولدا كىرگۈزمىگىچە يېزىلمايدۇ.</p>
+    <pre id="bulkResetHighRiskText" class="admin-bulk-confirm-text"></pre>
+    <label>
+      <span>قايتۇرۇلىدىغان كىتاب سانىنى كىرگۈزۈڭ</span>
+      <input id="bulkResetHighRiskCount" type="text" inputmode="numeric" autocomplete="off" dir="ltr">
+    </label>
+    <div class="admin-wide admin-toolbar-group admin-quick-edit-actions">
+      <button class="admin-danger" id="bulkResetHighRiskConfirmBtn" type="button" disabled>ئەسلى باھاغا قايتۇرۇشنى ئاخىرقى جەزملەشتۈرۈش</button>
+      <button class="admin-secondary" id="bulkResetHighRiskCancelBtn" type="button">بىكار قىلىش</button>
+    </div>
+  </div>
+</div>
+
 <div id="importModal" class="admin-modal" hidden>
   <div class="admin-modal-card admin-import-card">
     <div class="admin-modal-head">
@@ -622,6 +677,7 @@
 <script defer src="admin-book-quality.js?v=2"></script>
 <script defer src="admin-catalog-productivity.js?v=2"></script>
 <script defer src="admin-bulk-price.js?v=2"></script>
+<script defer src="admin-original-price.js?v=1"></script>
 <script defer src="catalog-bibliography.js?v=2"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
@@ -630,6 +686,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=2"></script>
 <script defer src="admin-idle.js?v=2"></script>
-  <script defer src="admin.js?v=45"></script>
+  <script defer src="admin.js?v=46"></script>
 </body>
 </html>
