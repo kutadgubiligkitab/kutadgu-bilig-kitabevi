@@ -162,6 +162,60 @@ function coverSrc(book){
 function isSampleDemoCover(src){
   return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src||"").trim());
 }
+function supabaseStorefrontConfigured(){
+  const cfg=supabasePublicConfig();
+  return !!(cfg.url&&cfg.key);
+}
+let catalogBootSettled=false;
+function markCatalogBootSettled(){
+  catalogBootSettled=true;
+}
+function isCartDocument(){
+  return !!document.querySelector("#cartItems");
+}
+function cartWaitingForRemoteBooks(){
+  if(!isCartDocument())return false;
+  if(catalogBootSettled)return false;
+  if(!supabaseStorefrontConfigured())return false;
+  return cart().length>0;
+}
+function cartItemSkeletonMarkup(){
+  return `<div class="cart-item is-skeleton" aria-hidden="true">
+      <div class="cart-item-cover"><span class="cart-skel-cover"></span></div>
+      <div class="cart-item-body">
+        <div class="home-skel-line home-skel-line-title"></div>
+        <div class="home-skel-line home-skel-line-meta"></div>
+        <div class="cart-item-toolbar">
+          <span class="home-skel-line cart-skel-chip"></span>
+          <span class="home-skel-line cart-skel-chip"></span>
+        </div>
+      </div>
+    </div>`;
+}
+function showCartBootSkeleton(count){
+  const host=document.querySelector("#cartItems");
+  if(!host)return;
+  const n=Math.max(1,Math.min(8,Number(count)||1));
+  host.innerHTML=Array.from({length:n},cartItemSkeletonMarkup).join("");
+  host.setAttribute("aria-busy","true");
+  const layout=document.querySelector("#cartLayout");
+  if(layout)layout.setAttribute("data-empty","false");
+  const aside=document.querySelector("#cartAside");
+  if(aside)aside.hidden=true;
+  const checkout=document.querySelector("#checkoutCard");
+  if(checkout)checkout.hidden=true;
+  const summaryHost=document.querySelector("#cartSummaryHost");
+  if(summaryHost)summaryHost.innerHTML="";
+}
+function paintCartBootState(){
+  if(!isCartDocument())return;
+  if(cartWaitingForRemoteBooks()){
+    showCartBootSkeleton(cart().length);
+    updateBadge();
+    return;
+  }
+  cartPage();
+}
 function homepageVisibleBooks(result){
   const items=(result&&result.items||[]).filter(isStorefrontVisible);
   if(remoteCatalog.configured&&result&&result.source==="static"){
@@ -1960,20 +2014,34 @@ function renderMyBooks(){
 
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
+  if(cartWaitingForRemoteBooks()){
+    showCartBootSkeleton(cart().length);
+    updateBadge();
+    return;
+  }
+  host.removeAttribute("aria-busy");
   let items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
   const orderable=items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy);
   let totalQty=orderable.reduce((s,x)=>s+x.qty,0);
   let total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
   let checkout=document.querySelector("#checkoutCard");
+  const layout=document.querySelector("#cartLayout");
+  const aside=document.querySelector("#cartAside");
+  const summaryHost=document.querySelector("#cartSummaryHost");
   const blocked=items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy);
 
   if(!items.length){
     host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
+    if(summaryHost)summaryHost.innerHTML="";
+    if(layout)layout.setAttribute("data-empty","true");
+    if(aside)aside.hidden=true;
     if(checkout)checkout.hidden=true;
     updateBadge();
     return;
   }
 
+    if(layout)layout.setAttribute("data-empty","false");
+    if(aside)aside.hidden=false;
     if(checkout){
       checkout.hidden=blocked;
       checkout.setAttribute("aria-hidden",blocked?"true":"false");
@@ -1983,34 +2051,42 @@ function cartPage(){
     const visible=isStorefrontVisible(x.b);
     const stock=stockInfo(x.b);
     return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
-      <img src="${escapeAttr(coverSrc(x.b))}" alt="${escapeAttr(x.b.title)}" width="75" height="95" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
-      <div>
+      <div class="cart-item-cover">
+        <img src="${escapeAttr(coverSrc(x.b))}" alt="${escapeAttr(x.b.title)}" width="100" height="127" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_COVER}'">
+      </div>
+      <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(x.b.title)}</div>
         <div class="cart-meta">${escapeHtml(x.b.author)} · ${escapeHtml(x.b.category)}</div>
         <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}</div>
-        <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
+        <div class="cart-item-toolbar">
+          <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
+          <div class="qty-control">
+            <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${!visible?" disabled":""}>−</button>
+            <span class="cart-qty-value">${x.qty}</span>
+            <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
+          </div>
+          <div class="cart-line-price"><small>جەمئىي</small><strong>${visible?money((x.b.price||0)*x.qty):"—"}</strong></div>
+          <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
+        </div>
       </div>
-      <div class="qty-control">
-        <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${!visible?" disabled":""}>−</button>
-        <span>${x.qty}</span>
-        <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
-      </div>
-      <div class="cart-line-price"><small>جەمئىي</small><strong>${visible?money((x.b.price||0)*x.qty):"—"}</strong></div>
-      <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
     </div>`;
-  }).join("")+
-    `<div class="cart-summary">
+  }).join("");
+
+  const summaryHtml=`<div class="cart-summary">
+       <h2 class="cart-summary-heading">زاكاز خۇلاسىسى</h2>
        <div class="cart-summary-meta">
-         <span>📚 جەمئىي كىتاب سانى: ${totalQty}</span>
-         <span>💰 كىتاب جەمئىي: ${money(total)}</span>
+         <div class="cart-summary-row"><span>جەمئىي كىتاب سانى</span><strong>${totalQty}</strong></div>
+         <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        </div>
-       <div class="cart-total">كىتاب جەمئىي: ${money(total)}</div>
        <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
+       <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        <div class="cart-summary-actions">
-         ${blocked?"":`<button type="button" class="add-to-cart" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
+         ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
+  if(summaryHost)summaryHost.innerHTML=summaryHtml;
+  else host.insertAdjacentHTML("beforeend",summaryHtml);
 
   host.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.plus,1));
   host.querySelectorAll("[data-minus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.minus,-1));
@@ -2916,7 +2992,7 @@ function initStaticShell(){
   renderFavoritesPage();
   renderContactSection();
   renderSiteFooter();
-  cartPage();
+  paintCartBootState();
   setupCheckout();
 }
 function init(){
@@ -2958,6 +3034,7 @@ async function boot(){
   migratePersistedBookIds();
   await hydrateBooksByIds([...cart().map(item=>item.id),...favs()]);
   migratePersistedBookIds();
+  markCatalogBootSettled();
   window.KUTADGU_LIVE_CATALOG=C;
   init();
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));

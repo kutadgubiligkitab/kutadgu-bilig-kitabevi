@@ -8,10 +8,10 @@
 <meta name="robots" content="noindex, follow">
 
     <link rel="stylesheet" href="theme.css?v=9">
-    <link rel="stylesheet" href="shop.css?v=41">
+    <link rel="stylesheet" href="shop.css?v=47">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 
-  <link rel="stylesheet" href="mobile.css?v=20">
+  <link rel="stylesheet" href="mobile.css?v=22">
 </head>
 <body>
 
@@ -24,22 +24,29 @@
 
     <h1 class="cart-page-title">🛒 سېۋىتىم</h1>
 
-    <div id="cartItems"></div>
-
+    <div class="cart-layout" id="cartLayout" data-empty="true">
+    <div class="cart-layout-main">
+    <div id="cartItems" aria-busy="true"></div>
+    </div>
+    <aside class="cart-layout-aside" id="cartAside" hidden>
+    <div id="cartSummaryHost"></div>
     <section class="checkout-card" id="checkoutCard">
         <div class="checkout-heading">
             <div>
                 <h2>📦 زاكاز ئۇچۇرلىرى</h2>
-                <p>سېۋەتتىكى كىتابلارنى زاكاز قىلىش ئۈچۈن تۆۋەندىكى ئۇچۇرلارنى تولدۇرۇڭ. زاكاز WhatsApp ئارقىلىق جەزمللىنىدۇ؛ توشۇش ھەققى سۆھبەتتە ئايرىم بېكىتىلىدۇ.</p>
+                <p>ئۇچۇرنى تولدۇرۇپ WhatsApp قا يوللاڭ. توشۇش ھەققى سۆھبەتتە بېكىتىلىدۇ.</p>
             </div>
         </div>
 
         <div class="checkout-member-note">
-            👤 ئەزا بولۇش ئىختىيارىي. <a href="account.html">ھېسابىڭىزغا كىرسىڭىز</a> زاكاز تارىخىڭىز، سېۋىتىڭىز ۋە ئادرېسىڭىز ھېسابتا ساقلىنىدۇ؛ ئەزا بولمايمۇ WhatsApp ئارقىلىق زاكاز قىلالايسىز.
+            👤 ئەزا ئىختىيارىي. <a href="account.html">ھېسابىڭىزغا كىرسىڭىز</a> تارىخ، سېۋەت ۋە ئادرېس ساقلىنىدۇ. ئەزا بولمايمۇ WhatsApp بىلەن زاكاز قىلالايسىز.
         </div>
 
-        <p class="cart-order-steps">1) ئۇچۇرنى تولدۇرۇڭ · 2) WhatsApp قا يوللاڭ · 3) توشۇش ياكى دۇكاندىن ئېلىشنى بىز جەزملەيمىز</p>
+        <p class="cart-order-steps">زاكاز ئۇچۇرلىرىڭىزنى تولدۇرۇڭ. توشۇش ھەققى ئايرىم ھېسابلىنىدۇ.</p>
         <form id="checkoutForm" class="checkout-form">
+            <div class="checkout-section" role="group" aria-labelledby="checkoutCustomerHeading">
+                <h3 id="checkoutCustomerHeading" class="checkout-section-title">👤 خېرىدار ئۇچۇرى</h3>
+                <div class="checkout-fields">
             <label>
                 <span>ئىسمى-فامىلىسى *</span>
                 <input id="customerName" name="name" type="text" autocomplete="name" required placeholder="ئىسمىڭىزنى كىرگۈزۈڭ">
@@ -49,15 +56,15 @@
                 <span>تېلېفون نومۇرى *</span>
                 <input id="customerPhone" name="phone" type="tel" autocomplete="tel" required placeholder="تېلېفون نومۇرىڭىز">
             </label>
+                </div>
+            </div>
 
+            <div class="checkout-section" role="group" aria-labelledby="checkoutDeliveryHeading">
+                <h3 id="checkoutDeliveryHeading" class="checkout-section-title">🚚 يەتكۈزۈش ئۇچۇرى</h3>
+                <div class="checkout-fields">
             <label>
                 <span>شەھەر / رايون</span>
                 <input id="customerCity" name="city" type="text" autocomplete="address-level2" placeholder="شەھەر ياكى رايون">
-            </label>
-
-            <label class="checkout-wide">
-                <span>يەتكۈزۈش ئادرېسى *</span>
-                <textarea id="customerAddress" name="address" rows="3" autocomplete="street-address" required placeholder="تولۇق ئادرېسنى يېزىڭ"></textarea>
             </label>
 
             <label>
@@ -70,9 +77,21 @@
             </label>
 
             <label class="checkout-wide">
+                <span>يەتكۈزۈش ئادرېسى *</span>
+                <textarea id="customerAddress" name="address" rows="2" autocomplete="street-address" required placeholder="تولۇق ئادرېسنى يېزىڭ"></textarea>
+            </label>
+                </div>
+            </div>
+
+            <div class="checkout-section checkout-section-note" role="group" aria-labelledby="checkoutNoteHeading">
+                <h3 id="checkoutNoteHeading" class="checkout-section-title">📝 ئىزاھات</h3>
+                <div class="checkout-fields">
+            <label class="checkout-wide">
                 <span>قوشۇمچە ئىزاھات</span>
                 <textarea id="customerNote" name="note" rows="2" placeholder="بار بولسا قوشۇمچە ئىزاھات يېزىڭ"></textarea>
             </label>
+                </div>
+            </div>
         </form>
 
         <div class="checkout-actions">
@@ -94,12 +113,14 @@
             </p>
         </div>
     </section>
+    </aside>
+    </div>
 
 </main>
 
 <script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=10"></script><script defer src="catalog.js?v=1"></script><script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=86"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=88"></script>
   <script defer src="mobile.js?v=3"></script>
 </body>
 </html>
