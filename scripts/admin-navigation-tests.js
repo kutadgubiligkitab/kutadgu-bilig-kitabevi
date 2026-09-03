@@ -32,17 +32,17 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=32, admin.js v=51, admin-mfa.js v=2, and admin-idle.js v=2", () => {
+test("cache pins are admin.css v=32, admin.js v=52, admin-mfa.js v=2, and admin-idle.js v=2", () => {
   assert.match(adminHtml, /admin\.css\?v=32/);
-  assert.match(adminHtml, /admin\.js\?v=51/);
+  assert.match(adminHtml, /admin\.js\?v=52/);
   assert.match(adminHtml, /admin-mfa\.js\?v=2/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=31/);
-  assert.doesNotMatch(adminHtml, /admin\.js\?v=50/);
+  assert.doesNotMatch(adminHtml, /admin\.js\?v=51/);
   assert.match(adminHtml, /admin-idle\.js\?v=2/);
   assert.match(adminHtml, /admin-catalog-productivity\.js\?v=2/);
   assert.match(adminHtml, /admin-bulk-price\.js\?v=3/);
   assert.match(adminHtml, /admin-original-price\.js\?v=5/);
-  assert.match(adminHtml, /admin-price-history\.js\?v=1/);
+  assert.match(adminHtml, /admin-price-history\.js\?v=2/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=24/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=41/);
 });

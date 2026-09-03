@@ -1879,9 +1879,11 @@ async function fetchPriceHistoryPage(bookId,offset){
   }
   if(!db)return {error:new Error("Database يوق."),rows:[],hasMore:false};
   const from=Math.max(0,Number(offset)||0);
+  const historyBookId=Hist.decimalId?Hist.decimalId(bookId):canonicalBookId(bookId);
+  if(!historyBookId)return {error:new Error("كىتاب ID تېپىلمىدى."),rows:[],hasMore:false};
   const {data,error}=await db.from("book_price_history")
     .select("id,book_id,old_price,new_price,change_kind,changed_at")
-    .eq("book_id",bookId)
+    .eq("book_id",historyBookId)
     .order("changed_at",{ascending:false})
     .order("id",{ascending:false})
     .range(from,from+limit);
@@ -1999,10 +2001,12 @@ function openPriceRollbackModal(historyId){
 }
 async function persistPriceRollback(bookId,historyId,expectedPrice){
   const args=Hist.rollbackRpcArgs?Hist.rollbackRpcArgs(bookId,historyId,expectedPrice):{
-    p_book_id:bookId,
-    p_history_id:historyId,
+    p_book_id:Hist.decimalId?Hist.decimalId(bookId):canonicalBookId(bookId),
+    p_history_id:Hist.decimalId?Hist.decimalId(historyId):canonicalBookId(historyId),
     p_expected_price:expectedPrice
   };
+  if(!args.p_book_id)return {error:new Error("كىتاب ID تېپىلمىدى."),data:[]};
+  if(!args.p_history_id)return {error:new Error(Hist.MISSING_HISTORY_ERROR||"تارىخ قۇرى تېپىلمىدى."),data:[]};
   if(typeof window.__kutadguAdminRollbackPrice==="function"){
     return window.__kutadguAdminRollbackPrice(args.p_book_id,args.p_history_id,args.p_expected_price);
   }

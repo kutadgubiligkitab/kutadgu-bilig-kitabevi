@@ -103,14 +103,14 @@ function historyFromBookPatch(oldRow,patch,kindSetting){
 }
 
 function planRollback({bookId,historyRow,currentPrice}={}){
-  const id=String(bookId||"").trim();
-  if(!/^\d+$/.test(id)){
+  const id=decimalId(bookId);
+  if(!id){
     return {ok:false,canRollback:false,error:"كىتاب ID تېپىلمىدى. يېڭى قۇر قوشۇلمايدۇ."};
   }
   if(!historyRow||historyRow.id==null){
     return {ok:false,canRollback:false,error:MISSING_HISTORY_ERROR};
   }
-  if(String(historyRow.book_id)!==id){
+  if(decimalId(historyRow.book_id)!==id){
     return {ok:false,canRollback:false,error:WRONG_BOOK_ERROR};
   }
   if(!isValidRollbackPrice(historyRow.old_price)){
@@ -134,12 +134,22 @@ function isStaleCurrentPrice(loadedPrice,freshPrice){
   return isDistinctPrice(loadedPrice,freshPrice);
 }
 
+function compareDecimalIdDesc(a,b){
+  const sa=decimalId(a);
+  const sb=decimalId(b);
+  if(sa===sb)return 0;
+  if(!sa)return 1;
+  if(!sb)return -1;
+  if(sa.length!==sb.length)return sb.length-sa.length;
+  return sa<sb?1:sa>sb?-1:0;
+}
+
 function historyQueryPlan(bookId,{offset=0,limit=PAGE_SIZE}={}){
   const pageSize=Number(limit)||PAGE_SIZE;
   const start=Math.max(0,Number(offset)||0);
   return {
     table:"book_price_history",
-    bookId:String(bookId||""),
+    bookId:decimalId(bookId),
     columns:HISTORY_COLUMNS.slice(),
     order:[{column:"changed_at",ascending:false},{column:"id",ascending:false}],
     range:[start,start+pageSize],
@@ -154,13 +164,13 @@ function sortHistory(rows){
     const sa=Number.isFinite(ta)?ta:0;
     const sb=Number.isFinite(tb)?tb:0;
     if(sb!==sa)return sb-sa;
-    return Number(b&&b.id||0)-Number(a&&a.id||0);
+    return compareDecimalIdDesc(a&&a.id,b&&b.id);
   });
 }
 
 function historyForBook(store,bookId){
-  const id=String(bookId||"");
-  return sortHistory((store&&store.history||[]).filter(row=>String(row.book_id)===id));
+  const id=decimalId(bookId)||String(bookId||"");
+  return sortHistory((store&&store.history||[]).filter(row=>decimalId(row.book_id)===id||String(row.book_id)===id));
 }
 
 function paginateHistory(rows,offset,pageSize){
@@ -178,7 +188,8 @@ function paginateHistory(rows,offset,pageSize){
 function createHistoryStore(books,history){
   const byId={};
   (books||[]).forEach(book=>{
-    byId[String(book.id)]={...book};
+    const key=decimalId(book.id)||String(book.id);
+    byId[key]={...book};
   });
   const rows=[...(history||[])];
   const seq=rows.reduce((max,row)=>Math.max(max,Number(row&&row.id)||0),0);
@@ -186,7 +197,7 @@ function createHistoryStore(books,history){
 }
 
 function applyBookPriceChange(store,bookId,newPrice,opts){
-  const book=store&&store.books&&store.books[String(bookId)];
+  const book=store&&store.books&&store.books[decimalId(bookId)||String(bookId)];
   if(!book)return {error:new Error(MISSING_BOOK_ERROR),data:[],historyInserted:false};
   const original=book.original_price;
   const planned=historyFromBookPatch(book,{price:newPrice},opts&&opts.kindSetting);
@@ -202,7 +213,7 @@ function applyBookPriceChange(store,bookId,newPrice,opts){
   store.seq=(Number(store.seq)||0)+1;
   const row={
     id:store.seq,
-    book_id:String(book.id),
+    book_id:decimalId(book.id)||String(book.id),
     old_price:planned.old_price,
     new_price:planned.new_price,
     change_kind:planned.change_kind,
@@ -224,13 +235,15 @@ function applyBookPriceChange(store,bookId,newPrice,opts){
 function simulateRollback(store,{bookId,historyId,expectedPrice,isAdmin,aal}={}){
   if(!isAdmin)return {error:new Error("Admin permission required"),data:[]};
   if(String(aal||"")!=="aal2")return {error:new Error("AAL2 required"),data:[]};
-  const id=String(bookId||"").trim();
+  const id=decimalId(bookId);
   if(!id)return {error:new Error("كىتاب ID تېپىلمىدى."),data:[]};
   const book=store&&store.books&&store.books[id];
   if(!book)return {error:new Error(MISSING_BOOK_ERROR),data:[]};
-  const hist=(store.history||[]).find(row=>String(row.id)===String(historyId));
+  const hid=decimalId(historyId);
+  if(!hid)return {error:new Error(MISSING_HISTORY_ERROR),data:[]};
+  const hist=(store.history||[]).find(row=>decimalId(row.id)===hid);
   if(!hist)return {error:new Error(MISSING_HISTORY_ERROR),data:[]};
-  if(String(hist.book_id)!==String(book.id))return {error:new Error(WRONG_BOOK_ERROR),data:[]};
+  if(decimalId(hist.book_id)!==decimalId(book.id))return {error:new Error(WRONG_BOOK_ERROR),data:[]};
   if(!isValidRollbackPrice(hist.old_price))return {error:new Error(INVALID_ROLLBACK_ERROR),data:[]};
   if(isDistinctPrice(book.price,expectedPrice))return {error:new Error(STALE_PRICE_ERROR),data:[]};
   if(!isDistinctPrice(book.price,hist.old_price)){
@@ -249,12 +262,28 @@ function simulateRollback(store,{bookId,historyId,expectedPrice,isAdmin,aal}={})
   return result;
 }
 
+function decimalId(value){
+  const s=String(value??"").trim();
+  return /^\d+$/.test(s)?s:"";
+}
+
 function rollbackRpcArgs(bookId,historyId,expectedPrice){
+  // PostgREST accepts decimal strings for bigint arguments. Keep canonical IDs
+  // as strings so values above 2^53-1 are not rounded by IEEE-754 number conversion.
   return {
-    p_book_id:String(bookId||""),
-    p_history_id:historyId,
+    p_book_id:decimalId(bookId),
+    p_history_id:decimalId(historyId),
     p_expected_price:expectedPrice==null||expectedPrice===""?null:expectedPrice
   };
+}
+
+function isBigintIdType(value){
+  const v=String(value||"").trim().toLowerCase();
+  return v==="int8"||v==="bigint";
+}
+
+function historyFkCompatible(booksIdType,historyBookIdType){
+  return isBigintIdType(booksIdType)&&isBigintIdType(historyBookIdType);
 }
 
 const api={
@@ -290,7 +319,9 @@ const api={
   createHistoryStore,
   applyBookPriceChange,
   simulateRollback,
-  rollbackRpcArgs
+  decimalId,
+  rollbackRpcArgs,
+  historyFkCompatible
 };
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 root.KutadguAdminPriceHistory=api;

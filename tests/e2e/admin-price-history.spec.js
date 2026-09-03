@@ -252,7 +252,7 @@ test.describe("admin price history", () => {
     });
     expect(snapshot.price).toBe(100);
     expect(snapshot.original_price).toBe(100);
-    expect(snapshot.rollbackCalls).toEqual([{ bookId: "1", historyId: 101, expectedPrice: 135 }]);
+    expect(snapshot.rollbackCalls).toEqual([{ bookId: "1", historyId: "101", expectedPrice: 135 }]);
     expect(snapshot.kinds[0]).toBe("rollback");
   });
 
