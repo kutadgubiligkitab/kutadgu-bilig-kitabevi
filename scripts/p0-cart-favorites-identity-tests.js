@@ -637,6 +637,9 @@ test("storefront pages keep cart markup pin shop.js v=88",()=>{
   assert.match(html,/id="customerName"/);
   assert.match(html,/id="checkoutCustomerHeading"/);
   assert.match(html,/href="account.html"/);
+  assert.match(html,/زاكاز ئۇچۇرلىرىڭىزنى تولدۇرۇڭ\. توشۇش ھەققى ئايرىم ھېسابلىنىدۇ\./);
+  assert.doesNotMatch(html,/1\) تولدۇرۇڭ/);
+  assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=86/);
   assert.match(home,/shop\.js\?v=86/);
