@@ -365,11 +365,28 @@ button{cursor:pointer}
 .admin-problem-label{font-size:12px;font-weight:800;color:#70503d}
 .admin-bulk-result{flex-basis:100%;margin:0}
 .admin-quick-edit-card,.admin-bulk-confirm-card{width:min(96%,440px);max-height:92vh;overflow:auto;display:flex;flex-direction:column}
+.admin-bulk-price-card{width:min(96%,640px);max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.admin-bulk-price-card .admin-form,.admin-bulk-price-card label{min-width:0}
+.admin-bulk-price-scopes{border:1px solid #eadfce;border-radius:12px;padding:10px 12px;margin:0;background:#fffdf8;display:grid;gap:8px}
+.admin-bulk-price-scopes legend{font-weight:800;color:#70503d;padding:0 6px}
+.admin-bulk-price-preview{max-height:min(40vh,320px);overflow:auto;border:1px solid #eadfce;border-radius:10px;background:#fff}
+.admin-bulk-price-row{padding:10px 12px;border-bottom:1px solid #f0e7da;overflow-wrap:anywhere}
+.admin-bulk-price-row:last-child{border-bottom:0}
+.admin-bulk-price-row strong{display:block;margin-bottom:4px}
+.admin-bulk-price-row.is-skip{background:#fffaf0}
+.admin-bulk-price-row.is-block{background:#fff5f3}
+.admin-bulk-price-card select,.admin-bulk-price-card input[type="number"]{width:100%;max-width:100%;min-height:44px;border:1px solid #dccdb9;border-radius:9px;padding:11px 12px;background:#fff}
+.admin-bulk-price-card > label{display:grid;gap:6px}
+.admin-bulk-price-card > label > span{font-size:13px;font-weight:700}
+@media(max-width:520px){
+  .admin-bulk-price-card .admin-toolbar-group{width:100%}
+  .admin-bulk-price-card .admin-toolbar-group button{width:100%;min-height:44px}
+}
 .admin-quick-edit-actions{position:sticky;bottom:0;background:#fffdf9;padding:12px 0 0;margin-top:8px}
 .admin-bulk-confirm-text{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;padding:12px;border:1px solid #eadfce;border-radius:10px;background:#fbf8f2;overflow-wrap:anywhere}
 @media(max-width:768px){
   .admin-modal.admin-sheet{align-items:flex-end;padding:0}
-  .admin-sheet .admin-quick-edit-card,.admin-sheet .admin-bulk-confirm-card{width:100%;max-width:100%;max-height:92vh;border-radius:16px 16px 0 0;margin:0}
+  .admin-sheet .admin-quick-edit-card,.admin-sheet .admin-bulk-confirm-card,.admin-sheet .admin-bulk-price-card{width:100%;max-width:100%;max-height:92vh;border-radius:16px 16px 0 0;margin:0}
   .admin-book-actions{display:flex;flex-wrap:wrap;gap:8px}
   .admin-book-actions button,.admin-book-actions a{min-height:40px}
 }

@@ -149,6 +149,16 @@ test("is_kutadgu_admin() is not modified to require AAL2", () => {
   assert.doesNotMatch(sql, /create or replace function public\.is_kutadgu_admin/i);
 });
 
+test("bulk price change does not add SECURITY DEFINER shortcuts", () => {
+  const price = read("admin-bulk-price.js");
+  assert.doesNotMatch(price, /SECURITY DEFINER/i);
+  assert.doesNotMatch(price, /\.rpc\(/);
+  assert.match(adminJs, /function persistBulkPriceRow/);
+  assert.match(adminJs, /db\.from\("books"\)\.update\(patch\)\.eq\("id",id\)\.select\("id"\)/);
+  assert.doesNotMatch(adminJs, /rpc\(["'][^"']*price/i);
+  assert.doesNotMatch(adminJs, /SECURITY DEFINER/i);
+});
+
 test("set_member_status still checks is_kutadgu_admin then JWT aal2 before UPDATE", () => {
   const mig = functionBody(sql, "public.set_member_status");
   const canon = functionBody(setup, "public.set_member_status");
