@@ -160,6 +160,40 @@ async function noOverflow(page) {
   expect(overflow.scroll, JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.client + 1);
 }
 
+async function transitionGeometry(page, article) {
+  return article.locator(".admin-price-history-prices").evaluate((el) => {
+    const oldEl = el.querySelector(".admin-price-history-old");
+    const newEl = el.querySelector(".admin-price-history-new");
+    const oldBox = oldEl.getBoundingClientRect();
+    const newBox = newEl.getBoundingClientRect();
+    const modal = document.getElementById("priceHistoryModal");
+    return {
+      dir: el.getAttribute("dir"),
+      computedDir: getComputedStyle(el).direction,
+      textAlign: getComputedStyle(el).textAlign,
+      oldLeft: oldBox.left,
+      newLeft: newBox.left,
+      oldText: (oldEl.textContent || "").trim(),
+      newText: (newEl.textContent || "").trim(),
+      text: (el.textContent || "").replace(/\s+/g, " ").trim(),
+      htmlDir: document.documentElement.getAttribute("dir"),
+      modalDir: modal ? getComputedStyle(modal).direction : ""
+    };
+  });
+}
+
+function expectChronologicalVisual(geo, oldNeedle, newNeedle) {
+  expect(geo.htmlDir).toBe("rtl");
+  expect(geo.modalDir).toBe("rtl");
+  expect(geo.dir).toBe("ltr");
+  expect(geo.computedDir).toBe("ltr");
+  expect(geo.oldText).toContain(oldNeedle);
+  expect(geo.newText).toContain(newNeedle);
+  expect(geo.text.indexOf(oldNeedle)).toBeLessThan(geo.text.indexOf("→"));
+  expect(geo.text.indexOf("→")).toBeLessThan(geo.text.indexOf(newNeedle));
+  expect(geo.oldLeft).toBeLessThan(geo.newLeft);
+}
+
 async function openBookHistory(page, id = "1") {
   await page.locator(`article[data-book-id="${id}"] [data-edit]`).click();
   await expect(page.locator("#bookModal")).toBeVisible();
@@ -208,6 +242,72 @@ test.describe("admin price history", () => {
     await expect(items.nth(2)).toContainText("0 ₺");
     await expect(items.nth(2).locator("[data-history-rollback]")).toHaveCount(0);
     await expect(page.locator("#priceHistoryList")).not.toContainText("changed_by");
+  });
+
+  test("RTL bidi does not reverse chronological old → new price transitions", async ({ page }) => {
+    const book = [{ ...BASE[0], price: 402, original_price: 300, title: "Bidi Book" }];
+    const history = [
+      { id: 1, book_id: "1", old_price: 300, new_price: 402, change_kind: "price_change", changed_at: "2026-09-04T10:00:00.000Z" },
+      { id: 2, book_id: "1", old_price: 402, new_price: 300, change_kind: "rollback", changed_at: "2026-09-03T10:00:00.000Z" },
+      { id: 3, book_id: "1", old_price: 0, new_price: 350, change_kind: "price_change", changed_at: "2026-09-02T10:00:00.000Z" },
+      { id: 4, book_id: "1", old_price: null, new_price: 350, change_kind: "price_change", changed_at: "2026-09-01T10:00:00.000Z" }
+    ];
+    await openAdminBooks(page, book, history);
+    await openBookHistory(page, "1");
+    const items = page.locator("#priceHistoryList article");
+    await expect(items).toHaveCount(4);
+    expectChronologicalVisual(await transitionGeometry(page, items.nth(0)), "300", "402");
+    expectChronologicalVisual(await transitionGeometry(page, items.nth(1)), "402", "300");
+    expectChronologicalVisual(await transitionGeometry(page, items.nth(2)), "0", "350");
+    const nilGeo = await transitionGeometry(page, items.nth(3));
+    expectChronologicalVisual(nilGeo, "—", "350");
+    await expect(page.locator("#priceHistoryTitle")).toHaveText("باھا تارىخى");
+    await expect(page.locator("#priceHistoryList article").nth(1)).toContainText("تارىختىن قايتۇرۇلدى");
+    const chrome = await page.evaluate(() => ({
+      htmlDir: document.documentElement.getAttribute("dir"),
+      bodyDir: getComputedStyle(document.body).direction,
+      modalDir: getComputedStyle(document.getElementById("priceHistoryModal")).direction,
+      listDir: getComputedStyle(document.getElementById("priceHistoryList")).direction
+    }));
+    expect(chrome).toEqual({ htmlDir: "rtl", bodyDir: "rtl", modalDir: "rtl", listDir: "rtl" });
+  });
+
+  test("rollback confirmation keeps current and target prices from swapping in RTL", async ({ page }) => {
+    const book = [{ ...BASE[0], price: 402, original_price: 300 }];
+    const history = [
+      { id: 1, book_id: "1", old_price: 300, new_price: 402, change_kind: "price_change", changed_at: "2026-09-04T10:00:00.000Z" }
+    ];
+    await openAdminBooks(page, book, history);
+    await openBookHistory(page, "1");
+    await page.locator("#priceHistoryList [data-history-rollback]").first().click();
+    await expect(page.locator("#priceRollbackModal")).toBeVisible();
+    await expect(page.locator("#priceRollbackCurrent .admin-price-ltr")).toContainText("402");
+    await expect(page.locator("#priceRollbackTarget .admin-price-ltr")).toContainText("300");
+    const layout = await page.evaluate(() => {
+      const current = document.getElementById("priceRollbackCurrent");
+      const target = document.getElementById("priceRollbackTarget");
+      const currentAmt = current.querySelector(".admin-price-ltr");
+      const targetAmt = target.querySelector(".admin-price-ltr");
+      return {
+        htmlDir: document.documentElement.getAttribute("dir"),
+        modalDir: getComputedStyle(document.getElementById("priceRollbackModal")).direction,
+        currentDir: getComputedStyle(currentAmt).direction,
+        targetDir: getComputedStyle(targetAmt).direction,
+        currentTop: current.getBoundingClientRect().top,
+        targetTop: target.getBoundingClientRect().top,
+        currentText: current.textContent.replace(/\s+/g, " ").trim(),
+        targetText: target.textContent.replace(/\s+/g, " ").trim()
+      };
+    });
+    expect(layout.htmlDir).toBe("rtl");
+    expect(layout.modalDir).toBe("rtl");
+    expect(layout.currentDir).toBe("ltr");
+    expect(layout.targetDir).toBe("ltr");
+    expect(layout.currentTop).toBeLessThan(layout.targetTop);
+    expect(layout.currentText).toContain("ھازىرقى باھا");
+    expect(layout.currentText).toContain("402");
+    expect(layout.targetText).toContain("قايتۇرۇلىدىغان باھا");
+    expect(layout.targetText).toContain("300");
   });
 
   test("Load More pagination appends remaining rows for that book only", async ({ page }) => {
@@ -358,6 +458,12 @@ test.describe("admin price history", () => {
       await expect(page.locator("#priceHistoryList article").first()).toBeVisible();
       await expect(page.locator("#priceHistoryMoreBtn")).toBeVisible();
       await noOverflow(page);
+      const geo = await transitionGeometry(page, page.locator("#priceHistoryList article").first());
+      expect(geo.dir).toBe("ltr");
+      expect(geo.computedDir).toBe("ltr");
+      expect(geo.oldLeft).toBeLessThan(geo.newLeft);
+      expect(geo.htmlDir).toBe("rtl");
+      expect(geo.modalDir).toBe("rtl");
       await page.locator("#priceHistoryList [data-history-rollback]").first().click();
       await expect(page.locator("#priceRollbackModal")).toBeVisible();
       await expect(page.locator("#priceRollbackSaveBtn")).toBeVisible();

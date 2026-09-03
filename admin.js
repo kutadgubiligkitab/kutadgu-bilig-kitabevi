@@ -1816,18 +1816,29 @@ function renderPriceHistoryMeta(){
   if(bookEl)bookEl.textContent=title||"(نامسىز)";
   const price=currentEditingPrice();
   const currentEl=$("#priceHistoryCurrent");
-  if(currentEl)currentEl.textContent="ھازىرقى باھا: "+(Hist.formatMoney?Hist.formatMoney(price):money(price));
+  if(currentEl)setLabeledLtrMoney(currentEl,"ھازىرقى باھا: ",price);
   const originalEl=$("#priceHistoryOriginal");
   if(originalEl){
     const original=editing?editing.original_price:null;
     if(Hist.isValidRollbackPrice&&Hist.isValidRollbackPrice(original)){
       originalEl.hidden=false;
-      originalEl.textContent="ئەسلى باھا: "+(Hist.formatMoney?Hist.formatMoney(original):money(original));
+      setLabeledLtrMoney(originalEl,"ئەسلى باھا: ",original);
     }else{
       originalEl.hidden=false;
       originalEl.textContent="ئەسلى باھا تېخى ساقلانمىغان";
     }
   }
+}
+function setLabeledLtrMoney(el,label,value){
+  if(!el)return;
+  const amount=Hist.formatMoney?Hist.formatMoney(value):money(value);
+  el.replaceChildren();
+  el.append(document.createTextNode(label));
+  const bdi=document.createElement("bdi");
+  bdi.className="admin-price-ltr";
+  bdi.dir="ltr";
+  bdi.textContent=amount;
+  el.append(bdi);
 }
 function renderPriceHistoryList(){
   const list=$("#priceHistoryList");
@@ -1849,14 +1860,17 @@ function renderPriceHistoryList(){
     const can=Hist.canRollbackHistoryRow?Hist.canRollbackHistoryRow(row,current):false;
     const already=Hist.pricesEqual?Hist.pricesEqual(row.old_price,current)&&(Hist.isValidRollbackPrice?Hist.isValidRollbackPrice(row.old_price):true):false;
     const kind=Hist.changeKindLabel?Hist.changeKindLabel(row.change_kind):row.change_kind;
-    const prices=Hist.formatPriceTransition?Hist.formatPriceTransition(row.old_price,row.new_price):`${money(row.old_price)} → ${money(row.new_price)}`;
+    const parts=Hist.priceTransitionParts?Hist.priceTransitionParts(row.old_price,row.new_price):null;
+    const prices=parts
+      ?`<bdi class="admin-price-history-old">${esc(parts.oldText)}</bdi> <span class="admin-price-history-arrow" aria-hidden="true">${esc(parts.arrow)}</span> <bdi class="admin-price-history-new">${esc(parts.newText)}</bdi>`
+      :esc(Hist.formatPriceTransition?Hist.formatPriceTransition(row.old_price,row.new_price):`${money(row.old_price)} → ${money(row.new_price)}`);
     const when=dateText(row.changed_at);
     const action=can
       ?`<button type="button" class="admin-secondary" data-history-rollback="${esc(row.id)}">بۇ باھاغا قايتۇرۇش</button>`
       :(already?`<span class="admin-price-history-current">ھازىرقى باھا</span>`:"");
     return `<article class="admin-price-history-item" data-history-id="${esc(row.id)}">
       <div class="admin-price-history-meta">${esc(when)}</div>
-      <div class="admin-price-history-prices">${esc(prices)}</div>
+      <div class="admin-price-history-prices" dir="ltr">${prices}</div>
       <div class="admin-price-history-kind">${esc(kind)}</div>
       ${action}
     </article>`;
@@ -1988,9 +2002,9 @@ function openPriceRollbackModal(historyId){
   const bookEl=$("#priceRollbackBook");
   if(bookEl)bookEl.textContent=priceRollbackDraft.title||"(نامسىز)";
   const currentEl=$("#priceRollbackCurrent");
-  if(currentEl)currentEl.textContent="ھازىرقى باھا: "+(Hist.formatMoney?Hist.formatMoney(priceRollbackDraft.loadedPrice):money(priceRollbackDraft.loadedPrice));
+  if(currentEl)setLabeledLtrMoney(currentEl,"ھازىرقى باھا: ",priceRollbackDraft.loadedPrice);
   const targetEl=$("#priceRollbackTarget");
-  if(targetEl)targetEl.textContent="قايتۇرۇلىدىغان باھا: "+(Hist.formatMoney?Hist.formatMoney(priceRollbackDraft.targetPrice):money(priceRollbackDraft.targetPrice));
+  if(targetEl)setLabeledLtrMoney(targetEl,"قايتۇرۇلىدىغان باھا: ",priceRollbackDraft.targetPrice);
   const whenEl=$("#priceRollbackWhen");
   if(whenEl)whenEl.textContent=dateText(row.changed_at);
   setPriceRollbackError("");

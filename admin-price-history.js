@@ -70,6 +70,16 @@ function formatPriceTransition(oldPrice,newPrice){
   return `${formatMoney(oldPrice)} → ${formatMoney(newPrice)}`;
 }
 
+function priceTransitionParts(oldPrice,newPrice){
+  return {
+    dir:"ltr",
+    oldText:formatMoney(oldPrice),
+    newText:formatMoney(newPrice),
+    arrow:"→",
+    text:formatPriceTransition(oldPrice,newPrice)
+  };
+}
+
 function changeKindLabel(kind){
   const key=String(kind||"");
   return KIND_LABELS[key]||KIND_LABELS[CHANGE_KIND_PRICE];
@@ -306,6 +316,7 @@ const api={
   pricesEqual,
   formatMoney,
   formatPriceTransition,
+  priceTransitionParts,
   changeKindLabel,
   resolveChangeKind,
   canRollbackHistoryRow,

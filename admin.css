@@ -212,7 +212,8 @@ button{cursor:pointer}
 .admin-price-history-item{padding:10px 12px;border-bottom:1px solid #f0e7da;overflow-wrap:anywhere;display:grid;gap:6px;min-width:0}
 .admin-price-history-item:last-child{border-bottom:0}
 .admin-price-history-meta{font-size:12px;color:#7a5a42}
-.admin-price-history-prices{font-weight:700}
+.admin-price-history-prices{font-weight:700;direction:ltr;unicode-bidi:isolate;text-align:right}
+.admin-price-ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
 .admin-price-history-kind{font-size:13px}
 .admin-price-history-item .admin-secondary{width:auto;min-height:36px;justify-self:start}
 .admin-price-history-current{font-size:12px;color:#7a5a42}

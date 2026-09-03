@@ -378,9 +378,9 @@ test("Admin HTML shows Price History for existing books only and confirmation co
   assert.match(adminHtml,/قايتۇرۇلىدىغان باھا/);
   assert.match(adminHtml,/بۇ مەشغۇلات پەقەت ھازىرقى سېتىش باھاسىنى تارىختىكى باھاغا قايتۇرىدۇ\. ئەسلى باھا ئۆزگەرمەيدۇ/);
   assert.match(adminHtml,/بىكار قىلىش/);
-  assert.match(adminHtml,/admin-price-history\.js\?v=2/);
-  assert.match(adminHtml,/admin\.js\?v=52/);
-  assert.match(adminHtml,/admin\.css\?v=32/);
+  assert.match(adminHtml,/admin-price-history\.js\?v=3/);
+  assert.match(adminHtml,/admin\.js\?v=53/);
+  assert.match(adminHtml,/admin\.css\?v=33/);
   assert.match(adminJs,/btn\.hidden=isCreate\|\|!id/);
   assert.match(adminJs,/changeKindLabel/);
   assert.match(read("admin-price-history.js"),/تارىختىن قايتۇرۇلدى/);
@@ -413,6 +413,41 @@ test("cache pins and Auth/TOTP/idle files were not rewritten by price history",(
   assert.doesNotMatch(read("shop.js"),/book_price_history/);
   assert.doesNotMatch(sql,/DROP POLICY IF EXISTS "aal2 required to update books"/);
   assert.doesNotMatch(sql,/CREATE POLICY "admin can update books"/i);
+});
+
+test("price transitions keep chronological old → new and isolate LTR in RTL Admin UI",()=>{
+  function assertChronological(oldPrice,newPrice,oldNeedle,newNeedle){
+    const text=Hist.formatPriceTransition(oldPrice,newPrice);
+    const parts=Hist.priceTransitionParts(oldPrice,newPrice);
+    assert.strictEqual(parts.dir,"ltr");
+    assert.strictEqual(parts.text,text);
+    assert.ok(parts.oldText.includes(oldNeedle),parts.oldText);
+    assert.ok(parts.newText.includes(newNeedle),parts.newText);
+    assert.ok(text.indexOf(oldNeedle)<text.indexOf("→"));
+    assert.ok(text.indexOf("→")<text.indexOf(newNeedle));
+    assert.notStrictEqual(text,Hist.formatPriceTransition(newPrice,oldPrice));
+  }
+  assertChronological(300,402,"300","402");
+  assertChronological(402,300,"402","300");
+  assertChronological(0,350,"0","350");
+  const nil=Hist.priceTransitionParts(null,350);
+  assert.strictEqual(nil.oldText,"—");
+  assert.ok(nil.newText.includes("350"));
+  assert.ok(nil.text.indexOf("—")<nil.text.indexOf("→"));
+  assert.ok(nil.text.indexOf("→")<nil.text.indexOf("350"));
+  const css=read("admin.css");
+  assert.match(adminHtml,/html lang="ug" dir="rtl"/);
+  assert.match(adminHtml,/id="priceHistoryModal"/);
+  assert.doesNotMatch(adminHtml,/id="priceHistoryModal"[^>]*dir="ltr"/);
+  assert.match(adminJs,/admin-price-history-prices" dir="ltr"/);
+  assert.match(adminJs,/priceTransitionParts\(row\.old_price,row\.new_price\)/);
+  assert.match(adminJs,/setLabeledLtrMoney\(currentEl,"ھازىرقى باھا: ",priceRollbackDraft\.loadedPrice\)/);
+  assert.match(adminJs,/setLabeledLtrMoney\(targetEl,"قايتۇرۇلىدىغان باھا: ",priceRollbackDraft\.targetPrice\)/);
+  assert.match(css,/\.admin-price-history-prices\{[^}]*direction:\s*ltr/);
+  assert.match(css,/\.admin-price-history-prices\{[^}]*unicode-bidi:\s*isolate/);
+  assert.match(css,/\.admin-price-history-prices\{[^}]*text-align:\s*right/);
+  assert.match(css,/\.admin-price-ltr\{[^}]*direction:\s*ltr/);
+  assert.doesNotMatch(sql,/dir="ltr"|unicode-bidi|admin-price-history-prices/);
 });
 
 test("migration pre-flight requires books.id bigint/int8 and refuses incompatible history",()=>{
