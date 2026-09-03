@@ -333,4 +333,51 @@ test.describe("guest cart and favorites", () => {
       }
     }
   });
+
+  test("cart refresh does not paint sample/demo covers before persisted cart hydrates", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
+    await page.addInitScript(() => {
+      window.__kutadguSawSampleCartCoverBeforeReady = false;
+      window.__kutadguCatalogReady = false;
+      const note = () => {
+        if (window.__kutadguCatalogReady) return;
+        document.querySelectorAll("#cartItems img").forEach((img) => {
+          const src = String(img.getAttribute("src") || img.currentSrc || img.src || "");
+          if (/(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(src)) {
+            window.__kutadguSawSampleCartCoverBeforeReady = true;
+          }
+        });
+      };
+      const start = () => {
+        const host = document.querySelector("#cartItems");
+        if (!host) return;
+        new MutationObserver(note).observe(host, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["src"]
+        });
+        note();
+      };
+      document.addEventListener("kutadgu:catalog-ready", () => {
+        window.__kutadguCatalogReady = true;
+      }, { once: true });
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+      else start();
+    });
+    await H.openFresh(page, "/cart.html");
+    await page.evaluate((id) => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id, qty: 1 }]));
+      localStorage.setItem("kutadgu-shop-owner-v1", "guest");
+    }, book.id);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+    const sawSample = await page.evaluate(() => !!window.__kutadguSawSampleCartCoverBeforeReady);
+    expect(sawSample).toBe(false);
+    await expect(page.locator("#cartItems img")).toHaveCount(1);
+    const src = await page.locator("#cartItems img").getAttribute("src");
+    expect(String(src || "")).not.toMatch(/sample-book-cover\.png/i);
+    await expect(page.locator("#cartItems .cart-item.is-skeleton")).toHaveCount(0);
+  });
 });

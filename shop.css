@@ -39,6 +39,9 @@ body > header:not(.account-topbar):not(.admin-topbar){
 .cart-item + .cart-item{margin-top:12px}
 .cart-item-cover{width:108px;padding:6px;border-radius:9px;background:var(--site-bg-soft,#fbf8f2);border:1px solid var(--site-border,#e8dccb)}
 .cart-item-cover img{width:100%;height:auto;max-height:148px;object-fit:contain;object-position:center;background:transparent;border-radius:6px;display:block}
+.cart-item.is-skeleton{pointer-events:none;box-shadow:none}
+.cart-skel-cover{display:block;width:100%;min-height:120px;border-radius:6px;background:#eee4d7}
+.cart-skel-chip{width:72px;height:28px;margin-top:0;display:inline-block}
 .cart-item-body{display:grid;gap:6px;min-width:0;align-content:start}
 .cart-title{font-weight:700;font-size:16px;line-height:1.45;color:var(--site-text,#44352d)}
 .cart-meta{font-size:13px;color:var(--site-text-soft,#806f62);line-height:1.5}
