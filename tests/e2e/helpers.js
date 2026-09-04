@@ -161,6 +161,7 @@ async function clearShopStorage(page) {
   await page.evaluate(() => {
     try {
       localStorage.removeItem("kutadgu-cart-v1");
+      localStorage.removeItem("kutadgu-cart-display-v1");
       localStorage.removeItem("kutadgu-favorites-v1");
       localStorage.removeItem("kutadgu-recent-v1");
       localStorage.removeItem("kutadgu-customer-v1");

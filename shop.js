@@ -108,7 +108,7 @@ const catalogQueryState={
 };
 const remoteCatalog={configured:false,available:false,total:null};
 const CATALOG_BOOT_TIMEOUT_MS=8000;
-const CART_KEY="kutadgu-cart-v1", FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
+const CART_KEY="kutadgu-cart-v1", CART_DISPLAY_KEY="kutadgu-cart-display-v1", CART_DISPLAY_VERSION=1, CART_DISPLAY_MAX_ITEMS=80, FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1", SHOP_OWNER_GUEST="guest", SHOP_OWNER_STALE="stale";
 function isPreviewShopDebug(){
   try{
@@ -449,6 +449,7 @@ function supabaseStorefrontConfigured(){
 }
 let catalogBootSettled=false;
 function markCatalogBootSettled(){
+  refreshCartDisplaySnapshotsFromCatalog();
   catalogBootSettled=true;
 }
 function isCartDocument(){
@@ -459,6 +460,143 @@ function cartWaitingForRemoteBooks(){
   if(catalogBootSettled)return false;
   if(!supabaseStorefrontConfigured())return false;
   return cart().length>0;
+}
+function cartHydrationPending(){
+  return cartWaitingForRemoteBooks();
+}
+function emptyCartDisplayStore(){
+  return {v:CART_DISPLAY_VERSION,items:{}};
+}
+function clipCartDisplayText(raw,max){
+  return String(raw??"").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,Math.max(1,Number(max)||1));
+}
+function sanitizeCartDisplaySnapshot(raw,fallbackId){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+  const id=clipCartDisplayText(raw.id||fallbackId,64);
+  if(!id||/[<>"'`]/.test(id))return null;
+  const title=clipCartDisplayText(raw.title,300);
+  if(!title)return null;
+  const author=clipCartDisplayText(raw.author,200);
+  let price=raw.price;
+  price=price===""||price==null?null:Number(price);
+  if(!Number.isFinite(price)||price<0)price=null;
+  let image=String(raw.image||"").trim();
+  if(!image||isSampleDemoCover(image)||!isSafeCoverUrl(image))image="";
+  let stock=raw.stock===""||raw.stock==null?null:Number(raw.stock);
+  if(!Number.isFinite(stock)||stock<0)stock=null;
+  const statusRaw=clipCartDisplayText(raw.stockStatus||raw.stock_status,32).toLowerCase();
+  const allowed=new Set(["in","in_stock","available","low","low_stock","out","out_of_stock","soldout","sold-out"]);
+  const stockStatus=allowed.has(statusRaw)?statusRaw:"";
+  return {id,title,author,price,image,stock,stockStatus};
+}
+function readCartDisplayStore(){
+  if(!shopOwnerAllowsLocalDisplay())return emptyCartDisplayStore();
+  try{
+    const raw=JSON.parse(localStorage.getItem(CART_DISPLAY_KEY)||"null");
+    if(!raw||typeof raw!=="object"||Array.isArray(raw))return emptyCartDisplayStore();
+    const items=raw.items&&typeof raw.items==="object"&&!Array.isArray(raw.items)?raw.items:{};
+    const clean={};
+    for(const [key,value] of Object.entries(items)){
+      const snap=sanitizeCartDisplaySnapshot(value,key);
+      if(snap)clean[snap.id]=snap;
+    }
+    return {v:CART_DISPLAY_VERSION,items:clean};
+  }catch(e){return emptyCartDisplayStore()}
+}
+function writeCartDisplayStore(store){
+  if(!shopOwnerAllowsLocalDisplay())return;
+  try{
+    const items=store&&store.items&&typeof store.items==="object"&&!Array.isArray(store.items)?store.items:{};
+    const bounded={};
+    const ids=Object.keys(items).slice(0,CART_DISPLAY_MAX_ITEMS);
+    for(const id of ids){
+      const snap=sanitizeCartDisplaySnapshot(items[id],id);
+      if(snap)bounded[snap.id]=snap;
+    }
+    localStorage.setItem(CART_DISPLAY_KEY,JSON.stringify({v:CART_DISPLAY_VERSION,items:bounded}));
+  }catch(e){}
+}
+function snapshotFromBook(book){
+  if(!book||!book.id)return null;
+  return sanitizeCartDisplaySnapshot({
+    id:book.id,
+    title:book.title,
+    author:book.author,
+    price:book.price,
+    image:book.image||book.image_url||"",
+    stock:book.stock,
+    stockStatus:book.stockStatus||book.stock_status||""
+  });
+}
+function cartDisplayBookFromSnapshot(snap){
+  if(!snap)return null;
+  return {
+    id:snap.id,
+    title:snap.title,
+    author:snap.author||"",
+    category:"",
+    price:snap.price,
+    image:snap.image||"",
+    href:bookDetailHref(snap.id),
+    stock:snap.stock,
+    stockStatus:snap.stockStatus||"",
+    isActive:true,
+    __cartDisplayPreview:true
+  };
+}
+function pruneCartDisplaySnapshots(store){
+  const allowed=new Set(cart().map(item=>String(item.id)));
+  const src=store||readCartDisplayStore();
+  const next=emptyCartDisplayStore();
+  for(const id of allowed){
+    if(src.items[id])next.items[id]=src.items[id];
+  }
+  writeCartDisplayStore(next);
+  return next;
+}
+function upsertCartDisplaySnapshot(book){
+  const snap=snapshotFromBook(book);
+  if(!snap)return;
+  const store=readCartDisplayStore();
+  store.items[snap.id]=snap;
+  pruneCartDisplaySnapshots(store);
+}
+function refreshCartDisplaySnapshotsFromCatalog(){
+  const store=readCartDisplayStore();
+  const next=emptyCartDisplayStore();
+  for(const item of cart()){
+    const live=find(item.id);
+    const snap=live?snapshotFromBook(live):store.items[String(item.id)];
+    if(snap)next.items[String(snap.id)]=snap;
+  }
+  writeCartDisplayStore(next);
+}
+function migrateCartDisplaySnapshots(prevItems){
+  const store=readCartDisplayStore();
+  const next=emptyCartDisplayStore();
+  const current=cart();
+  for(const item of current){
+    const id=String(item.id);
+    let snap=store.items[id];
+    if(!snap&&Array.isArray(prevItems)){
+      const prev=prevItems.find(p=>String(resolveStoredBookId(p.id))===id||canonicalId(p.id)===canonicalId(id)||String(p.id)===id);
+      if(prev)snap=store.items[String(prev.id)];
+    }
+    if(snap){
+      const clean=sanitizeCartDisplaySnapshot({...snap,id},id);
+      if(clean)next.items[id]=clean;
+    }
+  }
+  writeCartDisplayStore(next);
+}
+function cartHasUsableDisplayPreview(){
+  const items=cart();
+  if(!items.length)return false;
+  const store=readCartDisplayStore();
+  return items.some(item=>{
+    const snap=store.items[String(item.id)];
+    return !!(snap&&snap.title&&snap.title!==String(item.id));
+  });
 }
 function cartItemSkeletonMarkup(){
   return `<div class="cart-item is-skeleton" aria-hidden="true">
@@ -491,7 +629,8 @@ function showCartBootSkeleton(count){
 function paintCartBootState(){
   if(!isCartDocument())return;
   if(cartWaitingForRemoteBooks()){
-    showCartBootSkeleton(cart().length);
+    if(cartHasUsableDisplayPreview())cartPage();
+    else showCartBootSkeleton(cart().length);
     updateBadge();
     return;
   }
@@ -1012,12 +1151,16 @@ function migratePersistedBookIds(){
   if(!shopOwnerAllowsLocalDisplay())return;
   const resolve=resolveStoredBookId;
   const aliases=aliasMap();
+  const prevCart=cart();
   const nextCart=Legacy.repairCapPollutedCartItems
-    ?Legacy.repairCapPollutedCartItems(cart(),resolve,aliases)
-    :(Legacy.migrateCartItems?Legacy.migrateCartItems(cart(),resolve):cart());
+    ?Legacy.repairCapPollutedCartItems(prevCart,resolve,aliases)
+    :(Legacy.migrateCartItems?Legacy.migrateCartItems(prevCart,resolve):prevCart);
   const nextFav=Legacy.migrateIdList?Legacy.migrateIdList(favs(),resolve):favs().map(String);
   const nextRec=Legacy.migrateIdList?Legacy.migrateIdList(get(REC_KEY,[]),resolve,{limit:12}):get(REC_KEY,[]).map(String).slice(0,12);
-  if(JSON.stringify(nextCart)!==JSON.stringify(cart()))set(CART_KEY,nextCart);
+  if(JSON.stringify(nextCart)!==JSON.stringify(prevCart)){
+    set(CART_KEY,nextCart);
+    migrateCartDisplaySnapshots(prevCart);
+  }else pruneCartDisplaySnapshots();
   if(JSON.stringify(nextFav)!==JSON.stringify((favs()||[]).map(String)))set(FAV_KEY,nextFav);
   if(JSON.stringify(nextRec)!==JSON.stringify((get(REC_KEY,[])||[]).map(String)))set(REC_KEY,nextRec);
 }
@@ -1062,6 +1205,8 @@ function cartBookForLine(line){
   if(line?.book)return line.book;
   const book=find(line?.id);
   if(book)return book;
+  const preview=cartDisplayBookFromSnapshot(readCartDisplayStore().items[String(line?.id||"")]);
+  if(preview)return preview;
   const id=String(line?.id||"");
   return {
     id,
@@ -1091,7 +1236,12 @@ function add(id,qty=1){
   let a=cart(),x=a.find(i=>canonicalId(i.id)===storeId||canonicalId(i.id)===canonicalId(storeId)),next=sanitizeQty((x?.qty||0)+Math.max(1,sanitizeQty(qty)));
   if(Number.isFinite(stock.qty))next=Math.min(next,stock.qty);
   if(x){x.id=storeId;x.qty=next}else a.push({id:storeId,qty:next});
-  if(set(CART_KEY,a)){updateBadge();toast("كىتاب سېۋەتكە قوشۇلدى 🛒");trackEvent("add_to_cart",{bookId:storeId,legacyId:b.legacyId||"",qty:Math.max(1,Number(qty)||1)})}
+  if(set(CART_KEY,a)){
+    upsertCartDisplaySnapshot(b);
+    updateBadge();
+    toast("كىتاب سېۋەتكە قوشۇلدى 🛒");
+    trackEvent("add_to_cart",{bookId:storeId,legacyId:b.legacyId||"",qty:Math.max(1,Number(qty)||1)});
+  }
 }
 function remove(id){
   const resolve=resolveStoredBookId;
@@ -1100,6 +1250,7 @@ function remove(id){
     ?Legacy.filterCartRemovingBook(cart(),id,resolve,aliases)
     :cart().filter(x=>canonicalId(x.id)!==canonicalId(id));
   set(CART_KEY,next);
+  pruneCartDisplaySnapshots();
   updateBadge();
 }
 function favs(){return shopOwnerAllowsLocalDisplay()?get(FAV_KEY,[]):[]}
@@ -2345,21 +2496,28 @@ function renderMyBooks(){
 
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
-  if(cartWaitingForRemoteBooks()){
+  const preview=cartHydrationPending();
+  if(preview&&!cartHasUsableDisplayPreview()){
     showCartBootSkeleton(cart().length);
     updateBadge();
     return;
   }
-  host.removeAttribute("aria-busy");
+  if(preview){
+    host.setAttribute("aria-busy","true");
+    host.setAttribute("data-cart-hydration","pending");
+  }else{
+    host.removeAttribute("aria-busy");
+    host.setAttribute("data-cart-hydration","ready");
+  }
   let items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
-  const orderable=items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy);
+  const orderable=preview?[]:items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy&&!x.b.__cartDisplayPreview);
   let totalQty=orderable.reduce((s,x)=>s+x.qty,0);
   let total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
   let checkout=document.querySelector("#checkoutCard");
   const layout=document.querySelector("#cartLayout");
   const aside=document.querySelector("#cartAside");
   const summaryHost=document.querySelector("#cartSummaryHost");
-  const blocked=items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy);
+  const blocked=preview||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
 
   if(!items.length){
     host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
@@ -2372,10 +2530,10 @@ function cartPage(){
   }
 
     if(layout)layout.setAttribute("data-empty","false");
-    if(aside)aside.hidden=false;
+    if(aside)aside.hidden=preview;
     if(checkout){
-      checkout.hidden=blocked;
-      checkout.setAttribute("aria-hidden",blocked?"true":"false");
+      checkout.hidden=blocked||preview;
+      checkout.setAttribute("aria-hidden",(blocked||preview)?"true":"false");
     }
 
   host.innerHTML=items.map((x,index)=>{
@@ -2416,7 +2574,9 @@ function cartPage(){
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
-  if(summaryHost)summaryHost.innerHTML=summaryHtml;
+  if(preview){
+    if(summaryHost)summaryHost.innerHTML="";
+  }else if(summaryHost)summaryHost.innerHTML=summaryHtml;
   else host.insertAdjacentHTML("beforeend",summaryHtml);
 
   host.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.plus,1));
@@ -2427,6 +2587,7 @@ function cartPage(){
   if(clear)clear.onclick=()=>{
     if(confirm("سېۋەتتىكى بارلىق كىتابلارنى ئۆچۈرەمسىز؟")){
       set(CART_KEY,[]);
+      pruneCartDisplaySnapshots();
       cartPage();
       toast("سېۋەت تازىلاندى");
     }
@@ -2445,10 +2606,16 @@ function changeQty(id,d){
   let x=a.find(i=>Legacy.sameBookIdentity?Legacy.sameBookIdentity(i.id,id,resolveStoredBookId,aliases):canonicalId(i.id)===canonicalId(id));
   if(!x)return;
   const book=find(id);
-  if(!isStorefrontVisible(book))return;
-  const stock=stockInfo(book);
-  x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
-  if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
+  if(book){
+    if(!isStorefrontVisible(book))return;
+    const stock=stockInfo(book);
+    x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
+    if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
+  }else if(cartHydrationPending()){
+    x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
+  }else{
+    if(!isStorefrontVisible(book))return;
+  }
   set(CART_KEY,a);
   cartPage();
   updateBadge();
@@ -2519,8 +2686,10 @@ function currentOrderSignature(customer){
 }
 
 function buildOrderText(requireCustomer=true){
-  let items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
+  if(cartHydrationPending()){toast("كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ.");return null}
+  let items=cartLines().map(line=>({...line,b:find(line.id)||null}));
   if(!items.length){toast("سېۋەت بوش");return null}
+  if(items.some(x=>!x.b||x.b.__cartDisplayPreview)){toast("كىتاب ئۇچۇرى تېخى جەزملەنمىدى؛ سەل ساقلاڭ.");return null}
   if(items.some(x=>!isStorefrontVisible(x.b))){toast("سېۋەتتە ھازىرچە تەمىنلەنمەيدىغان كىتاب بار");return null}
   if(items.some(x=>!stockInfo(x.b).canBuy)){toast("سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ");return null}
 
@@ -3377,5 +3546,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();
