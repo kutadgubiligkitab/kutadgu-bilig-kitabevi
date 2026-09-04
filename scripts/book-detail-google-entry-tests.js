@@ -33,10 +33,15 @@ const recApi = new Function(`
   function canonicalId(id){ return String(id || ""); }
   function isStorefrontVisible(book){ return !!(book && book.isActive !== false); }
   let C = [];
-  ${sliceBetween(shop, "function detailRecommendations(book,limit=4,catalog){", "function detailGallerySlides(book){")}
+  ${sliceBetween(shop, "const DETAIL_RELATED_LIMIT=4;", "function detailGallerySlides(book){")}
   return {
     setCatalog(list){ C = list; },
-    detailRecommendations
+    DETAIL_RELATED_PAGE_SIZE,
+    DETAIL_RELATED_LIMIT,
+    detailRecommendations,
+    detailRelatedQueryInput,
+    detailRelatedShouldQuery,
+    detailRelatedIdentity
   };
 `)();
 
@@ -85,6 +90,34 @@ test("inactive or hidden books are not recommended", () => {
   assert.deepStrictEqual(recApi.detailRecommendations({ id: "1", category: "رومانلار" }, 4), []);
 });
 
+test("targeted related query is a small same-category page, not the full catalog", () => {
+  assert.strictEqual(recApi.DETAIL_RELATED_PAGE_SIZE, 16);
+  assert.ok(recApi.DETAIL_RELATED_PAGE_SIZE >= 12 && recApi.DETAIL_RELATED_PAGE_SIZE <= 20);
+  const q = recApi.detailRelatedQueryInput({ id: "1", category: "رومانلار" });
+  assert.strictEqual(q.category, "رومانلار");
+  assert.strictEqual(q.pageSize, 16);
+  assert.strictEqual(q.offset, 0);
+  assert.ok(!("includeInactive" in q) || !q.includeInactive);
+});
+
+test("related query is skipped when enough same-category books are already known", () => {
+  const book = { id: "1", category: "رومانلار" };
+  assert.strictEqual(recApi.detailRelatedShouldQuery(book, 4, {}, true), false);
+  assert.strictEqual(recApi.detailRelatedShouldQuery(book, 1, {}, true), true);
+});
+
+test("related query is skipped while in-flight or already completed for the same book", () => {
+  const book = { id: "1", category: "رومانلار" };
+  const key = recApi.detailRelatedIdentity(book);
+  assert.strictEqual(recApi.detailRelatedShouldQuery(book, 0, { key, status: "loading" }, true), false);
+  assert.strictEqual(recApi.detailRelatedShouldQuery(book, 0, { key, status: "ready" }, true), false);
+  assert.strictEqual(recApi.detailRelatedShouldQuery(book, 0, { key: "2|رومانلار", status: "ready" }, true), true);
+});
+
+test("related query is not issued when recommendations are disabled", () => {
+  assert.strictEqual(recApi.detailRelatedShouldQuery({ id: "1", category: "رومانلار" }, 0, {}, false), false);
+});
+
 test("category CTA maps known sources to root clean hubs and rejects unsafe values", () => {
   assert.strictEqual(routeApi.storefrontCategoryHref("universal.html"), "/universal");
   assert.strictEqual(routeApi.storefrontCategoryHref("./romanlar.html"), "/romanlar");
@@ -112,12 +145,19 @@ test("shop.js injects root-safe cart/favorites/account navigation", () => {
   assert.match(float, /storefrontAppHref\(/);
   assert.match(float, /location\.assign\(href\)/);
   assert.doesNotMatch(float, /location\.href=href/);
-  const extras = sliceBetween(shop, "function renderDetailExtras(book){", "function decorateDetail(){");
+  const extras = sliceBetween(shop, "function detailRelatedMarkup(book,related){", "function decorateDetail(){");
   assert.match(extras, /storefrontCategoryHref\(book\.source\)/);
   assert.doesNotMatch(extras, /href="\$\{book\.source/);
   assert.match(extras, /detail-category-cta-only/);
-  assert.match(extras, /related\.length/);
-  const rec = sliceBetween(shop, "function detailRecommendations(book,limit=4,catalog){", "function detailGallerySlides(book){");
+  assert.match(extras, /featureEnabled\("recommendations"\)/);
+  assert.match(extras, /queryCatalog\(detailRelatedQueryInput\(book\)\)/);
+  assert.match(shop, /const DETAIL_RELATED_PAGE_SIZE=16/);
+  assert.match(extras, /detailRelatedFetch\.token/);
+  assert.match(extras, /status:"loading"/);
+  assert.match(extras, /status:"error"/);
+  assert.match(extras, /detailRecommendations\(book,DETAIL_RELATED_LIMIT\)/);
+  assert.doesNotMatch(extras, /x\.category!==book\.category/);
+  const rec = sliceBetween(shop, "function detailRecommendations(book,limit=DETAIL_RELATED_LIMIT,catalog){", "function detailGallerySlides(book){");
   assert.doesNotMatch(rec, /x\.category!==book\.category/);
   assert.match(rec, /isStorefrontVisible\(item\)/);
 });

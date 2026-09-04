@@ -1687,7 +1687,25 @@ function populateDynamicBookPage(b){
   }
 }
 
-function detailRecommendations(book,limit=4,catalog){
+const DETAIL_RELATED_LIMIT=4;
+const DETAIL_RELATED_PAGE_SIZE=16;
+let detailRelatedFetch={key:"",token:0,status:""};
+
+function detailRelatedIdentity(book){
+  return canonicalId(book&&book.id)+"|"+String(book&&book.category||"").trim();
+}
+function detailRelatedQueryInput(book){
+  return {category:String(book&&book.category||"").trim(),pageSize:DETAIL_RELATED_PAGE_SIZE,offset:0,sort:"new"};
+}
+function detailRelatedShouldQuery(book,knownCount,state,recsEnabled){
+  if(recsEnabled===false)return false;
+  if(!book||!String(book.category||"").trim())return false;
+  if((Number(knownCount)||0)>=DETAIL_RELATED_LIMIT)return false;
+  const key=detailRelatedIdentity(book);
+  if(state&&state.key===key&&(state.status==="loading"||state.status==="ready"))return false;
+  return true;
+}
+function detailRecommendations(book,limit=DETAIL_RELATED_LIMIT,catalog){
   const max=Math.max(0,Number(limit)||0);
   if(!book||!max)return [];
   const category=String(book.category||"").trim();
@@ -1833,23 +1851,11 @@ function renderBookGallery(book){
   });
 }
 
-function renderDetailExtras(book){
-  let main=document.querySelector(".book-detail-page");
-  if(!main||main.querySelector(".detail-extra-sections"))return;
-
-  let related=detailRecommendations(book,4);
-  let recentBooks=get(REC_KEY,[])
-    .filter(id=>canonicalId(id)!==canonicalId(book.id))
-    .map(find)
-    .filter(book=>book&&isStorefrontVisible(book))
-    .slice(0,4);
-
-  let wrap=document.createElement("div");
-  wrap.className="detail-extra-sections";
+function detailRelatedMarkup(book,related){
+  if(!featureEnabled("recommendations"))return "";
   const categoryCta=`<a href="${escapeAttr(storefrontCategoryHref(book.source))}" class="detail-section-link">بۇ بۆلۈمدىكى كىتابلار →</a>`;
-
-  let relatedHtml=featureEnabled("recommendations")&&related.length
-    ? `<section class="detail-extra-section">
+  if(related&&related.length){
+    return `<section class="detail-extra-section" data-detail-related="1">
          <div class="detail-section-heading">
            <div>
              <span class="detail-section-kicker">📚 يەنە كۆرۈپ بېقىڭ</span>
@@ -1858,28 +1864,88 @@ function renderDetailExtras(book){
            ${categoryCta}
          </div>
          <div class="shop-grid detail-related-grid">${related.map(miniCard).join("")}</div>
-       </section>`
-    : `<section class="detail-extra-section detail-category-cta-only">
+       </section>`;
+  }
+  return `<section class="detail-extra-section detail-category-cta-only" data-detail-related="1">
          <div class="detail-section-heading">${categoryCta}</div>
        </section>`;
-
-  let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
-    ? `<section class="detail-extra-section">
-         <div class="detail-section-heading">
-           <div>
-             <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
-             <h2>يېقىندا كۆرگەنلىرىڭىز</h2>
-           </div>
-         </div>
-         <div class="shop-grid detail-related-grid">${recentBooks.map(miniCard).join("")}</div>
-       </section>`
-    : "";
-
-  wrap.innerHTML=relatedHtml+recentHtml;
-  if(wrap.innerHTML.trim()){
+}
+function paintDetailRelated(book,related){
+  if(!featureEnabled("recommendations"))return;
+  const main=document.querySelector(".book-detail-page");
+  if(!main)return;
+  let wrap=main.querySelector(".detail-extra-sections");
+  const html=detailRelatedMarkup(book,related||[]);
+  if(!wrap){
+    wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
     main.appendChild(wrap);
-    bindDynamicActions(wrap);
   }
+  const existing=wrap.querySelector("[data-detail-related]");
+  if(existing){
+    const tmp=document.createElement("div");
+    tmp.innerHTML=html;
+    const next=tmp.firstElementChild;
+    if(next)existing.replaceWith(next);
+    else existing.remove();
+  }else if(html)wrap.insertAdjacentHTML("afterbegin",html);
+  const painted=wrap.querySelector("[data-detail-related]");
+  if(painted)bindDynamicActions(painted);
+  if(!wrap.innerHTML.trim())wrap.remove();
+}
+function scheduleDetailRelated(book){
+  if(!featureEnabled("recommendations")||!book)return;
+  const known=detailRecommendations(book,DETAIL_RELATED_LIMIT);
+  paintDetailRelated(book,known);
+  if(!detailRelatedShouldQuery(book,known.length,detailRelatedFetch,true)){
+    if(known.length>=DETAIL_RELATED_LIMIT)detailRelatedFetch={key:detailRelatedIdentity(book),token:detailRelatedFetch.token,status:"ready"};
+    return;
+  }
+  const key=detailRelatedIdentity(book);
+  const token=++detailRelatedFetch.token;
+  detailRelatedFetch={key,token,status:"loading"};
+  Promise.resolve(queryCatalog(detailRelatedQueryInput(book))).then(()=>{
+    if(token!==detailRelatedFetch.token)return;
+    const live=getDetailBook();
+    if(live&&detailRelatedIdentity(live)!==key)return;
+    detailRelatedFetch={key,token,status:"ready"};
+    paintDetailRelated(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
+  }).catch(()=>{
+    if(token!==detailRelatedFetch.token)return;
+    detailRelatedFetch={key,token,status:"error"};
+    paintDetailRelated(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
+  });
+}
+function renderDetailExtras(book){
+  let main=document.querySelector(".book-detail-page");
+  if(!main)return;
+  if(!main.querySelector(".detail-extra-sections")){
+    let recentBooks=get(REC_KEY,[])
+      .filter(id=>canonicalId(id)!==canonicalId(book.id))
+      .map(find)
+      .filter(item=>item&&isStorefrontVisible(item))
+      .slice(0,4);
+    let wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
+    const relatedHtml=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
+    let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
+      ? `<section class="detail-extra-section">
+           <div class="detail-section-heading">
+             <div>
+               <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
+               <h2>يېقىندا كۆرگەنلىرىڭىز</h2>
+             </div>
+           </div>
+           <div class="shop-grid detail-related-grid">${recentBooks.map(miniCard).join("")}</div>
+         </section>`
+      : "";
+    wrap.innerHTML=relatedHtml+recentHtml;
+    if(wrap.innerHTML.trim()){
+      main.appendChild(wrap);
+      bindDynamicActions(wrap);
+    }
+  }
+  scheduleDetailRelated(book);
 }
 
 function decorateDetail(){
@@ -3621,5 +3687,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,detailRecommendations,storefrontCategoryHref,storefrontAppHref,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();
