@@ -1,6 +1,9 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
+const SUPABASE_HTTPS_ORIGIN = "https://fxlojnqwyojqjskfggmh.supabase.co";
+const CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
 const XSS_BOOK = {
   id: "900001",
   title: `<img src=x onerror="window.__xssRan=true">`,
@@ -18,6 +21,114 @@ async function assertNoHorizontalOverflow(page) {
   expect(overflow).toBe(false);
 }
 
+function normalizeCsp(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function assertReportOnlyCsp(value) {
+  const csp = normalizeCsp(value);
+  expect(csp).toBe(CSP_REPORT_ONLY);
+  expect(csp).toMatch(/default-src\s+'self'/);
+  expect(csp).toContain(SUPABASE_HTTPS_ORIGIN);
+  expect(csp).not.toMatch(/\*\.supabase\.co/);
+  expect(csp).not.toMatch(/wss:/i);
+  expect(csp).not.toMatch(/unsafe-eval/);
+  expect(csp).toMatch(/object-src\s+'none'/);
+  expect(csp).toMatch(/frame-ancestors\s+'none'/);
+  expect(csp).toMatch(/base-uri\s+'self'/);
+  expect(csp).toMatch(/form-action\s+'self'/);
+  expect(csp).not.toMatch(/report-uri|report-to/i);
+}
+
+function formatCspViolation(v) {
+  return [
+    `violatedDirective=${v.violatedDirective || ""}`,
+    `effectiveDirective=${v.effectiveDirective || ""}`,
+    `blockedURI=${v.blockedURI || ""}`,
+    `documentURI=${v.documentURI || ""}`
+  ].join(" | ");
+}
+
+function originOfBlockedUri(uri) {
+  const raw = String(uri || "").trim();
+  if (!raw || raw === "inline" || raw === "eval" || raw === "wasm-eval") return raw;
+  try {
+    return new URL(raw).origin;
+  } catch (err) {
+    return raw;
+  }
+}
+
+function isForeignHttpsImgSrcViolation(v, pageOrigin) {
+  const dir = String(v.effectiveDirective || v.violatedDirective || "").toLowerCase();
+  if (!dir.startsWith("img-src")) return false;
+  try {
+    const parsed = new URL(String(v.blockedURI || ""));
+    if (parsed.protocol !== "https:") return false;
+    if (parsed.origin === SUPABASE_HTTPS_ORIGIN) return false;
+    if (pageOrigin && parsed.origin === pageOrigin) return false;
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function installCspReportOnlyObserver(page) {
+  await page.addInitScript(() => {
+    const sink = [];
+    window.__cspReportOnlyViolations = sink;
+    document.addEventListener("securitypolicyviolation", (event) => {
+      if (String(event.disposition || "") !== "report") return;
+      sink.push({
+        violatedDirective: String(event.violatedDirective || ""),
+        blockedURI: String(event.blockedURI || ""),
+        effectiveDirective: String(event.effectiveDirective || ""),
+        documentURI: String(event.documentURI || ""),
+        originalPolicy: String(event.originalPolicy || ""),
+        sourceFile: String(event.sourceFile || ""),
+        sample: String(event.sample || "")
+      });
+    });
+  });
+}
+
+async function drainCspReportOnly(page) {
+  return page.evaluate(() => (
+    Array.isArray(window.__cspReportOnlyViolations)
+      ? window.__cspReportOnlyViolations.slice()
+      : []
+  ));
+}
+
+async function settleForCsp(page) {
+  await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+}
+
+async function scanForeignCoverImages(page) {
+  return page.evaluate((supabaseOrigin) => {
+    const out = [];
+    for (const img of document.querySelectorAll("img")) {
+      const src = String(img.currentSrc || img.getAttribute("src") || "").trim();
+      if (!src || src.startsWith("data:") || src.startsWith("blob:")) continue;
+      let origin = "";
+      try {
+        origin = new URL(src, location.href).origin;
+      } catch (err) {
+        continue;
+      }
+      if (!origin || origin === location.origin || origin === supabaseOrigin) continue;
+      out.push({
+        src,
+        origin,
+        documentURI: location.href,
+        bookHref: img.closest("a")?.getAttribute("href") || ""
+      });
+    }
+    return out;
+  }, SUPABASE_HTTPS_ORIGIN);
+}
+
 test.describe("security hardening 2a", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
@@ -26,12 +137,16 @@ test.describe("security hardening 2a", () => {
   test("security headers are present on HTML", async ({ request, baseURL }) => {
     const res = await request.get(new URL("/", baseURL).href);
     expect(res.status()).toBe(200);
-    expect(res.headers()["x-content-type-options"]).toBe("nosniff");
-    expect(res.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
-    expect(res.headers()["x-frame-options"].toLowerCase()).toBe("deny");
-    expect(res.headers()["content-security-policy"]).toMatch(/frame-ancestors\s+'none'/i);
-    expect(res.headers()["permissions-policy"]).toMatch(/camera=\(\)/);
-    expect(res.headers()["content-security-policy"] || "").not.toMatch(/script-src/);
+    const headers = res.headers();
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["x-frame-options"].toLowerCase()).toBe("deny");
+    expect(headers["permissions-policy"]).toBe("camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+    expect(headers["content-security-policy"]).toBe("frame-ancestors 'none'");
+    expect(headers["content-security-policy"] || "").not.toMatch(/script-src/);
+    expect(headers["strict-transport-security"]).toBeFalsy();
+    expect(headers["content-security-policy-report-only"]).toBeTruthy();
+    assertReportOnlyCsp(headers["content-security-policy-report-only"]);
   });
 
   test("stored XSS fixtures do not execute in mini, featured, or lightbox", async ({ page }) => {
@@ -117,6 +232,103 @@ test.describe("security hardening 2a", () => {
     await page.goto("/reset-password.html?type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#resetPasswordForm")).toBeVisible();
     await expect(page.locator("#newPassword")).toBeDisabled();
+  });
+
+  test("report-only CSP observations on representative Preview pages", async ({ page, baseURL }) => {
+    test.setTimeout(120_000);
+    await installCspReportOnlyObserver(page);
+
+    const observed = [];
+    const foreignCovers = [];
+    const consoleReports = [];
+    page.on("console", (msg) => {
+      const text = String(msg.text() || "");
+      if (/report only/i.test(text) && /refused/i.test(text)) consoleReports.push(text);
+    });
+
+    async function visit(path, after) {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      if (after) await after();
+      await settleForCsp(page);
+      const batch = await drainCspReportOnly(page);
+      for (const event of batch) {
+        observed.push(Object.assign({ navigatedPath: path }, event));
+      }
+      const covers = await scanForeignCoverImages(page);
+      for (const cover of covers) foreignCovers.push(Object.assign({ navigatedPath: path }, cover));
+    }
+
+    await visit("/", async () => {
+      await H.waitForShop(page);
+    });
+    expect(
+      await page.evaluate(() => Array.isArray(window.__cspReportOnlyViolations)),
+      "securitypolicyviolation observer should be installed before page scripts"
+    ).toBe(true);
+    await visit("/universal", async () => {
+      await H.waitForShop(page);
+    });
+
+    const book = await H.discoverLiveBook(page);
+    await visit(book.detailPath, async () => {
+      await H.waitForDetailTitle(page, book.title);
+    });
+    await visit("/cart.html", async () => {
+      await H.waitForShop(page);
+    });
+    await visit("/favorites.html", async () => {
+      await H.waitForShop(page);
+    });
+    await visit("/account.html", async () => {
+      await page.waitForFunction(() => typeof window.kutadguGoogleAccountRedirectTo === "function");
+      await expect(page.locator("#loginForm, #authPanel").first()).toBeVisible({ timeout: 30_000 });
+    });
+    await visit("/admin.html", async () => {
+      await expect(page.locator("#loginPanel")).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator("#dashboardPanel")).toBeHidden();
+    });
+
+    const pageOrigin = new URL(String(baseURL || page.url())).origin;
+    const coverReports = [];
+    const unexpected = [];
+    for (const event of observed) {
+      const line = formatCspViolation(event);
+      if (isForeignHttpsImgSrcViolation(event, pageOrigin)) {
+        coverReports.push(`${line} | origin=${originOfBlockedUri(event.blockedURI)}`);
+      } else {
+        unexpected.push(line);
+      }
+    }
+
+    if (observed.length) {
+      console.log(`[csp-report-only] ${observed.length} securitypolicyviolation event(s) (disposition=report):`);
+      for (const event of observed) console.log(`[csp-report-only] ${formatCspViolation(event)}`);
+    } else {
+      console.log("[csp-report-only] no securitypolicyviolation events (disposition=report)");
+    }
+
+    const blockedOrigins = [...new Set(observed.map((event) => originOfBlockedUri(event.blockedURI)).filter(Boolean))];
+    if (blockedOrigins.length) {
+      console.log(`[csp-report-only] blocked origins: ${blockedOrigins.join(", ")}`);
+    }
+
+    if (coverReports.length) {
+      console.log("[csp-report-only] live catalog cover hosts outside Policy A img-src (not broadening img-src):");
+      for (const line of coverReports) console.log(`[csp-report-only] ${line}`);
+    }
+    if (foreignCovers.length) {
+      const uniqueOrigins = [...new Set(foreignCovers.map((row) => row.origin))];
+      console.log(`[csp-report-only] foreign <img> origins on exercised pages: ${uniqueOrigins.join(", ")}`);
+      for (const row of foreignCovers) {
+        console.log(`[csp-report-only] foreign cover origin=${row.origin} page=${row.documentURI} href=${row.bookHref || "(none)"} src=${row.src}`);
+      }
+    }
+    if (consoleReports.length) {
+      console.log("[csp-report-only] browser console Report-Only refusals:");
+      for (const line of consoleReports) console.log(`[csp-report-only] ${line}`);
+    }
+
+    expect(unexpected, unexpected.join("\n")).toEqual([]);
   });
 
   for (const [width, height] of [[390, 844], [412, 915], [768, 1024], [1280, 800]]) {
