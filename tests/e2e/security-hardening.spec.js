@@ -105,7 +105,15 @@ async function drainCspReportOnly(page) {
 
 async function settleForCsp(page) {
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+  try {
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    if (!/Execution context was destroyed|Target closed/i.test(msg)) throw err;
+    await page.waitForLoadState("domcontentloaded", { timeout: 20_000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+  }
 }
 
 async function scanForeignCoverImages(page) {
