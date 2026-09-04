@@ -3,6 +3,7 @@
 const assert=require("assert");
 const fs=require("fs");
 const path=require("path");
+const vm=require("vm");
 const Safe=require("../kutadgu-safe-url.js");
 const P=require("../admin-catalog-productivity.js");
 
@@ -62,7 +63,7 @@ test("quick edit accepts https and relative covers",()=>{
 });
 
 const SUPABASE_HTTPS_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
-const CSP_REPORT_ONLY="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP_REPORT_ONLY="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 function assertUnchangedBrowserSecurityHeaders(map){
   assert.strictEqual(map["X-Content-Type-Options"],"nosniff");
@@ -84,6 +85,9 @@ function assertCspReportOnlyPolicy(value){
   assert.doesNotMatch(csp,/\*\.supabase\.co/);
   assert.doesNotMatch(csp,/wss:/i);
   assert.doesNotMatch(csp,/unsafe-eval/);
+  assert.match(csp,/script-src 'self' https:\/\/cdnjs\.cloudflare\.com/);
+  assert.doesNotMatch(csp,/script-src[^;]*unsafe-inline/);
+  assert.match(csp,/style-src 'self' 'unsafe-inline'/);
   assert.match(csp,/object-src\s+'none'/);
   assert.match(csp,/frame-ancestors\s+'none'/);
   assert.match(csp,/base-uri\s+'self'/);
@@ -142,6 +146,93 @@ test("shop templates escape mini/home/lightbox interpolation",()=>{
   assert.match(shop,/if\(!url\|\|!isSafeCoverUrl\(url\)\|\|isSampleDemoCover\(url\)\)return;/);
   assert.match(shop,/assignCoverImage\(picture,url\);/);
   assert.doesNotMatch(shop,/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2\//);
+});
+
+test("recovery-bounce.js is blocking on homepage and preserves OAuth vs recovery",()=>{
+  const index=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const bounce=fs.readFileSync(path.join(__dirname,"..","recovery-bounce.js"),"utf8");
+  assert.match(index,/<script src="recovery-bounce\.js\?v=1"><\/script>/);
+  assert.doesNotMatch(index,/<script src="recovery-bounce\.js\?v=1"\s+(defer|async)/);
+  const bounceIdx=index.indexOf('src="recovery-bounce.js?v=1"');
+  const deferIdx=index.indexOf('<script defer src="supabase-config.js');
+  assert.ok(bounceIdx>=0&&deferIdx>bounceIdx);
+  assert.match(bounce,/hp\.get\("provider_token"\)\)return/);
+  assert.match(bounce,/hp\.get\("access_token"\)&&type!=="recovery"\)return/);
+  assert.match(bounce,/if\(type!=="recovery"\)return/);
+  assert.match(bounce,/location\.replace\("reset-password\.html"\+q\+h\)/);
+  function runBounce(search,hash){
+    const location={search:search||"",hash:hash||"",replaced:"",replace(v){this.replaced=v}};
+    vm.runInNewContext(bounce,{location,URLSearchParams});
+    return location.replaced;
+  }
+  assert.strictEqual(runBounce("?type=recovery",""),"reset-password.html?type=recovery");
+  assert.strictEqual(runBounce("","#access_token=x&type=recovery"),"reset-password.html#access_token=x&type=recovery");
+  assert.strictEqual(runBounce("","#access_token=x&token_type=bearer"),"");
+  assert.strictEqual(runBounce("","#access_token=x&provider_token=p"),"");
+  assert.strictEqual(runBounce("?type=signup",""),"");
+  assert.strictEqual(runBounce("?type=email",""),"");
+  assert.strictEqual(runBounce("?code=oauth-test-code",""),"");
+});
+
+test("admin quality preview bootstrap is an external script",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"..","admin-quality-preview.html"),"utf8");
+  const js=fs.readFileSync(path.join(__dirname,"..","admin-quality-preview.js"),"utf8");
+  assert.match(html,/<script src="admin-quality-preview\.js\?v=1"><\/script>/);
+  assert.match(js,/window\.__kutadguSkipAdminAuth=true/);
+  assert.match(js,/window\.__kutadguAdminPreviewBooks=/);
+});
+
+test("cdnjs remains only for Admin XLSX",()=>{
+  const admin=fs.readFileSync(path.join(__dirname,"..","admin.js"),"utf8");
+  assert.match(admin,/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\/0\.18\.5\/xlsx\.full\.min\.js/);
+  assert.match(CSP_REPORT_ONLY,/https:\/\/cdnjs\.cloudflare\.com/);
+});
+
+test("app-owned HTML/JS has no executable inline script handlers or javascript: URLs",()=>{
+  const root=path.join(__dirname,"..");
+  const skip=new Set(["node_modules","vendor","tests","test-results","playwright-report",".git"]);
+  function walk(dir,out=[]){
+    for(const ent of fs.readdirSync(dir,{withFileTypes:true})){
+      if(skip.has(ent.name))continue;
+      const abs=path.join(dir,ent.name);
+      if(ent.isDirectory())walk(abs,out);
+      else if(/\.(html|js)$/.test(ent.name)&&!/-tests\.js$/.test(ent.name))out.push(abs);
+    }
+    return out;
+  }
+  const files=walk(root);
+  const eventAttr=/\s+on(?:click|error|load|submit|change|keyup|keydown|input|focus|blur)\s*=/i;
+  const javascriptUrl=/javascript\s*:/i;
+  const stringTimer=/\b(?:setTimeout|setInterval)\s*\(\s*['"`]/;
+  const evalLike=/\beval\s*\(|\bnew\s+Function\s*\(/;
+  const inlineScripts=[];
+  const eventHits=[];
+  const jsUrlHits=[];
+  const evalHits=[];
+  for(const file of files){
+    const rel=path.relative(root,file);
+    const text=fs.readFileSync(file,"utf8");
+    if(file.endsWith(".html")){
+      const re=/<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+      let m;
+      while((m=re.exec(text))){
+        const attrs=m[1]||"";
+        const body=(m[2]||"").trim();
+        if(/\bsrc\s*=/i.test(attrs)||!body)continue;
+        const typeMatch=attrs.match(/\btype\s*=\s*["']([^"']+)["']/i);
+        const type=typeMatch?String(typeMatch[1]).trim():"";
+        if(/^application\/ld\+json$/i.test(type))continue;
+        inlineScripts.push(`${rel}: ${body.slice(0,80)}`);
+      }
+    }
+    if(eventAttr.test(text))eventHits.push(rel);
+    if(javascriptUrl.test(text))jsUrlHits.push(rel);
+    if(evalLike.test(text)||stringTimer.test(text))evalHits.push(rel);
+  }
+  assert.deepStrictEqual(inlineScripts,[],"executable inline <script> remains");
+  assert.deepStrictEqual(eventHits,[],"HTML event attributes remain");
+  assert.deepStrictEqual(jsUrlHits,[],"javascript: URLs remain");
+  assert.deepStrictEqual(evalHits,[],"eval/new Function/string timers remain");
 });
 
 if(failed)process.exit(1);

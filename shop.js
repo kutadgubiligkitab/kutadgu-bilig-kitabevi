@@ -361,6 +361,44 @@ function getCoverRetryDebug(){
 window.kutadguMarkCoverUnavailable=markCoverUnavailable;
 window.kutadguHandleCoverError=handleCoverError;
 window.kutadguHandleCoverLoad=handleCoverLoad;
+function isDelegatedCoverImg(img){
+  return !!(img&&img.tagName==="IMG"&&img.getAttribute&&img.getAttribute("data-cover-src"));
+}
+function coverPropertyHandlerSet(img,type){
+  const handler=type==="error"?img.onerror:img.onload;
+  return typeof handler==="function";
+}
+function onDelegatedCoverEvent(type,event){
+  const img=event&&event.target;
+  if(!isDelegatedCoverImg(img))return;
+  if(coverPropertyHandlerSet(img,type))return;
+  if(type==="error")handleCoverError(img);
+  else handleCoverLoad(img);
+}
+function shouldUseHistoryBack(){
+  if(typeof history==="undefined"||history.length<=1)return false;
+  const ref=typeof document!=="undefined"?String(document.referrer||"").trim():"";
+  if(!ref)return false;
+  try{
+    return new URL(ref).origin===location.origin;
+  }catch(err){
+    return false;
+  }
+}
+function onHistoryBackClick(event){
+  const link=event.target&&event.target.closest&&event.target.closest("a[data-kutadgu-history-back]");
+  if(!link)return;
+  if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+  if(!shouldUseHistoryBack())return;
+  event.preventDefault();
+  history.back();
+}
+if(typeof document!=="undefined"&&document.documentElement&&document.documentElement.dataset.kutadguCspListeners!=="1"){
+  document.documentElement.dataset.kutadguCspListeners="1";
+  document.addEventListener("error",(event)=>onDelegatedCoverEvent("error",event),true);
+  document.addEventListener("load",(event)=>onDelegatedCoverEvent("load",event),true);
+  document.addEventListener("click",onHistoryBackClick);
+}
 function coverImgHtml(book,opts={}){
   const src=coverSrc(book);
   const alt=escapeAttr(`${book&&book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
@@ -369,7 +407,7 @@ function coverImgHtml(book,opts={}){
   const loading=opts.loading||"lazy";
   const prio=opts.fetchpriority?` fetchpriority="${escapeAttr(opts.fetchpriority)}"`:"";
   if(!src)return `<span class="book-cover-unavailable" aria-hidden="true"></span>`;
-  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${prio} onerror="window.kutadguHandleCoverError&&window.kutadguHandleCoverError(this)" onload="window.kutadguHandleCoverLoad&&window.kutadguHandleCoverLoad(this)">`;
+  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${prio}>`;
 }
 function listingCardSkeletonMarkup(){
   return `<article class="book-card is-skeleton" aria-hidden="true">
@@ -1147,7 +1185,13 @@ function injectFloat(){
   if(!document.querySelector(".shop-floating")){
     let d=document.createElement("div");
     d.className="shop-floating";
-    d.innerHTML=`<button class="shop-float-btn" onclick="location.href='cart.html'">🛒 سېۋەت <span class="cart-count">0</span></button><button class="shop-float-btn" onclick="location.href='favorites.html'">❤️ ياقتۇرغانلىرىم</button>`;
+    d.innerHTML=`<button type="button" class="shop-float-btn" data-kutadgu-nav="cart.html">🛒 سېۋەت <span class="cart-count">0</span></button><button type="button" class="shop-float-btn" data-kutadgu-nav="favorites.html">❤️ ياقتۇرغانلىرىم</button>`;
+    d.querySelectorAll("[data-kutadgu-nav]").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        const href=String(btn.getAttribute("data-kutadgu-nav")||"").trim();
+        if(href)location.href=href;
+      });
+    });
     document.body.appendChild(d);
   }
   ensureDesktopShopNav();
@@ -1548,7 +1592,7 @@ function renderBookGallery(book){
   strip.innerHTML=slides.map((src,index)=>{
     if(!isSafeCoverUrl(src)||isSampleDemoCover(src))return "";
     return `<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
-      <img src="${escapeAttr(src)}" alt="" data-cover-src="${escapeAttr(src)}" ${index===0?"":'loading="lazy"'} decoding="async" onerror="window.kutadguHandleCoverError&&window.kutadguHandleCoverError(this)" onload="window.kutadguHandleCoverLoad&&window.kutadguHandleCoverLoad(this)">
+      <img src="${escapeAttr(src)}" alt="" data-cover-src="${escapeAttr(src)}" ${index===0?"":'loading="lazy"'} decoding="async">
     </button>`;
   }).filter(Boolean).join("");
   col.appendChild(strip);

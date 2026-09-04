@@ -1168,7 +1168,7 @@ function renderBooks(){
       <label class="admin-book-check-wrap">
         <input class="admin-book-check" type="checkbox" data-select="${esc(b.id)}" ${selectedIds.has(String(b.id))||selectedIds.has(b.id)?"checked":""} aria-label="تاللاش: ${esc(b.title||b.id)}">
       </label>
-      ${Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}" onerror="this.style.visibility='hidden'">`:"<div>📕</div>"}
+      ${Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?`<img src="${esc(b.image_url)}" alt="${esc(b.title)}">`:"<div>📕</div>"}
       <div>
         <div class="admin-book-title">${esc(b.title)}</div>
         ${statusBadgesHtml(b)}
@@ -1189,6 +1189,11 @@ function renderBooks(){
   host.querySelectorAll("[data-quick-edit]").forEach(btn=>btn.onclick=()=>openQuickEdit(btn.dataset.quickEdit,btn));
   host.querySelectorAll("[data-hide]").forEach(btn=>btn.onclick=()=>toggleActive(btn.dataset.hide));
   host.querySelectorAll("[data-delete]").forEach(btn=>btn.onclick=()=>deleteBook(btn.dataset.delete));
+  host.querySelectorAll(".admin-book-row > img").forEach(img=>{
+    const hide=()=>{img.style.visibility="hidden"};
+    img.addEventListener("error",hide);
+    if(img.complete&&!img.naturalWidth)hide();
+  });
   host.querySelectorAll("[data-select]").forEach(box=>box.onchange=()=>{
     if(box.checked)selectedIds.add(String(box.dataset.select));else selectedIds.delete(String(box.dataset.select));
     renderSelection();

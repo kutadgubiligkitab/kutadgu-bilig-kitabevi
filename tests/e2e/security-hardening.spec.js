@@ -2,7 +2,7 @@ const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
 const SUPABASE_HTTPS_ORIGIN = "https://fxlojnqwyojqjskfggmh.supabase.co";
-const CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 const XSS_BOOK = {
   id: "900001",
@@ -33,6 +33,9 @@ function assertReportOnlyCsp(value) {
   expect(csp).not.toMatch(/\*\.supabase\.co/);
   expect(csp).not.toMatch(/wss:/i);
   expect(csp).not.toMatch(/unsafe-eval/);
+  expect(csp).toMatch(/script-src 'self' https:\/\/cdnjs\.cloudflare\.com/);
+  expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+  expect(csp).toMatch(/style-src 'self' 'unsafe-inline'/);
   expect(csp).toMatch(/object-src\s+'none'/);
   expect(csp).toMatch(/frame-ancestors\s+'none'/);
   expect(csp).toMatch(/base-uri\s+'self'/);
@@ -235,7 +238,7 @@ test.describe("security hardening 2a", () => {
   });
 
   test("report-only CSP observations on representative Preview pages", async ({ page, baseURL }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await installCspReportOnlyObserver(page);
 
     const observed = [];
@@ -288,11 +291,53 @@ test.describe("security hardening 2a", () => {
       await expect(page.locator("#dashboardPanel")).toBeHidden();
     });
 
+    await visit("/reset-password.html?type=recovery", async () => {
+      await expect(page.locator("#resetPasswordForm")).toBeVisible();
+      await expect(page.locator("#newPassword")).toBeDisabled();
+    });
+
+    await visit("/", async () => {
+      await H.waitForShop(page);
+      await page.evaluate(() => {
+        const img = document.createElement("img");
+        img.setAttribute("data-cover-src", "/missing-csp-cover-probe.png");
+        img.setAttribute("alt", "");
+        img.src = "/missing-csp-cover-probe.png";
+        document.body.appendChild(img);
+      });
+      await page.waitForTimeout(1200);
+      await page.evaluate(() => {
+        document.querySelector('[data-kutadgu-nav="favorites.html"]')?.click();
+      });
+    });
+    if (/favorites\.html/.test(page.url())) {
+      await settleForCsp(page);
+      const batch = await drainCspReportOnly(page);
+      for (const event of batch) observed.push(Object.assign({ navigatedPath: "/favorites.html#float" }, event));
+    }
+
+    await page.goto("/universal", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await visit("/cart.html", async () => {
+      await H.waitForShop(page);
+      const back = page.locator("a[data-kutadgu-history-back]");
+      await expect(back).toHaveAttribute("href", "/");
+      await back.click();
+    });
+    await settleForCsp(page);
+
+    await visit("/admin-quality-preview.html", async () => {
+      await page.locator("#adminBookList, #dashboardPanel").first().waitFor({ timeout: 20_000 }).catch(() => {});
+    });
+
     const pageOrigin = new URL(String(baseURL || page.url())).origin;
     const coverReports = [];
     const unexpected = [];
+    const scriptSrcViolations = [];
     for (const event of observed) {
       const line = formatCspViolation(event);
+      const dir = String(event.effectiveDirective || event.violatedDirective || "").toLowerCase();
+      if (dir.startsWith("script-src")) scriptSrcViolations.push(line);
       if (isForeignHttpsImgSrcViolation(event, pageOrigin)) {
         coverReports.push(`${line} | origin=${originOfBlockedUri(event.blockedURI)}`);
       } else {
@@ -328,6 +373,7 @@ test.describe("security hardening 2a", () => {
       for (const line of consoleReports) console.log(`[csp-report-only] ${line}`);
     }
 
+    expect(scriptSrcViolations, scriptSrcViolations.join("\n")).toEqual([]);
     expect(unexpected, unexpected.join("\n")).toEqual([]);
   });
 

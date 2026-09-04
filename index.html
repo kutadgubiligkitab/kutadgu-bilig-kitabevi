@@ -35,24 +35,12 @@
 <link rel="stylesheet" href="shop.css?v=49">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 <link rel="stylesheet" href="mobile.css?v=22">
-<script>
-(function(){
-  var q=location.search||"";
-  var h=location.hash||"";
-  var hp=new URLSearchParams(String(h||"").replace(/^#/,""));
-  if(hp.get("provider_token"))return;
-  var type=String(new URLSearchParams(q).get("type")||hp.get("type")||"").toLowerCase();
-  if(type==="signup"||type==="email")return;
-  if(hp.get("access_token")&&type!=="recovery")return;
-  if(type!=="recovery")return;
-  location.replace("reset-password.html"+q+h);
-})();
-</script>
+<script src="recovery-bounce.js?v=1"></script>
 <script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=14"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=91"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=2"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="shop.js?v=92"></script>
 <script defer src="mobile.js?v=5"></script>
 </head>
 

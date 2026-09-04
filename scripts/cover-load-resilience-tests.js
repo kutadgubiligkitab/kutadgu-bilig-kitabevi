@@ -64,10 +64,13 @@ test("in-flight retry slots release exactly once even after reassignment", () =>
 
 test("coverImgHtml retries instead of immediately replacing the img", () => {
   const html = sliceBetween(shop, "function coverImgHtml(book,opts={}){", "function listingCardSkeletonMarkup()");
-  assert.match(html, /kutadguHandleCoverError/);
   assert.match(html, /data-cover-src=/);
+  assert.doesNotMatch(html, /\sonerror=/);
+  assert.doesNotMatch(html, /\sonload=/);
   assert.doesNotMatch(html, /kutadguMarkCoverUnavailable&&window\.kutadguMarkCoverUnavailable\(this\)/);
   assert.doesNotMatch(html, /this\.src='\$\{FALLBACK_COVER\}'/);
+  assert.match(shop, /kutadguHandleCoverError/);
+  assert.match(shop, /function onDelegatedCoverEvent\(type,event\)/);
 });
 
 test("missing unsafe and sample covers are not retryable", () => {
