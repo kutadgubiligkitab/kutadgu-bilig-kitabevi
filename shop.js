@@ -593,7 +593,7 @@ function cartHasUsableDisplayPreview(){
   const items=cart();
   if(!items.length)return false;
   const store=readCartDisplayStore();
-  return items.some(item=>{
+  return items.every(item=>{
     const snap=store.items[String(item.id)];
     return !!(snap&&snap.title&&snap.title!==String(item.id));
   });
@@ -2550,9 +2550,9 @@ function cartPage(){
         <div class="cart-item-toolbar">
           <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
           <div class="qty-control">
-            <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${!visible?" disabled":""}>−</button>
+            <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${preview||!visible?" disabled aria-disabled=\"true\"":""}>−</button>
             <span class="cart-qty-value">${x.qty}</span>
-            <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
+            <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${preview||!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
           </div>
           <div class="cart-line-price"><small>جەمئىي</small><strong>${visible?money((x.b.price||0)*x.qty):"—"}</strong></div>
           <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
@@ -2601,21 +2601,16 @@ function cartPage(){
 }
 
 function changeQty(id,d){
+  if(cartHydrationPending())return;
   let a=cart();
   const aliases=aliasMap();
   let x=a.find(i=>Legacy.sameBookIdentity?Legacy.sameBookIdentity(i.id,id,resolveStoredBookId,aliases):canonicalId(i.id)===canonicalId(id));
   if(!x)return;
   const book=find(id);
-  if(book){
-    if(!isStorefrontVisible(book))return;
-    const stock=stockInfo(book);
-    x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
-    if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
-  }else if(cartHydrationPending()){
-    x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
-  }else{
-    if(!isStorefrontVisible(book))return;
-  }
+  if(!isStorefrontVisible(book))return;
+  const stock=stockInfo(book);
+  x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
+  if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
   set(CART_KEY,a);
   cartPage();
   updateBadge();

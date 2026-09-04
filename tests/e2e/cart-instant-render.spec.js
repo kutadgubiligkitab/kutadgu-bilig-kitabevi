@@ -107,6 +107,9 @@ test.describe("cart instant display snapshot", () => {
     await expect(page.locator("#cartItems .cart-item.is-skeleton")).toHaveCount(0);
     await expect(page.locator("#cartItems")).not.toContainText(/سېۋەت ھازىرچە بوش/);
     await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "pending");
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await expect(page.locator("#cartItems [data-minus]")).toBeDisabled();
+    await expect(page.locator("#cartItems [data-remove]")).toBeEnabled();
     await expect(page.locator("#checkoutCard")).toBeHidden();
     await expect.poll(async () => page.evaluate(() => window.kutadguShop && window.kutadguShop.cartHydrationPending && window.kutadguShop.cartHydrationPending())).toBe(true);
     await expect(page.locator("#cartItems .cart-title")).toHaveText(LIVE_TITLE, { timeout: 20_000 });
@@ -202,5 +205,107 @@ test.describe("cart instant display snapshot", () => {
     expect(injected.titleHtml).not.toMatch(/<script/i);
     expect(injected.titleText).toContain("<img");
     expect(injected.imgs.every((src) => !/javascript:/i.test(src))).toBeTruthy();
+  });
+
+  test("G partial snapshot keeps skeleton and does not invent a raw-id row", async ({ page }) => {
+    test.setTimeout(45_000);
+    const secondId = "91002";
+    const secondTitle = "ئىككىنچى رەسمىي كىتاب";
+    await page.addInitScript(({ cart, display }) => {
+      try {
+        localStorage.setItem("kutadgu-cart-v1", cart);
+        localStorage.setItem("kutadgu-cart-display-v1", display);
+        localStorage.setItem("kutadgu-shop-owner-v1", "guest");
+      } catch (e) {}
+    }, {
+      cart: JSON.stringify([{ id: BOOK_ID, qty: 1 }, { id: secondId, qty: 1 }]),
+      display: displayStore({
+        [BOOK_ID]: {
+          id: BOOK_ID,
+          title: PREVIEW_TITLE,
+          author: "ئالدىن كۆرۈش ئاپتور",
+          price: PREVIEW_PRICE,
+          image: "/kutadgu-logo.png",
+          stock: 8,
+          stockStatus: "in_stock"
+        }
+      })
+    });
+    await mockBooks(page, {
+      delayMs: 1800,
+      books: [
+        bookRow(),
+        bookRow({ id: Number(secondId), title: secondTitle, price: 44, stock: 4 })
+      ]
+    });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#cartItems .cart-item.is-skeleton")).toHaveCount(2, { timeout: 4000 });
+    await expect(page.locator("#cartItems .cart-title")).toHaveCount(0);
+    await expect(page.locator("#cartItems")).not.toContainText(PREVIEW_TITLE);
+    await expect(page.locator("#cartItems")).not.toContainText(secondId);
+    await expect(page.locator("#cartItems")).not.toContainText(/سېۋەت ھازىرچە بوش/);
+    await expect(page.locator("#cartItems .cart-title")).toHaveCount(2, { timeout: 20_000 });
+    await expect(page.locator("#cartItems .cart-title", { hasText: LIVE_TITLE })).toHaveCount(1);
+    await expect(page.locator("#cartItems .cart-title", { hasText: secondTitle })).toHaveCount(1);
+    const snap = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-cart-display-v1") || "{}"));
+    expect(snap.items?.[BOOK_ID]?.title).toBe(LIVE_TITLE);
+    expect(snap.items?.[secondId]?.title).toBe(secondTitle);
+  });
+
+  test("H pending preview disables qty controls and ignores stale snapshot stock", async ({ page }) => {
+    test.setTimeout(45_000);
+    await page.addInitScript(({ cart, display }) => {
+      try {
+        localStorage.setItem("kutadgu-cart-v1", cart);
+        localStorage.setItem("kutadgu-cart-display-v1", display);
+        localStorage.setItem("kutadgu-shop-owner-v1", "guest");
+      } catch (e) {}
+    }, {
+      cart: JSON.stringify([{ id: BOOK_ID, qty: 1 }]),
+      display: displayStore({
+        [BOOK_ID]: {
+          id: BOOK_ID,
+          title: PREVIEW_TITLE,
+          author: "ئالدىن كۆرۈش ئاپتور",
+          price: PREVIEW_PRICE,
+          image: "/kutadgu-logo.png",
+          stock: 8,
+          stockStatus: "in_stock"
+        }
+      })
+    });
+    await mockBooks(page, { delayMs: 1800, books: [bookRow({ stock: 1, stock_status: "in_stock" })] });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#cartItems .cart-title")).toHaveText(PREVIEW_TITLE, { timeout: 4000 });
+    await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "pending");
+    const plus = page.locator("#cartItems [data-plus]");
+    const minus = page.locator("#cartItems [data-minus]");
+    await expect(plus).toBeDisabled();
+    await expect(minus).toBeDisabled();
+    await expect(plus).toHaveAttribute("aria-disabled", "true");
+    await expect(minus).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("#cartItems [data-remove]")).toBeEnabled();
+    await plus.click({ force: true });
+    await minus.click({ force: true });
+    await page.evaluate(() => {
+      const plusBtn = document.querySelector("#cartItems [data-plus]");
+      const minusBtn = document.querySelector("#cartItems [data-minus]");
+      if (plusBtn) {
+        plusBtn.disabled = false;
+        plusBtn.removeAttribute("aria-disabled");
+        plusBtn.click();
+      }
+      if (minusBtn) {
+        minusBtn.disabled = false;
+        minusBtn.removeAttribute("aria-disabled");
+        minusBtn.click();
+      }
+    });
+    expect(Number((await H.readCart(page))[0]?.qty)).toBe(1);
+    await expect(page.locator("#cartItems .cart-title")).toHaveText(LIVE_TITLE, { timeout: 20_000 });
+    await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "ready");
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await expect(page.locator("#cartItems [data-plus]")).toHaveAttribute("aria-disabled", "true");
+    expect(Number((await H.readCart(page))[0]?.qty)).toBe(1);
   });
 });

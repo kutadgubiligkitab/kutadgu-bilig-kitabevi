@@ -57,11 +57,16 @@ test("instant first paint uses snapshots before catalog settle; skeleton remains
   const paint = sliceBetween(shop, "function paintCartBootState(){", "function homepageVisibleBooks(");
   assert.match(paint, /cartHasUsableDisplayPreview\(\)/);
   assert.match(paint, /showCartBootSkeleton/);
+  const preview = sliceBetween(shop, "function cartHasUsableDisplayPreview(){", "function cartItemSkeletonMarkup(){");
+  assert.match(preview, /items\.every\(/);
+  assert.doesNotMatch(preview, /items\.some\(/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");
   assert.match(page, /cartHydrationPending\(\)/);
   assert.match(page, /data-cart-hydration/);
   assert.match(page, /aside\.hidden=preview/);
   assert.match(page, /escapeHtml\(x\.b\.title\)/);
+  assert.match(page, /preview\|\|!visible/);
+  assert.match(page, /disabled aria-disabled=\\"true\\"/);
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
   assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("await loadRemoteCatalog()"));
   assert.ok(boot.lastIndexOf("hydrateBooksByIds") < boot.indexOf("markCatalogBootSettled()"));
@@ -134,6 +139,13 @@ test("cart rows keep existing quantity and remove controls", () => {
   assert.match(page, /data-minus=/);
   assert.match(page, /data-remove=/);
   assert.match(page, /coverImgHtml\(x\.b/);
+});
+
+test("changeQty refuses quantity mutation while cart hydration is pending", () => {
+  const qty = sliceBetween(shop, "function changeQty(id,d){", "function customerData(){");
+  assert.match(qty, /if\(cartHydrationPending\(\)\)return;/);
+  assert.doesNotMatch(qty, /else if\(cartHydrationPending\(\)\)/);
+  assert.ok(qty.indexOf("if(cartHydrationPending())return;") < qty.indexOf("set(CART_KEY,a)"));
 });
 
 if (failed) {
