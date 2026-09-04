@@ -48,8 +48,8 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     assert.doesNotMatch(grid, /رومان كىتابى|كىتابى 2|ئاپتور ئىسمى/, file);
     assert.match(html, /rel="canonical"/, file);
     assert.match(html, /CollectionPage/, file);
-    assert.match(html, /shop\.js\?v=89/, file);
-    assert.match(html, /shop\.css\?v=48/, file);
+    assert.match(html, /shop\.js\?v=91/, file);
+    assert.match(html, /shop\.css\?v=49/, file);
   }
 });
 
@@ -90,9 +90,9 @@ test("production listing covers never use sample-book-cover.png", () => {
   assert.match(shop, /function coverImgHtml\(book/);
   assert.match(shop, /book-cover-unavailable/);
   assert.match(shop, /window\.kutadguMarkCoverUnavailable/);
-  const card = sliceBetween(shop, "function bookCardMarkup(b,variant=\"listing\"){", "function searchResultCard(b)");
+  const card = sliceBetween(shop, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b)");
   assert.doesNotMatch(card, /this\.src='\$\{FALLBACK_COVER\}'/);
-  assert.match(card, /coverImgHtml\(b\)/);
+  assert.match(card, /coverImgHtml\(b,coverOpts\)/);
   const listingApply = sliceBetween(shop, "function setupCatalogFilters(){", "function myBooksData()");
   assert.match(listingApply, /listingBootSkeletonMarkup\(6\)/);
   assert.match(listingApply, /data-catalog-ready/);

@@ -164,23 +164,212 @@ function coverSrc(book){
 function isSampleDemoCover(src){
   return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src||"").trim());
 }
+const COVER_RETRY_MAX=2;
+const COVER_RETRY_DELAYS=[300,900];
+const COVER_RETRY_CONCURRENCY=3;
+const coverRetryStates=new WeakMap();
+let coverRetryQueue=[];
+let coverRetryInFlight=0;
+let coverRetryGenerationSeq=0;
+function isRetryableCoverUrl(src){
+  const t=String(src||"").trim();
+  if(!t||isSampleDemoCover(t)||!isSafeCoverUrl(t))return false;
+  return true;
+}
+function coverRetryState(img){
+  let state=coverRetryStates.get(img);
+  if(!state){
+    state={generation:0,failures:0,timer:0,queued:false,src:"",release:null,replaying:false};
+    coverRetryStates.set(img,state);
+  }
+  return state;
+}
+function approvedCoverSrc(img){
+  return String(img&&(img.getAttribute("data-cover-src")||img.getAttribute("src"))||"").trim();
+}
+function isCoverJobCurrent(img,generation,src){
+  if(!img||!img.isConnected)return false;
+  const state=coverRetryStates.get(img);
+  if(!state)return false;
+  if(state.generation!==generation)return false;
+  if(src&&state.src!==src)return false;
+  if(src&&approvedCoverSrc(img)!==src)return false;
+  return true;
+}
+function releaseCoverRetrySlot(state){
+  if(!state||typeof state.release!=="function")return;
+  const fn=state.release;
+  state.release=null;
+  fn();
+}
+function beginCoverAssignment(img,src){
+  const prev=img?coverRetryStates.get(img):null;
+  if(prev){
+    if(prev.timer){clearTimeout(prev.timer);prev.timer=0}
+    prev.queued=false;
+    prev.replaying=false;
+    releaseCoverRetrySlot(prev);
+  }
+  if(img){
+    img.onload=null;
+    img.onerror=null;
+  }
+  const state={generation:++coverRetryGenerationSeq,failures:0,timer:0,queued:false,src:String(src||""),release:null,replaying:false};
+  if(img){
+    coverRetryStates.set(img,state);
+    if(img.classList)img.classList.remove("is-cover-retrying");
+    if(img.removeAttribute)img.removeAttribute("aria-busy");
+  }
+  return state;
+}
+function clearCoverRetry(img){
+  const state=img?coverRetryStates.get(img):null;
+  if(!state)return;
+  if(state.timer){clearTimeout(state.timer);state.timer=0}
+  state.queued=false;
+  state.replaying=false;
+  releaseCoverRetrySlot(state);
+  if(img&&img.classList)img.classList.remove("is-cover-retrying");
+  if(img&&img.removeAttribute)img.removeAttribute("aria-busy");
+}
 function markCoverUnavailable(img){
   if(!img||!img.parentNode)return;
+  beginCoverAssignment(img,"");
+  img.onload=null;
   img.onerror=null;
   const span=document.createElement("span");
   span.className="book-cover-unavailable";
   span.setAttribute("aria-hidden","true");
   img.replaceWith(span);
 }
+function handleCoverLoad(img){
+  if(!img)return;
+  const state=coverRetryStates.get(img);
+  if(state&&state.replaying)return;
+  clearCoverRetry(img);
+}
+function handleCoverError(img){
+  if(!img)return;
+  if(COVER_LAYOUT_TEST_MODE){
+    img.onerror=null;
+    img.src=FALLBACK_COVER;
+    return;
+  }
+  const state=coverRetryStates.get(img);
+  if(state&&state.replaying)return;
+  const src=state&&state.src?state.src:approvedCoverSrc(img);
+  if(!isRetryableCoverUrl(src)){
+    markCoverUnavailable(img);
+    return;
+  }
+  if(!state){
+    beginCoverAssignment(img,src);
+  }
+  const current=coverRetryState(img);
+  if(current.src!==src)return;
+  if(current.timer||current.queued)return;
+  current.failures=(current.failures||0)+1;
+  if(current.failures>COVER_RETRY_MAX){
+    markCoverUnavailable(img);
+    return;
+  }
+  img.classList.add("is-cover-retrying");
+  img.setAttribute("aria-busy","true");
+  const generation=current.generation;
+  const delay=COVER_RETRY_DELAYS[Math.min(current.failures-1,COVER_RETRY_DELAYS.length-1)];
+  current.timer=setTimeout(()=>{
+    current.timer=0;
+    if(!isCoverJobCurrent(img,generation,src))return;
+    enqueueCoverRetry(img,generation,src);
+  },delay);
+}
+function enqueueCoverRetry(img,generation,src){
+  const state=coverRetryStates.get(img);
+  if(!state||state.generation!==generation||state.src!==src)return;
+  if(state.queued)return;
+  state.queued=true;
+  coverRetryQueue.push({img,generation,src});
+  pumpCoverRetryQueue();
+}
+function pumpCoverRetryQueue(){
+  while(coverRetryInFlight<COVER_RETRY_CONCURRENCY&&coverRetryQueue.length){
+    const job=coverRetryQueue.shift();
+    if(!job)continue;
+    const state=job.img?coverRetryStates.get(job.img):null;
+    if(state&&state.generation===job.generation)state.queued=false;
+    if(!isCoverJobCurrent(job.img,job.generation,job.src))continue;
+    replayApprovedCover(job);
+  }
+}
+function replayApprovedCover(job){
+  const img=job&&job.img;
+  const generation=job&&job.generation;
+  const src=job&&job.src;
+  if(!isCoverJobCurrent(img,generation,src)||!isRetryableCoverUrl(src)){
+    if(img&&img.isConnected&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
+    return;
+  }
+  const state=coverRetryState(img);
+  let released=false;
+  const release=()=>{
+    if(released)return;
+    released=true;
+    if(state.release===release)state.release=null;
+    coverRetryInFlight=Math.max(0,coverRetryInFlight-1);
+    pumpCoverRetryQueue();
+  };
+  state.release=release;
+  coverRetryInFlight++;
+  img.onload=function(){
+    release();
+    if(!isCoverJobCurrent(img,generation,src))return;
+    handleCoverLoad(img);
+  };
+  img.onerror=function(){
+    release();
+    if(!isCoverJobCurrent(img,generation,src))return;
+    handleCoverError(img);
+  };
+  state.replaying=true;
+  img.removeAttribute("src");
+  try{void img.offsetWidth}catch(e){}
+  img.src=src;
+  state.replaying=false;
+}
+function assignCoverImage(img,src,opts={}){
+  if(!img)return;
+  const approved=isRetryableCoverUrl(src)?src:"";
+  const state=beginCoverAssignment(img,approved);
+  if(!approved){
+    if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}
+    markCoverUnavailable(img);
+    return;
+  }
+  img.setAttribute("data-cover-src",approved);
+  const generation=state.generation;
+  img.onload=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverLoad(img)};
+  img.onerror=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverError(img)};
+  if(opts.loading)img.loading=opts.loading;
+  if(opts.fetchpriority)img.setAttribute("fetchpriority",opts.fetchpriority);
+  state.replaying=true;
+  img.src=approved;
+  state.replaying=false;
+}
+function getCoverRetryDebug(){
+  return {inFlight:coverRetryInFlight,queued:coverRetryQueue.length};
+}
 window.kutadguMarkCoverUnavailable=markCoverUnavailable;
+window.kutadguHandleCoverError=handleCoverError;
+window.kutadguHandleCoverLoad=handleCoverLoad;
 function coverImgHtml(book,opts={}){
   const src=coverSrc(book);
   const alt=escapeAttr(`${book&&book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
   const width=opts.width||320;
   const height=opts.height||460;
   const loading=opts.loading||"lazy";
+  const prio=opts.fetchpriority?` fetchpriority="${escapeAttr(opts.fetchpriority)}"`:"";
   if(!src)return `<span class="book-cover-unavailable" aria-hidden="true"></span>`;
-  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" onerror="this.onerror=null;window.kutadguMarkCoverUnavailable&&window.kutadguMarkCoverUnavailable(this)">`;
+  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${prio} onerror="window.kutadguHandleCoverError&&window.kutadguHandleCoverError(this)" onload="window.kutadguHandleCoverLoad&&window.kutadguHandleCoverLoad(this)">`;
 }
 function listingCardSkeletonMarkup(){
   return `<article class="book-card is-skeleton" aria-hidden="true">
@@ -1020,7 +1209,7 @@ function syncStaticCards(){
       const src=coverSrc(book);
       img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;
       if(!src)markCoverUnavailable(img);
-      else img.src=src;
+      else assignCoverImage(img,src);
     }
     const detail=card.querySelector(".detail-button,.book-button");if(detail&&book.href)detail.href=book.href;
     const title=card.querySelector(".book-title");if(title)title.textContent=book.title||"كىتاب";
@@ -1045,19 +1234,18 @@ function applyStaticCoverFallbacks(scope=document){
       cover.querySelectorAll(".dynamic-cover-placeholder,.cover-placeholder").forEach(el=>el.remove());
       cover.prepend(img);
     }
-    img.onerror=function(){
-      this.onerror=null;
-      if(COVER_LAYOUT_TEST_MODE){this.src=FALLBACK_COVER;return}
-      markCoverUnavailable(this);
-    };
+    img.onerror=function(){handleCoverError(this)};
+    img.onload=function(){handleCoverLoad(this)};
     img.loading="lazy";
     img.decoding="async";
     if(!img.getAttribute("width"))img.setAttribute("width","320");
     if(!img.getAttribute("height"))img.setAttribute("height","460");
     const src=(img.getAttribute("src")||"").trim();
     if(COVER_LAYOUT_TEST_MODE&&(!src||src==="#"))img.src=coverSrc(null);
-    else if(!src||src==="#"||isSampleDemoCover(src)){
+    else if(!src||src==="#"||isSampleDemoCover(src)||!isRetryableCoverUrl(src)){
       markCoverUnavailable(img);
+    }else{
+      img.setAttribute("data-cover-src",src);
     }
   });
 }
@@ -1077,17 +1265,14 @@ function applyDetailCoverFallback(){
   img.hidden=false;
   img.style.visibility="visible";
   box.classList.remove("no-cover");
-  img.onerror=function(){
-    this.onerror=null;
-    if(COVER_LAYOUT_TEST_MODE){this.src=FALLBACK_COVER;return}
-    markCoverUnavailable(this);
-  };
   if(COVER_LAYOUT_TEST_MODE){img.src=coverSrc(book);return}
   const src=coverSrc(book);
   if(!src||isSampleDemoCover(current)||!current||current==="#"){
     if(!src){markCoverUnavailable(img);return}
-    img.src=src;
+    assignCoverImage(img,src,{loading:"eager",fetchpriority:"high"});
+    return;
   }
+  assignCoverImage(img,src,{loading:"eager"});
 }
 function decorateCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
@@ -1204,10 +1389,9 @@ function populateDynamicBookPage(b){
     img.alt=`${b.title} كىتاب مۇقاۋىسى`;
     img.hidden=false;
     img.parentElement.classList.remove("no-cover");
-    img.onerror=()=>{img.onerror=null;if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}markCoverUnavailable(img)};
     const src=coverSrc(b);
     if(!src)markCoverUnavailable(img);
-    else img.src=src;
+    else assignCoverImage(img,src,{loading:"eager",fetchpriority:"high"});
   }
 
   const info=document.querySelector(".book-detail-info");
@@ -1267,7 +1451,7 @@ function setDetailHeroImage(src,alt){
   img.hidden=false;
   img.style.visibility="visible";
   if(!safe){if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}markCoverUnavailable(img);return}
-  img.src=safe;
+  assignCoverImage(img,safe);
 }
 
 function openCoverLightbox(slides,startIndex,alt){
@@ -1310,7 +1494,7 @@ function openCoverLightbox(slides,startIndex,alt){
   const show=()=>{
     const url=list[index];
     if(!url||!isSafeCoverUrl(url)||isSampleDemoCover(url))return;
-    picture.src=url;
+    assignCoverImage(picture,url);
     if(count)count.textContent=`${index+1} / ${list.length}`;
   };
   show();
@@ -1364,7 +1548,7 @@ function renderBookGallery(book){
   strip.innerHTML=slides.map((src,index)=>{
     if(!isSafeCoverUrl(src)||isSampleDemoCover(src))return "";
     return `<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
-      <img src="${escapeAttr(src)}" alt="" ${index===0?"":'loading="lazy"'} decoding="async">
+      <img src="${escapeAttr(src)}" alt="" data-cover-src="${escapeAttr(src)}" ${index===0?"":'loading="lazy"'} decoding="async" onerror="window.kutadguHandleCoverError&&window.kutadguHandleCoverError(this)" onload="window.kutadguHandleCoverLoad&&window.kutadguHandleCoverLoad(this)">
     </button>`;
   }).filter(Boolean).join("");
   col.appendChild(strip);
@@ -1734,7 +1918,7 @@ function bindDynamicActions(scope){
   scope.querySelectorAll("[data-share-id]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();let book=find(b.dataset.shareId);if(book)shareBook(book)});
   renderFavButtons();
 }
-function bookCardMarkup(b,variant="listing"){
+function bookCardMarkup(b,variant="listing",coverOpts={}){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
   if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
@@ -1754,7 +1938,7 @@ function bookCardMarkup(b,variant="listing"){
   </article>`;
   return `<article class="book-card" data-live-book-id="${id}">
     <a class="book-image" href="${href}">
-      ${coverImgHtml(b)}
+      ${coverImgHtml(b,coverOpts)}
     </a>
     <div class="book-info">
       <h2 class="book-title">${title}</h2>
@@ -1875,7 +2059,7 @@ function searchEnhance(){
   res.innerHTML=fallbackNotice();
 }
 
-function dynamicListingCard(b){return bookCardMarkup(b,"listing")}
+function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loading:index<3?"eager":"lazy",fetchpriority:index<2?"high":""})}
 
 function setupCatalogFilters(){
   let grid=document.querySelector(".books-grid[data-catalog-source]");
@@ -1918,7 +2102,7 @@ function setupCatalogFilters(){
       const known=new Set(items.map(book=>book.id));
       result.items.forEach(book=>{if(!known.has(book.id)){known.add(book.id);items.push(book)}});
     }else items=[...result.items];
-    grid.innerHTML=items.map(dynamicListingCard).join("");
+    grid.innerHTML=items.map((b,i)=>dynamicListingCard(b,i)).join("");
     grid.setAttribute("data-catalog-ready","");
     grid.setAttribute("aria-busy","false");
     bindDynamicActions(grid);
@@ -2150,12 +2334,12 @@ function cartPage(){
       checkout.setAttribute("aria-hidden",blocked?"true":"false");
     }
 
-  host.innerHTML=items.map(x=>{
+  host.innerHTML=items.map((x,index)=>{
     const visible=isStorefrontVisible(x.b);
     const stock=stockInfo(x.b);
     return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
       <div class="cart-item-cover">
-        ${coverImgHtml(x.b,{width:100,height:127})}
+        ${coverImgHtml(x.b,{width:100,height:127,loading:index<2?"eager":"lazy"})}
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(x.b.title)}</div>
@@ -2852,12 +3036,13 @@ async function setupHomeCarousel(){
   }
   function card(b,i=0){
     const loading=i<4?"eager":"lazy";
+    const fetchpriority=i<2?"high":"";
     const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
     const authorName=storefrontAuthor(b);
     return `<article class="home-carousel-card">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${href}" class="home-carousel-link">
-        <div class="home-carousel-cover">${coverImgHtml(b,{width:320,height:460,loading})}</div>
+        <div class="home-carousel-cover">${coverImgHtml(b,{width:320,height:460,loading,fetchpriority})}</div>
       </a>
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
@@ -3148,5 +3333,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();

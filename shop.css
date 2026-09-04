@@ -714,6 +714,22 @@ body > header:not(.account-topbar):not(.admin-topbar){
   border-radius:8px;
   background:#f3ebe0;
 }
+img.is-cover-retrying{
+  opacity:0;
+  background:#f3ebe0;
+}
+.book-card .book-image:has(img.is-cover-retrying),
+.home-carousel-cover:has(img.is-cover-retrying),
+.home-feature-cover:has(img.is-cover-retrying),
+.cart-item-cover:has(img.is-cover-retrying),
+.advanced-search-cover:has(img.is-cover-retrying),
+.book-cover-box:has(img.is-cover-retrying),
+.favorite-cover:has(img.is-cover-retrying){
+  background:#f3ebe0;
+}
+@media (prefers-reduced-motion:reduce){
+  img.is-cover-retrying{transition:none}
+}
 .book-card .book-image .listing-skel-cover,
 .book-card .book-image .book-cover-unavailable,
 .home-carousel-cover .book-cover-unavailable,
