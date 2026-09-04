@@ -1,4 +1,4 @@
-const { test, expect, devices } = require("@playwright/test");
+const { test, expect, devices } = require("./playwright-test");
 const H = require("./helpers");
 
 test.describe("auth oauth vs recovery", () => {

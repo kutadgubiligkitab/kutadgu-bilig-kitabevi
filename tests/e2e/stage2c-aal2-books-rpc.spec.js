@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
 test.describe("stage 2C AAL2 books/RPC storefront/admin/auth smoke", () => {

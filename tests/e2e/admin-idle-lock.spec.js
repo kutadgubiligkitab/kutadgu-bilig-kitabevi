@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./playwright-test");
 
 const VERIFIED = [{ id: "factor-v", factor_type: "totp", status: "verified" }];
 const IDLE_KEY = "kutadgu-admin-idle-v1";
