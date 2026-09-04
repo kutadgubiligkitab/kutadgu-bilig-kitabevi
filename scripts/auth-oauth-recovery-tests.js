@@ -170,7 +170,7 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
   assert.match(account, /member\.js\?v=18/);
   assert.match(read("shop.js"), /member\.js\?v=18/);
-  assert.match(index, /shop\.js\?v=96/);
+  assert.match(index, /shop\.js\?v=97/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -197,7 +197,7 @@ test("reset-password.html loads reset-password.js v=9", () => {
   assert.match(account, /supabase-config\.js\?v=14/);
   assert.match(index, /supabase-config\.js\?v=14/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=14/);
-  assert.match(read("admin.html"), /admin\.js\?v=54/);
+  assert.match(read("admin.html"), /admin\.js\?v=55/);
 });
 
 test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {
