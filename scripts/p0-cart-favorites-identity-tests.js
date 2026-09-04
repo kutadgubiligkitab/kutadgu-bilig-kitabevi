@@ -622,15 +622,15 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages keep cart markup pin shop.js v=94",()=>{
+test("storefront pages keep cart markup pin shop.js v=96",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=94/);
-  assert.match(html,/shop\.css\?v=49/);
+  assert.match(html,/shop\.js\?v=96/);
+  assert.match(html,/shop\.css\?v=50/);
   assert.match(html,/id="cartLayout"/);
   assert.match(html,/id="cartSummaryHost"/);
   assert.match(html,/id="whatsappOrder"/);
@@ -641,16 +641,16 @@ test("storefront pages keep cart markup pin shop.js v=94",()=>{
   assert.doesNotMatch(html,/1\) تولدۇرۇڭ/);
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
-  assert.match(fav,/shop\.js\?v=94/);
-  assert.match(home,/shop\.js\?v=94/);
-  assert.match(shop,/member\.js\?v=17/);
+  assert.match(fav,/shop\.js\?v=96/);
+  assert.match(home,/shop\.js\?v=96/);
+  assert.match(shop,/member\.js\?v=18/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);
   assert.match(shop,/data-plus=/);
   assert.match(shop,/data-minus=/);
   assert.match(shop,/data-remove=/);
   assert.match(shop,/CART_KEY/);
-  assert.match(account,/member\.js\?v=17/);
+  assert.match(account,/member\.js\?v=18/);
   assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
   assert.match(member,/\.eq\("user_id",user\.id\)/);
   assert.match(member,/function previewShopDebug/);

@@ -161,17 +161,17 @@ test.describe("mobile menu tap", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");
     await openMobileMenu(page);
-    await page.locator(`${drawer()} a[href='account.html']`).click();
+    await page.locator(`${drawer()} a[href='/account.html']`).click();
     await expect.poll(async () => new URL(page.url()).pathname).toBe("/account.html");
 
     await H.openFresh(page, "/");
     await openMobileMenu(page);
-    await page.locator(`${drawer()} a[href='cart.html']`).click();
+    await page.locator(`${drawer()} a[href='/cart.html']`).click();
     await expect.poll(async () => new URL(page.url()).pathname).toBe("/cart.html");
 
     await H.openFresh(page, "/");
     await openMobileMenu(page);
-    await page.locator(`${drawer()} a[href='favorites.html']`).click();
+    await page.locator(`${drawer()} a[href='/favorites.html']`).click();
     await expect.poll(async () => new URL(page.url()).pathname).toBe("/favorites.html");
   });
 
@@ -190,7 +190,7 @@ test.describe("mobile menu tap", () => {
     await expect(page.locator("body")).not.toHaveClass(/mobile-menu-open/);
 
     await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
-    await page.locator(".mobile-bottom-nav a[href='cart.html']").click();
+    await page.locator(".mobile-bottom-nav a[href='/cart.html']").click();
     await expect.poll(async () => new URL(page.url()).pathname).toBe("/cart.html");
 
     await H.openFresh(page, "/");

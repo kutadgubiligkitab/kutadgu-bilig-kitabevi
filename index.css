@@ -1914,8 +1914,11 @@ header nav a{
 
 /* سېۋەت / ياقتۇرغانلىرىم / ھېساب — بىر header control ئائىلىسى */
 header nav a[href="cart.html"],
+header nav a[href="/cart.html"],
 header nav a[href="favorites.html"],
-header nav a[href="account.html"]{
+header nav a[href="/favorites.html"],
+header nav a[href="account.html"],
+header nav a[href="/account.html"]{
     height: 36px;
     min-height: 36px;
     min-width: 36px;
@@ -1932,8 +1935,11 @@ header nav a[href="account.html"]{
 }
 
 header nav a[href="cart.html"]:hover,
+header nav a[href="/cart.html"]:hover,
 header nav a[href="favorites.html"]:hover,
-header nav a[href="account.html"]:hover{
+header nav a[href="/favorites.html"]:hover,
+header nav a[href="account.html"]:hover,
+header nav a[href="/account.html"]:hover{
     background: rgba(255,255,255,.16);
     color: #ffffff;
 }
@@ -1987,8 +1993,11 @@ header nav a[href="account.html"]:hover{
         font-size: 14px;
     }
     header nav a[href="cart.html"],
+    header nav a[href="/cart.html"],
     header nav a[href="favorites.html"],
-    header nav a[href="account.html"]{
+    header nav a[href="/favorites.html"],
+    header nav a[href="account.html"],
+    header nav a[href="/account.html"]{
         height: 36px;
         min-height: 36px;
         min-width: 36px;

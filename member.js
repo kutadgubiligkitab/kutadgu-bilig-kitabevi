@@ -87,7 +87,7 @@ function accountButton(){
     host=document.createElement("div");host.className="member-standalone-floating";document.body.appendChild(host);
   }
   button=document.createElement("a");
-  button.className="member-account-button";button.href="account.html";
+  button.className="member-account-button";button.href="/account.html";
   host.appendChild(button);
   return button;
 }

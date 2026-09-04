@@ -3,14 +3,35 @@
 
   const MOBILE_QUERY = window.matchMedia("(max-width: 768px)");
   const STORE_PAGES_EXCLUDED = new Set(["admin.html", "reset-password.html"]);
+  const ROOT_APP_PAGES = {
+    "account.html": "/account.html",
+    "cart.html": "/cart.html",
+    "favorites.html": "/favorites.html"
+  };
 
   function pageName() {
     return (location.pathname.split("/").pop() || "index.html").split(/[?#]/)[0];
   }
 
+  function storefrontAppHref(page) {
+    const raw = String(page || "").trim();
+    if (!raw || raw.startsWith("/") || raw.startsWith("#")) return raw;
+    return ROOT_APP_PAGES[raw] || raw;
+  }
+
+  function normalizeRootAppLinks(root) {
+    if (!root) return;
+    root.querySelectorAll("a[href]").forEach((a) => {
+      const href = String(a.getAttribute("href") || "").trim();
+      const file = href.split(/[?#]/)[0].replace(/^\.\//, "").split("/").pop();
+      if (!ROOT_APP_PAGES[file]) return;
+      a.setAttribute("href", ROOT_APP_PAGES[file]);
+    });
+  }
+
   function link(label, href, icon) {
     const a = document.createElement("a");
-    a.href = href;
+    a.href = storefrontAppHref(href);
     a.innerHTML = `<span aria-hidden="true">${icon}</span><span>${label}</span>`;
     return a;
   }
@@ -52,7 +73,7 @@
     if (!cart) {
       cart = document.createElement("a");
       cart.className = "mobile-header-cart";
-      cart.href = "cart.html";
+      cart.href = storefrontAppHref("cart.html");
       cart.setAttribute("aria-label", "سېۋەت");
       cart.innerHTML = `🛒<span class="cart-count">0</span>`;
       header.appendChild(cart);
@@ -134,6 +155,7 @@
       const menu = existing.querySelector("nav") || buildMenu();
       if (!menu.parentElement) existing.appendChild(menu);
       if (!menu.id) menu.id = "mobileSiteMenu";
+      normalizeRootAppLinks(menu);
       ensureMenuControls(existing, menu);
       return;
     }
@@ -158,9 +180,9 @@
     nav.className = "mobile-bottom-nav";
     nav.setAttribute("aria-label", "تېلېفون تېز يول باشلاش");
     nav.innerHTML = `
-      <a href="cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count">0</span></a>
-      <a href="favorites.html" data-mobile-page="favorites.html"><span class="mobile-bottom-icon" aria-hidden="true">❤️</span><span>ياقتۇرغانلىرىم</span></a>
-      <a href="account.html" data-mobile-page="account.html"><span class="mobile-bottom-icon" aria-hidden="true">👤</span><span>كىرىش / ئەزا</span></a>`;
+      <a href="/cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count">0</span></a>
+      <a href="/favorites.html" data-mobile-page="favorites.html"><span class="mobile-bottom-icon" aria-hidden="true">❤️</span><span>ياقتۇرغانلىرىم</span></a>
+      <a href="/account.html" data-mobile-page="account.html"><span class="mobile-bottom-icon" aria-hidden="true">👤</span><span>كىرىش / ئەزا</span></a>`;
     const current = pageName();
     [...nav.querySelectorAll("[data-mobile-page]")]
       .find(item => item.dataset.mobilePage === current)
