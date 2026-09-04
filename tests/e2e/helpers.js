@@ -1,6 +1,80 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const PRODUCTION = "https://kutadgu-bilig-kitab.vercel.app";
+const BOOK_COVER_STORAGE_PATH = "/storage/v1/object/public/book-covers/";
+const BOOK_COVER_STUB_PATH = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
+const BOOK_COVER_STUB = fs.readFileSync(BOOK_COVER_STUB_PATH);
+const liveBookCoverPages = new WeakSet();
+const mockedBookCoverCounts = new WeakMap();
+
+function isSupabaseBookCoverStorageUrl(url) {
+  const raw = String(url || "");
+  if (!raw) return false;
+  let pathname = raw;
+  try {
+    pathname = new URL(raw).pathname || raw;
+  } catch (err) {}
+  return pathname.includes(BOOK_COVER_STORAGE_PATH);
+}
+
+function mockedBookCoverRequests(page) {
+  return mockedBookCoverCounts.get(page) || 0;
+}
+
+function allowLiveBookCovers(page) {
+  if (page) liveBookCoverPages.add(page);
+}
+
+function shouldMockBookCoverStorage(page) {
+  return !page || !liveBookCoverPages.has(page);
+}
+
+function fulfillBookCoverStorageStub(route, request, page) {
+  mockedBookCoverCounts.set(page, mockedBookCoverRequests(page) + 1);
+  const method = String(request && request.method() || "GET").toUpperCase();
+  const headers = {
+    "Cache-Control": "no-store",
+    "Content-Length": String(BOOK_COVER_STUB.length)
+  };
+  if (method === "HEAD") {
+    return route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      headers,
+      body: ""
+    });
+  }
+  return route.fulfill({
+    status: 200,
+    contentType: "image/png",
+    headers,
+    body: BOOK_COVER_STUB
+  });
+}
+
+async function installBookCoverEgressGuard(page) {
+  if (!page || typeof page.route !== "function") return;
+  await page.route("**/storage/v1/object/public/book-covers/**", async (route) => {
+    const req = route.request();
+    const method = String(req.method() || "").toUpperCase();
+    const url = req.url();
+    if (method !== "GET" && method !== "HEAD") return route.fallback();
+    if (!isSupabaseBookCoverStorageUrl(url)) return route.fallback();
+    if (!shouldMockBookCoverStorage(page)) return route.continue();
+    return fulfillBookCoverStorageStub(route, req, page);
+  });
+}
+
+function logMockedBookCoverSummary(testInfo, page) {
+  const n = mockedBookCoverRequests(page);
+  if (!n) return n;
+  const label = testInfo && Array.isArray(testInfo.titlePath) ? testInfo.titlePath.join(" › ") : "test";
+  console.log(`[e2e] mocked ${n} Supabase book-covers Storage request(s) (${label})`);
+  return n;
+}
 
 function targetOrigin(page) {
   const url = page.context()._options?.baseURL || PRODUCTION;
@@ -24,14 +98,22 @@ function memberCreds() {
 /**
  * Block catalog/order/analytics writes. Allow GET catalog + Auth token exchange.
  * Default maintenance_mode to false so the suite does not depend on the live flag.
+ * Default also stubs Supabase public book-covers Storage GETs/HEADs with a tiny local PNG
+ * so CI does not download real cover bytes. Pass { allowLiveBookCovers: true } to opt out.
  */
-async function installReadSafeNetwork(page) {
+async function installReadSafeNetwork(page, opts = {}) {
+  if (opts && opts.allowLiveBookCovers) allowLiveBookCovers(page);
+  await installBookCoverEgressGuard(page);
   await page.route("**/*", async (route) => {
     const req = route.request();
     const method = req.method();
     const url = req.url();
     const isWrite = method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE";
     if (!isWrite) {
+      if ((method === "GET" || method === "HEAD") && isSupabaseBookCoverStorageUrl(url)) {
+        if (!shouldMockBookCoverStorage(page)) return route.continue();
+        return fulfillBookCoverStorageStub(route, req, page);
+      }
       if (url.includes("/rest/v1/store_settings")) {
         return route.fulfill({
           status: 200,
@@ -412,6 +494,14 @@ module.exports = {
   targetOrigin,
   adminCreds,
   memberCreds,
+  BOOK_COVER_STORAGE_PATH,
+  BOOK_COVER_STUB_PATH,
+  BOOK_COVER_STUB,
+  isSupabaseBookCoverStorageUrl,
+  mockedBookCoverRequests,
+  allowLiveBookCovers,
+  installBookCoverEgressGuard,
+  logMockedBookCoverSummary,
   installReadSafeNetwork,
   installCarouselCatalogStub,
   installAnnouncementFixtures,

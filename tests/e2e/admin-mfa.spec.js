@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./playwright-test");
 
 const SECRET = "TESTONLYSECRETNEVERSTORE";
 const QR_MARK = "data:image/svg+xml;utf-8,test-qr-mark";

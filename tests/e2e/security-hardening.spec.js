@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
 const XSS_BOOK = {
