@@ -61,16 +61,65 @@ test("quick edit accepts https and relative covers",()=>{
   assert.strictEqual(rel.patch.image_url,"sample-book-cover.png");
 });
 
-test("vercel.json ships incremental security headers without a full script CSP",()=>{
-  const vercel=JSON.parse(fs.readFileSync(path.join(__dirname,"..","vercel.json"),"utf8"));
-  const headers=(vercel.headers||[]).flatMap(rule=>rule.headers||[]);
-  const map=Object.fromEntries(headers.map(h=>[h.key,h.value]));
+const SUPABASE_HTTPS_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
+const CSP_REPORT_ONLY="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
+function assertUnchangedBrowserSecurityHeaders(map){
   assert.strictEqual(map["X-Content-Type-Options"],"nosniff");
   assert.strictEqual(map["Referrer-Policy"],"strict-origin-when-cross-origin");
-  assert.ok(map["Permissions-Policy"]);
+  assert.strictEqual(map["Permissions-Policy"],"camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   assert.strictEqual(map["X-Frame-Options"],"DENY");
-  assert.strictEqual(map["Content-Security-Policy"],"frame-ancestors 'none'");
-  assert.doesNotMatch(map["Content-Security-Policy"]||"",/script-src/);
+}
+
+function assertEnforcedCspUnchanged(value){
+  assert.strictEqual(value,"frame-ancestors 'none'");
+  assert.doesNotMatch(value||"",/script-src/);
+}
+
+function assertCspReportOnlyPolicy(value){
+  const csp=String(value||"");
+  assert.strictEqual(csp,CSP_REPORT_ONLY);
+  assert.match(csp,/default-src\s+'self'/);
+  assert.ok(csp.includes(SUPABASE_HTTPS_ORIGIN));
+  assert.doesNotMatch(csp,/\*\.supabase\.co/);
+  assert.doesNotMatch(csp,/wss:/i);
+  assert.doesNotMatch(csp,/unsafe-eval/);
+  assert.match(csp,/object-src\s+'none'/);
+  assert.match(csp,/frame-ancestors\s+'none'/);
+  assert.match(csp,/base-uri\s+'self'/);
+  assert.match(csp,/form-action\s+'self'/);
+  assert.doesNotMatch(csp,/report-uri|report-to/i);
+}
+
+test("vercel.json ships incremental security headers without a full script CSP",()=>{
+  const vercel=JSON.parse(fs.readFileSync(path.join(__dirname,"..","vercel.json"),"utf8"));
+  const catchAll=(vercel.headers||[]).find(rule=>rule.source==="/(.*)");
+  assert.ok(catchAll,"catch-all /(.*) header rule is required");
+  const map=Object.fromEntries((catchAll.headers||[]).map(h=>[h.key,h.value]));
+  assertUnchangedBrowserSecurityHeaders(map);
+  assertEnforcedCspUnchanged(map["Content-Security-Policy"]);
+  assert.ok(map["Content-Security-Policy-Report-Only"],"Content-Security-Policy-Report-Only must exist as a separate header");
+  assertCspReportOnlyPolicy(map["Content-Security-Policy-Report-Only"]);
+  assert.ok(!Object.prototype.hasOwnProperty.call(map,"Strict-Transport-Security"));
+  const vercelText=JSON.stringify(vercel);
+  assert.doesNotMatch(vercelText,/Strict-Transport-Security/);
+  assert.doesNotMatch(vercelText,/unsafe-eval/);
+  assert.doesNotMatch(vercelText,/\*\.supabase\.co/);
+  assert.doesNotMatch(vercelText,/wss:/i);
+});
+
+test("static-preview-server mirrors catch-all security headers including CSP Report-Only",()=>{
+  const src=fs.readFileSync(path.join(__dirname,"..","scripts","static-preview-server.js"),"utf8");
+  assert.match(src,/"X-Content-Type-Options":\s*"nosniff"/);
+  assert.match(src,/"Referrer-Policy":\s*"strict-origin-when-cross-origin"/);
+  assert.match(src,/"Permissions-Policy":\s*"camera=\(\), microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\)"/);
+  assert.match(src,/"X-Frame-Options":\s*"DENY"/);
+  assert.match(src,/"Content-Security-Policy":\s*"frame-ancestors 'none'"/);
+  assert.ok(src.includes(`"Content-Security-Policy-Report-Only": "${CSP_REPORT_ONLY}"`));
+  assert.doesNotMatch(src,/Strict-Transport-Security/);
+  assert.doesNotMatch(src,/unsafe-eval/);
+  assert.doesNotMatch(src,/\*\.supabase\.co/);
+  assert.doesNotMatch(src,/wss:/i);
 });
 
 test("supabase js is self-hosted at a pinned 2.45.4 UMD path",()=>{
