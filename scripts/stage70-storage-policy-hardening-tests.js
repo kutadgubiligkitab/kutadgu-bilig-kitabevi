@@ -92,19 +92,27 @@ test("preflight aborts when bucket or protective policies are missing", () => {
   assert.match(sql, /pg_catalog\.pg_policies/);
   assert.match(sql, /p\.schemaname = 'storage'/);
   assert.match(sql, /p\.tablename = 'objects'/);
-  const preflight = sql.slice(sql.indexOf("BEGIN;"), sql.indexOf("DROP POLICY IF EXISTS"));
+  const firstDrop = sql.search(/DROP POLICY IF EXISTS\s+"Public can view book covers"/);
+  assert.ok(firstDrop > 0);
+  const preflight = sql.slice(sql.indexOf("BEGIN;"), firstDrop);
+  const doBlocks = [...sql.matchAll(/DO \$\$[\s\S]*?END\n\$\$;/g)].map((m) => m[0]);
+  assert.ok(doBlocks[0], "preflight DO block");
   assert.match(preflight, /RAISE EXCEPTION/);
+  assert.match(doBlocks[0], /stage70_assert_protective_semantics\('Stage 70 aborted:'\)/);
   assert.match(sql, /Do not silently recreate missing protective policies/);
   assert.doesNotMatch(preflight, /CREATE POLICY/i);
+  assert.doesNotMatch(doBlocks[0], /stage70_assert_remaining_invariants/);
   LEGACY.forEach((name) => {
     assert.doesNotMatch(preflight, new RegExp(`DROP POLICY IF EXISTS "${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
   });
 });
 
 test("post-checks abort if legacy remains or protective policies vanish", () => {
-  const afterDrops = sql.slice(sql.lastIndexOf("DROP POLICY IF EXISTS"));
+  const afterDrops = sql.slice(sql.lastIndexOf('DROP POLICY IF EXISTS "Authenticated can delete book covers"'));
   assert.match(afterDrops, /legacy policy "%" still exists/);
   assert.match(afterDrops, /required protective policy "%" is missing/);
+  assert.match(afterDrops, /stage70_assert_protective_semantics\('Stage 70 aborted after drop:'\)/);
+  assert.match(afterDrops, /stage70_assert_remaining_invariants\(\)/);
   LEGACY.forEach((name) => {
     assert.match(afterDrops, new RegExp(`'${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`));
   });
@@ -166,6 +174,83 @@ test("application Storage usage is still upload plus getPublicUrl", () => {
   assert.doesNotMatch(adminJs, /storage\.from\([^)]+\)\.list\s*\(/);
   assert.doesNotMatch(shopJs, /\.storage\.from/);
 });
+
+test("semantic checks use catalog metadata rather than name-only existence", () => {
+  assert.match(sql, /pg_catalog\.pg_policy/);
+  assert.match(sql, /pg_catalog\.pg_get_expr\(pol\.polqual, pol\.polrelid\)/);
+  assert.match(sql, /pg_catalog\.pg_get_expr\(pol\.polwithcheck, pol\.polrelid\)/);
+  assert.match(sql, /pol\.polcmd/);
+  assert.match(sql, /pol\.polpermissive/);
+  assert.match(sql, /pol\.polroles/);
+  assert.match(sql, /pg_temp\.stage70_norm\(/);
+  assert.match(sql, /regexp_replace\([\s\S]*'::\[a-z0-9_\.\]\+'/);
+  assert.doesNotMatch(sql, /pg_get_expr\([^)]+\)\s*(=|<>|IS NOT DISTINCT FROM)\s*'/);
+  const created = [...sql.matchAll(/CREATE OR REPLACE FUNCTION (pg_temp\.stage70_\w+)/g)].map((m) => m[1]);
+  assert.ok(created.length >= 10, "expected pg_temp Stage 70 validators");
+  created.forEach((name) => {
+    assert.match(name, /^pg_temp\.stage70_/);
+  });
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION (?!pg_temp\.stage70_)/);
+});
+
+test("name-only fake protective policies are rejected", () => {
+  assert.match(sql, /Name-only fakes are rejected/);
+  assert.match(sql, /name-only fake \(unrestricted\)/);
+  assert.match(sql, /stage70_is_unrestricted/);
+  assert.match(sql, /p_norm IN \('', 'true'\)/);
+  const doBlocks = [...sql.matchAll(/DO \$\$[\s\S]*?END\n\$\$;/g)].map((m) => m[0]);
+  assert.strictEqual(doBlocks.length, 2, "preflight DO and post-check DO");
+  assert.match(doBlocks[0], /stage70_assert_protective_semantics\('Stage 70 aborted:'\)/);
+  assert.doesNotMatch(doBlocks[0], /stage70_assert_remaining_invariants/);
+  assert.match(doBlocks[1], /stage70_assert_protective_semantics\('Stage 70 aborted after drop:'\)/);
+  assert.match(doBlocks[1], /stage70_assert_remaining_invariants\(\)/);
+});
+
+test("Admin policies must contain is_kutadgu_admin, be PERMISSIVE, and match commands", () => {
+  assert.match(sql, /does not require is_kutadgu_admin\(\)/);
+  assert.ok(sql.includes("is_kutadgu_admin\\s*\\(\\s*\\)"), "admin check uses normalized is_kutadgu_admin()");
+  assert.match(sql, /is not PERMISSIVE/);
+  assert.match(sql, /polpermissive IS DISTINCT FROM TRUE/);
+  assert.match(sql, /has unexpected command/);
+  assert.match(sql, /is not granted to authenticated/);
+  assert.match(sql, /is not scoped to bucket_id = ''book-covers''/);
+  assert.match(sql, /'admin can upload book covers', 'a', false, true/);
+  assert.match(sql, /'admin can update book covers', 'w', true, true/);
+  assert.match(sql, /'admin can delete book covers', 'd', true, false/);
+});
+
+test("AAL2 policies must be RESTRICTIVE and keep outside-bucket behavior", () => {
+  assert.match(sql, /is not RESTRICTIVE/);
+  assert.match(sql, /polpermissive IS DISTINCT FROM FALSE/);
+  assert.match(sql, /does not require JWT aal2 for book-covers/);
+  assert.match(sql, /weakens outside-bucket behavior/);
+  assert.match(sql, /auth\.jwt\(\)/);
+  assert.ok(sql.includes("->>\\s*''aal''"), "aal claim is matched after cast-stripping");
+  assert.ok(sql.includes("bucket_id\\s+is distinct from\\s+''book-covers''"), "outside-bucket OR is required");
+  assert.match(sql, /'aal2 required to insert book covers', 'a', false, true/);
+  assert.match(sql, /'aal2 required to update book covers', 'w', true, true/);
+  assert.match(sql, /'aal2 required to delete book covers', 'd', true, false/);
+});
+
+test("no broad SELECT or generic authenticated write can survive under another name", () => {
+  const remainingStart = sql.indexOf("CREATE OR REPLACE FUNCTION pg_temp.stage70_assert_remaining_invariants");
+  const remainingEnd = sql.indexOf("$stage70$;", remainingStart);
+  assert.ok(remainingStart > 0 && remainingEnd > remainingStart);
+  const remaining = sql.slice(remainingStart, remainingEnd);
+  LEGACY.forEach((name) => {
+    assert.doesNotMatch(remaining, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+  assert.match(remaining, /SELECT policy "%" still grants bucket-wide book-covers access/);
+  assert.match(remaining, /PERMISSIVE write policy "%" on book-covers bypasses is_kutadgu_admin\(\)/);
+  assert.match(remaining, /polcmd IN \('r', '\*'\)/);
+  assert.match(remaining, /polcmd IN \('a', 'w', 'd', '\*'\)/);
+  assert.match(remaining, /stage70_applies_to_role\(r\.polroles, 'anon'\)/);
+  assert.match(remaining, /stage70_applies_to_role\(r\.polroles, 'authenticated'\)/);
+  assert.match(remaining, /rel\.relname = 'objects'/);
+  assert.match(remaining, /book-covers public is %, expected true/);
+  assert.doesNotMatch(remaining, /AND pol\.polname = /);
+});
+
 
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
