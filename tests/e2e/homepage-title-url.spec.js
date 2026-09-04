@@ -16,6 +16,15 @@ test.describe("homepage title and root URL", () => {
     const canonical = String(await page.locator('link[rel="canonical"]').first().getAttribute("href") || "").trim();
     expect(canonical.replace(/\/+$/, "/")).toMatch(/^https:\/\/www\.kutadgubilik\.com\/$/);
     await expect(page.locator("a.logo")).toHaveAttribute("href", "/");
+    const snippet = "قۇتادغۇبىلىك كىتابخانىسى — ئۇيغۇرچە كىتابلار، ئەدەبىيات، تارىخ، دىن، تەربىيە ۋە پەن-مائارىپقا دائىر نادىر ئەسەرلەرنى بىر يەردىن تېپىش ۋە زاكاز قىلىشقا بولىدىغان ئىشەنچلىك كىتابخانا.";
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", snippet);
+    await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", snippet);
+    await expect(page.locator('meta[name="twitter:description"]')).toHaveAttribute("content", snippet);
+    await expect(page.locator('meta[property="og:image:alt"]')).toHaveAttribute("content", HOME_TITLE);
+    await expect(page.locator("img.kutadgu-site-logo")).toHaveAttribute("alt", HOME_TITLE);
+    await expect(page.locator("img.hero-scene-logo")).toHaveAttribute("alt", HOME_TITLE);
+    await expect(page.locator("img.kutadgu-site-logo")).toBeVisible();
+    await expect(page.locator("img.hero-scene-logo")).toBeVisible();
   });
 
   test("book detail keeps a book-specific title then home resets", async ({ page }) => {

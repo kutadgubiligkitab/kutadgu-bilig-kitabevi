@@ -35,6 +35,33 @@ test("homepage canonical and og:url are custom-domain root, not index.html", () 
   assert.doesNotMatch(html, /rel="canonical" href="https:\/\/kutadgu-bilig-kitab\.vercel\.app\/"/);
 });
 
+test("homepage Google snippet description and logo alts are cleaned", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const snippet = "قۇتادغۇبىلىك كىتابخانىسى — ئۇيغۇرچە كىتابلار، ئەدەبىيات، تارىخ، دىن، تەربىيە ۋە پەن-مائارىپقا دائىر نادىر ئەسەرلەرنى بىر يەردىن تېپىش ۋە زاكاز قىلىشقا بولىدىغان ئىشەنچلىك كىتابخانا.";
+  const occurrences = html.split(snippet).length - 1;
+  assert.strictEqual(occurrences, 3);
+  assert.match(html, new RegExp(`<meta name="description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
+  assert.match(html, new RegExp(`<meta property="og:description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
+  assert.match(html, new RegExp(`<meta name="twitter:description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
+  assert.match(html, /<meta property="og:image:alt" content="قۇتادغۇبىلىك كىتابخانىسى">/);
+  assert.match(html, /<img src="kutadgu-logo\.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo"/);
+  assert.match(html, /<img src="hero-brand-logo\.png\?v=1" alt="قۇتادغۇبىلىك كىتابخانىسى" class="hero-scene-logo"/);
+  assert.doesNotMatch(html, /قۇتادغۇبىلىك لوگوسى/);
+  assert.doesNotMatch(html, /كىتابخانىسى لوگوسى/);
+  assert.match(html, /<meta name="robots" content="index, follow">/);
+  assert.match(html, /<meta property="og:title" content="قۇتادغۇبىلىك كىتابخانىسى">/);
+  assert.match(html, /<meta property="og:image" content="https:\/\/www\.kutadgubilik\.com\/kutadgu-logo\.png">/);
+  assert.match(html, /<meta name="twitter:title" content="قۇتادغۇبىلىك كىتابخانىسى">/);
+  assert.match(html, /<meta name="twitter:image" content="https:\/\/www\.kutadgubilik\.com\/kutadgu-logo\.png">/);
+  const jsonLd = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(jsonLd, "JSON-LD missing");
+  const data = JSON.parse(jsonLd[1]);
+  assert.ok(Array.isArray(data["@graph"]));
+  assert.ok(data["@graph"].some((n) => n["@type"] === "BookStore"));
+  assert.ok(data["@graph"].some((n) => n["@type"] === "WebSite"));
+  assert.doesNotMatch(html, /kutadgubilig\.com/);
+});
+
 test("homepage logo points to /", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, /<a href="\/" class="logo">/);
