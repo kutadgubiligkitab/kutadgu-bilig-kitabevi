@@ -220,11 +220,17 @@ body > header:not(.account-topbar):not(.admin-topbar){
     flex-wrap:wrap;
   }
   html.kutadgu-desktop-header-shop header nav a[href="account.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="/account.html"],
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="/cart.html"],
   html.kutadgu-desktop-header-shop header nav a[href="favorites.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="/favorites.html"],
   .kutadgu-desktop-shop-links a[href="account.html"],
+  .kutadgu-desktop-shop-links a[href="/account.html"],
   .kutadgu-desktop-shop-links a[href="cart.html"],
-  .kutadgu-desktop-shop-links a[href="favorites.html"]{
+  .kutadgu-desktop-shop-links a[href="/cart.html"],
+  .kutadgu-desktop-shop-links a[href="favorites.html"],
+  .kutadgu-desktop-shop-links a[href="/favorites.html"]{
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -245,40 +251,60 @@ body > header:not(.account-topbar):not(.admin-topbar){
     transition:background-color .15s ease,border-color .15s ease,color .15s ease;
   }
   html.kutadgu-desktop-header-shop header nav a[href="account.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="/account.html"],
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"],
-  html.kutadgu-desktop-header-shop header nav a[href="favorites.html"]{
+  html.kutadgu-desktop-header-shop header nav a[href="/cart.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="favorites.html"],
+  html.kutadgu-desktop-header-shop header nav a[href="/favorites.html"]{
     background:rgba(255,255,255,.08);
     border:1px solid rgba(255,255,255,.16);
     color:#fff !important;
   }
   html.kutadgu-desktop-header-shop header nav a[href="account.html"]:hover,
+  html.kutadgu-desktop-header-shop header nav a[href="/account.html"]:hover,
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"]:hover,
+  html.kutadgu-desktop-header-shop header nav a[href="/cart.html"]:hover,
   html.kutadgu-desktop-header-shop header nav a[href="favorites.html"]:hover,
+  html.kutadgu-desktop-header-shop header nav a[href="/favorites.html"]:hover,
   html.kutadgu-desktop-header-shop header nav a[href="account.html"]:focus-visible,
+  html.kutadgu-desktop-header-shop header nav a[href="/account.html"]:focus-visible,
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"]:focus-visible,
-  html.kutadgu-desktop-header-shop header nav a[href="favorites.html"]:focus-visible{
+  html.kutadgu-desktop-header-shop header nav a[href="/cart.html"]:focus-visible,
+  html.kutadgu-desktop-header-shop header nav a[href="favorites.html"]:focus-visible,
+  html.kutadgu-desktop-header-shop header nav a[href="/favorites.html"]:focus-visible{
     background:rgba(255,255,255,.16);
     color:#fff !important;
   }
   .kutadgu-desktop-shop-links a[href="account.html"],
+  .kutadgu-desktop-shop-links a[href="/account.html"],
   .kutadgu-desktop-shop-links a[href="cart.html"],
-  .kutadgu-desktop-shop-links a[href="favorites.html"]{
+  .kutadgu-desktop-shop-links a[href="/cart.html"],
+  .kutadgu-desktop-shop-links a[href="favorites.html"],
+  .kutadgu-desktop-shop-links a[href="/favorites.html"]{
     background:var(--site-card,#fffdf9);
     border:1px solid var(--site-border,#e8dccb);
     color:var(--site-text,#44352d);
   }
   .kutadgu-desktop-shop-links a[href="account.html"]:hover,
+  .kutadgu-desktop-shop-links a[href="/account.html"]:hover,
   .kutadgu-desktop-shop-links a[href="cart.html"]:hover,
+  .kutadgu-desktop-shop-links a[href="/cart.html"]:hover,
   .kutadgu-desktop-shop-links a[href="favorites.html"]:hover,
+  .kutadgu-desktop-shop-links a[href="/favorites.html"]:hover,
   .kutadgu-desktop-shop-links a[href="account.html"]:focus-visible,
+  .kutadgu-desktop-shop-links a[href="/account.html"]:focus-visible,
   .kutadgu-desktop-shop-links a[href="cart.html"]:focus-visible,
-  .kutadgu-desktop-shop-links a[href="favorites.html"]:focus-visible{
+  .kutadgu-desktop-shop-links a[href="/cart.html"]:focus-visible,
+  .kutadgu-desktop-shop-links a[href="favorites.html"]:focus-visible,
+  .kutadgu-desktop-shop-links a[href="/favorites.html"]:focus-visible{
     background:var(--site-bg-soft,#fbf8f2);
     border-color:var(--site-brown,#70503d);
     color:var(--site-text,#44352d);
   }
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"] .cart-count,
-  .kutadgu-desktop-shop-links a[href="cart.html"] .cart-count{
+  html.kutadgu-desktop-header-shop header nav a[href="/cart.html"] .cart-count,
+  .kutadgu-desktop-shop-links a[href="cart.html"] .cart-count,
+  .kutadgu-desktop-shop-links a[href="/cart.html"] .cart-count{
     margin-inline:4px 0;
   }
 }

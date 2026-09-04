@@ -328,7 +328,8 @@
     font: 18px/1 Arial, sans-serif !important;
   }
 
-  .mobile-bottom-nav a[href="account.html"] .mobile-bottom-icon {
+  .mobile-bottom-nav a[href="account.html"] .mobile-bottom-icon,
+  .mobile-bottom-nav a[href="/account.html"] .mobile-bottom-icon {
     width: 22px;
     height: 22px;
     border-radius: 50%;
