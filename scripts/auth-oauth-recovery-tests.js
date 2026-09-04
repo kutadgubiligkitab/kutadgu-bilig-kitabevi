@@ -154,8 +154,10 @@ test("Google OAuth redirectTo stays on the start origin except production hosts"
 });
 
 test("homepage bounce only uses explicit type=recovery and skips OAuth hashes", () => {
-  assert.match(index, /hp\.get\("access_token"\)&&type!=="recovery"\)return/);
-  assert.match(index, /if\(type!=="recovery"\)return/);
+  const bounce = read("recovery-bounce.js");
+  assert.match(index, /<script src="recovery-bounce\.js\?v=1"><\/script>/);
+  assert.match(bounce, /hp\.get\("access_token"\)&&type!=="recovery"\)return/);
+  assert.match(bounce, /if\(type!=="recovery"\)return/);
   assert.doesNotMatch(index, /authOnHome/);
   assert.doesNotMatch(cfg, /authOnHome/);
   assert.match(cfg, /kutadguIsGenericOauthHash/);
@@ -168,7 +170,7 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
   assert.match(account, /member\.js\?v=17/);
   assert.match(read("shop.js"), /member\.js\?v=17/);
-  assert.match(index, /shop\.js\?v=91/);
+  assert.match(index, /shop\.js\?v=92/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -195,7 +197,7 @@ test("reset-password.html loads reset-password.js v=9", () => {
   assert.match(account, /supabase-config\.js\?v=14/);
   assert.match(index, /supabase-config\.js\?v=14/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=14/);
-  assert.match(read("admin.html"), /admin\.js\?v=53/);
+  assert.match(read("admin.html"), /admin\.js\?v=54/);
 });
 
 test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {
