@@ -520,11 +520,16 @@ revoke update on public.profiles from authenticated;
 grant update (full_name,phone,country,city,address) on public.profiles to authenticated;
 
 -- 7) كىتاب مۇقاۋا Storage
+-- Public bucket: known object URLs load without a storage.objects SELECT policy.
+-- Do not grant bucket-wide list access to anon or authenticated.
 insert into storage.buckets (id,name,public) values ('book-covers','book-covers',true)
 on conflict (id) do update set public = true;
 
+drop policy if exists "Public can view book covers" on storage.objects;
 drop policy if exists "public can read book covers" on storage.objects;
-create policy "public can read book covers" on storage.objects for select to anon,authenticated using (bucket_id = 'book-covers');
+drop policy if exists "Authenticated can upload book covers" on storage.objects;
+drop policy if exists "Authenticated can update book covers" on storage.objects;
+drop policy if exists "Authenticated can delete book covers" on storage.objects;
 drop policy if exists "admin can upload book covers" on storage.objects;
 create policy "admin can upload book covers" on storage.objects for insert to authenticated
 with check (bucket_id = 'book-covers' and public.is_kutadgu_admin());

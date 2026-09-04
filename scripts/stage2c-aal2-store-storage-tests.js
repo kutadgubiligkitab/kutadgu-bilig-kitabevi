@@ -201,7 +201,9 @@ test("storage AAL2 is scoped to book-covers and is not global", () => {
   const globalAal2Only = /create policy "[^"]+" on storage\.objects as restrictive[\s\S]*?(?:with check|using) \(\(select auth\.jwt\(\)->>'aal'\) = 'aal2'\)/i;
   assert.doesNotMatch(sql, globalAal2Only);
   assert.doesNotMatch(setup, globalAal2Only);
-  assert.match(setup, /create policy "public can read book covers" on storage\.objects for select to anon,authenticated using \(bucket_id = 'book-covers'\)/);
+  assert.doesNotMatch(setup, /create policy "public can read book covers"/i);
+  assert.doesNotMatch(setup, /create policy "[^"]+" on storage\.objects for select/i);
+  assert.doesNotMatch(setup, /on storage\.objects for select to anon,authenticated/i);
   assert.match(setup, /create policy "admin can upload book covers" on storage\.objects for insert to authenticated\nwith check \(bucket_id = 'book-covers' and public\.is_kutadgu_admin\(\)\)/);
 });
 
