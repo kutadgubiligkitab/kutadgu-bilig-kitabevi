@@ -32,15 +32,19 @@ test("cart.html initial host has no sample/demo book cover images", () => {
   assert.match(html, /id="cartItems"[^>]*aria-busy="true"/);
 });
 
-test("static shell does not paint cart books before remote catalog hydrate", () => {
+test("static shell paints cart boot state before remote catalog hydrate", () => {
   const shell = sliceBetween(shop, "function initStaticShell()", "function init()");
   assert.doesNotMatch(shell, /cartPage\(\)/);
   assert.match(shell, /paintCartBootState\(\)/);
   assert.match(shop, /function cartWaitingForRemoteBooks\(\)/);
+  assert.match(shop, /function cartHydrationPending\(\)/);
   assert.match(shop, /function showCartBootSkeleton\(/);
   assert.match(shop, /cart-item is-skeleton/);
   assert.doesNotMatch(sliceBetween(shop, "function cartItemSkeletonMarkup()", "function showCartBootSkeleton"), /sample-book-cover/);
   assert.doesNotMatch(sliceBetween(shop, "function cartItemSkeletonMarkup()", "function showCartBootSkeleton"), /<img\b/i);
+  const paint = sliceBetween(shop, "function paintCartBootState()", "function homepageVisibleBooks");
+  assert.match(paint, /cartHasUsableDisplayPreview\(\)/);
+  assert.match(paint, /showCartBootSkeleton\(cart\(\)\.length\)/);
   const boot = sliceBetween(shop, "async function boot()", "window.kutadguShop=");
   assert.match(boot, /initStaticShell\(\);\n  await loadRemoteCatalog\(\)/);
   assert.match(boot, /await hydrateBooksByIds/);
@@ -54,6 +58,7 @@ test("static shell does not paint cart books before remote catalog hydrate", () 
 
 test("cart boot helpers do not change persistence keys or WhatsApp builders", () => {
   assert.match(shop, /const CART_KEY="kutadgu-cart-v1"/);
+  assert.match(shop, /CART_DISPLAY_KEY="kutadgu-cart-display-v1"/);
   assert.match(shop, /function buildOrderText/);
   assert.match(shop, /function changeQty/);
   assert.match(shop, /function paintCartBootState/);
