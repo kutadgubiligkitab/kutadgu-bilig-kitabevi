@@ -4,6 +4,7 @@
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const CART_KEY="kutadgu-cart-v1";
 const FAV_KEY="kutadgu-favorites-v1";
+const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1";
 const SHOP_OWNER_GUEST="guest";
 const SHOP_OWNER_STALE="stale";
@@ -356,6 +357,7 @@ function clearLocalCartAndFavorites(){
   try{
     localStorage.removeItem(CART_KEY);
     localStorage.removeItem(FAV_KEY);
+    localStorage.removeItem(CART_DISPLAY_KEY);
   }catch(e){}
   emit("kutadgu-member-state-synced");
 }
@@ -468,10 +470,14 @@ async function mergeShopState(){
         throw saveErr;
       }
       if(!stillMergingFor(mergeForUserId))return;
+      const prevCart=Array.isArray(rawLocalCart)?rawLocalCart:[];
       localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
       localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
       writeShopOwner(String(mergeForUserId));
       writeMergeLock(mergeForUserId);
+      if(typeof window.kutadguShop?.alignCartDisplayAfterMemberSync==="function"){
+        window.kutadguShop.alignCartDisplayAfterMemberSync(prevCart);
+      }
       previewShopDebug("merge-applied",{
         user:idSuffix(mergeForUserId),
         owner:idSuffix(readShopOwner()),
@@ -521,6 +527,7 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
     owner:idSuffix(readShopOwner()),
     localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
   });
+  renderButton();emit();
   if(user){
     try{
       await fetchProfile();

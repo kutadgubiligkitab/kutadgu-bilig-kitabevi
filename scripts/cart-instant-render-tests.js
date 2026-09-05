@@ -148,6 +148,132 @@ test("changeQty refuses quantity mutation while cart hydration is pending", () =
   assert.ok(qty.indexOf("if(cartHydrationPending())return;") < qty.indexOf("set(CART_KEY,a)"));
 });
 
+function ownerApi({ liveUser = null, sessionUser = "", owner = "", accessToken = "tok" } = {}) {
+  const store = {};
+  if (owner) store["kutadgu-shop-owner-v1"] = owner;
+  if (sessionUser) {
+    store["sb-fxlojnqwyojqjskfggmh-auth-token"] = JSON.stringify({
+      access_token: accessToken,
+      user: { id: sessionUser }
+    });
+  }
+  const keys = Object.keys(store);
+  const localStorage = {
+    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+    key(i) { return keys[i] || null; },
+    get length() { return keys.length; }
+  };
+  const windowObj = {
+    KUTADGU_SUPABASE_CONFIG: { url: "https://fxlojnqwyojqjskfggmh.supabase.co" },
+    KutadguMember: { getUser() { return liveUser ? { id: liveUser } : null; } }
+  };
+  const src = sliceBetween(shop, "function peekPersistedShopUserId(){", "function alignCartDisplayAfterMemberSync(prevItems){");
+  return new Function("localStorage", "window", `
+    const SHOP_OWNER_GUEST="guest";
+    const SHOP_OWNER_STALE="stale";
+    function readShopOwner(){ try{return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim()}catch(e){return ""} }
+    ${src}
+    return { peekPersistedShopUserId, currentShopUserId, shopOwnerAllowsLocalDisplay };
+  `)(localStorage, windowObj);
+}
+
+test("guest with a valid cart is allowed to paint immediately without a session", () => {
+  const api = ownerApi({ owner: "guest" });
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay("guest", ""), true);
+});
+
+test("signed-in current owner with a persisted session is allowed to paint before member sync", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const api = ownerApi({ owner: uid, sessionUser: uid });
+  assert.strictEqual(api.peekPersistedShopUserId(), uid);
+  assert.strictEqual(api.currentShopUserId(), uid);
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
+  const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
+  assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("await loadRemoteCatalog()"));
+  assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
+  assert.doesNotMatch(boot, /await loadMemberSystem/);
+});
+
+test("guest to login merge still preserves legitimate local cart items", () => {
+  const member = fs.readFileSync(path.join(root, "member.js"), "utf8");
+  assert.match(member, /function shouldMergeLocalForUser\(userId\)\{/);
+  assert.match(member, /if\(!owner\|\|owner===SHOP_OWNER_GUEST\)return true/);
+  assert.match(member, /if\(owner===SHOP_OWNER_STALE\)return false/);
+  const merge = sliceBetween(member, "async function mergeShopState(){", "const syncTimers=new Map()");
+  assert.match(merge, /const gated=localItemsForMerge\(mergeForUserId,rawLocalCart,rawLocalFav\)/);
+  assert.match(merge, /localStorage\.setItem\(CART_KEY,JSON\.stringify\(mergedCart\)\)/);
+  assert.ok(merge.indexOf("localStorage.setItem(CART_KEY,JSON.stringify(mergedCart))") < merge.indexOf("alignCartDisplayAfterMemberSync(prevCart)"));
+  const guestLocal = [{ id: "91001", qty: 1 }];
+  const cloud = [];
+  const merged = [...cloud, ...guestLocal];
+  assert.deepStrictEqual(merged, [{ id: "91001", qty: 1 }]);
+});
+
+test("signed-in member synchronization does not require cloud merge before first paint", () => {
+  const apply = sliceBetween(
+    fs.readFileSync(path.join(root, "member.js"), "utf8"),
+    "async function applySession(session,{trackLogin=false,sync=false}={}){",
+    "function queueSession(session,options){"
+  );
+  assert.ok(apply.indexOf("renderButton();emit();") < apply.indexOf("if(sync)await mergeShopState()"));
+  const listeners = sliceBetween(shop, "function bindShopMemberListeners(){", "function init(){");
+  assert.match(listeners, /kutadgu-member-state-synced/);
+  assert.match(listeners, /kutadgu-member-change/);
+  assert.match(listeners, /refreshAfterMemberSync\(\)/);
+});
+
+test("member sync changing CART_KEY keeps display-preview state coherent", () => {
+  const member = fs.readFileSync(path.join(root, "member.js"), "utf8");
+  assert.match(member, /const prevCart=Array\.isArray\(rawLocalCart\)\?rawLocalCart:\[\]/);
+  assert.match(member, /alignCartDisplayAfterMemberSync\(prevCart\)/);
+  const align = sliceBetween(shop, "function alignCartDisplayAfterMemberSync(prevItems){", "const get=");
+  assert.match(align, /if\(!shopOwnerAllowsLocalDisplay\(\)\)return/);
+  assert.match(align, /migrateCartDisplaySnapshots\(prevItems\)/);
+  assert.match(align, /if\(catalogBootSettled\)refreshCartDisplaySnapshotsFromCatalog\(\)/);
+  const prev = [{ id: "children-3", qty: 1 }];
+  const next = [{ id: "102", qty: 1 }];
+  const store = { "children-3": { id: "children-3", title: "بالىلار" } };
+  const remapped = {};
+  for (const item of next) {
+    const id = String(item.id);
+    let snap = store[id];
+    if (!snap) {
+      const prevItem = prev.find((p) => String(p.id) === "children-3");
+      if (prevItem) snap = store[String(prevItem.id)];
+    }
+    if (snap) remapped[id] = { ...snap, id };
+  }
+  assert.strictEqual(remapped["102"].title, "بالىلار");
+});
+
+test("same-user reload does not wait for cloud sync just to display existing cart", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const api = ownerApi({ owner: uid, sessionUser: uid, liveUser: null });
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
+  const paint = sliceBetween(shop, "function paintCartBootState(){", "function homepageVisibleBooks(");
+  assert.match(paint, /cartHasUsableDisplayPreview\(\)/);
+  assert.doesNotMatch(paint, /mergeShopState/);
+  assert.doesNotMatch(paint, /fetchProfile/);
+});
+
+test("different-user and stale-owner carts are not flashed", () => {
+  const a = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const b = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  assert.strictEqual(ownerApi({ owner: a }).shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(ownerApi({ owner: a, sessionUser: b }).shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(ownerApi({ owner: a, liveUser: b, sessionUser: a }).shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(ownerApi({ owner: "stale", sessionUser: a }).shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(ownerApi({ owner: "stale", liveUser: a }).shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(ownerApi({ owner: a, liveUser: a }).shopOwnerAllowsLocalDisplay(), true);
+});
+
+test("missing persisted session stays fail-closed for UUID-owned carts", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  assert.strictEqual(ownerApi({ owner: uid, sessionUser: uid, accessToken: "" }).peekPersistedShopUserId(), "");
+  assert.strictEqual(ownerApi({ owner: uid }).shopOwnerAllowsLocalDisplay(), false);
+});
+
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
   process.exit(1);
