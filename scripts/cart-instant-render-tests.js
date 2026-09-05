@@ -148,14 +148,27 @@ test("changeQty refuses quantity mutation while cart hydration is pending", () =
   assert.ok(qty.indexOf("if(cartHydrationPending())return;") < qty.indexOf("set(CART_KEY,a)"));
 });
 
-function ownerApi({ liveUser = null, sessionUser = "", owner = "", accessToken = "tok" } = {}) {
-  const store = {};
+function ownerApi({
+  liveUser = null,
+  sessionUser = "",
+  owner = "",
+  accessToken = "tok",
+  expiresAt = "future",
+  wrapCurrentSession = false,
+  extraStore = {},
+  configUrl = "https://fxlojnqwyojqjskfggmh.supabase.co",
+  authKey = "sb-fxlojnqwyojqjskfggmh-auth-token"
+} = {}) {
+  const store = { ...extraStore };
   if (owner) store["kutadgu-shop-owner-v1"] = owner;
   if (sessionUser) {
-    store["sb-fxlojnqwyojqjskfggmh-auth-token"] = JSON.stringify({
-      access_token: accessToken,
-      user: { id: sessionUser }
-    });
+    let exp = expiresAt;
+    if (exp === "future") exp = Math.floor(Date.now() / 1000) + 3600;
+    const session = { user: { id: sessionUser } };
+    if (accessToken !== null) session.access_token = accessToken;
+    session.refresh_token = "refresh-only-is-not-enough";
+    if (exp !== "missing") session.expires_at = exp;
+    store[authKey] = JSON.stringify(wrapCurrentSession ? { currentSession: session } : session);
   }
   const keys = Object.keys(store);
   const localStorage = {
@@ -164,7 +177,7 @@ function ownerApi({ liveUser = null, sessionUser = "", owner = "", accessToken =
     get length() { return keys.length; }
   };
   const windowObj = {
-    KUTADGU_SUPABASE_CONFIG: { url: "https://fxlojnqwyojqjskfggmh.supabase.co" },
+    KUTADGU_SUPABASE_CONFIG: configUrl == null ? {} : { url: configUrl },
     KutadguMember: { getUser() { return liveUser ? { id: liveUser } : null; } }
   };
   const src = sliceBetween(shop, "function peekPersistedShopUserId(){", "function alignCartDisplayAfterMemberSync(prevItems){");
@@ -272,6 +285,76 @@ test("missing persisted session stays fail-closed for UUID-owned carts", () => {
   const uid = "11111111-1111-4111-8111-111111111111";
   assert.strictEqual(ownerApi({ owner: uid, sessionUser: uid, accessToken: "" }).peekPersistedShopUserId(), "");
   assert.strictEqual(ownerApi({ owner: uid }).shopOwnerAllowsLocalDisplay(), false);
+});
+
+test("configured-project token with matching owner and future expires_at allows instant display", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const api = ownerApi({ owner: uid, sessionUser: uid, wrapCurrentSession: true });
+  assert.strictEqual(api.peekPersistedShopUserId(), uid);
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
+  const peek = sliceBetween(shop, "function peekPersistedShopUserId(){", "function currentShopUserId(){");
+  assert.match(peek, /sb-"\+ref\+"-auth-token/);
+  assert.doesNotMatch(peek, /localStorage\.length/);
+  assert.doesNotMatch(peek, /sb-\.\+-auth-token/);
+});
+
+test("matching owner with expired expires_at is blocked before member identity resolves", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const api = ownerApi({ owner: uid, sessionUser: uid, expiresAt: Math.floor(Date.now() / 1000) - 60 });
+  assert.strictEqual(api.peekPersistedShopUserId(), "");
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), false);
+});
+
+test("matching owner with missing expires_at is blocked", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const api = ownerApi({ owner: uid, sessionUser: uid, expiresAt: "missing" });
+  assert.strictEqual(api.peekPersistedShopUserId(), "");
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), false);
+});
+
+test("matching owner with invalid expires_at is blocked", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const invalid = ownerApi({ owner: uid, sessionUser: uid, expiresAt: "soon" });
+  assert.strictEqual(invalid.peekPersistedShopUserId(), "");
+  assert.strictEqual(invalid.shopOwnerAllowsLocalDisplay(), false);
+  const nonNumeric = ownerApi({ owner: uid, sessionUser: uid, expiresAt: "NaN" });
+  assert.strictEqual(nonNumeric.peekPersistedShopUserId(), "");
+  const refreshOnly = ownerApi({ owner: uid, sessionUser: uid, accessToken: "" });
+  assert.strictEqual(refreshOnly.peekPersistedShopUserId(), "");
+});
+
+test("unrelated project auth token is ignored even with a matching user id", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const other = {
+    "sb-otherproject-auth-token": JSON.stringify({
+      access_token: "tok",
+      refresh_token: "refresh-only-is-not-enough",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: uid }
+    })
+  };
+  const api = ownerApi({ owner: uid, extraStore: other });
+  assert.strictEqual(api.peekPersistedShopUserId(), "");
+  assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), false);
+  const noConfig = ownerApi({ owner: uid, sessionUser: uid, configUrl: "" });
+  assert.strictEqual(noConfig.peekPersistedShopUserId(), "");
+  assert.strictEqual(noConfig.shopOwnerAllowsLocalDisplay(), false);
+});
+
+test("live KutadguMember identity allows same-owner display when persisted token is expired", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const expired = ownerApi({
+    owner: uid,
+    sessionUser: uid,
+    liveUser: uid,
+    expiresAt: Math.floor(Date.now() / 1000) - 120
+  });
+  assert.strictEqual(expired.peekPersistedShopUserId(), "");
+  assert.strictEqual(expired.currentShopUserId(), uid);
+  assert.strictEqual(expired.shopOwnerAllowsLocalDisplay(), true);
+  const liveOnly = ownerApi({ owner: uid, liveUser: uid });
+  assert.strictEqual(liveOnly.peekPersistedShopUserId(), "");
+  assert.strictEqual(liveOnly.shopOwnerAllowsLocalDisplay(), true);
 });
 
 if (failed) {

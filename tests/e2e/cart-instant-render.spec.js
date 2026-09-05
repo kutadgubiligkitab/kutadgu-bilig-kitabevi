@@ -31,8 +31,8 @@ function displayStore(items) {
   return JSON.stringify({ v: 1, items });
 }
 
-async function seedCart(page, { snapshot = true, extraSnapshot = false, malicious = false, owner = "guest", sessionUser = "" } = {}) {
-  await page.addInitScript(({ cart, display, ownerId, sessionId }) => {
+async function seedCart(page, { snapshot = true, extraSnapshot = false, malicious = false, owner = "guest", sessionUser = "", expiresAt } = {}) {
+  await page.addInitScript(({ cart, display, ownerId, sessionId, sessionExpiresAt }) => {
     try {
       localStorage.setItem("kutadgu-cart-v1", cart);
       if (display) localStorage.setItem("kutadgu-cart-display-v1", display);
@@ -40,14 +40,15 @@ async function seedCart(page, { snapshot = true, extraSnapshot = false, maliciou
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
       const authKey = "sb-fxlojnqwyojqjskfggmh-auth-token";
       if (sessionId) {
-        localStorage.setItem(authKey, JSON.stringify({
+        const session = {
           access_token: "test-access-token",
           refresh_token: "test-refresh-token",
           token_type: "bearer",
           expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
           user: { id: sessionId, aud: "authenticated", role: "authenticated", email: "member@example.com" }
-        }));
+        };
+        if (sessionExpiresAt !== "missing") session.expires_at = sessionExpiresAt;
+        localStorage.setItem(authKey, JSON.stringify(session));
       } else {
         localStorage.removeItem(authKey);
       }
@@ -56,6 +57,7 @@ async function seedCart(page, { snapshot = true, extraSnapshot = false, maliciou
     cart: JSON.stringify([{ id: BOOK_ID, qty: 1 }]),
     ownerId: owner,
     sessionId: sessionUser,
+    sessionExpiresAt: expiresAt == null ? Math.floor(Date.now() / 1000) + 3600 : expiresAt,
     display: snapshot ? displayStore({
       [BOOK_ID]: malicious ? {
         id: BOOK_ID,
@@ -431,6 +433,8 @@ test.describe("cart instant display snapshot", () => {
     await expect(page.locator("#cartItems .cart-item.is-skeleton")).toHaveCount(0);
     await expect(page.locator("#cartItems")).not.toContainText(/سېۋەت ھازىرچە بوش/);
     await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "pending");
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await expect(page.locator("#cartItems [data-minus]")).toBeDisabled();
     await expect(page.locator("#checkoutCard")).toBeHidden();
     const pendingOrder = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
     expect(pendingOrder).toBeNull();
@@ -464,6 +468,24 @@ test.describe("cart instant display snapshot", () => {
     });
     expect(stored.map((x) => String(x.id))).toEqual([BOOK_ID]);
     expect(Number(stored[0].qty)).toBe(1);
+  });
+
+  test("expired persisted session does not flash the previous member cart", async ({ page }) => {
+    test.setTimeout(45_000);
+    const owner = "11111111-1111-4111-8111-111111111111";
+    await seedCart(page, {
+      snapshot: true,
+      owner,
+      sessionUser: owner,
+      expiresAt: Math.floor(Date.now() / 1000) - 120
+    });
+    await mockBooks(page, { delayMs: 2500, books: [bookRow()] });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#cartItems")).toContainText(/سېۋەت ھازىرچە بوش/, { timeout: 4000 });
+    await expect(page.locator("#cartItems .cart-title")).toHaveCount(0);
+    await expect(page.locator("#cartItems")).not.toContainText(PREVIEW_TITLE);
+    await page.waitForTimeout(800);
+    await expect(page.locator("#cartItems .cart-title")).toHaveCount(0);
   });
 
   test("stale owner leftover cart is not shown as the current member cart", async ({ page }) => {

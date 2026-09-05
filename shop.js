@@ -686,23 +686,31 @@ function stampShopOwner(){
 }
 function peekPersistedShopUserId(){
   try{
-    const keys=[];
-    const url=String(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url||"");
+    const url=String(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url||"").trim();
+    if(!url)return "";
     let ref="";
-    try{ref=new URL(url).hostname.split(".")[0]||""}catch(err){}
-    if(ref)keys.push("sb-"+ref+"-auth-token");
-    for(let i=0;i<localStorage.length;i++){
-      const key=localStorage.key(i);
-      if(key&&/^sb-.+-auth-token$/.test(key)&&keys.indexOf(key)<0)keys.push(key);
-    }
-    for(const key of keys){
-      const raw=localStorage.getItem(key);
-      if(!raw)continue;
-      const parsed=JSON.parse(raw);
-      const session=parsed&&(parsed.currentSession||parsed);
-      const uid=String(session&&session.user&&session.user.id||"").trim();
-      if(uid&&session&&session.access_token)return uid;
-    }
+    try{ref=String(new URL(url).hostname.split(".")[0]||"").trim()}catch(err){}
+    if(!ref||!/^[a-z0-9-]+$/i.test(ref))return "";
+    const raw=localStorage.getItem("sb-"+ref+"-auth-token");
+    if(!raw)return "";
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return "";
+    const session=parsed.currentSession&&typeof parsed.currentSession==="object"&&!Array.isArray(parsed.currentSession)
+      ?parsed.currentSession
+      :parsed;
+    if(!session||typeof session!=="object"||Array.isArray(session))return "";
+    const token=String(session.access_token||"").trim();
+    const uid=String(session.user&&session.user.id||"").trim();
+    if(!token||!uid)return "";
+    const rawExp=session.expires_at!=null?session.expires_at
+      :(session.expiresAt!=null?session.expiresAt
+      :(parsed.expiresAt!=null?parsed.expiresAt:null));
+    if(rawExp===""||rawExp==null)return "";
+    const expiresAt=Number(rawExp);
+    if(!Number.isFinite(expiresAt)||expiresAt<=0)return "";
+    const expiresAtMs=expiresAt>1e12?expiresAt:expiresAt*1000;
+    if(expiresAtMs<=Date.now())return "";
+    return uid;
   }catch(err){}
   return "";
 }
