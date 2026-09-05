@@ -639,23 +639,24 @@ async function saveOrder(order){
   if(!db||!user)return {saved:false,reason:"not_signed_in"};
   if(blocked)return {saved:false,reason:"suspended"};
   const c=order.customer||{};
-  const row={
-    order_no:order.orderId,
-    user_id:user.id,
-    status:"prepared",
-    items:Array.isArray(order.items)?order.items:[],
-    total:Number(order.total)||0,
-    total_qty:Number(order.totalQty)||0,
-    customer_name:c.name||"",
-    customer_phone:c.phone||"",
-    customer_city:c.city||"",
-    customer_address:c.address||"",
-    delivery_method:c.delivery||"",
-    customer_note:c.note||""
-  };
-  const {data,error}=await db.from("orders").insert(row).select().single();
+  const items=(Array.isArray(order.items)?order.items:[]).map(x=>({
+    book_id:x.book_id,
+    qty:x.qty
+  }));
+  const {data,error}=await db.rpc("create_member_order",{
+    p_order_no:String(order.orderId||"").trim(),
+    p_items:items,
+    p_customer_name:String(c.name||""),
+    p_customer_phone:String(c.phone||""),
+    p_customer_city:String(c.city||""),
+    p_customer_address:String(c.address||""),
+    p_delivery_method:String(c.delivery||""),
+    p_customer_note:String(c.note||"")
+  });
   if(error)throw error;
-  return {saved:true,order:data};
+  const row=Array.isArray(data)?data[0]:data;
+  if(!row)return {saved:false,reason:"db_error"};
+  return {saved:true,order:row};
 }
 
 const api=window.KutadguMember={

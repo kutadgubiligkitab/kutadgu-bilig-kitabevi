@@ -31,6 +31,13 @@ test.describe("order prepared semantics", () => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const book = await addBookOnce(page);
     const orderWrites = [];
+    await page.route("**/rest/v1/rpc/create_member_order**", async (route) => {
+      const method = route.request().method();
+      if (method === "POST" || method === "PATCH" || method === "PUT") {
+        orderWrites.push({ method, url: route.request().url() });
+      }
+      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+    });
     await page.route("**/rest/v1/orders**", async (route) => {
       const method = route.request().method();
       if (method === "POST" || method === "PATCH" || method === "PUT") {
