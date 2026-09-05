@@ -256,7 +256,9 @@ test("Admin frontend writes stay compatible; MFA UI and auth untouched", () => {
   assert.match(adminJs, /from\("store_announcement_settings"\)\.update/);
   assert.match(adminJs, /cfg\.bucket\|\|"book-covers"/);
   assert.match(adminJs, /upsert:false/);
-  assert.doesNotMatch(adminJs, /from\("orders"\)\.update/);
+  assert.match(adminJs, /from\("orders"\)\.update\(\{status:nextStatus\}\)/);
+  assert.doesNotMatch(adminJs, /from\("orders"\)\.delete/);
+  assert.doesNotMatch(adminJs, /from\("orders"\)\.insert/);
   assert.match(adminMfa, /function evaluateAccess/);
   assert.match(adminMfa, /getAuthenticatorAssuranceLevel/);
   assert.match(resetJs, /verifyOtp\(\{token_hash:info\.tokenHash,type:"recovery"\}\)/);

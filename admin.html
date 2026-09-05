@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=33">
+  <link rel="stylesheet" href="admin.css?v=34">
 </head>
 <body>
 <div class="admin-shell">
@@ -71,6 +71,7 @@
           <button type="button" class="admin-nav-item" data-admin-section="import-covers">📥 ئىمپورت ۋە مۇقاۋا</button>
           <button type="button" class="admin-nav-item" data-admin-section="insights">📈 ستاتىستىكا</button>
           <button type="button" class="admin-nav-item" data-admin-section="customers">👥 ئەزالار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="orders">📦 زاكازلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="system">⚙️ سىستېما</button>
         </nav>
         <div class="admin-dashboard-main">
@@ -83,6 +84,7 @@
               <option value="import-covers">📥 ئىمپورت ۋە مۇقاۋا</option>
               <option value="insights">📈 ستاتىستىكا</option>
               <option value="customers">👥 ئەزالار</option>
+              <option value="orders">📦 زاكازلار</option>
               <option value="system">⚙️ سىستېما</option>
             </select>
           </div>
@@ -349,6 +351,37 @@
         </div>
         <p class="admin-help">تىزىملاتقان ۋاقىت، ئاخىرقى كىرىش، ئاخىرقى زىيارەت، زىيارەت سانى ۋە زاكاز تارىخى بۇ يەردە كۆرۈنىدۇ.</p>
         <div id="adminMemberList" class="admin-member-list"><div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div></div>
+      </section>
+      </div>
+
+      <div data-admin-section-panel="orders" hidden>
+      <section class="admin-card" id="orderManagement">
+        <div class="admin-toolbar">
+          <div>
+            <span class="admin-section-kicker">📦 زاكاز باشقۇرۇش</span>
+            <h2 class="admin-section-title">زاكازلار</h2>
+          </div>
+          <div class="admin-toolbar-group">
+            <button class="admin-secondary" id="reloadAdminOrders" type="button">↻ يېڭىلاش</button>
+          </div>
+        </div>
+        <p class="admin-help">تەييارلانغان زاكازلارمۇ بۇ يەردە كۆرۈنىدۇ. زاكاز سانى ۋە سومما پەقەت جەزملەنگەن، تەييارلىنىۋاتقان، كارگوغا بېرىلگەن ۋە تاماملانغان زاكازلارنى ھېسابلايدۇ.</p>
+        <div class="admin-filter-row" id="adminOrderFilters">
+          <input id="adminOrderSearch" class="admin-search" type="search" placeholder="زاكاز نومۇرى، ئىسىم ياكى تېلېفون..." autocomplete="off">
+          <label class="admin-order-filter-label" for="adminOrderStatusFilter">ھالەت</label>
+          <select id="adminOrderStatusFilter" aria-label="زاكاز ھالىتى">
+            <option value="all">بارلىق ھالەتلەر</option>
+            <option value="prepared">تەييارلاندى</option>
+            <option value="confirmed">جەزملەشتۈرۈلدى</option>
+            <option value="processing">تەييارلىنىۋاتىدۇ</option>
+            <option value="shipped">كارگوغا بېرىلدى</option>
+            <option value="completed">تاماملاندى</option>
+            <option value="cancelled">بىكار قىلىندى</option>
+          </select>
+        </div>
+        <div id="adminOrderList" class="admin-order-list"><div class="admin-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div></div>
+        <div id="adminOrderPager" class="admin-pager" hidden></div>
+        <div id="adminOrderDetail" class="admin-order-detail" hidden></div>
       </section>
       </div>
         </div>
@@ -784,6 +817,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
-  <script defer src="admin.js?v=56"></script>
+  <script defer src="admin.js?v=59"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const SECTIONS = {
   "import-covers": "#coverRepairCard",
   insights: "#analyticsManagement",
   customers: "#memberManagement",
+  orders: "#orderManagement",
   system: "#maintenanceCard"
 };
 
@@ -66,6 +67,9 @@ test.describe("admin navigation", () => {
     await page.locator('[data-admin-section="customers"]').click();
     await expectOnlySection(page, "customers");
 
+    await page.locator('[data-admin-section="orders"]').click();
+    await expectOnlySection(page, "orders");
+
     await page.locator('[data-admin-section="system"]').click();
     await expectOnlySection(page, "system");
 
@@ -99,6 +103,11 @@ test.describe("admin navigation", () => {
     await page.locator("#adminSectionSelect").selectOption("insights");
     await expectOnlySection(page, "insights");
     await expect(page.locator('[data-admin-section="insights"]')).toHaveClass(/is-active/);
+
+    await page.locator("#adminSectionSelect").selectOption("orders");
+    await expectOnlySection(page, "orders");
+    await expect(page.locator("#adminOrderSearch")).toBeVisible();
+    await expect(page.locator("#adminOrderStatusFilter")).toBeVisible();
 
     const overflow = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
