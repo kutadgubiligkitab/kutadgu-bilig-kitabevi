@@ -50,7 +50,8 @@ function loadHelpers() {
       COUNTED_ORDER_STATUSES, orderStatusKey, countsTowardOrderStats, orderStatsCount, orderStatsRevenue,
       ORDER_STATUSES, isAllowedOrderStatus, orderStatusLabel, shouldConfirmOrderStatus,
       orderUpdateSucceeded, isAal2OrderUpdateError, formatOrderUpdateError, aal2RequiredOrderUpdateMessage,
-      orderUpdateEmptyMessage, normalizeAdminAal, isAdminAal2, isBelowAal2, readAdminAalFromInspect,
+      aalUnknownOrderUpdateMessage, orderUpdateEmptyMessage, normalizeAdminAal, isAdminAal2, isBelowAal2,
+      knownAdminAal, readAdminAalFromInspect, readAdminAalFromMfaResult, resolveAdminOrderAal,
       decideAdminOrderStatusUpdate, orderBelongsToStatusFilter, parseOrderItems, patchOrdersStatus, esc
     };
   `)();
@@ -414,6 +415,88 @@ test("current AAL2 allows the normal UPDATE path to proceed", () => {
   const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
   assert.match(save, /from\("orders"\)\.update\(\{status:nextStatus\}\)\.eq\("id",orderId\)/);
   assert.ok(save.indexOf("if(!aalDecision.allowUpdate)") < save.indexOf('.update({status:nextStatus})'));
+});
+
+test("unknown or empty AAL blocks UPDATE and does not send an orders UPDATE", () => {
+  ["", null, undefined, "unknown", "aal3"].forEach((aal) => {
+    const decision = H.decideAdminOrderStatusUpdate(aal);
+    assert.strictEqual(decision.allowUpdate, false, String(aal));
+    assert.strictEqual(decision.reason, "aal_unknown", String(aal));
+    assert.strictEqual(decision.message, H.aalUnknownOrderUpdateMessage());
+    assert.notStrictEqual(decision.message, H.aal2RequiredOrderUpdateMessage());
+    const result = simulateStatusSave({
+      aal,
+      store: [{ id: "1", status: "prepared" }],
+      orderId: "1",
+      nextStatus: "confirmed",
+      filter: "all",
+      page: 0,
+      pageSize: 40,
+      updateData: [{ id: "1", status: "confirmed" }]
+    });
+    assert.strictEqual(result.ok, false, String(aal));
+    assert.strictEqual(result.updateCalled, false, String(aal));
+    assert.strictEqual(result.successShown, false, String(aal));
+    assert.strictEqual(result.reason, "aal_unknown", String(aal));
+    assert.match(result.messages[0].text, /تەكشۈرگىلى بولمىدى/);
+    assert.doesNotMatch(result.messages[0].text, /AAL2\) كېرەك/);
+  });
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  assert.ok(save.indexOf("if(!aalDecision.allowUpdate)") < save.indexOf('.update({status:nextStatus})'));
+  assert.match(save, /reason:aalDecision\.reason/);
+});
+
+test("failed inspectAccess with a successful direct MFA fallback returning aal2 allows UPDATE", () => {
+  assert.strictEqual(H.readAdminAalFromInspect({ assurance: { currentLevel: null } }), "");
+  assert.strictEqual(H.readAdminAalFromInspect(null), "");
+  assert.strictEqual(H.readAdminAalFromMfaResult({ data: { currentLevel: "aal2" }, error: null }), "aal2");
+  const aal = H.resolveAdminOrderAal("", H.readAdminAalFromMfaResult({ data: { currentLevel: "aal2" } }));
+  assert.strictEqual(aal, "aal2");
+  const decision = H.decideAdminOrderStatusUpdate(aal);
+  assert.strictEqual(decision.allowUpdate, true);
+  assert.strictEqual(decision.reason, "aal2");
+  const result = simulateStatusSave({
+    aal,
+    store: [{ id: "1", status: "prepared" }],
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed", updated_at: "2026-09-05" }]
+  });
+  assert.strictEqual(result.updateCalled, true);
+  const readAal = sliceBetween(adminJs, "async function readCurrentAdminAal(){", "async function saveAdminOrderStatus(orderId){");
+  assert.match(readAal, /Mfa\.inspectAccess/);
+  assert.match(readAal, /getAuthenticatorAssuranceLevel/);
+  assert.ok(readAal.indexOf("inspectAccess") < readAal.indexOf("getAuthenticatorAssuranceLevel"));
+  assert.match(readAal, /if\(inspectAal\)return inspectAal;/);
+  assert.doesNotMatch(readAal, /catch\(err\)\{\s*return ""/);
+});
+
+test("failed or unknown inspectAccess plus failed or unknown fallback is blocked with a safe unknown-AAL message", () => {
+  assert.strictEqual(H.resolveAdminOrderAal("", ""), "");
+  assert.strictEqual(H.readAdminAalFromMfaResult({ error: { message: "fail" }, data: { currentLevel: "aal2" } }), "");
+  assert.strictEqual(H.readAdminAalFromMfaResult({ data: { currentLevel: null } }), "");
+  assert.strictEqual(H.readAdminAalFromMfaResult(null), "");
+  const decision = H.decideAdminOrderStatusUpdate(H.resolveAdminOrderAal("", ""));
+  assert.strictEqual(decision.allowUpdate, false);
+  assert.strictEqual(decision.reason, "aal_unknown");
+  assert.strictEqual(decision.message, H.aalUnknownOrderUpdateMessage());
+  assert.notStrictEqual(decision.message, H.aal2RequiredOrderUpdateMessage());
+  const result = simulateStatusSave({
+    aal: "",
+    store: [{ id: "1", status: "prepared" }],
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed" }]
+  });
+  assert.strictEqual(result.updateCalled, false);
+  assert.match(result.messages[0].text, /تەكشۈرگىلى بولمىدى/);
+  assert.doesNotMatch(adminJs, /create policy/i);
 });
 
 test("empty/no-row non-AAL2 failure is handled safely without success or an AAL2 label", () => {

@@ -1362,6 +1362,9 @@ function isAal2OrderUpdateError(error){
 function aal2RequiredOrderUpdateMessage(){
   return "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
 }
+function aalUnknownOrderUpdateMessage(){
+  return "2-باسقۇچلۇق دەلىللەش ھالىتىنى تەكشۈرگىلى بولمىدى. قايتا سىناڭ ياكى قايتا كىرىڭ.";
+}
 function orderUpdateEmptyMessage(){
   return "ئۆزگەرتىش يېزىلمىدى";
 }
@@ -1379,12 +1382,25 @@ function isAdminAal2(level){
 function isBelowAal2(level){
   return normalizeAdminAal(level)==="aal1";
 }
+function knownAdminAal(level){
+  if(isAdminAal2(level))return "aal2";
+  if(isBelowAal2(level))return "aal1";
+  return "";
+}
 function readAdminAalFromInspect(inspect){
-  return normalizeAdminAal(inspect&&inspect.assurance&&inspect.assurance.currentLevel);
+  return knownAdminAal(inspect&&inspect.assurance&&inspect.assurance.currentLevel);
+}
+function readAdminAalFromMfaResult(res){
+  if(!res||res.error||!res.data)return "";
+  return knownAdminAal(res.data.currentLevel);
+}
+function resolveAdminOrderAal(inspectAal,fallbackAal){
+  return knownAdminAal(inspectAal)||knownAdminAal(fallbackAal);
 }
 function decideAdminOrderStatusUpdate(aal){
+  if(isAdminAal2(aal))return {allowUpdate:true,reason:"aal2"};
   if(isBelowAal2(aal))return {allowUpdate:false,reason:"aal2_required",message:aal2RequiredOrderUpdateMessage()};
-  return {allowUpdate:true,reason:isAdminAal2(aal)?"aal2":"aal_unknown"};
+  return {allowUpdate:false,reason:"aal_unknown",message:aalUnknownOrderUpdateMessage()};
 }
 function orderBelongsToStatusFilter(order,filter){
   const status=String(filter||"all");
@@ -1558,18 +1574,17 @@ function setAdminOrderStatusMsg(text,ok){
   el.className="admin-order-status-msg "+(ok?"is-ok":"is-error");
 }
 async function readCurrentAdminAal(){
+  let inspectAal="";
   if(typeof Mfa.inspectAccess==="function"){
     try{
-      return readAdminAalFromInspect(await Mfa.inspectAccess(()=>db));
-    }catch(err){
-      return "";
-    }
+      inspectAal=readAdminAalFromInspect(await Mfa.inspectAccess(()=>db));
+    }catch(err){}
   }
+  if(inspectAal)return inspectAal;
   const api=db&&db.auth&&db.auth.mfa;
   if(api&&typeof api.getAuthenticatorAssuranceLevel==="function"){
     try{
-      const res=await api.getAuthenticatorAssuranceLevel();
-      if(res&&!res.error&&res.data)return normalizeAdminAal(res.data.currentLevel);
+      return readAdminAalFromMfaResult(await api.getAuthenticatorAssuranceLevel());
     }catch(err){}
   }
   return "";
@@ -4658,6 +4673,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,orderUpdateEmptyMessage,normalizeAdminAal,isAdminAal2,isBelowAal2,readAdminAalFromInspect,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
 };
 })();
