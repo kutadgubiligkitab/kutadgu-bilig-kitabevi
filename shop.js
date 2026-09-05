@@ -1666,8 +1666,12 @@ function applyDetailCoverFallback(){
     box.prepend(img);
   }
   const book=getDetailBook();
+  if(!book||!isStorefrontVisible(book)){
+    markCoverUnavailable(img);
+    return;
+  }
   const current=(img.getAttribute("src")||"").trim();
-  img.alt=img.alt||`${book?.title||"كىتاب"} كىتاب مۇقاۋىسى`;
+  img.alt=img.alt||`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;
   img.loading="eager";
   img.decoding="async";
   img.hidden=false;
@@ -1789,7 +1793,8 @@ function populateDynamicBookPage(b){
     return;
   }
   const dynamic=document.body.hasAttribute("data-dynamic-book");
-  if(!dynamic&&!b.isRemote)return;
+  const allowStaticFixture=!requiresRemoteProductAuthority()&&isStorefrontVisible(b);
+  if(!dynamic&&!b.isRemote&&!allowStaticFixture)return;
   document.body.dataset.bookId=b.id;
   document.title=`${b.title} - قۇتادغۇبىلىك كىتابخانىسى`;
 

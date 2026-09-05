@@ -149,6 +149,21 @@ test.describe("static demo production safety", () => {
     expect(state.title).toContain("تەمىنلەنمەيدۇ");
   });
 
+  test("/romanlar-2.html raw first paint is not a fake product", async ({ request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const res = await request.get(`${origin}/romanlar-2.html`);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).not.toMatch(/200\s*₺/);
+    expect(html).not.toMatch(/رومان كىتابى 2/);
+    expect(html).not.toMatch(/ئاپتور ئىسمى/);
+    expect(html).not.toMatch(/add-to-cart/);
+    expect(html).not.toMatch(/favorite-button/);
+    expect(html).not.toMatch(/share-button/);
+    expect(html).not.toMatch(/sample-book-cover\.png/);
+    expect(html).toMatch(/data-static-detail-shell="1"/);
+  });
+
   test("/romanlar-2.html is unavailable, not a fake priced product", async ({ page }) => {
     await requireProductionAuthority(page);
     await mockBooks(page, { books: [bookRow()] });
@@ -188,6 +203,10 @@ test.describe("static demo production safety", () => {
     await mockBooks(page, { books: [bookRow()] });
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
+    await expect.poll(async () => page.evaluate((id) => {
+      const book = window.kutadguShop.find(id);
+      return !!(book && window.kutadguShop.isStorefrontVisible(book));
+    }, REAL_ID)).toBe(true);
     const ids = await page.evaluate(() => window.kutadguShop.cart().map((row) => String(row.id)));
     expect(ids).not.toContain(DEMO_ID);
     expect(ids).toContain(REAL_ID);
@@ -206,6 +225,21 @@ test.describe("static demo production safety", () => {
     await page.evaluate((id) => window.kutadguShop.add(id), REAL_ID);
     const cart = await page.evaluate(() => window.kutadguShop.cart().map((row) => String(row.id)));
     expect(cart).toContain(REAL_ID);
+  });
+
+  test("static romanlar-2.html populates canonical remote book when mapped", async ({ page }) => {
+    await requireProductionAuthority(page);
+    await mockBooks(page, { books: [bookRow({ legacy_id: DEMO_ID })] });
+    await page.goto("/romanlar-2.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await expect(page.locator(".book-detail-info h1")).toContainText(REAL_TITLE);
+    await expect(page.locator(".add-to-cart, .detail-main-cart")).toBeVisible();
+    const state = await page.evaluate((slug) => {
+      const book = window.kutadguShop.find(slug);
+      return { id: book && String(book.id), remote: !!(book && book.isRemote) };
+    }, DEMO_ID);
+    expect(state.id).toBe(REAL_ID);
+    expect(state.remote).toBe(true);
   });
 
   test("future remote legacy mapping resolves old-slug to canonical 123", async ({ page }) => {
@@ -276,5 +310,6 @@ test.describe("static demo production safety", () => {
     expect(state.require).toBe(false);
     expect(state.id).toBe(DEMO_ID);
     expect(state.visible).toBe(true);
+    await expect(page.locator(".book-detail-info h1")).toContainText(DEMO_TITLE);
   });
 });

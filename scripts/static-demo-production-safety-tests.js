@@ -69,6 +69,10 @@ test("unauthorized static detail does not keep fake price or add-to-cart chrome"
   const decorate = sliceBetween(shop, "function decorateDetail(){", "function bindDynamicActions(");
   assert.match(decorate, /paintUnauthorizedDetail\(\)/);
   assert.match(decorate, /b\.isRemote!==true/);
+  const cover = sliceBetween(shop, "function applyDetailCoverFallback(){", "function decorateCards(){");
+  assert.match(cover, /if\(!book\|\|!isStorefrontVisible\(book\)\)\{/);
+  const populate = sliceBetween(shop, "function populateDynamicBookPage(b){", "const DETAIL_RELATED_LIMIT=4;");
+  assert.match(populate, /allowStaticFixture=!requiresRemoteProductAuthority\(\)/);
 });
 
 test("future legacy mapping still indexes remote legacy_id onto the canonical book", () => {
@@ -78,12 +82,38 @@ test("future legacy mapping still indexes remote legacy_id onto the canonical bo
   assert.match(remoteUrl, /legacy_id\.in\./);
 });
 
-test("pins use shop.js v=105 and catalog-visibility.js v=3", () => {
-  assert.match(indexHtml, /shop\.js\?v=105/);
+test("static fixture detail HTML first paint is a neutral shell, not a sellable product", () => {
+  const files = fs.readdirSync(root).filter((name) => name.endsWith(".html"));
+  const checked = [];
+  for (const name of files) {
+    const html = fs.readFileSync(path.join(root, name), "utf8");
+    const idMatch = html.match(/data-book-id="([^"]+)"/);
+    if (!idMatch || /^\d+$/.test(idMatch[1].trim())) continue;
+    if (!html.includes("book-detail-page")) continue;
+    checked.push(name);
+    assert.match(html, /data-dynamic-book="1"/, name);
+    assert.match(html, /data-static-detail-shell="1"/, name);
+    assert.doesNotMatch(html, /add-to-cart/, name);
+    assert.doesNotMatch(html, /favorite-button/, name);
+    assert.doesNotMatch(html, /share-button/, name);
+    assert.doesNotMatch(html, /sample-book-cover\.png/, name);
+    assert.doesNotMatch(html, /\d[\d\s]*₺/, name);
+    assert.doesNotMatch(html, /رومان كىتابى 2/, name);
+    assert.doesNotMatch(html, /ئاپتور ئىسمى/, name);
+  }
+  assert.ok(checked.includes("romanlar-2.html"));
+  assert.ok(checked.includes("ozumuzni-etirap-qilayli.html"));
+  assert.ok(checked.length >= 80, "expected the class of static detail fixtures, got " + checked.length);
+  assert.match(romanlar2, /data-book-id="romanlar-2"/);
+  assert.match(romanlar2, /<h1>كىتاب<\/h1>/);
+});
+
+test("pins use shop.js v=106 and catalog-visibility.js v=3", () => {
+  assert.match(indexHtml, /shop\.js\?v=106/);
   assert.match(indexHtml, /catalog-visibility\.js\?v=3/);
-  assert.match(bookHtml, /shop\.js\?v=105/);
+  assert.match(bookHtml, /shop\.js\?v=106/);
   assert.match(bookHtml, /catalog-visibility\.js\?v=3/);
-  assert.match(romanlar2, /shop\.js\?v=105/);
+  assert.match(romanlar2, /shop\.js\?v=106/);
   assert.match(shop, /member\.js\?v=25/);
 });
 
