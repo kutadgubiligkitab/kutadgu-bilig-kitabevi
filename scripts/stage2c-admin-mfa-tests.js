@@ -130,11 +130,14 @@ test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
   const route = adminJs.match(/async function routeSession\(\)\{[\s\S]*?async function openAuthorizedDashboard/);
   assert.ok(route);
   assert.match(route[0], /checkAdmin/);
-  const live = route[0].slice(route[0].indexOf("getSession"));
+  assert.match(route[0], /ensurePrimarySessionReady/);
+  const live = route[0].slice(route[0].indexOf("ensurePrimarySessionReady"));
   assert.ok(live.indexOf("checkAdmin") >= 0);
   assert.ok(live.indexOf("inspectAccess") > live.indexOf("checkAdmin"));
-  assert.ok(live.indexOf("adminShouldHoldIdleLock") > live.indexOf("checkAdmin"));
-  assert.ok(live.indexOf("inspectAccess") > live.indexOf("adminShouldHoldIdleLock"));
+  const afterAdmin = live.indexOf("checkAdmin");
+  const idleAfterAdmin = live.indexOf("adminShouldHoldIdleLock", afterAdmin);
+  assert.ok(idleAfterAdmin > afterAdmin);
+  assert.ok(live.indexOf("inspectAccess") > idleAfterAdmin);
   assert.match(route[0], /decision\.gate/);
   assert.doesNotMatch(adminJs, /from\("books"\).*aal2/s);
   assert.match(adminJs, /async function loadMfaCard/);
@@ -143,7 +146,9 @@ test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
 test("MFA never persists or logs secrets", () => {
   assert.doesNotMatch(mfaJs, /localStorage\.setItem/);
   assert.doesNotMatch(mfaJs, /sessionStorage\.setItem/);
-  assert.doesNotMatch(mfaJs, /console\.(log|debug|info|warn|error)/);
+  assert.doesNotMatch(mfaJs, /console\.(log|debug|info|error)/);
+  assert.match(mfaJs, /console\.warn\("Admin MFA failed"/);
+  assert.doesNotMatch(mfaJs, /console\.warn\([^;]*(secret|qr_code|otpauth|password|access_token|refresh_token)/i);
   assert.doesNotMatch(adminJs, /totp\.(secret|qr_code|uri)/);
 });
 

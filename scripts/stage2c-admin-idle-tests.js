@@ -151,6 +151,8 @@ test("idle module never writes auth keys or OTP", () => {
   assert.doesNotMatch(idleJs, /unenroll/);
   assert.match(idleJs, /challengeAndVerify/);
   assert.match(idleJs, /getAuthenticatorAssuranceLevel/);
+  assert.match(idleJs, /ensurePrimarySessionReady/);
+  assert.match(idleJs, /classifyMfaFailure/);
   const attach = idleJs.match(/async function submit\([\s\S]*?function bind/);
   assert.ok(attach);
   assert.doesNotMatch(attach[0], /signOut/);
@@ -168,8 +170,9 @@ test("admin.js timeout never auto-signOut; persisted lock precedes inspectAccess
   assert.match(adminJs, /onAuthStateChange\(\(\)=>setTimeout\(routeSession,0\)\)/);
   const route = adminJs.match(/async function routeSession\(\)\{[\s\S]*?async function openAuthorizedDashboard/);
   assert.ok(route);
+  assert.ok(route[0].indexOf("persistedIdleLocked") < route[0].indexOf("ensurePrimarySessionReady"));
   assert.ok(route[0].indexOf("persistedIdleLocked") < route[0].indexOf("getSession"));
-  const live = route[0].slice(route[0].indexOf("getSession"));
+  const live = route[0].slice(route[0].indexOf("ensurePrimarySessionReady"));
   assert.ok(live.indexOf("adminShouldHoldIdleLock") < live.indexOf("inspectAccess"));
   assert.ok(live.lastIndexOf("adminShouldHoldIdleLock") > live.indexOf("inspectAccess"));
   assert.doesNotMatch(adminJs.match(/function tickAdminIdle[\s\S]*?function onAdminActivity/)[0], /signOut/);

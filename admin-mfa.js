@@ -76,6 +76,194 @@
     return String(level == null ? "" : level).toLowerCase();
   }
 
+  const SESSION_REFRESH_SKEW_SECONDS = 120;
+  const MFA_GATE_MESSAGES = {
+    invalid_otp: "كود توغرا ئەمەس ياكى ۋاقتى ئۆتۈپ كەتتى. يېڭى كود بىلەن قايتا سىناڭ.",
+    session: "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.",
+    network: "تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.",
+    aal: "دەلىللەش تامام بولمىدى. قايتا سىناڭ."
+  };
+
+  let primarySessionReadyInflight = null;
+
+  function skipLiveSessionReady(opts) {
+    if (opts && opts.force) return false;
+    if (typeof globalThis === "undefined") return false;
+    return !!globalThis.__kutadguSkipAdminAuth;
+  }
+
+  function authUserId(session) {
+    return String((session && session.user && session.user.id) || "");
+  }
+
+  function sessionExpiresAt(session) {
+    const n = Number(session && session.expires_at);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n > 1e12 ? n / 1000 : n;
+  }
+
+  function sessionNeedsRefresh(session, nowSec, skewSec) {
+    if (!session || !session.access_token) return true;
+    const exp = sessionExpiresAt(session);
+    if (!exp) return false;
+    const now = Number.isFinite(nowSec) ? nowSec : Date.now() / 1000;
+    const skew = Number.isFinite(skewSec) ? skewSec : SESSION_REFRESH_SKEW_SECONDS;
+    return exp <= now + skew;
+  }
+
+  function errorText(err) {
+    return String((err && (err.message || err.error_description || err.code || err.name)) || "").toLowerCase();
+  }
+
+  function isRetryableAuthError(err) {
+    const name = String((err && err.name) || "");
+    const msg = errorText(err);
+    if (name === "AuthRetryableFetchError") return true;
+    return /failed to fetch|network|timeout|temporar|econnreset|load failed/.test(msg);
+  }
+
+  function isInvalidOtpError(err) {
+    const msg = errorText(err);
+    const code = String((err && err.code) || "").toLowerCase();
+    if (code === "mfa_verification_failed") return true;
+    return /invalid (totp )?code|invalid.?otp|expired.?code|expired.?challenge|challenge (has )?expired|mfa_verification_failed/.test(msg);
+  }
+
+  function isSessionAuthError(err) {
+    if (isInvalidOtpError(err)) return false;
+    const name = String((err && err.name) || "");
+    const code = String((err && err.code) || "").toLowerCase();
+    const msg = errorText(err);
+    const status = Number((err && (err.status || err.statusCode)) || 0);
+    if (name === "AuthSessionMissingError") return true;
+    if (code === "session_not_found" || code === "session_expired") return true;
+    if (/auth session missing|invalid jwt|jwt expired|expired.?token|refresh.?token|not authenticated|session expired/.test(msg)) return true;
+    return status === 401 || status === 403;
+  }
+
+  function classifyMfaFailure(err) {
+    if (isInvalidOtpError(err)) return { category: "invalid_otp" };
+    if (isRetryableAuthError(err)) return { category: "network" };
+    if (isSessionAuthError(err)) return { category: "session" };
+    return { category: "unknown" };
+  }
+
+  function mfaGateMessage(category) {
+    return MFA_GATE_MESSAGES[category] || MFA_GATE_MESSAGES.aal;
+  }
+
+  function warnMfaFailure(category, err) {
+    const code = String((err && (err.code || err.name)) || category || "unknown");
+    console.warn("Admin MFA failed", String(category || "unknown"), code);
+  }
+
+  async function ensurePrimarySessionReady(getDb, opts) {
+    const options = opts || {};
+    if (skipLiveSessionReady(options)) return { ok: true, skipped: true, session: null, user: null };
+    if (primarySessionReadyInflight) return primarySessionReadyInflight;
+    const expectedUserId = options.expectedUserId ? String(options.expectedUserId) : "";
+    primarySessionReadyInflight = (async function () {
+      try {
+        const db = typeof getDb === "function" ? getDb() : getDb;
+        if (!db || !db.auth) return { ok: false, reason: "no_auth" };
+        if (typeof db.auth.initialize === "function") {
+          try {
+            await db.auth.initialize();
+          } catch (err) {
+            return {
+              ok: false,
+              reason: isRetryableAuthError(err) ? "network" : "session_error",
+              error: err
+            };
+          }
+        }
+        const got = await db.auth.getSession();
+        if (got && got.error) {
+          return {
+            ok: false,
+            reason: isRetryableAuthError(got.error) ? "network" : "session_error",
+            error: got.error
+          };
+        }
+        let session = got && got.data && got.data.session;
+        if (!session || !session.user) return { ok: false, reason: "no_session" };
+        const originalId = authUserId(session);
+        if (expectedUserId && originalId !== expectedUserId) return { ok: false, reason: "user_mismatch" };
+
+        let refreshed = false;
+        async function refreshOnce() {
+          if (typeof db.auth.refreshSession !== "function") {
+            return { ok: false, reason: "refresh_unsupported" };
+          }
+          const result = await db.auth.refreshSession();
+          if (result && result.error) {
+            return {
+              ok: false,
+              reason: isRetryableAuthError(result.error) ? "network" : "refresh_failed",
+              error: result.error
+            };
+          }
+          session = result && result.data && result.data.session;
+          if (!session || !session.user) return { ok: false, reason: "no_session" };
+          if (authUserId(session) !== originalId) return { ok: false, reason: "user_mismatch" };
+          if (expectedUserId && authUserId(session) !== expectedUserId) return { ok: false, reason: "user_mismatch" };
+          refreshed = true;
+          return { ok: true };
+        }
+
+        const wantRefresh = !!options.forceRefresh || sessionNeedsRefresh(session);
+        if (wantRefresh) {
+          const refreshResult = await refreshOnce();
+          if (!refreshResult.ok) {
+            if (refreshResult.reason === "refresh_unsupported") {
+              const exp = sessionExpiresAt(session);
+              if (!session.access_token || (exp && exp <= Date.now() / 1000)) {
+                return { ok: false, reason: "session_error" };
+              }
+            } else {
+              return refreshResult;
+            }
+          }
+        }
+
+        if (typeof db.auth.getUser === "function") {
+          let userRes = await db.auth.getUser();
+          if (userRes && userRes.error) {
+            if (isRetryableAuthError(userRes.error)) {
+              return { ok: false, reason: "network", error: userRes.error };
+            }
+            if (!refreshed) {
+              const retry = await refreshOnce();
+              if (!retry.ok) {
+                if (retry.reason === "refresh_unsupported") {
+                  return { ok: false, reason: "session_error", error: userRes.error };
+                }
+                return retry;
+              }
+              userRes = await db.auth.getUser();
+              if (userRes && userRes.error) {
+                return {
+                  ok: false,
+                  reason: isRetryableAuthError(userRes.error) ? "network" : "session_error",
+                  error: userRes.error
+                };
+              }
+            } else {
+              return { ok: false, reason: "session_error", error: userRes.error };
+            }
+          }
+          const uid = userRes && userRes.data && userRes.data.user && String(userRes.data.user.id);
+          if (uid && uid !== originalId) return { ok: false, reason: "user_mismatch" };
+          if (expectedUserId && uid && uid !== expectedUserId) return { ok: false, reason: "user_mismatch" };
+        }
+        return { ok: true, session: session, user: session.user, refreshed: refreshed };
+      } finally {
+        primarySessionReadyInflight = null;
+      }
+    })();
+    return primarySessionReadyInflight;
+  }
+
   function evaluateAccess(assurance, classified) {
     const current = normalizeLevel(assurance && assurance.currentLevel);
     const verified = !!(classified && classified.configured);
@@ -160,6 +348,16 @@
       const submitBtn = $("#mfaGateSubmit");
       if (submitBtn) submitBtn.disabled = true;
       try {
+        const ready = await ensurePrimarySessionReady(options.getDb);
+        if (!ready.ok) {
+          const category = ready.reason === "network" ? "network" : "session";
+          warnMfaFailure(category, ready.error);
+          setGateStatus(mfaGateMessage(category), "error");
+          if (category === "session" && typeof options.onSessionInvalid === "function") {
+            await options.onSessionInvalid();
+          }
+          return;
+        }
         let classified = classifyFactors({ all: [] });
         if (typeof api.listFactors === "function") {
           const listed = await api.listFactors();
@@ -192,7 +390,18 @@
         if (typeof options.onAal2 === "function") await options.onAal2();
       } catch (err) {
         if (otp) otp.value = "";
-        setGateStatus("كود توغرا ئەمەس. قايتا سىناڭ — سىز چىقىرىلمايسىز.", "error");
+        const classifiedErr = classifyMfaFailure(err);
+        warnMfaFailure(classifiedErr.category, err);
+        if (classifiedErr.category === "invalid_otp") {
+          setGateStatus(mfaGateMessage("invalid_otp"), "error");
+        } else if (classifiedErr.category === "session") {
+          setGateStatus(mfaGateMessage("session"), "error");
+          if (typeof options.onSessionInvalid === "function") await options.onSessionInvalid();
+        } else if (classifiedErr.category === "network") {
+          setGateStatus(mfaGateMessage("network"), "error");
+        } else {
+          setGateStatus(mfaGateMessage("aal"), "error");
+        }
       } finally {
         busy = false;
         if (submitBtn) submitBtn.disabled = false;
@@ -401,7 +610,9 @@
         const classified = await listClassified();
         renderState(classified);
       } catch (err) {
-        setStatus("كود توغرا ئەمەس. قايتا سىناڭ — سىز چىقىرىلمايسىز.", "error");
+        const category = classifyMfaFailure(err).category;
+        warnMfaFailure(category, err);
+        setStatus(mfaGateMessage(category === "invalid_otp" ? "invalid_otp" : category === "network" ? "network" : "aal"), "error");
         const otp = $("#mfaOtp");
         if (otp) otp.value = "";
       } finally {
@@ -498,6 +709,13 @@
     evaluateAccess: evaluateAccess,
     chooseVerifiedTotp: chooseVerifiedTotp,
     inspectAccess: inspectAccess,
+    sessionExpiresAt: sessionExpiresAt,
+    sessionNeedsRefresh: sessionNeedsRefresh,
+    classifyMfaFailure: classifyMfaFailure,
+    mfaGateMessage: mfaGateMessage,
+    ensurePrimarySessionReady: ensurePrimarySessionReady,
+    SESSION_REFRESH_SKEW_SECONDS: SESSION_REFRESH_SKEW_SECONDS,
+    MFA_GATE_MESSAGES: MFA_GATE_MESSAGES,
     attach: attach,
     attachGate: attachGate
   };

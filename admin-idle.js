@@ -176,6 +176,19 @@
       const submitBtn = $("#idleLockSubmit");
       if (submitBtn) submitBtn.disabled = true;
       try {
+        if (typeof Mfa.ensurePrimarySessionReady === "function") {
+          const ready = await Mfa.ensurePrimarySessionReady(options.getDb);
+          if (!ready.ok) {
+            const category = ready.reason === "network" ? "network" : "session";
+            const msg = typeof Mfa.mfaGateMessage === "function"
+              ? Mfa.mfaGateMessage(category)
+              : (category === "network"
+                ? "تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ."
+                : "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
+            setStatus(msg, "error");
+            return;
+          }
+        }
         let classified = { verified: [] };
         if (typeof Mfa.classifyFactors === "function" && typeof api.listFactors === "function") {
           const listed = await api.listFactors();
@@ -209,7 +222,18 @@
         if (typeof options.onUnlock === "function") await options.onUnlock();
       } catch (err) {
         if (otp) otp.value = "";
-        setStatus("كود توغرا ئەمەس. قايتا سىناڭ — سىز چىقىرىلمايسىز.", "error");
+        const classifiedErr = typeof Mfa.classifyMfaFailure === "function"
+          ? Mfa.classifyMfaFailure(err)
+          : { category: "invalid_otp" };
+        if (classifiedErr.category === "invalid_otp") {
+          setStatus("كود توغرا ئەمەس. قايتا سىناڭ — سىز چىقىرىلمايسىز.", "error");
+        } else if (classifiedErr.category === "session") {
+          setStatus(typeof Mfa.mfaGateMessage === "function" ? Mfa.mfaGateMessage("session") : "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.", "error");
+        } else if (classifiedErr.category === "network") {
+          setStatus(typeof Mfa.mfaGateMessage === "function" ? Mfa.mfaGateMessage("network") : "تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.", "error");
+        } else {
+          setStatus(typeof Mfa.mfaGateMessage === "function" ? Mfa.mfaGateMessage("aal") : "دەلىللەش تامام بولمىدى. قايتا سىناڭ.", "error");
+        }
       } finally {
         busy = false;
         if (submitBtn) submitBtn.disabled = false;
