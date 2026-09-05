@@ -77,7 +77,7 @@ test.describe("storefront smoke", () => {
       const vis = window.kutadguShop.isStorefrontVisible;
       return {
         inactiveHidden: vis({ id: "999999", is_active: false, isActive: false }) === false,
-        activeOk: vis({ id: "102", is_active: true, isActive: true }) === true
+        activeOk: vis({ id: "102", is_active: true, isActive: true, isRemote: true }) === true
       };
     });
     expect(visibility.inactiveHidden).toBe(true);

@@ -96,7 +96,13 @@ test.describe("book clean URLs", () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
     expect(await page.locator("#kutadguBookSchema").count()).toBe(0);
     const title = String(await page.locator(".book-detail-info h1").textContent()).trim();
-    expect(title === "كىتاب" || title.length < 2).toBeTruthy();
+    expect(
+      title === "كىتاب" ||
+      title.length < 2 ||
+      title.includes("تەمىنلەنمەيدۇ") ||
+      title.includes("تېپىلمىدى")
+    ).toBeTruthy();
+    await expect(page.locator(".add-to-cart,.detail-price")).toHaveCount(0);
   });
 
   test("D missing book /book/999999999 preserves noindex", async ({ page }) => {
