@@ -284,7 +284,10 @@ grant select on public.admin_users to authenticated;
 grant select on public.profiles to authenticated;
 grant select,insert,delete on public.member_favorites to authenticated;
 grant select,insert,delete on public.member_cart_items to authenticated;
-grant select,insert,update on public.orders to authenticated;
+grant select,update on public.orders to authenticated;
+revoke insert on public.orders from public;
+revoke insert on public.orders from anon;
+revoke insert on public.orders from authenticated;
 
 drop policy if exists "admin can read own admin row" on public.admin_users;
 create policy "admin can read own admin row" on public.admin_users for select to authenticated using (user_id = auth.uid());
@@ -505,8 +508,7 @@ using (user_id = auth.uid() and public.is_member_active()) with check (user_id =
 drop policy if exists "member can read own orders" on public.orders;
 create policy "member can read own orders" on public.orders for select to authenticated using (user_id = auth.uid());
 drop policy if exists "member can create own orders" on public.orders;
-create policy "member can create own orders" on public.orders for insert to authenticated
-with check (user_id = auth.uid() and public.is_member_active());
+-- Members persist orders only via public.create_member_order(). Direct INSERT is revoked.
 drop policy if exists "admin can read all orders" on public.orders;
 create policy "admin can read all orders" on public.orders for select to authenticated using (public.is_kutadgu_admin());
 drop policy if exists "admin can update orders" on public.orders;
@@ -514,6 +516,200 @@ create policy "admin can update orders" on public.orders for update to authentic
 using (public.is_kutadgu_admin()) with check (public.is_kutadgu_admin());
 drop policy if exists "aal2 required to update orders" on public.orders;
 create policy "aal2 required to update orders" on public.orders as restrictive for update to authenticated using ((select auth.jwt()->>'aal') = 'aal2') with check ((select auth.jwt()->>'aal') = 'aal2');
+
+drop function if exists public.create_member_order(text, jsonb, text, text, text, text, text, text);
+create or replace function public.create_member_order(
+  p_order_no text,
+  p_items jsonb,
+  p_customer_name text default '',
+  p_customer_phone text default '',
+  p_customer_city text default '',
+  p_customer_address text default '',
+  p_delivery_method text default '',
+  p_customer_note text default ''
+)
+returns setof public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid;
+  v_order_no text;
+  v_elem jsonb;
+  v_n integer;
+  v_i integer;
+  v_book_id bigint;
+  v_id_text text;
+  v_qty integer;
+  v_merged integer;
+  v_qty_map jsonb := '{}'::jsonb;
+  v_id_order bigint[] := '{}'::bigint[];
+  v_book public.books%rowtype;
+  v_items jsonb := '[]'::jsonb;
+  v_total numeric(12,2) := 0;
+  v_total_qty integer := 0;
+  v_line_total numeric(12,2);
+  v_name text;
+  v_phone text;
+  v_city text;
+  v_address text;
+  v_delivery text;
+  v_note text;
+begin
+  v_uid := auth.uid();
+  if v_uid is null then
+    raise exception 'Authentication required';
+  end if;
+  if public.is_member_active() is not true then
+    raise exception 'Active member required';
+  end if;
+
+  v_order_no := btrim(coalesce(p_order_no, ''));
+  if v_order_no !~ '^KB-[0-9]{6}-[0-9]{4}$' then
+    raise exception 'invalid_order_no';
+  end if;
+
+  if p_items is null or jsonb_typeof(p_items) is distinct from 'array' then
+    raise exception 'invalid_items';
+  end if;
+  v_n := jsonb_array_length(p_items);
+  if v_n < 1 then
+    raise exception 'empty_items';
+  end if;
+  if v_n > 50 then
+    raise exception 'too_many_items';
+  end if;
+
+  for v_i in 0 .. v_n - 1 loop
+    v_elem := p_items -> v_i;
+    if v_elem is null or jsonb_typeof(v_elem) is distinct from 'object' then
+      raise exception 'invalid_items';
+    end if;
+
+    if jsonb_typeof(v_elem -> 'book_id') is distinct from 'number'
+       and jsonb_typeof(v_elem -> 'book_id') is distinct from 'string' then
+      raise exception 'invalid_book_id';
+    end if;
+    v_id_text := btrim(v_elem ->> 'book_id');
+    if v_id_text is null or v_id_text !~ '^[1-9][0-9]*$' then
+      raise exception 'invalid_book_id';
+    end if;
+    begin
+      v_book_id := v_id_text::bigint;
+    exception when others then
+      raise exception 'invalid_book_id';
+    end;
+    if v_book_id is null or v_book_id <= 0 then
+      raise exception 'invalid_book_id';
+    end if;
+
+    if jsonb_typeof(v_elem -> 'qty') is distinct from 'number'
+       and jsonb_typeof(v_elem -> 'qty') is distinct from 'string' then
+      raise exception 'invalid_quantity';
+    end if;
+    if btrim(v_elem ->> 'qty') !~ '^[1-9][0-9]*$' then
+      raise exception 'invalid_quantity';
+    end if;
+    begin
+      v_qty := btrim(v_elem ->> 'qty')::integer;
+    exception when others then
+      raise exception 'invalid_quantity';
+    end;
+    if v_qty is null or v_qty < 1 or v_qty > 99 then
+      raise exception 'invalid_quantity';
+    end if;
+
+    if v_qty_map ? v_id_text then
+      v_merged := (v_qty_map ->> v_id_text)::integer + v_qty;
+      if v_merged > 99 then
+        raise exception 'quantity_too_large';
+      end if;
+      v_qty_map := jsonb_set(v_qty_map, array[v_id_text], to_jsonb(v_merged));
+    else
+      v_qty_map := v_qty_map || jsonb_build_object(v_id_text, v_qty);
+      v_id_order := array_append(v_id_order, v_book_id);
+    end if;
+  end loop;
+
+  foreach v_book_id in array v_id_order loop
+    v_id_text := v_book_id::text;
+    v_qty := (v_qty_map ->> v_id_text)::integer;
+
+    select * into v_book
+    from public.books
+    where public.books.id = v_book_id;
+    if not found then
+      raise exception 'book_not_found';
+    end if;
+    if v_book.is_active is not true then
+      raise exception 'book_inactive';
+    end if;
+    if v_book.price is null or v_book.price < 0 then
+      raise exception 'invalid_book_price';
+    end if;
+
+    v_line_total := round(v_book.price * v_qty, 2);
+    v_total := v_total + v_line_total;
+    v_total_qty := v_total_qty + v_qty;
+
+    v_items := v_items || jsonb_build_array(
+      jsonb_build_object(
+        'book_id', v_book.id,
+        'title', coalesce(v_book.title, ''),
+        'author', coalesce(v_book.author, ''),
+        'price', v_book.price,
+        'qty', v_qty,
+        'line_total', v_line_total
+      )
+    );
+  end loop;
+
+  if jsonb_array_length(v_items) < 1 or v_total_qty < 1 then
+    raise exception 'empty_items';
+  end if;
+
+  v_name := left(btrim(coalesce(p_customer_name, '')), 200);
+  v_phone := left(btrim(coalesce(p_customer_phone, '')), 200);
+  v_city := left(btrim(coalesce(p_customer_city, '')), 200);
+  v_address := left(btrim(coalesce(p_customer_address, '')), 500);
+  v_delivery := left(btrim(coalesce(p_delivery_method, '')), 200);
+  v_note := left(btrim(coalesce(p_customer_note, '')), 1000);
+
+  return query
+  insert into public.orders (
+    order_no,
+    user_id,
+    status,
+    items,
+    total,
+    total_qty,
+    customer_name,
+    customer_phone,
+    customer_city,
+    customer_address,
+    delivery_method,
+    customer_note
+  ) values (
+    v_order_no,
+    v_uid,
+    'prepared',
+    v_items,
+    v_total,
+    v_total_qty,
+    v_name,
+    v_phone,
+    v_city,
+    v_address,
+    v_delivery,
+    v_note
+  )
+  returning *;
+end;
+$$;
+revoke all on function public.create_member_order(text, jsonb, text, text, text, text, text, text) from public;
+revoke execute on function public.create_member_order(text, jsonb, text, text, text, text, text, text) from anon;
+grant execute on function public.create_member_order(text, jsonb, text, text, text, text, text, text) to authenticated;
 
 -- خېرىدار status/visit_count نى ئۆزى ئۆزگەرتەلمەيدۇ؛ پەقەت ئارخىپ مەيدانىنىلا تەھرىرلەيدۇ.
 revoke update on public.profiles from authenticated;

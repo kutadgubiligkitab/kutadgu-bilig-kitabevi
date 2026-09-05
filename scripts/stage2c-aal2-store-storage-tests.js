@@ -154,12 +154,13 @@ test("store_announcement_settings AAL2 is INSERT and UPDATE only", () => {
   assert.match(announce, /USING \(id = 1\)/);
 });
 
-test("orders AAL2 is UPDATE only and isolated from member INSERT", () => {
+test("orders AAL2 is UPDATE only and isolated from member order creation", () => {
   assertUpdateAal2(sql, "aal2 required to update orders", "orders");
   assertUpdateAal2(setup, "aal2 required to update orders");
-  const memberInsert = policyBlock(setup, "member can create own orders");
-  assert.match(memberInsert, /FOR INSERT/i);
-  assert.doesNotMatch(memberInsert, /aal2/i);
+  assert.doesNotMatch(setup, /create policy "member can create own orders"/i);
+  const createOrder = functionBody(setup, "public.create_member_order");
+  assert.doesNotMatch(createOrder, /aal2/i);
+  assert.doesNotMatch(createOrder, /auth\.jwt\(\)/);
   const memberSelect = policyBlock(setup, "member can read own orders");
   const adminSelect = policyBlock(setup, "admin can read all orders");
   [memberSelect, adminSelect].forEach((block) => {

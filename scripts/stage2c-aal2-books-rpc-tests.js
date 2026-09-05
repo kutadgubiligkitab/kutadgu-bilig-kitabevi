@@ -209,18 +209,19 @@ test("PR1 migration does not rewrite storage, store settings, announcements, or 
   assert.match(setup, /create policy "admin can upload book covers" on storage\.objects for insert to authenticated\nwith check \(bucket_id = 'book-covers' and public\.is_kutadgu_admin\(\)\)/);
 });
 
-test("member cart/favorites/order INSERT are not AAL2-gated", () => {
+test("member cart/favorites stay without AAL2; member order creation is RPC without AAL2", () => {
   assert.match(setup, /create policy "favorite owner access" on public\.member_favorites for all to authenticated\nusing \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
   assert.match(setup, /create policy "cart owner access" on public\.member_cart_items for all to authenticated\nusing \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
-  assert.match(setup, /create policy "member can create own orders" on public\.orders for insert to authenticated\nwith check \(user_id = auth\.uid\(\) and public\.is_member_active\(\)\)/);
+  assert.doesNotMatch(setup, /create policy "member can create own orders"/i);
   const fav = policyBlock(setup, "favorite owner access");
   const cart = policyBlock(setup, "cart owner access");
-  const memberInsert = policyBlock(setup, "member can create own orders");
   const memberSelect = policyBlock(setup, "member can read own orders");
   const adminSelect = policyBlock(setup, "admin can read all orders");
-  [fav, cart, memberInsert, memberSelect, adminSelect].forEach((block) => {
+  const createOrder = functionBody(setup, "public.create_member_order");
+  [fav, cart, memberSelect, adminSelect, createOrder].forEach((block) => {
     assert.doesNotMatch(block, /aal2/i);
   });
+  assert.doesNotMatch(createOrder, /auth\.jwt\(\)/);
 });
 
 test("frontend still writes books and set_member_status without client-side AAL2 SQL", () => {
