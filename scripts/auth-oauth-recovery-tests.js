@@ -168,8 +168,8 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
-  assert.match(account, /member\.js\?v=24/);
-  assert.match(read("shop.js"), /member\.js\?v=24/);
+  assert.match(account, /member\.js\?v=25/);
+  assert.match(read("shop.js"), /member\.js\?v=25/);
   assert.match(index, /shop\.js\?v=104/);
 });
 

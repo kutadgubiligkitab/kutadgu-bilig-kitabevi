@@ -12,14 +12,26 @@ const cartHtml = fs.readFileSync(path.join(root, "cart.html"), "utf8");
 const accountHtml = fs.readFileSync(path.join(root, "account.html"), "utf8");
 
 let failed = 0;
+const pending = [];
 function test(name, fn) {
+  let result;
   try {
-    fn();
-    console.log("PASS", name);
+    result = fn();
   } catch (err) {
     failed++;
     console.error("FAIL", name, err.message);
+    return;
   }
+  if (result && typeof result.then === "function") {
+    pending.push(result.then(() => {
+      console.log("PASS", name);
+    }, err => {
+      failed++;
+      console.error("FAIL", name, err && err.message || err);
+    }));
+    return;
+  }
+  console.log("PASS", name);
 }
 function sliceBetween(src, startNeedle, endNeedle) {
   const start = src.indexOf(startNeedle);
@@ -31,6 +43,20 @@ function sliceBetween(src, startNeedle, endNeedle) {
 function provenApi() {
   const src = sliceBetween(member, "function provenMemberSession(session){", "async function recoverProvenMemberSession(){");
   return new Function(`${src}\nreturn { provenMemberSession };`)();
+}
+function recoverApi() {
+  const provenSrc = sliceBetween(member, "function provenMemberSession(session){", "async function recoverProvenMemberSession(){");
+  const recoverSrc = sliceBetween(member, "async function recoverProvenMemberSession(){", "function queueRecoveredSession(");
+  return new Function(`
+    let db = null;
+    ${provenSrc}
+    ${recoverSrc}
+    return {
+      setDb(next){ db = next; },
+      provenMemberSession,
+      recoverProvenMemberSession
+    };
+  `)();
 }
 
 function identityApi({
@@ -141,7 +167,7 @@ test("storefront pages still load shop.js without statically loading member.js",
   assert.doesNotMatch(indexHtml, /src="member\.js/);
   assert.match(cartHtml, /shop\.js\?v=104/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
-  assert.match(accountHtml, /member\.js\?v=24/);
+  assert.match(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
 });
 
@@ -163,6 +189,8 @@ test("member.js still fail-closes unknown identity and uses official refreshSess
   assert.match(recover, /db\.auth\.refreshSession\(\)/);
   assert.doesNotMatch(recover, /fetch\(/);
   assert.doesNotMatch(recover, /grant_type=refresh_token/);
+  const proven = sliceBetween(member, "function provenMemberSession(session){", "async function recoverProvenMemberSession(){");
+  assert.doesNotMatch(proven, /expires_in/);
   assert.doesNotMatch(member, /localStorage\.length/);
   assert.doesNotMatch(member, /sb-\.\+-auth-token/);
 });
@@ -178,7 +206,7 @@ test("shop.js does not await member boot before catalog first paint", () => {
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
   assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
-  assert.match(shop, /member\.js\?v=24/);
+  assert.match(shop, /member\.js\?v=25/);
   assert.match(shop, /script\[src\*="member\.js"\]/);
 });
 
@@ -201,20 +229,9 @@ test("shopOwnerAllowsLocalDisplay stays fail-closed for expired peek", () => {
   assert.strictEqual(guest.identityBootstrapPending(), false);
 });
 
-test("provenMemberSession rejects expired or refresh-only tokens", () => {
+test("provenMemberSession requires access_token, user.id, and explicit future expires_at", () => {
   const api = provenApi();
   const uid = "11111111-1111-4111-8111-111111111111";
-  assert.strictEqual(api.provenMemberSession({
-    access_token: "tok",
-    refresh_token: "r",
-    expires_at: Math.floor(Date.now() / 1000) - 30,
-    user: { id: uid }
-  }), null);
-  assert.strictEqual(api.provenMemberSession({
-    refresh_token: "r",
-    expires_at: Math.floor(Date.now() / 1000) + 30,
-    user: { id: uid }
-  }), null);
   const ok = api.provenMemberSession({
     access_token: "tok",
     expires_at: Math.floor(Date.now() / 1000) + 30,
@@ -222,6 +239,91 @@ test("provenMemberSession rejects expired or refresh-only tokens", () => {
   });
   assert.ok(ok);
   assert.strictEqual(ok.user.id, uid);
+  assert.strictEqual(api.provenMemberSession({
+    access_token: "tok",
+    refresh_token: "r",
+    expires_at: Math.floor(Date.now() / 1000) - 30,
+    user: { id: uid }
+  }), null);
+  assert.strictEqual(api.provenMemberSession({
+    access_token: "tok",
+    user: { id: uid },
+    expires_in: 3600
+  }), null);
+  assert.strictEqual(api.provenMemberSession({
+    access_token: "tok",
+    refresh_token: "r",
+    user: { id: uid }
+  }), null);
+  assert.strictEqual(api.provenMemberSession({
+    refresh_token: "r",
+    expires_at: Math.floor(Date.now() / 1000) + 30,
+    user: { id: uid }
+  }), null);
+  assert.strictEqual(api.provenMemberSession({
+    access_token: "tok",
+    expires_at: "soon",
+    user: { id: uid }
+  }), null);
+  assert.strictEqual(api.provenMemberSession({
+    access_token: "tok",
+    expires_at: Number.NaN,
+    user: { id: uid }
+  }), null);
+});
+
+test("refreshable expired session is accepted only after official refresh with expires_at", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const expired = {
+    access_token: "old",
+    refresh_token: "r",
+    expires_at: Math.floor(Date.now() / 1000) - 90,
+    user: { id: uid }
+  };
+  const fresh = {
+    access_token: "new",
+    refresh_token: "r2",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: { id: uid }
+  };
+  const api = recoverApi();
+  api.setDb({
+    auth: {
+      getSession() { return Promise.resolve({ data: { session: expired }, error: null }); },
+      refreshSession() { return Promise.resolve({ data: { session: fresh }, error: null }); }
+    }
+  });
+  return api.recoverProvenMemberSession().then((result) => {
+    assert.ok(result);
+    assert.strictEqual(result.user.id, uid);
+    assert.strictEqual(result.access_token, "new");
+  });
+});
+
+test("refresh session without explicit expires_at is rejected", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const expired = {
+    access_token: "old",
+    refresh_token: "r",
+    expires_at: Math.floor(Date.now() / 1000) - 90,
+    user: { id: uid }
+  };
+  const noExpiry = {
+    access_token: "new",
+    refresh_token: "r2",
+    expires_in: 3600,
+    user: { id: uid }
+  };
+  const api = recoverApi();
+  api.setDb({
+    auth: {
+      getSession() { return Promise.resolve({ data: { session: expired }, error: null }); },
+      refreshSession() { return Promise.resolve({ data: { session: noExpiry }, error: null }); }
+    }
+  });
+  return api.recoverProvenMemberSession().then((result) => {
+    assert.strictEqual(result, null);
+  });
 });
 
 test("logout stale owner can start a new guest cart without exposing member state", () => {
@@ -451,11 +553,13 @@ test("logout still abandons member shop state and account page still loads membe
   assert.match(member, /recoveredIdentityId="signed-out"/);
   assert.match(member, /async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
   const accountScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(accountScripts, ["member.js?v=24"]);
+  assert.deepStrictEqual(accountScripts, ["member.js?v=25"]);
 });
 
-if (failed) {
-  console.error("\n" + failed + " test(s) failed");
-  process.exit(1);
-}
-console.log("\nAll storefront session bootstrap tests passed");
+Promise.resolve().then(() => Promise.all(pending)).then(() => {
+  if (failed) {
+    console.error("\n" + failed + " test(s) failed");
+    process.exit(1);
+  }
+  console.log("\nAll storefront session bootstrap tests passed");
+});

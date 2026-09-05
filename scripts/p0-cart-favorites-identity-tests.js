@@ -649,14 +649,14 @@ test("storefront pages keep cart markup pin shop.js v=104",()=>{
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=104/);
   assert.match(home,/shop\.js\?v=104/);
-  assert.match(shop,/member\.js\?v=24/);
+  assert.match(shop,/member\.js\?v=25/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);
   assert.match(shop,/data-plus=/);
   assert.match(shop,/data-minus=/);
   assert.match(shop,/data-remove=/);
   assert.match(shop,/CART_KEY/);
-  assert.match(account,/member\.js\?v=24/);
+  assert.match(account,/member\.js\?v=25/);
   assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
   assert.match(member,/\.eq\("user_id",user\.id\)/);
   assert.match(member,/function previewShopDebug/);

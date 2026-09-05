@@ -29,12 +29,8 @@ function provenMemberSession(session){
   const uid=String(session.user&&session.user.id||"").trim();
   const token=String(session.access_token||"").trim();
   if(!uid||!token)return null;
-  let rawExp=session.expires_at!=null?session.expires_at:(session.expiresAt!=null?session.expiresAt:null);
-  if(rawExp===""||rawExp==null){
-    const expiresIn=Number(session.expires_in);
-    if(!Number.isFinite(expiresIn)||expiresIn<=0)return null;
-    rawExp=Math.floor(Date.now()/1000)+expiresIn;
-  }
+  const rawExp=session.expires_at!=null?session.expires_at:(session.expiresAt!=null?session.expiresAt:null);
+  if(rawExp===""||rawExp==null)return null;
   const expiresAt=Number(rawExp);
   if(!Number.isFinite(expiresAt)||expiresAt<=0)return null;
   const expiresAtMs=expiresAt>1e12?expiresAt:expiresAt*1000;

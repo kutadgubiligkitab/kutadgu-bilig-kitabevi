@@ -91,7 +91,7 @@ async function mockMemberAuth(page) {
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ access_token: "test-access-token", refresh_token: "test-refresh-token", token_type: "bearer", expires_in: 3600, user })
+      body: JSON.stringify({ access_token: "test-access-token", refresh_token: "test-refresh-token", token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user })
     });
   });
   await page.route("**/rest/v1/profiles**", async (route) => {
