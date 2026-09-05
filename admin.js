@@ -987,9 +987,38 @@ async function routeSession(){
     await openAuthorizedDashboard();
     return;
   }
-  const {data}=await db.auth.getSession();
+  let ready;
+  if(typeof Mfa.ensurePrimarySessionReady==="function"){
+    ready=await Mfa.ensurePrimarySessionReady(()=>db);
+  }
+  if(!ready||ready.skipped){
+    const {data,error}=await db.auth.getSession();
+    if(error){
+      ready={ok:false,reason:"session_error",error};
+    }else if(!data||!data.session){
+      ready={ok:false,reason:"no_session"};
+    }else{
+      ready={ok:true,session:data.session,user:data.session.user};
+    }
+  }
   if(gen!==routeGen)return;
-  const session=data.session;
+  if(!ready||!ready.ok){
+    if(adminShouldHoldIdleLock()){
+      enforceAdminIdleLock();
+      return;
+    }
+    if(ready&&ready.reason==="network"&&user)return;
+    user=null;
+    show("loginPanel");
+    $("#adminLogout").hidden=true;
+    if(ready&&ready.reason==="network"){
+      status($("#loginStatus"),(Mfa.mfaGateMessage&&Mfa.mfaGateMessage("network"))||"تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.","error");
+    }else if(ready&&ready.reason&&ready.reason!=="no_session"){
+      status($("#loginStatus"),(Mfa.mfaGateMessage&&Mfa.mfaGateMessage("session"))||"كىرىش ۋاقتى توشتى. قايتا كىرىڭ.","error");
+    }
+    return;
+  }
+  const session=ready.session;
   if(!session){show("loginPanel");$("#adminLogout").hidden=true;return}
   const ok=await checkAdmin(session.user);
   if(!ok){
@@ -3481,7 +3510,13 @@ function bindMfaGate(){
     getDb:()=>db,
     onAal2:()=>routeSession(),
     onNoFactor:()=>routeSession(),
-    onLogout:()=>logout()
+    onLogout:()=>logout(),
+    onSessionInvalid:()=>{
+      user=null;
+      show("loginPanel");
+      $("#adminLogout").hidden=true;
+      status($("#loginStatus"),(Mfa.mfaGateMessage&&Mfa.mfaGateMessage("session"))||"كىرىش ۋاقتى توشتى. قايتا كىرىڭ.","error");
+    }
   });
 }
 async function loadMfaCard(){
