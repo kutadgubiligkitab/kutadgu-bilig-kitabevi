@@ -170,34 +170,92 @@ function memberResolveId(id,idMap={}){
     :raw=>String(idMap[raw]||raw);
   return resolve(id);
 }
-async function replaceFavorites(values){
-  if(!db||!user||blocked){
-    memberLog("warn","replace-favorites-skipped",{hasDb:!!db,hasUser:!!user,blocked});
-    return {ok:false,reason:"not-ready"};
-  }
-  const ids=[...new Set((Array.isArray(values)?values:[]).map(String).filter(Boolean))];
+function uniqueBookIds(ids){
+  return [...new Set((Array.isArray(ids)?ids:[]).map(id=>String(id||"").trim()).filter(Boolean))];
+}
+function sanitizeMemberQty(raw){
+  return window.KutadguLegacyIds?.sanitizeCartQty
+    ?window.KutadguLegacyIds.sanitizeCartQty(raw)
+    :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
+}
+function cartReconcilePlan(existingRows,desiredRows,aliasIds){
+  const desired=new Map();
+  (Array.isArray(desiredRows)?desiredRows:[]).filter(row=>row&&row.id).forEach(row=>{
+    const id=String(row.id);
+    if(!id)return;
+    desired.set(id,{id,qty:sanitizeMemberQty(row.qty)});
+  });
+  const existing=new Map();
+  (Array.isArray(existingRows)?existingRows:[]).filter(row=>row&&row.id).forEach(row=>{
+    const id=String(row.id);
+    if(!id)return;
+    existing.set(id,{id,qty:sanitizeMemberQty(row.qty)});
+  });
+  const insert=[];
+  const qtyRewrite=[];
+  const stale=[];
+  desired.forEach((row,id)=>{
+    const prev=existing.get(id);
+    if(!prev)insert.push(row);
+    else if(Number(prev.qty)!==Number(row.qty))qtyRewrite.push(row);
+  });
+  existing.forEach((row,id)=>{if(!desired.has(id))stale.push(id)});
+  uniqueBookIds(aliasIds).forEach(id=>{
+    if(existing.has(id)&&!desired.has(id)&&!stale.includes(id))stale.push(id);
+  });
+  return {insert,qtyRewrite,stale};
+}
+function favReconcilePlan(existingIds,desiredIds,aliasIds){
+  const desired=new Set(uniqueBookIds(desiredIds));
+  const existing=new Set(uniqueBookIds(existingIds));
+  const insert=[...desired].filter(id=>!existing.has(id));
+  const stale=[...existing].filter(id=>!desired.has(id));
+  uniqueBookIds(aliasIds).forEach(id=>{
+    if(existing.has(id)&&!desired.has(id)&&!stale.includes(id))stale.push(id);
+  });
+  return {insert,stale};
+}
+function presentStaleIds(existingIds,staleIds){
+  const have=new Set(uniqueBookIds(existingIds));
+  return uniqueBookIds(staleIds).filter(id=>have.has(id));
+}
+function skippedPinnedWrite(uid){
+  memberLog("warn","replace-skipped",{hasDb:!!db,hasUser:!!user,blocked,uid:idSuffix(uid)});
+  return {ok:false,reason:!user||String(user&&user.id)!==String(uid||"")?"user-changed":"not-ready"};
+}
+async function replaceFavorites(values,forUserId){
+  const uid=String(forUserId||(user&&user.id)||"");
+  if(!stillMergingFor(uid))return skippedPinnedWrite(uid);
+  const ids=uniqueBookIds(values);
   const helpers=window.KutadguLegacyIds;
   const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds([],ids,memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
-  if(aliasIds.length){
-    const {error:aliasDelError}=await db.from("member_favorites").delete().eq("user_id",user.id).in("book_id",aliasIds);
-    if(aliasDelError){
-      memberLog("error","replace-favorites-alias-delete",aliasDelError);
-      throw aliasDelError;
-    }
+  const {data:current,error:readError}=await db.from("member_favorites").select("book_id").eq("user_id",uid);
+  if(readError){
+    memberLog("error","replace-favorites-read",readError);
+    throw readError;
   }
-  const {error:delError}=await db.from("member_favorites").delete().eq("user_id",user.id);
-  if(delError){
-    memberLog("error","replace-favorites-delete",delError);
-    throw delError;
-  }
-  if(ids.length){
-    const {error}=await db.from("member_favorites").insert(ids.map(book_id=>({user_id:user.id,book_id})));
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const existing=(current||[]).map(row=>String(row.book_id||"")).filter(Boolean);
+  const plan=favReconcilePlan(existing,ids,aliasIds);
+  if(plan.insert.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_favorites").upsert(plan.insert.map(book_id=>({user_id:uid,book_id})),{onConflict:"user_id,book_id",ignoreDuplicates:true});
     if(error){
       memberLog("error","replace-favorites-insert",error);
       throw error;
     }
   }
-  const {data:verify,error:verifyError}=await db.from("member_favorites").select("book_id").eq("user_id",user.id);
+  const stale=presentStaleIds(existing,plan.stale);
+  if(stale.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_favorites").delete().eq("user_id",uid).in("book_id",stale);
+    if(error){
+      memberLog("error","replace-favorites-stale-delete",error);
+      throw error;
+    }
+  }
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const {data:verify,error:verifyError}=await db.from("member_favorites").select("book_id").eq("user_id",uid);
   if(verifyError){
     memberLog("error","replace-favorites-verify",verifyError);
     throw verifyError;
@@ -211,45 +269,60 @@ async function replaceFavorites(values){
   }
   return {ok:true,ids};
 }
-function sanitizeMemberQty(raw){
-  return window.KutadguLegacyIds?.sanitizeCartQty
-    ?window.KutadguLegacyIds.sanitizeCartQty(raw)
-    :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
-}
-async function replaceCart(values){
-  if(!db||!user||blocked){
-    memberLog("warn","replace-cart-skipped",{hasDb:!!db,hasUser:!!user,blocked});
-    return {ok:false,reason:"not-ready"};
-  }
+async function replaceCart(values,forUserId){
+  const uid=String(forUserId||(user&&user.id)||"");
+  if(!stillMergingFor(uid))return skippedPinnedWrite(uid);
   const helpers=window.KutadguLegacyIds;
-  previewShopDebug("replace-cart",{
-    writeUser:idSuffix(user.id),
-    rowCount:(Array.isArray(values)?values:[]).filter(x=>x&&x.id).length
-  });
-  const rows=(Array.isArray(values)?values:[])
+  const desired=(Array.isArray(values)?values:[])
     .filter(x=>x&&x.id)
-    .map(x=>({user_id:user.id,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
+    .map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)}));
+  previewShopDebug("replace-cart",{
+    writeUser:idSuffix(uid),
+    rowCount:desired.length
+  });
   const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds(values,[],memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
-  const {error:aliasDelError}=aliasIds.length
-    ?await db.from("member_cart_items").delete().eq("user_id",user.id).in("book_id",aliasIds)
-    :{error:null};
-  if(aliasDelError){
-    memberLog("error","replace-cart-alias-delete",aliasDelError);
-    throw aliasDelError;
+  const {data:current,error:readError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",uid);
+  if(readError){
+    memberLog("error","replace-cart-read",readError);
+    throw readError;
   }
-  const {error:delError}=await db.from("member_cart_items").delete().eq("user_id",user.id);
-  if(delError){
-    memberLog("error","replace-cart-delete",delError);
-    throw delError;
-  }
-  if(rows.length){
-    const {error}=await db.from("member_cart_items").insert(rows);
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const existing=(current||[]).map(row=>({id:String(row.book_id||""),qty:sanitizeMemberQty(row.quantity)})).filter(row=>row.id);
+  const plan=cartReconcilePlan(existing,desired,aliasIds);
+  if(plan.insert.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_cart_items").upsert(plan.insert.map(row=>({user_id:uid,book_id:row.id,quantity:row.qty})),{onConflict:"user_id,book_id",ignoreDuplicates:true});
     if(error){
       memberLog("error","replace-cart-insert",error);
       throw error;
     }
   }
-  const {data:verify,error:verifyError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",user.id);
+  if(plan.qtyRewrite.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const qtyIds=plan.qtyRewrite.map(row=>row.id);
+    const {error:qtyDelError}=await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",qtyIds);
+    if(qtyDelError){
+      memberLog("error","replace-cart-qty-delete",qtyDelError);
+      throw qtyDelError;
+    }
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error:qtyInsError}=await db.from("member_cart_items").insert(plan.qtyRewrite.map(row=>({user_id:uid,book_id:row.id,quantity:row.qty})));
+    if(qtyInsError){
+      memberLog("error","replace-cart-qty-insert",qtyInsError);
+      throw qtyInsError;
+    }
+  }
+  const stale=presentStaleIds(existing.map(row=>row.id),plan.stale);
+  if(stale.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",stale);
+    if(error){
+      memberLog("error","replace-cart-stale-delete",error);
+      throw error;
+    }
+  }
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const {data:verify,error:verifyError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",uid);
   if(verifyError){
     memberLog("error","replace-cart-verify",verifyError);
     throw verifyError;
@@ -260,18 +333,21 @@ async function replaceCart(values){
     memberLog("error","replace-cart-alias-survived",remaining);
     throw err;
   }
-  const expected=rows.map(row=>({id:row.book_id,qty:row.quantity})).sort((a,b)=>a.id.localeCompare(b.id));
+  const expected=desired.map(row=>({id:row.id,qty:row.qty})).sort((a,b)=>a.id.localeCompare(b.id));
   const got=remaining.slice().sort((a,b)=>a.id.localeCompare(b.id));
   if(JSON.stringify(expected)!==JSON.stringify(got)){
     const err=new Error("member_cart_items replace verify mismatch");
     memberLog("error","replace-cart-verify-mismatch",{expected,got});
     throw err;
   }
-  return {ok:true,rows};
+  return {ok:true,rows:desired};
 }
 let mergedForUserId=null;
 let shopSyncInFlight=null;
 let shopSyncUserId=null;
+let shopStateReadyUserId=null;
+let preMergeSnapshot=null;
+const syncTimers=new Map();
 const MERGE_LOCK_KEY="kutadgu-member-shop-merged-v3";
 function readMergeLock(){
   try{return String(localStorage.getItem(MERGE_LOCK_KEY)||"")}catch(e){return ""}
@@ -312,6 +388,145 @@ function localItemsForMerge(userId,localCart,localFav){
 }
 function stillMergingFor(userId){
   return !!(db&&user&&!blocked&&String(user.id)===String(userId||""));
+}
+function shopStateReadyFor(userId){
+  return !!(userId&&shopStateReadyUserId&&String(shopStateReadyUserId)===String(userId));
+}
+function resetMemberShopSyncState(){
+  shopStateReadyUserId=null;
+  preMergeSnapshot=null;
+  syncTimers.forEach(timer=>clearTimeout(timer));
+  syncTimers.clear();
+}
+function readLocalCartFav(){
+  return {
+    cart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[],
+    fav:Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[]
+  };
+}
+function clonePreMergeCart(items){
+  return (Array.isArray(items)?items:[]).filter(item=>item&&item.id).map(item=>({id:String(item.id),qty:sanitizeMemberQty(item.qty)}));
+}
+function clonePreMergeFav(items){
+  return [...new Set((Array.isArray(items)?items:[]).map(id=>String(id||"").trim()).filter(Boolean))];
+}
+function beginPreMergeShopSnapshot(userId){
+  const id=String(userId||"");
+  if(!id)return;
+  if(preMergeSnapshot&&preMergeSnapshot.userId===id)return;
+  const local=readLocalCartFav();
+  preMergeSnapshot={userId:id,cart:clonePreMergeCart(local.cart),fav:clonePreMergeFav(local.fav)};
+}
+function preMergeCartIntent(baseline,current,resolveId){
+  const resolve=typeof resolveId==="function"?resolveId:id=>String(id||"");
+  const base=new Map();
+  clonePreMergeCart(baseline).forEach(item=>{
+    const id=String(resolve(item.id)||item.id);
+    if(id)base.set(id,{id,qty:item.qty});
+  });
+  const curr=new Map();
+  clonePreMergeCart(current).forEach(item=>{
+    const id=String(resolve(item.id)||item.id);
+    if(id)curr.set(id,{id,qty:item.qty});
+  });
+  const removed=[];
+  const upserts=[];
+  base.forEach((row,id)=>{if(!curr.has(id))removed.push(id)});
+  curr.forEach((row,id)=>{
+    const prev=base.get(id);
+    if(!prev||Number(prev.qty)!==Number(row.qty))upserts.push(row);
+  });
+  return {removed,upserts};
+}
+function applyPreMergeCartIntent(merged,intent,resolveId){
+  const resolve=typeof resolveId==="function"?resolveId:id=>String(id||"");
+  const removed=new Set((intent&&intent.removed||[]).map(id=>String(resolve(id)||id)).filter(Boolean));
+  const upserts=new Map();
+  (intent&&intent.upserts||[]).forEach(row=>{
+    if(!row||row.id==null||row.id==="")return;
+    const id=String(resolve(row.id)||row.id);
+    if(!id||removed.has(id))return;
+    upserts.set(id,{id,qty:sanitizeMemberQty(row.qty)});
+  });
+  const seen=new Set();
+  const out=[];
+  clonePreMergeCart(merged).forEach(item=>{
+    const id=String(resolve(item.id)||item.id);
+    if(!id||removed.has(id)||seen.has(id))return;
+    seen.add(id);
+    out.push(upserts.get(id)||{id,qty:item.qty});
+  });
+  upserts.forEach((row,id)=>{
+    if(seen.has(id))return;
+    seen.add(id);
+    out.push(row);
+  });
+  return out;
+}
+function preMergeFavIntent(baseline,current,resolveId){
+  const resolve=typeof resolveId==="function"?resolveId:id=>String(id||"");
+  const base=new Set(clonePreMergeFav(baseline).map(id=>String(resolve(id)||id)).filter(Boolean));
+  const curr=new Set(clonePreMergeFav(current).map(id=>String(resolve(id)||id)).filter(Boolean));
+  return {
+    removed:[...base].filter(id=>!curr.has(id)),
+    added:[...curr].filter(id=>!base.has(id))
+  };
+}
+function applyPreMergeFavIntent(merged,intent,resolveId){
+  const resolve=typeof resolveId==="function"?resolveId:id=>String(id||"");
+  const removed=new Set((intent&&intent.removed||[]).map(id=>String(resolve(id)||id)).filter(Boolean));
+  const seen=new Set();
+  const out=[];
+  clonePreMergeFav(merged).forEach(id=>{
+    const key=String(resolve(id)||id);
+    if(!key||removed.has(key)||seen.has(key))return;
+    seen.add(key);
+    out.push(key);
+  });
+  (intent&&intent.added||[]).forEach(id=>{
+    const key=String(resolve(id)||id);
+    if(!key||removed.has(key)||seen.has(key))return;
+    seen.add(key);
+    out.push(key);
+  });
+  return out;
+}
+function composeMergedShopState(cloudCart,cloudFav,mergeForUserId,resolveId,aliasMap){
+  const latest=readLocalCartFav();
+  const snapshot=preMergeSnapshot&&preMergeSnapshot.userId===String(mergeForUserId)?preMergeSnapshot:null;
+  const baselineCart=snapshot?snapshot.cart:latest.cart;
+  const baselineFav=snapshot?snapshot.fav:latest.fav;
+  const gated=localItemsForMerge(mergeForUserId,baselineCart,baselineFav);
+  const helpers=window.KutadguLegacyIds;
+  const synced=helpers?.syncAuthenticatedShopState
+    ?helpers.syncAuthenticatedShopState({
+      localCart:gated.localCart,
+      localFav:gated.localFav,
+      cloudCart,
+      cloudFav,
+      resolveId,
+      aliasMap
+    })
+    :{
+      cart:helpers?.repairCapPollutedCartItems?helpers.repairCapPollutedCartItems([...(cloudCart||[]),...(gated.localCart||[])],resolveId,aliasMap):gated.localCart,
+      fav:helpers?.migrateIdList?helpers.migrateIdList([...(gated.localFav||[]),...(cloudFav||[])],resolveId):[...new Set([...(gated.localFav||[]),...(cloudFav||[])].map(String))]
+    };
+  const cartIntent=preMergeCartIntent(baselineCart,latest.cart,resolveId);
+  const favIntent=preMergeFavIntent(baselineFav,latest.fav,resolveId);
+  return {
+    cart:applyPreMergeCartIntent(synced.cart,cartIntent,resolveId),
+    fav:applyPreMergeFavIntent(synced.fav,favIntent,resolveId),
+    latestCart:latest.cart,
+    latestFav:latest.fav,
+    mergeLocal:gated.localCart.length>0||gated.localFav.length>0
+  };
+}
+function shopStateSignature(cart,fav){
+  const helpers=window.KutadguLegacyIds;
+  if(helpers?.shopStateSignature)return helpers.shopStateSignature(cart,fav);
+  const cartPart=clonePreMergeCart(cart).map(row=>row.id+":"+row.qty).sort().join(",");
+  const favPart=clonePreMergeFav(fav).slice().sort().join(",");
+  return "c="+cartPart+"|f="+favPart;
 }
 function idSuffix(value){
   const text=String(value||"").trim();
@@ -365,6 +580,7 @@ function abandonMemberShopSync(){
   user=null;
   profile=null;
   blocked=false;
+  resetMemberShopSyncState();
   writeMergeLock("");
   writeShopOwner(SHOP_OWNER_STALE);
   clearLocalCartAndFavorites();
@@ -410,30 +626,33 @@ async function mergeShopState(){
 
       const cloudFav=(favRows||[]).map(x=>x.book_id).filter(Boolean);
       const cloudCart=(cartRows||[]).map(x=>({id:x.book_id,qty:x.quantity}));
-      const rawLocalFav=Array.isArray(safeJson(FAV_KEY,[]))?safeJson(FAV_KEY,[]):[];
-      const rawLocalCart=Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]):[];
-      const gated=localItemsForMerge(mergeForUserId,rawLocalCart,rawLocalFav);
-      const localFav=gated.localFav;
-      const localCart=gated.localCart;
+      const latest=readLocalCartFav();
+      const snapshot=preMergeSnapshot&&preMergeSnapshot.userId===String(mergeForUserId)?preMergeSnapshot:null;
+      const baselineCart=snapshot?snapshot.cart:latest.cart;
+      const baselineFav=snapshot?snapshot.fav:latest.fav;
+      const gated=localItemsForMerge(mergeForUserId,baselineCart,baselineFav);
       const foreignCart=(cartRows||[]).filter(row=>row&&row.user_id&&String(row.user_id)!==String(mergeForUserId)).length;
-      const decision=mergeSourceDecision(mergeForUserId,Array.isArray(rawLocalCart)?rawLocalCart.length:0,cloudCart.length);
+      const decision=mergeSourceDecision(mergeForUserId,Array.isArray(latest.cart)?latest.cart.length:0,cloudCart.length);
       previewShopDebug("merge-fetch",{
         user:idSuffix(mergeForUserId),
         liveUser:idSuffix(user&&user.id),
         owner:decision.owner,
         localCart:decision.rawLocalCount,
         cloudCart:decision.cloudCount,
-        gatedLocalCart:localCart.length,
+        gatedLocalCart:gated.localCart.length,
         mergeSource:decision.reason,
         mergeLocal:decision.mergeLocal,
         filterEqUser:idSuffix(mergeForUserId),
-        foreignCartRows:foreignCart
+        foreignCartRows:foreignCart,
+        deferredSync:!shopStateReadyFor(mergeForUserId)
       });
       const pendingIds=[
         ...cloudFav,
         ...cloudCart.map(x=>x.id),
-        ...localFav,
-        ...localCart.map(x=>x?.id)
+        ...gated.localFav,
+        ...gated.localCart.map(x=>x?.id),
+        ...latest.fav,
+        ...latest.cart.map(x=>x?.id)
       ].map(String).filter(Boolean);
       const idMap=await fetchCanonicalIdMap(pendingIds);
       if(!stillMergingFor(mergeForUserId))return;
@@ -445,15 +664,9 @@ async function mergeShopState(){
       const helpers=window.KutadguLegacyIds;
       const aliases={...idMap,...(helpers?.readPersistedAliasMap?helpers.readPersistedAliasMap():{})};
       const resolveId=id=>memberResolveId(id,aliases);
-      const synced=helpers?.syncAuthenticatedShopState
-        ?helpers.syncAuthenticatedShopState({localCart,localFav,cloudCart,cloudFav,resolveId,aliasMap:aliases})
-        :{
-          cart:helpers?.repairCapPollutedCartItems?helpers.repairCapPollutedCartItems([...(cloudCart||[]),...(localCart||[])],resolveId,aliases):localCart,
-          fav:helpers?.migrateIdList?helpers.migrateIdList([...(localFav||[]),...(cloudFav||[])],resolveId):[...new Set([...(localFav||[]),...(cloudFav||[])].map(String))]
-        };
-
-      const mergedFav=synced.fav;
-      const mergedCart=synced.cart;
+      let composed=composeMergedShopState(cloudCart,cloudFav,mergeForUserId,resolveId,aliases);
+      let mergedFav=composed.fav;
+      let mergedCart=composed.cart;
       if(!stillMergingFor(mergeForUserId))return;
       previewShopDebug("merge-write",{
         mergeUser:idSuffix(mergeForUserId),
@@ -462,19 +675,54 @@ async function mergeShopState(){
         mergedCart:mergedCart.length,
         mergeSource:decision.reason
       });
+      let lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
       try{
-        await replaceFavorites(mergedFav);
-        await replaceCart(mergedCart);
+        const favWrite=await replaceFavorites(mergedFav,mergeForUserId);
+        if(!stillMergingFor(mergeForUserId)||!favWrite||!favWrite.ok){
+          writeMergeLock("");
+          return;
+        }
+        const cartWrite=await replaceCart(mergedCart,mergeForUserId);
+        if(!stillMergingFor(mergeForUserId)||!cartWrite||!cartWrite.ok){
+          writeMergeLock("");
+          return;
+        }
+        lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
+        composed=composeMergedShopState(cloudCart,cloudFav,mergeForUserId,resolveId,aliases);
+        if(shopStateSignature(composed.cart,composed.fav)!==lastWrittenSig){
+          mergedCart=composed.cart;
+          mergedFav=composed.fav;
+          const favRewrite=await replaceFavorites(mergedFav,mergeForUserId);
+          if(!stillMergingFor(mergeForUserId)||!favRewrite||!favRewrite.ok){
+            writeMergeLock("");
+            return;
+          }
+          const cartRewrite=await replaceCart(mergedCart,mergeForUserId);
+          if(!stillMergingFor(mergeForUserId)||!cartRewrite||!cartRewrite.ok){
+            writeMergeLock("");
+            return;
+          }
+          lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
+        }
       }catch(saveErr){
         writeMergeLock("");
         throw saveErr;
       }
       if(!stillMergingFor(mergeForUserId))return;
-      const prevCart=Array.isArray(rawLocalCart)?rawLocalCart:[];
+      composed=composeMergedShopState(cloudCart,cloudFav,mergeForUserId,resolveId,aliases);
+      mergedCart=composed.cart;
+      mergedFav=composed.fav;
+      const prevCart=Array.isArray(composed.latestCart)?composed.latestCart:[];
       localStorage.setItem(FAV_KEY,JSON.stringify(mergedFav));
       localStorage.setItem(CART_KEY,JSON.stringify(mergedCart));
       writeShopOwner(String(mergeForUserId));
       writeMergeLock(mergeForUserId);
+      shopStateReadyUserId=String(mergeForUserId);
+      preMergeSnapshot=null;
+      if(shopStateSignature(mergedCart,mergedFav)!==lastWrittenSig){
+        syncKey(CART_KEY,mergedCart);
+        syncKey(FAV_KEY,mergedFav);
+      }
       if(typeof window.kutadguShop?.alignCartDisplayAfterMemberSync==="function"){
         window.kutadguShop.alignCartDisplayAfterMemberSync(prevCart);
       }
@@ -498,10 +746,17 @@ async function mergeShopState(){
   });
   return shopSyncInFlight;
 }
-const syncTimers=new Map();
 function syncKey(key,value){
   if(!user||blocked||![CART_KEY,FAV_KEY].includes(key))return;
   const syncForUserId=user.id;
+  if(!shopStateReadyFor(syncForUserId)){
+    previewShopDebug("sync-key-deferred",{
+      key:key===CART_KEY?"cart":"fav",
+      user:idSuffix(syncForUserId),
+      count:Array.isArray(value)?value.length:0
+    });
+    return;
+  }
   previewShopDebug("sync-key",{
     key:key===CART_KEY?"cart":"fav",
     user:idSuffix(syncForUserId),
@@ -511,21 +766,28 @@ function syncKey(key,value){
   const run=async()=>{
     try{
       if(!stillMergingFor(syncForUserId))return;
-      if(key===FAV_KEY)await replaceFavorites(value);
-      if(key===CART_KEY)await replaceCart(value);
+      if(!shopStateReadyFor(syncForUserId))return;
+      if(key===FAV_KEY)await replaceFavorites(value,syncForUserId);
+      if(key===CART_KEY)await replaceCart(value,syncForUserId);
     }catch(err){memberLog("error","member-state-save",err)}
     finally{syncTimers.delete(key)}
   };
   syncTimers.set(key,setTimeout(run,0));
 }
 async function applySession(session,{trackLogin=false,sync=false}={}){
-  user=session?.user||null;profile=null;blocked=false;
+  const nextUser=session?.user||null;
+  const nextId=nextUser&&nextUser.id?String(nextUser.id):"";
+  const prevId=user&&user.id?String(user.id):"";
+  if(nextId!==prevId)resetMemberShopSyncState();
+  user=nextUser;profile=null;blocked=false;
+  if(user&&sync)beginPreMergeShopSnapshot(user.id);
   previewShopDebug("apply-session",{
     user:idSuffix(user&&user.id),
     sync:!!sync,
     trackLogin:!!trackLogin,
     owner:idSuffix(readShopOwner()),
-    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0
+    localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
+    shopReady:shopStateReadyFor(user&&user.id)
   });
   renderButton();emit();
   if(user){
@@ -675,7 +937,9 @@ const api=window.KutadguMember={
   isBlocked:()=>blocked,
   refreshProfile:fetchProfile,
   signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections,
-  readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,
+  readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,shopStateReadyFor,
+  preMergeCartIntent,applyPreMergeCartIntent,preMergeFavIntent,applyPreMergeFavIntent,
+  cartReconcilePlan,favReconcilePlan,
   SHOP_OWNER_KEY,SHOP_OWNER_GUEST,SHOP_OWNER_STALE
 };
 
