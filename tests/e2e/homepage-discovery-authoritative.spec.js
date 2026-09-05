@@ -68,16 +68,20 @@ async function installDiscoveryStub(page, options = {}) {
         return new Response(null, { status: 200, headers: { "content-range": "0-0/40" } });
       }
       if (url.includes("is_active=eq.false")) return jsonResponse([]);
-      const decoded = decodeURIComponent(url);
-      if (decoded.includes("category=eq.رومانلار")) {
+      let category = "";
+      try {
+        const parsed = new URL(url, "https://example.invalid");
+        category = String(parsed.searchParams.get("category") || "").replace(/^eq\./, "");
+      } catch (err) {}
+      if (category === "رومانلار") {
         if (failRoman) return jsonResponse({ message: "boom" }, 500);
         if (window.__discoveryHoldRoman) await window.__discoveryHoldRoman;
         return jsonResponse(roman);
       }
-      if (decoded.includes("category=eq.دىنىي كىتابلار")) return jsonResponse(religious);
-      if (decoded.includes("category=eq.شېئىرلار")) return jsonResponse(poems);
-      if (/category=eq\./.test(decoded)) return jsonResponse([]);
-      if (decoded.includes("is_recommended=eq.true")) {
+      if (category === "دىنىي كىتابلار") return jsonResponse(religious);
+      if (category === "شېئىرلار") return jsonResponse(poems);
+      if (category) return jsonResponse([]);
+      if (url.includes("is_recommended=eq.true")) {
         return jsonResponse(universal.filter((row) => row.is_recommended).map((row) => ({
           ...row,
           title: titles.recommended
