@@ -416,7 +416,7 @@
         </span>
         <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
       </label>
-      <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" inputmode="numeric">
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="text" inputmode="numeric" autocomplete="off">
         <span id="bookStockDerivedStatus" class="admin-help">ئامبار ھالىتى: تەڭشەلمىگەن</span>
         <span class="admin-help">بوش = تېخى تەڭشەلمىگەن (NULL). 0 = تۈگەپ كەتتى. پەقەت 0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان. ھالەت ئامبار سانىدىن ھېسابلىنىدۇ.</span>
       </label>
@@ -584,7 +584,7 @@
       <label><span>ئاپتورى</span><input id="quickAuthor"></label>
       <label><span>باھاسى (₺)</span><input id="quickPrice" type="number" min="0" step="0.01"></label>
       <label><span>كىتاب تۈرى *</span><select id="quickSource" required></select></label>
-      <label data-book-col="stock"><span>ئامبار سانى</span><input id="quickStock" type="number" min="0" step="1" inputmode="numeric">
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="quickStock" type="text" inputmode="numeric" autocomplete="off">
         <span id="quickStockDerivedStatus" class="admin-help">ئامبار ھالىتى: تەڭشەلمىگەن</span>
       </label>
       <label data-book-col="stock_status" hidden><span>ئامبار ھالىتى</span><select id="quickStockStatus" disabled tabindex="-1" aria-hidden="true"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>

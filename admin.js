@@ -3781,7 +3781,7 @@ function updateBulkValueUi(){
     sel.hidden=false;
     sel.innerHTML='<option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option>';
   }else if(action==="stock"){
-    inp.hidden=false;inp.type="number";inp.min="0";inp.placeholder="ئامبار سانى";
+    inp.hidden=false;inp.type="text";inp.removeAttribute("min");inp.removeAttribute("step");inp.setAttribute("inputmode","numeric");inp.placeholder="ئامبار سانى";
   }else if(action==="publisher"){
     inp.hidden=false;inp.type="text";inp.placeholder="نەشرىيات";
   }

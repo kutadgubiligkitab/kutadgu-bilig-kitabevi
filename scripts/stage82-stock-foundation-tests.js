@@ -106,6 +106,9 @@ test("Admin omits stock when schema column is absent",()=>{
 
 test("Admin exposes stock controls only through presentBookCols / live detect",()=>{
   assert.match(adminHtml,/id="bookStock"/);
+  assert.match(adminHtml,/id="bookStock"[^>]*type="text"/);
+  assert.match(adminHtml,/id="quickStock"[^>]*type="text"/);
+  assert.doesNotMatch(adminHtml,/id="bookStock"[^>]*pattern=/);
   assert.match(adminHtml,/id="bookStockDerivedStatus"/);
   assert.match(adminHtml,/id="adminUnconfiguredStock"/);
   assert.match(adminHtml,/kutadgu-stock\.js\?v=1/);
