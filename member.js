@@ -170,38 +170,91 @@ function memberResolveId(id,idMap={}){
     :raw=>String(idMap[raw]||raw);
   return resolve(id);
 }
+function uniqueBookIds(ids){
+  return [...new Set((Array.isArray(ids)?ids:[]).map(id=>String(id||"").trim()).filter(Boolean))];
+}
+function sanitizeMemberQty(raw){
+  return window.KutadguLegacyIds?.sanitizeCartQty
+    ?window.KutadguLegacyIds.sanitizeCartQty(raw)
+    :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
+}
+function cartReconcilePlan(existingRows,desiredRows,aliasIds){
+  const desired=new Map();
+  (Array.isArray(desiredRows)?desiredRows:[]).filter(row=>row&&row.id).forEach(row=>{
+    const id=String(row.id);
+    if(!id)return;
+    desired.set(id,{id,qty:sanitizeMemberQty(row.qty)});
+  });
+  const existing=new Map();
+  (Array.isArray(existingRows)?existingRows:[]).filter(row=>row&&row.id).forEach(row=>{
+    const id=String(row.id);
+    if(!id)return;
+    existing.set(id,{id,qty:sanitizeMemberQty(row.qty)});
+  });
+  const insert=[];
+  const qtyRewrite=[];
+  const stale=[];
+  desired.forEach((row,id)=>{
+    const prev=existing.get(id);
+    if(!prev)insert.push(row);
+    else if(Number(prev.qty)!==Number(row.qty))qtyRewrite.push(row);
+  });
+  existing.forEach((row,id)=>{if(!desired.has(id))stale.push(id)});
+  uniqueBookIds(aliasIds).forEach(id=>{
+    if(existing.has(id)&&!desired.has(id)&&!stale.includes(id))stale.push(id);
+  });
+  return {insert,qtyRewrite,stale};
+}
+function favReconcilePlan(existingIds,desiredIds,aliasIds){
+  const desired=new Set(uniqueBookIds(desiredIds));
+  const existing=new Set(uniqueBookIds(existingIds));
+  const insert=[...desired].filter(id=>!existing.has(id));
+  const stale=[...existing].filter(id=>!desired.has(id));
+  uniqueBookIds(aliasIds).forEach(id=>{
+    if(existing.has(id)&&!desired.has(id)&&!stale.includes(id))stale.push(id);
+  });
+  return {insert,stale};
+}
+function presentStaleIds(existingIds,staleIds){
+  const have=new Set(uniqueBookIds(existingIds));
+  return uniqueBookIds(staleIds).filter(id=>have.has(id));
+}
+function skippedPinnedWrite(uid){
+  memberLog("warn","replace-skipped",{hasDb:!!db,hasUser:!!user,blocked,uid:idSuffix(uid)});
+  return {ok:false,reason:!user||String(user&&user.id)!==String(uid||"")?"user-changed":"not-ready"};
+}
 async function replaceFavorites(values,forUserId){
   const uid=String(forUserId||(user&&user.id)||"");
-  if(!db||!uid||blocked||!user||String(user.id)!==uid){
-    memberLog("warn","replace-favorites-skipped",{hasDb:!!db,hasUser:!!user,blocked,uid:idSuffix(uid)});
-    return {ok:false,reason:!user||String(user&&user.id)!==uid?"user-changed":"not-ready"};
-  }
-  const ids=[...new Set((Array.isArray(values)?values:[]).map(String).filter(Boolean))];
+  if(!stillMergingFor(uid))return skippedPinnedWrite(uid);
+  const ids=uniqueBookIds(values);
   const helpers=window.KutadguLegacyIds;
   const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds([],ids,memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
-  if(aliasIds.length){
-    if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-    const {error:aliasDelError}=await db.from("member_favorites").delete().eq("user_id",uid).in("book_id",aliasIds);
-    if(aliasDelError){
-      memberLog("error","replace-favorites-alias-delete",aliasDelError);
-      throw aliasDelError;
-    }
+  const {data:current,error:readError}=await db.from("member_favorites").select("book_id").eq("user_id",uid);
+  if(readError){
+    memberLog("error","replace-favorites-read",readError);
+    throw readError;
   }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-  const {error:delError}=await db.from("member_favorites").delete().eq("user_id",uid);
-  if(delError){
-    memberLog("error","replace-favorites-delete",delError);
-    throw delError;
-  }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-  if(ids.length){
-    const {error}=await db.from("member_favorites").insert(ids.map(book_id=>({user_id:uid,book_id})));
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const existing=(current||[]).map(row=>String(row.book_id||"")).filter(Boolean);
+  const plan=favReconcilePlan(existing,ids,aliasIds);
+  if(plan.insert.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_favorites").upsert(plan.insert.map(book_id=>({user_id:uid,book_id})),{onConflict:"user_id,book_id",ignoreDuplicates:true});
     if(error){
       memberLog("error","replace-favorites-insert",error);
       throw error;
     }
   }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
+  const stale=presentStaleIds(existing,plan.stale);
+  if(stale.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_favorites").delete().eq("user_id",uid).in("book_id",stale);
+    if(error){
+      memberLog("error","replace-favorites-stale-delete",error);
+      throw error;
+    }
+  }
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
   const {data:verify,error:verifyError}=await db.from("member_favorites").select("book_id").eq("user_id",uid);
   if(verifyError){
     memberLog("error","replace-favorites-verify",verifyError);
@@ -216,49 +269,59 @@ async function replaceFavorites(values,forUserId){
   }
   return {ok:true,ids};
 }
-function sanitizeMemberQty(raw){
-  return window.KutadguLegacyIds?.sanitizeCartQty
-    ?window.KutadguLegacyIds.sanitizeCartQty(raw)
-    :Math.max(1,Math.min(99,parseInt(String(raw??1),10)||1));
-}
 async function replaceCart(values,forUserId){
   const uid=String(forUserId||(user&&user.id)||"");
-  if(!db||!uid||blocked||!user||String(user.id)!==uid){
-    memberLog("warn","replace-cart-skipped",{hasDb:!!db,hasUser:!!user,blocked,uid:idSuffix(uid)});
-    return {ok:false,reason:!user||String(user&&user.id)!==uid?"user-changed":"not-ready"};
-  }
+  if(!stillMergingFor(uid))return skippedPinnedWrite(uid);
   const helpers=window.KutadguLegacyIds;
+  const desired=(Array.isArray(values)?values:[])
+    .filter(x=>x&&x.id)
+    .map(x=>({id:String(x.id),qty:sanitizeMemberQty(x.qty)}));
   previewShopDebug("replace-cart",{
     writeUser:idSuffix(uid),
-    rowCount:(Array.isArray(values)?values:[]).filter(x=>x&&x.id).length
+    rowCount:desired.length
   });
-  const rows=(Array.isArray(values)?values:[])
-    .filter(x=>x&&x.id)
-    .map(x=>({user_id:uid,book_id:String(x.id),quantity:sanitizeMemberQty(x.qty)}));
   const aliasIds=helpers?.replacementIdentityIds?helpers.replacementIdentityIds(values,[],memberResolveId,helpers.readPersistedAliasMap?helpers.readPersistedAliasMap():{}):[];
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-  const {error:aliasDelError}=aliasIds.length
-    ?await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",aliasIds)
-    :{error:null};
-  if(aliasDelError){
-    memberLog("error","replace-cart-alias-delete",aliasDelError);
-    throw aliasDelError;
+  const {data:current,error:readError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",uid);
+  if(readError){
+    memberLog("error","replace-cart-read",readError);
+    throw readError;
   }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-  const {error:delError}=await db.from("member_cart_items").delete().eq("user_id",uid);
-  if(delError){
-    memberLog("error","replace-cart-delete",delError);
-    throw delError;
-  }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
-  if(rows.length){
-    const {error}=await db.from("member_cart_items").insert(rows);
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+  const existing=(current||[]).map(row=>({id:String(row.book_id||""),qty:sanitizeMemberQty(row.quantity)})).filter(row=>row.id);
+  const plan=cartReconcilePlan(existing,desired,aliasIds);
+  if(plan.insert.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_cart_items").upsert(plan.insert.map(row=>({user_id:uid,book_id:row.id,quantity:row.qty})),{onConflict:"user_id,book_id",ignoreDuplicates:true});
     if(error){
       memberLog("error","replace-cart-insert",error);
       throw error;
     }
   }
-  if(!user||String(user.id)!==uid)return {ok:false,reason:"user-changed"};
+  if(plan.qtyRewrite.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const qtyIds=plan.qtyRewrite.map(row=>row.id);
+    const {error:qtyDelError}=await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",qtyIds);
+    if(qtyDelError){
+      memberLog("error","replace-cart-qty-delete",qtyDelError);
+      throw qtyDelError;
+    }
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error:qtyInsError}=await db.from("member_cart_items").insert(plan.qtyRewrite.map(row=>({user_id:uid,book_id:row.id,quantity:row.qty})));
+    if(qtyInsError){
+      memberLog("error","replace-cart-qty-insert",qtyInsError);
+      throw qtyInsError;
+    }
+  }
+  const stale=presentStaleIds(existing.map(row=>row.id),plan.stale);
+  if(stale.length){
+    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+    const {error}=await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",stale);
+    if(error){
+      memberLog("error","replace-cart-stale-delete",error);
+      throw error;
+    }
+  }
+  if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
   const {data:verify,error:verifyError}=await db.from("member_cart_items").select("book_id,quantity").eq("user_id",uid);
   if(verifyError){
     memberLog("error","replace-cart-verify",verifyError);
@@ -270,14 +333,14 @@ async function replaceCart(values,forUserId){
     memberLog("error","replace-cart-alias-survived",remaining);
     throw err;
   }
-  const expected=rows.map(row=>({id:row.book_id,qty:row.quantity})).sort((a,b)=>a.id.localeCompare(b.id));
+  const expected=desired.map(row=>({id:row.id,qty:row.qty})).sort((a,b)=>a.id.localeCompare(b.id));
   const got=remaining.slice().sort((a,b)=>a.id.localeCompare(b.id));
   if(JSON.stringify(expected)!==JSON.stringify(got)){
     const err=new Error("member_cart_items replace verify mismatch");
     memberLog("error","replace-cart-verify-mismatch",{expected,got});
     throw err;
   }
-  return {ok:true,rows};
+  return {ok:true,rows:desired};
 }
 let mergedForUserId=null;
 let shopSyncInFlight=null;
@@ -614,16 +677,31 @@ async function mergeShopState(){
       });
       let lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
       try{
-        await replaceFavorites(mergedFav,mergeForUserId);
-        await replaceCart(mergedCart,mergeForUserId);
+        const favWrite=await replaceFavorites(mergedFav,mergeForUserId);
+        if(!stillMergingFor(mergeForUserId)||!favWrite||!favWrite.ok){
+          writeMergeLock("");
+          return;
+        }
+        const cartWrite=await replaceCart(mergedCart,mergeForUserId);
+        if(!stillMergingFor(mergeForUserId)||!cartWrite||!cartWrite.ok){
+          writeMergeLock("");
+          return;
+        }
         lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
-        if(!stillMergingFor(mergeForUserId))return;
         composed=composeMergedShopState(cloudCart,cloudFav,mergeForUserId,resolveId,aliases);
         if(shopStateSignature(composed.cart,composed.fav)!==lastWrittenSig){
           mergedCart=composed.cart;
           mergedFav=composed.fav;
-          await replaceFavorites(mergedFav,mergeForUserId);
-          await replaceCart(mergedCart,mergeForUserId);
+          const favRewrite=await replaceFavorites(mergedFav,mergeForUserId);
+          if(!stillMergingFor(mergeForUserId)||!favRewrite||!favRewrite.ok){
+            writeMergeLock("");
+            return;
+          }
+          const cartRewrite=await replaceCart(mergedCart,mergeForUserId);
+          if(!stillMergingFor(mergeForUserId)||!cartRewrite||!cartRewrite.ok){
+            writeMergeLock("");
+            return;
+          }
           lastWrittenSig=shopStateSignature(mergedCart,mergedFav);
         }
       }catch(saveErr){
@@ -861,6 +939,7 @@ const api=window.KutadguMember={
   signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections,
   readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,shopStateReadyFor,
   preMergeCartIntent,applyPreMergeCartIntent,preMergeFavIntent,applyPreMergeFavIntent,
+  cartReconcilePlan,favReconcilePlan,
   SHOP_OWNER_KEY,SHOP_OWNER_GUEST,SHOP_OWNER_STALE
 };
 

@@ -142,15 +142,27 @@ test("cloud replace is pinned to the merge/sync user id", () => {
   const merge = sliceBetween(memberSrc, "async function mergeShopState(){", "function syncKey(");
   assert.match(merge, /await replaceFavorites\(mergedFav,mergeForUserId\)/);
   assert.match(merge, /await replaceCart\(mergedCart,mergeForUserId\)/);
+  assert.match(merge, /if\(!stillMergingFor\(mergeForUserId\)\|\|!favWrite\|\|!favWrite\.ok\)/);
+  assert.match(merge, /if\(!stillMergingFor\(mergeForUserId\)\|\|!cartWrite\|\|!cartWrite\.ok\)/);
   const sync = sliceBetween(memberSrc, "function syncKey(key,value){", "async function applySession(");
   assert.match(sync, /await replaceFavorites\(value,syncForUserId\)/);
   assert.match(sync, /await replaceCart\(value,syncForUserId\)/);
-  const replaceFav = sliceBetween(memberSrc, "async function replaceFavorites(values,forUserId){", "function sanitizeMemberQty(");
+  const replaceFav = sliceBetween(memberSrc, "async function replaceFavorites(values,forUserId){", "async function replaceCart(values,forUserId){");
   const replaceCart = sliceBetween(memberSrc, "async function replaceCart(values,forUserId){", "let mergedForUserId=null;");
-  assert.match(replaceFav, /String\(user.id\)!==uid/);
-  assert.match(replaceCart, /String\(user.id\)!==uid/);
+  assert.match(replaceFav, /stillMergingFor\(uid\)/);
+  assert.match(replaceCart, /stillMergingFor\(uid\)/);
   assert.match(replaceFav, /\.eq\("user_id",uid\)/);
   assert.match(replaceCart, /\.eq\("user_id",uid\)/);
+  assert.doesNotMatch(replaceFav, /delete\(\)\.eq\("user_id",uid\);/);
+  assert.doesNotMatch(replaceCart, /delete\(\)\.eq\("user_id",uid\);/);
+  assert.match(replaceFav, /\.upsert\(/);
+  assert.match(replaceCart, /\.upsert\(/);
+  assert.ok(replaceFav.indexOf(".upsert(") < replaceFav.indexOf("plan.stale"));
+  assert.ok(replaceCart.indexOf(".upsert(") < replaceCart.indexOf("plan.stale"));
+  assert.match(replaceCart, /\.in\("book_id",stale\)/);
+  assert.match(replaceFav, /\.in\("book_id",stale\)/);
+  assert.match(replaceCart, /presentStaleIds\(/);
+  assert.match(replaceFav, /presentStaleIds\(/);
 });
 
 test("merge failure does not mark shop state ready", () => {
@@ -333,11 +345,11 @@ test("composeMergedShopState uses baseline for union then latest intent", () => 
   assert.match(memberSrc, /preMergeSnapshot=null/);
 });
 
-test("member.js pin is v=21", () => {
+test("member.js pin is v=22", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
-  assert.match(shop, /member\.js\?v=21/);
-  assert.match(account, /member\.js\?v=21/);
+  assert.match(shop, /member\.js\?v=22/);
+  assert.match(account, /member\.js\?v=22/);
 });
 
 test("12 same-user instant cart first paint is not gated on member merge ready", () => {
@@ -352,6 +364,190 @@ test("12 same-user instant cart first paint is not gated on member merge ready",
   assert.doesNotMatch(add, /cartHydrationPending\(\)/);
   assert.doesNotMatch(add, /shopStateReadyFor/);
   assert.match(shop, /function peekPersistedShopUserId\(\)/);
+});
+
+function reconcileApi() {
+  const src = sliceBetween(memberSrc, "function uniqueBookIds(ids){", "function skippedPinnedWrite(");
+  return new Function("window", `${src}\nreturn { uniqueBookIds, cartReconcilePlan, favReconcilePlan, presentStaleIds };`)({ KutadguLegacyIds: null });
+}
+
+function simulateCartReplace({
+  existing,
+  desired,
+  aliasIds = [],
+  failAt = null,
+  switchAt = null,
+  startUser = "A",
+  nextUser = "B"
+} = {}) {
+  const api = reconcileApi();
+  const plan = api.cartReconcilePlan(existing, desired, aliasIds);
+  let liveUser = startUser;
+  const cloud = new Map((existing || []).map((row) => [String(row.id), { id: String(row.id), qty: Number(row.qty) || 1 }]));
+  const writes = [];
+  function cloudRows() {
+    return [...cloud.values()].sort((a, b) => a.id.localeCompare(b.id));
+  }
+  function check() {
+    return liveUser === startUser;
+  }
+  function maybeSwitch(phase) {
+    if (switchAt === phase) liveUser = nextUser;
+  }
+  function maybeFail(phase) {
+    if (failAt === phase) {
+      writes.push({ phase, mode: "fail" });
+      throw new Error("network-" + phase);
+    }
+  }
+  try {
+    maybeSwitch("before-insert");
+    if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
+    if (plan.insert.length) {
+      maybeFail("insert");
+      plan.insert.forEach((row) => cloud.set(row.id, { id: row.id, qty: row.qty }));
+      writes.push({ phase: "insert", ids: plan.insert.map((row) => row.id) });
+    }
+    maybeSwitch("after-insert");
+    if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
+    if (plan.qtyRewrite.length) {
+      maybeFail("qty-delete");
+      plan.qtyRewrite.forEach((row) => cloud.delete(row.id));
+      writes.push({ phase: "qty-delete", ids: plan.qtyRewrite.map((row) => row.id) });
+      maybeSwitch("after-qty-delete");
+      if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
+      maybeFail("qty-insert");
+      plan.qtyRewrite.forEach((row) => cloud.set(row.id, { id: row.id, qty: row.qty }));
+      writes.push({ phase: "qty-insert", ids: plan.qtyRewrite.map((row) => row.id) });
+    }
+    maybeSwitch("before-stale-delete");
+    if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
+    if (plan.stale.length) {
+      maybeFail("stale-delete");
+      plan.stale.forEach((id) => cloud.delete(id));
+      writes.push({ phase: "stale-delete", ids: plan.stale.slice() });
+    }
+    return { ok: true, ready: true, cloud: cloudRows(), writes, liveUser, plan };
+  } catch (err) {
+    return { ok: false, reason: String(err.message || err), ready: false, cloud: cloudRows(), writes, liveUser, plan };
+  }
+}
+
+test("reconcile inserts desired rows before deleting stale ids", () => {
+  const plan = reconcileApi().cartReconcilePlan(
+    [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    [{ id: "C", qty: 1 }]
+  );
+  assert.deepStrictEqual(plan.insert, [{ id: "C", qty: 1 }]);
+  assert.deepStrictEqual(plan.stale.slice().sort(), ["A", "B"]);
+  assert.deepStrictEqual(plan.qtyRewrite, []);
+});
+
+test("1 user A changes to B after desired upsert does not wipe A's rows", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "C", qty: 1 }],
+    switchAt: "after-insert"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud.map((row) => row.id).sort(), ["A", "B", "C"]);
+  assert.ok(!out.writes.some((row) => row.phase === "stale-delete"));
+});
+
+test("2 network failure after upsert before stale cleanup keeps legitimate rows", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }, { id: "D", qty: 1 }],
+    desired: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }, { id: "C", qty: 1 }],
+    failAt: "stale-delete"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud.map((row) => row.id).sort(), ["A", "B", "C", "D"]);
+  assert.ok(out.cloud.some((row) => row.id === "A"));
+  assert.ok(out.cloud.some((row) => row.id === "B"));
+  assert.ok(out.cloud.some((row) => row.id === "C"));
+});
+
+test("3 network failure during stale-row cleanup does not lose desired rows", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "C", qty: 1 }],
+    failAt: "stale-delete"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud.map((row) => row.id).sort(), ["A", "B", "C"]);
+});
+
+test("4 empty desired cart clears only after successful stale delete", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: []
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.ready, true);
+  assert.deepStrictEqual(out.cloud, []);
+  assert.deepStrictEqual(out.plan.insert, []);
+  assert.deepStrictEqual(out.plan.stale.slice().sort(), ["A", "B"]);
+});
+
+test("5 empty desired + failed delete keeps cloud rows and does not mark ready", () => {
+  const local = [{ id: "keep-local", qty: 1 }];
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [],
+    failAt: "stale-delete"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud.map((row) => row.id).sort(), ["A", "B"]);
+  assert.deepStrictEqual(local, [{ id: "keep-local", qty: 1 }]);
+});
+
+test("6 old User A async completion cannot modify User B cloud", () => {
+  const bCloud = [{ id: "B-only", qty: 1 }];
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "C", qty: 1 }],
+    switchAt: "after-insert",
+    startUser: "A",
+    nextUser: "B"
+  });
+  assert.strictEqual(out.liveUser, "B");
+  assert.strictEqual(out.ok, false);
+  assert.deepStrictEqual(out.cloud.map((row) => row.id).sort(), ["A", "B", "C"]);
+  assert.deepStrictEqual(bCloud, [{ id: "B-only", qty: 1 }]);
+  assert.ok(!out.cloud.some((row) => row.id === "B-only"));
+});
+
+test("qty rewrite failure does not delete unrelated cloud rows", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "A", qty: 2 }, { id: "B", qty: 1 }],
+    failAt: "qty-delete"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud, [{ id: "A", qty: 1 }, { id: "B", qty: 1 }]);
+});
+
+test("favorites reconcile inserts before stale delete", () => {
+  const plan = reconcileApi().favReconcilePlan(["A", "B"], ["C"]);
+  assert.deepStrictEqual(plan.insert, ["C"]);
+  assert.deepStrictEqual(plan.stale.slice().sort(), ["A", "B"]);
+});
+
+test("missing alias ids are not treated as existing cloud rows to delete", () => {
+  const api = reconcileApi();
+  const fav = api.favReconcilePlan([], ["C"], ["legacy-alias"]);
+  assert.deepStrictEqual(fav.insert, ["C"]);
+  assert.deepStrictEqual(fav.stale, []);
+  const cart = api.cartReconcilePlan([], [{ id: "C", qty: 1 }], ["legacy-alias"]);
+  assert.deepStrictEqual(cart.insert, [{ id: "C", qty: 1 }]);
+  assert.deepStrictEqual(cart.stale, []);
+  assert.deepStrictEqual(api.presentStaleIds([], ["legacy-alias", "A"]), []);
+  assert.deepStrictEqual(api.presentStaleIds(["A", "B"], ["A", "legacy-alias"]).sort(), ["A"]);
 });
 
 if (failed) {
