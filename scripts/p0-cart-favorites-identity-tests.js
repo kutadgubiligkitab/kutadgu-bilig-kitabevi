@@ -408,23 +408,27 @@ test("static slug resolver cannot keep children-3 as a second line",()=>{
 
 const CART_KEY="kutadgu-cart-v1";
 const FAV_KEY="kutadgu-favorites-v1";
+const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
 const REC_KEY="kutadgu-recent-v1";
 const CUSTOMER_KEY="kutadgu-customer-v1";
 function clearLocalCartAndFavorites(store){
   delete store[CART_KEY];
   delete store[FAV_KEY];
+  delete store[CART_DISPLAY_KEY];
 }
 
 test("A logout then B login does not carry A cart/favorites into B",()=>{
   const store={
     [CART_KEY]:JSON.stringify([{id:"102",qty:2}]),
     [FAV_KEY]:JSON.stringify(["102"]),
+    [CART_DISPLAY_KEY]:JSON.stringify({v:1,items:{"102":{id:"102",title:"A"}}}),
     [REC_KEY]:JSON.stringify(["102"]),
     [CUSTOMER_KEY]:JSON.stringify({name:"A"})
   };
   clearLocalCartAndFavorites(store);
   assert.strictEqual(store[CART_KEY],undefined);
   assert.strictEqual(store[FAV_KEY],undefined);
+  assert.strictEqual(store[CART_DISPLAY_KEY],undefined);
   assert.strictEqual(store[REC_KEY],JSON.stringify(["102"]));
   assert.strictEqual(store[CUSTOMER_KEY],JSON.stringify({name:"A"}));
   const localCart=store[CART_KEY]?JSON.parse(store[CART_KEY]):[];
@@ -463,6 +467,7 @@ test("member.js clears only cart/favorites on signOut and SIGNED_OUT",()=>{
   assert.match(src,/function abandonMemberShopSync\(\)\{/);
   assert.match(src,/localStorage\.removeItem\(CART_KEY\)/);
   assert.match(src,/localStorage\.removeItem\(FAV_KEY\)/);
+  assert.match(src,/localStorage\.removeItem\(CART_DISPLAY_KEY\)/);
   assert.match(src,/emit\("kutadgu-member-state-synced"\)/);
   assert.match(src,/async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
   assert.match(src,/if\(event==="SIGNED_OUT"\)abandonMemberShopSync\(\);/);
@@ -622,14 +627,14 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages keep cart markup pin shop.js v=98",()=>{
+test("storefront pages keep cart markup pin shop.js v=100",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=98/);
+  assert.match(html,/shop\.js\?v=100/);
   assert.match(html,/shop\.css\?v=50/);
   assert.match(html,/id="cartLayout"/);
   assert.match(html,/id="cartSummaryHost"/);
@@ -641,16 +646,16 @@ test("storefront pages keep cart markup pin shop.js v=98",()=>{
   assert.doesNotMatch(html,/1\) تولدۇرۇڭ/);
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
-  assert.match(fav,/shop\.js\?v=98/);
-  assert.match(home,/shop\.js\?v=98/);
-  assert.match(shop,/member\.js\?v=19/);
+  assert.match(fav,/shop\.js\?v=100/);
+  assert.match(home,/shop\.js\?v=100/);
+  assert.match(shop,/member\.js\?v=20/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);
   assert.match(shop,/data-plus=/);
   assert.match(shop,/data-minus=/);
   assert.match(shop,/data-remove=/);
   assert.match(shop,/CART_KEY/);
-  assert.match(account,/member\.js\?v=19/);
+  assert.match(account,/member\.js\?v=20/);
   assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
   assert.match(member,/\.eq\("user_id",user\.id\)/);
   assert.match(member,/function previewShopDebug/);
@@ -701,7 +706,8 @@ test("favorites.html re-renders after member-state-synced",()=>{
   assert.match(fn,/querySelector\("#cartItems"\)/);
 });
 
-test("authenticated favorites display waits for matching user id",()=>{
+test("authenticated favorites/cart display waits for matching user id and does not flash stale owners",()=>{
+  const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   function allows(owner,uid){
     if(!owner||owner==="guest")return true;
     if(owner==="stale")return false;
@@ -713,6 +719,10 @@ test("authenticated favorites display waits for matching user id",()=>{
   assert.strictEqual(allows("user-a",null),false);
   assert.strictEqual(allows("user-a","user-a"),true);
   assert.strictEqual(allows("user-a","user-b"),false);
+  assert.match(shop,/function shopOwnerAllowsLocalDisplay\(owner,uid\)\{/);
+  assert.match(shop,/if\(!currentUid\)return false/);
+  assert.match(shop,/currentUid===currentOwner/);
+  assert.match(shop,/function peekPersistedShopUserId\(\)\{/);
 });
 
 

@@ -46,7 +46,7 @@ test("static shell paints cart boot state before remote catalog hydrate", () => 
   assert.match(paint, /cartHasUsableDisplayPreview\(\)/);
   assert.match(paint, /showCartBootSkeleton\(cart\(\)\.length\)/);
   const boot = sliceBetween(shop, "async function boot()", "window.kutadguShop=");
-  assert.match(boot, /initStaticShell\(\);\n  await loadRemoteCatalog\(\)/);
+  assert.match(boot, /initStaticShell\(\);\n  loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
   assert.match(boot, /await hydrateBooksByIds/);
   assert.match(boot, /markCatalogBootSettled\(\)/);
   const settledAt = boot.indexOf("markCatalogBootSettled()");
