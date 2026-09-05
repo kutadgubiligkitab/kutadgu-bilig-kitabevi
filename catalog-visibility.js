@@ -20,6 +20,20 @@ function bookIdentityKeys(book){
     .filter(Boolean);
 }
 
+function isCanonicalBookId(value){
+  return /^\d+$/.test(String(value||"").trim());
+}
+
+function isRemoteProvenance(book){
+  return !!(book&&(book.isRemote===true||book.is_remote===true));
+}
+
+function requiresRemoteProductAuthority(ctx){
+  if(!ctx||typeof ctx!=="object")return false;
+  if(ctx.requireRemoteAuthority===true||ctx.production===true)return true;
+  return !!ctx.remoteAvailable;
+}
+
 function isStorefrontVisible(book,ctx){
   const remoteAvailable=!!(ctx&&ctx.remoteAvailable);
   const inactiveKeys=ctx&&ctx.inactiveKeys?ctx.inactiveKeys:new Set();
@@ -29,6 +43,10 @@ function isStorefrontVisible(book,ctx){
     for(const key of bookIdentityKeys(book)){
       if(inactiveKeys.has(key))return false;
     }
+  }
+  if(requiresRemoteProductAuthority(ctx)){
+    if(!isRemoteProvenance(book))return false;
+    if(!isCanonicalBookId(book.id))return false;
   }
   return true;
 }
@@ -49,7 +67,7 @@ async function loadInactiveKeysPaged(fetchPage,options){
   return keys;
 }
 
-const api={collectInactiveKeys,bookIdentityKeys,isStorefrontVisible,loadInactiveKeysPaged};
+const api={collectInactiveKeys,bookIdentityKeys,isCanonicalBookId,isRemoteProvenance,requiresRemoteProductAuthority,isStorefrontVisible,loadInactiveKeysPaged};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 root.KutadguVisibility=api;
 })(typeof window!=="undefined"?window:typeof globalThis!=="undefined"?globalThis:{});
