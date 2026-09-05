@@ -139,7 +139,10 @@ test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
   assert.ok(idleAfterAdmin > afterAdmin);
   assert.ok(live.indexOf("inspectAccess") > idleAfterAdmin);
   assert.match(route[0], /decision\.gate/);
-  assert.doesNotMatch(adminJs, /from\("books"\).*aal2/s);
+  assert.doesNotMatch(adminJs, /from\("books"\)[^\n]*aal2/i);
+  [...adminJs.matchAll(/from\("books"\)[\s\S]{0,160}/g)].forEach((chunk) => {
+    assert.doesNotMatch(chunk[0], /aal2/i);
+  });
   assert.match(adminJs, /async function loadMfaCard/);
 });
 

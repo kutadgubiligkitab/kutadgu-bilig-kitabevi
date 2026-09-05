@@ -32,9 +32,9 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=33, admin.js v=56, admin-mfa.js v=3, and admin-idle.js v=3", () => {
-  assert.match(adminHtml, /admin\.css\?v=33/);
-  assert.match(adminHtml, /admin\.js\?v=56/);
+test("cache pins are admin.css v=34, admin.js v=57, admin-mfa.js v=3, and admin-idle.js v=3", () => {
+  assert.match(adminHtml, /admin\.css\?v=34/);
+  assert.match(adminHtml, /admin\.js\?v=57/);
   assert.match(adminHtml, /admin-mfa\.js\?v=3/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=32/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=52/);
@@ -60,6 +60,8 @@ test("section grouping keeps existing Admin cards", () => {
   assert.match(adminHtml, /data-admin-section-panel="insights"/);
   assert.match(adminHtml, /id="memberManagement"/);
   assert.match(adminHtml, /data-admin-section-panel="customers"/);
+  assert.match(adminHtml, /id="orderManagement"/);
+  assert.match(adminHtml, /data-admin-section-panel="orders"/);
   assert.match(adminHtml, /id="maintenanceCard"/);
   assert.match(adminHtml, /id="mfaCard"/);
   assert.match(adminHtml, /data-admin-section-panel="system"/);
@@ -101,6 +103,7 @@ test("default section is books and hash parser falls back", () => {
   assert.strictEqual(parse("#system"), "system");
   assert.strictEqual(parse("import-covers"), "import-covers");
   assert.strictEqual(parse("#customers"), "customers");
+  assert.strictEqual(parse("#orders"), "orders");
 });
 
 test("post-auth load list is unchanged", () => {
@@ -134,6 +137,7 @@ test("nav labels use the required Uyghur section titles", () => {
   assert.match(adminHtml, /📥 ئىمپورت ۋە مۇقاۋا/);
   assert.match(adminHtml, /📈 ستاتىستىكا/);
   assert.match(adminHtml, /👥 ئەزالار/);
+  assert.match(adminHtml, /📦 زاكازلار/);
   assert.match(adminHtml, /⚙️ سىستېما/);
 });
 

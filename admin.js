@@ -39,6 +39,18 @@ const OPTIONAL_COL_ALIASES={
 const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
+let profileById=new Map();
+let adminOrders=[];
+let adminOrderTotal=0;
+let adminOrderPage=0;
+let adminOrderDetail=null;
+let adminOrdersRequest=0;
+let adminOrderSearchTimer=0;
+const ADMIN_ORDER_PAGE_SIZE=40;
+const ADMIN_ORDER_SELECT="id,order_no,user_id,status,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at";
+const ORDER_STATUSES=["prepared","confirmed","processing","shipped","completed","cancelled"];
+const ORDER_STATUS_SET=new Set(ORDER_STATUSES);
+const ORDER_STATUS_LABELS={prepared:"تەييارلاندى",confirmed:"جەزملەشتۈرۈلدى",processing:"تەييارلىنىۋاتىدۇ",shipped:"كارگوغا بېرىلدى",completed:"تاماملاندى",cancelled:"بىكار قىلىندى"};
 let isbnColumn=true,migrationWarned=false;
 let generatedAlwaysId=false;
 const presentBookCols=new Set();
@@ -197,7 +209,7 @@ function show(id){
     if(el)el.hidden=x!==id;
   });
 }
-const ADMIN_SECTIONS=["overview","books","storefront","import-covers","insights","customers","system"];
+const ADMIN_SECTIONS=["overview","books","storefront","import-covers","insights","customers","orders","system"];
 const DEFAULT_ADMIN_SECTION="books";
 let applyingAdminSection=false;
 function parseAdminSectionHash(hash){
@@ -225,6 +237,7 @@ function showAdminSection(sectionId,opts){
   });
   const select=$("#adminSectionSelect");
   if(select&&select.value!==id)select.value=id;
+  if(id==="orders")loadAdminOrders();
   if(options.updateHash===false||!dashboardAuthorized())return;
   const next="#"+id;
   if((location.hash||"")===next)return;
@@ -1248,16 +1261,19 @@ async function loadMembers(){
   if(host)host.innerHTML='<div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div>';
   const [profileResult,orderResult]=await Promise.all([
     db.from("profiles").select("*").order("created_at",{ascending:false}),
-    db.from("orders").select("user_id,total,status,created_at").order("created_at",{ascending:false})
+    db.from("orders").select("id,user_id,total,status,created_at").order("created_at",{ascending:false})
   ]);
   if(profileResult.error){
     if(host)host.innerHTML=`<div class="admin-empty">خېرىدارلارنى ئوقۇش مەغلۇپ بولدى: ${esc(profileResult.error.message)}<br>SUPABASE_SETUP.sql نى ئىجرا قىلغانلىقىڭىزنى تەكشۈرۈڭ.</div>`;
     return;
   }
   members=(profileResult.data||[]).filter(p=>p.id!==user?.id);
+  profileById=new Map((profileResult.data||[]).map(p=>[p.id,p]));
   orders=orderResult.error?[]:(orderResult.data||[]);
   renderMemberStats();
   renderMembers();
+  const ordersPanel=document.querySelector("[data-admin-section-panel='orders']");
+  if(ordersPanel&&!ordersPanel.hidden)renderAdminOrders();
 }
 const COUNTED_ORDER_STATUSES=new Set(["confirmed","processing","shipped","completed"]);
 function orderStatusKey(order){
@@ -1323,6 +1339,227 @@ async function toggleMemberStatus(memberId,nextStatus){
   const {error}=await db.rpc("set_member_status",{member_id:memberId,new_status:nextStatus});
   if(error){alert("ھېساب ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى:\n"+error.message);return}
   await loadMembers();
+}
+function isAllowedOrderStatus(status){
+  return ORDER_STATUS_SET.has(orderStatusKey({status}));
+}
+function orderStatusLabel(status){
+  const key=orderStatusKey({status});
+  return ORDER_STATUS_LABELS[key]||(key||"—");
+}
+function shouldConfirmOrderStatus(nextStatus){
+  return orderStatusKey({status:nextStatus})==="cancelled";
+}
+function orderUpdateSucceeded(data,error){
+  if(error)return false;
+  const row=Array.isArray(data)?data[0]:data;
+  return !!(row&&row.id);
+}
+function isAal2OrderUpdateError(error){
+  const msg=String(error&&(error.message||error.details||error.hint||error.code)||"").toLowerCase();
+  return String(error&&error.code||"")==="42501"||msg.includes("aal2")||msg.includes("row-level security")||msg.includes("permission denied")||msg.includes("42501");
+}
+function formatOrderUpdateError(error){
+  if(isAal2OrderUpdateError(error))return "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
+  return "زاكاز ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى"+(error&&error.message?":\n"+error.message:".");
+}
+function parseOrderItems(raw){
+  let items=raw;
+  if(typeof items==="string"){
+    try{items=JSON.parse(items)}catch(err){return []}
+  }
+  if(!Array.isArray(items))return [];
+  return items.map(item=>{
+    if(!item||typeof item!=="object")return {title:"كىتاب",author:"",qty:1,price:null,line_total:null};
+    const qty=Number(item.qty);
+    const price=item.price==null||item.price===""?null:Number(item.price);
+    let line=item.line_total==null||item.line_total===""?null:Number(item.line_total);
+    if(line==null&&price!=null&&Number.isFinite(price)&&Number.isFinite(qty))line=price*qty;
+    return {
+      title:item.title||item.book_id||"كىتاب",
+      author:item.author||"",
+      qty:Number.isFinite(qty)&&qty>0?qty:1,
+      price:Number.isFinite(price)?price:null,
+      line_total:Number.isFinite(line)?line:null
+    };
+  });
+}
+function orderMemberContext(order){
+  const profile=order&&order.user_id?profileById.get(order.user_id):null;
+  if(!profile)return {name:"ئەزا تېپىلمىدى",email:"—"};
+  return {name:profile.full_name||"ئىسمى كىرگۈزۈلمىگەن",email:profile.email||"—"};
+}
+function patchOrdersStatus(list,orderId,nextStatus,updatedAt){
+  return (list||[]).map(order=>{
+    if(String(order&&order.id)!==String(orderId))return order;
+    return updatedAt?{...order,status:nextStatus,updated_at:updatedAt}:{...order,status:nextStatus};
+  });
+}
+function applyAdminOrderFilters(query){
+  const status=String($("#adminOrderStatusFilter")?.value||"all");
+  if(status!=="all"&&isAllowedOrderStatus(status))query=query.eq("status",status);
+  const term=searchSafe($("#adminOrderSearch")?.value||"");
+  if(term){
+    query=query.or([postgrestIlike("order_no",term),postgrestIlike("customer_name",term),postgrestIlike("customer_phone",term)].join(","));
+  }
+  return query.order("created_at",{ascending:false}).order("id",{ascending:false});
+}
+async function loadAdminOrders(){
+  const host=$("#adminOrderList");
+  const pager=$("#adminOrderPager");
+  if(!host)return;
+  if(!db){
+    host.innerHTML='<div class="admin-empty">زاكازلار يۈكلىنىشى ئۈچۈن Admin كىرىشى كېرەك.</div>';
+    if(pager)pager.hidden=true;
+    return;
+  }
+  const req=++adminOrdersRequest;
+  host.innerHTML='<div class="admin-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div>';
+  const from=adminOrderPage*ADMIN_ORDER_PAGE_SIZE;
+  const to=from+ADMIN_ORDER_PAGE_SIZE-1;
+  let query=db.from("orders").select(ADMIN_ORDER_SELECT,{count:"exact"}).range(from,to);
+  query=applyAdminOrderFilters(query);
+  const {data,error,count}=await query;
+  if(req!==adminOrdersRequest)return;
+  if(error){
+    host.innerHTML=`<div class="admin-empty">زاكازلارنى ئوقۇش مەغلۇپ بولدى: ${esc(error.message)}</div>`;
+    if(pager)pager.hidden=true;
+    return;
+  }
+  adminOrders=data||[];
+  adminOrderTotal=count||0;
+  const maxPage=Math.max(0,Math.ceil(adminOrderTotal/ADMIN_ORDER_PAGE_SIZE)-1);
+  if(adminOrderPage>maxPage){adminOrderPage=maxPage;return loadAdminOrders()}
+  if(adminOrderDetail){
+    adminOrderDetail=adminOrders.find(order=>String(order.id)===String(adminOrderDetail.id))||null;
+  }
+  renderAdminOrders();
+}
+function renderAdminOrderPager(){
+  const host=$("#adminOrderPager");if(!host)return;
+  const pages=Math.max(1,Math.ceil(adminOrderTotal/ADMIN_ORDER_PAGE_SIZE));
+  if(!adminOrderTotal){host.hidden=true;host.innerHTML="";return}
+  host.hidden=false;
+  host.innerHTML=`<button type="button" data-order-page="prev" ${adminOrderPage<=0?"disabled":""}>‹</button>
+    <span>${adminOrderPage+1} / ${pages} · جەمئىي ${adminOrderTotal} زاكاز · ھەر بەتتە ${ADMIN_ORDER_PAGE_SIZE}</span>
+    <button type="button" data-order-page="next" ${adminOrderPage>=pages-1?"disabled":""}>›</button>`;
+  host.querySelector("[data-order-page='prev']").onclick=()=>{if(adminOrderPage>0){adminOrderPage--;loadAdminOrders()}};
+  host.querySelector("[data-order-page='next']").onclick=()=>{if(adminOrderPage<pages-1){adminOrderPage++;loadAdminOrders()}};
+}
+function renderAdminOrders(){
+  const host=$("#adminOrderList");if(!host)return;
+  if(!adminOrders.length){
+    host.innerHTML='<div class="admin-empty">ماس زاكاز تېپىلمىدى.</div>';
+    renderAdminOrderPager();
+    renderAdminOrderDetail();
+    return;
+  }
+  host.innerHTML=adminOrders.map(order=>{
+    const selected=adminOrderDetail&&String(adminOrderDetail.id)===String(order.id);
+    const member=orderMemberContext(order);
+    return `<button type="button" class="admin-order-row ${selected?"is-selected":""}" data-open-order="${esc(order.id)}">
+      <div>
+        <div class="admin-order-no">${esc(order.order_no||"—")}</div>
+        <div class="admin-order-meta">${esc(dateText(order.created_at))}</div>
+        <span class="admin-order-status is-${esc(orderStatusKey(order))}">${esc(orderStatusLabel(order.status))}</span>
+      </div>
+      <div>
+        <div class="admin-order-customer">${esc(order.customer_name||"—")}</div>
+        <div class="admin-order-meta"><span class="admin-order-phone">${esc(order.customer_phone||"—")}</span> · ${esc(order.customer_city||"—")}</div>
+        <div class="admin-order-meta">${esc(member.name)} · ${esc(member.email)}</div>
+      </div>
+      <div class="admin-order-totals">
+        <strong>${esc(money(order.total))}</strong>
+        <span class="admin-order-meta">${Number(order.total_qty)||0} دانە</span>
+      </div>
+    </button>`;
+  }).join("");
+  host.querySelectorAll("[data-open-order]").forEach(btn=>btn.onclick=()=>openAdminOrder(btn.getAttribute("data-open-order")));
+  renderAdminOrderPager();
+  renderAdminOrderDetail();
+}
+function openAdminOrder(orderId){
+  adminOrderDetail=adminOrders.find(order=>String(order.id)===String(orderId))||null;
+  renderAdminOrders();
+  const detail=$("#adminOrderDetail");
+  if(detail)detail.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+function renderAdminOrderDetail(){
+  const host=$("#adminOrderDetail");if(!host)return;
+  const order=adminOrderDetail;
+  if(!order){host.hidden=true;host.innerHTML="";return}
+  host.hidden=false;
+  const member=orderMemberContext(order);
+  const items=parseOrderItems(order.items);
+  const itemHtml=items.length?items.map(item=>`<article class="admin-order-item">
+      <div class="admin-order-item-title">${esc(item.title)}</div>
+      ${item.author?`<div class="admin-order-item-meta">${esc(item.author)}</div>`:""}
+      <div class="admin-order-item-meta">${item.qty} دانە · ${esc(money(item.price))} · ${esc(money(item.line_total))}</div>
+    </article>`).join(""):'<div class="admin-empty">بۇ زاكازدا كىتاب تۈرى يوق.</div>';
+  const statusOptions=ORDER_STATUSES.map(status=>`<option value="${esc(status)}" ${orderStatusKey(order)===status?"selected":""}>${esc(orderStatusLabel(status))}</option>`).join("");
+  host.innerHTML=`<h3>زاكاز ${esc(order.order_no||"—")}</h3>
+    <div class="admin-order-detail-grid">
+      <div class="admin-order-detail-item"><span>ۋاقتى</span><strong>${esc(dateText(order.created_at))}</strong></div>
+      <div class="admin-order-detail-item"><span>ھالەت</span><strong>${esc(orderStatusLabel(order.status))}</strong></div>
+      <div class="admin-order-detail-item"><span>خېرىدار</span><strong>${esc(order.customer_name||"—")}</strong></div>
+      <div class="admin-order-detail-item"><span>تېلېفون</span><strong class="admin-order-phone">${esc(order.customer_phone||"—")}</strong></div>
+      <div class="admin-order-detail-item"><span>شەھەر</span><strong>${esc(order.customer_city||"—")}</strong></div>
+      <div class="admin-order-detail-item"><span>يەتكۈزۈش</span><strong>${esc(order.delivery_method||"—")}</strong></div>
+      <div class="admin-order-detail-item"><span>ئەزا</span><strong>${esc(member.name)}</strong></div>
+      <div class="admin-order-detail-item"><span>ئېلخەت</span><strong>${esc(member.email)}</strong></div>
+      <div class="admin-order-detail-item"><span>جەمئىي سانى</span><strong>${Number(order.total_qty)||0}</strong></div>
+      <div class="admin-order-detail-item"><span>جەمئىي سومما</span><strong>${esc(money(order.total))}</strong></div>
+      <div class="admin-order-detail-item is-wide"><span>ئادرېس</span><strong class="admin-order-address">${esc(order.customer_address||"—")}</strong></div>
+      <div class="admin-order-detail-item is-wide"><span>ئىزاھات</span><strong class="admin-order-note">${esc(order.customer_note||"—")}</strong></div>
+    </div>
+    <div class="admin-order-items">${itemHtml}</div>
+    <div class="admin-order-status-form">
+      <label for="adminOrderStatusSelect">يېڭى ھالەت</label>
+      <select id="adminOrderStatusSelect">${statusOptions}</select>
+      <button type="button" class="admin-secondary" id="adminOrderStatusSave">ھالەتنى ساقلاش</button>
+      <p id="adminOrderStatusMsg" class="admin-order-status-msg" hidden></p>
+    </div>`;
+  $("#adminOrderStatusSave")&&($("#adminOrderStatusSave").onclick=()=>saveAdminOrderStatus(order.id));
+}
+function setAdminOrderStatusMsg(text,ok){
+  const el=$("#adminOrderStatusMsg");if(!el)return;
+  el.hidden=!text;
+  el.textContent=text||"";
+  el.className="admin-order-status-msg "+(ok?"is-ok":"is-error");
+}
+async function saveAdminOrderStatus(orderId){
+  const nextStatus=orderStatusKey({status:$("#adminOrderStatusSelect")?.value});
+  if(!isAllowedOrderStatus(nextStatus)){
+    setAdminOrderStatusMsg("بۇ ھالەت ئىناۋەتسىز.",false);
+    return {ok:false,reason:"invalid_status"};
+  }
+  const current=adminOrders.find(order=>String(order.id)===String(orderId))||adminOrderDetail;
+  if(current&&orderStatusKey(current)===nextStatus){
+    setAdminOrderStatusMsg("ھالەت ئۆزگەرتمىدى.",true);
+    return {ok:true,reason:"unchanged"};
+  }
+  if(shouldConfirmOrderStatus(nextStatus)&&!confirm("بۇ زاكازنى بىكار قىلىشنى جەزملەشتۈرەمسىز؟")){
+    return {ok:false,reason:"cancelled_by_user"};
+  }
+  if(!db){
+    setAdminOrderStatusMsg("Database تەييار ئەمەس.",false);
+    return {ok:false,reason:"no_db"};
+  }
+  const {data,error}=await db.from("orders").update({status:nextStatus}).eq("id",orderId).select("id,status,updated_at");
+  if(!orderUpdateSucceeded(data,error)){
+    setAdminOrderStatusMsg(formatOrderUpdateError(error||{message:"ئۆزگەرتىش يېزىلمىدى."}),false);
+    return {ok:false,reason:"update_failed",error};
+  }
+  const row=Array.isArray(data)?data[0]:data;
+  adminOrders=patchOrdersStatus(adminOrders,orderId,row.status,row.updated_at);
+  orders=patchOrdersStatus(orders,orderId,row.status,row.updated_at);
+  if(adminOrderDetail&&String(adminOrderDetail.id)===String(orderId)){
+    adminOrderDetail={...adminOrderDetail,status:row.status,updated_at:row.updated_at};
+  }
+  renderMemberStats();
+  renderAdminOrders();
+  setAdminOrderStatusMsg("ھالەت يېڭىلاندى.",true);
+  return {ok:true,status:row.status};
 }
 function setSaveMode(mode){
   const form=$("#bookForm");
@@ -4335,6 +4572,16 @@ function init(){
   });
   $("#memberSearch").addEventListener("input",renderMembers);
   $("#reloadMembers").onclick=loadMembers;
+  $("#reloadAdminOrders")&&($("#reloadAdminOrders").onclick=()=>loadAdminOrders());
+  $("#adminOrderSearch")&&$("#adminOrderSearch").addEventListener("input",()=>{
+    adminOrderPage=0;
+    clearTimeout(adminOrderSearchTimer);
+    adminOrderSearchTimer=setTimeout(()=>loadAdminOrders(),250);
+  });
+  $("#adminOrderStatusFilter")&&$("#adminOrderStatusFilter").addEventListener("change",()=>{
+    adminOrderPage=0;
+    loadAdminOrders();
+  });
   $("#bookCover").addEventListener("change",()=>{
     const file=$("#bookCover").files[0];
     if(!file)return;
@@ -4358,6 +4605,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,parseOrderItems,patchOrdersStatus,esc,money
 };
 })();

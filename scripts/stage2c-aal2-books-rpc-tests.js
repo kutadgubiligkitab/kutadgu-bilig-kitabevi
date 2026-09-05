@@ -229,7 +229,10 @@ test("frontend still writes books and set_member_status without client-side AAL2
   assert.match(adminJs, /db\.from\("books"\)\.update/);
   assert.match(adminJs, /db\.from\("books"\)\.delete\(\)/);
   assert.match(adminJs, /db\.rpc\("set_member_status",\{member_id:memberId,new_status:nextStatus\}\)/);
-  assert.doesNotMatch(adminJs, /from\("books"\).*aal2/s);
+  assert.doesNotMatch(adminJs, /from\("books"\)[^\n]*aal2/i);
+  [...adminJs.matchAll(/from\("books"\)[\s\S]{0,160}/g)].forEach((chunk) => {
+    assert.doesNotMatch(chunk[0], /aal2/i);
+  });
   assert.match(adminMfa, /function evaluateAccess/);
   assert.match(adminMfa, /getAuthenticatorAssuranceLevel/);
 });
