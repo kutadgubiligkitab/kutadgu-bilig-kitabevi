@@ -28,9 +28,9 @@ function sliceBetween(src, startNeedle, endNeedle) {
 const previewFn = sliceBetween(shop, "async function showOrderPreview(){", "async function copyOrder(){");
 const copyFn = sliceBetween(shop, "async function copyOrder(){", "async function shareOrder(){");
 const shareFn = sliceBetween(shop, "async function shareOrder(){", "function whatsappOrderUrl(text){");
-const saveFn = sliceBetween(shop, "async function savePreparedOrderHistory(order){", "async function showOrderPreview(){");
+const saveFn = sliceBetween(shop, "const preparedOrderHistoryInflight=new WeakMap();", "async function showOrderPreview(){");
 const waFn = sliceBetween(shop, "async function orderWithWhatsApp(){", "function setupCheckout(){");
-const getOrBuildFn = sliceBetween(shop, "function getOrBuildOrder(requireCustomer=true){", "async function savePreparedOrderHistory(order){");
+const getOrBuildFn = sliceBetween(shop, "function getOrBuildOrder(requireCustomer=true){", "const preparedOrderHistoryInflight=new WeakMap();");
 
 function makeOrderActions(opts = {}) {
   const ctx = {
@@ -170,6 +170,10 @@ async function run() {
     assert.match(saveFn, /historySaved/);
     assert.match(saveFn, /getUser/);
     assert.match(saveFn, /saveOrder/);
+    assert.match(saveFn, /preparedOrderHistoryInflight=new WeakMap/);
+    assert.match(saveFn, /preparedOrderHistoryInflight\.get\(order\)/);
+    assert.match(saveFn, /preparedOrderHistoryInflight\.set\(order,persist\)/);
+    assert.match(saveFn, /preparedOrderHistoryInflight\.delete\(order\)/);
     const setup = sliceBetween(shop, "function setupCheckout(){", "/* ===== Premium configurable carousel");
     assert.match(setup, /whatsapp\)whatsapp\.onclick=orderWithWhatsApp/);
     assert.match(setup, /prepare\)prepare\.onclick=showOrderPreview/);
@@ -246,6 +250,47 @@ async function run() {
     await fail.api.orderWithWhatsApp();
     assert.equal(fail.ctx.openCalls.length, 1);
     assert.equal(fail.ctx.saveOrderCalls.length, 1);
+  });
+
+  await test("concurrent WhatsApp clicks share one in-flight saveOrder", async () => {
+    const ok = makeOrderActions({ signedIn: true, saveDelayMs: 80 });
+    const a = ok.api.orderWithWhatsApp();
+    const b = ok.api.orderWithWhatsApp();
+    const c = ok.api.orderWithWhatsApp();
+    const persistA = ok.api.savePreparedOrderHistory(ok.ctx.order);
+    const persistB = ok.api.savePreparedOrderHistory(ok.ctx.order);
+    const persistC = ok.api.savePreparedOrderHistory(ok.ctx.order);
+    assert.equal(persistA, persistB);
+    assert.equal(persistB, persistC);
+    await Promise.all([a, b, c, persistA, persistB, persistC]);
+    assert.equal(ok.ctx.openCalls.length, 3);
+    assert.equal(ok.ctx.saveOrderCalls.length, 1);
+    await ok.api.orderWithWhatsApp();
+    await ok.api.orderWithWhatsApp();
+    assert.equal(ok.ctx.openCalls.length, 5);
+    assert.equal(ok.ctx.saveOrderCalls.length, 1);
+
+    const fail = makeOrderActions({ signedIn: true, saveShouldFail: true, saveDelayMs: 80 });
+    await Promise.allSettled([
+      fail.api.orderWithWhatsApp(),
+      fail.api.orderWithWhatsApp(),
+      fail.api.orderWithWhatsApp()
+    ]);
+    assert.equal(fail.ctx.openCalls.length, 3);
+    assert.equal(fail.ctx.saveOrderCalls.length, 1);
+    fail.ctx.saveShouldFail = false;
+    await fail.api.orderWithWhatsApp();
+    assert.equal(fail.ctx.openCalls.length, 4);
+    assert.equal(fail.ctx.saveOrderCalls.length, 2);
+
+    const guest = makeOrderActions({ signedIn: false, saveDelayMs: 80 });
+    await Promise.all([
+      guest.api.orderWithWhatsApp(),
+      guest.api.orderWithWhatsApp(),
+      guest.api.orderWithWhatsApp()
+    ]);
+    assert.equal(guest.ctx.openCalls.length, 3);
+    assert.equal(guest.ctx.saveOrderCalls.length, 0);
   });
 
   await test("F guest WhatsApp works without saveOrder persistence", async () => {

@@ -2895,15 +2895,26 @@ function getOrBuildOrder(requireCustomer=true){
   return order;
 }
 
-async function savePreparedOrderHistory(order){
-  if(!order)return {saved:false};
-  if(order.historySaved)return {saved:true};
-  const member=window.KutadguMember;
-  if(member?.ready)await member.ready;
-  if(typeof member?.getUser==="function"&&!member.getUser())return {saved:false,reason:"not_signed_in"};
-  const result=await member?.saveOrder?.(order);
-  if(result?.saved)order.historySaved=true;
-  return result||{saved:false,reason:"member_unavailable"};
+const preparedOrderHistoryInflight=new WeakMap();
+function savePreparedOrderHistory(order){
+  if(!order)return Promise.resolve({saved:false});
+  if(order.historySaved)return Promise.resolve({saved:true});
+  const inflight=preparedOrderHistoryInflight.get(order);
+  if(inflight)return inflight;
+  const persist=(async()=>{
+    try{
+      const member=window.KutadguMember;
+      if(member?.ready)await member.ready;
+      if(typeof member?.getUser==="function"&&!member.getUser())return {saved:false,reason:"not_signed_in"};
+      const result=await member?.saveOrder?.(order);
+      if(result?.saved)order.historySaved=true;
+      return result||{saved:false,reason:"member_unavailable"};
+    }finally{
+      preparedOrderHistoryInflight.delete(order);
+    }
+  })();
+  preparedOrderHistoryInflight.set(order,persist);
+  return persist;
 }
 
 async function showOrderPreview(){
