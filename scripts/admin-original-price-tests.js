@@ -218,7 +218,7 @@ test("admin HTML/JS keep original_price read-only and reuse PR63 reset UI",()=>{
   assert.match(html,/ئەسلى باھاغا قايتۇرۇشنى جەزملەشتۈرۈش/);
   assert.match(html,/admin-original-price\.js\?v=5/);
   assert.match(html,/admin\.css\?v=34/);
-  assert.match(html,/admin\.js\?v=57/);
+  assert.match(html,/admin\.js\?v=58/);
   assert.match(html,/id="bookOriginalPriceCorrectBtn"/);
   assert.match(html,/id="bookOriginalPriceResetBtn"/);
   assert.match(html,/id="originalPriceCorrectModal"/);

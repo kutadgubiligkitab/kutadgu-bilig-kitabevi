@@ -1359,9 +1359,37 @@ function isAal2OrderUpdateError(error){
   const msg=String(error&&(error.message||error.details||error.hint||error.code)||"").toLowerCase();
   return String(error&&error.code||"")==="42501"||msg.includes("aal2")||msg.includes("row-level security")||msg.includes("permission denied")||msg.includes("42501");
 }
+function aal2RequiredOrderUpdateMessage(){
+  return "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
+}
+function orderUpdateEmptyMessage(){
+  return "ئۆزگەرتىش يېزىلمىدى";
+}
 function formatOrderUpdateError(error){
-  if(isAal2OrderUpdateError(error))return "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
-  return "زاكاز ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى"+(error&&error.message?":\n"+error.message:".");
+  if(isAal2OrderUpdateError(error))return aal2RequiredOrderUpdateMessage();
+  if(!error)return orderUpdateEmptyMessage();
+  return "زاكاز ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى"+(error.message?":\n"+error.message:".");
+}
+function normalizeAdminAal(level){
+  return String(level==null?"":level).trim().toLowerCase();
+}
+function isAdminAal2(level){
+  return normalizeAdminAal(level)==="aal2";
+}
+function isBelowAal2(level){
+  return normalizeAdminAal(level)==="aal1";
+}
+function readAdminAalFromInspect(inspect){
+  return normalizeAdminAal(inspect&&inspect.assurance&&inspect.assurance.currentLevel);
+}
+function decideAdminOrderStatusUpdate(aal){
+  if(isBelowAal2(aal))return {allowUpdate:false,reason:"aal2_required",message:aal2RequiredOrderUpdateMessage()};
+  return {allowUpdate:true,reason:isAdminAal2(aal)?"aal2":"aal_unknown"};
+}
+function orderBelongsToStatusFilter(order,filter){
+  const status=String(filter||"all");
+  if(status==="all")return true;
+  return isAllowedOrderStatus(status)&&orderStatusKey(order)===status;
 }
 function parseOrderItems(raw){
   let items=raw;
@@ -1404,36 +1432,38 @@ function applyAdminOrderFilters(query){
   }
   return query.order("created_at",{ascending:false}).order("id",{ascending:false});
 }
-async function loadAdminOrders(){
+async function loadAdminOrders(opts){
+  const silent=!!(opts&&opts.silent);
   const host=$("#adminOrderList");
   const pager=$("#adminOrderPager");
-  if(!host)return;
+  if(!host)return {ok:false,reason:"no_host"};
   if(!db){
     host.innerHTML='<div class="admin-empty">زاكازلار يۈكلىنىشى ئۈچۈن Admin كىرىشى كېرەك.</div>';
     if(pager)pager.hidden=true;
-    return;
+    return {ok:false,reason:"no_db"};
   }
   const req=++adminOrdersRequest;
-  host.innerHTML='<div class="admin-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div>';
+  if(!silent)host.innerHTML='<div class="admin-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div>';
   const from=adminOrderPage*ADMIN_ORDER_PAGE_SIZE;
   const to=from+ADMIN_ORDER_PAGE_SIZE-1;
   let query=db.from("orders").select(ADMIN_ORDER_SELECT,{count:"exact"}).range(from,to);
   query=applyAdminOrderFilters(query);
   const {data,error,count}=await query;
-  if(req!==adminOrdersRequest)return;
+  if(req!==adminOrdersRequest)return {ok:true,stale:true};
   if(error){
     host.innerHTML=`<div class="admin-empty">زاكازلارنى ئوقۇش مەغلۇپ بولدى: ${esc(error.message)}</div>`;
     if(pager)pager.hidden=true;
-    return;
+    return {ok:false,error};
   }
   adminOrders=data||[];
   adminOrderTotal=count||0;
   const maxPage=Math.max(0,Math.ceil(adminOrderTotal/ADMIN_ORDER_PAGE_SIZE)-1);
-  if(adminOrderPage>maxPage){adminOrderPage=maxPage;return loadAdminOrders()}
+  if(adminOrderPage>maxPage){adminOrderPage=maxPage;return loadAdminOrders(opts)}
   if(adminOrderDetail){
     adminOrderDetail=adminOrders.find(order=>String(order.id)===String(adminOrderDetail.id))||null;
   }
   renderAdminOrders();
+  return {ok:true,total:adminOrderTotal};
 }
 function renderAdminOrderPager(){
   const host=$("#adminOrderPager");if(!host)return;
@@ -1527,6 +1557,23 @@ function setAdminOrderStatusMsg(text,ok){
   el.textContent=text||"";
   el.className="admin-order-status-msg "+(ok?"is-ok":"is-error");
 }
+async function readCurrentAdminAal(){
+  if(typeof Mfa.inspectAccess==="function"){
+    try{
+      return readAdminAalFromInspect(await Mfa.inspectAccess(()=>db));
+    }catch(err){
+      return "";
+    }
+  }
+  const api=db&&db.auth&&db.auth.mfa;
+  if(api&&typeof api.getAuthenticatorAssuranceLevel==="function"){
+    try{
+      const res=await api.getAuthenticatorAssuranceLevel();
+      if(res&&!res.error&&res.data)return normalizeAdminAal(res.data.currentLevel);
+    }catch(err){}
+  }
+  return "";
+}
 async function saveAdminOrderStatus(orderId){
   const nextStatus=orderStatusKey({status:$("#adminOrderStatusSelect")?.value});
   if(!isAllowedOrderStatus(nextStatus)){
@@ -1545,20 +1592,26 @@ async function saveAdminOrderStatus(orderId){
     setAdminOrderStatusMsg("Database تەييار ئەمەس.",false);
     return {ok:false,reason:"no_db"};
   }
+  const aal=await readCurrentAdminAal();
+  const aalDecision=decideAdminOrderStatusUpdate(aal);
+  if(!aalDecision.allowUpdate){
+    setAdminOrderStatusMsg(aalDecision.message,false);
+    return {ok:false,reason:aalDecision.reason,aal};
+  }
   const {data,error}=await db.from("orders").update({status:nextStatus}).eq("id",orderId).select("id,status,updated_at");
   if(!orderUpdateSucceeded(data,error)){
-    setAdminOrderStatusMsg(formatOrderUpdateError(error||{message:"ئۆزگەرتىش يېزىلمىدى."}),false);
-    return {ok:false,reason:"update_failed",error};
+    setAdminOrderStatusMsg(formatOrderUpdateError(error),false);
+    return {ok:false,reason:"update_failed",error,empty:!error};
   }
   const row=Array.isArray(data)?data[0]:data;
-  adminOrders=patchOrdersStatus(adminOrders,orderId,row.status,row.updated_at);
   orders=patchOrdersStatus(orders,orderId,row.status,row.updated_at);
-  if(adminOrderDetail&&String(adminOrderDetail.id)===String(orderId)){
-    adminOrderDetail={...adminOrderDetail,status:row.status,updated_at:row.updated_at};
-  }
   renderMemberStats();
-  renderAdminOrders();
-  setAdminOrderStatusMsg("ھالەت يېڭىلاندى.",true);
+  const reloaded=await loadAdminOrders({silent:true});
+  if(!reloaded||reloaded.ok===false){
+    setAdminOrderStatusMsg("ھالەت يېزىلدى، لېكىن تىزىملىك يېڭىلانمىدى.",false);
+    return {ok:false,reason:"reload_failed",status:row.status};
+  }
+  if($("#adminOrderStatusMsg"))setAdminOrderStatusMsg("ھالەت يېڭىلاندى.",true);
   return {ok:true,status:row.status};
 }
 function setSaveMode(mode){
@@ -4605,6 +4658,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,parseOrderItems,patchOrdersStatus,esc,money
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,orderUpdateEmptyMessage,normalizeAdminAal,isAdminAal2,isBelowAal2,readAdminAalFromInspect,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
 };
 })();

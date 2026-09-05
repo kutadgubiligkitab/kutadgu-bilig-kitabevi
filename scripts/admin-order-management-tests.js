@@ -37,7 +37,7 @@ function loadHelpers() {
   const statuses = adminJs.match(/const ORDER_STATUSES=\[[^\]]+\]/);
   const set = adminJs.match(/const ORDER_STATUS_SET=new Set\(ORDER_STATUSES\);/);
   const labels = adminJs.match(/const ORDER_STATUS_LABELS=\{[^}]+\}/);
-  const orderFns = sliceBetween(adminJs, "function isAllowedOrderStatus(status){", "async function loadAdminOrders(){");
+  const orderFns = sliceBetween(adminJs, "function isAllowedOrderStatus(status){", "async function loadAdminOrders(opts){");
   assert.ok(statuses && set && labels, "order helper declarations");
   return new Function(`
     function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -49,7 +49,9 @@ function loadHelpers() {
     return {
       COUNTED_ORDER_STATUSES, orderStatusKey, countsTowardOrderStats, orderStatsCount, orderStatsRevenue,
       ORDER_STATUSES, isAllowedOrderStatus, orderStatusLabel, shouldConfirmOrderStatus,
-      orderUpdateSucceeded, isAal2OrderUpdateError, formatOrderUpdateError, parseOrderItems, patchOrdersStatus, esc
+      orderUpdateSucceeded, isAal2OrderUpdateError, formatOrderUpdateError, aal2RequiredOrderUpdateMessage,
+      orderUpdateEmptyMessage, normalizeAdminAal, isAdminAal2, isBelowAal2, readAdminAalFromInspect,
+      decideAdminOrderStatusUpdate, orderBelongsToStatusFilter, parseOrderItems, patchOrdersStatus, esc
     };
   `)();
 }
@@ -91,7 +93,7 @@ test("5 Prepared orders are visible by default", () => {
   assert.match(adminHtml, /<option value="prepared">تەييارلاندى<\/option>/);
   assert.doesNotMatch(adminJs, /neq\("status","prepared"\)/);
   assert.doesNotMatch(adminJs, /not\("status","eq","prepared"\)/);
-  const load = sliceBetween(adminJs, "async function loadAdminOrders(){", "function renderAdminOrderPager(){");
+  const load = sliceBetween(adminJs, "async function loadAdminOrders(opts){", "function renderAdminOrderPager(){");
   assert.doesNotMatch(load, /prepared/);
   assert.match(adminHtml, /تەييارلانغان زاكازلارمۇ بۇ يەردە كۆرۈنىدۇ/);
 });
@@ -169,7 +171,9 @@ test("13 Failed/AAL2-blocked update shows a safe error and does not fake success
   assert.ok(H.isAal2OrderUpdateError({ message: "AAL2 required" }));
   assert.match(H.formatOrderUpdateError({ code: "42501" }), /AAL2/);
   assert.match(adminJs, /if\(!orderUpdateSucceeded\(data,error\)\)/);
-  assert.doesNotMatch(sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode("), /adminOrderDetail=\{[^}]*status:nextStatus/);
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  assert.doesNotMatch(save, /adminOrderDetail=\{[^}]*status:nextStatus/);
+  assert.doesNotMatch(save, /adminOrders=patchOrdersStatus/);
 });
 
 test("14 Existing counted-status semantics remain", () => {
@@ -197,6 +201,8 @@ test("16 Updating status causes displayed statistics to stay consistent", () => 
   assert.strictEqual(H.orderStatsRevenue(cancelled), 100);
   assert.match(adminJs, /orders=patchOrdersStatus\(orders,orderId,row\.status,row\.updated_at\)/);
   assert.match(adminJs, /renderMemberStats\(\)/);
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  assert.ok(save.indexOf("renderMemberStats()") < save.indexOf("loadAdminOrders({silent:true})"));
 });
 
 test("17 Customer data is escaped and not injected unsafely", () => {
@@ -235,6 +241,212 @@ test("no SQL/RLS files were added for this Admin UI task", () => {
   assert.doesNotMatch(adminJs, /create policy/i);
   assert.doesNotMatch(adminJs, /grant insert on public\.orders/i);
   assert.match(adminJs, /if\(id==="orders"\)loadAdminOrders\(\)/);
+});
+
+function reloadFilteredOrders(store, { filter, search, page, pageSize, selectedId }) {
+  const term = String(search || "").trim().toLowerCase();
+  const filtered = store.filter((order) => {
+    if (!H.orderBelongsToStatusFilter(order, filter)) return false;
+    if (!term) return true;
+    return [order.order_no, order.customer_name, order.customer_phone]
+      .some((value) => String(value || "").toLowerCase().includes(term));
+  });
+  const total = filtered.length;
+  const maxPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  const pageClamped = Math.min(Math.max(0, page || 0), maxPage);
+  const rows = filtered.slice(pageClamped * pageSize, pageClamped * pageSize + pageSize);
+  const selected = selectedId ? rows.find((order) => String(order.id) === String(selectedId)) || null : null;
+  return { rows, total, page: pageClamped, selected, pages: Math.max(1, Math.ceil(total / pageSize) || 1) };
+}
+
+function simulateStatusSave({ aal, store, orderId, nextStatus, filter, search, page, pageSize, updateData, updateError }) {
+  const messages = [];
+  let successShown = false;
+  let updateCalled = false;
+  const aalDecision = H.decideAdminOrderStatusUpdate(aal);
+  if (!aalDecision.allowUpdate) {
+    messages.push({ text: aalDecision.message, ok: false });
+    return {
+      ok: false,
+      reason: aalDecision.reason,
+      updateCalled,
+      successShown,
+      messages,
+      view: reloadFilteredOrders(store, { filter, search, page, pageSize, selectedId: orderId })
+    };
+  }
+  updateCalled = true;
+  if (!H.orderUpdateSucceeded(updateData, updateError)) {
+    messages.push({ text: H.formatOrderUpdateError(updateError), ok: false });
+    return {
+      ok: false,
+      reason: "update_failed",
+      updateCalled,
+      successShown,
+      messages,
+      view: reloadFilteredOrders(store, { filter, search, page, pageSize, selectedId: orderId })
+    };
+  }
+  const row = Array.isArray(updateData) ? updateData[0] : updateData;
+  const idx = store.findIndex((order) => String(order.id) === String(orderId));
+  if (idx >= 0) store[idx] = { ...store[idx], status: row.status, updated_at: row.updated_at };
+  const view = reloadFilteredOrders(store, { filter, search, page, pageSize, selectedId: orderId });
+  if (view.selected) {
+    successShown = true;
+    messages.push({ text: "ھالەت يېڭىلاندى.", ok: true });
+  }
+  return { ok: true, reason: "updated", updateCalled, successShown, messages, view };
+}
+
+test("prepared filter reloads after updating an order to confirmed", () => {
+  const store = [
+    { id: "1", status: "prepared", order_no: "KB-1", customer_name: "A", customer_phone: "1", total: 10 },
+    { id: "2", status: "prepared", order_no: "KB-2", customer_name: "B", customer_phone: "2", total: 20 },
+    { id: "3", status: "confirmed", order_no: "KB-3", customer_name: "C", customer_phone: "3", total: 30 }
+  ];
+  const before = reloadFilteredOrders(store, { filter: "prepared", page: 0, pageSize: 40, selectedId: "1" });
+  assert.strictEqual(before.total, 2);
+  assert.ok(before.rows.some((order) => order.id === "1"));
+  assert.strictEqual(before.selected.id, "1");
+  const result = simulateStatusSave({
+    aal: "aal2",
+    store,
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "prepared",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed", updated_at: "2026-09-05" }]
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.updateCalled, true);
+  assert.ok(!result.view.rows.some((order) => order.id === "1"));
+  assert.strictEqual(result.view.total, 1);
+  assert.strictEqual(result.view.selected, null);
+  assert.strictEqual(result.successShown, false);
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  assert.match(save, /await loadAdminOrders\(\{silent:true\}\)/);
+  assert.doesNotMatch(save, /adminOrders=patchOrdersStatus/);
+  assert.match(adminJs, /const silent=!!\(opts&&opts.silent\);/);
+  assert.match(adminJs, /if\(!silent\)host\.innerHTML=/);
+});
+
+test("status update compatible with the all filter stays visible with the new status", () => {
+  const store = [
+    { id: "1", status: "prepared", order_no: "KB-1", customer_name: "A", customer_phone: "1", total: 10 },
+    { id: "2", status: "confirmed", order_no: "KB-2", customer_name: "B", customer_phone: "2", total: 20 }
+  ];
+  const result = simulateStatusSave({
+    aal: "aal2",
+    store,
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed", updated_at: "2026-09-05" }]
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.view.total, 2);
+  assert.strictEqual(result.view.rows.find((order) => order.id === "1").status, "confirmed");
+  assert.strictEqual(result.view.selected.status, "confirmed");
+  assert.strictEqual(result.successShown, true);
+  const stats = H.patchOrdersStatus(
+    [{ id: "1", status: "prepared", total: 10 }, { id: "2", status: "confirmed", total: 20 }],
+    "1",
+    "confirmed"
+  );
+  assert.strictEqual(H.orderStatsCount(stats), 2);
+});
+
+test("current AAL1 shows a clear AAL2-required message and does not UPDATE", () => {
+  assert.strictEqual(H.readAdminAalFromInspect({ assurance: { currentLevel: "aal1" } }), "aal1");
+  assert.strictEqual(H.isBelowAal2("aal1"), true);
+  const decision = H.decideAdminOrderStatusUpdate("aal1");
+  assert.strictEqual(decision.allowUpdate, false);
+  assert.strictEqual(decision.reason, "aal2_required");
+  assert.match(decision.message, /2-باسقۇچلۇق دەلىللەش \(AAL2\)/);
+  const result = simulateStatusSave({
+    aal: "aal1",
+    store: [{ id: "1", status: "prepared" }],
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed" }]
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.updateCalled, false);
+  assert.strictEqual(result.successShown, false);
+  assert.match(result.messages[0].text, /AAL2/);
+  assert.strictEqual(result.messages[0].ok, false);
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  const readAal = sliceBetween(adminJs, "async function readCurrentAdminAal(){", "async function saveAdminOrderStatus(orderId){");
+  assert.match(save, /const aal=await readCurrentAdminAal\(\)/);
+  assert.match(readAal, /Mfa\.inspectAccess/);
+  assert.match(readAal, /getAuthenticatorAssuranceLevel/);
+  assert.ok(save.indexOf("decideAdminOrderStatusUpdate(aal)") < save.indexOf('.update({status:nextStatus})'));
+  assert.match(save, /reason:aalDecision\.reason/);
+  assert.match(adminJs, /typeof Mfa\.inspectAccess==="function"/);
+  assert.match(adminJs, /getAuthenticatorAssuranceLevel/);
+});
+
+test("current AAL2 allows the normal UPDATE path to proceed", () => {
+  assert.strictEqual(H.readAdminAalFromInspect({ assurance: { currentLevel: "aal2" } }), "aal2");
+  assert.strictEqual(H.isAdminAal2("aal2"), true);
+  const decision = H.decideAdminOrderStatusUpdate("aal2");
+  assert.strictEqual(decision.allowUpdate, true);
+  assert.strictEqual(decision.reason, "aal2");
+  const result = simulateStatusSave({
+    aal: "aal2",
+    store: [{ id: "1", status: "prepared" }],
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [{ id: "1", status: "confirmed", updated_at: "2026-09-05" }]
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.updateCalled, true);
+  assert.strictEqual(result.successShown, true);
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  assert.match(save, /from\("orders"\)\.update\(\{status:nextStatus\}\)\.eq\("id",orderId\)/);
+  assert.ok(save.indexOf("if(!aalDecision.allowUpdate)") < save.indexOf('.update({status:nextStatus})'));
+});
+
+test("empty/no-row non-AAL2 failure is handled safely without success or an AAL2 label", () => {
+  assert.strictEqual(H.orderUpdateSucceeded([], null), false);
+  assert.strictEqual(H.orderUpdateSucceeded(null, null), false);
+  assert.strictEqual(H.isAal2OrderUpdateError(null), false);
+  assert.strictEqual(H.isAal2OrderUpdateError({ message: "ئۆزگەرتىش يېزىلمىدى" }), false);
+  assert.strictEqual(H.formatOrderUpdateError(null), H.orderUpdateEmptyMessage());
+  assert.doesNotMatch(H.formatOrderUpdateError(null), /AAL2/);
+  const result = simulateStatusSave({
+    aal: "aal2",
+    store: [{ id: "1", status: "prepared" }],
+    orderId: "1",
+    nextStatus: "confirmed",
+    filter: "all",
+    page: 0,
+    pageSize: 40,
+    updateData: [],
+    updateError: null
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.updateCalled, true);
+  assert.strictEqual(result.successShown, false);
+  assert.strictEqual(result.messages[0].ok, false);
+  assert.doesNotMatch(result.messages[0].text, /AAL2/);
+  assert.match(result.messages[0].text, /ئۆزگەرتىش يېزىلمىدى/);
+  assert.strictEqual(result.view.rows[0].status, "prepared");
+  const save = sliceBetween(adminJs, "async function saveAdminOrderStatus(orderId){", "function setSaveMode(");
+  const failBlock = save.split("if(!orderUpdateSucceeded(data,error))")[1].split("const row=")[0];
+  assert.match(failBlock, /setAdminOrderStatusMsg\(formatOrderUpdateError\(error\),false\)/);
+  assert.doesNotMatch(failBlock, /ھالەت يېڭىلاندى/);
+  assert.doesNotMatch(failBlock, /loadAdminOrders/);
+  assert.ok(save.indexOf("ھالەت يېڭىلاندى") > save.indexOf("orderUpdateSucceeded(data,error)"));
 });
 
 if (failed) {
