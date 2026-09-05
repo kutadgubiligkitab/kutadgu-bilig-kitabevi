@@ -4,6 +4,7 @@
 const Quality=root.KutadguAdminQuality||(typeof require==="function"?require("./admin-book-quality.js"):{});
 const Write=root.KutadguAdminWrite||(typeof require==="function"?require("./admin-book-write.js"):{});
 const Safe=root.KutadguSafeUrl||(typeof require==="function"?require("./kutadgu-safe-url.js"):{});
+const Stock=root.KutadguStock||(typeof require==="function"?require("./kutadgu-stock.js"):{});
 
 const PROTECTED_FIELDS=["id","legacy_id","sales_count","created_at","updated_at"];
 const QUICK_EDIT_FIELDS=["title","author","price","source","category","stock","stock_status","is_active","is_recommended","is_new","image_url"];
@@ -33,6 +34,7 @@ function isMissingOrInvalidPrice(value){
 }
 
 function isMissingStock(value){
+  if(Stock.isUnconfiguredStock)return Stock.isUnconfiguredStock(value);
   return value===null||value===undefined||value==="";
 }
 
@@ -162,6 +164,11 @@ function parseQuickPrice(raw){
 
 function parseQuickStock(raw,present){
   if(!present)return {ok:true,omit:true};
+  if(Stock.parseAdminStock){
+    const parsed=Stock.parseAdminStock(raw);
+    if(!parsed.ok)return parsed;
+    return {ok:true,value:parsed.value};
+  }
   if(raw===null||raw===undefined||String(raw).trim()==="")return {ok:true,value:null};
   const n=Number(raw);
   if(!Number.isInteger(n)||n<0)return {ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن"};
@@ -188,9 +195,6 @@ function buildQuickEditPatch(input,opts={}){
     is_recommended:input&&input.is_recommended===true,
     is_new:input&&input.is_new===true
   };
-  if(present.has("stock_status")||opts.stockStatusSupported){
-    patch.stock_status=String(input&&input.stock_status||"in_stock");
-  }
   if(!stock.omit)patch.stock=stock.value;
   const cover=String(input&&input.image_url||"").trim();
   if(Object.prototype.hasOwnProperty.call(input||{},"image_url")){
@@ -237,10 +241,18 @@ function buildBulkPatch(action,values,opts={}){
     valueLabel=patch.stock_status;
   }else if(act==="stock"){
     if(!present.has("stock")&&opts.stockSupported!==true)return {ok:false,error:"stock يوق"};
-    const n=Number(values&&values.stock);
-    if(!Number.isInteger(n)||n<0)return {ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن."};
-    patch={stock:n};
-    valueLabel=String(n);
+    const parsed=Stock.parseAdminStock?Stock.parseAdminStock(values&&values.stock):null;
+    if(parsed){
+      if(!parsed.ok)return parsed;
+      if(!parsed.configured)return {ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن."};
+      patch={stock:parsed.value};
+      valueLabel=String(parsed.value);
+    }else{
+      const n=Number(values&&values.stock);
+      if(!Number.isInteger(n)||n<0)return {ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن."};
+      patch={stock:n};
+      valueLabel=String(n);
+    }
   }else if(act==="publisher"){
     if(!present.has("publisher")&&opts.publisherSupported!==true)return {ok:false,error:"publisher يوق"};
     patch={publisher:String(values&&values.publisher||"").trim()};

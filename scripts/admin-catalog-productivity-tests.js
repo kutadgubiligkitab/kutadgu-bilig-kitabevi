@@ -47,6 +47,8 @@ test("quick edit patch uses only allowed fields",()=>{
   assert.strictEqual("id" in built.patch,false);
   assert.strictEqual("legacy_id" in built.patch,false);
   assert.strictEqual("sales_count" in built.patch,false);
+  assert.strictEqual(built.patch.stock,4);
+  assert.strictEqual("stock_status" in built.patch,false);
   assert.strictEqual("created_at" in built.patch,false);
 });
 
@@ -158,4 +160,49 @@ test("quick edit keeps https cover URL",()=>{
   assert.strictEqual(built.ok,true);
   assert.strictEqual(built.patch.image_url,"https://cdn.example/x.webp");
 });
+
+test("blank admin stock saves NULL in staging and does not coerce to 0",()=>{
+  const cols=new Set(["stock"]);
+  const blank=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:""},{presentBookCols:cols});
+  assert.strictEqual(blank.ok,true);
+  assert.strictEqual(blank.patch.stock,null);
+  const spaces=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"   "},{presentBookCols:cols});
+  assert.strictEqual(spaces.ok,true);
+  assert.strictEqual(spaces.patch.stock,null);
+});
+
+test("exact integer stock saves the exact quantity including 0",()=>{
+  const cols=new Set(["stock"]);
+  const zero=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"0"},{presentBookCols:cols});
+  assert.strictEqual(zero.ok,true);
+  assert.strictEqual(zero.patch.stock,0);
+  const twelve=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"12"},{presentBookCols:cols});
+  assert.strictEqual(twelve.ok,true);
+  assert.strictEqual(twelve.patch.stock,12);
+});
+
+test("negative and decimal stock are rejected without rounding",()=>{
+  const cols=new Set(["stock"]);
+  assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"-1"},{presentBookCols:cols}).ok,false);
+  assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"1.5"},{presentBookCols:cols}).ok,false);
+  assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"1.0"},{presentBookCols:cols}).ok,false);
+  assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"abc"},{presentBookCols:cols}).ok,false);
+});
+
+test("stock is omitted when the schema column is absent",()=>{
+  const built=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"7"},{presentBookCols:new Set()});
+  assert.strictEqual(built.ok,true);
+  assert.strictEqual("stock" in built.patch,false);
+});
+
+test("bulk stock rejects blank values so they are not coerced to 0",()=>{
+  const cols=new Set(["stock"]);
+  const blank=P.buildBulkPatch("stock",{stock:""},{presentBookCols:cols});
+  assert.strictEqual(blank.ok,false);
+  const zero=P.buildBulkPatch("stock",{stock:"0"},{presentBookCols:cols});
+  assert.strictEqual(zero.ok,true);
+  assert.strictEqual(zero.patch.stock,0);
+});
+
+if(failed)process.exit(1);
 console.log("admin-catalog-productivity-tests ok");

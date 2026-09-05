@@ -1370,13 +1370,19 @@ function migratePersistedBookIds(){
 
 function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}
 function stockInfo(book){
+  const helper=window.KutadguStock;
+  if(helper&&typeof helper.storefrontStockInfo==="function")return helper.storefrontStockInfo(book);
   const raw=normalizeText(book?.stockStatus||"");
-  const qty=book?.stock===null||book?.stock===undefined||book?.stock===""?null:Number(book.stock);
+  const text=book?.stock===null||book?.stock===undefined||book?.stock===""?"":String(book.stock).trim();
+  const qty=/^(0|[1-9]\d*)$/.test(text)?Number(text):null;
+  if(Number.isInteger(qty)){
+    if(qty<=0)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
+    if(qty<=3)return {key:"low",label:"ئاز قالدى",canBuy:true,qty};
+    return {key:"in",label:"ئامباردا بار",canBuy:true,qty};
+  }
   if(["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw))return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
-  if(Number.isFinite(qty)&&qty<=0)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
-  if(["low","low_stock","ئاز قالدى"].includes(raw))return Number.isFinite(qty)&&qty<=0?{key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0}:{key:"low",label:"ئاز قالدى",canBuy:true,qty:Number.isFinite(qty)&&qty>0?qty:null};
-  if(["in","in_stock","available","ئامباردا بار"].includes(raw))return {key:"in",label:"ئامباردا بار",canBuy:true,qty:Number.isFinite(qty)&&qty>0?qty:null};
-  if(Number.isFinite(qty)&&qty>0)return qty<=5?{key:"low",label:"ئاز قالدى",canBuy:true,qty}:{key:"in",label:"ئامباردا بار",canBuy:true,qty};
+  if(["low","low_stock","ئاز قالدى"].includes(raw))return {key:"low",label:"ئاز قالدى",canBuy:true,qty:null};
+  if(["in","in_stock","available","ئامباردا بار"].includes(raw))return {key:"in",label:"ئامباردا بار",canBuy:true,qty:null};
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
 function stockBadge(book){const s=stockInfo(book);return s.label?`<span class="stock-badge stock-${s.key}">${s.label}</span>`:""}
