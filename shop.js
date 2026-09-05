@@ -797,8 +797,27 @@ const set=(k,v)=>{
     return false;
   }
 };
+function isProductionStorefront(){
+  try{
+    const host=String(location.hostname||"").toLowerCase();
+    if(host==="www.kutadgubilik.com"||host==="kutadgubilik.com")return true;
+    if(typeof window.kutadguIsProductionAuthHost==="function")return !!window.kutadguIsProductionAuthHost(host);
+  }catch(e){}
+  return false;
+}
+function requiresRemoteProductAuthority(){
+  if(window.KUTADGU_REQUIRE_REMOTE_PRODUCT_AUTHORITY===true)return true;
+  if(window.KUTADGU_REQUIRE_REMOTE_PRODUCT_AUTHORITY===false)return false;
+  return isProductionStorefront()||!!remoteCatalog.available;
+}
 function visibilityContext(){
-  return {remoteAvailable:!!remoteCatalog.available,inactiveKeys:inactiveRemoteKeys};
+  return {
+    remoteAvailable:!!remoteCatalog.available,
+    remoteConfigured:!!remoteCatalog.configured,
+    requireRemoteAuthority:requiresRemoteProductAuthority(),
+    production:isProductionStorefront(),
+    inactiveKeys:inactiveRemoteKeys
+  };
 }
 function isStorefrontVisible(book){
   const fn=window.KutadguVisibility?.isStorefrontVisible;
@@ -808,6 +827,10 @@ function isStorefrontVisible(book){
   if(remoteCatalog.available){
     if(inactiveRemoteKeys.has(String(book.id||"")))return false;
     if(book.legacyId&&inactiveRemoteKeys.has(String(book.legacyId)))return false;
+  }
+  if(requiresRemoteProductAuthority()){
+    if(book.isRemote!==true)return false;
+    if(!isCanonicalBookId(book.id))return false;
   }
   return true;
 }
@@ -832,9 +855,35 @@ function persistBookAliases(book){
   if(JSON.stringify(next)===JSON.stringify(current))return;
   try{localStorage.setItem(ALIAS_KEY,JSON.stringify(next))}catch(error){}
 }
+function isUnauthorizedStaticDemoId(id){
+  const raw=String(id||"").trim();
+  if(!raw)return false;
+  if(isCanonicalBookId(raw))return false;
+  const resolved=String(resolveStoredBookId(raw)||raw);
+  if(isCanonicalBookId(resolved))return false;
+  const book=find(raw);
+  if(book&&book.isRemote===true&&isCanonicalBookId(book.id))return false;
+  return true;
+}
+function pruneUnauthorizedLocalShopItems(){
+  if(!requiresRemoteProductAuthority())return;
+  try{
+    const cartItems=get(CART_KEY,[]);
+    if(Array.isArray(cartItems)){
+      const next=cartItems.filter(item=>item&&item.id&&!isUnauthorizedStaticDemoId(item.id));
+      if(next.length!==cartItems.length)localStorage.setItem(CART_KEY,JSON.stringify(next));
+    }
+    const favItems=get(FAV_KEY,[]);
+    if(Array.isArray(favItems)){
+      const next=favItems.filter(id=>id&&!isUnauthorizedStaticDemoId(id));
+      if(next.length!==favItems.length)localStorage.setItem(FAV_KEY,JSON.stringify(next));
+    }
+  }catch(e){}
+}
 function rebuildVisibleCatalog(){
   C=uniqueVisibleBooks([...catalogCache.values()]).filter(isStorefrontVisible);
   window.KUTADGU_LIVE_CATALOG=C;
+  pruneUnauthorizedLocalShopItems();
   return C;
 }
 function beginRemoteVisibleCatalog(){
@@ -1617,8 +1666,12 @@ function applyDetailCoverFallback(){
     box.prepend(img);
   }
   const book=getDetailBook();
+  if(!book||!isStorefrontVisible(book)){
+    markCoverUnavailable(img);
+    return;
+  }
   const current=(img.getAttribute("src")||"").trim();
-  img.alt=img.alt||`${book?.title||"كىتاب"} كىتاب مۇقاۋىسى`;
+  img.alt=img.alt||`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;
   img.loading="eager";
   img.decoding="async";
   img.hidden=false;
@@ -1665,6 +1718,7 @@ function getDetailBook(){
   b=cached.find(x=>x.href===file||x.id===slug||x.legacyId===slug);
   if(b)return b;
   b=C.find(x=>x.href===file); if(b)return b;
+  if(requiresRemoteProductAuthority())return null;
   let title=document.querySelector(".book-detail-info h1")?.textContent.trim();
   return title?(cached.find(x=>x.title===title)||C.find(x=>x.title===title)):null;
 }
@@ -1739,7 +1793,8 @@ function populateDynamicBookPage(b){
     return;
   }
   const dynamic=document.body.hasAttribute("data-dynamic-book");
-  if(!dynamic&&!b.isRemote)return;
+  const allowStaticFixture=!requiresRemoteProductAuthority()&&isStorefrontVisible(b);
+  if(!dynamic&&!b.isRemote&&!allowStaticFixture)return;
   document.body.dataset.bookId=b.id;
   document.title=`${b.title} - قۇتادغۇبىلىك كىتابخانىسى`;
 
@@ -2049,6 +2104,42 @@ function renderDetailExtras(book){
   scheduleDetailRelated(book);
 }
 
+function paintUnauthorizedDetail(){
+  const Seo=window.KutadguBookSeo||{};
+  if(Seo.applyUnresolvedDetailDocument)Seo.applyUnresolvedDetailDocument(document);
+  else{
+    setHeadMeta('meta[name="robots"]',{name:"robots",content:"noindex, follow"});
+    setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:siteOrigin()+"/book.html"});
+    document.head.querySelector("#kutadguBookSchema")?.remove();
+  }
+  document.title="كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى";
+  const img=document.querySelector(".book-cover-box img");
+  if(img)markCoverUnavailable(img);
+  const info=document.querySelector(".book-detail-info");
+  if(!info)return;
+  info.querySelector(".detail-actions")?.remove();
+  info.querySelector(".detail-purchase-panel")?.remove();
+  const h1=info.querySelector("h1");
+  if(h1)h1.textContent="بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ.";
+  const author=info.querySelector(".book-author");
+  if(author){author.textContent="";author.hidden=true}
+  const meta=info.querySelector(".book-meta");
+  if(meta)meta.innerHTML="";
+  const desc=document.querySelector(".dynamic-book-description");
+  if(desc)desc.hidden=true;
+  info.querySelectorAll(".detail-price,.add-to-cart,.favorite-button,.share-button").forEach(node=>node.remove());
+  if(!info.querySelector(".detail-unavailable-panel")){
+    const unavailable=document.createElement("div");
+    unavailable.className="detail-purchase-panel detail-unavailable-panel";
+    unavailable.innerHTML=`
+      <div class="detail-unavailable-title">بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ.</div>
+      <p class="detail-order-tip">بۇ كىتاب تېخى سېتىلىشقا چىقىرىلمىغان ياكى ۋاقتىنچە يوشۇرۇلغان.</p>
+      <p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></p>
+    `;
+    info.appendChild(unavailable);
+  }
+}
+
 function decorateDetail(){
   if(maybeRedirectLegacyBookUrl())return;
   if(isStorefrontHomepage()){
@@ -2057,14 +2148,8 @@ function decorateDetail(){
   }
   if(!isBookDetailDocument())return;
   let b=getDetailBook();
-  if(!b){
-    const Seo=window.KutadguBookSeo||{};
-    if(Seo.applyUnresolvedDetailDocument)Seo.applyUnresolvedDetailDocument(document);
-    else{
-      setHeadMeta('meta[name="robots"]',{name:"robots",content:"noindex, follow"});
-      setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:siteOrigin()+"/book.html"});
-      document.head.querySelector("#kutadguBookSchema")?.remove();
-    }
+  if(!b||(!isStorefrontVisible(b)&&b.isRemote!==true)){
+    paintUnauthorizedDetail();
     return;
   }
   populateDynamicBookPage(b);
@@ -3802,5 +3887,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();
