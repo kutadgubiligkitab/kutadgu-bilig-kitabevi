@@ -114,6 +114,7 @@ async function mockMemberAuth(page, userId) {
         refresh_token: "test-refresh-token",
         token_type: "bearer",
         expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
         user
       })
     });
