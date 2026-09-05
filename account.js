@@ -3,6 +3,25 @@
 const $=s=>document.querySelector(s);
 const api=()=>window.KutadguMember;
 const statusLabels={prepared:"تەييارلاندى",confirmed:"جەزملەشتۈرۈلدى",processing:"تەييارلىنىۋاتىدۇ",shipped:"كارگوغا بېرىلدى",completed:"تاماملاندى",cancelled:"بىكار قىلىندى"};
+let accountRenderSeq=0;
+let paintedUserId="";
+
+function currentUserId(){
+  try{
+    const user=api()&&api().getUser&&api().getUser();
+    return user&&user.id?String(user.id):"";
+  }catch(e){return ""}
+}
+function beginAccountRender(){
+  return {seq:++accountRenderSeq,uid:currentUserId()};
+}
+function isCurrentAccountRender(token){
+  return !!(token && token.seq===accountRenderSeq && token.uid && token.uid===currentUserId());
+}
+function invalidateAccountRenders(){
+  accountRenderSeq++;
+  paintedUserId="";
+}
 
 function showStatus(el,message,type=""){
   if(!el)return;el.hidden=false;el.textContent=message;el.className=`account-status ${type}`.trim();
@@ -47,10 +66,39 @@ function switchTab(tab){
   $("#authSubtitle").textContent=tab==="signup"?"بىر مىنۇتتا ھېساب قۇرۇپ، كىتابلىرىڭىزنى ساقلاڭ.":"ساقلانغان كىتاب، سېۋەت ۋە زاكازلىرىڭىزنى كۆرۈڭ.";
   clearStatus($("#authStatus"));
 }
-async function renderOrders(){
+function clearPrivateAccountUi(){
+  const welcome=$("#memberWelcome");if(welcome)welcome.textContent="ھېسابىم";
+  const email=$("#memberEmail");if(email)email.textContent="";
+  const created=$("#memberCreated");if(created)created.textContent="—";
+  const lastSeen=$("#memberLastSeen");if(lastSeen)lastSeen.textContent="—";
+  const visits=$("#memberVisits");if(visits)visits.textContent="0";
+  const orders=$("#memberOrders");if(orders)orders.textContent="0";
+  const name=$("#profileName");if(name)name.value="";
+  const phone=$("#profilePhone");if(phone)phone.value="";
+  const country=$("#profileCountry");if(country)country.value="";
+  const city=$("#profileCity");if(city)city.value="";
+  const address=$("#profileAddress");if(address)address.value="";
+  const list=$("#orderList");if(list)list.innerHTML="";
+  clearStatus($("#profileStatus"));
+}
+function showUnauthenticatedAccount(){
+  invalidateAccountRenders();
+  clearPrivateAccountUi();
+  switchTab("login");
+  showPanel("authPanel");
+}
+function showBlockedAccount(){
+  invalidateAccountRenders();
+  clearPrivateAccountUi();
+  showPanel("authPanel");
+  showStatus($("#authStatus"),"بۇ ھېساب باشقۇرغۇچى تەرىپىدىن ۋاقىتلىق توختىتىلغان.","error");
+}
+async function renderOrders(token){
   const host=$("#orderList");
   try{
-    const orders=await api().getOrders();$("#memberOrders").textContent=orders.length;
+    const orders=await api().getOrders();
+    if(!isCurrentAccountRender(token))return;
+    $("#memberOrders").textContent=orders.length;
     if(!orders.length){host.innerHTML='<div class="account-empty">ھازىرچە زاكاز تارىخى يوق.<br><a href="index.html#books">كىتاب كۆرۈش →</a></div>';return}
     host.innerHTML=orders.map(order=>{
       const items=Array.isArray(order.items)?order.items:[];
@@ -63,11 +111,16 @@ async function renderOrders(){
         <div class="member-order-items">${items.map(x=>`${esc(x.title||x.book_id||"كىتاب")} × ${Number(x.qty)||1}`).join(" · ")}</div>
       </article>`;
     }).join("");
-  }catch(err){host.innerHTML=`<div class="account-empty">زاكازلارنى ئوقۇش مەغلۇپ بولدى: ${esc(err.message||err)}</div>`}
+  }catch(err){
+    if(!isCurrentAccountRender(token))return;
+    host.innerHTML=`<div class="account-empty">زاكازلارنى ئوقۇش مەغلۇپ بولدى: ${esc(err.message||err)}</div>`;
+  }
 }
 async function renderMember(){
+  const token=beginAccountRender();
   const member=api(),user=member.getUser(),profile=member.getProfile();
-  if(!user){showPanel("authPanel");return}
+  if(!token.uid||!user){showUnauthenticatedAccount();return}
+  if(!isCurrentAccountRender(token))return;
   showPanel("memberPanel");
   $("#memberWelcome").textContent=profile?.full_name||"ھېسابىم";
   $("#memberEmail").textContent=user.email||profile?.email||"";
@@ -79,20 +132,28 @@ async function renderMember(){
   $("#profileCountry").value=profile?.country||"";
   $("#profileCity").value=profile?.city||"";
   $("#profileAddress").value=profile?.address||"";
-  api().applyFieldDirections(document);
-  await renderOrders();
+  paintedUserId=token.uid;
+  if(api().applyFieldDirections)api().applyFieldDirections(document);
+  if(!isCurrentAccountRender(token))return;
+  await renderOrders(token);
+}
+function onMemberChange(){
+  if(api().isBlocked()){showBlockedAccount();return}
+  const uid=currentUserId();
+  if(!uid){showUnauthenticatedAccount();return}
+  if(uid===paintedUserId)return;
+  invalidateAccountRenders();
+  clearPrivateAccountUi();
+  renderMember();
 }
 async function init(){
   setupPasswordToggles();
   document.querySelectorAll("[data-auth-tab]").forEach(btn=>btn.onclick=()=>switchTab(btn.dataset.authTab));
+  document.addEventListener("kutadgu-member-change",onMemberChange);
   try{
     await api().ready;
     if(!api().configured()){showPanel("accountSetup");return}
-    if(api().isBlocked()){
-      showPanel("authPanel");
-      showStatus($("#authStatus"),"بۇ ھېساب باشقۇرغۇچى تەرىپىدىن ۋاقىتلىق توختىتىلغان.","error");
-      return;
-    }
+    if(api().isBlocked()){showBlockedAccount();return}
     await renderMember();
   }catch(err){showPanel("accountSetup")}
 
@@ -142,17 +203,18 @@ async function init(){
     catch(err){showStatus($("#authStatus"),"ئۇلانما ئەۋەتىش مەغلۇپ بولدى: "+(err.message||err),"error")}
   };
 
-  $("#memberLogout").onclick=async()=>{await api().signOut();switchTab("login");showPanel("authPanel")};
+  $("#memberLogout").onclick=async()=>{
+    await api().signOut();
+    if(!currentUserId())showUnauthenticatedAccount();
+  };
   $("#profileForm").addEventListener("submit",async e=>{
     e.preventDefault();const form=e.currentTarget;clearStatus($("#profileStatus"));setBusy(form,true,"ساقلىنىۋاتىدۇ...");
     try{
       await api().updateProfile({full_name:$("#profileName").value,phone:$("#profilePhone").value,country:$("#profileCountry").value,city:$("#profileCity").value,address:$("#profileAddress").value});
-      showStatus($("#profileStatus"),"✅ ئارخىپىڭىز ساقланды.","ok");await renderMember();
+      showStatus($("#profileStatus"),"✅ ئارخىپىڭىز ساقلاندى.","ok");await renderMember();
     }catch(err){showStatus($("#profileStatus"),"ساقلاش مەغلۇپ بولدى: "+(err.message||err),"error")}
     finally{setBusy(form,false)}
   });
-
-  document.addEventListener("kutadgu-member-change",()=>{if(api().isBlocked()){showPanel("authPanel");showStatus($("#authStatus"),"بۇ ھېساب باشقۇرغۇچى تەرىپىدىن ۋاقىتلىق توختىتىلغان.","error")}});
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
