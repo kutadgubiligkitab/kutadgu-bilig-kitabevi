@@ -470,7 +470,7 @@ test("member.js clears only cart/favorites on signOut and SIGNED_OUT",()=>{
   assert.match(src,/localStorage\.removeItem\(CART_DISPLAY_KEY\)/);
   assert.match(src,/emit\("kutadgu-member-state-synced"\)/);
   assert.match(src,/async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
-  assert.match(src,/if\(event==="SIGNED_OUT"\)abandonMemberShopSync\(\);/);
+  assert.match(src,/if\(event==="SIGNED_OUT"\)\{\s*abandonMemberShopSync\(\);/);
   assert.match(src,/Promise\.resolve\(pending\)\.finally/);
   assert.match(src,/if\(!user\)\{\s*writeShopOwner\(SHOP_OWNER_STALE\);\s*clearLocalCartAndFavorites\(\);/);
   assert.doesNotMatch(src,/localStorage\.removeItem\(REC_KEY\)/);
@@ -587,7 +587,8 @@ test("A logout → guest: A items do not become guest items",()=>{
 
 test("authenticated page refresh hydrates from current user cloud",()=>{
   const src=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
-  assert.match(src,/queueSession\(data\.session,\{sync:!!data\.session\?\.user\}\)/);
+  assert.match(src,/return queueSession\(proven,\{sync:!!id\}\)/);
+  assert.match(src,/if\(!user\)await queueRecoveredSession\(proven\)/);
   const gated=localItemsForMerge("user-a","user-a",[{id:"102",qty:1}],["102"]);
   const out=Legacy.syncAuthenticatedShopState({
     ...gated,cloudCart:[{id:"102",qty:1},{id:"79",qty:1}],cloudFav:["102","79"],resolveId:resolve,aliasMap:{}
@@ -627,14 +628,14 @@ test("member.js owner-stamp wiring",()=>{
   assert.strictEqual(shouldMergeLocalForUser("u2","u1"),false);
 });
 
-test("storefront pages keep cart markup pin shop.js v=103",()=>{
+test("storefront pages keep cart markup pin shop.js v=104",()=>{
   const html=require("fs").readFileSync(require("path").join(__dirname,"..","cart.html"),"utf8");
   const fav=require("fs").readFileSync(require("path").join(__dirname,"..","favorites.html"),"utf8");
   const home=require("fs").readFileSync(require("path").join(__dirname,"..","index.html"),"utf8");
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=103/);
+  assert.match(html,/shop\.js\?v=104/);
   assert.match(html,/shop\.css\?v=50/);
   assert.match(html,/id="cartLayout"/);
   assert.match(html,/id="cartSummaryHost"/);
@@ -646,16 +647,16 @@ test("storefront pages keep cart markup pin shop.js v=103",()=>{
   assert.doesNotMatch(html,/1\) تولدۇرۇڭ/);
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
-  assert.match(fav,/shop\.js\?v=103/);
-  assert.match(home,/shop\.js\?v=103/);
-  assert.match(shop,/member\.js\?v=23/);
+  assert.match(fav,/shop\.js\?v=104/);
+  assert.match(home,/shop\.js\?v=104/);
+  assert.match(shop,/member\.js\?v=24/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);
   assert.match(shop,/data-plus=/);
   assert.match(shop,/data-minus=/);
   assert.match(shop,/data-remove=/);
   assert.match(shop,/CART_KEY/);
-  assert.match(account,/member\.js\?v=23/);
+  assert.match(account,/member\.js\?v=24/);
   assert.match(member,/\.eq\("user_id",mergeForUserId\)/);
   assert.match(member,/\.eq\("user_id",user\.id\)/);
   assert.match(member,/function previewShopDebug/);
@@ -690,7 +691,8 @@ test("ABC leak path: stale rewritten to guest while leftover local remains",()=>
   });
   assert.deepStrictEqual(cOut.cart,[{id:"102",qty:1}]);
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
-  assert.match(shop,/if\(current&&current!==SHOP_OWNER_GUEST&&current!==SHOP_OWNER_STALE\)return;/);
+  assert.match(shop,/if\(current===SHOP_OWNER_STALE\)\{\s*writeShopOwner\(SHOP_OWNER_GUEST\);\s*return;/);
+  assert.match(shop,/if\(current&&current!==SHOP_OWNER_GUEST\)return;/);
   assert.match(shop,/writeShopOwner\(SHOP_OWNER_GUEST\)/);
 });
 

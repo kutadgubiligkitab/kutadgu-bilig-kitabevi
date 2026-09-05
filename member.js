@@ -1,7 +1,8 @@
-(function(){
+if(window.KutadguMember){
+  /* Storefront and Account must share one member/auth client. */
+}else (function(){
 "use strict";
 
-const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const CART_KEY="kutadgu-cart-v1";
 const FAV_KEY="kutadgu-favorites-v1";
 const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
@@ -11,11 +12,55 @@ const SHOP_OWNER_STALE="stale";
 const SDK_URL="/vendor/supabase-js-2.45.4.umd.js";
 let db=null,user=null,profile=null,blocked=false,initError=null;
 let applyChain=Promise.resolve(),lastLoginRecordedAt=0;
+let sessionBootDone=false,recoveredIdentityId="";
 let readyResolve;
 const ready=new Promise(resolve=>{readyResolve=resolve});
 
+function liveConfig(){
+  const cfg=window.KUTADGU_SUPABASE_CONFIG;
+  return cfg&&typeof cfg==="object"&&!Array.isArray(cfg)?cfg:{};
+}
 function configured(){
+  const cfg=liveConfig();
   return !!(String(cfg.url||"").trim()&&String(cfg.anonKey||cfg.publishableKey||"").trim());
+}
+function provenMemberSession(session){
+  if(!session||typeof session!=="object"||Array.isArray(session))return null;
+  const uid=String(session.user&&session.user.id||"").trim();
+  const token=String(session.access_token||"").trim();
+  if(!uid||!token)return null;
+  let rawExp=session.expires_at!=null?session.expires_at:(session.expiresAt!=null?session.expiresAt:null);
+  if(rawExp===""||rawExp==null){
+    const expiresIn=Number(session.expires_in);
+    if(!Number.isFinite(expiresIn)||expiresIn<=0)return null;
+    rawExp=Math.floor(Date.now()/1000)+expiresIn;
+  }
+  const expiresAt=Number(rawExp);
+  if(!Number.isFinite(expiresAt)||expiresAt<=0)return null;
+  const expiresAtMs=expiresAt>1e12?expiresAt:expiresAt*1000;
+  if(expiresAtMs<=Date.now())return null;
+  return session;
+}
+async function recoverProvenMemberSession(){
+  if(!db)return null;
+  const {data,error}=await db.auth.getSession();
+  if(error)throw error;
+  const current=provenMemberSession(data&&data.session);
+  if(current)return current;
+  const stale=data&&data.session;
+  if(!stale||!String(stale.refresh_token||"").trim())return null;
+  const refreshed=await db.auth.refreshSession();
+  if(refreshed.error)return null;
+  return provenMemberSession(refreshed.data&&refreshed.data.session);
+}
+function queueRecoveredSession(session){
+  if(recoveredIdentityId==="signed-out")return applyChain;
+  const proven=provenMemberSession(session);
+  const id=String(proven&&proven.user&&proven.user.id||"");
+  if(id&&(id===recoveredIdentityId||id===String(user&&user.id||"")))return applyChain;
+  if(!id&&recoveredIdentityId)return applyChain;
+  recoveredIdentityId=id;
+  return queueSession(proven,{sync:!!id});
 }
 function safeJson(key,fallback){
   try{const value=JSON.parse(localStorage.getItem(key));return value??fallback}catch(e){return fallback}
@@ -770,7 +815,8 @@ function syncKey(key,value){
   syncTimers.set(key,setTimeout(run,0));
 }
 async function applySession(session,{trackLogin=false,sync=false}={}){
-  const nextUser=session?.user||null;
+  const proven=session==null?null:provenMemberSession(session);
+  const nextUser=proven?proven.user:null;
   const nextId=nextUser&&nextUser.id?String(nextUser.id):"";
   const prevId=user&&user.id?String(user.id):"";
   if(nextId!==prevId)resetMemberShopSyncState();
@@ -860,6 +906,7 @@ async function signOut(){
   });
   if(db)await db.auth.signOut();
   if(pending)try{await pending}catch(e){}
+  user=null;profile=null;blocked=false;
   if(!user){
     writeShopOwner(SHOP_OWNER_STALE);
     clearLocalCartAndFavorites();
@@ -926,6 +973,7 @@ async function saveOrder(order){
 const api=window.KutadguMember={
   ready,
   configured,
+  sessionBootDone:()=>sessionBootDone,
   getClient:()=>db,
   getUser:()=>user,
   getProfile:()=>profile,
@@ -940,23 +988,40 @@ const api=window.KutadguMember={
 
 async function init(){
   enableSmartFieldDirections();ensureStyle();renderButton();
-  if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");readyResolve(api);emit();return}
+  if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");sessionBootDone=true;readyResolve(api);emit();return}
   try{
     await loadSdk();
+    const cfg=liveConfig();
     db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
       auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}
     });
-    const {data,error}=await db.auth.getSession();
-    if(error)throw error;
-    await queueSession(data.session,{sync:!!data.session?.user});
     db.auth.onAuthStateChange((event,session)=>{
-      if(event==="SIGNED_OUT")abandonMemberShopSync();
-      if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED")return;
+      if(event==="SIGNED_OUT"){
+        abandonMemberShopSync();
+        recoveredIdentityId="signed-out";
+        user=null;profile=null;blocked=false;
+      }
+      if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED"){
+        if(recoveredIdentityId==="signed-out")return;
+        const proven=provenMemberSession(session);
+        const nextId=String(proven&&proven.user&&proven.user.id||"");
+        const prevId=String(user&&user.id||"");
+        if(!proven)return;
+        if(nextId&&nextId===prevId){user=proven.user;emit();return}
+        queueRecoveredSession(proven);
+        return;
+      }
       const isLogin=event==="SIGNED_IN";
+      if(isLogin)recoveredIdentityId="";
       setTimeout(()=>queueSession(session,{trackLogin:isLogin,sync:isLogin}),0);
     });
+    const proven=await recoverProvenMemberSession();
+    if(!user)await queueRecoveredSession(proven);
+    await applyChain;
   }catch(err){initError=err;console.warn("Member system failed to initialize",err);renderButton();emit()}
+  sessionBootDone=true;
   readyResolve(api);
+  emit();
 }
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();

@@ -350,11 +350,11 @@ test("composeMergedShopState uses baseline for union then latest intent", () => 
   assert.match(memberSrc, /preMergeSnapshot=null/);
 });
 
-test("member.js pin is v=23", () => {
+test("member.js pin is v=24", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
-  assert.match(shop, /member\.js\?v=23/);
-  assert.match(account, /member\.js\?v=23/);
+  assert.match(shop, /member\.js\?v=24/);
+  assert.match(account, /member\.js\?v=24/);
 });
 
 test("12 same-user instant cart first paint is not gated on member merge ready", () => {
