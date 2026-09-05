@@ -213,8 +213,8 @@ test("guest to login merge still preserves legitimate local cart items", () => {
   assert.match(member, /function shouldMergeLocalForUser\(userId\)\{/);
   assert.match(member, /if\(!owner\|\|owner===SHOP_OWNER_GUEST\)return true/);
   assert.match(member, /if\(owner===SHOP_OWNER_STALE\)return false/);
-  const merge = sliceBetween(member, "async function mergeShopState(){", "const syncTimers=new Map()");
-  assert.match(merge, /const gated=localItemsForMerge\(mergeForUserId,rawLocalCart,rawLocalFav\)/);
+  const merge = sliceBetween(member, "async function mergeShopState(){", "function syncKey(key,value){");
+  assert.match(merge, /localItemsForMerge\(mergeForUserId,baselineCart,baselineFav\)/);
   assert.match(merge, /localStorage\.setItem\(CART_KEY,JSON\.stringify\(mergedCart\)\)/);
   assert.ok(merge.indexOf("localStorage.setItem(CART_KEY,JSON.stringify(mergedCart))") < merge.indexOf("alignCartDisplayAfterMemberSync(prevCart)"));
   const guestLocal = [{ id: "91001", qty: 1 }];
@@ -238,7 +238,7 @@ test("signed-in member synchronization does not require cloud merge before first
 
 test("member sync changing CART_KEY keeps display-preview state coherent", () => {
   const member = fs.readFileSync(path.join(root, "member.js"), "utf8");
-  assert.match(member, /const prevCart=Array\.isArray\(rawLocalCart\)\?rawLocalCart:\[\]/);
+  assert.match(member, /const prevCart=Array\.isArray\(composed\.latestCart\)\?composed\.latestCart:\[\]/);
   assert.match(member, /alignCartDisplayAfterMemberSync\(prevCart\)/);
   const align = sliceBetween(shop, "function alignCartDisplayAfterMemberSync(prevItems){", "const get=");
   assert.match(align, /if\(!shopOwnerAllowsLocalDisplay\(\)\)return/);

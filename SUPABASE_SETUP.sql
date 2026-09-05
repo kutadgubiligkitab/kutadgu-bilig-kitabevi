@@ -283,7 +283,7 @@ grant insert,update,delete on public.books to authenticated;
 grant select on public.admin_users to authenticated;
 grant select on public.profiles to authenticated;
 grant select,insert,delete on public.member_favorites to authenticated;
-grant select,insert,delete on public.member_cart_items to authenticated;
+grant select,insert,update,delete on public.member_cart_items to authenticated;
 grant select,update on public.orders to authenticated;
 revoke insert on public.orders from public;
 revoke insert on public.orders from anon;
