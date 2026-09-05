@@ -298,18 +298,13 @@ async function replaceCart(values,forUserId){
     }
   }
   if(plan.qtyRewrite.length){
-    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
-    const qtyIds=plan.qtyRewrite.map(row=>row.id);
-    const {error:qtyDelError}=await db.from("member_cart_items").delete().eq("user_id",uid).in("book_id",qtyIds);
-    if(qtyDelError){
-      memberLog("error","replace-cart-qty-delete",qtyDelError);
-      throw qtyDelError;
-    }
-    if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
-    const {error:qtyInsError}=await db.from("member_cart_items").insert(plan.qtyRewrite.map(row=>({user_id:uid,book_id:row.id,quantity:row.qty})));
-    if(qtyInsError){
-      memberLog("error","replace-cart-qty-insert",qtyInsError);
-      throw qtyInsError;
+    for(const row of plan.qtyRewrite){
+      if(!stillMergingFor(uid))return {ok:false,reason:"user-changed"};
+      const {error:qtyUpdError}=await db.from("member_cart_items").update({quantity:row.qty}).eq("user_id",uid).eq("book_id",row.id);
+      if(qtyUpdError){
+        memberLog("error","replace-cart-qty-update",qtyUpdError);
+        throw qtyUpdError;
+      }
     }
   }
   const stale=presentStaleIds(existing.map(row=>row.id),plan.stale);

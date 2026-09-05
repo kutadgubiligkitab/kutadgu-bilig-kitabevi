@@ -108,6 +108,17 @@ async function mockMemberAuth(page) {
   }
 }
 
+function parseEqParam(url, key) {
+  try {
+    const parsed = new URL(String(url || ""), "https://example.supabase.co");
+    const raw = parsed.searchParams.get(key);
+    if (!raw) return null;
+    const eqMatch = String(raw).match(/^eq\.(.*)$/i);
+    if (eqMatch) return eqMatch[1].replace(/^"+|"+$/g, "");
+  } catch (err) {}
+  return null;
+}
+
 function parseBookIdFilter(url) {
   const rawUrl = String(url || "");
   const encodedIn = rawUrl.match(/book_id=in\.(\((?:[^)]|%29)+)/i);
@@ -148,6 +159,7 @@ async function mockDelayedMemberShop(page, {
   let firstCartGet = true;
   let firstFavGet = true;
   const writes = [];
+  const updates = [];
   const gates = control || {};
   function upsertCart(rows) {
     for (const row of rows) {
@@ -206,6 +218,25 @@ async function mockDelayedMemberShop(page, {
       deleteCart(parseBookIdFilter(route.request().url()));
       return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     }
+    if (method === "PATCH") {
+      const url = route.request().url();
+      const userId = parseEqParam(url, "user_id");
+      const bookIds = parseBookIdFilter(url);
+      const bookId = parseEqParam(url, "book_id") || (bookIds && bookIds.length === 1 ? bookIds[0] : null);
+      const posted = route.request().postDataJSON() || {};
+      const quantity = Number(posted.quantity) || 1;
+      if (!userId || !bookId) writes.push("UNSCOPED_CART_UPDATE");
+      updates.push({ user_id: String(userId || ""), book_id: String(bookId || ""), quantity });
+      if (gates.failUpdate) {
+        return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "qty update failed" }) });
+      }
+      if (gates.holdAfterUpdate) await gates.holdAfterUpdate;
+      if (userId && bookId) {
+        const hit = cloudCart.find((row) => String(row.user_id) === String(userId) && String(row.book_id) === String(bookId));
+        if (hit) hit.quantity = quantity;
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(cloudCart) });
+    }
     const posted = route.request().postDataJSON();
     const rows = Array.isArray(posted) ? posted : posted ? [posted] : [];
     upsertCart(rows);
@@ -243,6 +274,7 @@ async function mockDelayedMemberShop(page, {
   });
   return {
     writes,
+    updates,
     readCloudCart() { return cloudCart.slice(); },
     readCloudFav() { return cloudFav.slice(); }
   };
@@ -409,7 +441,7 @@ test.describe("member pre-merge sync safety", () => {
       snapshotIds: [BOOK_A]
     });
     await mockMemberAuth(page);
-    await mockDelayedMemberShop(page, {
+    const shopMock = await mockDelayedMemberShop(page, {
       cartItems: [{ id: BOOK_A, qty: 1 }],
       delayMs: 2500
     });
@@ -434,6 +466,16 @@ test.describe("member pre-merge sync safety", () => {
     expect(after).toHaveLength(1);
     expect(String(after[0].id)).toBe(BOOK_A);
     expect(Number(after[0].qty)).toBe(2);
+    const cloud = shopMock.readCloudCart();
+    expect(cloud).toHaveLength(1);
+    expect(String(cloud[0].book_id)).toBe(BOOK_A);
+    expect(Number(cloud[0].quantity)).toBe(2);
+    expect(shopMock.writes).toContain("PATCH");
+    expect(shopMock.writes).not.toContain("DELETE");
+    expect(shopMock.writes).not.toContain("UNSCOPED_CART_UPDATE");
+    expect(shopMock.updates).toEqual([
+      { user_id: OWNER, book_id: BOOK_A, quantity: 2 }
+    ]);
   });
 
   test("initial merge failure does not replace cloud cart", async ({ page }) => {
@@ -579,5 +621,114 @@ test.describe("member pre-merge sync safety", () => {
     const ids = shopMock.readCloudCart().map((row) => String(row.book_id)).sort();
     expect(ids).toEqual([BOOK_A, BOOK_B].sort());
     expect(shopMock.writes).not.toContain("UNFILTERED_CART_DELETE");
+  });
+
+  test("quantity update uses scoped PATCH and keeps the row on failure", async ({ page }) => {
+    test.setTimeout(45_000);
+    await seedMember(page, {
+      cart: [{ id: BOOK_A, qty: 1 }],
+      snapshotIds: [BOOK_A]
+    });
+    await mockMemberAuth(page);
+    const shopMock = await mockDelayedMemberShop(page, {
+      cartItems: [{ id: BOOK_A, qty: 1 }],
+      delayMs: 2500,
+      control: { failUpdate: true }
+    });
+    await mockBooks(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await waitForMemberUser(page);
+    expect(await shopReady(page)).toBe(false);
+    await page.evaluate((id) => window.kutadguShop.add(id), BOOK_A);
+    await expect.poll(() => shopMock.writes.includes("PATCH"), { timeout: 20_000 }).toBeTruthy();
+    expect(await shopReady(page)).toBe(false);
+    const local = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]"); }
+      catch (e) { return []; }
+    });
+    expect(local).toHaveLength(1);
+    expect(String(local[0].id)).toBe(BOOK_A);
+    expect(Number(local[0].qty)).toBe(2);
+    const cloud = shopMock.readCloudCart();
+    expect(cloud).toHaveLength(1);
+    expect(String(cloud[0].book_id)).toBe(BOOK_A);
+    expect(Number(cloud[0].quantity)).toBe(1);
+    expect(shopMock.writes).toContain("PATCH");
+    expect(shopMock.writes).not.toContain("DELETE");
+    expect(shopMock.writes).not.toContain("UNSCOPED_CART_UPDATE");
+    expect(shopMock.updates).toEqual([
+      { user_id: OWNER, book_id: BOOK_A, quantity: 2 }
+    ]);
+  });
+
+  test("user switch during quantity update cannot write another user's cart", async ({ page }) => {
+    test.setTimeout(45_000);
+    let release;
+    const holdAfterUpdate = new Promise((resolve) => { release = resolve; });
+    await page.route("**/auth/v1/logout**", (route) => route.fulfill({ status: 204, body: "" }));
+    await seedMember(page, {
+      cart: [{ id: BOOK_A, qty: 1 }],
+      snapshotIds: [BOOK_A]
+    });
+    await mockMemberAuth(page);
+    const shopMock = await mockDelayedMemberShop(page, {
+      cartItems: [{ id: BOOK_A, qty: 1 }],
+      delayMs: 2500,
+      control: { holdAfterUpdate }
+    });
+    await mockBooks(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await waitForMemberUser(page);
+    await page.evaluate((id) => window.kutadguShop.add(id), BOOK_A);
+    await expect.poll(() => shopMock.writes.includes("PATCH"), { timeout: 20_000 }).toBeTruthy();
+    expect(shopMock.updates.every((row) => row.user_id === OWNER && row.book_id === BOOK_A)).toBeTruthy();
+    const signOutDone = page.evaluate(async () => {
+      if (window.KutadguMember && window.KutadguMember.signOut) await window.KutadguMember.signOut();
+    });
+    await page.waitForTimeout(200);
+    release();
+    await signOutDone;
+    expect(shopMock.writes).not.toContain("UNSCOPED_CART_UPDATE");
+    expect(shopMock.updates.every((row) => row.user_id === OWNER)).toBeTruthy();
+    expect(shopMock.readCloudCart().every((row) => String(row.user_id) === OWNER)).toBeTruthy();
+    expect(await shopReady(page)).toBe(false);
+  });
+
+  test("latest of multiple early quantity changes wins", async ({ page }) => {
+    test.setTimeout(45_000);
+    await seedMember(page, {
+      cart: [{ id: BOOK_A, qty: 1 }],
+      snapshotIds: [BOOK_A]
+    });
+    await mockMemberAuth(page);
+    const shopMock = await mockDelayedMemberShop(page, {
+      cartItems: [{ id: BOOK_A, qty: 1 }],
+      delayMs: 2500
+    });
+    await mockBooks(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await waitForMemberUser(page);
+    await page.evaluate((id) => {
+      window.kutadguShop.add(id);
+      window.kutadguShop.add(id);
+    }, BOOK_A);
+    const during = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]"); }
+      catch (e) { return []; }
+    });
+    expect(Number(during[0].qty)).toBe(3);
+    await expect.poll(async () => shopReady(page), { timeout: 20_000 }).toBe(true);
+    const after = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]"); }
+      catch (e) { return []; }
+    });
+    expect(Number(after[0].qty)).toBe(3);
+    expect(Number(shopMock.readCloudCart()[0].quantity)).toBe(3);
+    expect(shopMock.writes).toContain("PATCH");
+    expect(shopMock.writes).not.toContain("DELETE");
+    expect(shopMock.updates.some((row) => row.book_id === BOOK_A && row.quantity === 3)).toBeTruthy();
   });
 });

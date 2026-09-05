@@ -163,6 +163,11 @@ test("cloud replace is pinned to the merge/sync user id", () => {
   assert.match(replaceFav, /\.in\("book_id",stale\)/);
   assert.match(replaceCart, /presentStaleIds\(/);
   assert.match(replaceFav, /presentStaleIds\(/);
+  assert.match(replaceCart, /\.update\(\{quantity:row\.qty\}\)\.eq\("user_id",uid\)\.eq\("book_id",row\.id\)/);
+  assert.doesNotMatch(replaceCart, /replace-cart-qty-delete/);
+  assert.doesNotMatch(replaceCart, /replace-cart-qty-insert/);
+  assert.doesNotMatch(replaceCart, /qtyIds/);
+  assert.ok(replaceCart.indexOf(".update({quantity:row.qty})") < replaceCart.indexOf("presentStaleIds("));
 });
 
 test("merge failure does not mark shop state ready", () => {
@@ -345,11 +350,11 @@ test("composeMergedShopState uses baseline for union then latest intent", () => 
   assert.match(memberSrc, /preMergeSnapshot=null/);
 });
 
-test("member.js pin is v=22", () => {
+test("member.js pin is v=23", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
-  assert.match(shop, /member\.js\?v=22/);
-  assert.match(account, /member\.js\?v=22/);
+  assert.match(shop, /member\.js\?v=23/);
+  assert.match(account, /member\.js\?v=23/);
 });
 
 test("12 same-user instant cart first paint is not gated on member merge ready", () => {
@@ -410,16 +415,20 @@ function simulateCartReplace({
     }
     maybeSwitch("after-insert");
     if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
+    maybeSwitch("before-qty-update");
+    if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
     if (plan.qtyRewrite.length) {
-      maybeFail("qty-delete");
-      plan.qtyRewrite.forEach((row) => cloud.delete(row.id));
-      writes.push({ phase: "qty-delete", ids: plan.qtyRewrite.map((row) => row.id) });
-      maybeSwitch("after-qty-delete");
-      if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
-      maybeFail("qty-insert");
+      maybeFail("qty-update");
       plan.qtyRewrite.forEach((row) => cloud.set(row.id, { id: row.id, qty: row.qty }));
-      writes.push({ phase: "qty-insert", ids: plan.qtyRewrite.map((row) => row.id) });
+      writes.push({
+        phase: "qty-update",
+        userId: startUser,
+        ids: plan.qtyRewrite.map((row) => row.id),
+        scoped: plan.qtyRewrite.map((row) => ({ user_id: startUser, book_id: row.id, quantity: row.qty }))
+      });
     }
+    maybeSwitch("after-qty-update");
+    if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
     maybeSwitch("before-stale-delete");
     if (!check()) return { ok: false, reason: "user-changed", ready: false, cloud: cloudRows(), writes, liveUser, plan };
     if (plan.stale.length) {
@@ -521,11 +530,76 @@ test("6 old User A async completion cannot modify User B cloud", () => {
   assert.ok(!out.cloud.some((row) => row.id === "B-only"));
 });
 
+test("qty1 to qty2 uses scoped UPDATE and does not delete the row", () => {
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "A", qty: 2 }, { id: "B", qty: 1 }]
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.ready, true);
+  assert.deepStrictEqual(out.cloud, [{ id: "A", qty: 2 }, { id: "B", qty: 1 }]);
+  assert.deepStrictEqual(out.plan.qtyRewrite, [{ id: "A", qty: 2 }]);
+  assert.ok(out.writes.some((row) => row.phase === "qty-update"));
+  assert.ok(!out.writes.some((row) => row.phase === "qty-delete" || row.phase === "qty-insert"));
+  const qtyWrite = out.writes.find((row) => row.phase === "qty-update");
+  assert.deepStrictEqual(qtyWrite.scoped, [{ user_id: "A", book_id: "A", quantity: 2 }]);
+  assert.strictEqual(qtyWrite.userId, "A");
+});
+
+test("network failure during quantity UPDATE keeps the old cloud row", () => {
+  const local = [{ id: "A", qty: 2 }, { id: "B", qty: 1 }];
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: local,
+    failAt: "qty-update"
+  });
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud, [{ id: "A", qty: 1 }, { id: "B", qty: 1 }]);
+  assert.deepStrictEqual(local, [{ id: "A", qty: 2 }, { id: "B", qty: 1 }]);
+});
+
+test("User A to User B during quantity UPDATE cannot write B", () => {
+  const bCloud = [{ id: "B-only", qty: 9 }];
+  const out = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
+    desired: [{ id: "A", qty: 2 }, { id: "B", qty: 1 }],
+    switchAt: "before-qty-update",
+    startUser: "A",
+    nextUser: "B"
+  });
+  assert.strictEqual(out.liveUser, "B");
+  assert.strictEqual(out.ok, false);
+  assert.strictEqual(out.ready, false);
+  assert.deepStrictEqual(out.cloud, [{ id: "A", qty: 1 }, { id: "B", qty: 1 }]);
+  assert.deepStrictEqual(bCloud, [{ id: "B-only", qty: 9 }]);
+  assert.ok(!out.writes.some((row) => row.phase === "qty-update"));
+});
+
+test("multiple quantity changes keep the latest local qty", () => {
+  const out = runRace({
+    baselineCart: [{ id: "A", qty: 1 }],
+    cloudCart: [{ id: "A", qty: 1 }],
+    act(actions) {
+      actions.setQty("A", 2);
+      actions.setQty("A", 3);
+    }
+  });
+  assert.deepStrictEqual(out.cart, [{ id: "A", qty: 3 }]);
+  const replace = simulateCartReplace({
+    existing: [{ id: "A", qty: 1 }],
+    desired: out.cart
+  });
+  assert.strictEqual(replace.ok, true);
+  assert.deepStrictEqual(replace.cloud, [{ id: "A", qty: 3 }]);
+  assert.deepStrictEqual(replace.plan.qtyRewrite, [{ id: "A", qty: 3 }]);
+});
+
 test("qty rewrite failure does not delete unrelated cloud rows", () => {
   const out = simulateCartReplace({
     existing: [{ id: "A", qty: 1 }, { id: "B", qty: 1 }],
     desired: [{ id: "A", qty: 2 }, { id: "B", qty: 1 }],
-    failAt: "qty-delete"
+    failAt: "qty-update"
   });
   assert.strictEqual(out.ok, false);
   assert.strictEqual(out.ready, false);
