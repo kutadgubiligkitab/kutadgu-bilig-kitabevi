@@ -82,15 +82,87 @@
     });
   }
 
-  function booksForCategories(categories){
-    const set=new Set(categories||[]);
-    return catalog().filter(book=>set.has(book.category)||set.has(book.subcategory));
-  }
+  const DISCOVERY_PAGE_SIZE=8;
+  const WIZARD_PAGE_SIZE=16;
+  const discoveryCache=new Map();
+  let discoverySeq=0;
+  let discoveryAbort=null;
+  let wizardSeq=0;
+  let wizardAbort=null;
 
   function recommended(limit=8){
     const all=catalog();
     const marked=all.filter(book=>book.isRecommended===true||book.isFeatured===true);
     return (marked.length?marked:all).slice(0,limit);
+  }
+
+  function discoveryVisible(book){
+    if(!book||!String(book.id||"").trim())return false;
+    if(window.kutadguShop?.isStorefrontVisible)return window.kutadguShop.isStorefrontVisible(book);
+    return book.isActive!==false&&book.is_active!==false;
+  }
+  function discoveryBookId(book){
+    if(!book)return "";
+    if(window.kutadguShop?.canonicalId)return String(window.kutadguShop.canonicalId(book.id)||book.id||"");
+    return String(book.id||"");
+  }
+  function matchesSelectedCategory(book,category){
+    const want=String(category||"").trim();
+    if(!want||!book)return false;
+    return book.category===want||book.subcategory===want;
+  }
+  function mergeAuthoritativeCategoryLists(lists,limit=DISCOVERY_PAGE_SIZE){
+    const seen=new Set();
+    const out=[];
+    for(const list of lists||[]){
+      for(const book of list||[]){
+        if(!discoveryVisible(book))continue;
+        const id=discoveryBookId(book);
+        if(!id||seen.has(id))continue;
+        seen.add(id);
+        out.push(book);
+        if(out.length>=limit)return out;
+      }
+    }
+    return out;
+  }
+  function discoveryLoadingMarkup(){
+    return '<div class="catalog-loading-state premium-discovery-loading"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div>';
+  }
+  function discoveryEmptyMarkup(){
+    return '<div class="premium-friendly-empty">بۇ تۈردە ھازىرچە كىتاب يوق. باشقا تۈرنى تاللاپ كۆرۈڭ.</div>';
+  }
+  function discoveryErrorMarkup(){
+    return '<div class="premium-friendly-empty premium-discovery-error">كىتابلارنى يۈكلەشتە ۋاقىتلىق خاتالىق كۆرۈلدى. سەل تۇرۇپ قايتا سىناڭ.</div>';
+  }
+  function isAbortError(error){
+    return error&&(error.name==="AbortError"||/abort/i.test(String(error.message||error)));
+  }
+  async function queryCategoryAuthoritative(category,pageSize,signal){
+    const name=String(category||"").trim();
+    if(!name)return [];
+    const size=Math.max(1,Number(pageSize)||DISCOVERY_PAGE_SIZE);
+    const cached=discoveryCache.get(name);
+    if(cached&&cached.ok&&cached.pageSize>=size)return cached.items.slice(0,size);
+    const shop=window.kutadguShop;
+    if(!shop||typeof shop.queryCatalog!=="function")throw new Error("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
+    const result=await shop.queryCatalog({category:name,offset:0,pageSize:size,sort:"new"},signal?{signal}:{});
+    if(signal&&signal.aborted){
+      const abort=new Error("Aborted");
+      abort.name="AbortError";
+      throw abort;
+    }
+    const items=(result&&Array.isArray(result.items)?result.items:[]).filter(discoveryVisible);
+    discoveryCache.set(name,{ok:true,pageSize:size,items});
+    return items.slice();
+  }
+  async function queryDiscoveryCategories(categories,pageSize,signal,limit){
+    const names=[...new Set((categories||[]).map(value=>String(value||"").trim()).filter(Boolean))];
+    if(!names.length)return [];
+    const size=Math.max(1,Number(pageSize)||DISCOVERY_PAGE_SIZE);
+    const lists=await Promise.all(names.map(name=>queryCategoryAuthoritative(name,size,signal)));
+    const cap=Math.max(1,Number(limit)||DISCOVERY_PAGE_SIZE);
+    return mergeAuthoritativeCategoryLists(lists,cap);
   }
 
   function renderDiscovery(){
@@ -118,16 +190,26 @@
 
     const results=section.querySelector("#premiumDiscoveryResults");
     const subcategories=section.querySelector("#premiumSubcategories");
-    function showGroup(id,category=""){
+    async function showGroup(id,category=""){
       const group=groups.find(item=>item.id===id)||groups[0];
+      const seq=++discoverySeq;
+      if(discoveryAbort)discoveryAbort.abort();
+      discoveryAbort=typeof AbortController==="function"?new AbortController():null;
       section.querySelectorAll("[data-premium-group]").forEach(button=>button.classList.toggle("is-active",button.dataset.premiumGroup===group.id));
-      const list=booksForCategories(group.categories);
-      subcategories.innerHTML=group.categories.map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
-      const filtered=category?list.filter(book=>book.category===category||book.subcategory===category):list;
-      const shown=(filtered.length?filtered:recommended(8)).slice(0,8);
-      results.innerHTML=shown.length?`<div class="premium-book-grid">${shown.map(compactCard).join("")}</div>`:'<div class="premium-friendly-empty">بۇ تۈردە ھازىرچە كىتاب يوق. باشقا تۈرنى تاللاپ كۆرۈڭ.</div>';
-      bindCards(results);
+      subcategories.innerHTML=(group.categories||[]).map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
       subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
+      results.innerHTML=discoveryLoadingMarkup();
+      try{
+        const names=category?[category]:(group.categories||[]);
+        const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE);
+        if(seq!==discoverySeq)return;
+        const shown=(category?list.filter(book=>matchesSelectedCategory(book,category)):list).slice(0,DISCOVERY_PAGE_SIZE);
+        results.innerHTML=shown.length?`<div class="premium-book-grid">${shown.map(compactCard).join("")}</div>`:discoveryEmptyMarkup();
+        bindCards(results);
+      }catch(error){
+        if(seq!==discoverySeq||isAbortError(error))return;
+        results.innerHTML=discoveryErrorMarkup();
+      }
     }
     section.querySelectorAll("[data-premium-group]").forEach(button=>button.onclick=()=>showGroup(button.dataset.premiumGroup));
     results.innerHTML='<div class="premium-friendly-empty">تۈرنى تاللاڭ؛ شۇ تۈردىكى كىتابلار تۆۋەندە كۆرۈنىدۇ.</div>';
@@ -155,24 +237,42 @@
     };
     wizard.querySelectorAll("[data-wizard-group]").forEach(button=>button.onclick=()=>{state.group=button.dataset.wizardGroup;setStep(2)});
     wizard.querySelectorAll("[data-wizard-style]").forEach(button=>button.onclick=()=>{state.style=button.dataset.wizardStyle;setStep(3)});
-    wizard.querySelectorAll("[data-wizard-price]").forEach(button=>button.onclick=()=>{
+    wizard.querySelectorAll("[data-wizard-price]").forEach(button=>button.onclick=async()=>{
       state.price=button.dataset.wizardPrice;
       const group=groups.find(item=>item.id===state.group);
-      let list=booksForCategories(group?.categories||[]);
-      if(state.style==="story")list=list.filter(book=>/رومان|ھېكايە|داستان/.test(`${book.category} ${book.subcategory||""}`));
-      if(state.style==="knowledge")list=list.filter(book=>/دەرسلىك|تېبابەت|ئۇنىۋېرسال|دىنىي/.test(`${book.category} ${book.subcategory||""}`));
-      if(state.style==="children")list=list.filter(book=>/بالىلار|تەربىيە/.test(`${book.category} ${book.subcategory||""}`));
-      if(state.price!=="all"){
-        const [min,max]=state.price.split("-").map(Number);
-        list=list.filter(book=>Number(book.price)>=min&&Number(book.price)<=max);
-      }
-      const shown=(list.length?list:recommended(8)).slice(0,8);
+      const seq=++wizardSeq;
+      if(wizardAbort)wizardAbort.abort();
+      wizardAbort=typeof AbortController==="function"?new AbortController():null;
       const host=wizard.querySelector("#premiumWizardResults");
-      host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3><div class="premium-book-grid">${shown.map(compactCard).join("")}</div><button type="button" class="premium-wizard-restart">↺ قايتا تاللاش</button>`;
-      bindCards(host);
-      host.querySelector(".premium-wizard-restart").onclick=()=>{state.group="";state.style="all";state.price="all";host.innerHTML="";setStep(1)};
       wizard.querySelectorAll("[data-wizard-step]").forEach(node=>node.hidden=true);
-      window.KutadguAnalytics?.track?.("filter_apply",{source:"smart_wizard",results:shown.length});
+      host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3>${discoveryLoadingMarkup()}`;
+      const bindRestart=()=>{
+        host.querySelector(".premium-wizard-restart")?.addEventListener("click",()=>{state.group="";state.style="all";state.price="all";host.innerHTML="";setStep(1)});
+      };
+      try{
+        let list=await queryDiscoveryCategories(group?.categories||[],WIZARD_PAGE_SIZE,wizardAbort&&wizardAbort.signal,WIZARD_PAGE_SIZE*8);
+        if(seq!==wizardSeq)return;
+        if(state.style==="story")list=list.filter(book=>/رومان|ھېكايە|داستان/.test(`${book.category} ${book.subcategory||""}`));
+        if(state.style==="knowledge")list=list.filter(book=>/دەرسلىك|تېبابەت|ئۇنىۋېرسال|دىنىي/.test(`${book.category} ${book.subcategory||""}`));
+        if(state.style==="children")list=list.filter(book=>/بالىلار|تەربىيە/.test(`${book.category} ${book.subcategory||""}`));
+        if(state.price!=="all"){
+          const [min,max]=state.price.split("-").map(Number);
+          list=list.filter(book=>Number(book.price)>=min&&Number(book.price)<=max);
+        }
+        const shown=list.slice(0,DISCOVERY_PAGE_SIZE);
+        if(shown.length){
+          host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3><div class="premium-book-grid">${shown.map(compactCard).join("")}</div><button type="button" class="premium-wizard-restart">↺ قايتا تاللاش</button>`;
+          bindCards(host);
+        }else{
+          host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3>${discoveryEmptyMarkup()}<button type="button" class="premium-wizard-restart">↺ قايتا تاللاش</button>`;
+        }
+        bindRestart();
+        window.KutadguAnalytics?.track?.("filter_apply",{source:"smart_wizard",results:shown.length});
+      }catch(error){
+        if(seq!==wizardSeq||isAbortError(error))return;
+        host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3>${discoveryErrorMarkup()}<button type="button" class="premium-wizard-restart">↺ قايتا تاللاش</button>`;
+        bindRestart();
+      }
     });
   }
 
