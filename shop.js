@@ -2895,13 +2895,26 @@ function getOrBuildOrder(requireCustomer=true){
   return order;
 }
 
-async function savePreparedOrderHistory(order){
-  if(!order)return {saved:false};
-  if(order.historySaved)return {saved:true};
-  if(window.KutadguMember?.ready)await window.KutadguMember.ready;
-  const result=await window.KutadguMember?.saveOrder?.(order);
-  if(result?.saved)order.historySaved=true;
-  return result||{saved:false,reason:"member_unavailable"};
+const preparedOrderHistoryInflight=new WeakMap();
+function savePreparedOrderHistory(order){
+  if(!order)return Promise.resolve({saved:false});
+  if(order.historySaved)return Promise.resolve({saved:true});
+  const inflight=preparedOrderHistoryInflight.get(order);
+  if(inflight)return inflight;
+  const persist=(async()=>{
+    try{
+      const member=window.KutadguMember;
+      if(member?.ready)await member.ready;
+      if(typeof member?.getUser==="function"&&!member.getUser())return {saved:false,reason:"not_signed_in"};
+      const result=await member?.saveOrder?.(order);
+      if(result?.saved)order.historySaved=true;
+      return result||{saved:false,reason:"member_unavailable"};
+    }finally{
+      preparedOrderHistoryInflight.delete(order);
+    }
+  })();
+  preparedOrderHistoryInflight.set(order,persist);
+  return persist;
 }
 
 async function showOrderPreview(){
@@ -2913,21 +2926,12 @@ async function showOrderPreview(){
     wrap.hidden=false;
     wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
   }
-  try{
-    const saved=await savePreparedOrderHistory(o);
-    if(saved?.saved)toast("زاكاز تەييارلاندى ۋە ھېسابىڭىزغا ساقلاندى ✅");
-    else if(saved?.reason==="not_signed_in")toast("زاكاز تەييارلاندى؛ ئەزا بولسىڭىز زاكاز تارىخىغىمۇ ساقلىنىدۇ");
-    else toast("زاكاز ئۇچۇرى تەييار بولدى ✅");
-  }catch(err){
-    console.warn("Order history save failed",err);
-    toast("زاكاز تەييارلاندى؛ تارىخقا ساقلاش ۋاقىتلىق مەغلۇپ بولدى");
-  }
+  toast("زاكاز ئۇچۇرى تەييار بولدى ✅");
   return o;
 }
 
 async function copyOrder(){
   let o=getOrBuildOrder(true);if(!o)return;
-  try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
   try{
     if(navigator.clipboard)await navigator.clipboard.writeText(o.text);
     else throw new Error();
@@ -2945,7 +2949,6 @@ async function copyOrder(){
 
 async function shareOrder(){
   let o=getOrBuildOrder(true);if(!o)return;
-  try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
   try{
     if(navigator.share){
       await navigator.share({title:"قۇتادغۇبىلىك كىتابخانىسى — زاكاز",text:o.text});
@@ -3687,5 +3690,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY};
 })();
