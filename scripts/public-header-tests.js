@@ -57,7 +57,7 @@ test("public pages load the shared header helper before shop/mobile", () => {
   [indexHtml, bookShell, cartHtml, favHtml, diniHtml].forEach((html) => {
     assert.match(html, /public-header\.js\?v=1/);
     const helper = html.indexOf("public-header.js?v=1");
-    const shopAt = html.indexOf("shop.js?v=115");
+    const shopAt = html.search(/shop\.js\?v=\d+/);
     if (shopAt >= 0) assert.ok(helper >= 0 && helper < shopAt);
   });
   assert.match(accountHtml, /public-header\.js\?v=1/);
