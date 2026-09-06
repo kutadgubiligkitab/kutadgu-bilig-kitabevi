@@ -314,6 +314,13 @@ section.about p {
     color: #ffffff !important;
 }
 
+/* Cream service chips are not body copy — keep brown text on the light cards. */
+.about .about-service-chip,
+section.about .about-service-chip {
+    color: #3d2a23 !important;
+    background-color: #fff8ed !important;
+}
+
 footer {
     background-color: var(--site-footer) !important;
     color: #f1e7da !important;

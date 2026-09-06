@@ -28,6 +28,12 @@ test.describe("Stage 3 real shop identity", () => {
     await H.openFresh(page, "/");
     await expect(page.locator("#about")).toContainText("2013-يىلى قۇرۇلغان");
     await expect(page.locator("#about")).toContainText("كىتاب ئارىيەت بېرىش");
+    const chipColor = await page.locator("#about .about-service-chip").first().evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { color: s.color, background: s.backgroundColor };
+    });
+    expect(chipColor.color).toBe("rgb(61, 42, 35)");
+    expect(chipColor.background).toBe("rgb(255, 248, 237)");
     await expect(page.locator("#contact")).toContainText("08:30–20:00");
     await expect(page.locator("#contact")).toContainText("Küçükçekmece");
     const ig = page.locator('#contact a[href="https://www.instagram.com/kutadgu_bilig_kitabhanisi/"]');
