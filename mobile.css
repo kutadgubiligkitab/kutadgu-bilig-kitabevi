@@ -18,6 +18,9 @@
     --mobile-radius: 13px;
     --mobile-header-height: 62px;
     --mobile-bottom-height: 62px;
+    --mobile-shop-nav-height: var(--mobile-bottom-height);
+    --mobile-bottom-safe: env(safe-area-inset-bottom, 0px);
+    --mobile-toast-gap: 12px;
   }
 
   html {
@@ -31,7 +34,7 @@
     min-width: 0;
     overflow-x: hidden;
     overflow-x: clip;
-    padding-bottom: calc(var(--mobile-bottom-height) + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(var(--mobile-bottom-height) + var(--mobile-bottom-safe)) !important;
   }
 
   body.mobile-menu-open {
@@ -282,13 +285,20 @@
     display: none !important;
   }
 
+  .shop-toast {
+    z-index: 11900;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    left: auto;
+    bottom: calc(var(--mobile-shop-nav-height) + var(--mobile-bottom-safe) + var(--mobile-toast-gap));
+  }
+
   .mobile-bottom-nav {
     position: fixed;
     inset-inline: 0;
     inset-block-end: 0;
     z-index: 11800;
-    min-height: calc(var(--mobile-bottom-height) + env(safe-area-inset-bottom, 0px));
-    padding: 5px max(7px, env(safe-area-inset-left, 0px)) calc(5px + env(safe-area-inset-bottom, 0px)) max(7px, env(safe-area-inset-right, 0px));
+    min-height: calc(var(--mobile-bottom-height) + var(--mobile-bottom-safe));
+    padding: 5px max(7px, env(safe-area-inset-left, 0px)) calc(5px + var(--mobile-bottom-safe)) max(7px, env(safe-area-inset-right, 0px));
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
