@@ -2096,4 +2096,106 @@ body:not(.dark-mode) .about-points strong{
   }
 }
 
+/* Stage 2 — /adabiyat books-first hub. Compact chrome so the first book starts in-viewport at 390px. */
+.adabiyat-hub-page .adabiyat-hub-hero{
+  width:min(1120px,94%);
+  margin:0 auto;
+  padding:var(--space-3,12px) 0 var(--space-2,8px);
+  text-align:right;
+}
+.adabiyat-hub-page .adabiyat-hub-hero h1{
+  margin:0;
+  font-size:var(--font-size-xl,18px);
+  font-weight:var(--font-weight-bold,800);
+  color:var(--site-brown-dark,var(--brown-dark,#4b3327));
+  line-height:1.3;
+}
+.adabiyat-hub-page .adabiyat-hub-kicker{
+  display:block;
+  margin-top:2px;
+  font-size:var(--font-size-sm,13px);
+  color:var(--site-text-soft,var(--text-light,#806f62));
+}
+.adabiyat-hub-page .books-section{
+  width:min(1120px,94%);
+  margin:0 auto;
+  padding-bottom:var(--space-6,32px);
+}
+.adabiyat-hub-toolbar{
+  display:grid;
+  gap:var(--space-2,8px);
+  margin:0 0 var(--space-3,12px);
+}
+.adabiyat-hub-search input{
+  width:100%;
+  height:40px;
+  padding:0 var(--space-3,12px);
+  border:1px solid var(--site-border,var(--border,#e8dccb));
+  border-radius:var(--radius-md,10px);
+  background:var(--site-card,var(--card,#fffdf9));
+  color:var(--site-text,var(--text,#44352d));
+  font-family:var(--font-ui,inherit);
+  font-size:var(--font-size-md,14px);
+  box-sizing:border-box;
+}
+.adabiyat-hub-pills{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:var(--space-2,8px);
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding-bottom:2px;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+}
+.adabiyat-hub-pill{
+  flex:0 0 auto;
+  min-height:34px;
+  padding:0 var(--space-3,12px);
+  border:1px solid var(--button-secondary-border,var(--site-border,#e8dccb));
+  border-radius:var(--radius-pill,999px);
+  background:var(--button-secondary-bg,var(--site-card,#fffdf9));
+  color:var(--button-secondary-text,var(--site-text,#44352d));
+  font-family:var(--font-ui,inherit);
+  font-size:var(--font-size-sm,13px);
+  font-weight:var(--font-weight-medium,700);
+  cursor:pointer;
+  white-space:nowrap;
+}
+.adabiyat-hub-pill.is-selected,
+.adabiyat-hub-pill[aria-selected="true"]{
+  background:var(--button-primary-bg,var(--site-brown,#70503d));
+  border-color:var(--button-primary-bg,var(--site-brown,#70503d));
+  color:var(--button-primary-text,#fff);
+}
+.adabiyat-hub-count{
+  font-size:var(--font-size-xs,11px);
+  color:var(--site-text-soft,#806f62);
+}
+.adabiyat-hub-page .books-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:var(--space-4,16px);
+}
+@media (max-width:900px){
+  .adabiyat-hub-page .books-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3,12px)}
+}
+@media (max-width:768px){
+  .adabiyat-hub-page .adabiyat-hub-hero{padding-top:var(--space-2,8px);width:min(100% - 24px,94%)}
+  .adabiyat-hub-page .books-section{padding-bottom:24px}
+  .adabiyat-hub-search input{height:40px}
+}
+body.dark-mode .adabiyat-hub-search input,
+body.dark-mode .adabiyat-hub-pill{
+  background:var(--site-card);
+  color:var(--site-text);
+  border-color:var(--site-border);
+}
+body.dark-mode .adabiyat-hub-pill.is-selected,
+body.dark-mode .adabiyat-hub-pill[aria-selected="true"]{
+  background:var(--button-primary-bg);
+  border-color:var(--button-primary-bg);
+  color:var(--button-primary-text);
+}
+
 

@@ -96,10 +96,36 @@ let inactiveRemoteKeys=new Set();
 let C=uniqueVisibleBooks([...catalogCache.values()]);
 let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,migrated:false,error:""};
 const QUERY_DEFAULTS=Object.freeze({
-  offset:0,pageSize:24,category:"",source:"",search:"",sort:"new",
+  offset:0,pageSize:24,category:"",source:"",sources:null,search:"",sort:"new",
   minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,newOnly:false,allowZeroSales:false,
   ids:null,includeInactive:false
 });
+const ADABIYAT_HUB_SUBS=Object.freeze([
+  {sub:"",source:"",label:"ھەممىسى"},
+  {sub:"romanlar",source:"romanlar.html",label:"رومان"},
+  {sub:"tarikhiy-romanlar",source:"tarikhiy-romanlar.html",label:"تارىخىي رومان"},
+  {sub:"sheirlar",source:"sheirlar.html",label:"شېئىر"},
+  {sub:"hekayiler",source:"hekayiler.html",label:"ھېكايە"},
+  {sub:"dastanlar",source:"dastanlar.html",label:"داستان"},
+  {sub:"dunya-edebiyati",source:"dunya-edebiyati.html",label:"دۇنيا ئەدەبىياتى"}
+]);
+const ADABIYAT_HUB_SOURCES=Object.freeze(ADABIYAT_HUB_SUBS.map(item=>item.source).filter(Boolean));
+function normalizeAdabiyatSub(value){
+  const raw=String(value||"").trim().toLowerCase().replace(/\.html$/,"");
+  if(!raw||raw==="all"||raw==="hemmisi")return "";
+  return ADABIYAT_HUB_SUBS.some(item=>item.sub===raw)?raw:"";
+}
+function adabiyatListingQuery(sub){
+  const key=normalizeAdabiyatSub(sub);
+  const hit=ADABIYAT_HUB_SUBS.find(item=>item.sub===key);
+  if(hit&&hit.source)return {source:hit.source,sources:null};
+  return {source:"",sources:[...ADABIYAT_HUB_SOURCES]};
+}
+function normalizeSourceList(input){
+  const raw=input&&input.sources!=null?input.sources:"";
+  const list=Array.isArray(raw)?raw:String(raw||"").split(",");
+  return [...new Set(list.map(value=>String(value||"").trim()).filter(value=>/^[a-z0-9.-]+\.html$/i.test(value)))];
+}
 const catalogQueryState={
   search:{...QUERY_DEFAULTS},
   listing:{...QUERY_DEFAULTS},
@@ -1113,12 +1139,16 @@ function pageSize(){return window.innerWidth<=700?12:24}
 
 function normalizeQueryState(input={}){
   const requested=Number(input.pageSize);
+  const sources=normalizeSourceList(input);
+  const source=String(input.source||"").trim();
   return {
     ...QUERY_DEFAULTS,
     ...input,
     offset:Math.max(0,Number(input.offset)||0),
     pageSize:Math.max(1,Math.min(100,Number.isFinite(requested)?requested:pageSize())),
     search:cleanSearchTerm(input.search),
+    source:source||(sources.length===1?sources[0]:""),
+    sources:source?null:(sources.length>1?sources:null),
     minPrice:input.minPrice===""||input.minPrice===null||input.minPrice===undefined?null:Number(input.minPrice),
     maxPrice:input.maxPrice===""||input.maxPrice===null||input.maxPrice===undefined?null:Number(input.maxPrice),
     includeInactive:!!input.includeInactive
@@ -1130,6 +1160,10 @@ function staticQueryPage(input={}){
   let rows=STATIC_CATALOG.filter(isStorefrontVisible);
   if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id)||(book.legacyId&&ids.has(book.legacyId)))}
   if(state.source)rows=rows.filter(book=>book.source===state.source);
+  else if(state.sources&&state.sources.length){
+    const allowed=new Set(state.sources);
+    rows=rows.filter(book=>allowed.has(book.source));
+  }
   if(state.category)rows=rows.filter(book=>book.category===state.category);
   if(q)rows=rows.filter(book=>{
     const hay=bibliographicLib().staticSearchHaystack
@@ -1172,6 +1206,7 @@ function remoteBooksUrl(input={}){
     else params.set("id","eq.-1");
   }
   if(state.source)params.set("source",`eq.${state.source}`);
+  else if(state.sources&&state.sources.length)params.set("source",`in.(${state.sources.map(quotePostgrestValue).join(",")})`);
   if(state.category)params.set("category",`eq.${state.category}`);
   if(Number.isFinite(state.minPrice))params.set("price",`gte.${state.minPrice}`);
   if(Number.isFinite(state.maxPrice))params.append("price",`lte.${state.maxPrice}`);
@@ -2753,12 +2788,25 @@ function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loadin
 function setupCatalogFilters(){
   let grid=document.querySelector(".books-grid[data-catalog-source]");
   if(!grid||document.querySelector("#catalogFilterBar"))return;
-  const source=grid.dataset.catalogSource;
+  const isAdabiyatHub=grid.hasAttribute("data-adabiyat-hub");
+  const defaultSource=grid.dataset.catalogSource||"";
+  const hubSources=isAdabiyatHub
+    ?(String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(Boolean).length
+      ?String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(value=>/^[a-z0-9.-]+\.html$/i.test(value))
+      :[...ADABIYAT_HUB_SOURCES])
+    :[];
 
   let bar=document.createElement("div");
   bar.id="catalogFilterBar";
-  bar.className="catalog-filter-bar";
-  bar.innerHTML=`
+  if(isAdabiyatHub){
+    bar.className="adabiyat-hub-toolbar";
+    bar.innerHTML=`
+      <div class="adabiyat-hub-search"><label class="kutadgu-header-search-label" for="catalogFilterText">بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
+      <div class="adabiyat-hub-pills" role="tablist" aria-label="ئەدەبىيات تارماقلىرى">${ADABIYAT_HUB_SUBS.map(item=>`<button type="button" class="adabiyat-hub-pill" role="tab" data-adabiyat-sub="${escapeAttr(item.sub)}" aria-selected="false">${escapeHtml(item.label)}</button>`).join("")}</div>
+      <div class="adabiyat-hub-count" id="catalogFilterCount"></div>`;
+  }else{
+    bar.className="catalog-filter-bar";
+    bar.innerHTML=`
     <div class="catalog-filter-search"><label for="catalogFilterText">🔎 بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
     <div class="catalog-filter-field"><label for="catalogCollection">تاللانما</label><select id="catalogCollection"><option value="">بارلىق كىتابلار</option><option value="new">يېڭى كەلگەنلەر</option><option value="bestseller">كۆپ سېتىلغانلار</option><option value="recommended">تەۋسىيەلىك</option></select></div>
     <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
@@ -2766,6 +2814,7 @@ function setupCatalogFilters(){
     <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort"><option value="new">يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
     <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
+  }
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
   const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
@@ -2775,13 +2824,52 @@ function setupCatalogFilters(){
   }
 
   let text=bar.querySelector("#catalogFilterText"),collection=bar.querySelector("#catalogCollection"),minEl=bar.querySelector("#catalogMinPrice"),maxEl=bar.querySelector("#catalogMaxPrice"),sortEl=bar.querySelector("#catalogSort"),count=bar.querySelector("#catalogFilterCount"),reset=bar.querySelector("#catalogFilterReset");
-  let inputTimer,controller=null,requestId=0,items=[],loadingMore=false;
+  let inputTimer,controller=null,requestId=0,items=[],loadingMore=false,hubSub="";
+  function readHubSubFromUrl(){
+    try{return normalizeAdabiyatSub(new URLSearchParams(location.search).get("sub"))}catch(err){return ""}
+  }
+  function readHubSearchFromUrl(){
+    try{return cleanSearchTerm(new URLSearchParams(location.search).get("q"))}catch(err){return ""}
+  }
+  function writeHubUrl(sub,query,mode){
+    if(!isAdabiyatHub)return;
+    try{
+      const url=new URL(location.href);
+      if(sub)url.searchParams.set("sub",sub);else url.searchParams.delete("sub");
+      if(query)url.searchParams.set("q",query);else url.searchParams.delete("q");
+      const next=url.pathname+url.search+url.hash;
+      const current=location.pathname+location.search+location.hash;
+      if(next===current)return;
+      if(mode==="push")history.pushState({adabiyatHub:true,sub,q:query},"",next);
+      else history.replaceState({adabiyatHub:true,sub,q:query},"",next);
+    }catch(err){}
+  }
+  function syncHubChrome(){
+    if(!isAdabiyatHub)return;
+    hubSub=readHubSubFromUrl();
+    bar.querySelectorAll("[data-adabiyat-sub]").forEach(button=>{
+      const on=button.dataset.adabiyatSub===hubSub;
+      button.classList.toggle("is-selected",on);
+      button.setAttribute("aria-selected",on?"true":"false");
+    });
+    const hit=ADABIYAT_HUB_SUBS.find(item=>item.sub===hubSub);
+    const kicker=document.querySelector("[data-adabiyat-heading]");
+    if(kicker)kicker.textContent=hit&&hit.sub?hit.label:"بارلىق ئەدەبىيات";
+  }
+  function listingSourceFields(){
+    if(!isAdabiyatHub)return {source:defaultSource,sources:null};
+    const mapped=adabiyatListingQuery(hubSub);
+    if(mapped.sources&&hubSources.length)return {source:"",sources:hubSources};
+    return mapped;
+  }
   function readState(offset=0){
-    const collectionMode=collection.value||"";
+    const collectionMode=collection&&collection.value||"";
+    const sourceFields=listingSourceFields();
     catalogQueryState.listing={
       ...QUERY_DEFAULTS,
-      offset,pageSize:pageSize(),source,search:text.value.trim(),sort:collectionMode==="new"?"new":sortEl.value||"new",
-      minPrice:minEl.value,maxPrice:maxEl.value,
+      offset,pageSize:pageSize(),source:sourceFields.source||"",sources:sourceFields.sources||null,
+      search:text.value.trim(),sort:collectionMode==="new"?"new":(sortEl&&sortEl.value)||"new",
+      minPrice:minEl?minEl.value:"",maxPrice:maxEl?maxEl.value:"",
       newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
     };
     return catalogQueryState.listing;
@@ -2799,12 +2887,12 @@ function setupCatalogFilters(){
     controls.innerHTML=result.hasMore?`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${result.pageSize} دانە</button>`:"";
     controls.querySelector(".catalog-load-more")?.addEventListener("click",()=>apply(true));
     empty.innerHTML=emptyMarkup;
-    empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>reset.click());
+    empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click();else{text.value="";hubSub="";writeHubUrl("","","replace");syncHubChrome();apply(false)}});
     empty.hidden=result.total!==0;
     grid.hidden=result.total===0;
     controls.hidden=result.total===0;
     if(!append){
-      trackEvent("filter_apply",{source,results:result.total,rendered:items.length});
+      trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:result.total,rendered:items.length});
       trackSearchQuery(text.value,result.total);
     }
   }
@@ -2841,11 +2929,42 @@ function setupCatalogFilters(){
       }
     }finally{if(token===requestId)loadingMore=false}
   }
-  const debouncedApply=()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>apply(false),400)};
-  [text,minEl,maxEl].forEach(el=>el.addEventListener("input",debouncedApply));
-  [sortEl,collection].forEach(el=>el.addEventListener("change",()=>apply(false)));
-  reset.onclick=()=>{text.value="";collection.value="";minEl.value="";maxEl.value="";sortEl.value="new";apply(false)};
-  empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>reset.click());
+  const debouncedApply=()=>{
+    clearTimeout(inputTimer);
+    inputTimer=setTimeout(()=>{
+      if(isAdabiyatHub)writeHubUrl(hubSub,text.value.trim(),"replace");
+      apply(false);
+    },400);
+  };
+  [text,minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedApply));
+  text&&text.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);if(isAdabiyatHub)writeHubUrl(hubSub,text.value.trim(),"replace");apply(false)}});
+  [sortEl,collection].forEach(el=>el&&el.addEventListener("change",()=>apply(false)));
+  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";apply(false)};
+  empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click()});
+  if(isAdabiyatHub){
+    hubSub=readHubSubFromUrl();
+    const urlSearch=readHubSearchFromUrl();
+    if(urlSearch)text.value=urlSearch;
+    writeHubUrl(hubSub,text.value.trim(),"replace");
+    syncHubChrome();
+    bar.querySelectorAll("[data-adabiyat-sub]").forEach(button=>{
+      button.addEventListener("click",()=>{
+        const next=normalizeAdabiyatSub(button.dataset.adabiyatSub);
+        if(next===hubSub)return;
+        hubSub=next;
+        writeHubUrl(hubSub,text.value.trim(),"push");
+        syncHubChrome();
+        apply(false);
+      });
+    });
+    window.addEventListener("popstate",()=>{
+      hubSub=readHubSubFromUrl();
+      const q=readHubSearchFromUrl();
+      if(text.value!==q)text.value=q;
+      syncHubChrome();
+      apply(false);
+    });
+  }
   apply(false);
 }
 
@@ -4098,5 +4217,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast};
+window.kutadguShop={updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery};
 })();

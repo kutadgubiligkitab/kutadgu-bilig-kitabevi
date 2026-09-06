@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="ug" dir="rtl">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>ئەدەبىيات - قۇتادغۇبىلىك كىتابخانىسى</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ئەدەبىيات - قۇتادغۇبىلىك كىتابخانىسى</title>
 <meta name="description" content="قۇتادغۇبىلىك كىتابخانىسىدىكى ئەدەبىي ئەسەر، رومان ۋە ھېكايە كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.">
 <link rel="canonical" href="https://www.kutadgubilik.com/adabiyat">
 <meta property="og:site_name" content="قۇتادغۇبىلىك كىتابخانىسى">
@@ -24,415 +22,96 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"CollectionPage","name":"ئەدەبىيات","description":"قۇتادغۇبىلىك كىتابخانىسىدىكى ئەدەبىي ئەسەر، رومان ۋە ھېكايە كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.","url":"https://www.kutadgubilik.com/adabiyat","isPartOf":{"@type":"WebSite","name":"قۇتادغۇبىلىك كىتابخانىسى","url":"https://www.kutadgubilik.com/"},"inLanguage":"ug"}
 </script>
-
-
-    <style>
-        @font-face {
-            font-family: "UKIJ CJK";
-            src: url("UKIJCJK.woff2") format("woff2"), url("UKIJCJK.ttf") format("truetype");
-            font-weight: normal;
-            font-style: normal;
-            font-display: swap;
-        }
-
-        :root {
-            --cream: #f6f0e5;
-            --brown-dark: #4b3327;
-            --brown: #70503d;
-            --text: #44352d;
-            --text-light: #806f62;
-            --white-warm: #fffdf9;
-            --border: #e8dccb;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: "UKIJ CJK", sans-serif;
-            background: var(--cream);
-            color: var(--text);
-            line-height: 1.8;
-        }
-
-        .hero {
-            text-align: center;
-            padding: 55px 20px 35px;
-        }
-
-        .hero h1 {
-            font-size: 42px;
-            margin-bottom: 12px;
-            font-weight: 700;
-            color: var(--brown-dark);
-        }
-
-        .hero p {
-            color: var(--text-light);
-            font-size: 16px;
-        }
-
-        .back-area {
-            text-align: center;
-            margin-bottom: 55px;
-        }
-
-        .back-button {
-            display: inline-block;
-            background: var(--brown-dark);
-            color: white;
-            text-decoration: none;
-            padding: 12px 28px;
-            border-radius: 7px;
-            font-size: 15px;
-            transition: 0.25s;
-            box-shadow: 0 3px 10px rgba(75, 51, 39, 0.12);
-        }
-
-        .back-button:hover {
-            background: var(--brown);
-            transform: translateY(-2px);
-        }
-
-        .books-section {
-            width: 90%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding-bottom: 90px;
-        }
-
-        .section-title {
-            text-align: center;
-            font-size: 30px;
-            margin-bottom: 40px;
-            color: var(--brown-dark);
-        }
-
-        .books-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-        }
-
-        .book-card {
-            background: var(--white-warm);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 28px 24px;
-            text-align: center;
-            box-shadow: 0 5px 20px rgba(75, 51, 39, 0.06);
-            transition: 0.25s;
-            min-height: 250px;
-
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .book-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 28px rgba(75, 51, 39, 0.12);
-            border-color: #e2c98d;
-        }
-
-        .book-icon {
-            font-size: 50px;
-            margin-bottom: 18px;
-        }
-
-        .book-card h3 {
-            font-size: 21px;
-            margin-bottom: 10px;
-            color: var(--brown-dark);
-        }
-
-        .book-card p {
-            color: var(--text-light);
-            font-size: 14px;
-            max-width: 300px;
-        }
-
-        .book-button {
-            display: inline-block;
-            margin-top: 18px;
-            padding: 8px 20px;
-            border-radius: 6px;
-            background: var(--brown);
-            color: white;
-            text-decoration: none;
-            font-size: 14px;
-            transition: 0.2s;
-            box-shadow: 0 2px 7px rgba(75, 51, 39, 0.10);
-        }
-
-        .book-button:hover {
-            background: var(--brown-dark);
-        }
-
-        .info-section {
-            background: var(--cream);
-            color: var(--text);
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .info-section h2 {
-            font-size: 25px;
-            margin-bottom: 15px;
-            color: var(--text);
-        }
-
-        .info-section p {
-            color: var(--text-light);
-            max-width: 750px;
-            margin: auto;
-            font-size: 15px;
-        }
-
-        footer {
-            background: #39261d;
-            color: #d8c8b8;
-            text-align: center;
-            padding: 20px;
-            font-size: 13px;
-        }
-
-        @media (max-width: 900px) {
-            .books-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .hero h1 {
-                font-size: 34px;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .hero {
-                padding-top: 45px;
-            }
-
-            .hero h1 {
-                font-size: 30px;
-            }
-
-            .books-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .books-section {
-                width: 92%;
-            }
-        }
-    </style>
-    <link rel="stylesheet" href="theme.css?v=9">
+<link rel="stylesheet" href="theme.css?v=9">
 <link rel="stylesheet" href="shop.css?v=54">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
-  <link rel="stylesheet" href="mobile.css?v=24">
+<link rel="stylesheet" href="mobile.css?v=24">
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
+  background: #eee9e1 !important;
+  overflow: hidden !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+</style>
 </head>
-
-<body>
-
-    <section class="hero">
-
-        <h1>ئەدەبىيات</h1>
-
-        <p>
-            قۇتادغۇبىلىك كىتابخانىسىدىكى ئەدەبىيات كىتابلىرى
-        </p>
-
-    </section>
-
-
-    <div class="back-area">
-
-        <a href="index.html" class="back-button">
-            ← باش بەتكە قايتىش
-        </a>
-
-    </div>
-
-
-    <section class="books-section">
-
-        <h2 class="section-title">
-            ئەدەبىيات كىتابلىرى
-        </h2>
-
-
-        <div class="books-grid">
-
-
-            <!-- 1. رومان -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    📘
-                </div>
-
-                <h3>
-                    رومان
-                </h3>
-
-                <p>
-                    ھەر خىل رومان ۋە ئەدەبىي رومانلار.
-                </p>
-
-                <a href="/romanlar" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-            <!-- 2. تارىخىي رومان -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    📕
-                </div>
-
-                <h3>
-                    تارىخىي رومان
-                </h3>
-
-                <p>
-                    تارىخىي ۋەقەلەرنى ئاساس قىلغان رومانلار.
-                </p>
-
-                <a href="/tarikhiy-romanlar" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-            <!-- 3. شېئىرلار -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    📜
-                </div>
-
-                <h3>
-                    شېئىرلار
-                </h3>
-
-                <p>
-                    تاللانغان شېئىرلار ۋە شېئىر توپلاملىرى.
-                </p>
-
-                <a href="/sheirlar" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-            <!-- 4. ھېكايىلەر -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    📖
-                </div>
-
-                <h3>
-                    ھېكايىلەر
-                </h3>
-
-                <p>
-                    قىسقا ھېكايە ۋە ھەر خىل ئەدەبىي ھېكايىلەر.
-                </p>
-
-                <a href="/hekayiler" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-            <!-- 5. داستانلار -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    📗
-                </div>
-
-                <h3>
-                    داستانلار
-                </h3>
-
-                <p>
-                    داستان ۋە ئۇزۇن ئەدەبىي ئەسەرلەر.
-                </p>
-
-                <a href="/dastanlar" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-            <!-- 6. دۇنيا ئەدەبىياتى -->
-
-            <div class="book-card">
-
-                <div class="book-icon">
-                    🌍
-                </div>
-
-                <h3>
-                    دۇنيا ئەدەبىياتى
-                </h3>
-
-                <p>
-                    دۇنياۋى مەشھۇر ئەسەرلەر ۋە تەرجىمە كىتابلار.
-                </p>
-
-                <a href="/dunya-edebiyati" class="book-button">
-                    تەپسىلات
-                </a>
-
-            </div>
-
-
-        </div>
-
-    </section>
-
-
-    <section class="info-section">
-
-        <h2>
-            قۇتادغۇبىلىك كىتابخانىسى
-        </h2>
-
-        <p>
-            ئوقۇرمەنلەرگە سۈپەتلىك كىتابلارنى تەمىنلەش ۋە
-            كىتاب ئوقۇش مەدەنىيىتىنى تەرەققىي قىلدۇرۇش بىزنىڭ مەقسىتىمىز.
-        </p>
-
-    </section>
-
-
-    <footer>
-
-        © 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
-
-    </footer>
-
-    <script defer src="theme.js?v=5"></script>
+<body class="adabiyat-hub-page">
+<section class="adabiyat-hub-hero">
+<h1>ئەدەبىيات</h1>
+<p class="adabiyat-hub-kicker" data-adabiyat-heading>بارلىق ئەدەبىيات</p>
+</section>
+<section class="books-section">
+<div class="books-grid" data-catalog-source="adabiyat.html" data-adabiyat-hub="1" data-catalog-sources="romanlar.html,tarikhiy-romanlar.html,sheirlar.html,hekayiler.html,dastanlar.html,dunya-edebiyati.html" aria-busy="true">
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+</div>
+</section>
+<footer>
+© 2026 قۇتادغۇبىلىك كىتابخانىسى — بارلىق ھوقۇقلار قوغدىلىدۇ.
+</footer>
+<script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=11"></script><script defer src="catalog.js?v=1"></script><script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script><script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=1"></script><script defer src="shop.js?v=115"></script>
-  <script defer src="mobile.js?v=7"></script>
+<script defer src="mobile.js?v=7"></script>
 </body>
-
 </html>
