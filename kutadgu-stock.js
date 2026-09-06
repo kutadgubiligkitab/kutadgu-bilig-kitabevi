@@ -86,7 +86,28 @@ function normalizeStockStatusText(value){
   return String(value??"").replace(/\s+/g," ").trim().toLowerCase();
 }
 
-function storefrontStockInfo(book){
+const PHASE1_STOREFRONT_STOCK={key:"unknown",label:"",canBuy:true,qty:null};
+
+function readGlobal(name){
+  try{
+    if(typeof window!=="undefined"&&window[name]!==undefined)return window[name];
+  }catch(e){}
+  try{
+    if(typeof globalThis!=="undefined"&&globalThis[name]!==undefined)return globalThis[name];
+  }catch(e){}
+  return undefined;
+}
+
+function isStockEnforcementEnabled(opts){
+  if(opts&&typeof opts.stockEnforcement==="boolean")return opts.stockEnforcement===true;
+  if(opts&&typeof opts.enforcement==="boolean")return opts.enforcement===true;
+  if(readGlobal("KUTADGU_STOCK_ENFORCEMENT")===true)return true;
+  const cfg=readGlobal("KUTADGU_APP_CONFIG")||{};
+  const flags=cfg.featureFlags||{};
+  return flags.stockEnforcement===true||cfg.stockEnforcement===true;
+}
+
+function enforcedStorefrontStockInfo(book){
   const parsed=parseStockQuantity(book&&book.stock);
   if(parsed.ok&&parsed.configured){
     const derived=deriveStockStatus(parsed.value);
@@ -110,11 +131,17 @@ function storefrontStockInfo(book){
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
 
+function storefrontStockInfo(book,opts){
+  if(!isStockEnforcementEnabled(opts))return Object.assign({},PHASE1_STOREFRONT_STOCK);
+  return enforcedStorefrontStockInfo(book);
+}
+
 const api={
   LOW_STOCK_THRESHOLD,
   STATUS,
   LABELS,
   STOREFRONT_KEYS,
+  PHASE1_STOREFRONT_STOCK,
   parseStockQuantity,
   parseAdminStock,
   isBlankStock,
@@ -123,6 +150,7 @@ const api={
   formatStockInputValue,
   countUnconfiguredActiveBooks,
   unconfiguredStockLabel,
+  isStockEnforcementEnabled,
   storefrontStockInfo
 };
 if(typeof module!=="undefined"&&module.exports)module.exports=api;

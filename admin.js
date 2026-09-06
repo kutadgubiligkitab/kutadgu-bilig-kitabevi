@@ -421,7 +421,12 @@ function writeBookRow(row,opts={}){
     if(opts.mode==="update"&&(key==="id"||key==="created_at"||key==="legacy_id"||key==="updated_at"))return;
     out[key]=row[key];
   });
-  if(opts.mode==="update"&&Write.stripIdentityFields)return Write.stripIdentityFields(out);
+  delete out.stock_status;
+  if(opts.mode==="update"&&Write.stripIdentityFields){
+    const stripped=Write.stripIdentityFields(out);
+    delete stripped.stock_status;
+    return stripped;
+  }
   return out;
 }
 function generatedIdError(error){
@@ -527,7 +532,7 @@ function mapImportRow(raw){
   const translator=String(headerAlias(raw,["translator","تەرجىمان","تەرجىمانى"])).trim();
   const language=String(headerAlias(raw,["language"])).trim();
   const publishYearRaw=String(headerAlias(raw,["publish_year","year","نەشر_يىلى"])).trim();
-  const stockStatus=String(headerAlias(raw,["stock_status"])).trim();
+  const ignoredStockStatus=String(headerAlias(raw,["stock_status"])).trim();
   const sourceRaw=String(headerAlias(raw,["source","category_source"])).trim();
   const categoryRaw=String(headerAlias(raw,["category","تۈر"])).trim();
   const errors=[],warnings=[];
@@ -556,13 +561,7 @@ function mapImportRow(raw){
   const sizeMap=mapCanonicalImportField(raw,OPTIONAL_COL_ALIASES.book_size,Bib.normalizeBookSize,"book_size");
   if(coverMap.warning)warnings.push(coverMap.warning);
   if(sizeMap.warning)warnings.push(sizeMap.warning);
-  const allowedStock=["","in_stock","low_stock","out_of_stock","in","low","out"];
-  if(stockStatus&&!allowedStock.includes(stockStatus))errors.push("stock_status ئىناۋەتسىز");
-  let stock_status=stockStatus;
-  if(stock_status==="in")stock_status="in_stock";
-  if(stock_status==="low")stock_status="low_stock";
-  if(stock_status==="out")stock_status="out_of_stock";
-  if(!stock_status)stock_status="";
+  if(ignoredStockStatus)warnings.push("stock_status ئىمپورت قىلىنمايدۇ؛ ئامبار ھالىتى پەقەت stock دىن ھاسىل قىلىنىدۇ");
   if(headerAlias(raw,["is_bestseller","bestseller"]))warnings.push("is_bestseller ئىمپورت قىلىنمايدۇ؛ كۆپ سېتىلغان sales_count بويىچە ئاپتوماتىك");
   const suppliedId=String(headerAlias(raw,["id","book_id"])).trim();
   if(suppliedId)warnings.push("id ستونى ئىمپورت قىلىنمايدۇ؛ Database identity id ھاسىل قىلىدۇ");
@@ -593,7 +592,6 @@ function mapImportRow(raw){
     is_recommended:rec.empty?false:rec.value,
     is_new:neu.empty?false:neu.value,
     is_active:act.empty?true:act.value,
-    stock_status,
     legacy_id,
     errors,
     warnings,
@@ -3777,9 +3775,6 @@ function updateBulkValueUi(){
   if(action==="category"){
     sel.hidden=false;
     sel.innerHTML=categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
-  }else if(action==="stock_status"){
-    sel.hidden=false;
-    sel.innerHTML='<option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option>';
   }else if(action==="stock"){
     inp.hidden=false;inp.type="text";inp.removeAttribute("min");inp.removeAttribute("step");inp.setAttribute("inputmode","numeric");inp.placeholder="ئامبار سانى";
   }else if(action==="publisher"){

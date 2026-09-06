@@ -79,6 +79,9 @@ test("bulk patch allows only verified fields",()=>{
   assert.strictEqual(cat.patch.source,"dini.html");
   const bad=P.buildBulkPatch("title",{title:"x"},{presentBookCols:new Set()});
   assert.strictEqual(bad.ok,false);
+  const status=P.buildBulkPatch("stock_status",{stock_status:"out_of_stock"},{presentBookCols:new Set(["stock_status"]),stockStatusSupported:true});
+  assert.strictEqual(status.ok,false);
+  assert.strictEqual("patch" in status,false);
 });
 
 test("bulk confirm text states count field and value",()=>{

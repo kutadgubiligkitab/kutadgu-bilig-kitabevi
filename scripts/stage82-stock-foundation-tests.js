@@ -22,8 +22,11 @@ const shop=read("shop.js");
 const cfg=read("supabase-config.js");
 const prodJs=read("admin-catalog-productivity.js");
 const helper=read("kutadgu-stock.js");
+const appCfg=read("app-config.js");
 const stage80=read("STAGE80_MEMBER_ORDER_INTEGRITY.sql");
 const stage2c=read("STAGE2C_AAL2_BOOKS_WRITE_RLS.sql");
+const indexHtml=read("index.html");
+const bookHtml=read("book.html");
 
 test("stock NULL remains NULL and is not coerced to 0",()=>{
   assert.deepStrictEqual(Stock.parseAdminStock(null),{ok:true,value:null,configured:false});
@@ -36,35 +39,75 @@ test("stock NULL remains NULL and is not coerced to 0",()=>{
   assert.strictEqual(Stock.isUnconfiguredStock(0),false);
 });
 
-test("stock 0 derives out_of_stock",()=>{
+test("stock 0 derives out_of_stock in Admin",()=>{
   const derived=Stock.deriveStockStatus(0);
   assert.strictEqual(derived.ok,true);
   assert.strictEqual(derived.key,"out_of_stock");
   assert.strictEqual(derived.label,"تۈگەپ كەتتى");
   assert.strictEqual(derived.qty,0);
-  assert.strictEqual(Stock.storefrontStockInfo({stock:0}).canBuy,false);
-  assert.strictEqual(Stock.storefrontStockInfo({stock:0}).key,"out");
 });
 
-test("stock 1,2,3 derive low_stock",()=>{
+test("stock 1,2,3 derive low_stock in Admin",()=>{
   assert.strictEqual(Stock.LOW_STOCK_THRESHOLD,3);
   [1,2,3].forEach(qty=>{
     const derived=Stock.deriveStockStatus(qty);
     assert.strictEqual(derived.key,"low_stock",String(qty));
     assert.strictEqual(derived.label,"ئاز قالدى");
-    assert.strictEqual(Stock.storefrontStockInfo({stock:qty}).canBuy,true);
-    assert.strictEqual(Stock.storefrontStockInfo({stock:qty}).key,"low");
   });
 });
 
-test("stock 4+ derives in_stock",()=>{
+test("stock 4+ derives in_stock in Admin",()=>{
   [4,5,12,100].forEach(qty=>{
     const derived=Stock.deriveStockStatus(qty);
     assert.strictEqual(derived.key,"in_stock",String(qty));
     assert.strictEqual(derived.label,"ئامباردا بار");
-    assert.strictEqual(Stock.storefrontStockInfo({stock:qty}).canBuy,true);
-    assert.strictEqual(Stock.storefrontStockInfo({stock:qty}).key,"in");
   });
+});
+
+test("Phase 1 enforcement is OFF by default in production config",()=>{
+  assert.strictEqual(Stock.isStockEnforcementEnabled(),false);
+  assert.strictEqual(Stock.isStockEnforcementEnabled({}),false);
+  assert.strictEqual(Stock.isStockEnforcementEnabled({stockEnforcement:false}),false);
+  assert.match(cfg,/KUTADGU_STOCK_ENFORCEMENT = false/);
+  assert.doesNotMatch(cfg,/KUTADGU_STOCK_ENFORCEMENT\s*=\s*true/);
+  assert.match(appCfg,/stockEnforcement:false/);
+  assert.doesNotMatch(appCfg,/stockEnforcement:true/);
+  assert.match(shop,/function isStockEnforcementEnabled\(\)\{/);
+  assert.match(shop,/if\(!isStockEnforcementEnabled\(\)\)return \{key:"unknown",label:"",canBuy:true,qty:null\}/);
+});
+
+test("enforcement OFF + stock NULL/0/1/3/4 all remain buyable with no qty cap or badge",()=>{
+  [null,0,1,3,4].forEach(qty=>{
+    const info=Stock.storefrontStockInfo({stock:qty,is_active:true});
+    assert.strictEqual(info.canBuy,true,String(qty));
+    assert.strictEqual(info.qty,null,String(qty));
+    assert.strictEqual(info.key,"unknown",String(qty));
+    assert.strictEqual(info.label,"",String(qty));
+  });
+  const low=Stock.storefrontStockInfo({stock:1});
+  const three=Stock.storefrontStockInfo({stock:3});
+  assert.strictEqual(Number.isFinite(low.qty),false);
+  assert.strictEqual(Number.isFinite(three.qty),false);
+});
+
+test("Phase 2-style enforcement is testable only behind stockEnforcement:true",()=>{
+  const on={stockEnforcement:true};
+  assert.strictEqual(Stock.isStockEnforcementEnabled(on),true);
+  const zero=Stock.storefrontStockInfo({stock:0},on);
+  assert.strictEqual(zero.canBuy,false);
+  assert.strictEqual(zero.key,"out");
+  assert.strictEqual(zero.qty,0);
+  const one=Stock.storefrontStockInfo({stock:1},on);
+  assert.strictEqual(one.canBuy,true);
+  assert.strictEqual(one.key,"low");
+  assert.strictEqual(one.qty,1);
+  const three=Stock.storefrontStockInfo({stock:3},on);
+  assert.strictEqual(three.key,"low");
+  assert.strictEqual(three.qty,3);
+  const four=Stock.storefrontStockInfo({stock:4},on);
+  assert.strictEqual(four.key,"in");
+  assert.strictEqual(four.canBuy,true);
+  assert.strictEqual(Stock.storefrontStockInfo({stock:null},on).canBuy,true);
 });
 
 test("negative stock is rejected",()=>{
@@ -111,7 +154,7 @@ test("Admin exposes stock controls only through presentBookCols / live detect",(
   assert.doesNotMatch(adminHtml,/id="bookStock"[^>]*pattern=/);
   assert.match(adminHtml,/id="bookStockDerivedStatus"/);
   assert.match(adminHtml,/id="adminUnconfiguredStock"/);
-  assert.match(adminHtml,/kutadgu-stock\.js\?v=1/);
+  assert.match(adminHtml,/kutadgu-stock\.js\?v=2/);
   assert.match(adminJs,/if\(presentBookCols\.has\("stock"\)\)row\.stock=stockValue/);
   assert.match(adminJs,/setStockInputValue\(\$\("#bookStock"\),b\.stock\)/);
   assert.doesNotMatch(adminJs,/\$\("#bookStock"\)\.value=b\.stock\?\?0/);
@@ -144,14 +187,23 @@ test("static/demo production safety still fails closed in shop.js",()=>{
   assert.match(shop,/KUTADGU_REQUIRE_REMOTE_PRODUCT_AUTHORITY/);
 });
 
-test("unconfigured storefront stock stays sellable; configured 0 is out",()=>{
-  const unknown=Stock.storefrontStockInfo({stock:null,stockStatus:""});
-  assert.strictEqual(unknown.key,"unknown");
-  assert.strictEqual(unknown.canBuy,true);
-  assert.strictEqual(unknown.qty,null);
+test("shop.js Phase 1 gate does not disable Add to Cart from stock and still protects inactive/remote books",()=>{
+  assert.match(shop,/function cartButton\(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"\)\{/);
+  assert.match(shop,/if\(!isStorefrontVisible\(book\)\)\{/);
+  assert.match(shop,/disabled=s\.canBuy\?"":" disabled aria-disabled=/);
+  const add=shop.slice(shop.indexOf("function add(id,qty=1){"),shop.indexOf("function remove(id){"));
+  assert.match(add,/if\(!isStorefrontVisible\(b\)\)\{toast\("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ"\)/);
+  assert.match(add,/const stock=stockInfo\(b\);if\(!stock\.canBuy\)\{toast\("بۇ كىتاب ھازىر تۈگەپ كەتكەن"\)/);
+  assert.match(shop,/function requiresRemoteProductAuthority\(\)\{/);
+  assert.match(shop,/KUTADGU_REQUIRE_REMOTE_PRODUCT_AUTHORITY/);
   assert.match(shop,/qty<=3/);
   assert.doesNotMatch(shop,/qty<=5/);
-  assert.match(shop,/key:"unknown",label:"",canBuy:true,qty:null/);
+});
+
+test("shop.js cache pins were bumped with the Phase 1 gate",()=>{
+  assert.match(indexHtml,/shop\.js\?v=108/);
+  assert.match(bookHtml,/shop\.js\?v=107/);
+  assert.match(shop,/app-config\.js\?v=3/);
 });
 
 test("migration adds nullable integer stock with no backfill",()=>{
@@ -172,6 +224,7 @@ test("migration adds nullable integer stock with no backfill",()=>{
   assert.doesNotMatch(apply,/stock integer NOT NULL/i);
   assert.match(setup,/add column if not exists stock integer/i);
   assert.match(setup,/books_stock_nonnegative_chk/);
+  assert.doesNotMatch(setup,/stock_status/);
 });
 
 test("post-check SQL is documented and read-only",()=>{
@@ -190,7 +243,14 @@ test("derived status is the source of truth; stock_status is not persisted",()=>
   assert.match(helper,/LOW_STOCK_THRESHOLD=3/);
   assert.match(prodJs,/parseAdminStock/);
   assert.doesNotMatch(prodJs,/patch\.stock_status=String\(input&&input\.stock_status\|\|"in_stock"\)/);
+  assert.match(prodJs,/ئامبار ھالىتى ساقلىمايدۇ/);
+  const bulkStatus=Prod.buildBulkPatch("stock_status",{stock_status:"out_of_stock"},{presentBookCols:new Set(["stock_status"]),stockStatusSupported:true});
+  assert.strictEqual(bulkStatus.ok,false);
+  assert.strictEqual("patch" in bulkStatus,false);
   assert.match(adminJs,/document\.querySelectorAll\("\[data-book-col='stock_status'\]"\)/);
+  assert.match(adminJs,/delete out\.stock_status/);
+  assert.match(adminJs,/stock_status ئىمپورت قىلىنمايدۇ/);
+  assert.doesNotMatch(adminJs,/is_active:act\.empty\?true:act\.value,\s*stock_status,/);
   assert.match(adminHtml,/id="bookStockStatus"[^>]*disabled/);
   assert.match(adminHtml,/ئامبار سانى تەڭشەلمىگەن/);
 });

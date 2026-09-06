@@ -43,7 +43,6 @@ create table if not exists public.books (
   dimensions text not null default '',
   description text not null default '',
   stock integer check (stock is null or stock >= 0),
-  stock_status text not null default '',
   is_active boolean not null default true,
   is_new boolean not null default true,
   is_featured boolean not null default false,
@@ -91,11 +90,9 @@ alter table public.books drop constraint if exists books_stock_nonnegative_chk;
 alter table public.books
   add constraint books_stock_nonnegative_chk
   check (stock is null or stock >= 0);
-alter table public.books add column if not exists stock_status text not null default 'in_stock';
 alter table public.books add column if not exists is_bestseller boolean not null default false;
 alter table public.books add column if not exists is_featured boolean not null default false;
 alter table public.books add column if not exists sales_count integer not null default 0;
-alter table public.books alter column stock_status set default '';
 -- Optional static-catalog slug. Canonical identity remains books.id (bigint).
 -- Do not ALTER or rewrite books.id. Production already has this column.
 alter table public.books add column if not exists legacy_id text;

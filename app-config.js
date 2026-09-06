@@ -30,7 +30,9 @@
       dailyRecommendation:false,
       autoCarousel:true,
       analyticsHooks:true,
-      ...(current.featureFlags||{})
+      ...(current.featureFlags||{}),
+      /* Phase 1: collect Admin quantities only. Phase 2 turns this on with order accounting. */
+      stockEnforcement:false
     },
     carousel:{
       desktopCardsPerRow:4,

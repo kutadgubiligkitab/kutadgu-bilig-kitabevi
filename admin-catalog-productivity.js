@@ -236,9 +236,7 @@ function buildBulkPatch(action,values,opts={}){
     patch={source,category:String(values.category||source)};
     valueLabel=patch.category;
   }else if(act==="stock_status"){
-    if(!present.has("stock_status")&&opts.stockStatusSupported!==true)return {ok:false,error:"stock_status يوق"};
-    patch={stock_status:String(values&&values.stock_status||"")};
-    valueLabel=patch.stock_status;
+    return {ok:false,error:"ئامبار ھالىتى ساقلىمايدۇ؛ پەقەت ئامبار سانىدىن ھاسىل قىلىنىدۇ."};
   }else if(act==="stock"){
     if(!present.has("stock")&&opts.stockSupported!==true)return {ok:false,error:"stock يوق"};
     const parsed=Stock.parseAdminStock?Stock.parseAdminStock(values&&values.stock):null;

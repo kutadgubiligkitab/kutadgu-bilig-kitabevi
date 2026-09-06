@@ -18,6 +18,9 @@
 -- Existing production rows MUST remain stock IS NULL after this migration.
 -- Do NOT default existing books to 0, 1, 10, or any inferred quantity.
 -- Do NOT persist stock_status. Status is derived from stock in application code.
+-- Storefront buy/cart/WhatsApp behavior is unchanged in Phase 1.
+-- Application feature gate KUTADGU_STOCK_ENFORCEMENT / stockEnforcement stays false
+-- until a separate Phase 2 PR adds confirmed-order accounting and storefront enforcement.
 --
 -- After apply:
 --   books.stock exists, is integer, is nullable, has no default.
