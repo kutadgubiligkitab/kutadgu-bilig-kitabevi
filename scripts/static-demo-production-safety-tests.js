@@ -108,10 +108,10 @@ test("static fixture detail HTML first paint is a neutral shell, not a sellable 
   assert.match(romanlar2, /<h1>كىتاب<\/h1>/);
 });
 
-test("pins use shop.js v=114 on homepage, v=113 on book pages, and catalog-visibility.js v=3", () => {
-  assert.match(indexHtml, /shop\.js\?v=115/);
+test("pins use shop.js v=116 on homepage and book-shell, v=115 on static fixtures, and catalog-visibility.js v=3", () => {
+  assert.match(indexHtml, /shop\.js\?v=116/);
   assert.match(indexHtml, /catalog-visibility\.js\?v=3/);
-  assert.match(bookHtml, /shop\.js\?v=115/);
+  assert.match(bookHtml, /shop\.js\?v=116/);
   assert.match(bookHtml, /catalog-visibility\.js\?v=3/);
   assert.match(romanlar2, /shop\.js\?v=115/);
   assert.match(shop, /member\.js\?v=25/);
