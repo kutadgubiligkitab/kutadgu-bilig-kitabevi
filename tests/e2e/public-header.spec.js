@@ -148,4 +148,85 @@ test.describe("unified public header", () => {
     const count = await page.locator("header.kutadgu-public-header a[href='/cart.html'] .cart-count").first().textContent();
     expect(String(count || "").trim()).toMatch(/^\d+$/);
   });
+
+  test("desktop 1366 header is one compact bar, not a tall brown column", async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect.poll(async () => page.locator("header.kutadgu-public-header").count()).toBeGreaterThan(0);
+    const geo = await page.evaluate(() => {
+      const header = document.querySelector("header.kutadgu-public-header");
+      const logo = header.querySelector(".logo");
+      const search = header.querySelector(".kutadgu-header-search");
+      const nav = header.querySelector("nav");
+      const hero = document.querySelector(".hero, .home-bookstore-hero");
+      const bar = document.getElementById("kutadguAnnounceBar");
+      const hb = header.getBoundingClientRect();
+      const logoB = logo.getBoundingClientRect();
+      const searchB = search.getBoundingClientRect();
+      const navB = nav.getBoundingClientRect();
+      const mainTop = Math.min(logoB.top, searchB.top, navB.top);
+      const mainBottom = Math.max(logoB.bottom, searchB.bottom, navB.bottom);
+      const announceH = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
+      return {
+        display: getComputedStyle(header).display,
+        flexDir: getComputedStyle(header).flexDirection,
+        headerH: hb.height,
+        mainRowH: mainBottom - mainTop,
+        searchW: searchB.width,
+        searchH: searchB.height,
+        logoNavDelta: Math.abs(logoB.top - navB.top),
+        logoSearchDelta: Math.abs(logoB.top - searchB.top),
+        heroTop: hero ? hero.getBoundingClientRect().top : 0,
+        announceH
+      };
+    });
+    expect(geo.display === "grid" || geo.flexDir === "row").toBeTruthy();
+    expect(geo.mainRowH).toBeGreaterThan(40);
+    expect(geo.mainRowH).toBeLessThanOrEqual(76);
+    expect(geo.searchW).toBeGreaterThanOrEqual(260);
+    expect(geo.searchW).toBeLessThanOrEqual(430);
+    expect(geo.searchH).toBeLessThanOrEqual(48);
+    expect(geo.logoNavDelta).toBeLessThanOrEqual(14);
+    expect(geo.logoSearchDelta).toBeLessThanOrEqual(14);
+    expect(geo.headerH).toBeLessThanOrEqual(120);
+    expect(geo.heroTop).toBeLessThanOrEqual(130);
+  });
+
+  for (const path of ["/", "/dini", "/book/122", "/cart.html", "/favorites.html", "/account.html"]) {
+    test(`compact header geometry on ${path} at 390/768/1366`, async ({ page }) => {
+      const limits = {
+        390: { headerMax: 210, searchHMax: 48, overflowMax: 1 },
+        768: { headerMax: 200, searchHMax: 48, overflowMax: 1 },
+        1366: { headerMax: 120, searchHMax: 48, overflowMax: 1 }
+      };
+      for (const width of [390, 768, 1366]) {
+        await page.setViewportSize({ width, height: width === 1366 ? 768 : 844 });
+        await page.goto(path, { waitUntil: "domcontentloaded" });
+        await expect.poll(async () => page.locator("header.kutadgu-public-header").count()).toBeGreaterThan(0);
+        if (width <= 768) {
+          await page.waitForSelector(".mobile-bottom-nav", { timeout: 15_000 });
+        }
+        const geo = await page.evaluate(() => {
+          const header = document.querySelector("header.kutadgu-public-header");
+          const search = header && header.querySelector(".kutadgu-header-search");
+          const bottom = document.querySelector(".mobile-bottom-nav");
+          const hb = header.getBoundingClientRect();
+          return {
+            headerH: hb.height,
+            searchH: search ? search.getBoundingClientRect().height : 0,
+            overflowX: document.documentElement.scrollWidth - window.innerWidth,
+            display: getComputedStyle(header).display,
+            flexDir: getComputedStyle(header).flexDirection,
+            bottomVisible: !!(bottom && getComputedStyle(bottom).display !== "none")
+          };
+        });
+        const lim = limits[width];
+        expect(geo.display === "grid" || geo.flexDir === "row", `${path} ${width}`).toBeTruthy();
+        expect(geo.headerH, `${path} ${width} headerH`).toBeLessThanOrEqual(lim.headerMax);
+        expect(geo.searchH, `${path} ${width} searchH`).toBeLessThanOrEqual(lim.searchHMax);
+        expect(geo.overflowX, `${path} ${width} overflow`).toBeLessThanOrEqual(lim.overflowMax);
+        if (width <= 768) expect(geo.bottomVisible).toBeTruthy();
+      }
+    });
+  }
 });
