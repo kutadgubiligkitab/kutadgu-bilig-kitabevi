@@ -3455,14 +3455,14 @@ function applyBestsellerHonesty(hasSales){
 async function countPositiveSales(){
   if(Number.isFinite(window.__kutadguPositiveSalesCount))return window.__kutadguPositiveSalesCount;
   const cfg=supabasePublicConfig();
-  if(cfg&&cfg.url&&cfg.anonKey){
+  if(cfg&&cfg.url&&cfg.key){
     try{
       const url=`${String(cfg.url).replace(/\/+$/,"")}/rest/v1/books?select=id&sales_count=gt.0`;
       const res=await fetch(url,{
         method:"HEAD",
         headers:{
-          apikey:cfg.anonKey,
-          Authorization:`Bearer ${cfg.anonKey}`,
+          apikey:cfg.key,
+          Authorization:`Bearer ${cfg.key}`,
           Prefer:"count=exact",
           Range:"0-0"
         }
