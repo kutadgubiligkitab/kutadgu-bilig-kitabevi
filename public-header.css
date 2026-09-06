@@ -140,10 +140,24 @@ header.kutadgu-public-header {
 
 .kutadgu-public-header nav a[href="/cart.html"],
 .kutadgu-public-header nav a[href="/favorites.html"],
-.kutadgu-public-header nav a[href="/account.html"] {
+.kutadgu-public-header nav a[href="/account.html"],
+.kutadgu-public-header a.member-account-button {
   background: rgba(255, 255, 255, .08);
   border: 1px solid rgba(255, 255, 255, .16);
   gap: 6px;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.kutadgu-public-header nav a[href="/cart.html"]:hover,
+.kutadgu-public-header nav a[href="/favorites.html"]:hover,
+.kutadgu-public-header nav a[href="/account.html"]:hover,
+.kutadgu-public-header a.member-account-button:hover {
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(255, 255, 255, .28);
+  color: #fffaf2 !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .kutadgu-public-header nav a[href="/cart.html"] .cart-count {

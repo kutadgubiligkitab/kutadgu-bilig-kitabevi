@@ -212,6 +212,7 @@ test("account button is reused and skipped on the account page", () => {
   const btn = sliceBetween(member, "function accountButton(){", "function renderButton(){");
   assert.match(btn, /dataset\.accountPage==="true"/);
   assert.match(btn, /querySelector\("\.member-account-button"\)/);
+  assert.match(btn, /headerLink\.classList\.add\("member-account-button"/);
   assert.doesNotMatch(member, /member-account-button-2/);
 });
 
