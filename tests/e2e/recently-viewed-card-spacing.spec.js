@@ -135,11 +135,59 @@ function recentMetrics() {
   };
 }
 
+function rowAlignMetrics() {
+  return (selector) => {
+    const slack = 2;
+    const cards = [...document.querySelectorAll(selector)];
+    const rows = [];
+    cards.forEach((card) => {
+      const box = card.getBoundingClientRect();
+      const wrap = card.querySelector(".cover-stock-wrap");
+      const title = card.querySelector(".shop-mini-title");
+      const actions = card.querySelector(".mini-actions");
+      const wrapBox = wrap ? wrap.getBoundingClientRect() : null;
+      const titleBox = title ? title.getBoundingClientRect() : null;
+      const actionsBox = actions ? actions.getBoundingClientRect() : null;
+      const item = {
+        height: box.height,
+        bottom: box.bottom,
+        titleTop: titleBox ? titleBox.top : 0,
+        coverTitleGap: wrapBox && titleBox ? titleBox.top - wrapBox.bottom : 999,
+        actionsBottom: actionsBox ? actionsBox.bottom : 0
+      };
+      let row = rows.find((entry) => Math.abs(entry.top - box.top) <= slack);
+      if (!row) {
+        row = { top: box.top, cards: [] };
+        rows.push(row);
+      }
+      row.cards.push(item);
+    });
+    return {
+      cardCount: cards.length,
+      overflowX: document.documentElement.scrollWidth - window.innerWidth,
+      rows: rows.map((row) => {
+        const heights = row.cards.map((c) => c.height);
+        const bottoms = row.cards.map((c) => c.bottom);
+        const actionBottoms = row.cards.map((c) => c.actionsBottom);
+        const gaps = row.cards.map((c) => c.coverTitleGap);
+        return {
+          count: row.cards.length,
+          heightSpread: Math.max(...heights) - Math.min(...heights),
+          bottomSpread: Math.max(...bottoms) - Math.min(...bottoms),
+          actionsBottomSpread: Math.max(...actionBottoms) - Math.min(...actionBottoms),
+          maxCoverTitleGap: Math.max(...gaps)
+        };
+      })
+    };
+  };
+}
+
 const recentCatalog = [
   bookRow({ id: 91001, title: DETAIL_TITLE }),
   bookRow({ id: 91002, title: "قىسقا يېقىندا كۆرۈلگەن", author: "ئىككىنچى ئاپتور" }),
   bookRow({ id: 91003, title: RECENT_LONG, author: "ئۇزۇن ئاپتور ئىسمى سىناق" }),
-  bookRow({ id: 91004, title: "باشقا تۈردىكى كىتاب", category: "شېئىرلار", source: "sheirlar.html" })
+  bookRow({ id: 91004, title: "باشقا تۈردىكى كىتاب", category: "شېئىرلار", source: "sheirlar.html" }),
+  bookRow({ id: 91005, title: "ئوتتۇرا ئۇزۇنلۇقتىكى يېقىندا كۆرۈلگەن نام" })
 ];
 
 test.describe("Recently Viewed card spacing hotfix", () => {
@@ -149,7 +197,7 @@ test.describe("Recently Viewed card spacing hotfix", () => {
     await H.clearShopStorage(page);
     await page.addInitScript((key) => {
       try {
-        localStorage.setItem(key, JSON.stringify(["91003", "91002"]));
+        localStorage.setItem(key, JSON.stringify(["91003", "91002", "91005", "91004"]));
       } catch (e) {}
     }, REC_KEY);
   });
@@ -222,6 +270,22 @@ test.describe("Recently Viewed card spacing hotfix", () => {
     }
   });
 
+  test("same-row Recently Viewed cards have equal outer height without giant gaps", async ({ page }) => {
+    for (const width of [390, 768, 1366]) {
+      await openDetail(page, width);
+      const geo = await page.evaluate(rowAlignMetrics(), "[data-recently-viewed] .shop-mini-card");
+      expect(geo.cardCount, String(width)).toBeGreaterThanOrEqual(4);
+      expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
+      for (const row of geo.rows) {
+        if (row.count < 2) continue;
+        expect(row.heightSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.bottomSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.actionsBottomSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.maxCoverTitleGap, String(width)).toBeLessThan(28);
+      }
+    }
+  });
+
   test("H recently viewed order follows stored history and excludes current book", async ({ page }) => {
     await openDetail(page);
     const ids = await page.locator("[data-recently-viewed] [data-fav-id]").evaluateAll((els) =>
@@ -229,6 +293,7 @@ test.describe("Recently Viewed card spacing hotfix", () => {
     );
     expect(ids[0]).toBe("91003");
     expect(ids[1]).toBe("91002");
+    expect(ids).toContain("91005");
     expect(ids).not.toContain("91001");
   });
 

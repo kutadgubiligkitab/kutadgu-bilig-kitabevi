@@ -124,7 +124,76 @@ function relatedMetrics() {
       wrapHeightCss: wrap ? getComputedStyle(wrap).height : "",
       titleClamp: titleStyle ? (titleStyle.webkitLineClamp || titleStyle.lineClamp) : "",
       titleLineHeight: titleStyle ? Number.parseFloat(titleStyle.lineHeight) : 0,
-      titleFontSize: titleStyle ? Number.parseFloat(titleStyle.fontSize) : 0
+      titleFontSize: titleStyle ? Number.parseFloat(titleStyle.fontSize) : 0,
+      titleHeight: titleBox ? titleBox.height : 0
+    };
+  };
+}
+
+function rowAlignMetrics() {
+  return (selector) => {
+    const slack = 2;
+    const cards = [...document.querySelectorAll(selector)];
+    const rows = [];
+    cards.forEach((card) => {
+      const box = card.getBoundingClientRect();
+      const wrap = card.querySelector(".cover-stock-wrap");
+      const title = card.querySelector(".shop-mini-title");
+      const author = card.querySelector(".shop-mini-meta");
+      const price = card.querySelector(".shop-mini-price");
+      const actions = card.querySelector(".mini-actions");
+      const wrapBox = wrap ? wrap.getBoundingClientRect() : null;
+      const titleBox = title ? title.getBoundingClientRect() : null;
+      const actionsBox = actions ? actions.getBoundingClientRect() : null;
+      const item = {
+        height: box.height,
+        bottom: box.bottom,
+        top: box.top,
+        wrapBottom: wrapBox ? wrapBox.bottom : 0,
+        titleTop: titleBox ? titleBox.top : 0,
+        titleHeight: titleBox ? titleBox.height : 0,
+        coverTitleGap: wrapBox && titleBox ? titleBox.top - wrapBox.bottom : 999,
+        actionsBottom: actionsBox ? actionsBox.bottom : 0,
+        authorInside: !author || (
+          author.getBoundingClientRect().bottom <= box.bottom + 1.5 &&
+          author.getBoundingClientRect().top >= box.top - 1.5
+        ),
+        priceInside: !price || (
+          price.getBoundingClientRect().bottom <= box.bottom + 1.5 &&
+          price.getBoundingClientRect().top >= box.top - 1.5
+        )
+      };
+      let row = rows.find((entry) => Math.abs(entry.top - box.top) <= slack);
+      if (!row) {
+        row = { top: box.top, cards: [] };
+        rows.push(row);
+      }
+      row.cards.push(item);
+    });
+    return {
+      cardCount: cards.length,
+      overflowX: document.documentElement.scrollWidth - window.innerWidth,
+      rows: rows.map((row) => {
+        const heights = row.cards.map((c) => c.height);
+        const bottoms = row.cards.map((c) => c.bottom);
+        const titleTops = row.cards.map((c) => c.titleTop);
+        const actionBottoms = row.cards.map((c) => c.actionsBottom);
+        const gaps = row.cards.map((c) => c.coverTitleGap);
+        const titleHeights = row.cards.map((c) => c.titleHeight);
+        return {
+          count: row.cards.length,
+          heightSpread: Math.max(...heights) - Math.min(...heights),
+          bottomSpread: Math.max(...bottoms) - Math.min(...bottoms),
+          titleTopSpread: Math.max(...titleTops) - Math.min(...titleTops),
+          actionsBottomSpread: Math.max(...actionBottoms) - Math.min(...actionBottoms),
+          maxCoverTitleGap: Math.max(...gaps),
+          minCoverTitleGap: Math.min(...gaps),
+          maxTitleHeight: Math.max(...titleHeights),
+          minTitleHeight: Math.min(...titleHeights),
+          authorInside: row.cards.every((c) => c.authorInside),
+          priceInside: row.cards.every((c) => c.priceInside)
+        };
+      })
     };
   };
 }
@@ -133,6 +202,8 @@ const relatedCatalog = [
   bookRow({ id: 91001, title: DETAIL_TITLE }),
   bookRow({ id: 91002, title: RELATED_LONG, author: "ئۇزۇن ئاپتور ئىسمى سىناق" }),
   bookRow({ id: 91003, title: "قىسقا ئوخشاش رومان" }),
+  bookRow({ id: 91005, title: "ئوتتۇرا ئۇزۇنلۇقتىكى ئوخشاش رومان نامى بىر قۇردىن ئېشىدۇ" }),
+  bookRow({ id: 91006, title: "قىسقا" }),
   bookRow({ id: 91004, title: OTHER_CAT, category: "شېئىرلار", source: "sheirlar.html" })
 ];
 
@@ -218,6 +289,54 @@ test.describe("Similar Books card spacing hotfix", () => {
       expect(geo.coverTitleGap, mode).toBeLessThan(28);
       expect(geo.objectFit, mode).toBe("contain");
       expect(geo.titleInside, mode).toBeTruthy();
+    }
+  });
+
+  test("same-row Similar Books cards have equal outer height without giant gaps", async ({ page }) => {
+    await mockCatalog(page, relatedCatalog);
+    for (const width of [390, 768, 1366]) {
+      await page.setViewportSize({ width, height: width === 1366 ? 900 : 844 });
+      await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
+      await H.waitForDetailTitle(page, DETAIL_TITLE);
+      await expect.poll(async () => page.locator("[data-detail-related] .shop-mini-card").count()).toBe(4);
+      const geo = await page.evaluate(rowAlignMetrics(), "[data-detail-related] .detail-related-grid .shop-mini-card");
+      expect(geo.cardCount, String(width)).toBe(4);
+      expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
+      expect(geo.rows.length, String(width)).toBeGreaterThan(0);
+      for (const row of geo.rows) {
+        expect(row.count, String(width)).toBeGreaterThan(1);
+        expect(row.heightSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.bottomSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.titleTopSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.actionsBottomSpread, String(width)).toBeLessThanOrEqual(2);
+        expect(row.maxCoverTitleGap, String(width)).toBeLessThan(28);
+        expect(row.minCoverTitleGap, String(width)).toBeGreaterThanOrEqual(0);
+        expect(row.maxTitleHeight - row.minTitleHeight, String(width)).toBeLessThanOrEqual(2);
+        expect(row.authorInside, String(width)).toBeTruthy();
+        expect(row.priceInside, String(width)).toBeTruthy();
+      }
+    }
+  });
+
+  test("preview screenshots of Similar Books at 1366 and 390", async ({ page }) => {
+    const fs = require("fs");
+    const path = require("path");
+    const outDir = "/opt/cursor/artifacts/screenshots";
+    fs.mkdirSync(outDir, { recursive: true });
+    await mockCatalog(page, relatedCatalog);
+    for (const width of [1366, 390]) {
+      await page.setViewportSize({ width, height: width === 1366 ? 900 : 844 });
+      await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
+      await H.waitForDetailTitle(page, DETAIL_TITLE);
+      await expect.poll(async () => page.locator("[data-detail-related] .shop-mini-card").count()).toBe(4);
+      const section = page.locator("[data-detail-related]");
+      await section.scrollIntoViewIfNeeded();
+      await section.screenshot({ path: path.join(outDir, `similar-books-equal-height-${width}.png`) });
+      await page.evaluate(() => {
+        document.body.classList.add("dark-mode");
+        document.documentElement.classList.add("dark-mode");
+      });
+      await section.screenshot({ path: path.join(outDir, `similar-books-equal-height-${width}-dark.png`) });
     }
   });
 });
