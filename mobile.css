@@ -34,7 +34,7 @@
     min-width: 0;
     overflow-x: hidden;
     overflow-x: clip;
-    padding-bottom: calc(var(--mobile-bottom-height) + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(var(--mobile-bottom-height) + var(--mobile-bottom-safe)) !important;
   }
 
   body.mobile-menu-open {
@@ -297,8 +297,8 @@
     inset-inline: 0;
     inset-block-end: 0;
     z-index: 11800;
-    min-height: calc(var(--mobile-bottom-height) + env(safe-area-inset-bottom, 0px));
-    padding: 5px max(7px, env(safe-area-inset-left, 0px)) calc(5px + env(safe-area-inset-bottom, 0px)) max(7px, env(safe-area-inset-right, 0px));
+    min-height: calc(var(--mobile-bottom-height) + var(--mobile-bottom-safe));
+    padding: 5px max(7px, env(safe-area-inset-left, 0px)) calc(5px + var(--mobile-bottom-safe)) max(7px, env(safe-area-inset-right, 0px));
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;

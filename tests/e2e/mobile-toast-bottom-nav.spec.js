@@ -51,19 +51,14 @@ test.describe("mobile toast stays above bottom nav", () => {
 
   test("iPhone safe-area inset keeps toast above bottom controls", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.addInitScript(() => {
-      const style = document.createElement("style");
-      style.id = "kutadgu-test-safe-area";
-      style.textContent = `
-        :root { --mobile-bottom-safe: 34px !important; }
-        .mobile-bottom-nav {
-          min-height: calc(var(--mobile-bottom-height) + 34px) !important;
-          padding-bottom: calc(5px + 34px) !important;
-        }
-      `;
-      document.documentElement.appendChild(style);
+    const book = await H.discoverLiveBook(page);
+    await H.openFresh(page, book.detailPath);
+    await H.waitForDetailTitle(page, book.title);
+    await H.clearShopStorage(page);
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--mobile-bottom-safe", "34px");
     });
-    await addOnceOnMobile(page);
+    await page.locator(".detail-main-cart").click();
     await expect.poll(async () => H.badgeCount(page)).toBe(1);
     const toast = page.locator(".shop-toast");
     await expect(toast).toBeVisible();
@@ -74,12 +69,12 @@ test.describe("mobile toast stays above bottom nav", () => {
         toastBottom: toastEl.getBoundingClientRect().bottom,
         navTop: nav.getBoundingClientRect().top,
         navHeight: nav.getBoundingClientRect().height,
-        toastBottomCss: getComputedStyle(toastEl).bottom
+        safe: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-safe").trim()
       };
     });
+    expect(geometry.safe).toBe("34px");
     expect(geometry.navHeight).toBeGreaterThan(80);
     expect(geometry.toastBottom).toBeLessThanOrEqual(geometry.navTop - 4);
-    expect(geometry.toastBottomCss).toMatch(/px/);
   });
 
   test("desktop toast layout stays near the bottom-right corner", async ({ page }) => {
