@@ -65,6 +65,14 @@ test("About uses the real 2013 story and three service areas", () => {
   assert.doesNotMatch(html, /دۇنيا بويىچە ئەۋەتىش/);
 });
 
+test("About service chips keep dark brown text on cream (theme.css about p is white)", () => {
+  assert.match(html, /stage3-shop-identity\.css\?v=4/);
+  assert.match(css, /#about \.about-service-chip/);
+  assert.match(css, /background:#fff8ed\s*!important/);
+  assert.match(css, /color:#4a362b\s*!important/);
+  assert.match(css, /html\.dark-mode #about \.about-service-chip/);
+});
+
 test("contact presents address hours WhatsApp and Instagram", () => {
   assert.match(html, /Kemalpaşa Mah\. 1\. Turna Sk/);
   assert.match(html, /08:30–20:00/);

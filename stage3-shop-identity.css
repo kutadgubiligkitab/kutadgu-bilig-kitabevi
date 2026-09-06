@@ -201,13 +201,16 @@
   margin-top:var(--space-5,24px);
 }
 
-.about-service-chip{
+/* theme.css forces `.about p { color:#fff !important }`; chips are <p>
+   on cream, so that rule made the labels invisible. Keep cream + brown. */
+#about .about-service-chip,
+section.about .about-service-chip{
   margin:0;
   padding:14px 14px 16px;
-  border:1px solid var(--site-border,#e8dccb);
+  border:1px solid #e8dccb !important;
   border-radius:var(--radius-md,10px);
-  background:var(--site-bg-soft,#fbf8f2);
-  color:var(--site-text,var(--text));
+  background:#fff8ed !important;
+  color:#4a362b !important;
   font-size:var(--font-size-sm,13px);
   line-height:1.7;
   font-weight:var(--font-weight-medium,700);
@@ -228,12 +231,19 @@ html.dark-mode .shop-hero-frame{
 }
 
 body.dark-mode .about-year-badge,
-body.dark-mode .about-service-chip,
-html.dark-mode .about-year-badge,
-html.dark-mode .about-service-chip{
+html.dark-mode .about-year-badge{
   background:var(--site-bg-soft);
   border-color:var(--site-border);
   color:var(--site-text);
+}
+
+body.dark-mode #about .about-service-chip,
+body.dark-mode section.about .about-service-chip,
+html.dark-mode #about .about-service-chip,
+html.dark-mode section.about .about-service-chip{
+  background:#fff8ed !important;
+  border-color:#e8dccb !important;
+  color:#4a362b !important;
 }
 
 @media (min-width:701px){
