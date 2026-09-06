@@ -52,7 +52,7 @@ test("live listing pages load the safety stylesheet after unified layout", () =>
   for (const file of LISTING_PAGES) {
     const html = fs.readFileSync(path.join(root, file), "utf8");
     assert.match(html, /data-kutadgu-listing-card-safety="1"/, file);
-    assert.match(html, /listing-card-safety\.css\?v=1/, file);
+    assert.match(html, /listing-card-safety\.css\?v=2/, file);
     const unified = html.indexOf('id="unified-book-card-layout"');
     const safetyAt = html.indexOf("listing-card-safety.css");
     assert.ok(unified >= 0 && safetyAt > unified, `${file} safety CSS must follow unified layout`);

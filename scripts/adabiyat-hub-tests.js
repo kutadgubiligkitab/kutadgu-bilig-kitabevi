@@ -78,7 +78,7 @@ test("/adabiyat is books-first with hub markup and no emoji cards", () => {
   assert.doesNotMatch(html, /canonical[^>]+adabiyat\?/);
   assert.match(html, /public-header\.js\?v=1/);
   assert.match(html, /shop\.js\?v=115/);
-  assert.match(html, /listing-card-safety\.css\?v=1/);
+  assert.match(html, /listing-card-safety\.css\?v=2/);
 });
 
 test("SEO keeps one parent canonical and does not sitemap filter states", () => {
