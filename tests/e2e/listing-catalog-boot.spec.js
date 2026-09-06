@@ -15,7 +15,8 @@ const LISTING_PAGES = [
   "/uyghur-adabiyati.html",
   "/dunya-edebiyati.html",
   "/adabiyat-roman.html",
-  "/tarikhiy-romanlar.html"
+  "/tarikhiy-romanlar.html",
+  "/adabiyat"
 ];
 
 const DEMO_TITLE = "رومان كىتابى 2";

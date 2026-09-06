@@ -10,7 +10,7 @@ const css = fs.readFileSync(path.join(root, "shop.css"), "utf8");
 const LISTING_PAGES = [
   "romanlar.html","universal.html","children.html","dini.html","derslik.html","terbiye.html",
   "tibb.html","dastanlar.html","sheirlar.html","hekayiler.html","uyghur-adabiyati.html",
-  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html"
+  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html"
 ];
 let failed = 0;
 function test(name, fn) {
