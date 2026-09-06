@@ -1,6 +1,11 @@
 /* Recently Viewed mini-cards only (book detail, homepage selector, my-books recent tab).
    Same wrap-stretch bug as Similar Books, different container: not [data-detail-related].
    Do not restyle listing .book-card, carousel, or Similar Books. */
+.detail-extra-section:not([data-detail-related]) .detail-related-grid,
+[data-recently-viewed] .shop-grid,
+[data-recently-viewed].shop-grid{
+  align-items:start;
+}
 .detail-extra-section:not([data-detail-related]) .detail-related-grid .shop-mini-card,
 [data-recently-viewed] .shop-mini-card{
   display:flex;

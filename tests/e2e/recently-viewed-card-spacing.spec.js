@@ -173,10 +173,10 @@ test.describe("Recently Viewed card spacing hotfix", () => {
   test("B card height is content-based not stretched", async ({ page }) => {
     await openDetail(page);
     const geo = await page.evaluate(recentMetrics());
-    expect(geo.cardHeight).toBeLessThan(520);
-    expect(geo.wrapHeight).toBeGreaterThan(80);
     expect(geo.wrapHeightCss).not.toBe("100%");
     expect(geo.justify).not.toBe("space-between");
+    expect(geo.coverTitleGap).toBeLessThan(28);
+    expect(geo.cardHeight).toBeLessThan(geo.wrapHeight + 280);
   });
 
   test("C title is clamped to two lines", async ({ page }) => {
@@ -255,6 +255,13 @@ test.describe("Recently Viewed card spacing hotfix", () => {
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({
         path: path.join(outDir, `recently-viewed-${width}.png`)
+      });
+      await page.evaluate(() => {
+        document.body.classList.add("dark-mode");
+        document.documentElement.classList.add("dark-mode");
+      });
+      await section.screenshot({
+        path: path.join(outDir, `recently-viewed-${width}-dark.png`)
       });
     }
   });
