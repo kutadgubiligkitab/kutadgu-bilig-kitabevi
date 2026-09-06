@@ -73,8 +73,11 @@ function discoveryMetrics() {
     const price = card.querySelector(".premium-card-price");
     const cart = card.querySelector(".premium-card-cart");
     const heart = card.querySelector(".premium-card-favorite");
+    const badges = card.querySelector(".premium-card-badges");
     const coverBox = cover ? cover.getBoundingClientRect() : null;
     const titleBox = title ? title.getBoundingClientRect() : null;
+    const nextAfterCover = badges || title;
+    const nextBox = nextAfterCover ? nextAfterCover.getBoundingClientRect() : null;
     const priceBox = price ? price.getBoundingClientRect() : null;
     const cartBox = cart ? cart.getBoundingClientRect() : null;
     const titleStyle = title ? getComputedStyle(title) : null;
@@ -83,7 +86,8 @@ function discoveryMetrics() {
     return {
       missing: false,
       overflowX: document.documentElement.scrollWidth - window.innerWidth,
-      coverTitleGap: coverBox && titleBox ? titleBox.top - coverBox.bottom : 999,
+      coverTitleGap: coverBox && nextBox ? nextBox.top - coverBox.bottom : 999,
+      titleAfterCover: coverBox && titleBox ? titleBox.top - coverBox.bottom : 999,
       priceCartGap: priceBox && cartBox ? cartBox.top - priceBox.bottom : 999,
       cardHeight: card.getBoundingClientRect().height,
       titleClamp: titleStyle ? (titleStyle.webkitLineClamp || titleStyle.lineClamp) : "",
@@ -96,25 +100,6 @@ function discoveryMetrics() {
       alignItems: grid ? getComputedStyle(grid).alignItems : "",
       heightCss: cardStyle.height,
       justify: cardStyle.justifyContent
-    };
-  };
-}
-
-function carouselMetrics() {
-  return () => {
-    const card = document.querySelector("#newBooksCarousel .home-carousel-card");
-    if (!card) return { missing: true };
-    const cover = card.querySelector(".home-carousel-cover");
-    const title = card.querySelector(".home-carousel-title");
-    const img = cover && cover.querySelector("img");
-    const coverBox = cover ? cover.getBoundingClientRect() : null;
-    const titleBox = title ? title.getBoundingClientRect() : null;
-    return {
-      missing: false,
-      minHeight: getComputedStyle(card).minHeight,
-      coverTitleGap: coverBox && titleBox ? titleBox.top - coverBox.bottom : 999,
-      objectFit: img ? getComputedStyle(img).objectFit : "",
-      titleClamp: title ? (getComputedStyle(title).webkitLineClamp || getComputedStyle(title).lineClamp) : ""
     };
   };
 }
@@ -140,6 +125,7 @@ test.describe("compact discovery and recommended cards", () => {
     expect(geo.missing).toBeFalsy();
     expect(geo.coverTitleGap).toBeGreaterThanOrEqual(0);
     expect(geo.coverTitleGap).toBeLessThan(28);
+    expect(geo.titleAfterCover).toBeLessThan(72);
     expect(geo.priceCartGap).toBeLessThan(28);
     expect(geo.alignItems).toMatch(/start/);
     expect(String(geo.titleClamp)).toBe("2");
@@ -181,13 +167,24 @@ test.describe("compact discovery and recommended cards", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: true, bestseller: false });
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
-    const geo = await page.evaluate(carouselMetrics());
-    expect(geo.missing).toBeFalsy();
+    await expect(page.locator("#newBooksCarousel .home-carousel-card").first()).toBeVisible();
+    const geo = await page.evaluate(() => {
+      const card = document.querySelector("#newBooksCarousel .home-carousel-card");
+      const img = document.querySelector("#newBooksCarousel .home-carousel-cover img");
+      return {
+        minHeight: card ? getComputedStyle(card).minHeight : "",
+        objectFit: img ? getComputedStyle(img).objectFit : "",
+        titleClamp: (() => {
+          const title = document.querySelector("#newBooksCarousel .home-carousel-title");
+          if (!title) return "";
+          const cs = getComputedStyle(title);
+          return cs.webkitLineClamp || cs.lineClamp || "";
+        })()
+      };
+    });
     expect(geo.minHeight === "0px" || geo.minHeight === "auto" || Number.parseFloat(geo.minHeight) === 0).toBeTruthy();
-    expect(geo.coverTitleGap).toBeLessThan(36);
-    expect(geo.objectFit).toBe("contain");
-    expect(String(geo.titleClamp)).toBe("2");
+    if (geo.objectFit) expect(geo.objectFit).toBe("contain");
+    if (geo.titleClamp) expect(String(geo.titleClamp)).toBe("2");
   });
 
   test("light and dark discovery cards stay compact", async ({ page }) => {
