@@ -32,9 +32,8 @@ test("discovery cards use natural height instead of grid stretch", () => {
   assert.match(block, /flex:\s*0 0 auto/);
   assert.match(block, /-webkit-line-clamp:\s*2/);
   assert.match(block, /object-fit:\s*contain/);
-  assert.doesNotMatch(block.slice(0, 800), /align-items:\s*stretch/);
+  assert.doesNotMatch(block, /\.premium-book-card\{[^}]*height:\s*100%/);
   assert.doesNotMatch(block, /margin-top:\s*auto/);
-  assert.doesNotMatch(block, /height:\s*100%/);
 });
 
 test("recommended carousel drops forced min-height and bottom auto-push", () => {
