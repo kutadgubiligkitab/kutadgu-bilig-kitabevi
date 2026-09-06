@@ -247,9 +247,12 @@ async function run() {
   await test("order_no is validated and is not financial authority", () => {
     [sqlFn, setupFn].forEach((fn) => {
       assert.match(fn, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
-      assert.match(shop, /function makeOrderId\(\)\{/);
-      assert.match(shop, /return `KB-\$\{y\}\$\{m\}\$\{d\}-\$\{r\}`/);
     });
+    const genSrc = sliceBetween(shop, "const ORDER_NO_ALPHABET=", "let preparedOrder=null,preparedOrderSignature=\"\";");
+    assert.match(shop, /function makeOrderId\(\)\{/);
+    assert.match(genSrc, /getRandomValues/);
+    assert.match(genSrc, /return `KB-\$\{y\}\$\{m\}\$\{d\}-\$\{/);
+    assert.doesNotMatch(genSrc, /Math\.random/);
   });
 
   await test("J WhatsApp-first semantics remain the only member history save path", () => {

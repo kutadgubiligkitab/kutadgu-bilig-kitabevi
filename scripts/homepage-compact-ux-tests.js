@@ -54,7 +54,7 @@ test("homepage assets bumped; hero image paths unchanged", () => {
   assert.match(html, /index\.css\?v=17/);
   assert.match(html, /shop\.css\?v=53/);
   assert.match(html, /mobile\.css\?v=23/);
-  assert.match(html, /shop\.js\?v=113/);
+  assert.match(html, /shop\.js\?v=114/);
   assert.match(html, /mobile\.js\?v=6/);
   assert.match(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /src="hero-brand-logo\.png\?v=1"/);

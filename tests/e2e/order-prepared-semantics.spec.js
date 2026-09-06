@@ -59,7 +59,12 @@ test.describe("order prepared semantics", () => {
     await page.locator("#prepareOrder").click();
     await expect(page.locator("#orderPreviewWrap")).toBeVisible();
     await expect(page.locator("#orderPreview")).toContainText(book.title);
+    const previewText = await page.locator("#orderPreview").innerText();
+    const orderNoMatch = previewText.match(/زاكاز نومۇرى:\s*(KB-\d{6}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8})/);
+    expect(orderNoMatch).toBeTruthy();
+    const preparedOrderNo = orderNoMatch[1];
     await page.locator("#prepareOrder").click();
+    await expect(page.locator("#orderPreview")).toContainText(preparedOrderNo);
     await page.locator("#copyOrder").click();
     await page.locator("#copyOrder").click();
     await page.evaluate(() => { navigator.share = undefined; });
@@ -78,6 +83,8 @@ test.describe("order prepared semantics", () => {
     await page.locator("#whatsappOrder").click();
     await expect.poll(() => opened.length).toBeGreaterThan(0);
     expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    const waText = decodeURIComponent(opened[0].split("text=")[1] || "");
+    expect(waText).toContain(`زاكاز نومۇرى: ${preparedOrderNo}`);
   });
 
   for (const width of [390, 412, 768, 1280]) {

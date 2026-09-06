@@ -179,7 +179,7 @@ test.describe("guest cart and favorites", () => {
     expect(text).toMatch(/1 دانە/);
     expect(text).toMatch(/كىتاب/);
     expect(text).toMatch(/Playwright Test/);
-    expect(text).toMatch(/زاكاز نومۇرى/);
+    expect(text).toMatch(/زاكاز نومۇرى: KB-\d{6}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}/);
   });
 
   test("stale leftover cart is not shown as guest cart", async ({ page }) => {
