@@ -96,9 +96,18 @@ function identityApi({
   const src = sliceBetween(shop, "function peekPersistedShopUserId(){", "function alignCartDisplayAfterMemberSync(prevItems){");
   const applied = [];
   const api = new Function("localStorage", "window", "applied", `
+    const CART_KEY="kutadgu-cart-v1";
+    const FAV_KEY="kutadgu-favorites-v1";
+    const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
     const SHOP_OWNER_GUEST="guest";
     const SHOP_OWNER_STALE="stale";
     function readShopOwner(){ try{return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim()}catch(e){return ""} }
+    function writeShopOwner(owner){
+      try{
+        if(owner)localStorage.setItem("kutadgu-shop-owner-v1",owner);
+        else localStorage.removeItem("kutadgu-shop-owner-v1");
+      }catch(e){}
+    }
     function add(id,qty){ applied.push({kind:"add",id:String(id),qty:qty||1}); }
     function toggleFav(id){ applied.push({kind:"fav",id:String(id)}); }
     function favHas(){ return false; }
@@ -109,6 +118,9 @@ function identityApi({
       shopOwnerAllowsLocalDisplay,
       identityBootstrapPending,
       shopStateWriteAllowed,
+      canRecoverOrphanedOwnerForGuestWrite,
+      recoverOrphanedOwnerForGuestWrite,
+      recoverStaleOwnerForGuestWrite,
       enqueueShopIntent,
       replayPendingShopIntents,
       dropPendingShopIntents,
@@ -116,6 +128,7 @@ function identityApi({
       pending(){ return pendingShopIntents.slice(); }
     };
   `)(localStorage, windowObj, applied);
+  api.store = store;
   return api;
 }
 
@@ -163,9 +176,9 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=110/);
+  assert.match(indexHtml, /shop\.js\?v=111/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
-  assert.match(cartHtml, /shop\.js\?v=109/);
+  assert.match(cartHtml, /shop\.js\?v=110/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
   assert.match(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
@@ -326,70 +339,110 @@ test("refresh session without explicit expires_at is rejected", () => {
   });
 });
 
-test("logout stale owner can start a new guest cart without exposing member state", () => {
-  const stale = identityApi({ owner: "stale" });
-  assert.strictEqual(stale.shopOwnerAllowsLocalDisplay(), false);
-  assert.strictEqual(stale.identityBootstrapPending(), false);
-  assert.strictEqual(stale.shopStateWriteAllowed(), true);
+test("orphaned owner recovery is allowed only after boot with no live or persisted user", () => {
   const uid = "11111111-1111-4111-8111-111111111111";
-  const pending = identityApi({
-    owner: uid,
-    sessionUser: uid,
-    expiresAt: Math.floor(Date.now() / 1000) - 90
-  });
-  assert.strictEqual(pending.shopStateWriteAllowed(), false);
-
-  const recoverSrc = sliceBetween(shop, "function recoverStaleOwnerForGuestWrite(){", "function stampShopOwner(){");
-  const store = {
-    "kutadgu-shop-owner-v1": "stale",
+  const leftover = {
     "kutadgu-cart-v1": JSON.stringify([{ id: "102", qty: 2 }]),
     "kutadgu-favorites-v1": JSON.stringify(["102"]),
     "kutadgu-cart-display-v1": JSON.stringify({ v: 1, items: { "102": { id: "102", title: "old" } } })
   };
-  const recovered = new Function("localStorage", `
-    const CART_KEY="kutadgu-cart-v1";
-    const FAV_KEY="kutadgu-favorites-v1";
-    const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
-    const SHOP_OWNER_GUEST="guest";
-    const SHOP_OWNER_STALE="stale";
-    function readShopOwner(){ return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim(); }
-    function writeShopOwner(next){ localStorage.setItem("kutadgu-shop-owner-v1", next); }
-    function liveShopUserId(){ return ""; }
-    function emptyCartDisplayStore(){ return {v:1,items:{}}; }
-    ${recoverSrc}
-    recoverStaleOwnerForGuestWrite();
-    return {
-      owner: readShopOwner(),
-      cart: localStorage.getItem("kutadgu-cart-v1"),
-      fav: localStorage.getItem("kutadgu-favorites-v1"),
-      display: localStorage.getItem("kutadgu-cart-display-v1")
-    };
-  `)({
-    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
-    setItem(k, v) { store[k] = String(v); }
-  });
-  assert.strictEqual(recovered.owner, "guest");
-  assert.strictEqual(recovered.cart, "[]");
-  assert.strictEqual(recovered.fav, "[]");
-  assert.deepStrictEqual(JSON.parse(recovered.display), { v: 1, items: {} });
 
-  const signedIn = new Function("localStorage", `
-    const CART_KEY="kutadgu-cart-v1";
-    const FAV_KEY="kutadgu-favorites-v1";
-    const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
-    const SHOP_OWNER_GUEST="guest";
-    const SHOP_OWNER_STALE="stale";
-    function readShopOwner(){ return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim(); }
-    function writeShopOwner(next){ localStorage.setItem("kutadgu-shop-owner-v1", next); }
-    function liveShopUserId(){ return "11111111-1111-4111-8111-111111111111"; }
-    function emptyCartDisplayStore(){ return {v:1,items:{}}; }
-    ${recoverSrc}
-    return recoverStaleOwnerForGuestWrite();
-  `)({
-    getItem() { return "stale"; },
-    setItem() { throw new Error("must-not-clear-while-signed-in"); }
+  const stale = identityApi({
+    owner: "stale",
+    sessionBootDone: true,
+    extraStore: leftover
   });
-  assert.strictEqual(signedIn, false);
+  assert.strictEqual(stale.identityBootstrapPending(), false);
+  assert.strictEqual(stale.canRecoverOrphanedOwnerForGuestWrite(), true);
+  assert.strictEqual(stale.recoverOrphanedOwnerForGuestWrite(), true);
+  assert.strictEqual(stale.shopOwnerAllowsLocalDisplay(), true);
+  assert.strictEqual(stale.store["kutadgu-shop-owner-v1"], "guest");
+  assert.strictEqual(stale.store["kutadgu-cart-v1"], undefined);
+  assert.strictEqual(stale.store["kutadgu-favorites-v1"], undefined);
+  assert.strictEqual(stale.store["kutadgu-cart-display-v1"], undefined);
+
+  const orphanUuid = identityApi({
+    owner: uid,
+    sessionBootDone: true,
+    extraStore: leftover
+  });
+  assert.strictEqual(orphanUuid.currentShopUserId(), "");
+  assert.strictEqual(orphanUuid.identityBootstrapPending(), false);
+  assert.strictEqual(orphanUuid.canRecoverOrphanedOwnerForGuestWrite(), true);
+  assert.strictEqual(orphanUuid.recoverOrphanedOwnerForGuestWrite(), true);
+  assert.strictEqual(orphanUuid.store["kutadgu-shop-owner-v1"], "guest");
+  assert.strictEqual(orphanUuid.store["kutadgu-cart-v1"], undefined);
+  assert.strictEqual(orphanUuid.store["kutadgu-favorites-v1"], undefined);
+  assert.strictEqual(orphanUuid.shopOwnerAllowsLocalDisplay(), true);
+
+  const expiredPeek = identityApi({
+    owner: uid,
+    sessionUser: uid,
+    expiresAt: Math.floor(Date.now() / 1000) - 90,
+    sessionBootDone: true,
+    extraStore: leftover
+  });
+  assert.strictEqual(expiredPeek.peekPersistedShopUserId(), "");
+  assert.strictEqual(expiredPeek.identityBootstrapPending(), false);
+  assert.strictEqual(expiredPeek.recoverOrphanedOwnerForGuestWrite(), true);
+  assert.strictEqual(expiredPeek.store["kutadgu-shop-owner-v1"], "guest");
+  assert.strictEqual(expiredPeek.store["kutadgu-cart-v1"], undefined);
+});
+
+test("orphaned owner recovery never runs while bootstrap is pending or a session exists", () => {
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const leftover = {
+    "kutadgu-cart-v1": JSON.stringify([{ id: "102", qty: 2 }]),
+    "kutadgu-favorites-v1": JSON.stringify(["102"])
+  };
+
+  const pending = identityApi({
+    owner: uid,
+    sessionBootDone: false,
+    extraStore: leftover
+  });
+  assert.strictEqual(pending.identityBootstrapPending(), true);
+  assert.strictEqual(pending.canRecoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(pending.recoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(pending.enqueueShopIntent("add", { id: "C", qty: 1 }), true);
+  assert.strictEqual(pending.store["kutadgu-shop-owner-v1"], uid);
+  assert.deepStrictEqual(JSON.parse(pending.store["kutadgu-cart-v1"]).map((row) => row.id), ["102"]);
+  assert.deepStrictEqual(JSON.parse(pending.store["kutadgu-favorites-v1"]), ["102"]);
+
+  const validPeek = identityApi({
+    owner: uid,
+    sessionUser: uid,
+    sessionBootDone: false,
+    extraStore: leftover
+  });
+  assert.strictEqual(validPeek.currentShopUserId(), uid);
+  assert.strictEqual(validPeek.identityBootstrapPending(), false);
+  assert.strictEqual(validPeek.canRecoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(validPeek.recoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(validPeek.store["kutadgu-shop-owner-v1"], uid);
+  assert.deepStrictEqual(JSON.parse(validPeek.store["kutadgu-cart-v1"]).map((row) => row.id), ["102"]);
+
+  const liveSame = identityApi({
+    owner: uid,
+    liveUser: uid,
+    sessionUser: uid,
+    sessionBootDone: true,
+    extraStore: leftover
+  });
+  assert.strictEqual(liveSame.canRecoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(liveSame.recoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(liveSame.store["kutadgu-shop-owner-v1"], uid);
+  assert.deepStrictEqual(JSON.parse(liveSame.store["kutadgu-cart-v1"]).map((row) => row.id), ["102"]);
+
+  const liveMismatch = identityApi({
+    owner: uid,
+    liveUser: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    sessionBootDone: true,
+    extraStore: leftover
+  });
+  assert.strictEqual(liveMismatch.recoverOrphanedOwnerForGuestWrite(), false);
+  assert.strictEqual(liveMismatch.store["kutadgu-shop-owner-v1"], uid);
+  assert.deepStrictEqual(JSON.parse(liveMismatch.store["kutadgu-cart-v1"]).map((row) => row.id), ["102"]);
 });
 
 test("stampShopOwner rewrites STALE to guest and never restamps a leftover live uid", () => {
@@ -574,19 +627,30 @@ test("expired unrefreshable boot drops the queue and does not write cloud", () =
   assert.deepStrictEqual(out.pending, []);
 });
 
-test("add/toggleFav refuse fail-closed writes and queue only while bootstrap is pending", () => {
+test("add/toggleFav recover orphaned owners after boot and never silent-fail a guest write", () => {
   const add = sliceBetween(shop, "function add(id,qty=1){", "function remove(id){");
   const fav = sliceBetween(shop, "function toggleFav(id){", "function recent(id){");
   const set = sliceBetween(shop, "const set=(k,v)=>{", "function visibilityContext(){");
-  assert.match(add, /recoverStaleOwnerForGuestWrite\(\)/);
-  assert.ok(add.indexOf("recoverStaleOwnerForGuestWrite") < add.indexOf("enqueueShopIntent"));
+  assert.match(add, /recoverOrphanedOwnerForGuestWrite\(\)/);
+  assert.ok(add.indexOf("recoverOrphanedOwnerForGuestWrite") < add.indexOf("enqueueShopIntent"));
   assert.match(add, /if\(!shopOwnerAllowsLocalDisplay\(\)\)\{/);
   assert.match(add, /enqueueShopIntent\("add"/);
+  assert.match(add, /كىتاب سېۋەتكە قوشۇلمىدى\. سەھىپىنى يېڭىلاپ قايتا سىناڭ\./);
   assert.ok(add.indexOf("enqueueShopIntent") < add.indexOf("set(CART_KEY,a)"));
-  assert.match(fav, /recoverStaleOwnerForGuestWrite\(\)/);
-  assert.ok(fav.indexOf("recoverStaleOwnerForGuestWrite") < fav.indexOf("enqueueShopIntent"));
+  assert.match(fav, /recoverOrphanedOwnerForGuestWrite\(\)/);
+  assert.ok(fav.indexOf("recoverOrphanedOwnerForGuestWrite") < fav.indexOf("enqueueShopIntent"));
   assert.match(fav, /enqueueShopIntent\("fav-add"/);
+  assert.match(fav, /ياقتۇرغانلارغا قوشۇلمىدى\. سەھىپىنى يېڭىلاپ قايتا سىناڭ\./);
   assert.ok(fav.indexOf("enqueueShopIntent") < fav.indexOf("set(FAV_KEY,a)"));
+  assert.match(shop, /function canRecoverOrphanedOwnerForGuestWrite\(\)\{/);
+  assert.match(shop, /if\(liveShopUserId\(\)\)return false;/);
+  assert.match(shop, /if\(currentShopUserId\(\)\)return false;/);
+  assert.match(shop, /if\(identityBootstrapPending\(\)\)return false;/);
+  assert.match(shop, /if\(owner===SHOP_OWNER_STALE\)return true;/);
+  assert.match(shop, /return member\.sessionBootDone\(\)===true;/);
+  assert.match(shop, /localStorage\.removeItem\(CART_KEY\)/);
+  assert.match(shop, /localStorage\.removeItem\(FAV_KEY\)/);
+  assert.match(shop, /localStorage\.removeItem\(CART_DISPLAY_KEY\)/);
   assert.match(set, /if\(\(k===CART_KEY\|\|k===FAV_KEY\)&&!shopStateWriteAllowed\(\)\)return false/);
   assert.match(set, /if\(ownerBefore!==SHOP_OWNER_STALE\)window\.KutadguMember\?\.syncKey\?\.\(k,v\)/);
   assert.match(shop, /if\(current===SHOP_OWNER_STALE\)\{\s*writeShopOwner\(SHOP_OWNER_GUEST\);\s*return;/);

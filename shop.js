@@ -674,15 +674,6 @@ function writeShopOwner(owner){
     else localStorage.removeItem(SHOP_OWNER_KEY);
   }catch(e){}
 }
-function recoverStaleOwnerForGuestWrite(){
-  if(liveShopUserId())return false;
-  if(readShopOwner()!==SHOP_OWNER_STALE)return false;
-  try{localStorage.setItem(CART_KEY,"[]")}catch(e){}
-  try{localStorage.setItem(FAV_KEY,"[]")}catch(e){}
-  try{localStorage.setItem(CART_DISPLAY_KEY,JSON.stringify(emptyCartDisplayStore()))}catch(e){}
-  writeShopOwner(SHOP_OWNER_GUEST);
-  return true;
-}
 function stampShopOwner(){
   const current=readShopOwner();
   if(current===SHOP_OWNER_STALE){
@@ -764,6 +755,29 @@ function shopStateWriteAllowed(){
 }
 const pendingShopIntents=[];
 function dropPendingShopIntents(){pendingShopIntents.length=0}
+function canRecoverOrphanedOwnerForGuestWrite(){
+  if(liveShopUserId())return false;
+  if(currentShopUserId())return false;
+  if(identityBootstrapPending())return false;
+  const owner=readShopOwner();
+  if(owner===SHOP_OWNER_STALE)return true;
+  if(!isShopOwnerUuid(owner))return false;
+  const member=window.KutadguMember;
+  if(!member||typeof member.sessionBootDone!=="function")return false;
+  return member.sessionBootDone()===true;
+}
+function recoverOrphanedOwnerForGuestWrite(){
+  if(!canRecoverOrphanedOwnerForGuestWrite())return false;
+  try{localStorage.removeItem(CART_KEY)}catch(e){}
+  try{localStorage.removeItem(FAV_KEY)}catch(e){}
+  try{localStorage.removeItem(CART_DISPLAY_KEY)}catch(e){}
+  writeShopOwner(SHOP_OWNER_GUEST);
+  dropPendingShopIntents();
+  return true;
+}
+function recoverStaleOwnerForGuestWrite(){
+  return recoverOrphanedOwnerForGuestWrite();
+}
 function enqueueShopIntent(kind,payload){
   const owner=readShopOwner();
   if(!identityBootstrapPending()||!isShopOwnerUuid(owner))return false;
@@ -1481,10 +1495,13 @@ function add(id,qty=1){
   if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   const storeId=b.id;
   const stock=stockInfo(b);if(!stock.canBuy){toast("بۇ كىتاب ھازىر تۈگەپ كەتكەن");return}
-  recoverStaleOwnerForGuestWrite();
+  recoverOrphanedOwnerForGuestWrite();
   if(!shopOwnerAllowsLocalDisplay()){
     if(enqueueShopIntent("add",{id:storeId,qty:Math.max(1,sanitizeQty(qty))}))return;
-    if(!shopStateWriteAllowed())return;
+    if(!shopStateWriteAllowed()){
+      toast("كىتاب سېۋەتكە قوشۇلمىدى. سەھىپىنى يېڭىلاپ قايتا سىناڭ.");
+      return;
+    }
   }
   let a=shopOwnerAllowsLocalDisplay()?cart():(Array.isArray(get(CART_KEY,[]))?get(CART_KEY,[]):[]);
   let x=a.find(i=>canonicalId(i.id)===storeId||canonicalId(i.id)===canonicalId(storeId)),next=sanitizeQty((x?.qty||0)+Math.max(1,sanitizeQty(qty)));
@@ -1516,10 +1533,13 @@ function favHas(id){
 function toggleFav(id){
   const b=find(id);if(!b)return;
   const storeId=b.id;
-  recoverStaleOwnerForGuestWrite();
+  recoverOrphanedOwnerForGuestWrite();
   if(!shopOwnerAllowsLocalDisplay()){
     if(enqueueShopIntent("fav-add",{id:storeId}))return;
-    if(!shopStateWriteAllowed())return;
+    if(!shopStateWriteAllowed()){
+      toast("ياقتۇرغانلارغا قوشۇلمىدى. سەھىپىنى يېڭىلاپ قايتا سىناڭ.");
+      return;
+    }
   }
   const resolve=resolveStoredBookId;
   const aliases=aliasMap();
@@ -3955,5 +3975,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,recoverStaleOwnerForGuestWrite,toast};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,toast};
 })();

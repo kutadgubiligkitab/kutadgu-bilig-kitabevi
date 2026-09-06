@@ -387,12 +387,50 @@ test.describe("storefront signed-in session bootstrap", () => {
     }, BOOK_C);
     expect(during.live).toBe(false);
     expect(during.cart).toEqual([BOOK_A, BOOK_B]);
+    expect(await readOwner(page)).toBe(OWNER_A);
     expect(during.badge.every((n) => n === "0")).toBe(true);
     expect(during.toastText).not.toMatch(/كىتاب سېۋەتكە قوشۇلدى/);
     await waitForMemberUser(page, OWNER_A);
     await expect.poll(async () => (await readCartIds(page)).slice().sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
     await expect.poll(async () => H.badgeCount(page)).toBe(3);
     await expect.poll(async () => shopMock.readCloudCart().map((row) => String(row.book_id)).sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
+    expect(shopMock.writes).not.toContain("UNFILTERED_CART_DELETE");
+  });
+
+  test("valid persisted session does not guest-recover before member identity resolves", async ({ page }) => {
+    test.setTimeout(45_000);
+    await seedShop(page, {
+      owner: OWNER_A,
+      sessionUser: OWNER_A,
+      cart: [{ id: BOOK_A, qty: 1 }, { id: BOOK_B, qty: 1 }],
+      snapshotIds: [BOOK_A, BOOK_B]
+    });
+    await mockMemberAuth(page, OWNER_A, { delayMs: 1800 });
+    const shopMock = await mockMemberShop(page, OWNER_A, {
+      cartItems: [{ id: BOOK_A, qty: 1 }, { id: BOOK_B, qty: 1 }]
+    });
+    await mockBooks(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await ensureCatalogBook(page, BOOK_C);
+    expect(await page.evaluate(() => !!(window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser()))).toBe(false);
+    const during = await page.evaluate((id) => {
+      window.kutadguShop.add(id);
+      let cart = [];
+      try { cart = JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]").map((row) => String(row.id)); }
+      catch (e) {}
+      return {
+        owner: String(localStorage.getItem("kutadgu-shop-owner-v1") || ""),
+        cart,
+        live: !!(window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser())
+      };
+    }, BOOK_C);
+    expect(during.live).toBe(false);
+    expect(during.owner).toBe(OWNER_A);
+    expect(during.cart.slice().sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
+    await waitForMemberUser(page, OWNER_A);
+    await expect.poll(async () => (await readCartIds(page)).slice().sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
+    expect(await readOwner(page)).toBe(OWNER_A);
     expect(shopMock.writes).not.toContain("UNFILTERED_CART_DELETE");
   });
 
@@ -459,15 +497,18 @@ test.describe("storefront signed-in session bootstrap", () => {
     await mockBooks(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => !!(window.KutadguMember && typeof window.KutadguMember.sessionBootDone === "function" && window.KutadguMember.sessionBootDone()), null, { timeout: 20_000 });
     expect(await H.badgeCount(page)).toBe(0);
     expect(await page.evaluate(() => window.kutadguShop.cart())).toEqual([]);
     expect(await page.evaluate(() => window.kutadguShop.favorites())).toEqual([]);
     await ensureCatalogBook(page, BOOK_C);
     await page.evaluate((id) => window.kutadguShop.add(id), BOOK_C);
     await page.evaluate((id) => window.kutadguShop.toggleFav(id), BOOK_C);
-    expect(await page.evaluate(() => window.kutadguShop.cart().map((row) => String(row.id)))).not.toContain(BOOK_A);
-    expect(await page.evaluate(() => window.kutadguShop.favorites().map(String))).not.toContain(BOOK_A);
+    expect(await page.evaluate(() => window.kutadguShop.cart().map((row) => String(row.id)))).toEqual([BOOK_C]);
+    expect(await page.evaluate(() => window.kutadguShop.favorites().map(String))).toEqual([BOOK_C]);
+    expect(await readOwner(page)).toBe("guest");
+    expect(await readCartIds(page)).toEqual([BOOK_C]);
+    expect(await readFavIds(page)).toEqual([BOOK_C]);
     expect(shopMock.writes.filter((item) => String(item).includes("UNFILTERED"))).toEqual([]);
     expect(shopMock.writes).toEqual([]);
   });
