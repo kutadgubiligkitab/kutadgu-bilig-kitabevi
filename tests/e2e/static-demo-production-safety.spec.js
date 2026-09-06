@@ -207,6 +207,8 @@ test.describe("static demo production safety", () => {
       const book = window.kutadguShop.find(id);
       return !!(book && window.kutadguShop.isStorefrontVisible(book));
     }, REAL_ID)).toBe(true);
+    await H.waitForHydratedCartTitle(page, REAL_TITLE);
+    await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "ready");
     const ids = await page.evaluate(() => window.kutadguShop.cart().map((row) => String(row.id)));
     expect(ids).not.toContain(DEMO_ID);
     expect(ids).toContain(REAL_ID);

@@ -46,6 +46,15 @@ function parseAdminStock(raw){
   return parseStockQuantity(raw);
 }
 
+function requireConfiguredStock(raw){
+  const parsed=parseAdminStock(raw);
+  if(!parsed.ok)return parsed;
+  if(!parsed.configured){
+    return {ok:false,error:"ئامبار سانىنى كىرگۈزۈڭ (0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان)."};
+  }
+  return parsed;
+}
+
 function isUnconfiguredStock(raw){
   const parsed=parseStockQuantity(raw);
   return parsed.ok&&!parsed.configured;
@@ -144,6 +153,7 @@ const api={
   PHASE1_STOREFRONT_STOCK,
   parseStockQuantity,
   parseAdminStock,
+  requireConfiguredStock,
   isBlankStock,
   isUnconfiguredStock,
   deriveStockStatus,

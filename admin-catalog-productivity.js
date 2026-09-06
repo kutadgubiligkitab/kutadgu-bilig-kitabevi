@@ -164,12 +164,20 @@ function parseQuickPrice(raw){
 
 function parseQuickStock(raw,present){
   if(!present)return {ok:true,omit:true};
-  if(Stock.parseAdminStock){
-    const parsed=Stock.parseAdminStock(raw);
+  if(Stock.requireConfiguredStock){
+    const parsed=Stock.requireConfiguredStock(raw);
     if(!parsed.ok)return parsed;
     return {ok:true,value:parsed.value};
   }
-  if(raw===null||raw===undefined||String(raw).trim()==="")return {ok:true,value:null};
+  if(Stock.parseAdminStock){
+    const parsed=Stock.parseAdminStock(raw);
+    if(!parsed.ok)return parsed;
+    if(!parsed.configured)return {ok:false,error:"ئامبار سانىنى كىرگۈزۈڭ (0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان)."};
+    return {ok:true,value:parsed.value};
+  }
+  if(raw===null||raw===undefined||String(raw).trim()===""){
+    return {ok:false,error:"ئامبار سانىنى كىرگۈزۈڭ (0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان)."};
+  }
   const n=Number(raw);
   if(!Number.isInteger(n)||n<0)return {ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن"};
   return {ok:true,value:n};

@@ -82,7 +82,7 @@ test("3 ADMIN_SECTIONS includes orders", () => {
 });
 
 test("4 Admin order query includes required order fields and is bounded", () => {
-  assert.match(adminJs, /const ADMIN_ORDER_SELECT="id,order_no,user_id,status,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at"/);
+  assert.match(adminJs, /const ADMIN_ORDER_SELECT="id,order_no,user_id,status,stock_committed,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at"/);
   assert.match(adminJs, /const ADMIN_ORDER_PAGE_SIZE=40/);
   assert.match(adminJs, /db\.from\("orders"\)\.select\(ADMIN_ORDER_SELECT,\{count:"exact"\}\)\.range\(from,to\)/);
   assert.match(adminJs, /db\.from\("orders"\)\.select\("id,user_id,total,status,created_at"\)/);
@@ -497,6 +497,13 @@ test("failed or unknown inspectAccess plus failed or unknown fallback is blocked
   assert.strictEqual(result.updateCalled, false);
   assert.match(result.messages[0].text, /تەكشۈرگىلى بولمىدى/);
   assert.doesNotMatch(adminJs, /create policy/i);
+});
+
+test("insufficient_stock maps to a friendly Admin message without AAL2", () => {
+  const msg = H.formatOrderUpdateError({ message: "insufficient_stock", details: "book_id=1 requested=5 available=2" });
+  assert.match(msg, /ئامبار سانى يەتمىدى/);
+  assert.doesNotMatch(msg, /AAL2/);
+  assert.ok(!H.isAal2OrderUpdateError({ message: "insufficient_stock" }));
 });
 
 test("empty/no-row non-AAL2 failure is handled safely without success or an AAL2 label", () => {

@@ -48,7 +48,7 @@ let adminOrderDetail=null;
 let adminOrdersRequest=0;
 let adminOrderSearchTimer=0;
 const ADMIN_ORDER_PAGE_SIZE=40;
-const ADMIN_ORDER_SELECT="id,order_no,user_id,status,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at";
+const ADMIN_ORDER_SELECT="id,order_no,user_id,status,stock_committed,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at";
 const ORDER_STATUSES=["prepared","confirmed","processing","shipped","completed","cancelled"];
 const ORDER_STATUS_SET=new Set(ORDER_STATUSES);
 const ORDER_STATUS_LABELS={prepared:"تەييارلاندى",confirmed:"جەزملەشتۈرۈلدى",processing:"تەييارلىنىۋاتىدۇ",shipped:"كارگوغا بېرىلدى",completed:"تاماملاندى",cancelled:"بىكار قىلىندى"};
@@ -1442,8 +1442,27 @@ function aalUnknownOrderUpdateMessage(){
 function orderUpdateEmptyMessage(){
   return "ئۆزگەرتىش يېزىلمىدى";
 }
+function isInsufficientStockError(error){
+  const blob=String(error&&(error.message||error.details||error.hint||error.code)||"");
+  return /insufficient_stock/i.test(blob);
+}
+function insufficientStockOrderUpdateMessage(){
+  return "ئامبار سانى يەتمىدى. زاكاز ھالىتى ئۆزگەرتىلمىدى، ئامبار سانىمۇ ئۆزگەرمىدى.";
+}
+function isBookHasCommittedStockError(error){
+  const blob=String(error&&(error.message||error.details||error.hint||error.code)||"");
+  return /book_has_committed_stock/i.test(blob);
+}
+function isOrderStockCommitted(order){
+  if(order&&typeof order.stock_committed==="boolean")return order.stock_committed===true;
+  return COUNTED_ORDER_STATUSES.has(orderStatusKey(order));
+}
+function orderStockCommittedLabel(order){
+  return isOrderStockCommitted(order)?"ئامبار تۇتۇلدى":"ئامبار تۇتۇلمىدى";
+}
 function formatOrderUpdateError(error){
   if(isAal2OrderUpdateError(error))return aal2RequiredOrderUpdateMessage();
+  if(isInsufficientStockError(error))return insufficientStockOrderUpdateMessage();
   if(!error)return orderUpdateEmptyMessage();
   return "زاكاز ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى"+(error.message?":\n"+error.message:".");
 }
@@ -1619,6 +1638,7 @@ function renderAdminOrderDetail(){
   const statusOptions=ORDER_STATUSES.map(status=>`<option value="${esc(status)}" ${orderStatusKey(order)===status?"selected":""}>${esc(orderStatusLabel(status))}</option>`).join("");
   host.innerHTML=`<h3>زاكاز ${esc(order.order_no||"—")}</h3>
     <div class="admin-order-detail-grid">
+      <div class="admin-order-detail-item"><span>ئامبار</span><strong>${esc(orderStockCommittedLabel(order))}</strong></div>
       <div class="admin-order-detail-item"><span>ۋاقتى</span><strong>${esc(dateText(order.created_at))}</strong></div>
       <div class="admin-order-detail-item"><span>ھالەت</span><strong>${esc(orderStatusLabel(order.status))}</strong></div>
       <div class="admin-order-detail-item"><span>خېرىدار</span><strong>${esc(order.customer_name||"—")}</strong></div>
@@ -1687,15 +1707,16 @@ async function saveAdminOrderStatus(orderId){
     setAdminOrderStatusMsg(aalDecision.message,false);
     return {ok:false,reason:aalDecision.reason,aal};
   }
-  const {data,error}=await db.from("orders").update({status:nextStatus}).eq("id",orderId).select("id,status,updated_at");
+  const {data,error}=await db.from("orders").update({status:nextStatus}).eq("id",orderId).select("id,status,stock_committed,updated_at");
   if(!orderUpdateSucceeded(data,error)){
     setAdminOrderStatusMsg(formatOrderUpdateError(error),false);
-    return {ok:false,reason:"update_failed",error,empty:!error};
+    return {ok:false,reason:isInsufficientStockError(error)?"insufficient_stock":"update_failed",error,empty:!error};
   }
   const row=Array.isArray(data)?data[0]:data;
   orders=patchOrdersStatus(orders,orderId,row.status,row.updated_at);
   renderMemberStats();
   const reloaded=await loadAdminOrders({silent:true});
+  try{await loadBooks()}catch(err){}
   if(!reloaded||reloaded.ok===false){
     setAdminOrderStatusMsg("ھالەت يېزىلدى، لېكىن تىزىملىك يېڭىلانمىدى.",false);
     return {ok:false,reason:"reload_failed",status:row.status};
@@ -2916,8 +2937,9 @@ async function saveBook(e){
   if(!title){alert("كىتاب ئىسمى كېرەك.");return}
   let stockValue;
   if(presentBookCols.has("stock")){
-    const parsed=stockLib().parseAdminStock?stockLib().parseAdminStock($("#bookStock")&&$("#bookStock").value):{ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن."};
+    const parsed=stockLib().requireConfiguredStock?stockLib().requireConfiguredStock($("#bookStock")&&$("#bookStock").value):(stockLib().parseAdminStock?stockLib().parseAdminStock($("#bookStock")&&$("#bookStock").value):{ok:false,error:"ئامبار سانى توغرا پۈتۈن سان بولسۇن."});
     if(!parsed.ok){alert(parsed.error);return}
+    if(parsed.configured===false){alert("ئامبار سانىنى كىرگۈزۈڭ (0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان).");return}
     stockValue=parsed.value;
   }
   const plan=planCurrentSave();
@@ -3071,7 +3093,12 @@ async function deleteBook(id){
   const b=await fetchBook(id).catch(()=>null);if(!b)return;
   if(!confirm(`«${b.title||id}» نى Database دىن پۈتۈنلەي ئۆچۈرەمسىز؟\nبۇ مەشغۇلاتنى قايتۇرغىلى بولمايدۇ.`))return;
   const {error}=await db.from("books").delete().eq("id",id);
-  if(error){alert("ئۆچۈرۈش مەغلۇپ بولدى:\n"+error.message);return}
+  if(error){
+    alert(isBookHasCommittedStockError(error)
+      ?"بۇ كىتابنى ھازىر ئۆچۈرگىلى بولمايدۇ؛ ئۇنىڭ سانى جەزملەنگەن زاكازدا تۇتۇلغان."
+      :"ئۆچۈرۈش مەغلۇپ بولدى:\n"+error.message);
+    return;
+  }
   selectedIds.delete(id);
   await Promise.all([loadBooks(),loadStats()]);
 }
@@ -3098,7 +3125,7 @@ async function importStatic(){
       is_new:false,
       is_recommended:false,
       sales_count:0,
-      stock:null
+      stock:0
     }));
     for(let i=0;i<rows.length;i+=IMPORT_BATCH){
       const chunk=rows.slice(i,i+IMPORT_BATCH).map(writeBookRow);
@@ -4780,6 +4807,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
 };
 })();

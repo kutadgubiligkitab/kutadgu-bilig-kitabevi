@@ -64,16 +64,9 @@ test("stock 4+ derives in_stock in Admin",()=>{
   });
 });
 
-test("Phase 1 enforcement is OFF by default in production config",()=>{
-  assert.strictEqual(Stock.isStockEnforcementEnabled(),false);
-  assert.strictEqual(Stock.isStockEnforcementEnabled({}),false);
+test("Phase 1 helper still supports explicit enforcement-off",()=>{
   assert.strictEqual(Stock.isStockEnforcementEnabled({stockEnforcement:false}),false);
-  assert.match(cfg,/KUTADGU_STOCK_ENFORCEMENT = false/);
-  assert.doesNotMatch(cfg,/KUTADGU_STOCK_ENFORCEMENT\s*=\s*true/);
-  assert.match(appCfg,/stockEnforcement:false/);
-  assert.doesNotMatch(appCfg,/stockEnforcement:true/);
-  assert.match(shop,/function isStockEnforcementEnabled\(\)\{/);
-  assert.match(shop,/if\(!isStockEnforcementEnabled\(\)\)return \{key:"unknown",label:"",canBuy:true,qty:null\}/);
+  assert.strictEqual(Stock.isStockEnforcementEnabled({}),false);
 });
 
 test("enforcement OFF + stock NULL/0/1/3/4 all remain buyable with no qty cap or badge",()=>{
@@ -124,10 +117,9 @@ test("decimal stock is rejected without rounding",()=>{
   assert.strictEqual(Stock.parseAdminStock("01").ok,false);
 });
 
-test("blank Admin stock saves NULL in staging phase",()=>{
+test("blank Admin stock is rejected once the stock column is present",()=>{
   const built=Prod.buildQuickEditPatch({title:"A",source:"universal.html",stock:""},{presentBookCols:new Set(["stock"])});
-  assert.strictEqual(built.ok,true);
-  assert.strictEqual(built.patch.stock,null);
+  assert.strictEqual(built.ok,false);
 });
 
 test("exact integer saves exact quantity",()=>{
@@ -154,7 +146,7 @@ test("Admin exposes stock controls only through presentBookCols / live detect",(
   assert.doesNotMatch(adminHtml,/id="bookStock"[^>]*pattern=/);
   assert.match(adminHtml,/id="bookStockDerivedStatus"/);
   assert.match(adminHtml,/id="adminUnconfiguredStock"/);
-  assert.match(adminHtml,/kutadgu-stock\.js\?v=2/);
+  assert.match(adminHtml,/kutadgu-stock\.js\?v=3/);
   assert.match(adminJs,/if\(presentBookCols\.has\("stock"\)\)row\.stock=stockValue/);
   assert.match(adminJs,/setStockInputValue\(\$\("#bookStock"\),b\.stock\)/);
   assert.doesNotMatch(adminJs,/\$\("#bookStock"\)\.value=b\.stock\?\?0/);
@@ -201,9 +193,9 @@ test("shop.js Phase 1 gate does not disable Add to Cart from stock and still pro
 });
 
 test("shop.js cache pins were bumped with the Phase 1 gate",()=>{
-  assert.match(indexHtml,/shop\.js\?v=108/);
-  assert.match(bookHtml,/shop\.js\?v=107/);
-  assert.match(shop,/app-config\.js\?v=3/);
+  assert.match(indexHtml,/shop\.js\?v=109/);
+  assert.match(bookHtml,/shop\.js\?v=108/);
+  assert.match(shop,/app-config\.js\?v=4/);
 });
 
 test("migration adds nullable integer stock with no backfill",()=>{

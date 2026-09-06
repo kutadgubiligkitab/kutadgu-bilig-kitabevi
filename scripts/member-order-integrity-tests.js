@@ -274,6 +274,14 @@ async function run() {
     assert.match(helpers, /rpc\\\/create_member_order/);
   });
 
+  await test("create_member_order checks live stock without decrementing", () => {
+    assert.match(setupFn, /insufficient_stock/);
+    assert.match(setupFn, /v_book\.stock < v_qty/);
+    assert.doesNotMatch(setupFn, /stock\s*=\s*stock\s*-/);
+    assert.doesNotMatch(setupFn, /kutadgu_apply_order_stock_delta/);
+    assert.doesNotMatch(sqlFn, /insufficient_stock/);
+  });
+
   await test("K Admin counted-status semantics remain intact", () => {
     assert.match(admin, /const COUNTED_ORDER_STATUSES=new Set\(\["confirmed","processing","shipped","completed"\]\)/);
     assert.match(preparedTests, /G Admin stats count only confirmed\/processing\/shipped\/completed/);
