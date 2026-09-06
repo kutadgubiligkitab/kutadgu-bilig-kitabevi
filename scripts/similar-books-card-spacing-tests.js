@@ -36,9 +36,20 @@ test("Similar Books safety CSS is scoped to data-detail-related mini cards", () 
   assert.match(css, /body\.dark-mode/);
 });
 
+test("Similar Books equal-height uses reserved title/meta boxes without wrap stretch", () => {
+  assert.match(css, /\[data-detail-related\] \.detail-related-grid\{[\s\S]*align-items:stretch/);
+  assert.match(css, /align-self:stretch/);
+  assert.match(css, /\.shop-mini-card\{[\s\S]*height:100%/);
+  assert.match(css, /\.shop-mini-title\{[\s\S]*min-height:calc\(1\.7em \* 2\)/);
+  assert.match(css, /\.shop-mini-meta\{[\s\S]*min-height:1\.7em/);
+  assert.match(css, /\.mini-actions\{[\s\S]*margin-top:auto/);
+  assert.doesNotMatch(css, /\.cover-stock-wrap\{[^}]*height:\s*100%/);
+  assert.doesNotMatch(css, /align-self:start/);
+});
+
 test("book-shell loads similar-card safety after mobile.css", () => {
   const mobileAt = shell.indexOf("mobile.css");
-  const safetyAt = shell.indexOf("detail-similar-card-safety.css?v=1");
+  const safetyAt = shell.indexOf("detail-similar-card-safety.css?v=2");
   assert.ok(mobileAt >= 0 && safetyAt > mobileAt);
   assert.match(shell, /data-kutadgu-similar-card-safety="1"/);
 });

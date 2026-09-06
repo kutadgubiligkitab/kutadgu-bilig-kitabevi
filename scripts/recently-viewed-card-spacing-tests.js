@@ -37,6 +37,18 @@ test("Recently Viewed CSS is scoped away from Similar Books and listing grids", 
   assert.doesNotMatch(css, /home-carousel|premium-card/);
 });
 
+test("Recently Viewed equal-height uses reserved title/meta boxes without wrap stretch", () => {
+  assert.match(css, /align-items:stretch/);
+  assert.match(css, /align-self:stretch/);
+  assert.match(css, /\.shop-mini-card\{[\s\S]*height:100%/);
+  assert.match(css, /\.shop-mini-title\{[\s\S]*min-height:calc\(1\.7em \* 2\)/);
+  assert.match(css, /\.shop-mini-meta\{[\s\S]*min-height:1\.7em/);
+  assert.match(css, /\.mini-actions\{[\s\S]*margin-top:auto/);
+  assert.doesNotMatch(css, /\.cover-stock-wrap\{[^}]*height:\s*100%/);
+  assert.doesNotMatch(css, /align-items:start/);
+  assert.doesNotMatch(css, /align-self:start/);
+});
+
 test("PR #98 Similar Books and PR #97 listing safety files stay listing/similar scoped", () => {
   assert.match(similar, /\[data-detail-related\] \.detail-related-grid \.shop-mini-card/);
   assert.doesNotMatch(similar, /data-recently-viewed/);
@@ -57,7 +69,7 @@ test("Recently Viewed still uses REC_KEY order and miniCard", () => {
 test("book-shell index and my-books load recently-viewed safety after mobile.css", () => {
   for (const [name, html] of [["book-shell", shell], ["index", indexHtml], ["my-books", myBooks]]) {
     const mobileAt = html.indexOf("mobile.css");
-    const safetyAt = html.indexOf("recently-viewed-card-safety.css?v=1");
+    const safetyAt = html.indexOf("recently-viewed-card-safety.css?v=2");
     assert.ok(mobileAt >= 0 && safetyAt > mobileAt, name);
     assert.match(html, /data-kutadgu-recently-viewed-card-safety="1"/, name);
   }

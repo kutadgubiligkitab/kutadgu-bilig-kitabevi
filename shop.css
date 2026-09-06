@@ -2205,11 +2205,14 @@ body.dark-mode .adabiyat-hub-pill[aria-selected="true"]{
 
 /* Similar Books cards: see detail-similar-card-safety.css (loaded last on book-shell).
    Keep a scoped copy here so any shop.css detail page still avoids wrap height:100%. */
+[data-detail-related] .detail-related-grid{
+  align-items:stretch;
+}
 [data-detail-related] .detail-related-grid .shop-mini-card{
   display:flex;
   flex-direction:column;
-  align-self:start;
-  height:auto;
+  align-self:stretch;
+  height:100%;
   min-height:0;
 }
 [data-detail-related] .detail-related-grid .shop-mini-card > a{
