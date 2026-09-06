@@ -264,7 +264,9 @@ a.book-cover.is-stock-out,
   }
 
   html.kutadgu-desktop-header-shop .shop-floating,
-  html.kutadgu-desktop-header-shop .member-standalone-floating{
+  html.kutadgu-desktop-header-shop .member-standalone-floating,
+  html.kutadgu-has-public-header .shop-floating,
+  html.kutadgu-has-public-header .member-standalone-floating{
     display:none !important;
   }
   .kutadgu-desktop-shop-links{
@@ -274,6 +276,12 @@ a.book-cover.is-stock-out,
     gap:8px;
     flex-wrap:wrap;
   }
+  html.kutadgu-has-public-header header nav a[href="account.html"],
+  html.kutadgu-has-public-header header nav a[href="/account.html"],
+  html.kutadgu-has-public-header header nav a[href="cart.html"],
+  html.kutadgu-has-public-header header nav a[href="/cart.html"],
+  html.kutadgu-has-public-header header nav a[href="favorites.html"],
+  html.kutadgu-has-public-header header nav a[href="/favorites.html"],
   html.kutadgu-desktop-header-shop header nav a[href="account.html"],
   html.kutadgu-desktop-header-shop header nav a[href="/account.html"],
   html.kutadgu-desktop-header-shop header nav a[href="cart.html"],

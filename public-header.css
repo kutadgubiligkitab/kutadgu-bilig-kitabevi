@@ -1,0 +1,294 @@
+/* Stage 1 — unified public header. Scoped to .kutadgu-public-header so listing-page local CSS cannot split the chrome. */
+
+.kutadgu-header-search-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body.has-kutadgu-public-header > header.kutadgu-public-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background-color: var(--site-brown-dark, #4b3327) !important;
+  color: #fff !important;
+  overflow-x: hidden;
+}
+
+.kutadgu-public-header-main,
+header.kutadgu-public-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px clamp(12px, 3vw, 42px);
+}
+
+.kutadgu-public-header .logo {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(42vw, 280px);
+  height: 48px;
+  color: #fff !important;
+  text-decoration: none !important;
+  flex: 0 1 auto;
+}
+
+.kutadgu-public-header .logo img.kutadgu-site-logo {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px;
+  min-height: 38px;
+  object-fit: contain !important;
+  flex: 0 0 38px;
+}
+
+.kutadgu-public-header .kutadgu-brand-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(13px, 1.5vw, 17px);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.kutadgu-header-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 380px;
+  height: 40px;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  overflow: hidden;
+}
+
+.kutadgu-header-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.kutadgu-header-search input::placeholder {
+  color: rgba(255, 255, 255, .72);
+}
+
+.kutadgu-header-search-submit {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border: 0;
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+  cursor: pointer;
+}
+
+.kutadgu-public-header nav.kutadgu-public-nav,
+.kutadgu-public-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 !important;
+}
+
+.kutadgu-public-header nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 10px;
+  color: #fffaf2 !important;
+  text-decoration: none !important;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.kutadgu-public-header nav a[href="/cart.html"],
+.kutadgu-public-header nav a[href="/favorites.html"],
+.kutadgu-public-header nav a[href="/account.html"],
+.kutadgu-public-header a.member-account-button {
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .16);
+  gap: 6px;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.kutadgu-public-header nav a[href="/cart.html"]:hover,
+.kutadgu-public-header nav a[href="/favorites.html"]:hover,
+.kutadgu-public-header nav a[href="/account.html"]:hover,
+.kutadgu-public-header a.member-account-button:hover {
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(255, 255, 255, .28);
+  color: #fffaf2 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.kutadgu-public-header nav a[href="/cart.html"] .cart-count,
+.kutadgu-public-header a[href="/cart.html"] .cart-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e2c98d;
+  color: #3d2a20;
+  font-size: 11px;
+}
+
+.cart-count[data-kutadgu-count-state="pending"],
+.cart-count[data-kutadgu-count-state="hidden"] {
+  visibility: hidden;
+}
+
+.kutadgu-public-header .theme-button,
+.kutadgu-public-header .theme-toggle {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  flex: 0 0 36px !important;
+  box-shadow: none !important;
+}
+
+.kutadgu-header-duplicate,
+.kutadgu-public-header a.home-link,
+.kutadgu-public-header a.account-home {
+  display: none !important;
+}
+
+body.has-kutadgu-public-header .detail-topbar.kutadgu-detail-topbar-reduced {
+  justify-content: flex-end;
+}
+
+body.dark-mode .kutadgu-public-header,
+body.dark-mode.has-kutadgu-public-header > header.kutadgu-public-header {
+  background-color: #171311 !important;
+  color: #f1e7da !important;
+}
+
+body.dark-mode .kutadgu-header-search {
+  background: rgba(255, 255, 255, .08);
+  border-color: rgba(255, 255, 255, .14);
+}
+
+@media (min-width: 769px) {
+  html.kutadgu-has-public-header .shop-floating,
+  html.kutadgu-has-public-header .member-standalone-floating {
+    display: none !important;
+  }
+
+  .kutadgu-public-header-main {
+    flex-wrap: nowrap;
+    min-height: 58px;
+  }
+
+  header.kutadgu-public-header {
+    min-height: 58px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .kutadgu-public-header-main,
+  header.kutadgu-public-header.is-mobile-enhanced {
+    justify-content: center;
+    padding: 0;
+    gap: 6px;
+  }
+
+  header.kutadgu-public-header.is-mobile-enhanced {
+    padding-bottom: 4px !important;
+  }
+
+  header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search,
+  .mobile-site-header .kutadgu-header-search {
+    flex: 1 0 100%;
+    order: 8;
+    max-width: none;
+    height: 40px;
+    margin: 0 10px 8px;
+  }
+
+  header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search input,
+  header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search-submit {
+    min-height: 40px;
+    font-size: 16px !important;
+  }
+
+  header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search-submit {
+    min-width: 44px;
+    width: 44px;
+  }
+
+  .kutadgu-public-header .logo {
+    max-width: min(58vw, 240px);
+    height: 44px;
+  }
+
+  .kutadgu-public-header .logo img.kutadgu-site-logo {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
+    flex-basis: 32px;
+  }
+
+  body.has-kutadgu-public-header.has-mobile-fixed-header {
+    padding-top: var(--kutadgu-sticky-header-height, calc(106px + env(safe-area-inset-top, 0px))) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .kutadgu-public-header {
+    overflow-x: hidden;
+  }
+
+  .kutadgu-public-header-main {
+    max-width: 100vw;
+  }
+}

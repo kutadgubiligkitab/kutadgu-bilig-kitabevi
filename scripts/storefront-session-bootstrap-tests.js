@@ -176,9 +176,9 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=114/);
+  assert.match(indexHtml, /shop\.js\?v=115/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
-  assert.match(cartHtml, /shop\.js\?v=113/);
+  assert.match(cartHtml, /shop\.js\?v=115/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
   assert.match(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
@@ -212,6 +212,7 @@ test("account button is reused and skipped on the account page", () => {
   const btn = sliceBetween(member, "function accountButton(){", "function renderButton(){");
   assert.match(btn, /dataset\.accountPage==="true"/);
   assert.match(btn, /querySelector\("\.member-account-button"\)/);
+  assert.match(btn, /headerLink\.classList\.add\("member-account-button"/);
   assert.doesNotMatch(member, /member-account-button-2/);
 });
 

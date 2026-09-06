@@ -169,6 +169,8 @@ test("mobile injected cart/favorites/account links are root-relative", () => {
   assert.match(mobile, /function storefrontAppHref/);
   assert.match(mobile, /function normalizeRootAppLinks/);
   assert.doesNotMatch(mobile, /cart\.href = "cart\.html"/);
+  assert.match(mobile, /srcset="\/kutadgu-logo\.webp"/);
+  assert.match(mobile, /src="\/kutadgu-logo\.png"/);
 });
 
 if (failed) {

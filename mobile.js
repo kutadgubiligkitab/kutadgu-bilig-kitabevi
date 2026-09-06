@@ -6,7 +6,9 @@
   const ROOT_APP_PAGES = {
     "account.html": "/account.html",
     "cart.html": "/cart.html",
-    "favorites.html": "/favorites.html"
+    "favorites.html": "/favorites.html",
+    "index.html": "/",
+    "my-books.html": "/my-books.html"
   };
 
   function pageName() {
@@ -15,7 +17,11 @@
 
   function storefrontAppHref(page) {
     const raw = String(page || "").trim();
-    if (!raw || raw.startsWith("/") || raw.startsWith("#")) return raw;
+    if (!raw) return raw;
+    if (raw.startsWith("/") || raw.startsWith("#")) {
+      if (raw.startsWith("#") && pageName() !== "" && pageName() !== "index.html") return `/${raw}`;
+      return raw;
+    }
     return ROOT_APP_PAGES[raw] || raw;
   }
 
@@ -24,8 +30,22 @@
     root.querySelectorAll("a[href]").forEach((a) => {
       const href = String(a.getAttribute("href") || "").trim();
       const file = href.split(/[?#]/)[0].replace(/^\.\//, "").split("/").pop();
-      if (!ROOT_APP_PAGES[file]) return;
-      a.setAttribute("href", ROOT_APP_PAGES[file]);
+      if (ROOT_APP_PAGES[file]) {
+        const hash = href.includes("#") ? href.slice(href.indexOf("#")) : "";
+        const dest = ROOT_APP_PAGES[file];
+        a.setAttribute("href", dest === "/" ? (hash ? `/${hash}` : "/") : dest + hash);
+        return;
+      }
+      if (href.startsWith("#") && pageName() !== "" && pageName() !== "index.html") {
+        a.setAttribute("href", `/${href}`);
+      }
+    });
+    root.querySelectorAll("img[src], source[srcset]").forEach((node) => {
+      ["src", "srcset"].forEach((attr) => {
+        const value = String(node.getAttribute(attr) || "").trim();
+        if (!value || value.startsWith("/") || value.startsWith("data:") || /^(https?:)?\/\//i.test(value)) return;
+        node.setAttribute(attr, `/${value.replace(/^\.\//, "")}`);
+      });
     });
   }
 
@@ -75,7 +95,7 @@
       cart.className = "mobile-header-cart";
       cart.href = storefrontAppHref("cart.html");
       cart.setAttribute("aria-label", "سېۋەت");
-      cart.innerHTML = `🛒<span class="cart-count">0</span>`;
+      cart.innerHTML = `🛒<span class="cart-count" data-kutadgu-count-state="pending"></span>`;
       header.appendChild(cart);
     }
 
@@ -138,8 +158,11 @@
   }
 
   function enhanceHeader() {
+    if (window.KutadguPublicHeader && typeof window.KutadguPublicHeader.ensure === "function") {
+      window.KutadguPublicHeader.ensure();
+    }
     if (STORE_PAGES_EXCLUDED.has(pageName())) return;
-    const accountHeader = document.querySelector("body[data-account-page] .account-topbar");
+    const accountHeader = document.querySelector("body[data-account-page] .account-topbar:not(.kutadgu-public-header)");
     if (accountHeader) {
       const themeButton = document.querySelector(".theme-button, .theme-toggle");
       if (themeButton) {
@@ -148,13 +171,18 @@
       }
       return;
     }
-    const existing = document.querySelector("body > header:not(.account-topbar)");
+    const existing = document.querySelector("body > header.kutadgu-public-header") ||
+      document.querySelector("body > header:not(.account-topbar):not(.admin-topbar)");
     if (existing) {
       existing.classList.add("is-mobile-enhanced");
       document.body.classList.add("has-mobile-fixed-header");
       const menu = existing.querySelector("nav") || buildMenu();
-      if (!menu.parentElement) existing.appendChild(menu);
+      if (!menu.parentElement) {
+        const main = existing.querySelector(".kutadgu-public-header-main") || existing;
+        main.appendChild(menu);
+      }
       if (!menu.id) menu.id = "mobileSiteMenu";
+      normalizeRootAppLinks(existing);
       normalizeRootAppLinks(menu);
       ensureMenuControls(existing, menu);
       return;
@@ -167,7 +195,7 @@
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "/";
-    brand.innerHTML = `<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="kutadgu-logo.webp"><img src="kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32" decoding="async"></picture><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
+    brand.innerHTML = `<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo.webp"><img src="/kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32" decoding="async"></picture><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);
     document.body.prepend(header);
@@ -180,7 +208,7 @@
     nav.className = "mobile-bottom-nav";
     nav.setAttribute("aria-label", "تېلېفون تېز يول باشلاش");
     nav.innerHTML = `
-      <a href="/cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count">0</span></a>
+      <a href="/cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count" data-kutadgu-count-state="pending"></span></a>
       <a href="/favorites.html" data-mobile-page="favorites.html"><span class="mobile-bottom-icon" aria-hidden="true">❤️</span><span>ياقتۇرغانلىرىم</span></a>
       <a href="/account.html" data-mobile-page="account.html"><span class="mobile-bottom-icon" aria-hidden="true">👤</span><span>كىرىش / ئەزا</span></a>`;
     const current = pageName();
@@ -189,11 +217,11 @@
       ?.setAttribute("aria-current", "page");
     document.body.appendChild(nav);
     document.body.classList.add("has-mobile-bottom-nav");
-    try {
-      const items = JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]");
-      const total = Array.isArray(items) ? items.reduce((sum, item) => sum + (Number(item.qty) || 1), 0) : 0;
-      document.querySelectorAll(".cart-count").forEach(count => count.textContent = total);
-    } catch (_) {}
+    if (window.kutadguShop && typeof window.kutadguShop.updateBadge === "function") {
+      window.kutadguShop.updateBadge();
+    } else if (window.KutadguMember && typeof window.KutadguMember.refreshSafeCartCount === "function") {
+      window.KutadguMember.refreshSafeCartCount();
+    }
   }
 
   function countActiveFilters(panel) {

@@ -102,6 +102,7 @@ function enableSmartFieldDirections(){
 }
 function emit(name="kutadgu-member-change"){
   document.dispatchEvent(new CustomEvent(name,{detail:{user,profile,blocked,error:initError}}));
+  refreshSafeCartCount();
 }
 function ensureStyle(){
   if(document.querySelector('link[data-kutadgu-member-style]'))return;
@@ -122,6 +123,12 @@ function loadSdk(){
 }
 function accountButton(){
   if(document.body?.dataset.accountPage==="true")return null;
+  const headerLink=document.querySelector(".kutadgu-public-header a[href='/account.html'], .kutadgu-public-header a[href='account.html'], header.kutadgu-public-header a.kutadgu-header-account");
+  if(headerLink){
+    headerLink.classList.add("member-account-button","kutadgu-header-account");
+    headerLink.setAttribute("href","/account.html");
+    return headerLink;
+  }
   let button=document.querySelector(".member-account-button");
   if(button)return button;
   let host=document.querySelector(".shop-floating");
@@ -406,6 +413,104 @@ function writeShopOwner(owner){
 }
 function stampShopOwnerForCurrentUser(){
   writeShopOwner(user?.id?String(user.id):SHOP_OWNER_GUEST);
+}
+function peekPersistedShopUserId(){
+  try{
+    const url=String(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url||"").trim();
+    if(!url)return "";
+    let ref="";
+    try{ref=String(new URL(url).hostname.split(".")[0]||"").trim()}catch(err){}
+    if(!ref||!/^[a-z0-9-]+$/i.test(ref))return "";
+    const raw=localStorage.getItem("sb-"+ref+"-auth-token");
+    if(!raw)return "";
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return "";
+    const session=parsed.currentSession&&typeof parsed.currentSession==="object"&&!Array.isArray(parsed.currentSession)
+      ?parsed.currentSession
+      :parsed;
+    if(!session||typeof session!=="object"||Array.isArray(session))return "";
+    const token=String(session.access_token||"").trim();
+    const uid=String(session.user&&session.user.id||"").trim();
+    if(!token||!uid)return "";
+    const rawExp=session.expires_at!=null?session.expires_at
+      :(session.expiresAt!=null?session.expiresAt
+      :(parsed.expiresAt!=null?parsed.expiresAt:null));
+    if(rawExp===""||rawExp==null)return "";
+    const expiresAt=Number(rawExp);
+    if(!Number.isFinite(expiresAt)||expiresAt<=0)return "";
+    const expiresAtMs=expiresAt>1e12?expiresAt:expiresAt*1000;
+    if(expiresAtMs<=Date.now())return "";
+    return uid;
+  }catch(err){}
+  return "";
+}
+function liveShopUserId(){
+  return String(user&&user.id||"").trim();
+}
+function currentShopUserId(){
+  const live=liveShopUserId();
+  if(live)return live;
+  return peekPersistedShopUserId();
+}
+function shopOwnerAllowsLocalDisplay(owner,uid){
+  const currentOwner=owner==null?readShopOwner():String(owner||"").trim();
+  if(!currentOwner||currentOwner===SHOP_OWNER_GUEST)return true;
+  if(currentOwner===SHOP_OWNER_STALE)return false;
+  const currentUid=uid==null?currentShopUserId():String(uid||"").trim();
+  if(!currentUid)return false;
+  return currentUid===currentOwner;
+}
+function isShopOwnerUuid(owner){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(owner||"").trim());
+}
+function identityBootstrapPending(){
+  const owner=readShopOwner();
+  if(!isShopOwnerUuid(owner))return false;
+  if(currentShopUserId())return false;
+  if(sessionBootDone)return false;
+  return true;
+}
+function cartCountQty(items){
+  if(!Array.isArray(items))return 0;
+  return items.reduce((sum,item)=>{
+    if(!item||!item.id)return sum;
+    const qty=Number(item.qty);
+    return sum+(Number.isFinite(qty)&&qty>0?qty:1);
+  },0);
+}
+function paintCartCountBadges(qty,state){
+  document.querySelectorAll(".cart-count").forEach(el=>{
+    if(state==="hidden"){
+      el.textContent="";
+      el.hidden=true;
+      el.setAttribute("hidden","");
+      el.setAttribute("aria-hidden","true");
+      el.setAttribute("data-kutadgu-count-state","hidden");
+      return;
+    }
+    el.hidden=false;
+    el.removeAttribute("hidden");
+    el.removeAttribute("aria-hidden");
+    el.textContent=String(qty);
+    el.setAttribute("data-kutadgu-count-state","ready");
+  });
+}
+function refreshSafeCartCount(){
+  if(window.kutadguShop&&typeof window.kutadguShop.updateBadge==="function"){
+    window.kutadguShop.updateBadge();
+    return;
+  }
+  if(identityBootstrapPending()){
+    paintCartCountBadges("", "hidden");
+    return;
+  }
+  if(!shopOwnerAllowsLocalDisplay()){
+    paintCartCountBadges(0,"ready");
+    return;
+  }
+  let items=[];
+  try{items=JSON.parse(localStorage.getItem(CART_KEY)||"[]")}catch(e){items=[]}
+  paintCartCountBadges(cartCountQty(items),"ready");
 }
 function shouldMergeLocalForUser(userId){
   const owner=readShopOwner();
@@ -987,13 +1092,14 @@ const api=window.KutadguMember={
   refreshProfile:fetchProfile,
   signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections,
   readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,shopStateReadyFor,
+  peekPersistedShopUserId,currentShopUserId,shopOwnerAllowsLocalDisplay,refreshSafeCartCount,
   preMergeCartIntent,applyPreMergeCartIntent,preMergeFavIntent,applyPreMergeFavIntent,
   cartReconcilePlan,favReconcilePlan,
   SHOP_OWNER_KEY,SHOP_OWNER_GUEST,SHOP_OWNER_STALE
 };
 
 async function init(){
-  enableSmartFieldDirections();ensureStyle();renderButton();
+  enableSmartFieldDirections();ensureStyle();renderButton();refreshSafeCartCount();
   if(!configured()){initError=new Error("Supabase سەپلىمىسى يوق");sessionBootDone=true;readyResolve(api);emit();return}
   try{
     await loadSdk();
