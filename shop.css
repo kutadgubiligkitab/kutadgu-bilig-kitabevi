@@ -86,10 +86,24 @@ body > header:not(.account-topbar):not(.admin-topbar){
   line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   pointer-events:none;
 }
+/* Cover dimming only — never the whole card (title/price/actions stay readable).
+   Dynamic cards use .cover-stock-wrap / .book-cover-box.
+   Legacy static cards get is-stock-out on a.book-image / a.book-cover with the
+   img (or .book-cover-unavailable) as a direct child. */
+a.book-image.is-stock-out,
+a.book-cover.is-stock-out,
+.book-image.is-stock-out,
+.book-cover.is-stock-out{
+  position:relative;
+}
 .cover-stock-wrap.is-stock-out img,
 .cover-stock-wrap.is-stock-out .book-cover-unavailable,
 .book-cover-box.is-stock-out img,
-.book-cover-box.is-stock-out .book-cover-unavailable{
+.book-cover-box.is-stock-out .book-cover-unavailable,
+.book-image.is-stock-out img,
+.book-image.is-stock-out .book-cover-unavailable,
+.book-cover.is-stock-out img,
+.book-cover.is-stock-out .book-cover-unavailable{
   opacity:.68;filter:grayscale(.16);
 }
 .cart-blocked-mark{display:inline-block;margin-inline:2px;font-size:.9em;font-weight:800;line-height:1}

@@ -139,6 +139,19 @@ test("out-of-stock cart button is blocked without a giant cover X", () => {
   assert.match(shop, /سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ/);
 });
 
+test("legacy static cover anchors get the same out-of-stock dimming as wrapped covers", () => {
+  assert.match(css, /\.book-image\.is-stock-out img/);
+  assert.match(css, /\.book-cover\.is-stock-out img/);
+  assert.match(css, /\.book-image\.is-stock-out \.book-cover-unavailable/);
+  assert.match(css, /\.book-cover\.is-stock-out \.book-cover-unavailable/);
+  assert.match(css, /opacity:\.68/);
+  assert.match(shop, /applyCoverStockState,syncStaticCards/);
+  const syncSrc = sliceBetween(shop, "function syncStaticCards(){", "function applyStaticCoverFallbacks(");
+  assert.match(syncSrc, /applyCoverStockState\(cover,book\)/);
+  assert.doesNotMatch(syncSrc, /cover-stock-wrap/);
+  assert.doesNotMatch(css, /\.book-card\.is-stock-out\s*\{[^}]*opacity/);
+});
+
 test("admin inventory labels remain visible and stock accounting files are untouched in this UX slice", () => {
   assert.match(adminHtml, /ئامباردا بار/);
   assert.match(stockHelper, /function deriveStockStatus/);
