@@ -2231,6 +2231,7 @@ function decorateDetail(){
       <div>
         <span class="detail-price-label">كىتاب باھاسى</span>
         <div class="detail-price">${money(b.price)}</div>
+        ${stockBadge(b)}
       </div>
       <div class="detail-quantity-wrap">
         <span class="detail-quantity-label">سانى</span>
@@ -2255,12 +2256,14 @@ function decorateDetail(){
 
   let qty=1;
   const qtyText=panel.querySelector(".detail-qty-value");
+  const stockCap=stockInfo(b);
+  const maxQty=stockCap.canBuy&&Number.isFinite(stockCap.qty)?Math.max(1,stockCap.qty):99;
   panel.querySelector(".detail-qty-minus").onclick=()=>{
     qty=Math.max(1,qty-1);
     qtyText.textContent=qty;
   };
   panel.querySelector(".detail-qty-plus").onclick=()=>{
-    qty=Math.min(99,qty+1);
+    qty=Math.min(maxQty,qty+1);
     qtyText.textContent=qty;
   };
   panel.querySelector(".detail-main-cart").onclick=()=>add(b.id,qty);

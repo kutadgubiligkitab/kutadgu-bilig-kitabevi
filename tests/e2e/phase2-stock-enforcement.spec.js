@@ -135,14 +135,14 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await expect(cartBtn).toBeDisabled();
     await expect(cartBtn).toHaveAttribute("aria-disabled", "true");
     await expect(cartBtn).toHaveText(/تۈگەپ كەتتى/);
-    await expect(page.locator(".stock-badge.stock-out")).toBeVisible();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-out")).toBeVisible();
   });
 
   test("stock 1 caps cart quantity", async ({ page }) => {
     await mockBooks(page);
     await H.clearShopStorage(page);
     await openBook(page, ONE_ID, "ئامبار بىر كىتاب");
-    await expect(page.locator(".stock-badge.stock-low")).toBeVisible();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-low")).toBeVisible();
     await page.locator(".detail-main-cart").click();
     await expect.poll(async () => H.badgeCount(page)).toBe(1);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
@@ -169,7 +169,7 @@ test.describe("Phase 2 storefront stock enforcement", () => {
 
     await H.clearShopStorage(page);
     await openBook(page, FOUR_ID, "ئامبار تۆت كىتاب");
-    await expect(page.locator(".stock-badge.stock-in")).toBeVisible();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-in")).toBeVisible();
     await expect(page.locator(".detail-main-cart")).toBeEnabled();
   });
 
