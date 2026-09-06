@@ -245,9 +245,8 @@ async function run() {
   });
 
   await test("order_no is validated and is not financial authority", () => {
-    [sqlFn, setupFn].forEach((fn) => {
-      assert.match(fn, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
-    });
+    assert.match(sqlFn, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
+    assert.match(setupFn, /\^KB-\[0-9\]\{6\}-\(\[0-9\]\{4\}\|\[23456789ABCDEFGHJKLMNPQRSTUVWXYZ\]\{8\}\)\$/);
     const genSrc = sliceBetween(shop, "const ORDER_NO_ALPHABET=", "let preparedOrder=null,preparedOrderSignature=\"\";");
     assert.match(shop, /function makeOrderId\(\)\{/);
     assert.match(genSrc, /getRandomValues/);

@@ -187,10 +187,12 @@ async function run() {
     assert.doesNotMatch(shop, /from\("orders"\)\.insert/);
   });
 
-  await test("this change does not rewrite SQL, RLS, grants, RPCs, or triggers", () => {
+  await test("applied Stage 80/83 SQL keep the historical 4-digit regex; Stage 84 and setup accept both", () => {
     assert.match(sql, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
-    assert.match(setup, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
     assert.match(stage83, /\^KB-\[0-9\]\{6\}-\[0-9\]\{4\}\$/);
+    assert.doesNotMatch(stage83, /\[23456789ABCDEFGHJKLMNPQRSTUVWXYZ\]\{8\}/);
+    const dual = /\^KB-\[0-9\]\{6\}-\(\[0-9\]\{4\}\|\[23456789ABCDEFGHJKLMNPQRSTUVWXYZ\]\{8\}\)\$/;
+    assert.match(setup, dual);
     assert.doesNotMatch(shop, /create_member_order/);
     assert.doesNotMatch(shop, /ALTER TABLE/);
     assert.doesNotMatch(shop, /CREATE UNIQUE INDEX/i);

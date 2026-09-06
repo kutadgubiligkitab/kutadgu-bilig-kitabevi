@@ -584,7 +584,7 @@ begin
   end if;
 
   v_order_no := btrim(coalesce(p_order_no, ''));
-  if v_order_no !~ '^KB-[0-9]{6}-[0-9]{4}$' then
+  if v_order_no !~ '^KB-[0-9]{6}-([0-9]{4}|[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8})$' then
     raise exception 'invalid_order_no';
   end if;
 
