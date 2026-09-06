@@ -185,11 +185,15 @@
   }
 
   function findOrCreateNav(header, main) {
-    var nav = header.querySelector("nav") || main.querySelector("nav");
+    var nav = header.querySelector("nav") ||
+      (main && main.querySelector("nav")) ||
+      document.getElementById("mobileSiteMenu") ||
+      document.querySelector("nav.kutadgu-public-nav, nav.mobile-site-menu");
     if (!nav) {
       nav = document.createElement("nav");
       nav.setAttribute("aria-label", "ئاساسلىق يول باشلاش");
-      main.appendChild(nav);
+      if (main) main.appendChild(nav);
+      else header.appendChild(nav);
     }
     if (!nav.classList.contains("kutadgu-public-nav")) nav.classList.add("kutadgu-public-nav");
     return nav;
@@ -292,22 +296,10 @@
   }
 
   function ensureMainRow(header) {
-    var bar = document.getElementById("kutadguAnnounceBar");
-    var main = header.querySelector(".kutadgu-public-header-main");
-    if (!main) {
-      main = document.createElement("div");
-      main.className = "kutadgu-public-header-main";
-      var nodes = [];
-      for (var i = 0; i < header.childNodes.length; i++) {
-        var child = header.childNodes[i];
-        if (child === bar) continue;
-        nodes.push(child);
-      }
-      nodes.forEach(function (node) { main.appendChild(node); });
-      if (bar) header.insertBefore(main, bar);
-      else header.appendChild(main);
-    }
-    return main;
+    var existing = header.querySelector(":scope > .kutadgu-public-header-main");
+    if (existing) return existing;
+    header.classList.add("kutadgu-public-header");
+    return header;
   }
 
   function syncStickyOffset(header) {
