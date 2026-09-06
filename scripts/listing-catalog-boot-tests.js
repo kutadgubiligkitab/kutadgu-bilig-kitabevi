@@ -50,6 +50,7 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     assert.match(html, /CollectionPage/, file);
     assert.match(html, /shop\.js\?v=115/, file);
     assert.match(html, /shop\.css\?v=54/, file);
+    assert.match(html, /listing-card-safety\.css\?v=1/, file);
   }
 });
 
