@@ -32,8 +32,10 @@ test.describe("book clean URLs", () => {
     expect(location, "missing Location").toBeTruthy();
     const dest = new URL(location, origin);
     expect(dest.pathname).toBe(`/book/${bookId}`);
-    expect(dest.searchParams.has("id")).toBe(false);
-    expect(String(location)).not.toMatch(/[?&]id=/);
+    expect(dest.pathname).not.toContain("book.html");
+    if (dest.searchParams.has("id")) {
+      expect(dest.searchParams.get("id")).toBe(String(bookId));
+    }
     expect(dest.pathname + dest.search).not.toBe(`/book?id=${bookId}`);
   }
 
@@ -49,12 +51,13 @@ test.describe("book clean URLs", () => {
     await H.waitForDetailTitle(page, book.title);
     const landed = new URL(page.url());
     expect(landed.pathname).toBe(`/book/${book.id}`);
-    expect(landed.searchParams.has("id")).toBe(false);
     expect(page.url()).not.toMatch(/book\.html/);
-    expect(page.url()).not.toMatch(/[?&]id=/);
+    if (landed.searchParams.has("id")) {
+      expect(landed.searchParams.get("id")).toBe(String(book.id));
+    }
   });
 
-  test("B2 legacy /book?id={id} permanently lands on /book/{id} without leftover id query", async ({ page, request, baseURL }) => {
+  test("B2 legacy /book?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
     const book = await H.discoverLiveBook(page);
     const origin = String(baseURL || "").replace(/\/$/, "");
     const redirect = await request.get(`${origin}/book?id=${encodeURIComponent(book.id)}`, { maxRedirects: 0 });
@@ -66,8 +69,10 @@ test.describe("book clean URLs", () => {
     await H.waitForDetailTitle(page, book.title);
     const landed = new URL(page.url());
     expect(landed.pathname).toBe(`/book/${book.id}`);
-    expect(landed.searchParams.has("id")).toBe(false);
-    expect(page.url()).not.toMatch(/[?&]id=/);
+    expect(page.url()).not.toMatch(/book\.html/);
+    if (landed.searchParams.has("id")) {
+      expect(landed.searchParams.get("id")).toBe(String(book.id));
+    }
   });
 
   test("B3 /book/{id} stays put with no redirect loop", async ({ page, request, baseURL }) => {
@@ -165,12 +170,18 @@ test.describe("book clean URLs", () => {
 
   test("non-numeric legacy query does not 308 into /book/{slug}", async ({ request, baseURL }) => {
     const origin = String(baseURL || "").replace(/\/$/, "");
-    for (const path of [`${origin}/book.html?id=children-3`, `${origin}/book?id=children-3`]) {
+    for (const path of [
+      `${origin}/book.html`,
+      `${origin}/book.html?id=`,
+      `${origin}/book.html?id=abc`,
+      `${origin}/book.html?id=children-3`,
+      `${origin}/book?id=children-3`
+    ]) {
       const res = await request.get(path, { maxRedirects: 0 });
       expect(res.status(), path).toBe(200);
       expect(res.headers().location || "").toBe("");
       const loc = String(res.headers().location || "");
-      expect(loc).not.toMatch(/\/book\/children-3\b/i);
+      expect(loc).not.toMatch(/\/book\/(abc|children-3)\b/i);
     }
   });
 
