@@ -11,6 +11,12 @@ function rgbLum(rgb) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+function contrastRatio(a, b) {
+  const hi = Math.max(rgbLum(a), rgbLum(b));
+  const lo = Math.min(rgbLum(a), rgbLum(b));
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 test.describe("design foundation", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
@@ -27,23 +33,32 @@ test.describe("design foundation", () => {
         const snap = await page.evaluate(() => {
           const cs = getComputedStyle(document.documentElement);
           const body = getComputedStyle(document.body);
-          const btn = getComputedStyle(document.createElement("button"));
-          document.body.appendChild(Object.assign(document.createElement("button"), { id: "kutadgu-font-probe" }));
-          const probe = document.getElementById("kutadgu-font-probe");
+          const probe = document.createElement("button");
+          probe.type = "button";
+          probe.id = "kutadgu-font-probe";
+          probe.textContent = "ئا";
+          document.body.appendChild(probe);
           const probeCs = getComputedStyle(probe);
-          const input = document.querySelector("input, textarea, select");
+          const input = document.querySelector(".kutadgu-header-search input, input, textarea, select");
           const inputCs = input ? getComputedStyle(input) : probeCs;
           const header = document.querySelector("header.kutadgu-public-header");
           const search = header && header.querySelector(".kutadgu-header-search");
-          probe.remove();
-          return {
+          const tokenColor = (name) => {
+            const el = document.createElement("div");
+            el.style.color = "var(" + name + ")";
+            document.body.appendChild(el);
+            const color = getComputedStyle(el).color;
+            el.remove();
+            return color;
+          };
+          const out = {
             fontUi: cs.getPropertyValue("--font-ui"),
             primaryBg: cs.getPropertyValue("--button-primary-bg").trim(),
             secondaryBg: cs.getPropertyValue("--button-secondary-bg").trim(),
-            siteBg: cs.getPropertyValue("--site-bg").trim(),
-            aliasBg: cs.getPropertyValue("--bg").trim(),
-            aliasText: cs.getPropertyValue("--text").trim(),
-            siteText: cs.getPropertyValue("--site-text").trim(),
+            aliasBg: tokenColor("--bg"),
+            siteBg: tokenColor("--site-bg"),
+            aliasText: tokenColor("--text"),
+            siteText: tokenColor("--site-text"),
             bodyFont: body.fontFamily,
             probeFont: probeCs.fontFamily,
             inputFont: inputCs.fontFamily,
@@ -54,6 +69,8 @@ test.describe("design foundation", () => {
             headerDisplay: header ? getComputedStyle(header).display : "",
             headerFlex: header ? getComputedStyle(header).flexDirection : ""
           };
+          probe.remove();
+          return out;
         });
         expect(snap.fontUi, path).toMatch(/UKIJ CJK/);
         expect(snap.bodyFont, path).toMatch(/UKIJ CJK/);
@@ -81,19 +98,20 @@ test.describe("design foundation", () => {
       return page.evaluate(() => {
         const body = getComputedStyle(document.body);
         const header = document.querySelector("header.kutadgu-public-header");
-        const input = document.querySelector("input");
-        const cs = getComputedStyle(document.documentElement);
+        const input = document.querySelector(".kutadgu-header-search input, input");
         return {
           dark: document.body.classList.contains("dark-mode"),
           bodyBg: body.backgroundColor,
           bodyColor: body.color,
+          siteBg: body.getPropertyValue("--site-bg").trim(),
+          siteText: body.getPropertyValue("--site-text").trim(),
           headerBg: header ? getComputedStyle(header).backgroundColor : "",
           headerColor: header ? getComputedStyle(header).color : "",
           inputBg: input ? getComputedStyle(input).backgroundColor : "",
           inputColor: input ? getComputedStyle(input).color : "",
-          primary: cs.getPropertyValue("--button-primary-bg").trim(),
-          primaryText: cs.getPropertyValue("--button-primary-text").trim(),
-          secondary: cs.getPropertyValue("--button-secondary-bg").trim(),
+          primary: body.getPropertyValue("--button-primary-bg").trim(),
+          primaryText: body.getPropertyValue("--button-primary-text").trim(),
+          secondary: body.getPropertyValue("--button-secondary-bg").trim(),
           headerH: header ? header.getBoundingClientRect().height : 0
         };
       });
@@ -101,17 +119,24 @@ test.describe("design foundation", () => {
 
     const light = await contrastSnap();
     expect(light.dark).toBeFalsy();
-    expect(Math.abs(rgbLum(light.bodyBg) - rgbLum(light.bodyColor))).toBeGreaterThan(0.25);
-    expect(Math.abs(rgbLum(light.headerBg) - rgbLum(light.headerColor))).toBeGreaterThan(0.25);
+    expect(light.bodyBg).not.toMatch(/rgba\(0,\s*0,\s*0,\s*0\)/);
+    expect(light.headerBg).not.toMatch(/rgba\(0,\s*0,\s*0,\s*0\)/);
+    expect(contrastRatio(light.bodyBg, light.bodyColor)).toBeGreaterThan(3);
+    expect(contrastRatio(light.headerBg, light.headerColor)).toBeGreaterThan(3);
     expect(light.headerH).toBeLessThanOrEqual(120);
 
     await page.locator("header .theme-button, header .theme-toggle").first().click();
     await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+    await expect.poll(async () => {
+      const snap = await contrastSnap();
+      return rgbLum(snap.bodyBg);
+    }).toBeLessThan(0.25);
     const dark = await contrastSnap();
     expect(dark.dark).toBeTruthy();
-    expect(dark.bodyBg).not.toBe(light.bodyBg);
-    expect(Math.abs(rgbLum(dark.bodyBg) - rgbLum(dark.bodyColor))).toBeGreaterThan(0.25);
-    expect(Math.abs(rgbLum(dark.headerBg) - rgbLum(dark.headerColor))).toBeGreaterThan(0.25);
+    expect(dark.siteBg).not.toBe(light.siteBg);
+    expect(dark.siteText).not.toBe(light.siteText);
+    expect(contrastRatio(dark.bodyBg, dark.bodyColor)).toBeGreaterThan(3);
+    expect(contrastRatio(dark.headerBg, dark.headerColor)).toBeGreaterThan(3);
     expect(dark.headerH).toBeLessThanOrEqual(120);
     expect(dark.primary).toBeTruthy();
     expect(dark.primaryText).toBeTruthy();

@@ -12,15 +12,16 @@
 html,
 body,
 body * {
-    /* Stage 4A: keep the broad UKIJ rule. Narrowing body * is a later cleanup. */
-    font-family: var(--font-ui, "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif) !important;
+    /* Stage 4A: keep the broad UKIJ rule. Narrowing body * is a later cleanup.
+       Do not put a comma-separated font stack inside var() — that invalidates the declaration. */
+    font-family: var(--font-ui) !important;
 }
 
 input,
 button,
 textarea,
 select {
-    font-family: var(--font-ui, "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif) !important;
+    font-family: var(--font-ui) !important;
 }
 
 /* =========================================================

@@ -175,15 +175,17 @@ test("dark mode keeps compatible site colors and button tokens", () => {
 });
 
 test("UKIJ body * !important rule is kept; form controls also use UKIJ", () => {
+  assert.match(rootVars["--font-ui"], /UKIJ CJK/);
   assert.match(
     theme,
-    /html\s*,\s*body\s*,\s*body \*\s*\{[\s\S]*?UKIJ CJK[\s\S]*?!important/
+    /html\s*,\s*body\s*,\s*body \*\s*\{[\s\S]*?font-family:\s*var\(--font-ui\)\s*!important/
   );
   assert.match(theme, /body \* \{/);
   assert.match(
     theme,
-    /input\s*,\s*button\s*,\s*textarea\s*,\s*select\s*\{[\s\S]*?UKIJ CJK[\s\S]*?!important/
+    /input\s*,\s*button\s*,\s*textarea\s*,\s*select\s*\{[\s\S]*?font-family:\s*var\(--font-ui\)\s*!important/
   );
+  assert.doesNotMatch(theme, /font-family:\s*var\(--font-ui,/);
 });
 
 test("no new unscoped header geometry rule overrides public-header compact bar", () => {
