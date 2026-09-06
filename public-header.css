@@ -1,4 +1,6 @@
-/* Stage 1 — unified public header. Scoped to .kutadgu-public-header so listing-page local CSS cannot split the chrome. */
+/* Stage 1 visual hotfix — compact unified header.
+   Scoped to .kutadgu-public-header so listing/homepage header { } rules cannot
+   stretch the chrome into a tall column. Nav stays a direct child of header. */
 
 .kutadgu-header-search-label {
   position: absolute;
@@ -12,71 +14,84 @@
   border: 0;
 }
 
-body.has-kutadgu-public-header > header.kutadgu-public-header {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+body.has-kutadgu-public-header > header.kutadgu-public-header,
+header.kutadgu-public-header,
+.kutadgu-public-header-main {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  align-content: center !important;
+  justify-content: space-between !important;
+  gap: 8px 14px !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  box-sizing: border-box !important;
   background-color: var(--site-brown-dark, #4b3327) !important;
   color: #fff !important;
   overflow-x: hidden;
 }
 
-.kutadgu-public-header-main,
+body.has-kutadgu-public-header > header.kutadgu-public-header,
 header.kutadgu-public-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 8px clamp(12px, 3vw, 42px);
+  padding: 8px max(16px, calc((100% - 1120px) / 2)) !important;
 }
 
 .kutadgu-public-header .logo {
   display: inline-flex !important;
-  align-items: center;
-  gap: 8px;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
   min-width: 0;
-  max-width: min(42vw, 280px);
-  height: 48px;
+  max-width: min(34vw, 280px);
+  width: auto !important;
+  height: 48px !important;
+  max-height: 48px !important;
+  margin: 0 !important;
   color: #fff !important;
   text-decoration: none !important;
-  flex: 0 1 auto;
+  flex: 0 1 auto !important;
+  overflow: hidden !important;
 }
 
 .kutadgu-public-header .logo img.kutadgu-site-logo {
   width: 38px !important;
   height: 38px !important;
-  min-width: 38px;
-  min-height: 38px;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  max-width: 38px !important;
+  max-height: 38px !important;
   object-fit: contain !important;
-  flex: 0 0 38px;
+  flex: 0 0 38px !important;
 }
 
 .kutadgu-public-header .kutadgu-brand-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: clamp(13px, 1.5vw, 17px);
+  white-space: nowrap !important;
+  font-size: clamp(13px, 1.35vw, 16px);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.25 !important;
 }
 
 .kutadgu-header-search {
   position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 180px;
-  min-width: 0;
-  max-width: 380px;
-  height: 40px;
-  gap: 0;
+  display: flex !important;
+  align-items: center !important;
+  align-self: center !important;
+  flex: 0 1 360px !important;
+  width: min(360px, 100%) !important;
+  min-width: 0 !important;
+  max-width: 420px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  margin: 0 auto !important;
+  gap: 0 !important;
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 999px;
   background: rgba(255, 255, 255, .1);
@@ -86,7 +101,8 @@ header.kutadgu-public-header {
 .kutadgu-header-search input {
   flex: 1 1 auto;
   min-width: 0;
-  height: 40px;
+  height: 40px !important;
+  max-height: 40px !important;
   border: 0;
   background: transparent;
   color: #fff;
@@ -105,6 +121,7 @@ header.kutadgu-public-header {
   height: 40px;
   min-width: 40px;
   min-height: 40px;
+  max-height: 40px;
   border: 0;
   background: rgba(255, 255, 255, .08);
   color: #fff;
@@ -113,27 +130,33 @@ header.kutadgu-public-header {
 
 .kutadgu-public-header nav.kutadgu-public-nav,
 .kutadgu-public-header nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-inline-start: auto;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+  margin: 0 !important;
   min-width: 0;
-  max-width: 100%;
+  max-width: none;
   padding: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  flex: 0 1 auto !important;
 }
 
 .kutadgu-public-header nav a {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 9px !important;
   color: #fffaf2 !important;
   text-decoration: none !important;
-  font-size: 13px;
+  font-size: 13px !important;
   font-weight: 700;
+  line-height: 1 !important;
   white-space: nowrap;
   border-radius: 999px;
 }
@@ -192,6 +215,7 @@ header.kutadgu-public-header {
   min-width: 36px !important;
   min-height: 36px !important;
   flex: 0 0 36px !important;
+  margin: 0 !important;
   box-shadow: none !important;
 }
 
@@ -216,47 +240,96 @@ body.dark-mode .kutadgu-header-search {
   border-color: rgba(255, 255, 255, .14);
 }
 
+header.kutadgu-public-header > #kutadguAnnounceBar {
+  flex: 1 0 100% !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 28px;
+  max-height: none;
+}
+
 @media (min-width: 769px) {
   html.kutadgu-has-public-header .shop-floating,
   html.kutadgu-has-public-header .member-standalone-floating {
     display: none !important;
   }
 
-  .kutadgu-public-header-main {
-    flex-wrap: nowrap;
-    min-height: 58px;
+  body.has-kutadgu-public-header > header.kutadgu-public-header,
+  header.kutadgu-public-header {
+    display: grid !important;
+    grid-template-columns: minmax(150px, 240px) minmax(280px, 360px) minmax(260px, 1fr);
+    grid-template-rows: 64px auto;
+    align-items: center !important;
+    column-gap: 16px;
+    row-gap: 0;
+    min-height: 64px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-inline: max(20px, calc((100% - 1200px) / 2)) !important;
   }
 
-  header.kutadgu-public-header {
-    min-height: 58px;
-    flex-wrap: wrap;
+  header.kutadgu-public-header > .logo {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: 100%;
+  }
+
+  header.kutadgu-public-header > .kutadgu-header-search {
+    grid-column: 2;
+    grid-row: 1;
+    flex: none !important;
+    width: 100% !important;
+    min-width: 280px !important;
+    max-width: 360px !important;
+    margin: 0 !important;
+    justify-self: center;
+  }
+
+  header.kutadgu-public-header > nav {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  header.kutadgu-public-header > #kutadguAnnounceBar {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 
 @media (max-width: 768px) {
-  .kutadgu-public-header-main,
-  header.kutadgu-public-header.is-mobile-enhanced {
-    justify-content: center;
-    padding: 0;
-    gap: 6px;
+  body.has-kutadgu-public-header > header.kutadgu-public-header,
+  header.kutadgu-public-header.is-mobile-enhanced,
+  .kutadgu-public-header-main {
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   header.kutadgu-public-header.is-mobile-enhanced {
-    padding-bottom: 4px !important;
+    padding: calc(7px + env(safe-area-inset-top, 0px)) 62px 4px !important;
   }
 
   header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search,
   .mobile-site-header .kutadgu-header-search {
-    flex: 1 0 100%;
+    flex: 1 0 100% !important;
     order: 8;
-    max-width: none;
-    height: 40px;
-    margin: 0 10px 8px;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    margin: 0 0 6px !important;
   }
 
   header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search input,
   header.kutadgu-public-header.is-mobile-enhanced .kutadgu-header-search-submit {
     min-height: 40px;
+    max-height: 40px;
     font-size: 16px !important;
   }
 
@@ -267,15 +340,18 @@ body.dark-mode .kutadgu-header-search {
 
   .kutadgu-public-header .logo {
     max-width: min(58vw, 240px);
-    height: 44px;
+    height: 44px !important;
+    max-height: 44px !important;
   }
 
   .kutadgu-public-header .logo img.kutadgu-site-logo {
     width: 32px !important;
     height: 32px !important;
-    min-width: 32px;
-    min-height: 32px;
-    flex-basis: 32px;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    flex-basis: 32px !important;
   }
 
   body.has-kutadgu-public-header.has-mobile-fixed-header {

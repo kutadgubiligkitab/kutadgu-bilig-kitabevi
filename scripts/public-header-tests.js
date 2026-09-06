@@ -82,7 +82,9 @@ test("shop and mobile keep using storefrontAppHref and call the helper", () => {
 
 test("header CSS keeps search compact, theme in-flow, and mobile spacing", () => {
   assert.match(css, /\.kutadgu-header-search/);
-  assert.match(css, /max-width:\s*380px/);
+  assert.match(css, /flex-direction:\s*row !important/);
+  assert.match(css, /max-width:\s*420px/);
+  assert.match(css, /min-width:\s*280px/);
   assert.match(css, /\.kutadgu-public-header \.theme-button/);
   assert.match(css, /position:\s*static !important/);
   assert.match(css, /@media \(max-width: 768px\)/);
@@ -90,7 +92,10 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(css, /overflow-x:\s*hidden/);
   assert.match(css, /body\.dark-mode \.kutadgu-public-header/);
   assert.match(css, /@media \(min-width: 769px\)/);
+  assert.match(css, /display:\s*grid !important/);
   assert.doesNotMatch(css, /admin-topbar/);
+  const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
+  assert.match(helperJs, /public-header\.css\?v=2/);
 });
 
 test("helper does not touch admin/auth/order/sql surfaces", () => {
