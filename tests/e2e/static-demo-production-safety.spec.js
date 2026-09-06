@@ -34,6 +34,7 @@ async function requireProductionAuthority(page) {
 }
 
 async function mockBooks(page, { fail = false, books = [bookRow()] } = {}) {
+  await H.stubNumericBookDocuments(page, books.map((row) => row.id));
   await page.route("**/rest/v1/books**", async (route) => {
     if (fail) {
       return route.fulfill({

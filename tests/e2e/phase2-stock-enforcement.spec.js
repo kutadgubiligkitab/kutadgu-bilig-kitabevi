@@ -35,6 +35,7 @@ const BOOKS = [
 ];
 
 async function mockBooks(page, books = BOOKS) {
+  await H.stubNumericBookDocuments(page, books.map((row) => row.id));
   await page.route("**/rest/v1/books**", async (route) => {
     const req = route.request();
     const url = req.url();
