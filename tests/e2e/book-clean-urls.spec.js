@@ -28,15 +28,14 @@ test.describe("book clean URLs", () => {
     expect(failed, failed.join("\n")).toEqual([]);
   });
 
-  function assertCleanBookLocation(location, origin, bookId) {
+  function assertCleanBookLocation(location, origin, bookId, extraSearch = "") {
     expect(location, "missing Location").toBeTruthy();
     const dest = new URL(location, origin);
     expect(dest.pathname).toBe(`/book/${bookId}`);
     expect(dest.pathname).not.toContain("book.html");
-    if (dest.searchParams.has("id")) {
-      expect(dest.searchParams.get("id")).toBe(String(bookId));
-    }
-    expect(dest.pathname + dest.search).not.toBe(`/book?id=${bookId}`);
+    expect(dest.searchParams.has("id"), `Location kept id query: ${location}`).toBe(false);
+    expect(String(location), location).not.toMatch(/[?&]id=/);
+    expect(dest.pathname + dest.search).toBe(`/book/${bookId}${extraSearch}`);
   }
 
   test("B legacy /book.html?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
@@ -52,9 +51,15 @@ test.describe("book clean URLs", () => {
     const landed = new URL(page.url());
     expect(landed.pathname).toBe(`/book/${book.id}`);
     expect(page.url()).not.toMatch(/book\.html/);
-    if (landed.searchParams.has("id")) {
-      expect(landed.searchParams.get("id")).toBe(String(book.id));
-    }
+    expect(landed.searchParams.has("id")).toBe(false);
+    expect(page.url()).not.toMatch(/[?&]id=/);
+  });
+
+  test("B1b legacy /book.html?id= keeps utm and drops id", async ({ request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const redirect = await request.get(`${origin}/book.html?id=106&utm_source=test`, { maxRedirects: 0 });
+    expect(redirect.status()).toBe(308);
+    assertCleanBookLocation(redirect.headers().location, origin, "106", "?utm_source=test");
   });
 
   test("B2 legacy /book?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
@@ -70,9 +75,8 @@ test.describe("book clean URLs", () => {
     const landed = new URL(page.url());
     expect(landed.pathname).toBe(`/book/${book.id}`);
     expect(page.url()).not.toMatch(/book\.html/);
-    if (landed.searchParams.has("id")) {
-      expect(landed.searchParams.get("id")).toBe(String(book.id));
-    }
+    expect(landed.searchParams.has("id")).toBe(false);
+    expect(page.url()).not.toMatch(/[?&]id=/);
   });
 
   test("B3 /book/{id} stays put with no redirect loop", async ({ page, request, baseURL }) => {

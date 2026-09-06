@@ -1,30 +1,6 @@
 {
   "redirects": [
     {
-      "source": "/book.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "id",
-          "value": "(?<id>\\d+)"
-        }
-      ],
-      "destination": "/book/:id",
-      "permanent": true
-    },
-    {
-      "source": "/book",
-      "has": [
-        {
-          "type": "query",
-          "key": "id",
-          "value": "(?<id>\\d+)"
-        }
-      ],
-      "destination": "/book/:id",
-      "permanent": true
-    },
-    {
       "source": "/index.html",
       "destination": "/",
       "permanent": true
@@ -206,12 +182,38 @@
       "destination": "/returns.html"
     },
     {
-      "source": "/book/:id",
-      "destination": "/book.html"
+      "source": "/book.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "\\d+"
+        }
+      ],
+      "destination": "/api/legacy-book-redirect"
     },
     {
       "source": "/book",
-      "destination": "/book.html"
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "\\d+"
+        }
+      ],
+      "destination": "/api/legacy-book-redirect"
+    },
+    {
+      "source": "/book/:id",
+      "destination": "/book-shell.html"
+    },
+    {
+      "source": "/book.html",
+      "destination": "/book-shell.html"
+    },
+    {
+      "source": "/book",
+      "destination": "/book-shell.html"
     }
   ],
   "headers": [

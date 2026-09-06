@@ -26,7 +26,7 @@ const appCfg=read("app-config.js");
 const stage80=read("STAGE80_MEMBER_ORDER_INTEGRITY.sql");
 const stage2c=read("STAGE2C_AAL2_BOOKS_WRITE_RLS.sql");
 const indexHtml=read("index.html");
-const bookHtml=read("book.html");
+const bookHtml=read("book-shell.html");
 
 test("stock NULL remains NULL and is not coerced to 0",()=>{
   assert.deepStrictEqual(Stock.parseAdminStock(null),{ok:true,value:null,configured:false});

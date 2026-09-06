@@ -380,7 +380,7 @@ test("read-only post-check is documented",()=>{
 
 test("shop.js cache pins bumped for Phase 2",()=>{
   assert.match(read("index.html"),/shop\.js\?v=114/);
-  assert.match(read("book.html"),/shop\.js\?v=113/);
+  assert.match(read("book-shell.html"),/shop\.js\?v=113/);
   assert.match(shop,/app-config\.js\?v=4/);
 });
 
