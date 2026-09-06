@@ -44,7 +44,7 @@ module.exports = async function bookPublic(req, res) {
     }
     send(res, 200, {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+      "Cache-Control": "no-store, no-cache, must-revalidate"
     }, html, head);
     return;
   }

@@ -43,7 +43,8 @@ async function invoke(url, method, fetchImpl) {
     status: res.statusCode,
     location: res.headers.location || "",
     body: res.chunks.join(""),
-    type: res.headers["content-type"] || ""
+    type: res.headers["content-type"] || "",
+    cache: res.headers["cache-control"] || ""
   };
 }
 
@@ -127,15 +128,20 @@ async function run() {
   await test("handler GET/HEAD found=200, missing=404, failure=503", async () => {
     const foundGet = await invoke("/book/106", "GET", async () => jsonResponse(200, [{ id: 106 }]));
     assert.strictEqual(foundGet.status, 200);
+    assert.match(foundGet.cache, /no-store/i);
+    assert.doesNotMatch(foundGet.cache, /s-maxage/i);
+    assert.doesNotMatch(foundGet.cache, /stale-while-revalidate/i);
     assert.ok(foundGet.body.includes("data-dynamic-book"));
     assert.ok(!foundGet.body.includes("كىتاب تېپىلمىدى"));
 
     const foundHead = await invoke("/api/book-public?id=106", "HEAD", async () => jsonResponse(200, [{ id: "106" }]));
     assert.strictEqual(foundHead.status, 200);
+    assert.match(foundHead.cache, /no-store/i);
     assert.strictEqual(foundHead.body, "");
 
     const missingGet = await invoke("/book/999999999", "GET", async () => jsonResponse(200, []));
     assert.strictEqual(missingGet.status, 404);
+    assert.match(missingGet.cache, /no-store/i);
     assert.ok(missingGet.body.includes("noindex"));
     assert.ok(missingGet.body.includes("كىتاب تېپىلمىدى"));
     assert.ok(!missingGet.body.includes("@type"));
@@ -148,6 +154,7 @@ async function run() {
 
     const fail = await invoke("/book/106", "GET", async () => jsonResponse(503, { error: "x" }));
     assert.strictEqual(fail.status, 503);
+    assert.match(fail.cache, /no-store/i);
     assert.notStrictEqual(fail.status, 404);
     assert.ok(fail.body.includes("ۋاقىتلىق خاتالىق"));
   });
