@@ -122,6 +122,8 @@ function loadSdk(){
 }
 function accountButton(){
   if(document.body?.dataset.accountPage==="true")return null;
+  const headerLink=document.querySelector(".kutadgu-public-header a[href='/account.html'], .kutadgu-public-header a[href='account.html'], header.kutadgu-public-header a.kutadgu-header-account");
+  if(headerLink)return headerLink;
   let button=document.querySelector(".member-account-button");
   if(button)return button;
   let host=document.querySelector(".shop-floating");

@@ -1618,11 +1618,14 @@ function ensureCartCount(link){
   return link;
 }
 function ensureDesktopShopNav(){
+  if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function"){
+    window.KutadguPublicHeader.ensure();
+  }
   if(!isDesktopShopViewport()){
     document.documentElement.classList.remove("kutadgu-desktop-header-shop");
     return;
   }
-  const headerNav=document.querySelector("header nav");
+  const headerNav=document.querySelector(".kutadgu-public-header nav, header.kutadgu-public-header nav, header nav");
   const altHost=document.querySelector(".detail-topbar, .cart-page-top");
   let host=headerNav;
   if(!host&&altHost){
@@ -2733,6 +2736,10 @@ function searchEnhance(){
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
   if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run(false)};
   res.innerHTML=fallbackNotice();
+  try{
+    const qParam=new URLSearchParams(location.search).get("q");
+    if(qParam){input.value=qParam;run(false)}
+  }catch(err){}
 }
 
 function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loading:index<3?"eager":"lazy",fetchpriority:index<2?"high":""})}
@@ -3979,6 +3986,15 @@ function loadAssetScript(src,id){
     document.head.appendChild(script);
   });
 }
+function loadPublicHeader(){
+  if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function"){
+    window.KutadguPublicHeader.ensure();
+    return Promise.resolve();
+  }
+  return loadAssetScript("/public-header.js?v=1","kutadguPublicHeaderScript").then(()=>{
+    if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function")window.KutadguPublicHeader.ensure();
+  }).catch(error=>console.warn(error));
+}
 function ensureCoverSystemCss(){
   let el=document.querySelector("link[data-kutadgu-covers]");
   if(!el){
@@ -4001,6 +4017,7 @@ function initStaticShell(){
   if(staticShellReady)return;
   staticShellReady=true;
   ensureCoverSystemCss();
+  if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function")window.KutadguPublicHeader.ensure();
   injectFloat();
   paintListingBootState();
   if(!liveListingWaiting()){
@@ -4055,7 +4072,9 @@ async function boot(){
   if(bootStarted)return;
   bootStarted=true;
   if(maybeRedirectLegacyBookUrl())return;
+  const publicHeaderReady=loadPublicHeader();
   try{await loadAssetScript("/app-config.js?v=4","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  try{await publicHeaderReady}catch(error){console.warn(error)}
   initStaticShell();
   loadMemberSystem();
   await loadRemoteCatalog();

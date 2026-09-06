@@ -44,7 +44,7 @@ test("homepage Google snippet description and logo alts are cleaned", () => {
   assert.match(html, new RegExp(`<meta property="og:description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
   assert.match(html, new RegExp(`<meta name="twitter:description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
   assert.match(html, /<meta property="og:image:alt" content="قۇتادغۇبىلىك كىتابخانىسى">/);
-  assert.match(html, /<img src="kutadgu-logo\.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo"/);
+  assert.match(html, /<img src="\/kutadgu-logo\.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo"/);
   assert.match(html, /<img src="hero-brand-logo\.png\?v=1" alt="قۇتادغۇبىلىك كىتابخانىسى" class="hero-scene-logo"/);
   assert.doesNotMatch(html, /قۇتادغۇبىلىك لوگوسى/);
   assert.doesNotMatch(html, /كىتابخانىسى لوگوسى/);

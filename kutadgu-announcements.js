@@ -150,7 +150,8 @@
   function findStorefrontHeader() {
     if (typeof document === "undefined") return null;
     if (document.querySelector(".admin-shell, .admin-topbar")) return null;
-    return document.querySelector("body > header:not(.account-topbar)") ||
+    return document.querySelector("body > header.kutadgu-public-header") ||
+      document.querySelector("body > header:not(.account-topbar)") ||
       document.querySelector(".mobile-site-header");
   }
 
