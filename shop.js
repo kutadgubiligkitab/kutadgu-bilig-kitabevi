@@ -3517,12 +3517,12 @@ function renderContactSection(){
     const classes=`contact-card${className?` ${className}`:""}`;
     cards.push(href?`<a class="${classes}" href="${href}"${/^https?:/i.test(href)?' target="_blank" rel="noopener noreferrer"':""}>${body}</a>`:`<div class="${classes}">${body}</div>`);
   };
-  add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"","",true);
-  add("📷","Instagram",cfg.instagram,cfg.instagramUrl||"","",true);
   add("📍","دۇكان ئادرېسى",cfg.address,cfg.addressUrl||"","contact-address");
-  add("🕒","خىزمەت ۋاقتى",cfg.hours);
+  add("🕒","خىزمەت ۋاقتى",cfg.hours,"","contact-hours");
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
-  cards.unshift(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</bdi></small></div></a>`);
+  cards.push(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</bdi></small></div></a>`);
+  add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"","",true);
+  add("📷","Instagram",cfg.instagram,cfg.instagramUrl||"","contact-instagram",true);
   const photo=String(cfg.storePhoto||cfg.aboutPhoto||"").trim();
   if(photo&&!/[<>"']/.test(photo)){
     cards.push(`<figure class="contact-store-photo"><img src="${safeText(photo)}" alt="دۇكان رەسىمى" width="640" height="400" loading="lazy" decoding="async"></figure>`);

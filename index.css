@@ -2682,46 +2682,8 @@ label {
     margin-bottom:10px !important;
     font-size:14px !important;
   }
-  .bookstore-scene{
-    min-height:135px !important;
-    padding:8px !important;
-  }
-  .store-scene-top{
-    height:24px !important;
-  }
-  .store-icon{
-    font-size:16px !important;
-  }
-  .store-window{
-    margin-top:5px !important;
-    padding:5px 8px 6px !important;
-  }
-  .store-shelf{
-    height:22px !important;
-    border-bottom-width:5px !important;
-  }
-  .store-display{
-    height:54px !important;
-    gap:10px !important;
-    padding:4px 6px 2px !important;
-    grid-template-columns:56px 1fr 48px !important;
-  }
-  .real-cover-wrap{
-    height:50px !important;
-  }
-  .real-cover-wrap img,
-  .real-cover-wrap > img.hero-scene-logo{
-    max-height:50px !important;
-    max-width:40px !important;
-  }
-  .store-cart{
-    font-size:22px !important;
-  }
-  .store-shelf.lower{
-    height:20px !important;
-  }
-  .book-stack span{
-    height:10px !important;
+  .shop-hero-frame{
+    max-height:280px !important;
   }
 
   .home-search-card-section{

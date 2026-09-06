@@ -45,7 +45,8 @@ test("homepage Google snippet description and logo alts are cleaned", () => {
   assert.match(html, new RegExp(`<meta name="twitter:description" content="${snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">`));
   assert.match(html, /<meta property="og:image:alt" content="قۇتادغۇبىلىك كىتابخانىسى">/);
   assert.match(html, /<img src="\/kutadgu-logo\.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo"/);
-  assert.match(html, /<img src="hero-brand-logo\.png\?v=1" alt="قۇتادغۇبىلىك كىتابخانىسى" class="hero-scene-logo"/);
+  assert.match(html, /assets\/store\/shop-interior-main\.webp/);
+  assert.doesNotMatch(html, /class="hero-scene-logo"/);
   assert.doesNotMatch(html, /قۇتادغۇبىلىك لوگوسى/);
   assert.doesNotMatch(html, /كىتابخانىسى لوگوسى/);
   assert.match(html, /<meta name="robots" content="index, follow">/);
@@ -59,6 +60,13 @@ test("homepage Google snippet description and logo alts are cleaned", () => {
   assert.ok(Array.isArray(data["@graph"]));
   assert.ok(data["@graph"].some((n) => n["@type"] === "BookStore"));
   assert.ok(data["@graph"].some((n) => n["@type"] === "WebSite"));
+  const store = data["@graph"].find((n) => n["@type"] === "BookStore");
+  assert.strictEqual(store.telephone, "+905368999888");
+  assert.strictEqual(store.foundingDate, "2013");
+  assert.strictEqual(store.openingHours, "Mo-Su 08:30-20:00");
+  assert.strictEqual(store.logo, "https://www.kutadgubilik.com/kutadgu-logo.png");
+  assert.ok(Array.isArray(store.image) && store.image.includes("https://www.kutadgubilik.com/assets/store/shop-interior-main.webp"));
+  assert.doesNotMatch(html, /postalCode|geoCoordinates|priceRange|aggregateRating/);
   assert.doesNotMatch(html, /kutadgubilig\.com/);
 });
 
