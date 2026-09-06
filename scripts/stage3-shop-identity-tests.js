@@ -38,8 +38,8 @@ test("visible hero uses real photos and not the CSS bookstore scene", () => {
   assert.match(html, /\/assets\/store\/shop-interior-main\.webp/);
   assert.match(html, /\/assets\/store\/shop-interior-library\.webp/);
   assert.match(html, /\/assets\/store\/shop-exterior\.webp/);
-  assert.match(html, /بىلىمگە باشلايدىغان كىتابلار، بىر يەردە/);
   assert.match(html, /2013-يىلدىن بۇيان/);
+  assert.doesNotMatch(html, /بىلىمگە باشلايدىغان كىتابلار/);
   assert.match(html, /href="#books"/);
   assert.match(html, /href="#about"/);
   assert.doesNotMatch(html, /class="bookstore-scene"/);
