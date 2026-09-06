@@ -107,11 +107,11 @@ test("stage 66 listing first-paint and no sample fallback remain", () => {
 
 test("shared renderer still used by listing search carousel cart favorites", () => {
   assert.match(shop, /coverImgHtml\(b,coverOpts\)/);
-  assert.match(shop, /coverImgHtml\(b\)/);
+  assert.match(shop, /wrapCoverHtml\(b,coverImgHtml/);
   assert.match(shop, /home-carousel-cover/);
   assert.match(shop, /function miniCover\(b\)\{/);
-  assert.match(shop, /return coverImgHtml\(b,\{width:320,height:460\}\)/);
-  assert.match(shop, /coverImgHtml\(x\.b,\{width:100,height:127/);
+  assert.match(shop, /wrapCoverHtml\(b,coverImgHtml\(b,\{width:320,height:460\}\)/);
+  assert.match(shop, /wrapCoverHtml\(x\.b,coverImgHtml\(x\.b,\{width:100,height:127/);
 });
 
 if (failed) {
