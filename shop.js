@@ -1417,7 +1417,46 @@ function stockInfo(book){
   if(["in","in_stock","available","ئامباردا بار"].includes(raw))return {key:"in",label:"ئامباردا بار",canBuy:true,qty:null};
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
-function stockBadge(book){const s=stockInfo(book);return s.label?`<span class="stock-badge stock-${s.key}">${s.label}</span>`:""}
+function stockStateClass(book){
+  const key=stockInfo(book).key;
+  if(key==="out")return "is-stock-out";
+  if(key==="low")return "is-stock-low";
+  return "";
+}
+function stockBadge(book){
+  const s=stockInfo(book);
+  if(!s.label||s.key==="in"||s.key==="unknown")return "";
+  return `<span class="stock-badge stock-${s.key}">${escapeHtml(s.label)}</span>`;
+}
+function coverStockOverlayHtml(book){
+  if(stockInfo(book).key!=="out")return "";
+  return `<span class="cover-stock-overlay" aria-hidden="true">تۈگەپ كەتتى</span>`;
+}
+function wrapCoverHtml(book,inner){
+  const state=stockStateClass(book);
+  return `<span class="cover-stock-wrap${state?" "+state:""}">${inner}${coverStockOverlayHtml(book)}</span>`;
+}
+function applyCoverStockState(coverEl,book){
+  if(!coverEl)return;
+  coverEl.classList.remove("is-stock-out","is-stock-low");
+  let overlay=null;
+  try{overlay=coverEl.querySelector(":scope > .cover-stock-overlay")}catch(e){overlay=coverEl.querySelector(".cover-stock-overlay")}
+  if(!book){
+    if(overlay)overlay.remove();
+    return;
+  }
+  const state=stockStateClass(book);
+  if(state)coverEl.classList.add(state);
+  if(stockInfo(book).key==="out"){
+    if(!overlay){
+      overlay=document.createElement("span");
+      overlay.className="cover-stock-overlay";
+      overlay.setAttribute("aria-hidden","true");
+      overlay.textContent="تۈگەپ كەتتى";
+      coverEl.appendChild(overlay);
+    }
+  }else if(overlay)overlay.remove();
+}
 function clampCartQuantitiesToStock(){
   if(!isStockEnforcementEnabled())return false;
   if(typeof cartHydrationPending==="function"&&cartHydrationPending())return false;
@@ -1441,10 +1480,16 @@ function clampCartQuantitiesToStock(){
 }
 function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"){
   if(!isStorefrontVisible(book)){
-    return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true">ھازىرچە تەمىنلەنمەيدۇ</button>`;
+    return `<button type="button" class="${escapeAttr(className)} is-cart-unavailable" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true">ھازىرچە تەمىنلەنمەيدۇ</button>`;
   }
-  const s=stockInfo(book),disabled=s.canBuy?"":" disabled aria-disabled=\"true\"";
-  return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}"${disabled}>${s.canBuy?escapeHtml(label):"تۈگەپ كەتتى"}</button>`;
+  const s=stockInfo(book);
+  if(s.canBuy){
+    return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}">${escapeHtml(label)}</button>`;
+  }
+  const compact=String(label||"").replace(/\s+/g,"")==="🛒";
+  const mark=`<span class="cart-blocked-mark" aria-hidden="true">✕</span>`;
+  const text=compact?`🛒${mark}`:`🛒 ${mark} تۈگەپ كەتتى`;
+  return `<button type="button" class="${escapeAttr(className)} is-cart-unavailable" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true" aria-label="تۈگەپ كەتتى">${text}</button>`;
 }
 function cart(){
   if(!shopOwnerAllowsLocalDisplay())return [];
@@ -1695,6 +1740,28 @@ function syncStaticCards(){
       author.hidden=!name;
     }
     const price=card.querySelector(".book-price,.price");if(price)price.textContent=money(book.price);
+    card.classList.remove("is-stock-out","is-stock-low");
+    const state=stockStateClass(book);
+    if(state)card.classList.add(state);
+    applyCoverStockState(cover,book);
+    let badge=card.querySelector(".stock-badge");
+    const nextBadge=stockBadge(book);
+    if(nextBadge){
+      if(badge)badge.outerHTML=nextBadge;
+      else if(price)price.insertAdjacentHTML("beforebegin",nextBadge);
+    }else if(badge&&(badge.classList.contains("stock-in")||badge.classList.contains("stock-low")||badge.classList.contains("stock-out"))){
+      badge.remove();
+    }
+    const cartBtn=card.querySelector("[data-cart-id]");
+    if(cartBtn){
+      const replacement=document.createElement("div");
+      replacement.innerHTML=cartButton(book);
+      const nextBtn=replacement.firstElementChild;
+      if(nextBtn){
+        cartBtn.replaceWith(nextBtn);
+        nextBtn.onclick=e=>{e.preventDefault();e.stopPropagation();add(nextBtn.dataset.cartId)};
+      }
+    }
   });
 }
 function applyStaticCoverFallbacks(scope=document){
@@ -2225,6 +2292,9 @@ function decorateDetail(){
   if(isStorefrontVisible(b))recent(b.id);
   trackBookViewOnce(b);
 
+  const coverBox=document.querySelector(".book-cover-box");
+  if(coverBox)applyCoverStockState(coverBox,isStorefrontVisible(b)?b:null);
+
   let box=document.querySelector(".book-detail-info");
   if(!box)return;
   box.classList.add("detail-info-upgraded");
@@ -2257,6 +2327,8 @@ function decorateDetail(){
 
   let panel=document.createElement("div");
   panel.className="detail-purchase-panel";
+  const detailStock=stockInfo(b);
+  const qtyDisabled=detailStock.canBuy?"":" disabled aria-disabled=\"true\"";
   panel.innerHTML=`
     <div class="detail-price-line">
       <div>
@@ -2267,9 +2339,9 @@ function decorateDetail(){
       <div class="detail-quantity-wrap">
         <span class="detail-quantity-label">سانى</span>
         <div class="detail-quantity-control">
-          <button type="button" class="detail-qty-minus" aria-label="سانىنى ئازايتىش">−</button>
+          <button type="button" class="detail-qty-minus" aria-label="سانىنى ئازايتىش"${qtyDisabled}>−</button>
           <span class="detail-qty-value">1</span>
-          <button type="button" class="detail-qty-plus" aria-label="سانىنى كۆپەيتىش">+</button>
+          <button type="button" class="detail-qty-plus" aria-label="سانىنى كۆپەيتىش"${qtyDisabled}>+</button>
         </div>
       </div>
     </div>
@@ -2314,16 +2386,18 @@ async function shareBook(b){
   }catch(e){}
 }
 function miniCover(b){
-  return coverImgHtml(b,{width:320,height:460});
+  return wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460}));
 }
 
 function miniCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author);
-  return `<article class="shop-mini-card"><button type="button" class="mini-heart" data-fav-id="${id}">♡</button><a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button></div></article>`;
+  const state=stockStateClass(b);
+  return `<article class="shop-mini-card${state?" "+state:""}"><button type="button" class="mini-heart" data-fav-id="${id}">♡</button><a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button></div></article>`;
 }
 
 function favoriteCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
+  const state=stockStateClass(b);
   if(!isStorefrontVisible(b)){
     return `<article class="favorite-card favorite-card-unavailable">
     <a class="favorite-cover" href="${href}">${miniCover(b)}</a>
@@ -2337,8 +2411,8 @@ function favoriteCard(b){
     </div>
   </article>`;
   }
-  return `<article class="favorite-card">
-    <a class="favorite-cover" href="${href}">${miniCover(b)}</a>
+  return `<article class="favorite-card${state?" "+state:""}">
+    <a class="favorite-cover${state?" "+state:""}" href="${href}">${miniCover(b)}</a>
     <div class="favorite-card-info">
       <a class="favorite-card-title" href="${href}">${title}</a>
       <div class="favorite-card-author">${author}</div>
@@ -2384,12 +2458,13 @@ function recommendedBooks(limit=12){
 
 function homeFeatureCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
-  return `<article class="home-feature-card">
+  const state=stockStateClass(b);
+  return `<article class="home-feature-card${state?" "+state:""}">
       <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a href="${href}">
-        <div class="home-feature-cover">
+        <div class="home-feature-cover${state?" "+state:""}">
           <div class="home-feature-cover-frame">
-            ${coverImgHtml(b,{width:320,height:460})}
+            ${wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460}))}
           </div>
         </div>
         <div class="home-feature-info">
@@ -2397,6 +2472,7 @@ function homeFeatureCard(b){
           <div class="home-feature-author">${author}</div>
           <div class="home-feature-bottom">
             <span class="home-feature-price">${money(b.price)}</span>
+            ${stockBadge(b)}
             ${cartButton(b,"🛒","add-to-cart home-feature-cart")}
           </div>
         </div>
@@ -2518,13 +2594,16 @@ function bindDynamicActions(scope){
 function bookCardMarkup(b,variant="listing",coverOpts={}){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
-  if(variant==="search")return `<article class="advanced-search-result" data-live-book-id="${id}">
-    <a class="advanced-search-cover" href="${href}">${coverImgHtml(b)}</a>
+  const state=stockStateClass(b);
+  const cover=wrapCoverHtml(b,coverImgHtml(b,coverOpts));
+  if(variant==="search")return `<article class="advanced-search-result${state?" "+state:""}" data-live-book-id="${id}">
+    <a class="advanced-search-cover${state?" "+state:""}" href="${href}">${cover}</a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${href}">${title}</a>
       ${authorBlock}
       <div class="advanced-search-meta">${category}</div>
       <div class="advanced-search-price">${money(b.price)}</div>
+      ${stockBadge(b)}
       <div class="advanced-search-actions">
         <a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
@@ -2533,9 +2612,9 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
       </div>
     </div>
   </article>`;
-  return `<article class="book-card" data-live-book-id="${id}">
-    <a class="book-image" href="${href}">
-      ${coverImgHtml(b,coverOpts)}
+  return `<article class="book-card${state?" "+state:""}" data-live-book-id="${id}">
+    <a class="book-image${state?" "+state:""}" href="${href}">
+      ${cover}
     </a>
     <div class="book-info">
       <h2 class="book-title">${title}</h2>
@@ -2945,20 +3024,24 @@ function cartPage(){
   host.innerHTML=items.map((x,index)=>{
     const visible=isStorefrontVisible(x.b);
     const stock=stockInfo(x.b);
-    return `<div class="cart-item${visible?"":" cart-item-unavailable"}">
-      <div class="cart-item-cover">
-        ${coverImgHtml(x.b,{width:100,height:127,loading:index<2?"eager":"lazy"})}
+    const out=visible&&!stock.canBuy;
+    const itemState=out?" is-stock-out":(visible&&stock.key==="low"?" is-stock-low":"");
+    const plusDisabled=preview||!visible||!stock.canBuy||(Number.isFinite(stock.qty)&&stock.qty>0&&x.qty>=stock.qty);
+    return `<div class="cart-item${visible?"":" cart-item-unavailable"}${itemState}">
+      <div class="cart-item-cover${out?" is-stock-out":""}">
+        ${wrapCoverHtml(x.b,coverImgHtml(x.b,{width:100,height:127,loading:index<2?"eager":"lazy"}))}
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(x.b.title)}</div>
         <div class="cart-meta">${escapeHtml(x.b.author)} · ${escapeHtml(x.b.category)}</div>
-        <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}${visible&&Number.isFinite(stock.qty)&&x.qty>stock.qty?`<span class="stock-badge stock-low">ئامبار سانى يېتەرسىز</span>`:""}</div>
+        <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}${visible&&stock.canBuy&&Number.isFinite(stock.qty)&&x.qty>stock.qty?`<span class="stock-badge stock-low">ئامبار سانى يېتەرسىز</span>`:""}</div>
+        ${out?`<p class="cart-stock-remove-hint">بۇ كىتاب تۈگەپ كەتتى. زاكاز قىلىشتىن بۇرۇن ئۇنى سېۋەتتىن ئۆچۈرۈڭ.</p>`:""}
         <div class="cart-item-toolbar">
           <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
           <div class="qty-control">
             <button type="button" aria-label="ئازايتىش" data-minus="${x.b.id}"${preview||!visible?" disabled aria-disabled=\"true\"":""}>−</button>
             <span class="cart-qty-value">${x.qty}</span>
-            <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${preview||!visible||(Number.isFinite(stock.qty)&&x.qty>=stock.qty)?" disabled aria-disabled=\"true\"":""}>+</button>
+            <button type="button" aria-label="كۆپەيتىش" data-plus="${x.b.id}"${plusDisabled?" disabled aria-disabled=\"true\"":""}>+</button>
           </div>
           <div class="cart-line-price"><small>جەمئىي</small><strong>${visible?money((x.b.price||0)*x.qty):"—"}</strong></div>
           <button type="button" class="remove-cart" data-remove="${x.b.id}">ئۆچۈرۈش</button>
@@ -2974,6 +3057,7 @@ function cartPage(){
          <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        </div>
        <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
+       ${blocked&&!preview?`<p class="cart-stock-block-note" role="status">سېۋەتتە تۈگەپ كەتكەن ياكى تەمىنلەنمەيدىغان كىتاب بار. زاكاز قىلىشتىن بۇرۇن ئۇنى ئۆچۈرۈڭ.</p>`:""}
        <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        <div class="cart-summary-actions">
          ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
@@ -3015,8 +3099,9 @@ function changeQty(id,d){
   const book=find(id);
   if(!isStorefrontVisible(book))return;
   const stock=stockInfo(book);
+  if(!stock.canBuy&&d>0)return;
   x.qty=sanitizeQty((sanitizeQty(x.qty))+d);
-  if(Number.isFinite(stock.qty))x.qty=Math.min(x.qty,stock.qty);
+  if(Number.isFinite(stock.qty)&&stock.qty>0)x.qty=Math.min(x.qty,stock.qty);
   set(CART_KEY,a);
   cartPage();
   updateBadge();
@@ -3670,13 +3755,15 @@ async function setupHomeCarousel(){
     const fetchpriority=i<2?"high":"";
     const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
     const authorName=storefrontAuthor(b);
-    return `<article class="home-carousel-card">
+    const state=stockStateClass(b);
+    return `<article class="home-carousel-card${state?" "+state:""}">
       <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
       <a href="${href}" class="home-carousel-link">
-        <div class="home-carousel-cover">${coverImgHtml(b,{width:320,height:460,loading,fetchpriority})}</div>
+        <div class="home-carousel-cover${state?" "+state:""}">${wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460,loading,fetchpriority}))}</div>
       </a>
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
+        ${stockBadge(b)}
         <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div>
       </div>
     </article>`;
@@ -3975,5 +4062,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,toast};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,toast};
 })();

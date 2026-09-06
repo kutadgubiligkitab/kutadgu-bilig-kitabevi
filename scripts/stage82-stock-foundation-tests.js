@@ -182,7 +182,8 @@ test("static/demo production safety still fails closed in shop.js",()=>{
 test("shop.js Phase 1 gate does not disable Add to Cart from stock and still protects inactive/remote books",()=>{
   assert.match(shop,/function cartButton\(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"\)\{/);
   assert.match(shop,/if\(!isStorefrontVisible\(book\)\)\{/);
-  assert.match(shop,/disabled=s\.canBuy\?"":" disabled aria-disabled=/);
+  assert.match(shop,/if\(s\.canBuy\)\{/);
+  assert.match(shop,/disabled aria-disabled="true" aria-label="تۈگەپ كەتتى"/);
   const add=shop.slice(shop.indexOf("function add(id,qty=1){"),shop.indexOf("function remove(id){"));
   assert.match(add,/if\(!isStorefrontVisible\(b\)\)\{toast\("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ"\)/);
   assert.match(add,/const stock=stockInfo\(b\);if\(!stock\.canBuy\)\{toast\("بۇ كىتاب ھازىر تۈگەپ كەتكەن"\)/);
@@ -193,8 +194,8 @@ test("shop.js Phase 1 gate does not disable Add to Cart from stock and still pro
 });
 
 test("shop.js cache pins were bumped with the Phase 1 gate",()=>{
-  assert.match(indexHtml,/shop\.js\?v=111/);
-  assert.match(bookHtml,/shop\.js\?v=110/);
+  assert.match(indexHtml,/shop\.js\?v=112/);
+  assert.match(bookHtml,/shop\.js\?v=111/);
   assert.match(shop,/app-config\.js\?v=4/);
 });
 

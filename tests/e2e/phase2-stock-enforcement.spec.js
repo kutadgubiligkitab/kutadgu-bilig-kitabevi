@@ -169,8 +169,10 @@ test.describe("Phase 2 storefront stock enforcement", () => {
 
     await H.clearShopStorage(page);
     await openBook(page, FOUR_ID, "ئامبار تۆت كىتاب");
-    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-in")).toBeVisible();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-in")).toHaveCount(0);
+    await expect(page.locator(".detail-purchase-panel")).not.toContainText("ئامباردا بار");
     await expect(page.locator(".detail-main-cart")).toBeEnabled();
+    await expect(page.locator(".book-cover-box")).not.toHaveClass(/is-stock-out/);
   });
 
   test("stale cart qty above stock cannot build an order", async ({ page }) => {
@@ -204,5 +206,92 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await H.waitForShop(page);
     await expect(page.locator(".detail-unavailable-panel")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".detail-main-cart")).toHaveCount(0);
+  });
+
+  test("customer stock UX is silent in-stock, low, and out without exposing qty", async ({ page }) => {
+    await mockBooks(page);
+    await H.clearShopStorage(page);
+    await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await expect(page.locator(`[data-live-book-id="${FOUR_ID}"]`)).toBeVisible({ timeout: 20_000 });
+    const four = page.locator(`[data-live-book-id="${FOUR_ID}"]`);
+    await expect(four).not.toContainText("ئامباردا بار");
+    await expect(four.locator(".stock-badge")).toHaveCount(0);
+    await expect(four.locator("[data-cart-id]")).toBeEnabled();
+    await expect(four).not.toHaveClass(/is-stock-out/);
+
+    const one = page.locator(`[data-live-book-id="${ONE_ID}"]`);
+    await expect(one.locator(".stock-badge.stock-low")).toHaveText(/ئاز قالدى/);
+    await expect(one).not.toContainText("1 دانە");
+    await expect(one.locator("[data-cart-id]")).toBeEnabled();
+
+    const three = page.locator(`[data-live-book-id="${THREE_ID}"]`);
+    await expect(three.locator(".stock-badge.stock-low")).toBeVisible();
+    await expect(three.locator("[data-cart-id]")).toBeEnabled();
+
+    const zero = page.locator(`[data-live-book-id="${ZERO_ID}"]`);
+    await expect(zero).toHaveClass(/is-stock-out/);
+    await expect(zero.locator(".cover-stock-overlay")).toHaveText(/تۈگەپ كەتتى/);
+    await expect(zero.locator("[data-cart-id]")).toBeDisabled();
+    await expect(zero.locator(".detail-button")).toHaveAttribute("href", new RegExp(`/book/${ZERO_ID}`));
+    const coverOpacity = await zero.locator(".cover-stock-wrap img, .book-image img").first().evaluate((el) => Number(getComputedStyle(el).opacity));
+    expect(coverOpacity).toBeGreaterThan(0.5);
+    expect(coverOpacity).toBeLessThan(0.85);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overlayBox = await zero.locator(".cover-stock-overlay").boundingBox();
+    const titleBox = await zero.locator(".book-title").boundingBox();
+    const actionsBox = await zero.locator(".book-actions").boundingBox();
+    expect(overlayBox).toBeTruthy();
+    expect(titleBox).toBeTruthy();
+    expect(actionsBox).toBeTruthy();
+    expect(overlayBox.y + overlayBox.height).toBeLessThanOrEqual(titleBox.y + 2);
+    expect(overlayBox.y + overlayBox.height).toBeLessThanOrEqual(actionsBox.y + 2);
+  });
+
+  test("detail favorites mini-cards and stale cart share out-of-stock UX", async ({ page }) => {
+    await mockBooks(page);
+    await H.clearShopStorage(page);
+    await openBook(page, ZERO_ID, "ئامبار نۆل كىتاب");
+    await expect(page.locator(".book-cover-box")).toHaveClass(/is-stock-out/);
+    await expect(page.locator(".book-cover-box .cover-stock-overlay")).toBeVisible();
+    await expect(page.locator(".detail-main-cart")).toHaveAttribute("aria-disabled", "true");
+    await expect(page.locator("h1")).toContainText("ئامبار نۆل كىتاب");
+    await expect(page.locator(".detail-price")).toBeVisible();
+
+    const cards = await page.evaluate(() => {
+      const shop = window.kutadguShop;
+      const zero = shop.find("91010");
+      const one = shop.find("91011");
+      const four = shop.find("91013");
+      return {
+        favZero: shop.favoriteCard(zero),
+        miniOne: shop.miniCard(one),
+        listingFour: shop.bookCardMarkup(four),
+        badgeFour: shop.stockBadge(four)
+      };
+    });
+    expect(cards.favZero).toMatch(/is-stock-out/);
+    expect(cards.favZero).toMatch(/تۈگەپ كەتتى/);
+    expect(cards.miniOne).toMatch(/ئاز قالدى/);
+    expect(cards.listingFour).not.toMatch(/ئامباردا بار/);
+    expect(cards.badgeFour).toBe("");
+
+    await page.evaluate(() => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "91010", qty: 2 }]));
+      localStorage.setItem("kutadgu-shop-owner-v1", "guest");
+    });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, "ئامبار نۆل كىتاب");
+    await expect(page.locator("#cartItems .cart-item")).toHaveCount(1);
+    await expect(page.locator("#cartItems .cart-item")).toHaveClass(/is-stock-out/);
+    await expect(page.locator("#cartItems")).toContainText("تۈگەپ كەتتى");
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await expect(page.locator("#cartItems .cart-title")).toBeVisible();
+    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(2);
+    const blocked = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
+    expect(blocked).toBeNull();
+    await expect(page.locator("#whatsappOrder")).toHaveCount(0);
   });
 });

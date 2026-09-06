@@ -48,8 +48,8 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     assert.doesNotMatch(grid, /رومان كىتابى|كىتابى 2|ئاپتور ئىسمى/, file);
     assert.match(html, /rel="canonical"/, file);
     assert.match(html, /CollectionPage/, file);
-    assert.match(html, /shop\.js\?v=110/, file);
-    assert.match(html, /shop\.css\?v=51/, file);
+    assert.match(html, /shop\.js\?v=111/, file);
+    assert.match(html, /shop\.css\?v=52/, file);
   }
 });
 
