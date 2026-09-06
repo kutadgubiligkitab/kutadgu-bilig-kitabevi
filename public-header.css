@@ -93,7 +93,7 @@ header.kutadgu-public-header {
   margin: 0 auto !important;
   gap: 0 !important;
   border: 1px solid rgba(255, 255, 255, .18);
-  border-radius: 999px;
+  border-radius: var(--radius-pill, 999px);
   background: rgba(255, 255, 255, .1);
   overflow: hidden;
 }
@@ -107,7 +107,7 @@ header.kutadgu-public-header {
   background: transparent;
   color: #fff;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: var(--font-size-md, 14px);
   outline: none;
 }
 
@@ -154,11 +154,11 @@ header.kutadgu-public-header {
   padding: 0 9px !important;
   color: #fffaf2 !important;
   text-decoration: none !important;
-  font-size: 13px !important;
+  font-size: var(--font-size-sm, 13px) !important;
   font-weight: 700;
   line-height: 1 !important;
   white-space: nowrap;
-  border-radius: 999px;
+  border-radius: var(--radius-pill, 999px);
 }
 
 .kutadgu-public-header nav a[href="/cart.html"],
@@ -192,8 +192,8 @@ header.kutadgu-public-header {
   height: 18px;
   margin: 0;
   padding: 0 5px;
-  border-radius: 999px;
-  background: #e2c98d;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--site-gold, #e2c98d);
   color: #3d2a20;
   font-size: 11px;
 }
