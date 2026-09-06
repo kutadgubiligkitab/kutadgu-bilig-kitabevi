@@ -32,7 +32,7 @@ test.describe("Stage 3 real shop identity", () => {
       const s = getComputedStyle(el);
       return { color: s.color, background: s.backgroundColor };
     });
-    expect(chipColor.color).toBe("rgb(74, 54, 43)");
+    expect(chipColor.color).toBe("rgb(61, 42, 35)");
     expect(chipColor.background).toBe("rgb(255, 248, 237)");
     await expect(page.locator("#contact")).toContainText("08:30–20:00");
     await expect(page.locator("#contact")).toContainText("Küçükçekmece");

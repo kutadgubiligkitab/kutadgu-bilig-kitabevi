@@ -201,16 +201,17 @@
   margin-top:var(--space-5,24px);
 }
 
-/* theme.css forces `.about p { color:#fff !important }`; chips are <p>
-   on cream, so that rule made the labels invisible. Keep cream + brown. */
-#about .about-service-chip,
-section.about .about-service-chip{
+/* theme.css `.about p { color:#fff !important }` must not apply here.
+   Chips are cream cards, so labels stay dark brown. */
+#about.about .about-service-chips .about-service-chip,
+section.about .about-service-chips .about-service-chip{
   margin:0;
   padding:14px 14px 16px;
   border:1px solid #e8dccb !important;
   border-radius:var(--radius-md,10px);
   background:#fff8ed !important;
-  color:#4a362b !important;
+  color:#3d2a23 !important;
+  -webkit-text-fill-color:#3d2a23;
   font-size:var(--font-size-sm,13px);
   line-height:1.7;
   font-weight:var(--font-weight-medium,700);
@@ -243,7 +244,8 @@ html.dark-mode #about .about-service-chip,
 html.dark-mode section.about .about-service-chip{
   background:#fff8ed !important;
   border-color:#e8dccb !important;
-  color:#4a362b !important;
+  color:#3d2a23 !important;
+  -webkit-text-fill-color:#3d2a23;
 }
 
 @media (min-width:701px){
