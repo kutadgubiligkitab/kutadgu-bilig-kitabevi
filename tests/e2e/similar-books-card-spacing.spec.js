@@ -130,8 +130,8 @@ function relatedMetrics() {
   };
 }
 
-function rowAlignMetrics(selector) {
-  return () => {
+function rowAlignMetrics() {
+  return (selector) => {
     const slack = 2;
     const cards = [...document.querySelectorAll(selector)];
     const rows = [];
@@ -299,7 +299,7 @@ test.describe("Similar Books card spacing hotfix", () => {
       await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
       await H.waitForDetailTitle(page, DETAIL_TITLE);
       await expect.poll(async () => page.locator("[data-detail-related] .shop-mini-card").count()).toBe(4);
-      const geo = await page.evaluate(rowAlignMetrics("[data-detail-related] .detail-related-grid .shop-mini-card"));
+      const geo = await page.evaluate(rowAlignMetrics(), "[data-detail-related] .detail-related-grid .shop-mini-card");
       expect(geo.cardCount, String(width)).toBe(4);
       expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
       expect(geo.rows.length, String(width)).toBeGreaterThan(0);

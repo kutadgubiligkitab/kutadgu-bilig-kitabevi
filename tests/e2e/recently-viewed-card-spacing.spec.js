@@ -135,8 +135,8 @@ function recentMetrics() {
   };
 }
 
-function rowAlignMetrics(selector) {
-  return () => {
+function rowAlignMetrics() {
+  return (selector) => {
     const slack = 2;
     const cards = [...document.querySelectorAll(selector)];
     const rows = [];
@@ -273,7 +273,7 @@ test.describe("Recently Viewed card spacing hotfix", () => {
   test("same-row Recently Viewed cards have equal outer height without giant gaps", async ({ page }) => {
     for (const width of [390, 768, 1366]) {
       await openDetail(page, width);
-      const geo = await page.evaluate(rowAlignMetrics("[data-recently-viewed] .shop-mini-card"));
+      const geo = await page.evaluate(rowAlignMetrics(), "[data-recently-viewed] .shop-mini-card");
       expect(geo.cardCount, String(width)).toBeGreaterThanOrEqual(4);
       expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
       for (const row of geo.rows) {
