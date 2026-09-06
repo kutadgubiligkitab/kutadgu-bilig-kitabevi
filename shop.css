@@ -2203,4 +2203,27 @@ body.dark-mode .adabiyat-hub-pill[aria-selected="true"]{
   color:var(--button-primary-text);
 }
 
+/* Similar Books cards: see detail-similar-card-safety.css (loaded last on book-shell).
+   Keep a scoped copy here so any shop.css detail page still avoids wrap height:100%. */
+[data-detail-related] .detail-related-grid .shop-mini-card{
+  display:flex;
+  flex-direction:column;
+  align-self:start;
+  height:auto;
+  min-height:0;
+}
+[data-detail-related] .detail-related-grid .shop-mini-card > a{
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  height:auto;
+  min-height:0;
+}
+[data-detail-related] .detail-related-grid .shop-mini-card .cover-stock-wrap{
+  flex:0 0 auto;
+  height:auto !important;
+  min-height:0;
+  aspect-ratio:2 / 3;
+}
+
 
