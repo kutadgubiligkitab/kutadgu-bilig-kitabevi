@@ -31,23 +31,23 @@
 }
 
 .books-grid[data-catalog-source] .book-card .book-actions .add-to-cart {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
   border: 0;
   border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .books-grid[data-catalog-source] .book-card .book-actions .add-to-cart:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background-color: var(--button-primary-hover) !important;
 }
 
 .books-grid[data-catalog-source] .book-card .book-actions .detail-button {
-  background: var(--button-secondary-bg) !important;
+  background-color: var(--button-secondary-bg) !important;
   color: var(--button-secondary-text) !important;
   border: 1px solid var(--button-secondary-border) !important;
   border-radius: var(--radius-md);
@@ -55,7 +55,7 @@
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
@@ -65,13 +65,13 @@
 
 .books-grid[data-catalog-source] .book-card .book-actions .favorite-button,
 .books-grid[data-catalog-source] .book-card .book-actions .share-button {
-  background: transparent !important;
+  background-color: transparent !important;
   color: var(--site-text-soft) !important;
   border: 1px solid var(--site-border) !important;
   border-radius: var(--radius-sm);
   box-shadow: none !important;
   min-width: 44px;
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
 }
 
@@ -117,32 +117,32 @@
 [data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .add-to-cart,
 [data-recently-viewed] .shop-mini-card .mini-actions .add-to-cart,
 #homeShopSections .shop-mini-card .mini-actions .add-to-cart {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
   border: 0;
   border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 [data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled),
 [data-recently-viewed] .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled),
 #homeShopSections .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background-color: var(--button-primary-hover) !important;
 }
 
 [data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .share-button,
 [data-recently-viewed] .shop-mini-card .mini-actions .share-button,
 #homeShopSections .shop-mini-card .mini-actions .share-button {
-  background: transparent;
+  background-color: transparent;
   color: var(--site-text-soft);
   border: 1px solid var(--site-border);
   border-radius: var(--radius-sm);
   min-width: 44px;
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
@@ -182,40 +182,40 @@
 }
 
 .advanced-search-actions .add-to-cart {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
   border: 0;
   border-radius: var(--radius-md);
   font-family: var(--font-ui);
   font-weight: var(--font-weight-bold);
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .advanced-search-actions .add-to-cart:hover:not(:disabled) {
-  background: var(--button-primary-hover);
+  background-color: var(--button-primary-hover) !important;
 }
 
 .advanced-search-actions .detail-button {
-  background: var(--button-secondary-bg) !important;
+  background-color: var(--button-secondary-bg) !important;
   color: var(--button-secondary-text) !important;
   border: 1px solid var(--button-secondary-border) !important;
   border-radius: var(--radius-md);
   box-shadow: none !important;
   font-family: var(--font-ui);
   font-weight: var(--font-weight-medium);
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .advanced-search-actions .favorite-button,
 .advanced-search-actions .share-button {
-  background: transparent !important;
+  background-color: transparent !important;
   color: var(--site-text-soft) !important;
   border: 1px solid var(--site-border) !important;
   border-radius: var(--radius-sm);
   min-width: 44px;
-  min-height: 44px;
+  min-height: 44px !important;
   transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
 }
 
@@ -243,6 +243,6 @@
   .books-grid[data-catalog-source] .book-card .book-actions .detail-button,
   .books-grid[data-catalog-source] .book-card .book-actions .favorite-button,
   .books-grid[data-catalog-source] .book-card .book-actions .share-button {
-    min-height: 44px;
+    min-height: 44px !important;
   }
 }

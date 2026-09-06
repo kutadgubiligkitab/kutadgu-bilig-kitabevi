@@ -261,7 +261,7 @@ test.describe("Stage 4B-1 public card chrome", () => {
     expect(geo.overflowX).toBeLessThanOrEqual(2);
   });
 
-  test("homepage recently viewed mini cards keep compact cover-title gap", async ({ page }) => {
+  test("my-books recently viewed mini cards keep compact cover-title gap", async ({ page }) => {
     await mockBooks(page, listingCatalog.concat([
       bookRow({ id: 91005, title: "يېقىندا كۆرۈلگەن باشقا" })
     ]));
@@ -269,9 +269,8 @@ test.describe("Stage 4B-1 public card chrome", () => {
       try { localStorage.setItem(key, JSON.stringify(["91002", "91005", "91001"])); } catch (e) {}
     }, REC_KEY);
     await page.setViewportSize({ width: 768, height: 900 });
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await page.locator("#shopSelectorButton").click();
-    await page.locator('[data-shop-tab="recent"]').click();
+    await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
+    await page.locator('[data-mybooks-tab="recent"]').click();
     await expect.poll(async () => page.locator("[data-recently-viewed] .shop-mini-card").count()).toBeGreaterThan(0);
     const geo = await page.evaluate(() => {
       const card = document.querySelector("[data-recently-viewed] .shop-mini-card");
@@ -300,11 +299,15 @@ test.describe("Stage 4B-1 public card chrome", () => {
     await expect.poll(async () => page.locator(".book-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     const light = await page.evaluate(chromeMetrics());
     expect(light.cartBg).toBe(light.primaryBg);
-    await page.evaluate(() => document.body.classList.add("dark-mode"));
+    expect(light.detailBg).toBe(light.secondaryBg);
+    await page.locator(".theme-toggle, .theme-button").first().click();
+    await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
     const dark = await page.evaluate(chromeMetrics());
-    expect(dark.cartBg).toBe(dark.primaryBg);
     expect(dark.titleColor).toBe(dark.siteText);
     expect(dark.authorColor).toBe(dark.siteTextSoft);
-    expect(dark.detailBg).toBe(dark.secondaryBg);
+    expect(dark.priceColor).toBe(dark.siteText);
+    expect(dark.authorColor).not.toBe(dark.titleColor);
+    expect(dark.cartBg).not.toBe(dark.detailBg);
+    expect(dark.objectFit).toBe("contain");
   });
 });

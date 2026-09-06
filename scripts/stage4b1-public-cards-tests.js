@@ -53,8 +53,8 @@ test("listing typography and action hierarchy use Stage 4A tokens", () => {
   assert.match(css, /\.books-grid\[data-catalog-source\] \.book-card \.book-author\s*\{[\s\S]*color:\s*var\(--site-text-soft\)/);
   assert.match(css, /\.books-grid\[data-catalog-source\] \.book-card \.book-author\s*\{[\s\S]*font-size:\s*var\(--font-size-sm\)/);
   assert.match(css, /\.books-grid\[data-catalog-source\] \.book-card \.book-price\s*\{[\s\S]*color:\s*var\(--site-text\)/);
-  assert.match(css, /\.book-actions \.add-to-cart\s*\{[\s\S]*background:\s*var\(--button-primary-bg\)/);
-  assert.match(css, /\.book-actions \.detail-button\s*\{[\s\S]*background:\s*var\(--button-secondary-bg\)/);
+  assert.match(css, /\.book-actions \.add-to-cart\s*\{[\s\S]*background-color:\s*var\(--button-primary-bg\)/);
+  assert.match(css, /\.book-actions \.detail-button\s*\{[\s\S]*background-color:\s*var\(--button-secondary-bg\)/);
   assert.match(css, /\.book-actions \.favorite-button,[\s\S]*min-height:\s*44px/);
   assert.match(css, /min-height:\s*44px/);
 });
@@ -63,9 +63,9 @@ test("mini-card chrome is scoped to similar, recent, and homepage selector grids
   assert.match(css, /\[data-detail-related\] \.detail-related-grid \.shop-mini-title/);
   assert.match(css, /\[data-recently-viewed\] \.shop-mini-title/);
   assert.match(css, /#homeShopSections \.shop-mini-title/);
-  assert.match(css, /#homeShopSections \.shop-mini-card \.mini-actions \.add-to-cart\s*\{[\s\S]*background:\s*var\(--button-primary-bg\)/);
-  assert.match(css, /\.advanced-search-actions \.add-to-cart\s*\{[\s\S]*background:\s*var\(--button-primary-bg\)/);
-  assert.match(css, /\.advanced-search-actions \.detail-button\s*\{[\s\S]*background:\s*var\(--button-secondary-bg\)/);
+  assert.match(css, /#homeShopSections \.shop-mini-card \.mini-actions \.add-to-cart\s*\{[\s\S]*background-color:\s*var\(--button-primary-bg\)/);
+  assert.match(css, /\.advanced-search-actions \.add-to-cart\s*\{[\s\S]*background-color:\s*var\(--button-primary-bg\)/);
+  assert.match(css, /\.advanced-search-actions \.detail-button\s*\{[\s\S]*background-color:\s*var\(--button-secondary-bg\)/);
 });
 
 test("safety and shared geometry files stay byte-identical to origin/main", () => {
