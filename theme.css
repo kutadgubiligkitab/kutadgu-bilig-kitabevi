@@ -12,14 +12,16 @@
 html,
 body,
 body * {
-    font-family: "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif !important;
+    /* Stage 4A: keep the broad UKIJ rule. Narrowing body * is a later cleanup.
+       Do not put a comma-separated font stack inside var() — that invalidates the declaration. */
+    font-family: var(--font-ui) !important;
 }
 
 input,
 button,
 textarea,
 select {
-    font-family: "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif !important;
+    font-family: var(--font-ui) !important;
 }
 
 /* =========================================================
@@ -39,6 +41,60 @@ select {
     --site-gold: #e2c98d;
     --site-footer: #39261d;
     --site-shadow: rgba(75, 51, 39, 0.08);
+
+    /* Stage 4A — design tokens. Same bookstore palette; no new colors. */
+    --font-ui: "UKIJ CJK", Arial, "Noto Sans Arabic", sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+    --font-weight-normal: 400;
+    --font-weight-medium: 700;
+    --font-weight-bold: 800;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-section: 44px;
+
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+
+    --shadow-sm: 0 4px 14px var(--site-shadow);
+    --shadow-md: 0 5px 20px var(--site-shadow);
+
+    --button-primary-bg: var(--site-brown);
+    --button-primary-hover: var(--site-brown-dark);
+    --button-primary-text: #fff;
+    --button-secondary-bg: var(--site-card);
+    --button-secondary-border: var(--site-border);
+    --button-secondary-text: var(--site-text);
+
+    /* Legacy names stay valid; they alias the canonical --site-* tokens. */
+    --bg: var(--site-bg);
+    --bg-soft: var(--site-bg-soft);
+    --header: var(--site-brown-dark);
+    --text: var(--site-text);
+    --text-soft: var(--site-text-soft);
+    --card: var(--site-card);
+    --button: var(--site-brown);
+    --button-hover: var(--site-brown-dark);
+    --border: var(--site-border);
+    --cream: var(--site-bg);
+    --cream-light: var(--site-bg-soft);
+    --brown: var(--site-brown);
+    --brown-dark: var(--site-brown-dark);
+    --text-light: var(--site-text-soft);
+    --soft: var(--site-text-soft);
+    --about: var(--site-brown-dark);
+    --footer: var(--site-footer);
+    --shadow: var(--site-shadow);
 }
 
 body.dark-mode {
@@ -53,6 +109,35 @@ body.dark-mode {
     --site-gold: #e2c98d;
     --site-footer: #100e0d;
     --site-shadow: rgba(0, 0, 0, 0.28);
+
+    --shadow-sm: 0 4px 14px var(--site-shadow);
+    --shadow-md: 0 5px 20px var(--site-shadow);
+
+    --button-primary-bg: var(--site-brown);
+    --button-primary-hover: var(--site-brown-dark);
+    --button-primary-text: #fff;
+    --button-secondary-bg: var(--site-card);
+    --button-secondary-border: var(--site-border);
+    --button-secondary-text: var(--site-text);
+
+    --bg: var(--site-bg);
+    --bg-soft: var(--site-bg-soft);
+    --header: var(--site-brown-dark);
+    --text: var(--site-text);
+    --text-soft: var(--site-text-soft);
+    --card: var(--site-card);
+    --button: var(--site-brown);
+    --button-hover: var(--site-brown-dark);
+    --border: var(--site-border);
+    --cream: var(--site-bg);
+    --cream-light: var(--site-bg-soft);
+    --brown: var(--site-brown);
+    --brown-dark: var(--site-brown-dark);
+    --text-light: var(--site-text-soft);
+    --soft: var(--site-text-soft);
+    --about: var(--site-brown-dark);
+    --footer: var(--site-footer);
+    --shadow: var(--site-shadow);
 }
 
 html, body {
@@ -118,7 +203,7 @@ body > header:not(.account-topbar):not(.admin-topbar) {
     background-color: var(--site-card) !important;
     color: var(--site-text) !important;
     border-color: var(--site-border) !important;
-    box-shadow: 0 5px 20px var(--site-shadow) !important;
+    box-shadow: var(--shadow-md) !important;
 }
 
 /* Images / cover areas */
@@ -128,20 +213,20 @@ body > header:not(.account-topbar):not(.admin-topbar) {
     border-color: var(--site-border) !important;
 }
 
-/* Buttons */
+/* Buttons — map existing generic classes onto primary tokens. Do not restyle book-card actions. */
 .button,
 .book-button,
 .back-button,
 .detail-button {
-    background-color: var(--site-brown) !important;
-    color: #fff !important;
+    background-color: var(--button-primary-bg) !important;
+    color: var(--button-primary-text) !important;
 }
 
 .button:hover,
 .book-button:hover,
 .back-button:hover,
 .detail-button:hover {
-    background-color: var(--site-brown-dark) !important;
+    background-color: var(--button-primary-hover) !important;
 }
 
 /* About / information */
@@ -378,4 +463,73 @@ header .kutadgu-brand-text{
         max-height:32px !important;
         flex-basis:32px !important;
     }
+}
+
+/* Stage 4A — optional primitives for later Stage 2 / 3 / 4B.
+   Not wired into book cards or category pages in this PR. */
+.kutadgu-btn-primary,
+.kutadgu-btn-secondary,
+.kutadgu-btn-tertiary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.3;
+    cursor: pointer;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.kutadgu-btn-primary {
+    padding: var(--space-3) var(--space-4);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--button-primary-bg);
+    color: var(--button-primary-text);
+}
+
+.kutadgu-btn-primary:hover {
+    background: var(--button-primary-hover);
+}
+
+.kutadgu-btn-secondary {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--button-secondary-border);
+    border-radius: var(--radius-md);
+    background: var(--button-secondary-bg);
+    color: var(--button-secondary-text);
+}
+
+.kutadgu-btn-secondary:hover {
+    border-color: var(--site-brown);
+}
+
+.kutadgu-btn-tertiary {
+    padding: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--site-text);
+}
+
+.kutadgu-surface {
+    background: var(--site-card);
+    color: var(--site-text);
+    border: 1px solid var(--site-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.kutadgu-field {
+    font-family: var(--font-ui);
+    font-size: var(--font-size-md);
+    color: var(--site-text);
+    background: var(--site-card);
+    border: 1px solid var(--site-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    box-sizing: border-box;
 }
