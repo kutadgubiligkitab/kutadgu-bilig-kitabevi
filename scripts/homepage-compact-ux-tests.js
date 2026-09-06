@@ -42,23 +42,28 @@ test("desktop compact CSS is gated to min-width 701px", () => {
   assert.match(block, /\.home-bookstore-hero\{[\s\S]*min-height:160px !important/);
   assert.match(block, /padding:12px clamp\(22px,5vw,74px\) 14px !important/);
   assert.match(block, /\.home-hero-inner\{[\s\S]*gap:22px !important/);
-  assert.match(block, /\.bookstore-scene\{[\s\S]*min-height:135px !important/);
-  assert.match(block, /hero-scene-logo/);
+  assert.match(block, /\.shop-hero-frame\{[\s\S]*max-height:280px !important/);
+  assert.doesNotMatch(block, /\.bookstore-scene\{[\s\S]*min-height:135px !important/);
   assert.match(block, /\.home-search-card-section\{[\s\S]*scroll-margin-top:96px/);
   assert.match(block, /\.home-search-card \.advanced-search-panel\.is-collapsed/);
   assert.match(block, /#newBooksCarousel\{[\s\S]*margin-top:8px !important/);
   assert.doesNotMatch(block, /max-width:\s*700px/);
 });
 
-test("homepage assets bumped; hero image paths unchanged", () => {
-  assert.match(html, /index\.css\?v=17/);
+test("homepage assets bumped; real shop hero photos replace the CSS scene", () => {
+  assert.match(html, /index\.css\?v=18/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=24/);
-  assert.match(html, /shop\.js\?v=117/);
+  assert.match(html, /shop\.js\?v=118/);
   assert.match(html, /mobile\.js\?v=7/);
   assert.match(html, /public-header\.js\?v=1/);
-  assert.match(html, /srcset="hero-brand-logo\.webp"/);
-  assert.match(html, /src="hero-brand-logo\.png\?v=1"/);
+  assert.match(html, /stage3-shop-identity\.css\?v=1/);
+  assert.match(html, /home-hero-slideshow\.js\?v=1/);
+  assert.match(html, /assets\/store\/shop-interior-main\.webp/);
+  assert.match(html, /assets\/store\/shop-interior-library\.webp/);
+  assert.match(html, /assets\/store\/shop-exterior\.webp/);
+  assert.doesNotMatch(html, /class="bookstore-scene"/);
+  assert.doesNotMatch(html, /srcset="hero-brand-logo\.webp"/);
   assert.match(html, /srcset="\/kutadgu-logo\.webp"/);
 });
 

@@ -22,9 +22,9 @@ test.describe("homepage title and root URL", () => {
     await expect(page.locator('meta[name="twitter:description"]')).toHaveAttribute("content", snippet);
     await expect(page.locator('meta[property="og:image:alt"]')).toHaveAttribute("content", HOME_TITLE);
     await expect(page.locator("img.kutadgu-site-logo")).toHaveAttribute("alt", HOME_TITLE);
-    await expect(page.locator("img.hero-scene-logo")).toHaveAttribute("alt", HOME_TITLE);
     await expect(page.locator("img.kutadgu-site-logo")).toBeVisible();
-    await expect(page.locator("img.hero-scene-logo")).toBeVisible();
+    await expect(page.locator(".shop-hero-frame img.is-active")).toBeVisible();
+    await expect(page.locator("img.hero-scene-logo")).toHaveCount(0);
   });
 
   test("book detail keeps a book-specific title then home resets", async ({ page }) => {

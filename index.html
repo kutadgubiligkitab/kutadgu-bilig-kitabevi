@@ -23,26 +23,28 @@
 <meta name="twitter:image" content="https://www.kutadgubilik.com/kutadgu-logo.png">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
-  {"@type":"BookStore","@id":"https://www.kutadgubilik.com/#store","name":"قۇتادغۇبىلىك كىتابخانىسى","url":"https://www.kutadgubilik.com/","image":"https://www.kutadgubilik.com/kutadgu-logo.png","telephone":"+905368999888","address":{"@type":"PostalAddress","streetAddress":"KEMALPAŞA MAH. 1. TURNA SK. AKPINAR APT. NO: 25/C, KAPI NO: K","addressLocality":"Küçükçekmece","addressRegion":"Istanbul","addressCountry":"TR"},"sameAs":["https://www.instagram.com/kutadgu_bilig_kitabhanisi/"]},
+  {"@type":"BookStore","@id":"https://www.kutadgubilik.com/#store","name":"قۇتادغۇبىلىك كىتابخانىسى","url":"https://www.kutadgubilik.com/","logo":"https://www.kutadgubilik.com/kutadgu-logo.png","image":["https://www.kutadgubilik.com/kutadgu-logo.png","https://www.kutadgubilik.com/assets/store/shop-interior-main.webp"],"telephone":"+905368999888","foundingDate":"2013","openingHours":"Mo-Su 08:30-20:00","address":{"@type":"PostalAddress","streetAddress":"KEMALPAŞA MAH. 1. TURNA SK. AKPINAR APT. NO: 25/C, KAPI NO: K","addressLocality":"Küçükçekmece","addressRegion":"Istanbul","addressCountry":"TR"},"sameAs":["https://www.instagram.com/kutadgu_bilig_kitabhanisi/"]},
   {"@type":"WebSite","@id":"https://www.kutadgubilik.com/#website","name":"قۇتادغۇبىلىك كىتابخانىسى","url":"https://www.kutadgubilik.com/","inLanguage":"ug","publisher":{"@id":"https://www.kutadgubilik.com/#store"}}
 ]}
 </script>
 
 <link rel="preconnect" href="https://fxlojnqwyojqjskfggmh.supabase.co" crossorigin>
 <link rel="preload" href="UKIJCJK.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="index.css?v=17">
+<link rel="stylesheet" href="index.css?v=18">
 <link rel="stylesheet" href="theme.css?v=10">
 <link rel="stylesheet" href="shop.css?v=54">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 <link rel="stylesheet" href="mobile.css?v=24">
 <link rel="stylesheet" href="recently-viewed-card-safety.css?v=2" data-kutadgu-recently-viewed-card-safety="1">
+<link rel="stylesheet" href="stage3-shop-identity.css?v=1" data-kutadgu-stage3-identity="1">
 <script src="recovery-bounce.js?v=1"></script>
 <script defer src="theme.js?v=5"></script>
-<script defer src="supabase-config.js?v=16"></script>
+<script defer src="supabase-config.js?v=17"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=1"></script><script defer src="shop.js?v=117"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=1"></script><script defer src="shop.js?v=118"></script>
 <script defer src="mobile.js?v=7"></script>
+<script defer src="home-hero-slideshow.js?v=1"></script>
 </head>
 
 
@@ -103,62 +105,36 @@
 
         <div class="hero-content home-hero-copy">
             <div class="home-hero-eyebrow">قۇتادغۇبىلىك كىتابخانىسى</div>
+            <div class="home-hero-trust">2013-يىلدىن بۇيان</div>
 
             <h1>
-                خوش كەلدىڭىز!
+                بىلىمگە باشلايدىغان كىتابلار، بىر يەردە
             </h1>
 
             <p>
-                ئۇيغۇرچە كىتابلارنى ئىزدەڭ، تاللاڭ؛ زاكازنى WhatsApp ئارقىلىق يوللاڭ.
+                تۈرلۈك كىتابلارنى ئىزدەڭ، تاللاڭ ۋە زاكازىڭىزنى WhatsApp ئارقىلىق بىزگە يوللاڭ.
             </p>
 
             <div class="home-hero-actions">
                 <a href="#books" class="button">
-                    🔎 كىتاب ئىزدەش
+                    كىتابلارنى كۆرۈش
                 </a>
-                <a href="#bookCategories" class="home-hero-secondary">
-                    📚 كىتاب تۈرلىرى
+                <a href="#about" class="home-hero-secondary">
+                    بىز ھەققىدە
                 </a>
             </div>
         </div>
 
-        <div class="bookstore-scene" aria-hidden="true">
-            <div class="store-scene-top">
-                <span class="store-icon">📚</span>
-                <span class="store-icon open">📖</span>
+        <div class="shop-hero-media" data-shop-hero-slideshow="1" role="region" aria-roledescription="carousel" aria-label="كىتابخانا رەسىملىرى">
+            <div class="shop-hero-frame">
+                <img data-shop-hero-slide data-hero-shot="main" class="is-active" src="/assets/store/shop-interior-main.webp" width="1440" height="1081" alt="قۇتادغۇبىلىك كىتابخانىسىنىڭ ئىچكى كۆرۈنۈشى" fetchpriority="high" decoding="async" aria-hidden="false">
+                <img data-shop-hero-slide data-hero-shot="library" src="/assets/store/shop-interior-library.webp" width="1440" height="1081" alt="قۇتادغۇبىلىك كىتابخانىسىنىڭ كۈتۈپخانا بۆلىكى" loading="lazy" decoding="async" aria-hidden="true">
+                <img data-shop-hero-slide data-hero-shot="exterior" src="/assets/store/shop-exterior.webp" width="1286" height="965" alt="قۇتادغۇبىلىك كىتابخانىسىنىڭ سىرتقى كۆرۈنۈشى" loading="lazy" decoding="async" aria-hidden="true">
             </div>
-
-            <div class="store-window">
-                <div class="store-shelf">
-                    <span class="book-spine b1"></span>
-                    <span class="book-spine b2"></span>
-                    <span class="book-spine b3"></span>
-                    <span class="book-spine b4"></span>
-                    <span class="book-spine b5"></span>
-                    <span class="book-spine b6"></span>
-                </div>
-
-                <div class="store-display">
-                    <div class="real-cover-wrap">
-                        <picture>
-                            <source type="image/webp" srcset="hero-brand-logo.webp">
-                            <img src="hero-brand-logo.png?v=1" alt="قۇتادغۇبىلىك كىتابخانىسى" class="hero-scene-logo" width="78" height="78" loading="eager" fetchpriority="high" decoding="async">
-                        </picture>
-                    </div>
-                    <div class="book-stack">
-                        <span></span><span></span><span></span>
-                    </div>
-                    <div class="store-cart">🛒</div>
-                </div>
-
-                <div class="store-shelf lower">
-                    <span class="book-spine b7"></span>
-                    <span class="book-spine b8"></span>
-                    <span class="book-spine b9"></span>
-                    <span class="book-spine b10"></span>
-                    <span class="book-spine b11"></span>
-                    <span class="book-spine b12"></span>
-                </div>
+            <div class="shop-hero-dots" role="group" aria-label="رەسىم تاللاش">
+                <button type="button" data-shop-hero-dot class="is-active" aria-label="كىتابخانا ئىچى" aria-current="true"></button>
+                <button type="button" data-shop-hero-dot aria-label="كۈتۈپخانا بۆلىكى"></button>
+                <button type="button" data-shop-hero-dot aria-label="كىتابخانا سىرتى"></button>
             </div>
         </div>
 
@@ -460,14 +436,19 @@
 
 <section class="about about-pro" id="about">
     <div class="section-copy">
-        <span class="section-kicker">📚 قۇتادغۇبىلىك كىتابخانىسى</span>
+        <span class="about-year-badge">2013</span>
         <h2>بىز ھەققىدە</h2>
-        <p>قۇتادغۇبىلىك كىتابخانىسى ياخشى كىتاب ۋە بىلىم ئىزدەيدىغان ئوقۇرمەنلەر ئۈچۈن تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلغان كىتابخانا.</p>
+        <p class="about-intro">«بەخت ئېلىپ كېلىدىغان بىلىم» مەنىسىدىكى «قۇتادغۇبىلىك» نامىنى قوللانغان كىتابخانىمىز 2013-يىلى قۇرۇلغان.</p>
+        <div class="about-story">
+            <p>خەلقىمىزنىڭ بىلىمگە بولغان تەشنالىقى ۋە مەنىۋى ئېھتىياجىنى قاندۇرۇش، مىللىتىمىزنىڭ مەنىۋى ساپاسىنى بېيىتىش غايىسى بىلەن قۇرۇلغان.</p>
+            <p>قۇتادغۇبىلىك كىتابخانىسى كىتاب ۋە ئوقۇش قوراللىرى سېتىش، كىتاب ئارىيەت بېرىش ۋە كۈتۈپخانا قاتارلىق ئۈچ ئاساسلىق بۆلۈمدىن تەركىب تاپقان بولۇپ، تۈركىيە ئىچى ۋە سىرتىدىكى ئوقۇرمەنلىرىمىزنى ھەر خىل كىتابلار بىلەن تەمىنلەپ كەلمەكتە.</p>
+        </div>
+        <p class="about-closing">بىلىم — ئۆزىمىزنى كۈچلەندۈرۈشنىڭ ئەڭ مۇھىم يولى. قۇتادغۇبىلىك كىتابخانىسى بىلىمگە يەتكۈزىدىغان كىتابلىرى بىلەن سىزنى ھەر ۋاقىت قارشى ئالىدۇ.</p>
     </div>
-    <div class="about-points" aria-label="مۇلازىمەت ئەۋزەللىكلىرى">
-        <div><span>🔎</span><strong>ئاسان تاللاش</strong><small>كىتابنى نامى، ئاپتورى ۋە تۈرى بويىچە تېپىڭ.</small></div>
-        <div><span>💬</span><strong>ئاسان زاكاز</strong><small>سېۋەتنى تەييارلاپ WhatsApp ئارقىلىق يوللاڭ.</small></div>
-        <div><span>🌍</span><strong>دۇنيا بويىچە ئەۋەتىش</strong><small>توشۇش ئۇسۇلى زاكازغا قاراپ ئايرىم بېكىتىلىدۇ.</small></div>
+    <div class="about-service-chips" aria-label="ئاساسلىق بۆلۈملەر">
+        <p class="about-service-chip">كىتاب ۋە ئوقۇش قوراللىرى سېتىش</p>
+        <p class="about-service-chip">كىتاب ئارىيەت بېرىش</p>
+        <p class="about-service-chip">كۈتۈپخانا</p>
     </div>
 </section>
 
@@ -478,11 +459,16 @@
 
 <section class="contact contact-pro" id="contact">
     <div class="section-copy">
-        <span class="section-kicker">💬 ياردەم ۋە زاكاز</span>
         <h2>ئالاقە</h2>
-        <p>كىتابلار، توشۇش ۋە زاكاز ھەققىدىكى سوئاللىرىڭىز ئۈچۈن بىز بىلەن ئالاقىلىشىڭ.</p>
+        <p>دۇكان ئادرېسى، خىزمەت ۋاقتى ۋە WhatsApp ئارقىلىق بىز بىلەن ئالاقىلىشىڭ.</p>
     </div>
-    <div id="contactDetails" class="contact-details" aria-live="polite"></div>
+    <div id="contactDetails" class="contact-details" aria-live="polite">
+        <div class="contact-card contact-address"><span aria-hidden="true">📍</span><div><strong>دۇكان ئادرېسى</strong><small>Kemalpaşa Mah. 1. Turna Sk. Akpınar Apt. No: 25/C, Kapı No: K, Küçükçekmece / İstanbul</small></div></div>
+        <div class="contact-card contact-hours"><span aria-hidden="true">🕒</span><div><strong>خىزمەت ۋاقتى</strong><small>ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ
+08:30–20:00</small></div></div>
+        <a class="contact-card contact-whatsapp" href="https://wa.me/905368999888" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">+90 536 899 98 88</bdi></small></div></a>
+        <a class="contact-card contact-instagram" href="https://www.instagram.com/kutadgu_bilig_kitabhanisi/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">📷</span><div><strong>Instagram</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">@kutadgu_bilig_kitabhanisi</bdi></small></div></a>
+    </div>
 </section>
 
 

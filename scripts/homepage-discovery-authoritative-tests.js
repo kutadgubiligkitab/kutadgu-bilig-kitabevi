@@ -35,7 +35,7 @@ function sliceBetween(src, startNeedle, endNeedle) {
 }
 
 test("homepage pins shop.js v=114 and premium-ux v=12", () => {
-  assert.match(indexHtml, /shop\.js\?v=117/);
+  assert.match(indexHtml, /shop\.js\?v=118/);
   assert.match(shop, /premium-ux\.js\?v=12/);
   assert.match(shop, /premium-ux\.css\?v=10/);
 });
