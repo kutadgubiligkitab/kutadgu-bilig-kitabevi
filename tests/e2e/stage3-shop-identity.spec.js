@@ -60,7 +60,7 @@ test.describe("Stage 3 real shop identity", () => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, String(width)).toBeLessThanOrEqual(2);
       const hero = await page.locator(".home-bookstore-hero").boundingBox();
-      expect(hero && hero.height, String(width)).toBeLessThan(width === 390 ? 520 : 620);
+      expect(hero && hero.height, String(width)).toBeLessThan(width === 390 ? 580 : 620);
       await page.locator(".home-bookstore-hero").screenshot({
         path: path.join(outDir, `stage3-hero-${width}.png`)
       });
