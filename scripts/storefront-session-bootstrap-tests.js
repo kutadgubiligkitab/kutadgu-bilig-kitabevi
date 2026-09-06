@@ -163,9 +163,9 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=109/);
+  assert.match(indexHtml, /shop\.js\?v=110/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
-  assert.match(cartHtml, /shop\.js\?v=108/);
+  assert.match(cartHtml, /shop\.js\?v=109/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
   assert.match(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
@@ -338,6 +338,58 @@ test("logout stale owner can start a new guest cart without exposing member stat
     expiresAt: Math.floor(Date.now() / 1000) - 90
   });
   assert.strictEqual(pending.shopStateWriteAllowed(), false);
+
+  const recoverSrc = sliceBetween(shop, "function recoverStaleOwnerForGuestWrite(){", "function stampShopOwner(){");
+  const store = {
+    "kutadgu-shop-owner-v1": "stale",
+    "kutadgu-cart-v1": JSON.stringify([{ id: "102", qty: 2 }]),
+    "kutadgu-favorites-v1": JSON.stringify(["102"]),
+    "kutadgu-cart-display-v1": JSON.stringify({ v: 1, items: { "102": { id: "102", title: "old" } } })
+  };
+  const recovered = new Function("localStorage", `
+    const CART_KEY="kutadgu-cart-v1";
+    const FAV_KEY="kutadgu-favorites-v1";
+    const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
+    const SHOP_OWNER_GUEST="guest";
+    const SHOP_OWNER_STALE="stale";
+    function readShopOwner(){ return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim(); }
+    function writeShopOwner(next){ localStorage.setItem("kutadgu-shop-owner-v1", next); }
+    function liveShopUserId(){ return ""; }
+    function emptyCartDisplayStore(){ return {v:1,items:{}}; }
+    ${recoverSrc}
+    recoverStaleOwnerForGuestWrite();
+    return {
+      owner: readShopOwner(),
+      cart: localStorage.getItem("kutadgu-cart-v1"),
+      fav: localStorage.getItem("kutadgu-favorites-v1"),
+      display: localStorage.getItem("kutadgu-cart-display-v1")
+    };
+  `)({
+    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+    setItem(k, v) { store[k] = String(v); }
+  });
+  assert.strictEqual(recovered.owner, "guest");
+  assert.strictEqual(recovered.cart, "[]");
+  assert.strictEqual(recovered.fav, "[]");
+  assert.deepStrictEqual(JSON.parse(recovered.display), { v: 1, items: {} });
+
+  const signedIn = new Function("localStorage", `
+    const CART_KEY="kutadgu-cart-v1";
+    const FAV_KEY="kutadgu-favorites-v1";
+    const CART_DISPLAY_KEY="kutadgu-cart-display-v1";
+    const SHOP_OWNER_GUEST="guest";
+    const SHOP_OWNER_STALE="stale";
+    function readShopOwner(){ return String(localStorage.getItem("kutadgu-shop-owner-v1")||"").trim(); }
+    function writeShopOwner(next){ localStorage.setItem("kutadgu-shop-owner-v1", next); }
+    function liveShopUserId(){ return "11111111-1111-4111-8111-111111111111"; }
+    function emptyCartDisplayStore(){ return {v:1,items:{}}; }
+    ${recoverSrc}
+    return recoverStaleOwnerForGuestWrite();
+  `)({
+    getItem() { return "stale"; },
+    setItem() { throw new Error("must-not-clear-while-signed-in"); }
+  });
+  assert.strictEqual(signedIn, false);
 });
 
 test("stampShopOwner rewrites STALE to guest and never restamps a leftover live uid", () => {
@@ -526,9 +578,13 @@ test("add/toggleFav refuse fail-closed writes and queue only while bootstrap is 
   const add = sliceBetween(shop, "function add(id,qty=1){", "function remove(id){");
   const fav = sliceBetween(shop, "function toggleFav(id){", "function recent(id){");
   const set = sliceBetween(shop, "const set=(k,v)=>{", "function visibilityContext(){");
+  assert.match(add, /recoverStaleOwnerForGuestWrite\(\)/);
+  assert.ok(add.indexOf("recoverStaleOwnerForGuestWrite") < add.indexOf("enqueueShopIntent"));
   assert.match(add, /if\(!shopOwnerAllowsLocalDisplay\(\)\)\{/);
   assert.match(add, /enqueueShopIntent\("add"/);
   assert.ok(add.indexOf("enqueueShopIntent") < add.indexOf("set(CART_KEY,a)"));
+  assert.match(fav, /recoverStaleOwnerForGuestWrite\(\)/);
+  assert.ok(fav.indexOf("recoverStaleOwnerForGuestWrite") < fav.indexOf("enqueueShopIntent"));
   assert.match(fav, /enqueueShopIntent\("fav-add"/);
   assert.ok(fav.indexOf("enqueueShopIntent") < fav.indexOf("set(FAV_KEY,a)"));
   assert.match(set, /if\(\(k===CART_KEY\|\|k===FAV_KEY\)&&!shopStateWriteAllowed\(\)\)return false/);
@@ -546,6 +602,21 @@ test("refreshAfterMemberSync and member-change replay queued storefront intents"
   assert.match(listeners, /kutadgu:catalog-ready/);
   assert.match(listeners, /kutadgu-member-change/);
   assert.match(listeners, /kutadgu-member-state-synced/);
+});
+
+test("mobile toast sits above the bottom nav via shared CSS variables", () => {
+  const shopCss = fs.readFileSync(path.join(root, "shop.css"), "utf8");
+  const mobileCss = fs.readFileSync(path.join(root, "mobile.css"), "utf8");
+  assert.match(shop, /t\.className="shop-toast"/);
+  assert.doesNotMatch(shop, /t\.style\.cssText=/);
+  assert.doesNotMatch(shop, /bottom:18px;z-index:10000/);
+  assert.match(shopCss, /\.shop-toast\{/);
+  assert.match(shopCss, /bottom:18px;/);
+  assert.match(mobileCss, /--mobile-shop-nav-height:\s*var\(--mobile-bottom-height\)/);
+  assert.match(mobileCss, /--mobile-bottom-safe:\s*env\(safe-area-inset-bottom,\s*0px\)/);
+  assert.match(mobileCss, /\.shop-toast \{/);
+  assert.match(mobileCss, /bottom:\s*calc\(var\(--mobile-shop-nav-height\) \+ var\(--mobile-bottom-safe\) \+ var\(--mobile-toast-gap\)\)/);
+  assert.match(mobileCss, /z-index:\s*11900/);
 });
 
 test("logout still abandons member shop state and account page still loads member.js once", () => {

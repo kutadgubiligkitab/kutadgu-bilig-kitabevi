@@ -18,6 +18,9 @@
     --mobile-radius: 13px;
     --mobile-header-height: 62px;
     --mobile-bottom-height: 62px;
+    --mobile-shop-nav-height: var(--mobile-bottom-height);
+    --mobile-bottom-safe: env(safe-area-inset-bottom, 0px);
+    --mobile-toast-gap: 12px;
   }
 
   html {
@@ -280,6 +283,13 @@
   /* ---------------- Persistent mobile bottom navigation ---------------- */
   .shop-floating {
     display: none !important;
+  }
+
+  .shop-toast {
+    z-index: 11900;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    left: auto;
+    bottom: calc(var(--mobile-shop-nav-height) + var(--mobile-bottom-safe) + var(--mobile-toast-gap));
   }
 
   .mobile-bottom-nav {

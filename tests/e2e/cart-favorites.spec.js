@@ -196,6 +196,33 @@ test.describe("guest cart and favorites", () => {
     await expect(page.locator("#cartItems")).toContainText(/سېۋەت ھازىرچە بوش/);
   });
 
+  test("stale owner add-to-cart starts a fresh guest cart", async ({ page }) => {
+    const book = await H.discoverLiveBook(page);
+    await H.openFresh(page, book.detailPath);
+    await H.waitForDetailTitle(page, book.title);
+    await page.evaluate(() => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "102", qty: 2 }]));
+      localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["102"]));
+      localStorage.setItem("kutadgu-shop-owner-v1", "stale");
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForDetailTitle(page, book.title);
+    const before = await page.evaluate(() => window.kutadguShop.cart());
+    expect(before).toEqual([]);
+    await page.locator(".detail-main-cart").click();
+    await expect.poll(async () => H.badgeCount(page)).toBe(1);
+    const after = await page.evaluate(() => ({
+      owner: localStorage.getItem("kutadgu-shop-owner-v1"),
+      cart: window.kutadguShop.cart(),
+      raw: JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]")
+    }));
+    expect(after.owner).toBe("guest");
+    expect(after.cart).toHaveLength(1);
+    expect(String(after.cart[0].id)).toBe(String(book.id));
+    expect(after.raw.some((row) => String(row.id) === "102")).toBe(false);
+  });
+
   test("guest-owned cart still displays before login", async ({ page }) => {
     const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/cart.html");
