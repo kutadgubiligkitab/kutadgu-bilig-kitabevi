@@ -67,9 +67,11 @@ async function run() {
     const htmlShellIdx = rewriteIndex((rule) => rule.source === "/book.html" && rule.destination === "/book-shell.html");
     const bareIdx = rewriteIndex((rule) => rule.source === "/book" && rule.destination === "/api/legacy-book-redirect");
     const pathIdx = rewriteIndex((rule) => rule.source === "/book/:id");
+    const numericIdx = rewriteIndex((rule) => rule.source === "/book/:id(\\d+)" && String(rule.destination || "").startsWith("/api/book-public"));
     const shellIdx = rewriteIndex((rule) => rule.source === "/book" && rule.destination === "/book-shell.html");
     assert.ok(htmlIdx >= 0 && htmlIdx < htmlShellIdx);
     assert.ok(bareIdx >= 0 && pathIdx >= 0 && pathIdx < shellIdx);
+    assert.ok(numericIdx >= 0 && numericIdx < pathIdx, "numeric /book/:id gate must precede the non-numeric shell rewrite");
     assert.ok(bareIdx < shellIdx);
     const clean = (vercel.rewrites || []).find((rule) => rule.source === "/book/:id");
     assert.strictEqual(clean.destination, "/book-shell.html");

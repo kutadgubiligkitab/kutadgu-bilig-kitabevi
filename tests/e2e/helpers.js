@@ -7,6 +7,7 @@ const PRODUCTION = "https://kutadgu-bilig-kitab.vercel.app";
 const BOOK_COVER_STORAGE_PATH = "/storage/v1/object/public/book-covers/";
 const BOOK_COVER_STUB_PATH = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 const BOOK_COVER_STUB = fs.readFileSync(BOOK_COVER_STUB_PATH);
+const BOOK_SHELL_HTML = fs.readFileSync(path.join(__dirname, "..", "..", "book-shell.html"));
 const liveBookCoverPages = new WeakSet();
 const mockedBookCoverCounts = new WeakMap();
 
@@ -26,6 +27,28 @@ function mockedBookCoverRequests(page) {
 
 function allowLiveBookCovers(page) {
   if (page) liveBookCoverPages.add(page);
+}
+
+async function stubNumericBookDocuments(page, ids) {
+  const allow = new Set((ids || []).map((id) => String(id)));
+  await page.route("**/book/**", async (route) => {
+    const req = route.request();
+    const method = req.method();
+    if (method !== "GET" && method !== "HEAD") return route.continue();
+    let pathname = "";
+    try {
+      pathname = new URL(req.url()).pathname;
+    } catch (err) {
+      return route.continue();
+    }
+    const match = pathname.match(/^\/book\/(\d+)\/?$/);
+    if (!match || !allow.has(match[1])) return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: "text/html; charset=utf-8",
+      body: method === "HEAD" ? "" : BOOK_SHELL_HTML
+    });
+  });
 }
 
 function shouldMockBookCoverStorage(page) {
@@ -501,6 +524,7 @@ module.exports = {
   isSupabaseBookCoverStorageUrl,
   mockedBookCoverRequests,
   allowLiveBookCovers,
+  stubNumericBookDocuments,
   installBookCoverEgressGuard,
   logMockedBookCoverSummary,
   installReadSafeNetwork,

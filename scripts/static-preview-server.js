@@ -84,6 +84,13 @@ const server = http.createServer((req, res) => {
     send(res, 308, { Location: location, "Cache-Control": "public, max-age=0, must-revalidate" }, "");
     return;
   }
+  if (/^\/api\/book-public\/?$/i.test(url.pathname) || /^\/book\/\d+\/?$/.test(url.pathname)) {
+    const handler = require(path.join(root, "api/book-public.js"));
+    Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
+      send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }, "temporary failure");
+    });
+    return;
+  }
   if (seo.isLegacyBookQueryPath(url.pathname)) {
     const location = seo.legacyNumericIdRedirectPath(url.search);
     if (location) {

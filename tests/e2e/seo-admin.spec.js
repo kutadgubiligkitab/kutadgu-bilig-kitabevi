@@ -71,16 +71,27 @@ test.describe("seo + admin", () => {
     });
   });
 
-  test("missing numeric book stays noindex after clean URL landing", async ({ page }) => {
+  test("missing numeric book is HTTP 404 without a valid book canonical", async ({ page, request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const legacy = await request.get(`${origin}/book.html?id=999999999`, { maxRedirects: 0 });
+    expect(legacy.status()).toBe(308);
+    expect(new URL(legacy.headers().location || "", origin).pathname).toBe("/book/999999999");
+    const missing = await request.get(`${origin}/book/999999999`, { maxRedirects: 0 });
+    expect(missing.status()).toBe(404);
+    const html = await missing.text();
+    expect(html).toMatch(/noindex/i);
+    expect(html).not.toContain("kutadguBookSchema");
+    expect(html).not.toMatch(/"@type"\s*:\s*"Book"/);
+
     await page.goto("/book.html?id=999999999", { waitUntil: "domcontentloaded" });
     await expect.poll(() => new URL(page.url()).pathname).toBe("/book/999999999");
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
-    await expect(page.locator('meta[name="robots"]')).toHaveCount(1);
-    await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
-    const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
-    expect(canonical).not.toContain("999999999");
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
     expect(await page.locator("#kutadguBookSchema").count()).toBe(0);
+    const canonical = await page.locator('link[rel="canonical"]').count();
+    if (canonical) {
+      const href = await page.locator('link[rel="canonical"]').getAttribute("href");
+      expect(href).not.toContain("999999999");
+    }
   });
 
   test("resolved live book becomes index,follow with numeric www canonical", async ({ page }) => {
