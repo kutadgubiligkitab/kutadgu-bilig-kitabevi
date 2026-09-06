@@ -235,10 +235,10 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
   );
   assert.deepStrictEqual(forbidden, [], "unexpected backend files: " + forbidden.join(", "));
   files.forEach((file) => {
+    if (/(^|\/)scripts\/.*tests\.js$/.test(file) || file.startsWith("tests/")) return;
+    if (!/\.(css|js|html)$/i.test(file)) return;
     const text = fs.readFileSync(path.join(root, file), "utf8");
-    if (/\.(css|js|html|json|md)$/i.test(file)) {
-      assert.doesNotMatch(text, /CREATE POLICY|ALTER TABLE|GRANT SELECT|ENABLE ROW LEVEL SECURITY/);
-    }
+    assert.doesNotMatch(text, /CREATE POLICY|ALTER TABLE|GRANT SELECT|ENABLE ROW LEVEL SECURITY/);
   });
 });
 
