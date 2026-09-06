@@ -199,28 +199,30 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
     assert.strictEqual(rewrite.destination, `/${slug}.html`);
     assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
   });
-  assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"), "vercel.json must not 308 /book.html with unsubstituted :id");
-  const bookHtmlLegacy = (vercel.rewrites || []).find(r => r.source === "/book.html");
+  assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"), "vercel.json must not 308 every /book.html");
+  assert.ok(!(vercel.redirects || []).some(r => r.destination === "/book/:id"), "platform redirects to /book/:id pass through ?id=");
+  const bookHtmlLegacy = (vercel.rewrites || []).find(r => r.source === "/book.html" && r.destination === "/api/legacy-book-redirect");
   const bookQueryLegacy = (vercel.rewrites || []).find(r => r.source === "/book" && r.destination === "/api/legacy-book-redirect");
-  const bookShell = (vercel.rewrites || []).find(r => r.source === "/book" && r.destination === "/book.html");
-  assert.ok(bookHtmlLegacy, "missing /book.html numeric-id rewrite to redirect function");
-  assert.strictEqual(bookHtmlLegacy.destination, "/api/legacy-book-redirect");
+  const bookShell = (vercel.rewrites || []).find(r => r.source === "/book" && r.destination === "/book-shell.html");
+  assert.ok(bookHtmlLegacy, "missing /book.html numeric-id rewrite to 308 helper");
   assert.strictEqual(bookHtmlLegacy.has[0].type, "query");
   assert.strictEqual(bookHtmlLegacy.has[0].key, "id");
   assert.strictEqual(bookHtmlLegacy.has[0].value, "\\d+");
-  assert.ok(bookQueryLegacy, "missing /book?id= rewrite to redirect function");
+  assert.ok(bookQueryLegacy, "missing /book?id= rewrite to 308 helper");
   assert.strictEqual(bookQueryLegacy.has[0].value, "\\d+");
+  assert.ok(!fs.existsSync(path.join(__dirname, "..", "book.html")), "static book.html would beat the helper rewrite");
   const bookRewrite = (vercel.rewrites || []).find(r => r.source === "/book/:id");
   assert.ok(bookRewrite, "missing /book/:id rewrite");
-  assert.strictEqual(bookRewrite.destination, "/book.html");
-  assert.ok(bookShell, "missing /book rewrite to book.html");
-  const htmlIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html");
-  const queryIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/api/legacy-book-redirect");
+  assert.strictEqual(bookRewrite.destination, "/book-shell.html");
+  assert.ok(bookShell, "missing /book rewrite to book-shell.html");
+  const htmlShell = (vercel.rewrites || []).find(r => r.source === "/book.html" && r.destination === "/book-shell.html");
+  assert.ok(htmlShell, "missing unresolved /book.html rewrite to book-shell.html");
   const pathIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book/:id");
-  const shellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/book.html");
-  assert.ok(htmlIdx >= 0 && htmlIdx < pathIdx, "/book.html numeric rewrite must precede /book/:id");
-  assert.ok(queryIdx >= 0 && queryIdx < pathIdx, "/book?id= rewrite must precede /book/:id");
+  const shellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/book-shell.html");
+  const helperIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html" && r.destination === "/api/legacy-book-redirect");
+  const htmlShellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html" && r.destination === "/book-shell.html");
   assert.ok(pathIdx >= 0 && pathIdx < shellIdx, "/book/:id rewrite must precede bare /book shell");
+  assert.ok(helperIdx >= 0 && helperIdx < htmlShellIdx, "numeric /book.html helper rewrite must precede the shell");
   sitemap.PUBLIC_INFO_SLUGS.forEach(slug => {
     const redirect = (vercel.redirects || []).find(r => r.source === `/${slug}.html`);
     const rewrite = (vercel.rewrites || []).find(r => r.source === `/${slug}`);
@@ -248,7 +250,7 @@ jobs.push(test("G robots.txt sitemap location and private disallows", () => {
 }));
 
 jobs.push(test("book.html shell does not ship a first-byte robots or canonical veto", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "book.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "book-shell.html"), "utf8");
   assert.ok(!/meta[^>]*name=["']robots["']/i.test(html));
   assert.ok(!/rel=["']canonical["']/i.test(html));
   assert.ok(!html.includes("kutadguRobots"));
@@ -320,7 +322,7 @@ jobs.push(test("legacy-book-redirect function 308s numeric id and refuses fake p
 }));
 
 jobs.push(test("book.html nested-route assets are root-relative", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "book.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "book-shell.html"), "utf8");
   assert.ok(html.includes('href="/theme.css?'));
   assert.ok(html.includes('href="/shop.css?'));
   assert.ok(html.includes('href="/covers.css?'));

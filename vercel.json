@@ -98,28 +98,6 @@
   ],
   "rewrites": [
     {
-      "source": "/book.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "id",
-          "value": "\\d+"
-        }
-      ],
-      "destination": "/api/legacy-book-redirect"
-    },
-    {
-      "source": "/book",
-      "has": [
-        {
-          "type": "query",
-          "key": "id",
-          "value": "\\d+"
-        }
-      ],
-      "destination": "/api/legacy-book-redirect"
-    },
-    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap-index"
     },
@@ -204,12 +182,38 @@
       "destination": "/returns.html"
     },
     {
-      "source": "/book/:id",
-      "destination": "/book.html"
+      "source": "/book.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "\\d+"
+        }
+      ],
+      "destination": "/api/legacy-book-redirect"
     },
     {
       "source": "/book",
-      "destination": "/book.html"
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "\\d+"
+        }
+      ],
+      "destination": "/api/legacy-book-redirect"
+    },
+    {
+      "source": "/book/:id",
+      "destination": "/book-shell.html"
+    },
+    {
+      "source": "/book.html",
+      "destination": "/book-shell.html"
+    },
+    {
+      "source": "/book",
+      "destination": "/book-shell.html"
     }
   ],
   "headers": [

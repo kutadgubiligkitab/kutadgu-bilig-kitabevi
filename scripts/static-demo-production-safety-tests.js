@@ -9,7 +9,7 @@ const root = path.join(__dirname, "..");
 const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
 const catalog = fs.readFileSync(path.join(root, "catalog.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const bookHtml = fs.readFileSync(path.join(root, "book.html"), "utf8");
+const bookHtml = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
 const romanlar2 = fs.readFileSync(path.join(root, "romanlar-2.html"), "utf8");
 
 let failed = 0;

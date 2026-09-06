@@ -104,7 +104,11 @@ const server = http.createServer((req, res) => {
   }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
-  if (/^\/book\/?$/i.test(url.pathname) || /^\/book\/[^/]+\/?$/.test(url.pathname)) rel = "book.html";
+  if (
+    /^\/book\.html$/i.test(url.pathname)
+    || /^\/book\/?$/i.test(url.pathname)
+    || /^\/book\/[^/]+\/?$/.test(url.pathname)
+  ) rel = "book-shell.html";
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const abs = path.join(root, rel);
   if (!abs.startsWith(root + path.sep) && abs !== root) {

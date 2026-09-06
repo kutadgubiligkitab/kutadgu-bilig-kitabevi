@@ -177,7 +177,7 @@ test("auth MFA idle lock password reset OAuth files are unchanged by this featur
 });
 
 test("book.html loads catalog-bibliography before shop.js", () => {
-  const bookHtml = read("book.html");
+  const bookHtml = read("book-shell.html");
   const bib = bookHtml.indexOf("catalog-bibliography.js?v=2");
   const shop = bookHtml.indexOf("shop.js?v=113");
   assert.ok(bib > 0 && shop > bib);

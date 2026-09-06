@@ -149,9 +149,13 @@ test.describe("public info clean URLs", () => {
     expect(book.status()).toBe(200);
     const legacyHtml = await request.get(`${origin}/book.html?id=122`, { maxRedirects: 0 });
     expect(legacyHtml.status()).toBe(308);
-    expect(new URL(legacyHtml.headers().location || "", origin).pathname).toBe("/book/122");
+    const htmlLoc = new URL(legacyHtml.headers().location || "", origin);
+    expect(htmlLoc.pathname + htmlLoc.search).toBe("/book/122");
+    expect(htmlLoc.searchParams.has("id")).toBe(false);
     const legacyBare = await request.get(`${origin}/book?id=122`, { maxRedirects: 0 });
     expect(legacyBare.status()).toBe(308);
-    expect(new URL(legacyBare.headers().location || "", origin).pathname).toBe("/book/122");
+    const bareLoc = new URL(legacyBare.headers().location || "", origin);
+    expect(bareLoc.pathname + bareLoc.search).toBe("/book/122");
+    expect(bareLoc.searchParams.has("id")).toBe(false);
   });
 });

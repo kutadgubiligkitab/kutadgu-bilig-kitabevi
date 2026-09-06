@@ -69,7 +69,7 @@ test("homepage logo points to /", () => {
 });
 
 test("book detail brand/home links point to / not index.html", () => {
-  const html = fs.readFileSync(path.join(root, "book.html"), "utf8");
+  const html = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
   assert.match(html, /class="detail-brand" href="\/"/);
   assert.match(html, /class="back-link" href="\/#books"/);
   assert.doesNotMatch(html, /href="index\.html/);
