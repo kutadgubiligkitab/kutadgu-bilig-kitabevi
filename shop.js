@@ -4132,7 +4132,7 @@ function ensureCoverSystemCss(){
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
-    const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=9";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
+    const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=10";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   ensureCoverSystemCss();
   return loadAssetScript("/premium-ux.js?v=12","kutadguPremiumUxScript");

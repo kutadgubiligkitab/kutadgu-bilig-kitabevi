@@ -1,0 +1,43 @@
+/* Mobile /book/<id> main cover only.
+   Root cause: mobile.css forces .book-cover-box { aspect-ratio:3/4; img height:100% }
+   plus book-shell padding/min-height, which leaves a large cream frame around contain images.
+   Desktop (>=769px) is unchanged. Do not restyle listing or mini-cards. */
+@media (max-width: 768px) {
+  .detail-page-body .book-cover-column {
+    width: min(100%, 410px);
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  .detail-page-body .book-cover-box:not(.no-cover) {
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    aspect-ratio: auto !important;
+    padding: 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box;
+  }
+  .detail-page-body .book-cover-box:not(.no-cover) img {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: min(72vh, 560px) !important;
+    aspect-ratio: auto !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+    margin: 0 auto !important;
+  }
+  .detail-page-body .book-cover-box.no-cover {
+    min-height: 0 !important;
+    aspect-ratio: 2 / 3;
+    padding: 8px !important;
+  }
+}
+@media (max-width: 390px) {
+  .detail-page-body .book-cover-box:not(.no-cover) {
+    padding: 4px !important;
+  }
+}
