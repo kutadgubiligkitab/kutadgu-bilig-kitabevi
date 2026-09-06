@@ -16,22 +16,22 @@
 }
 
 .home-hero-copy{
-  max-width:36rem;
+  max-width:none;
 }
 
 .home-hero-eyebrow{
   display:block;
   margin:0 0 var(--space-1,4px);
   color:var(--site-text-soft,var(--text-soft));
-  font-size:var(--font-size-sm,13px);
+  font-size:var(--font-size-lg,16px);
   font-weight:var(--font-weight-medium,700);
 }
 
 .home-hero-trust{
   display:inline-block;
-  margin:0 0 var(--space-2,8px);
+  margin:0 0 var(--space-3,12px);
   color:var(--site-brown,var(--brown));
-  font-size:var(--font-size-sm,13px);
+  font-size:var(--font-size-md,14px);
   font-weight:var(--font-weight-bold,800);
   letter-spacing:0.02em;
 }
@@ -46,10 +46,11 @@
 
 .home-bookstore-hero p{
   margin:0 0 var(--space-4,16px);
-  max-width:38em;
-  color:var(--site-text-soft,var(--text-soft));
+  max-width:none;
+  color:var(--site-text,var(--text));
   font-size:var(--font-size-xl,18px);
   line-height:1.75;
+  font-weight:var(--font-weight-medium,700);
 }
 
 .home-hero-actions{
@@ -60,7 +61,9 @@
 
 .home-hero-actions .button,
 .home-hero-secondary{
-  min-height:44px;
+  min-height:48px;
+  padding:10px 18px;
+  font-size:var(--font-size-lg,16px);
   white-space:normal;
 }
 
@@ -236,18 +239,31 @@ html.dark-mode .about-service-chip{
 @media (min-width:701px){
   .home-bookstore-hero{
     min-height:0 !important;
-    padding:10px clamp(22px,5vw,74px) 12px !important;
+    padding:14px clamp(22px,5vw,74px) 16px !important;
   }
   .home-hero-inner{
-    gap:18px !important;
+    gap:28px !important;
+    align-items:center;
+  }
+  .home-hero-eyebrow{
+    font-size:16px !important;
+  }
+  .home-hero-trust{
+    font-size:15px !important;
+    margin-bottom:10px !important;
   }
   .shop-hero-frame{
-    max-height:340px !important;
+    max-height:360px !important;
   }
   .home-bookstore-hero p{
-    margin-bottom:14px !important;
-    font-size:17px !important;
-    line-height:1.75 !important;
+    margin-bottom:16px !important;
+    font-size:20px !important;
+    line-height:1.7 !important;
+  }
+  .home-hero-actions .button,
+  .home-hero-secondary{
+    min-height:48px !important;
+    font-size:15px !important;
   }
 }
 
@@ -261,19 +277,21 @@ html.dark-mode .about-service-chip{
     text-align:center;
   }
   .home-hero-eyebrow{
-    font-size:12px !important;
+    font-size:14px !important;
   }
   .home-hero-trust{
-    font-size:12px !important;
-    margin-bottom:6px;
+    font-size:13px !important;
+    margin-bottom:8px;
   }
   .home-bookstore-hero p{
-    margin:0 auto 10px !important;
-    font-size:14px !important;
+    margin:0 auto 12px !important;
+    font-size:15px !important;
     line-height:1.8 !important;
   }
-  .home-hero-actions{
-    justify-content:center;
+  .home-hero-actions .button,
+  .home-hero-secondary{
+    font-size:14px !important;
+    min-height:44px !important;
   }
   .shop-hero-frame{
     aspect-ratio:16 / 10;
