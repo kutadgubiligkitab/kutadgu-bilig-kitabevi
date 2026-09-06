@@ -960,7 +960,17 @@ async function saveOrder(order){
     p_delivery_method:String(c.delivery||""),
     p_customer_note:String(c.note||"")
   });
-  if(error)throw error;
+  if(error){
+    const blob=String(error.message||error.details||error.hint||error.code||"");
+    if(/insufficient_stock/i.test(blob)){
+      const wrapped=new Error("insufficient_stock");
+      wrapped.details=error.details;
+      wrapped.hint=error.hint;
+      wrapped.cause=error;
+      throw wrapped;
+    }
+    throw error;
+  }
   const row=Array.isArray(data)?data[0]:data;
   if(!row)return {saved:false,reason:"db_error"};
   return {saved:true,order:row};

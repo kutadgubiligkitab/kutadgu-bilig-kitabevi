@@ -417,9 +417,8 @@ test.describe("cart instant display snapshot", () => {
     expect(Number((await H.readCart(page))[0]?.qty)).toBe(1);
     await expect(page.locator("#cartItems .cart-title")).toHaveText(LIVE_TITLE, { timeout: 20_000 });
     await expect(page.locator("#cartItems")).toHaveAttribute("data-cart-hydration", "ready");
-    await expect(page.locator("#cartItems [data-plus]")).toBeEnabled();
-    await page.locator("#cartItems [data-plus]").click();
-    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(2);
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(1);
   });
 
   test("signed-in current owner paints snapshot before delayed catalog and member cart", async ({ page }) => {

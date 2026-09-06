@@ -31,8 +31,8 @@
       autoCarousel:true,
       analyticsHooks:true,
       ...(current.featureFlags||{}),
-      /* Phase 1: collect Admin quantities only. Phase 2 turns this on with order accounting. */
-      stockEnforcement:false
+      /* Phase 2: storefront uses live stock. Prepared orders do not reserve. */
+      stockEnforcement:true
     },
     carousel:{
       desktopCardsPerRow:4,

@@ -4,10 +4,9 @@
 */
 window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilik.com";
 
-/* Phase 1 storefront gate. Default MUST stay false.
-   Phase 2 will set this true together with confirmed-order stock accounting.
-   Do not treat missing as true — shop.js / KutadguStock also default to false. */
-window.KUTADGU_STOCK_ENFORCEMENT = false;
+/* Phase 2 storefront gate. Default MUST be true after Stage 83.
+   Prepared orders still do not reserve stock; Admin commit deducts. */
+window.KUTADGU_STOCK_ENFORCEMENT = true;
 
 window.kutadguIsProductionAuthHost = function(host){
   const h=String(host||"").toLowerCase();

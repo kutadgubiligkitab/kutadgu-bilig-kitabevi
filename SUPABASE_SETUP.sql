@@ -42,7 +42,7 @@ create table if not exists public.books (
   book_size text,
   dimensions text not null default '',
   description text not null default '',
-  stock integer check (stock is null or stock >= 0),
+  stock integer not null default 0 check (stock >= 0),
   is_active boolean not null default true,
   is_new boolean not null default true,
   is_featured boolean not null default false,
@@ -84,12 +84,12 @@ alter table public.books
   );
 alter table public.books add column if not exists dimensions text not null default '';
 alter table public.books add column if not exists stock integer;
-alter table public.books alter column stock drop not null;
-alter table public.books alter column stock drop default;
+alter table public.books alter column stock set default 0;
+alter table public.books alter column stock set not null;
 alter table public.books drop constraint if exists books_stock_nonnegative_chk;
 alter table public.books
   add constraint books_stock_nonnegative_chk
-  check (stock is null or stock >= 0);
+  check (stock >= 0);
 alter table public.books add column if not exists is_bestseller boolean not null default false;
 alter table public.books add column if not exists is_featured boolean not null default false;
 alter table public.books add column if not exists sales_count integer not null default 0;
@@ -261,9 +261,25 @@ create table if not exists public.orders (
   customer_address text not null default '',
   delivery_method text not null default '',
   customer_note text not null default '',
+  stock_committed boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.orders add column if not exists stock_committed boolean not null default false;
+alter table public.orders drop constraint if exists orders_stock_committed_matches_status_chk;
+alter table public.orders
+  add constraint orders_stock_committed_matches_status_chk
+  check (
+    (
+      status in ('prepared', 'cancelled')
+      and stock_committed = false
+    )
+    or (
+      status in ('confirmed', 'processing', 'shipped', 'completed')
+      and stock_committed = true
+    )
+  );
 
 drop trigger if exists orders_touch_updated_at on public.orders;
 create trigger orders_touch_updated_at before update on public.orders
@@ -650,6 +666,14 @@ begin
     if v_book.price is null or v_book.price < 0 then
       raise exception 'invalid_book_price';
     end if;
+    if v_book.stock is null then
+      raise exception 'stock_unconfigured';
+    end if;
+    if v_book.stock < v_qty then
+      raise exception 'insufficient_stock'
+        using detail = 'book_id=' || v_book.id::text || ' requested=' || v_qty::text || ' available=' || v_book.stock::text,
+              hint = 'not_enough_stock';
+    end if;
 
     v_line_total := round(v_book.price * v_qty, 2);
     v_total := v_total + v_line_total;
@@ -712,6 +736,223 @@ $$;
 revoke all on function public.create_member_order(text, jsonb, text, text, text, text, text, text) from public;
 revoke execute on function public.create_member_order(text, jsonb, text, text, text, text, text, text) from anon;
 grant execute on function public.create_member_order(text, jsonb, text, text, text, text, text, text) to authenticated;
+
+create or replace function public.kutadgu_apply_order_stock_delta(p_items jsonb, p_sign integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_elem jsonb;
+  v_n integer;
+  v_i integer;
+  v_book_id bigint;
+  v_id_text text;
+  v_qty integer;
+  v_merged integer;
+  v_qty_map jsonb := '{}'::jsonb;
+  v_ids bigint[] := '{}'::bigint[];
+  v_lock record;
+  v_locked integer := 0;
+  v_needed integer;
+  v_avail integer;
+  v_rows integer;
+begin
+  if p_sign is distinct from -1 and p_sign is distinct from 1 then
+    raise exception 'invalid_stock_sign';
+  end if;
+  if p_items is null or jsonb_typeof(p_items) is distinct from 'array' then
+    raise exception 'invalid_order_items';
+  end if;
+
+  v_n := jsonb_array_length(p_items);
+  if v_n < 1 then
+    raise exception 'empty_order_items';
+  end if;
+  if v_n > 50 then
+    raise exception 'too_many_order_items';
+  end if;
+
+  for v_i in 0 .. v_n - 1 loop
+    v_elem := p_items -> v_i;
+    if v_elem is null or jsonb_typeof(v_elem) is distinct from 'object' then
+      raise exception 'invalid_order_items';
+    end if;
+    v_id_text := btrim(v_elem ->> 'book_id');
+    if v_id_text is null or v_id_text !~ '^[1-9][0-9]*$' then
+      raise exception 'invalid_book_id';
+    end if;
+    begin
+      v_book_id := v_id_text::bigint;
+    exception when others then
+      raise exception 'invalid_book_id';
+    end;
+    if jsonb_typeof(v_elem -> 'qty') is distinct from 'number'
+       and jsonb_typeof(v_elem -> 'qty') is distinct from 'string' then
+      raise exception 'invalid_quantity';
+    end if;
+    if btrim(v_elem ->> 'qty') !~ '^[1-9][0-9]*$' then
+      raise exception 'invalid_quantity';
+    end if;
+    begin
+      v_qty := btrim(v_elem ->> 'qty')::integer;
+    exception when others then
+      raise exception 'invalid_quantity';
+    end;
+    if v_qty is null or v_qty < 1 or v_qty > 99 then
+      raise exception 'invalid_quantity';
+    end if;
+    if v_qty_map ? v_id_text then
+      v_merged := (v_qty_map ->> v_id_text)::integer + v_qty;
+      if v_merged > 99 then
+        raise exception 'quantity_too_large';
+      end if;
+      v_qty_map := jsonb_set(v_qty_map, array[v_id_text], to_jsonb(v_merged));
+    else
+      v_qty_map := v_qty_map || jsonb_build_object(v_id_text, v_qty);
+      v_ids := array_append(v_ids, v_book_id);
+    end if;
+  end loop;
+
+  v_ids := array(select distinct unnest(v_ids) order by 1);
+  v_needed := coalesce(array_length(v_ids, 1), 0);
+  if v_needed < 1 then
+    raise exception 'empty_order_items';
+  end if;
+
+  for v_lock in
+    select b.id, b.stock
+    from public.books as b
+    where b.id = any (v_ids)
+    order by b.id
+    for update of b
+  loop
+    v_locked := v_locked + 1;
+    v_id_text := v_lock.id::text;
+    v_qty := (v_qty_map ->> v_id_text)::integer;
+    if v_lock.stock is null then
+      raise exception 'stock_unconfigured'
+        using detail = 'book_id=' || v_lock.id::text;
+    end if;
+    v_avail := v_lock.stock;
+    if p_sign = -1 and v_avail < v_qty then
+      raise exception 'insufficient_stock'
+        using detail = 'book_id=' || v_lock.id::text || ' requested=' || v_qty::text || ' available=' || v_avail::text,
+              hint = 'not_enough_stock';
+    end if;
+    update public.books
+      set stock = stock + (p_sign * v_qty)
+      where id = v_lock.id
+        and stock + (p_sign * v_qty) >= 0;
+    get diagnostics v_rows = row_count;
+    if v_rows <> 1 then
+      raise exception 'insufficient_stock'
+        using detail = 'book_id=' || v_lock.id::text || ' requested=' || v_qty::text || ' available=' || v_avail::text,
+              hint = 'not_enough_stock';
+    end if;
+  end loop;
+
+  if v_locked <> v_needed then
+    raise exception 'book_not_found';
+  end if;
+end;
+$$;
+revoke all on function public.kutadgu_apply_order_stock_delta(jsonb, integer) from public;
+revoke all on function public.kutadgu_apply_order_stock_delta(jsonb, integer) from anon;
+revoke all on function public.kutadgu_apply_order_stock_delta(jsonb, integer) from authenticated;
+
+create or replace function public.kutadgu_orders_stock_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_old_committed boolean;
+  v_new_committed boolean;
+begin
+  if tg_op = 'INSERT' then
+    if new.status in ('confirmed', 'processing', 'shipped', 'completed') then
+      raise exception 'committed_insert_forbidden';
+    end if;
+    new.stock_committed := false;
+    return new;
+  end if;
+
+  if new.status not in ('prepared', 'cancelled', 'confirmed', 'processing', 'shipped', 'completed') then
+    raise exception 'invalid_order_status';
+  end if;
+
+  v_old_committed := coalesce(old.stock_committed, false);
+  v_new_committed := new.status in ('confirmed', 'processing', 'shipped', 'completed');
+
+  if new.items is distinct from old.items then
+    if v_old_committed or v_new_committed then
+      raise exception 'order_items_immutable';
+    end if;
+  end if;
+
+  if v_old_committed = v_new_committed then
+    new.stock_committed := v_old_committed;
+    return new;
+  end if;
+
+  if (not v_old_committed) and v_new_committed then
+    perform public.kutadgu_apply_order_stock_delta(old.items, -1);
+    new.stock_committed := true;
+    return new;
+  end if;
+
+  perform public.kutadgu_apply_order_stock_delta(old.items, 1);
+  new.stock_committed := false;
+  return new;
+end;
+$$;
+revoke all on function public.kutadgu_orders_stock_transition() from public;
+revoke all on function public.kutadgu_orders_stock_transition() from anon;
+revoke all on function public.kutadgu_orders_stock_transition() from authenticated;
+
+drop trigger if exists orders_stock_transition on public.orders;
+create trigger orders_stock_transition
+  before insert or update on public.orders
+  for each row
+  execute function public.kutadgu_orders_stock_transition();
+
+create or replace function public.kutadgu_prevent_delete_committed_book()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_hit boolean;
+begin
+  select exists (
+    select 1
+    from public.orders as o
+    cross join lateral jsonb_array_elements(o.items) as elem
+    where o.stock_committed = true
+      and btrim(elem ->> 'book_id') ~ '^[1-9][0-9]*$'
+      and (btrim(elem ->> 'book_id'))::bigint = old.id
+  ) into v_hit;
+
+  if v_hit then
+    raise exception 'book_has_committed_stock'
+      using detail = 'book_id=' || old.id::text;
+  end if;
+  return old;
+end;
+$$;
+revoke all on function public.kutadgu_prevent_delete_committed_book() from public;
+revoke all on function public.kutadgu_prevent_delete_committed_book() from anon;
+revoke all on function public.kutadgu_prevent_delete_committed_book() from authenticated;
+
+drop trigger if exists books_prevent_delete_committed_stock on public.books;
+create trigger books_prevent_delete_committed_stock
+  before delete on public.books
+  for each row
+  execute function public.kutadgu_prevent_delete_committed_book();
 
 -- خېرىدار status/visit_count نى ئۆزى ئۆزگەرتەلمەيدۇ؛ پەقەت ئارخىپ مەيدانىنىلا تەھرىرلەيدۇ.
 revoke update on public.profiles from authenticated;

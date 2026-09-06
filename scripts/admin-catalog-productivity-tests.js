@@ -164,14 +164,12 @@ test("quick edit keeps https cover URL",()=>{
   assert.strictEqual(built.patch.image_url,"https://cdn.example/x.webp");
 });
 
-test("blank admin stock saves NULL in staging and does not coerce to 0",()=>{
+test("blank admin stock is rejected when the stock column is present",()=>{
   const cols=new Set(["stock"]);
   const blank=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:""},{presentBookCols:cols});
-  assert.strictEqual(blank.ok,true);
-  assert.strictEqual(blank.patch.stock,null);
+  assert.strictEqual(blank.ok,false);
   const spaces=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"   "},{presentBookCols:cols});
-  assert.strictEqual(spaces.ok,true);
-  assert.strictEqual(spaces.patch.stock,null);
+  assert.strictEqual(spaces.ok,false);
 });
 
 test("exact integer stock saves the exact quantity including 0",()=>{

@@ -5,7 +5,6 @@ const ZERO_ID = "91010";
 const ONE_ID = "91011";
 const THREE_ID = "91012";
 const FOUR_ID = "91013";
-const NULL_ID = "91014";
 const INACTIVE_ID = "91015";
 
 function bookRow(overrides = {}) {
@@ -32,7 +31,6 @@ const BOOKS = [
   bookRow({ id: Number(ONE_ID), title: "ئامبار بىر كىتاب", stock: 1 }),
   bookRow({ id: Number(THREE_ID), title: "ئامبار ئۈچ كىتاب", stock: 3 }),
   bookRow({ id: Number(FOUR_ID), title: "ئامبار تۆت كىتاب", stock: 4 }),
-  bookRow({ id: Number(NULL_ID), title: "ئامبار تەڭشەلمىگەن كىتاب", stock: null }),
   bookRow({ id: Number(INACTIVE_ID), title: "يوشۇرۇلغان كىتاب", stock: 8, is_active: false })
 ];
 
@@ -98,95 +96,98 @@ async function openBook(page, id, title) {
   await H.waitForDetailTitle(page, title);
 }
 
-test.describe("Phase 1 storefront stock enforcement stays off", () => {
+test.describe("Phase 2 storefront stock enforcement", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
-    await page.route("**/supabase-config.js*", async (route) => {
-      const res = await route.fetch();
-      const body = (await res.text()).replace(
-        /KUTADGU_STOCK_ENFORCEMENT\s*=\s*true/,
-        "KUTADGU_STOCK_ENFORCEMENT = false"
-      );
-      return route.fulfill({ response: res, body, contentType: "application/javascript" });
-    });
-    await page.route("**/app-config.js*", async (route) => {
-      const res = await route.fetch();
-      const body = (await res.text()).replace(/stockEnforcement\s*:\s*true/, "stockEnforcement:false");
-      return route.fulfill({ response: res, body, contentType: "application/javascript" });
-    });
   });
 
-  test("production gate is off and stock values do not change buy/qty/badge", async ({ page }) => {
+  test("production gate is on and stock 0/1-3/4+ derive correctly", async ({ page }) => {
     await mockBooks(page);
     await page.goto("/index.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     const state = await page.evaluate(() => {
       const shop = window.kutadguShop;
-      const samples = [null, 0, 1, 3, 4].map((qty) => shop.stockInfo({
-        id: "1",
-        stock: qty,
-        isActive: true,
-        isRemote: true
-      }));
       return {
         enforcement: shop.isStockEnforcementEnabled(),
         config: window.KUTADGU_STOCK_ENFORCEMENT,
         flag: !!(window.KUTADGU_APP_CONFIG && window.KUTADGU_APP_CONFIG.featureFlags && window.KUTADGU_APP_CONFIG.featureFlags.stockEnforcement),
-        samples
+        zero: shop.stockInfo({ stock: 0, isActive: true, isRemote: true }),
+        one: shop.stockInfo({ stock: 1, isActive: true, isRemote: true }),
+        three: shop.stockInfo({ stock: 3, isActive: true, isRemote: true }),
+        four: shop.stockInfo({ stock: 4, isActive: true, isRemote: true })
       };
     });
-    expect(state.enforcement).toBe(false);
-    expect(state.config).toBe(false);
-    expect(state.flag).toBe(false);
-    for (const info of state.samples) {
-      expect(info.canBuy).toBe(true);
-      expect(info.qty).toBeNull();
-      expect(info.key).toBe("unknown");
-      expect(info.label).toBe("");
-    }
+    expect(state.enforcement).toBe(true);
+    expect(state.config).toBe(true);
+    expect(state.flag).toBe(true);
+    expect(state.zero).toMatchObject({ canBuy: false, key: "out", qty: 0, label: "تۈگەپ كەتتى" });
+    expect(state.one).toMatchObject({ canBuy: true, key: "low", qty: 1, label: "ئاز قالدى" });
+    expect(state.three).toMatchObject({ canBuy: true, key: "low", qty: 3 });
+    expect(state.four).toMatchObject({ canBuy: true, key: "in", qty: 4, label: "ئامباردا بار" });
   });
 
-  test("stock 0 does not disable Add to Cart", async ({ page }) => {
+  test("stock 0 disables Add to Cart", async ({ page }) => {
     await mockBooks(page);
     await H.clearShopStorage(page);
     await openBook(page, ZERO_ID, "ئامبار نۆل كىتاب");
     const cartBtn = page.locator(".detail-main-cart");
     await expect(cartBtn).toBeVisible();
-    await expect(cartBtn).toBeEnabled();
-    await expect(cartBtn).not.toHaveAttribute("aria-disabled", "true");
-    await expect(cartBtn).toHaveText(/سېۋەتكە/);
-    await expect(page.locator(".stock-badge")).toHaveCount(0);
-    await cartBtn.click();
-    await expect.poll(async () => H.badgeCount(page)).toBe(1);
-    const cart = await H.readCart(page);
-    expect(String(cart[0].id)).toBe(ZERO_ID);
-    expect(Number(cart[0].qty)).toBe(1);
+    await expect(cartBtn).toBeDisabled();
+    await expect(cartBtn).toHaveAttribute("aria-disabled", "true");
+    await expect(cartBtn).toHaveText(/تۈگەپ كەتتى/);
+    await expect(page.locator(".stock-badge.stock-out")).toBeVisible();
   });
 
-  test("stock 1 and 3 do not cap cart quantity", async ({ page }) => {
+  test("stock 1 caps cart quantity", async ({ page }) => {
     await mockBooks(page);
     await H.clearShopStorage(page);
     await openBook(page, ONE_ID, "ئامبار بىر كىتاب");
+    await expect(page.locator(".stock-badge.stock-low")).toBeVisible();
     await page.locator(".detail-main-cart").click();
     await expect.poll(async () => H.badgeCount(page)).toBe(1);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, "ئامبار بىر كىتاب");
-    await expect(page.locator("#cartItems [data-plus]")).toBeEnabled();
-    await page.locator("#cartItems [data-plus]").click();
-    await page.locator("#cartItems [data-plus]").click();
-    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(3);
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+    await page.locator("#cartItems [data-plus]").click({ force: true });
+    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(1);
+  });
 
+  test("stock 3 allows buy and caps at 3; stock 4 shows in-stock", async ({ page }) => {
+    await mockBooks(page);
     await H.clearShopStorage(page);
     await openBook(page, THREE_ID, "ئامبار ئۈچ كىتاب");
+    await page.locator(".detail-qty-plus").click();
+    await page.locator(".detail-qty-plus").click();
+    await page.locator(".detail-qty-plus").click();
     await page.locator(".detail-main-cart").click();
-    await expect.poll(async () => H.badgeCount(page)).toBe(1);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, "ئامبار ئۈچ كىتاب");
-    await expect(page.locator("#cartItems [data-plus]")).toBeEnabled();
-    for (let i = 0; i < 4; i++) await page.locator("#cartItems [data-plus]").click();
-    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(5);
+    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(3);
+    await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
+
+    await H.clearShopStorage(page);
+    await openBook(page, FOUR_ID, "ئامبار تۆت كىتاب");
+    await expect(page.locator(".stock-badge.stock-in")).toBeVisible();
+    await expect(page.locator(".detail-main-cart")).toBeEnabled();
+  });
+
+  test("stale cart qty above stock cannot build an order", async ({ page }) => {
+    await mockBooks(page);
+    await H.clearShopStorage(page);
+    await page.goto("/index.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await page.evaluate(() => {
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "91011", qty: 9 }]));
+    });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, "ئامبار بىر كىتاب");
+    await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(1);
+    const order = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
+    expect(order).not.toBeNull();
+    expect(order.items[0].qty).toBe(1);
   });
 
   test("inactive and static-demo protections still block", async ({ page }) => {
@@ -198,18 +199,6 @@ test.describe("Phase 1 storefront stock enforcement stays off", () => {
     await H.waitForShop(page);
     await expect(page.locator(".detail-unavailable-panel")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".detail-main-cart")).toHaveCount(0);
-
-    const visibility = await page.evaluate(() => {
-      const vis = window.kutadguShop.isStorefrontVisible;
-      return {
-        inactive: vis({ id: "91015", isActive: false, isRemote: true }),
-        demo: vis({ id: "romanlar-2", isActive: true, isRemote: false }),
-        activeRemote: vis({ id: "91010", isActive: true, isRemote: true })
-      };
-    });
-    expect(visibility.inactive).toBe(false);
-    expect(visibility.demo).toBe(false);
-    expect(visibility.activeRemote).toBe(true);
 
     await page.goto("/book/romanlar-2", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);

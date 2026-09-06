@@ -1395,6 +1395,27 @@ function stockInfo(book){
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
 function stockBadge(book){const s=stockInfo(book);return s.label?`<span class="stock-badge stock-${s.key}">${s.label}</span>`:""}
+function clampCartQuantitiesToStock(){
+  if(!isStockEnforcementEnabled())return false;
+  if(typeof cartHydrationPending==="function"&&cartHydrationPending())return false;
+  const a=cart();
+  if(!Array.isArray(a)||!a.length)return false;
+  let changed=false;
+  a.forEach(line=>{
+    const book=find(line.id);
+    if(!book||!isStorefrontVisible(book))return;
+    const stock=stockInfo(book);
+    if(!Number.isFinite(stock.qty)||stock.qty<=0)return;
+    const current=sanitizeQty(line.qty);
+    const next=Math.min(current,stock.qty);
+    if(next!==current){
+      line.qty=next;
+      changed=true;
+    }
+  });
+  if(changed)set(CART_KEY,a);
+  return changed;
+}
 function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-to-cart"){
   if(!isStorefrontVisible(book)){
     return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true">ھازىرچە تەمىنلەنمەيدۇ</button>`;
@@ -2857,6 +2878,10 @@ function cartPage(){
     host.setAttribute("data-cart-hydration","ready");
   }
   let items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
+  if(!preview&&clampCartQuantitiesToStock()){
+    toast("سېۋەتتىكى سان نۆۋەتتىكى ئامبارغا ماسلاشتۇرۇلدى");
+    items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
+  }
   const orderable=preview?[]:items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy&&!x.b.__cartDisplayPreview);
   let totalQty=orderable.reduce((s,x)=>s+x.qty,0);
   let total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
@@ -2893,7 +2918,7 @@ function cartPage(){
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(x.b.title)}</div>
         <div class="cart-meta">${escapeHtml(x.b.author)} · ${escapeHtml(x.b.category)}</div>
-        <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}</div>
+        <div class="cart-stock">${visible?stockBadge(x.b):`<span class="stock-badge stock-out">ھازىرچە تەمىنلەنمەيدۇ</span>`}${visible&&Number.isFinite(stock.qty)&&x.qty>stock.qty?`<span class="stock-badge stock-low">ئامبار سانى يېتەرسىز</span>`:""}</div>
         <div class="cart-item-toolbar">
           <div class="cart-unit-price">بىرلىك باھاسى: ${money(x.b.price)}</div>
           <div class="qty-control">
@@ -3034,6 +3059,16 @@ function buildOrderText(requireCustomer=true){
   if(items.some(x=>!x.b||x.b.__cartDisplayPreview)){toast("كىتاب ئۇچۇرى تېخى جەزملەنمىدى؛ سەل ساقلاڭ.");return null}
   if(items.some(x=>!isStorefrontVisible(x.b))){toast("سېۋەتتە ھازىرچە تەمىنلەنمەيدىغان كىتاب بار");return null}
   if(items.some(x=>!stockInfo(x.b).canBuy)){toast("سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ");return null}
+  if(clampCartQuantitiesToStock()){
+    toast("سېۋەتتىكى سان نۆۋەتتىكى ئامبارغا ماسلاشتۇرۇلدى");
+    cartPage();
+    return null;
+  }
+  items=cartLines().map(line=>({...line,b:find(line.id)||null}));
+  if(items.some(x=>{const s=stockInfo(x.b);return Number.isFinite(s.qty)&&x.qty>s.qty})){
+    toast("سېۋەتتىكى سان نۆۋەتتىكى ئامباردىن ئېشىپ كەتتى");
+    return null;
+  }
 
   let form=document.querySelector("#checkoutForm");
   if(requireCustomer&&form&&!form.reportValidity())return null;
@@ -3241,7 +3276,11 @@ async function orderWithWhatsApp(){
   const popup=window.open(url,"_blank");
   if(popup)popup.opener=null;
   else location.href=url;
-  try{await savePreparedOrderHistory(o)}catch(err){console.warn("Order history save failed",err)}
+  try{await savePreparedOrderHistory(o)}catch(err){
+    const blob=String(err&&(err.message||err.details||err.hint)||err||"");
+    if(/insufficient_stock/i.test(blob))toast("ئامبار سانى يەتمىدى، ئەزا زاكاز تارىخى يېزىلمىدى.");
+    else console.warn("Order history save failed",err);
+  }
 }
 
 function setupCheckout(){
@@ -3884,7 +3923,7 @@ async function boot(){
   if(bootStarted)return;
   bootStarted=true;
   if(maybeRedirectLegacyBookUrl())return;
-  try{await loadAssetScript("/app-config.js?v=3","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  try{await loadAssetScript("/app-config.js?v=4","kutadguAppConfigScript")}catch(error){console.warn(error)}
   initStaticShell();
   loadMemberSystem();
   await loadRemoteCatalog();
@@ -3902,5 +3941,5 @@ async function boot(){
   ensureCoverSystemCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled};
+window.kutadguShop={add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock};
 })();

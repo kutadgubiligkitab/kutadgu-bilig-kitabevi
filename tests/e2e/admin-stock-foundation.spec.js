@@ -96,7 +96,7 @@ test.describe("admin stock foundation", () => {
     await page.locator("#cancelBookEdit").click();
   });
 
-  test("blank stock saves NULL; exact integer saves exact quantity; invalid values are rejected", async ({ page }) => {
+  test("blank stock is rejected; exact integer saves exact quantity; invalid values are rejected", async ({ page }) => {
     await openAdminBooks(page);
     await enableStockSchema(page);
 
@@ -105,11 +105,9 @@ test.describe("admin stock foundation", () => {
     await expect(page.locator("#quickStock")).toHaveValue("");
     await expect(page.locator("#quickStockDerivedStatus")).toHaveText("ئامبار ھالىتى: تەڭشەلمىگەن");
     await page.locator("#quickEditSave").click();
-    await expect(page.locator("#quickEditStatus")).toContainText("ساقلاندى");
+    await expect(page.locator("#quickEditError")).toBeVisible();
     let patches = await page.evaluate(() => window.__kutadguQuickPatches.slice());
-    expect(patches).toHaveLength(1);
-    expect(patches[0].patch.stock).toBeNull();
-    expect(patches[0].patch).not.toHaveProperty("stock_status");
+    expect(patches).toHaveLength(0);
 
     await page.locator("#quickStock").fill("12");
     await expect(page.locator("#quickStockDerivedStatus")).toHaveText("ئامبار ھالىتى: ئامباردا بار");
@@ -117,6 +115,7 @@ test.describe("admin stock foundation", () => {
     await expect(page.locator("#quickEditStatus")).toContainText("ساقلاندى");
     patches = await page.evaluate(() => window.__kutadguQuickPatches.slice());
     expect(patches[patches.length - 1].patch.stock).toBe(12);
+    expect(patches[patches.length - 1].patch).not.toHaveProperty("stock_status");
 
     await page.locator("#quickStock").fill("-1");
     await page.locator("#quickEditSave").click();
@@ -133,6 +132,24 @@ test.describe("admin stock foundation", () => {
     const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves.some((s) => s.payload.stock === 7)).toBeTruthy();
     expect(saves.every((s) => !("stock_status" in s.payload))).toBeTruthy();
+  });
+
+  test("new book requires an explicit stock quantity when the column exists", async ({ page }) => {
+    await openAdminBooks(page);
+    await enableStockSchema(page);
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.locator("#newBookBtn").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookStock")).toBeVisible();
+    await page.locator("#bookTitle").fill("Needs Stock");
+    await page.locator("#bookAuthor").fill("Author");
+    await page.locator("#bookPrice").fill("15");
+    await page.locator("#bookSource").selectOption("universal.html");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect.poll(async () => page.evaluate(() => window.__kutadguBookSaves.filter((s) => s.payload.title === "Needs Stock").length)).toBe(0);
+    await page.locator("#bookStock").fill("5");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect.poll(async () => page.evaluate(() => window.__kutadguBookSaves.some((s) => s.payload.title === "Needs Stock" && s.payload.stock === 5))).toBeTruthy();
   });
 
   test("stock-not-configured filter and indicator follow NULL stock", async ({ page }) => {
