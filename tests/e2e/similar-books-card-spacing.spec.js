@@ -26,27 +26,40 @@ function bookRow(overrides) {
 }
 
 async function mockCatalog(page, books) {
-  const catalog = books;
   await page.route("**/rest/v1/books**", async (route) => {
     const req = route.request();
     const url = req.url();
     const method = req.method();
     if (url.includes("is_active=eq.false")) {
+      const inactive = books.filter((row) => row.is_active === false);
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        headers: { "content-range": "*/0" },
-        body: "[]"
+        headers: { "content-range": `*/${inactive.length}` },
+        body: JSON.stringify(inactive.map((row) => ({ id: row.id, legacy_id: row.legacy_id || null })))
       });
     }
     const parsed = new URL(url);
-    let filtered = catalog.filter((row) => row.is_active !== false);
-    const id = parsed.searchParams.get("id");
-    if (id && id.startsWith("eq.")) filtered = filtered.filter((row) => String(row.id) === id.slice(3));
-    const ids = parsed.searchParams.get("id");
-    if (ids && ids.startsWith("in.(")) {
-      const list = ids.slice(3, -1).split(",").map((part) => part.trim().replace(/^"|"$/g, ""));
-      filtered = filtered.filter((row) => list.includes(String(row.id)));
+    let filtered = books.filter((row) => row.is_active !== false);
+    const wanted = [];
+    const collect = (raw) => {
+      const text = decodeURIComponent(String(raw || ""));
+      const inMatch = text.match(/in\.\(([^)]*)\)/i);
+      if (inMatch) {
+        inMatch[1].split(",").forEach((part) => {
+          const id = part.replace(/^"+|"+$/g, "").trim();
+          if (id) wanted.push(id);
+        });
+      }
+      const eqMatch = text.match(/eq\.([^,&)]+)/i);
+      if (eqMatch) wanted.push(eqMatch[1].replace(/^"+|"+$/g, "").trim());
+    };
+    collect(parsed.searchParams.get("id") || "");
+    collect(parsed.searchParams.get("legacy_id") || "");
+    collect(parsed.searchParams.get("or") || "");
+    if (wanted.length) {
+      const set = new Set(wanted.map(String));
+      filtered = books.filter((row) => set.has(String(row.id)) || set.has(String(row.legacy_id || "")));
     }
     const category = parsed.searchParams.get("category");
     if (category && category.startsWith("eq.")) {
@@ -60,11 +73,14 @@ async function mockCatalog(page, books) {
         body: ""
       });
     }
+    const range = String(req.headers()["range"] || "0-23");
+    const [from, to] = range.split("-").map(Number);
+    const slice = filtered.slice(from || 0, (to || 23) + 1);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      headers: { "content-range": `0-${Math.max(filtered.length - 1, 0)}/${filtered.length}` },
-      body: JSON.stringify(filtered)
+      headers: { "content-range": `${from || 0}-${(from || 0) + Math.max(slice.length - 1, 0)}/${filtered.length}` },
+      body: JSON.stringify(slice)
     });
   });
 }
