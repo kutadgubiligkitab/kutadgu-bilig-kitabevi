@@ -204,6 +204,10 @@
       "destination": "/api/legacy-book-redirect"
     },
     {
+      "source": "/book/:id(\\d+)",
+      "destination": "/api/book-public?id=:id"
+    },
+    {
       "source": "/book/:id",
       "destination": "/book-shell.html"
     },

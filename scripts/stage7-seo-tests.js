@@ -214,14 +214,19 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
   const bookRewrite = (vercel.rewrites || []).find(r => r.source === "/book/:id");
   assert.ok(bookRewrite, "missing /book/:id rewrite");
   assert.strictEqual(bookRewrite.destination, "/book-shell.html");
+  const numericBook = (vercel.rewrites || []).find(r => r.source === "/book/:id(\\d+)");
+  assert.ok(numericBook, "missing numeric /book/:id public-existence rewrite");
+  assert.ok(String(numericBook.destination).startsWith("/api/book-public"));
   assert.ok(bookShell, "missing /book rewrite to book-shell.html");
   const htmlShell = (vercel.rewrites || []).find(r => r.source === "/book.html" && r.destination === "/book-shell.html");
   assert.ok(htmlShell, "missing unresolved /book.html rewrite to book-shell.html");
   const pathIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book/:id");
+  const numericIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book/:id(\\d+)");
   const shellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book" && r.destination === "/book-shell.html");
   const helperIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html" && r.destination === "/api/legacy-book-redirect");
   const htmlShellIdx = (vercel.rewrites || []).findIndex(r => r.source === "/book.html" && r.destination === "/book-shell.html");
   assert.ok(pathIdx >= 0 && pathIdx < shellIdx, "/book/:id rewrite must precede bare /book shell");
+  assert.ok(numericIdx >= 0 && numericIdx < pathIdx, "numeric book existence rewrite must precede non-numeric shell");
   assert.ok(helperIdx >= 0 && helperIdx < htmlShellIdx, "numeric /book.html helper rewrite must precede the shell");
   sitemap.PUBLIC_INFO_SLUGS.forEach(slug => {
     const redirect = (vercel.redirects || []).find(r => r.source === `/${slug}.html`);

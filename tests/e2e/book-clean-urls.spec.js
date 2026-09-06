@@ -85,6 +85,8 @@ test.describe("book clean URLs", () => {
     const first = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
     expect(first.status()).toBe(200);
     expect(first.headers().location || "").toBe("");
+    const head = await request.fetch(`${origin}/book/${book.id}`, { method: "HEAD" });
+    expect(head.status()).toBe(200);
     await page.goto(`/book/${book.id}`, { waitUntil: "domcontentloaded" });
     await H.waitForDetailTitle(page, book.title);
     expect(new URL(page.url()).pathname).toBe(`/book/${book.id}`);
@@ -114,13 +116,25 @@ test.describe("book clean URLs", () => {
     await expect(page.locator(".add-to-cart,.detail-price")).toHaveCount(0);
   });
 
-  test("D missing book /book/999999999 preserves noindex", async ({ page }) => {
-    await page.goto("/book/999999999", { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
+  test("D missing book /book/999999999 is a real HTTP 404", async ({ page, request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const head = await request.fetch(`${origin}/book/999999999`, { method: "HEAD" });
+    expect(head.status()).toBe(404);
+    const res = await request.get(`${origin}/book/999999999`, { maxRedirects: 0 });
+    expect(res.status()).toBe(404);
+    const html = await res.text();
+    expect(html).toMatch(/noindex/i);
+    expect(html).not.toMatch(/kutadguBookSchema/);
+    expect(html).not.toMatch(/"@type"\s*:\s*"Book"/);
+    expect(html).not.toMatch(/canonical[^>]+\/book\/999999999/);
+    expect(html).toMatch(/كىتاب تېپىلمىدى|كىتابلارغا قايتىش/);
+
+    const landed = await page.goto("/book/999999999", { waitUntil: "domcontentloaded" });
+    expect(landed && landed.status()).toBe(404);
     expect(new URL(page.url()).pathname).toBe("/book/999999999");
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
     expect(await page.locator("#kutadguBookSchema").count()).toBe(0);
+    await expect(page.locator('a[href="/#books"]').first()).toBeVisible();
   });
 
   test("E homepage featured and search cards use /book/{id}", async ({ page }) => {
