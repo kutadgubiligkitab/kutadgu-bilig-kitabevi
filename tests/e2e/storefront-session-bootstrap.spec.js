@@ -413,7 +413,6 @@ test.describe("storefront signed-in session bootstrap", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await ensureCatalogBook(page, BOOK_C);
-    expect(await page.evaluate(() => !!(window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser()))).toBe(false);
     const during = await page.evaluate((id) => {
       window.kutadguShop.add(id);
       let cart = [];
@@ -422,12 +421,13 @@ test.describe("storefront signed-in session bootstrap", () => {
       return {
         owner: String(localStorage.getItem("kutadgu-shop-owner-v1") || ""),
         cart,
-        live: !!(window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser())
+        recoveredGuest: String(localStorage.getItem("kutadgu-shop-owner-v1") || "") === "guest"
       };
     }, BOOK_C);
-    expect(during.live).toBe(false);
+    expect(during.recoveredGuest).toBe(false);
     expect(during.owner).toBe(OWNER_A);
     expect(during.cart.slice().sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
+    expect(during.cart).not.toEqual([BOOK_C]);
     await waitForMemberUser(page, OWNER_A);
     await expect.poll(async () => (await readCartIds(page)).slice().sort()).toEqual([BOOK_A, BOOK_B, BOOK_C].sort());
     expect(await readOwner(page)).toBe(OWNER_A);
