@@ -2263,7 +2263,7 @@ function renderDetailExtras(book){
     wrap.className="detail-extra-sections";
     const relatedHtml=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
     let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
-      ? `<section class="detail-extra-section">
+      ? `<section class="detail-extra-section" data-recently-viewed="1">
            <div class="detail-section-heading">
              <div>
                <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
@@ -2598,7 +2598,7 @@ function renderHomeSections(){
       else if(key==="recent")arr=get(REC_KEY,[]).map(find).filter(book=>book&&isStorefrontVisible(book)).slice(0,6);
       else arr=favs().map(find).filter(book=>book&&isStorefrontVisible(book)).slice(0,6);
       if(token!==requestId)return;
-      content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2>${arr.length?`<div class="shop-grid">${arr.map(miniCard).join("")}</div>`:`<div class="empty-state shop-section-empty">${key==='favorites'?"❤️ ھازىرچە ياقتۇرغان كىتاب يوق.":key==='recent'?"🕘 ھازىرچە يېقىندا كۆرۈلگەن كىتاب يوق.":"كىتابلار تېخى قوشۇلمىغان."}</div>`}</section>`;
+      content.innerHTML=`<section class="shop-section shop-section-selected"${key==="recent"?' data-recently-viewed="1"':""}><h2>${title}</h2>${arr.length?`<div class="shop-grid">${arr.map(miniCard).join("")}</div>`:`<div class="empty-state shop-section-empty">${key==='favorites'?"❤️ ھازىرچە ياقتۇرغان كىتاب يوق.":key==='recent'?"🕘 ھازىرچە يېقىندا كۆرۈلگەن كىتاب يوق.":"كىتابلار تېخى قوشۇلمىغان."}</div>`}</section>`;
       bindDynamicActions(content);
     }catch(error){if(error?.name!=="AbortError"&&token===requestId){console.error("Home selection query failed.",error);content.innerHTML=`<section class="shop-section shop-section-selected"><h2>${title}</h2><div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div></section>`}}
   }
@@ -3032,7 +3032,7 @@ function renderMyBooks(){
         <span class="mybooks-result-count">${arr.length} دانە</span>
       </div>
       ${arr.length
-        ? `<div class="${key==="favorites"?"favorites-grid":"shop-grid mybooks-grid"}">${arr.map(key==="favorites"?favoriteCard:miniCard).join("")}</div>`
+        ? `<div class="${key==="favorites"?"favorites-grid":"shop-grid mybooks-grid"}"${key==="recent"?' data-recently-viewed="1"':""}>${arr.map(key==="favorites"?favoriteCard:miniCard).join("")}</div>`
         : `<div class="empty-state mybooks-empty">${emptyText(key)}</div>`
       }`;
 
