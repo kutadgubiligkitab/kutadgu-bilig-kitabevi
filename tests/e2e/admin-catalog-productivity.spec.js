@@ -41,7 +41,7 @@ async function openAdminBooks(page, extraInit) {
     const spec = window.KUTADGU_BOOKS_SCHEMA || { optionalColumns: {} };
     spec.optionalColumns = spec.optionalColumns || {};
     spec.optionalColumns.stock = true;
-    spec.optionalColumns.stock_status = true;
+    spec.optionalColumns.stock_status = false;
     window.KUTADGU_BOOKS_SCHEMA = spec;
     window.__kutadguAdminTest.applyBooksSchema();
   });
@@ -180,9 +180,7 @@ test.describe("admin catalog productivity", () => {
 
     await page.locator('[data-problem-filter="missing_stock"]').click();
     await expect(page.locator('article[data-book-id="11"]')).toBeVisible();
-
-    await page.locator('[data-problem-filter="missing_stock_status"]').click();
-    await expect(page.locator('article[data-book-id="11"]')).toBeVisible();
+    await expect(page.locator("#adminUnconfiguredStock")).toContainText("ئامبار سانى تەڭشەلمىگەن");
 
     await page.locator('[data-problem-filter="missing_cover"]').click();
     await page.locator("#adminSearch").fill("Cover");

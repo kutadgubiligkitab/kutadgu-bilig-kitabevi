@@ -234,10 +234,11 @@
           <button type="button" class="admin-status-chip" data-problem-filter="missing_price" aria-pressed="false">باھا يوق / ئىناۋەتسىز</button>
           <button type="button" class="admin-status-chip" data-problem-filter="missing_cover" aria-pressed="false">مۇقاۋا يوق</button>
           <button type="button" class="admin-status-chip" data-problem-filter="inactive" aria-pressed="false">يوشۇرۇلغان</button>
-          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock" data-book-col="stock" aria-pressed="false">ئامبار سانى يوق</button>
-          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock_status" data-book-col="stock_status" aria-pressed="false">ئامبار ھالىتى يوق</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock" data-book-col="stock" aria-pressed="false">ئامبار سانى تەڭشەلمىگەن</button>
+          <button type="button" class="admin-status-chip" data-problem-filter="missing_stock_status" data-book-col="stock_status" hidden aria-pressed="false">ئامبار ھالىتى يوق</button>
         </div>
         <p id="adminCatalogNote" class="admin-help admin-schema-note" hidden></p>
+        <p id="adminUnconfiguredStock" class="admin-help" data-book-col="stock" hidden></p>
         <div id="adminBulkBar" class="admin-bulk-bar">
           <span id="adminSelectedCount">تاللانغان: 0 (پەقەت نۆۋەتتىكى بەت / يۈكلەنگەن نەتىجە)</span>
           <div class="admin-toolbar-group">
@@ -415,8 +416,11 @@
         </span>
         <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
       </label>
-      <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="number" min="0" step="1" value="0"></label>
-      <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="bookStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="bookStock" type="text" inputmode="numeric" autocomplete="off">
+        <span id="bookStockDerivedStatus" class="admin-help">ئامبار ھالىتى: تەڭشەلمىگەن</span>
+        <span class="admin-help">بوش = تېخى تەڭشەلمىگەن (NULL). 0 = تۈگەپ كەتتى. پەقەت 0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان. ھالەت ئامبار سانىدىن ھېسابلىنىدۇ.</span>
+      </label>
+      <label data-book-col="stock_status" hidden><span>ئامبار ھالىتى</span><select id="bookStockStatus" disabled tabindex="-1" aria-hidden="true"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
@@ -580,8 +584,10 @@
       <label><span>ئاپتورى</span><input id="quickAuthor"></label>
       <label><span>باھاسى (₺)</span><input id="quickPrice" type="number" min="0" step="0.01"></label>
       <label><span>كىتاب تۈرى *</span><select id="quickSource" required></select></label>
-      <label data-book-col="stock"><span>ئامبار سانى</span><input id="quickStock" type="number" min="0" step="1"></label>
-      <label data-book-col="stock_status"><span>ئامبار ھالىتى</span><select id="quickStockStatus"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+      <label data-book-col="stock"><span>ئامبار سانى</span><input id="quickStock" type="text" inputmode="numeric" autocomplete="off">
+        <span id="quickStockDerivedStatus" class="admin-help">ئامبار ھالىتى: تەڭشەلمىگەن</span>
+      </label>
+      <label data-book-col="stock_status" hidden><span>ئامبار ھالىتى</span><select id="quickStockStatus" disabled tabindex="-1" aria-hidden="true"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
       <label><span>مۇقاۋا URL</span><input id="quickCoverUrl" dir="ltr" inputmode="url" autocomplete="off"></label>
       <label class="admin-check"><input id="quickIsActive" type="checkbox"><span>تور بەتتە كۆرۈنسۇن</span></label>
       <label class="admin-check"><input id="quickIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
@@ -797,15 +803,16 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=14"></script>
-<script defer src="app-config.js?v=1"></script>
+<script defer src="supabase-config.js?v=16"></script>
+<script defer src="app-config.js?v=3"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=2"></script>
 <script defer src="/vendor/supabase-js-2.45.4.umd.js"></script>
 <script defer src="kutadgu-safe-url.js?v=1"></script>
+<script defer src="kutadgu-stock.js?v=2"></script>
 <script defer src="admin-book-write.js?v=2"></script>
 <script defer src="admin-book-quality.js?v=2"></script>
-<script defer src="admin-catalog-productivity.js?v=2"></script>
+<script defer src="admin-catalog-productivity.js?v=4"></script>
 <script defer src="admin-bulk-price.js?v=3"></script>
 <script defer src="admin-original-price.js?v=5"></script>
 <script defer src="admin-price-history.js?v=3"></script>
@@ -817,6 +824,6 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
-  <script defer src="admin.js?v=59"></script>
+  <script defer src="admin.js?v=61"></script>
 </body>
 </html>

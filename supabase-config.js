@@ -4,6 +4,11 @@
 */
 window.KUTADGU_SITE_ORIGIN = "https://www.kutadgubilik.com";
 
+/* Phase 1 storefront gate. Default MUST stay false.
+   Phase 2 will set this true together with confirmed-order stock accounting.
+   Do not treat missing as true — shop.js / KutadguStock also default to false. */
+window.KUTADGU_STOCK_ENFORCEMENT = false;
+
 window.kutadguIsProductionAuthHost = function(host){
   const h=String(host||"").toLowerCase();
   return h==="www.kutadgubilik.com"||h==="kutadgubilik.com"||h==="kutadgu-bilig-kitab.vercel.app";
@@ -102,6 +107,9 @@ window.KUTADGU_SUPABASE_CONFIG = {
   cover_type/book_size: true after STAGE62_COVER_TYPE_BOOK_SIZE.sql.
   If that SQL has not been run, Admin drops those columns on the first 42703 write (no boot probe).
   dimensions stays unused in Admin create/edit (no width/height UI).
+  stock stays false until STAGE82_STOCK_FOUNDATION.sql. Admin live-detects stock
+  (read-only select) so a frontend deploy before the manual migration does not
+  crash book CRUD. stock_status is never a writable Admin field; status is derived.
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -109,6 +117,7 @@ window.KUTADGU_BOOKS_SCHEMA = {
     isbn: true,
     publisher: true,
     href: false,
+    /* true after STAGE82_STOCK_FOUNDATION.sql. Admin also live-detects the column. */
     stock: false,
     stock_status: false,
     pages: true,
