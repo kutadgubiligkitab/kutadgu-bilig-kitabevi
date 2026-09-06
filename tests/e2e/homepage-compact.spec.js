@@ -540,8 +540,10 @@ test.describe("homepage compact first-view", () => {
 
   for (const width of [360, 390, 430]) {
     test(`mobile P1 homepage UX at ${width}px`, async ({ page }) => {
+      await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 4, featuredCount: 4 });
       await page.setViewportSize({ width, height: 844 });
       await H.openFresh(page, "/");
+      await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
       await expect(page.locator(".mobile-filter-toggle")).toBeVisible();
       await expect(page.locator("#homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
       await page.waitForTimeout(800);
