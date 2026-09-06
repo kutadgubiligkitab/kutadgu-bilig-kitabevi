@@ -292,6 +292,6 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(2);
     const blocked = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
     expect(blocked).toBeNull();
-    await expect(page.locator("#whatsappOrder")).toHaveCount(0);
+    await expect(page.locator("#checkoutCard")).toBeHidden();
   });
 });
