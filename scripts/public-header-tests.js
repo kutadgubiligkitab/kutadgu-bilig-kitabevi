@@ -77,6 +77,7 @@ test("shop and mobile keep using storefrontAppHref and call the helper", () => {
   assert.match(mobile, /KutadguPublicHeader\.ensure/);
   assert.match(mobile, /srcset="\/kutadgu-logo\.webp"/);
   assert.match(mobile, /"index.html": "\/"/);
+  assert.doesNotMatch(mobile, /JSON\.parse\(localStorage\.getItem\("kutadgu-cart-v1"/);
 });
 
 test("header CSS keeps search compact, theme in-flow, and mobile spacing", () => {

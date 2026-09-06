@@ -160,7 +160,8 @@ header.kutadgu-public-header {
   transform: none !important;
 }
 
-.kutadgu-public-header nav a[href="/cart.html"] .cart-count {
+.kutadgu-public-header nav a[href="/cart.html"] .cart-count,
+.kutadgu-public-header a[href="/cart.html"] .cart-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -172,6 +173,11 @@ header.kutadgu-public-header {
   background: #e2c98d;
   color: #3d2a20;
   font-size: 11px;
+}
+
+.cart-count[data-kutadgu-count-state="pending"],
+.cart-count[data-kutadgu-count-state="hidden"] {
+  visibility: hidden;
 }
 
 .kutadgu-public-header .theme-button,

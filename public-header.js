@@ -242,7 +242,8 @@
     if (!cart.querySelector(".cart-count")) {
       var count = document.createElement("span");
       count.className = "cart-count";
-      count.textContent = "0";
+      count.setAttribute("data-kutadgu-count-state", "pending");
+      count.setAttribute("aria-hidden", "true");
       cart.appendChild(count);
     }
     upsertLink(nav, "/account.html", "👤 ھېسابىم", "kutadgu-header-account");
@@ -328,6 +329,24 @@
       document.querySelector(".mobile-site-header");
   }
 
+  function refreshHeaderCartCount() {
+    if (typeof window === "undefined") return;
+    if (window.kutadguShop && typeof window.kutadguShop.updateBadge === "function") {
+      window.kutadguShop.updateBadge();
+      return;
+    }
+    if (window.KutadguMember && typeof window.KutadguMember.refreshSafeCartCount === "function") {
+      window.KutadguMember.refreshSafeCartCount();
+    }
+  }
+
+  function bindCartCountRefresh() {
+    if (typeof document === "undefined" || document.documentElement.dataset.kutadguSafeCartCount === "1") return;
+    document.documentElement.dataset.kutadguSafeCartCount = "1";
+    document.addEventListener("kutadgu-member-change", refreshHeaderCartCount);
+    document.addEventListener("kutadgu-member-state-synced", refreshHeaderCartCount);
+  }
+
   function ensure() {
     if (typeof document === "undefined" || !document.body) return null;
     if (isExcluded()) return null;
@@ -351,11 +370,14 @@
     hideDuplicates(header);
     observeHeader(header);
     document.documentElement.classList.add("kutadgu-has-public-header");
+    bindCartCountRefresh();
+    refreshHeaderCartCount();
     return header;
   }
 
   var api = {
     ensure: ensure,
+    refreshHeaderCartCount: refreshHeaderCartCount,
     rootAppHref: rootAppHref,
     rewriteHeaderHref: rewriteHeaderHref,
     rootAsset: rootAsset,

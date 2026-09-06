@@ -95,7 +95,7 @@
       cart.className = "mobile-header-cart";
       cart.href = storefrontAppHref("cart.html");
       cart.setAttribute("aria-label", "سېۋەت");
-      cart.innerHTML = `🛒<span class="cart-count">0</span>`;
+      cart.innerHTML = `🛒<span class="cart-count" data-kutadgu-count-state="pending"></span>`;
       header.appendChild(cart);
     }
 
@@ -208,7 +208,7 @@
     nav.className = "mobile-bottom-nav";
     nav.setAttribute("aria-label", "تېلېفون تېز يول باشلاش");
     nav.innerHTML = `
-      <a href="/cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count">0</span></a>
+      <a href="/cart.html" data-mobile-page="cart.html"><span class="mobile-bottom-icon" aria-hidden="true">🛒</span><span>سېۋەت</span><span class="cart-count" data-kutadgu-count-state="pending"></span></a>
       <a href="/favorites.html" data-mobile-page="favorites.html"><span class="mobile-bottom-icon" aria-hidden="true">❤️</span><span>ياقتۇرغانلىرىم</span></a>
       <a href="/account.html" data-mobile-page="account.html"><span class="mobile-bottom-icon" aria-hidden="true">👤</span><span>كىرىش / ئەزا</span></a>`;
     const current = pageName();
@@ -217,11 +217,11 @@
       ?.setAttribute("aria-current", "page");
     document.body.appendChild(nav);
     document.body.classList.add("has-mobile-bottom-nav");
-    try {
-      const items = JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]");
-      const total = Array.isArray(items) ? items.reduce((sum, item) => sum + (Number(item.qty) || 1), 0) : 0;
-      document.querySelectorAll(".cart-count").forEach(count => count.textContent = total);
-    } catch (_) {}
+    if (window.kutadguShop && typeof window.kutadguShop.updateBadge === "function") {
+      window.kutadguShop.updateBadge();
+    } else if (window.KutadguMember && typeof window.KutadguMember.refreshSafeCartCount === "function") {
+      window.KutadguMember.refreshSafeCartCount();
+    }
   }
 
   function countActiveFilters(panel) {
