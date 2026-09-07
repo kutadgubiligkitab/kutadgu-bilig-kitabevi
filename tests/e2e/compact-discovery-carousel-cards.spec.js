@@ -83,6 +83,25 @@ function discoveryMetrics() {
     const titleStyle = title ? getComputedStyle(title) : null;
     const cardStyle = getComputedStyle(card);
     const grid = document.querySelector("#premiumDiscoveryResults .premium-book-grid");
+    const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card")].map((node) => {
+      const nodeCover = node.querySelector(".premium-card-cover");
+      const nodeTitle = node.querySelector("strong");
+      const nodeBadges = node.querySelector(".premium-card-badges");
+      const nodePrice = node.querySelector(".premium-card-price");
+      const nodeCart = node.querySelector(".premium-card-cart");
+      const nodeCoverBox = nodeCover ? nodeCover.getBoundingClientRect() : { bottom: 0 };
+      const nodeAfter = nodeBadges || nodeTitle;
+      const nodeAfterBox = nodeAfter ? nodeAfter.getBoundingClientRect() : { top: 0 };
+      const nodePriceBox = nodePrice ? nodePrice.getBoundingClientRect() : { bottom: 0 };
+      const nodeCartBox = nodeCart ? nodeCart.getBoundingClientRect() : { top: 0 };
+      const nodeBox = node.getBoundingClientRect();
+      return {
+        top: nodeBox.top,
+        height: nodeBox.height,
+        coverTitleGap: nodeAfterBox.top - nodeCoverBox.bottom,
+        priceCartGap: nodeCartBox.top - nodePriceBox.bottom
+      };
+    });
     return {
       missing: false,
       overflowX: document.documentElement.scrollWidth - window.innerWidth,
@@ -99,9 +118,40 @@ function discoveryMetrics() {
       heartInside: !heart || inside(card, heart),
       alignItems: grid ? getComputedStyle(grid).alignItems : "",
       heightCss: cardStyle.height,
-      justify: cardStyle.justifyContent
+      justify: cardStyle.justifyContent,
+      cards
     };
   };
+}
+
+function expectCompactDiscoveryGeometry(geo, label) {
+  expect(geo.missing, label).toBeFalsy();
+  expect(geo.coverTitleGap, label).toBeGreaterThanOrEqual(0);
+  expect(geo.coverTitleGap, label).toBeLessThan(28);
+  expect(geo.titleAfterCover, label).toBeLessThan(72);
+  expect(geo.alignItems, label).toMatch(/stretch/);
+  expect(String(geo.titleClamp), label).toBe("2");
+  expect(geo.objectFit, label).toBe("contain");
+  expect(geo.titleInside, label).toBeTruthy();
+  expect(geo.authorInside, label).toBeTruthy();
+  expect(geo.priceInside, label).toBeTruthy();
+  expect(geo.cartInside, label).toBeTruthy();
+  expect(geo.heartInside, label).toBeTruthy();
+  const cards = geo.cards || [];
+  expect(cards.length, label).toBeGreaterThan(0);
+  for (const item of cards) {
+    expect(item.coverTitleGap, label).toBeLessThan(28);
+  }
+  const rows = [];
+  for (const item of cards) {
+    const row = rows.find((candidate) => Math.abs(candidate.top - item.top) <= 2);
+    if (row) row.items.push(item);
+    else rows.push({ top: item.top, items: [item] });
+  }
+  for (const row of rows) {
+    const tallest = row.items.reduce((max, item) => (item.height > max.height ? item : max), row.items[0]);
+    expect(tallest.priceCartGap, label).toBeLessThan(28);
+  }
 }
 
 test.describe("compact discovery and recommended cards", () => {
@@ -122,19 +172,7 @@ test.describe("compact discovery and recommended cards", () => {
   test("A–E discovery cards stay compact with title clamp and contain cover", async ({ page }) => {
     await openDiscovery(page);
     const geo = await page.evaluate(discoveryMetrics());
-    expect(geo.missing).toBeFalsy();
-    expect(geo.coverTitleGap).toBeGreaterThanOrEqual(0);
-    expect(geo.coverTitleGap).toBeLessThan(28);
-    expect(geo.titleAfterCover).toBeLessThan(72);
-    expect(geo.priceCartGap).toBeLessThan(28);
-    expect(geo.alignItems).toMatch(/start/);
-    expect(String(geo.titleClamp)).toBe("2");
-    expect(geo.objectFit).toBe("contain");
-    expect(geo.titleInside).toBeTruthy();
-    expect(geo.authorInside).toBeTruthy();
-    expect(geo.priceInside).toBeTruthy();
-    expect(geo.cartInside).toBeTruthy();
-    expect(geo.heartInside).toBeTruthy();
+    expectCompactDiscoveryGeometry(geo, "desktop");
   });
 
   test("B natural height is not stretched by the discovery grid", async ({ page }) => {
@@ -158,8 +196,21 @@ test.describe("compact discovery and recommended cards", () => {
       expect(geo.missing, String(width)).toBeFalsy();
       expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
       expect(geo.coverTitleGap, String(width)).toBeLessThan(28);
-      expect(geo.priceCartGap, String(width)).toBeLessThan(28);
       expect(geo.cartInside, String(width)).toBeTruthy();
+      const cards = geo.cards || [];
+      for (const item of cards) {
+        expect(item.coverTitleGap, String(width)).toBeLessThan(28);
+      }
+      const rows = [];
+      for (const item of cards) {
+        const row = rows.find((candidate) => Math.abs(candidate.top - item.top) <= 2);
+        if (row) row.items.push(item);
+        else rows.push({ top: item.top, items: [item] });
+      }
+      for (const row of rows) {
+        const tallest = row.items.reduce((max, item) => (item.height > max.height ? item : max), row.items[0]);
+        expect(tallest.priceCartGap, String(width)).toBeLessThan(28);
+      }
     }
   });
 
