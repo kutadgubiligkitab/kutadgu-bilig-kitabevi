@@ -1,0 +1,248 @@
+/* Stage 4B-1 — public listing/mini/search action and type chrome only.
+   Safety stylesheets own cover frames, clamp layout, and equal-height cards.
+   This file must not set cover or card sizing, wrap stretch, or layout alignment. */
+
+/* ----- Listing cards ----- */
+.books-grid[data-catalog-source] .book-card .book-title {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.7;
+  margin-bottom: var(--space-1);
+}
+
+.books-grid[data-catalog-source] .book-card .book-author {
+  color: var(--site-text-soft);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.7;
+  margin-bottom: var(--space-2);
+}
+
+.books-grid[data-catalog-source] .book-card .book-price {
+  color: var(--site-text) !important;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.5;
+  margin-bottom: var(--space-2);
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .add-to-cart {
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .add-to-cart:hover:not(:disabled) {
+  background-color: var(--button-primary-hover) !important;
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .detail-button {
+  background-color: var(--button-secondary-bg) !important;
+  color: var(--button-secondary-text) !important;
+  border: 1px solid var(--button-secondary-border) !important;
+  border-radius: var(--radius-md);
+  box-shadow: none !important;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .detail-button:hover {
+  border-color: var(--site-brown);
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .favorite-button,
+.books-grid[data-catalog-source] .book-card .book-actions .share-button {
+  background-color: transparent !important;
+  color: var(--site-text-soft) !important;
+  border: 1px solid var(--site-border) !important;
+  border-radius: var(--radius-sm);
+  box-shadow: none !important;
+  min-width: 44px;
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
+}
+
+.books-grid[data-catalog-source] .book-card .book-actions .add-to-cart:focus-visible,
+.books-grid[data-catalog-source] .book-card .book-actions .detail-button:focus-visible,
+.books-grid[data-catalog-source] .book-card .book-actions .favorite-button:focus-visible,
+.books-grid[data-catalog-source] .book-card .book-actions .share-button:focus-visible {
+  outline: 2px solid var(--site-brown);
+  outline-offset: 2px;
+}
+
+/* ----- Similar Books, Recently Viewed, homepage selector mini cards ----- */
+[data-detail-related] .detail-related-grid .shop-mini-title,
+[data-recently-viewed] .shop-mini-title,
+#homeShopSections .shop-mini-title {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.7;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-meta,
+[data-recently-viewed] .shop-mini-meta,
+#homeShopSections .shop-mini-meta {
+  color: var(--site-text-soft);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.7;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-price,
+[data-recently-viewed] .shop-mini-price,
+#homeShopSections .shop-mini-price {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.5;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .add-to-cart,
+[data-recently-viewed] .shop-mini-card .mini-actions .add-to-cart,
+#homeShopSections .shop-mini-card .mini-actions .add-to-cart {
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled),
+[data-recently-viewed] .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled),
+#homeShopSections .shop-mini-card .mini-actions .add-to-cart:hover:not(:disabled) {
+  background-color: var(--button-primary-hover) !important;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .share-button,
+[data-recently-viewed] .shop-mini-card .mini-actions .share-button,
+#homeShopSections .shop-mini-card .mini-actions .share-button {
+  background-color: transparent;
+  color: var(--site-text-soft);
+  border: 1px solid var(--site-border);
+  border-radius: var(--radius-sm);
+  min-width: 44px;
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .add-to-cart:focus-visible,
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .share-button:focus-visible,
+[data-recently-viewed] .shop-mini-card .mini-actions .add-to-cart:focus-visible,
+[data-recently-viewed] .shop-mini-card .mini-actions .share-button:focus-visible,
+#homeShopSections .shop-mini-card .mini-actions .add-to-cart:focus-visible,
+#homeShopSections .shop-mini-card .mini-actions .share-button:focus-visible {
+  outline: 2px solid var(--site-brown);
+  outline-offset: 2px;
+}
+
+/* ----- Advanced search row actions + type ----- */
+.advanced-search-title {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.7;
+}
+
+.advanced-search-meta {
+  color: var(--site-text-soft);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.7;
+}
+
+.advanced-search-price {
+  color: var(--site-text) !important;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.5;
+}
+
+.advanced-search-actions .add-to-cart {
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-bold);
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.advanced-search-actions .add-to-cart:hover:not(:disabled) {
+  background-color: var(--button-primary-hover) !important;
+}
+
+.advanced-search-actions .detail-button {
+  background-color: var(--button-secondary-bg) !important;
+  color: var(--button-secondary-text) !important;
+  border: 1px solid var(--button-secondary-border) !important;
+  border-radius: var(--radius-md);
+  box-shadow: none !important;
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-medium);
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.advanced-search-actions .favorite-button,
+.advanced-search-actions .share-button {
+  background-color: transparent !important;
+  color: var(--site-text-soft) !important;
+  border: 1px solid var(--site-border) !important;
+  border-radius: var(--radius-sm);
+  min-width: 44px;
+  min-height: 44px !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
+}
+
+.advanced-search-actions .add-to-cart:focus-visible,
+.advanced-search-actions .detail-button:focus-visible,
+.advanced-search-actions .favorite-button:focus-visible,
+.advanced-search-actions .share-button:focus-visible {
+  outline: 2px solid var(--site-brown);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .books-grid[data-catalog-source] .book-card .book-title {
+    font-size: var(--font-size-md);
+    line-height: 1.7;
+  }
+  .books-grid[data-catalog-source] .book-card .book-author {
+    font-size: var(--font-size-xs);
+    line-height: 1.7;
+  }
+  .books-grid[data-catalog-source] .book-card .book-price {
+    font-size: var(--font-size-lg);
+  }
+  .books-grid[data-catalog-source] .book-card .book-actions .add-to-cart,
+  .books-grid[data-catalog-source] .book-card .book-actions .detail-button,
+  .books-grid[data-catalog-source] .book-card .book-actions .favorite-button,
+  .books-grid[data-catalog-source] .book-card .book-actions .share-button {
+    min-height: 44px !important;
+  }
+}
