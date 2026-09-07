@@ -4,12 +4,13 @@ const fs = require("fs");
 const path = require("path");
 
 const DETAIL_TITLE = "سوغۇق يۈكلەش تەپسىلات كىتابى";
+const DETAIL_AUTHOR = "ھاجى مىرزاھىد كېرىمى، ساۋۇت داۋۇت ۋە يەنە بىر ئۇزۇن ئاپتور نامى";
 
 function bookRow(overrides) {
   return {
     id: 91001,
     title: DETAIL_TITLE,
-    author: "سىناق ئاپتور",
+    author: DETAIL_AUTHOR,
     price: 88,
     source: "romanlar.html",
     category: "رومانلار",
@@ -78,6 +79,26 @@ async function mockCatalog(page, books) {
   });
 }
 
+function authorMetrics() {
+  return () => {
+    const el = document.querySelector(".book-detail-info .book-author");
+    if (!el) return { missing: true };
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const fontPx = Number.parseFloat(cs.fontSize);
+    return {
+      missing: false,
+      hidden: el.hidden || cs.display === "none" || cs.visibility === "hidden",
+      text: String(el.textContent || "").trim(),
+      fontPx,
+      overflowX: document.documentElement.scrollWidth - window.innerWidth,
+      clipped: r.left < -2 || r.right > window.innerWidth + 2 || r.bottom < r.top,
+      height: r.height,
+      width: r.width
+    };
+  };
+}
+
 function coverMetrics() {
   return () => {
     const box = document.querySelector(".book-cover-box");
@@ -117,6 +138,7 @@ test.describe("mobile book detail cover frame", () => {
     await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
     await H.waitForDetailTitle(page, DETAIL_TITLE);
     await page.waitForSelector(".book-cover-box img", { timeout: 20000 });
+    await page.locator(".book-detail-info .book-author").waitFor({ state: "visible" });
   }
 
   test("G H I 390px cover uses compact padding and natural height", async ({ page }) => {
@@ -169,16 +191,93 @@ test.describe("mobile book detail cover frame", () => {
     }
   });
 
-  test("preview screenshots of detail cover", async ({ page }) => {
+  async function shotTitleAuthor(page, filename) {
+    const tmpDir = "/tmp/stage6-author-shots";
     const outDir = "/opt/cursor/artifacts/screenshots";
-    fs.mkdirSync(outDir, { recursive: true });
-    await openDetail(page, 390);
-    await page.locator(".book-cover-column").screenshot({
-      path: path.join(outDir, "book-detail-cover-390.png")
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const clip = await page.evaluate(() => {
+      const h1 = document.querySelector(".book-detail-info h1");
+      const author = document.querySelector(".book-detail-info .book-author");
+      if (!h1 || !author) return null;
+      const a = h1.getBoundingClientRect();
+      const b = author.getBoundingClientRect();
+      const left = Math.max(0, Math.min(a.left, b.left) - 12);
+      const top = Math.max(0, Math.min(a.top, b.top) - 12);
+      const right = Math.max(a.right, b.right) + 12;
+      const bottom = Math.max(a.bottom, b.bottom) + 12;
+      return { x: left, y: top, width: right - left, height: bottom - top };
     });
+    if (!clip) return;
+    const tmpPath = path.join(tmpDir, filename);
+    await page.screenshot({ path: tmpPath, clip });
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.copyFileSync(tmpPath, path.join(outDir, filename));
+    } catch (err) {
+      if (err && err.code === "EIO") return;
+      throw err;
+    }
+  }
+
+  test("detail author is 15px on mobile and 17px on desktop", async ({ page }) => {
+    test.setTimeout(120_000);
+    for (const width of [390, 430, 768]) {
+      await openDetail(page, width);
+      await page.locator(".book-detail-info .book-author").scrollIntoViewIfNeeded();
+      await expect(page.locator(".book-detail-info .book-author")).toBeVisible();
+      const geo = await page.evaluate(authorMetrics());
+      expect(geo.missing, String(width)).toBeFalsy();
+      expect(geo.hidden, String(width)).toBeFalsy();
+      expect(geo.text, String(width)).toContain(DETAIL_AUTHOR);
+      expect(geo.fontPx, String(width)).toBeGreaterThanOrEqual(14.5);
+      expect(geo.fontPx, String(width)).toBeLessThanOrEqual(15.5);
+      expect(geo.fontPx, String(width)).not.toBeCloseTo(10.5, 1);
+      expect(geo.clipped, String(width)).toBeFalsy();
+      expect(geo.height, String(width)).toBeGreaterThan(16);
+      expect(geo.overflowX, String(width)).toBeLessThanOrEqual(2);
+      await shotTitleAuthor(page, `stage6_detail_author_${width}_light.png`);
+    }
     await openDetail(page, 1366);
-    await page.locator(".book-detail-top").screenshot({
-      path: path.join(outDir, "book-detail-cover-1366.png")
+    await page.locator(".book-detail-info .book-author").scrollIntoViewIfNeeded();
+    await expect(page.locator(".book-detail-info .book-author")).toBeVisible();
+    const desktop = await page.evaluate(authorMetrics());
+    expect(desktop.missing).toBeFalsy();
+    expect(desktop.hidden).toBeFalsy();
+    expect(desktop.text).toContain(DETAIL_AUTHOR);
+    expect(desktop.fontPx).toBeGreaterThanOrEqual(16.5);
+    expect(desktop.fontPx).toBeLessThanOrEqual(17.5);
+    expect(desktop.clipped).toBeFalsy();
+    expect(desktop.overflowX).toBeLessThanOrEqual(2);
+    await shotTitleAuthor(page, "stage6_detail_author_1366_light.png");
+    await openDetail(page, 390);
+    await page.evaluate(() => {
+      document.body.classList.add("dark-mode");
+      document.documentElement.classList.add("dark-mode");
     });
+    await page.locator(".book-detail-info .book-author").scrollIntoViewIfNeeded();
+    const dark = await page.evaluate(authorMetrics());
+    expect(dark.fontPx).toBeGreaterThanOrEqual(14.5);
+    expect(dark.fontPx).toBeLessThanOrEqual(15.5);
+    await shotTitleAuthor(page, "stage6_detail_author_390_dark.png");
+  });
+
+  test("preview screenshots of detail cover", async ({ page }) => {
+    const tmpDir = "/tmp/stage6-author-shots";
+    const outDir = "/opt/cursor/artifacts/screenshots";
+    fs.mkdirSync(tmpDir, { recursive: true });
+    await openDetail(page, 390);
+    const cover390 = path.join(tmpDir, "book-detail-cover-390.png");
+    await page.locator(".book-cover-column").screenshot({ path: cover390 });
+    await openDetail(page, 1366);
+    const cover1366 = path.join(tmpDir, "book-detail-cover-1366.png");
+    await page.locator(".book-detail-top").screenshot({ path: cover1366 });
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.copyFileSync(cover390, path.join(outDir, "book-detail-cover-390.png"));
+      fs.copyFileSync(cover1366, path.join(outDir, "book-detail-cover-1366.png"));
+    } catch (err) {
+      if (err && err.code === "EIO") return;
+      throw err;
+    }
   });
 });
