@@ -453,30 +453,64 @@
       return updateSlide(id, { enabled: false });
     }
 
-    async function cleanupNewUpload(path, row) {
-      if (row && row.id && row.origin !== "repo") {
-        await deleteUploadRow(row);
-      }
-      if (path) await safeRemoveObject(path);
+    async function objectPathInUse(objectPath) {
+      var t = trimText(objectPath);
+      if (!t) return false;
+      var db = getDb();
+      if (!db) return true;
+      var res = await db.from("store_hero_store_slides").select("id,object_path");
+      if (res && res.error) return true;
+      var rows = Array.isArray(res && res.data) ? res.data : [];
+      return rows.some(function (row) {
+        return trimText(row && row.object_path) === t;
+      });
     }
 
-    async function switchToCustom(slot, uploadId, newPath) {
-      var disabled = await disableRepo(slot);
-      if (!disabled.ok) {
-        await cleanupNewUpload(newPath, slot.managedRow && String(slot.managedRow.id) === String(uploadId) ? null : { id: uploadId, origin: "upload", object_path: newPath });
-        return { ok: false, reason: "repo_disable", error: disabled.error, message: disabled.message };
+    async function removeObjectIfUnreferenced(objectPath) {
+      if (!isSafeHeroStoreSlideObjectPath(objectPath)) {
+        return { ok: false, reason: "unsafe_path" };
       }
+      if (await objectPathInUse(objectPath)) {
+        return { ok: false, reason: "still_referenced" };
+      }
+      return safeRemoveObject(objectPath);
+    }
+
+    async function deleteUploadRowThenObject(row) {
+      var path = trimText(row && row.object_path);
+      var del = await deleteUploadRow(row);
+      if (!del.ok) return { ok: false, storageSkipped: true, result: del };
+      if (path) await removeObjectIfUnreferenced(path);
+      return { ok: true };
+    }
+
+    async function activateCustomThenHideRepo(slot, uploadId) {
       var enabled = await enableUpload(uploadId);
       if (!enabled.ok) {
-        var restored = await enableRepo(slot);
-        if (!restored.ok) {
-          var retry = await enableUpload(uploadId);
-          if (retry.ok) return { ok: false, reason: "upload_enable", restoredRepo: false, message: enabled.message };
-        }
-        await cleanupNewUpload(newPath, { id: uploadId, origin: "upload", object_path: newPath });
-        return { ok: false, reason: "upload_enable", restoredRepo: restored.ok, message: enabled.message, error: enabled.error };
+        return {
+          ok: false,
+          reason: "upload_enable",
+          uploadEnabled: false,
+          repoDisabled: false,
+          rollbackDisabledUpload: false,
+          message: enabled.message,
+          error: enabled.error
+        };
       }
-      return { ok: true };
+      var hidden = await disableRepo(slot);
+      if (hidden.ok) {
+        return { ok: true, uploadEnabled: true, repoDisabled: true };
+      }
+      var rolled = await disableUpload(uploadId);
+      return {
+        ok: false,
+        reason: "repo_disable",
+        uploadEnabled: !rolled.ok,
+        repoDisabled: false,
+        rollbackDisabledUpload: !!rolled.ok,
+        message: hidden.message,
+        error: hidden.error
+      };
     }
 
     async function applyFirstCustom(slot, uploaded) {
@@ -492,38 +526,84 @@
         updated_by: user && user.id
       });
       if (!ins.ok) {
-        await safeRemoveObject(uploaded.path);
+        await removeObjectIfUnreferenced(uploaded.path);
         return { ok: false, reason: ins.reason || "insert", error: ins.error, message: ins.message, cleanedUpload: true };
       }
-      var switched = await switchToCustom(slot, ins.id, uploaded.path);
-      if (!switched.ok) return switched;
-      return { ok: true, id: ins.id, firstCustom: true };
+      var switched = await activateCustomThenHideRepo(slot, ins.id);
+      if (switched.ok) return { ok: true, id: ins.id, firstCustom: true };
+      if (!switched.uploadEnabled) {
+        await deleteUploadRowThenObject({ id: ins.id, origin: "upload", object_path: uploaded.path });
+        return {
+          ok: false,
+          reason: switched.reason,
+          repoNeverDisabled: true,
+          cleanedUpload: true,
+          message: switched.message,
+          error: switched.error
+        };
+      }
+      return {
+        ok: false,
+        reason: switched.reason,
+        bothEnabled: true,
+        keptObject: true,
+        repoNeverDisabled: true,
+        message: switched.message,
+        error: switched.error
+      };
+    }
+
+    async function revertManagedPath(id, oldUrl, oldPath) {
+      return updateSlide(id, {
+        image_url: oldUrl,
+        object_path: oldPath
+      });
     }
 
     async function applyReplacement(slot, uploaded) {
       var oldPath = trimText(slot.managedRow.object_path);
-      var payload = {
+      var oldUrl = trimText(slot.managedRow.image_url);
+      var wasEnabled = managedIsEnabled(slot.managedRow);
+      var upd = await updateSlide(slot.managedRow.id, {
         image_url: uploaded.url,
         object_path: uploaded.path,
         sort_order: slot.sortOrder
-      };
-      if (!managedIsEnabled(slot.managedRow)) payload.enabled = false;
-      var upd = await updateSlide(slot.managedRow.id, payload);
+      });
       if (!upd.ok) {
-        await safeRemoveObject(uploaded.path);
+        await removeObjectIfUnreferenced(uploaded.path);
         return { ok: false, reason: upd.reason || "update", error: upd.error, message: upd.message, keptOld: true, cleanedNew: true };
       }
-      if (managedIsEnabled(slot.managedRow)) {
-        if (oldPath && oldPath !== uploaded.path) await safeRemoveObject(oldPath);
+      if (wasEnabled) {
+        if (oldPath && oldPath !== uploaded.path) await removeObjectIfUnreferenced(oldPath);
         return { ok: true, replaced: true, keptOld: false };
       }
-      var switched = await switchToCustom(slot, slot.managedRow.id, uploaded.path);
-      if (!switched.ok) {
-        await safeRemoveObject(uploaded.path);
-        return { ok: false, reason: switched.reason, message: switched.message, keptOld: true, restoredRepo: switched.restoredRepo };
+      var switched = await activateCustomThenHideRepo(slot, slot.managedRow.id);
+      if (switched.ok) {
+        if (oldPath && oldPath !== uploaded.path) await removeObjectIfUnreferenced(oldPath);
+        return { ok: true, replacedDisabled: true };
       }
-      if (oldPath && oldPath !== uploaded.path) await safeRemoveObject(oldPath);
-      return { ok: true, replacedDisabled: true };
+      if (!switched.uploadEnabled) {
+        var reverted = await revertManagedPath(slot.managedRow.id, oldUrl, oldPath);
+        if (reverted.ok) await removeObjectIfUnreferenced(uploaded.path);
+        return {
+          ok: false,
+          reason: switched.reason,
+          keptOld: true,
+          repoNeverDisabled: true,
+          cleanedNew: !!reverted.ok,
+          message: switched.message,
+          error: switched.error
+        };
+      }
+      return {
+        ok: false,
+        reason: switched.reason,
+        bothEnabled: true,
+        keptObject: true,
+        repoNeverDisabled: true,
+        message: switched.message,
+        error: switched.error
+      };
     }
 
     async function applySlotFile(slot) {
@@ -557,7 +637,7 @@
       if (!del.ok) {
         return { ok: true, restored: true, rowDeleted: false, storageSkipped: true, cleanupFailed: true, message: del.message };
       }
-      if (oldPath) await safeRemoveObject(oldPath);
+      if (oldPath) await removeObjectIfUnreferenced(oldPath);
       return { ok: true, restored: true, rowDeleted: true };
     }
 

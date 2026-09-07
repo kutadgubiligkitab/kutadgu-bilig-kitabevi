@@ -66,6 +66,8 @@ function createMemoryDb(opts) {
   let uploadThrow = !!opts.uploadThrow;
   let failEnableUpload = !!opts.failEnableUpload;
   let failEnableRepo = !!opts.failEnableRepo;
+  let failDisableUpload = !!opts.failDisableUpload;
+  let failDisableRepo = !!opts.failDisableRepo;
   let insertSeq = 0;
 
   function run(q) {
@@ -112,6 +114,12 @@ function createMemoryDb(opts) {
         }
         if (failEnableRepo && q.payload && q.payload.enabled === true && hit.origin === "repo") {
           return { data: null, error: { message: "repo enable failed" } };
+        }
+        if (failDisableUpload && q.payload && q.payload.enabled === false && hit.origin === "upload" && hit.enabled !== false && hit.enabled !== "false" && hit.enabled !== 0) {
+          return { data: null, error: { message: "upload disable failed" } };
+        }
+        if (failDisableRepo && q.payload && q.payload.enabled === false && hit.origin === "repo") {
+          return { data: null, error: { message: "repo disable failed" } };
         }
         slides = slides.map((row) => String(row.id) === String(q.filters.id) ? Object.assign({}, row, q.payload) : row);
         return { data: q.single ? { id: hit.id } : [{ id: hit.id }], error: null };
@@ -190,6 +198,8 @@ function createMemoryDb(opts) {
     storageFiles,
     setFailEnableUpload(v) { failEnableUpload = !!v; },
     setFailEnableRepo(v) { failEnableRepo = !!v; },
+    setFailDisableUpload(v) { failDisableUpload = !!v; },
+    setFailDisableRepo(v) { failDisableRepo = !!v; },
     setZeroRowUpdate(v) { zeroRowUpdate = !!v; },
     setZeroRowDelete(v) { zeroRowDelete = !!v; },
     setUploadThrow(v) { uploadThrow = !!v; }
@@ -212,6 +222,23 @@ function controller(db, extra) {
 
 function managedPath(slot, ext) {
   return "hero/store-slides/slot-" + slot + "-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee." + ext;
+}
+
+function saveFields() {
+  return {
+    trust_line: Hero.DEFAULT_TRUST_LINE,
+    body: Hero.DEFAULT_BODY,
+    rotation_interval_seconds: 7
+  };
+}
+
+function repoSlides(overrides) {
+  const rows = [
+    { id: "repo-main", enabled: true, sort_order: 0, origin: "repo", repo_key: "main", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
+    { id: "repo-library", enabled: true, sort_order: 1, origin: "repo", repo_key: "library", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
+    { id: "repo-exterior", enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" }
+  ];
+  return rows.map((row) => Object.assign({}, row, (overrides && overrides[row.id]) || {}));
 }
 
 test("Admin Hero UI is one compact card after announcement", () => {
@@ -411,22 +438,18 @@ asyncTests.push(test("staged file and restore perform no write until Save", asyn
   assert.strictEqual(ctl.effectiveSlotSrc(ctl.state.slots[1]), "/assets/store/shop-interior-library.webp");
 }));
 
-asyncTests.push(test("first custom upload: upload then disabled row then repo disable then upload enable", async () => {
+asyncTests.push(test("first custom upload: upload then disabled insert then enable upload then disable repo", async () => {
   const db = createMemoryDb();
   const ctl = controller(db);
   await ctl.loadSlides();
   ctl.setPendingFile(1, fakeFile("image/png", 20, "user-name.PNG"));
-  const res = await ctl.saveAll({
-    trust_line: Hero.DEFAULT_TRUST_LINE,
-    body: Hero.DEFAULT_BODY,
-    rotation_interval_seconds: 7
-  });
+  const res = await ctl.saveAll(saveFields());
   assert.strictEqual(res.ok, true);
   const uploadIdx = db.log.findIndex((x) => x.op === "upload");
   const insertIdx = db.log.findIndex((x) => x.table === "store_hero_store_slides" && x.action === "insert");
   const repoDisableIdx = db.log.findIndex((x) => x.table === "store_hero_store_slides" && x.action === "update" && x.filters.id === "repo-main" && x.payload.enabled === false);
   const uploadEnableIdx = db.log.findIndex((x) => x.table === "store_hero_store_slides" && x.action === "update" && x.filters.id === "upload-1" && x.payload.enabled === true);
-  assert.ok(uploadIdx >= 0 && insertIdx > uploadIdx && repoDisableIdx > insertIdx && uploadEnableIdx > repoDisableIdx);
+  assert.ok(uploadIdx >= 0 && insertIdx > uploadIdx && uploadEnableIdx > insertIdx && repoDisableIdx > uploadEnableIdx);
   assert.strictEqual(db.log[insertIdx].payload.enabled, false);
   assert.strictEqual(db.log[insertIdx].payload.origin, "upload");
   assert.strictEqual(db.log[insertIdx].payload.repo_key, null);
@@ -439,21 +462,125 @@ asyncTests.push(test("first custom upload: upload then disabled row then repo di
   assert.strictEqual(db.slides.filter((row) => row.origin === "repo").length, 3);
 }));
 
-asyncTests.push(test("failed switch restores repo visibility", async () => {
+asyncTests.push(test("first custom: upload enable fails and repo was never disabled", async () => {
   const db = createMemoryDb({ failEnableUpload: true });
   const ctl = controller(db);
   await ctl.loadSlides();
   ctl.setPendingFile(1, fakeFile("image/jpeg", 11));
-  const res = await ctl.saveAll({
-    trust_line: Hero.DEFAULT_TRUST_LINE,
-    body: Hero.DEFAULT_BODY,
-    rotation_interval_seconds: 7
-  });
+  const res = await ctl.saveAll(saveFields());
   assert.strictEqual(res.ok, false);
   const repo = db.slides.find((row) => row.id === "repo-main");
   assert.strictEqual(repo.enabled, true);
+  assert.ok(!db.log.some((x) => x.table === "store_hero_store_slides" && x.action === "update" && x.filters.id === "repo-main" && x.payload && x.payload.enabled === false));
   const enabledUploads = db.slides.filter((row) => row.origin === "upload" && row.enabled === true);
   assert.strictEqual(enabledUploads.length, 0);
+}));
+
+asyncTests.push(test("first custom: repo disable fails and upload rollback cleans safely", async () => {
+  const db = createMemoryDb({ failDisableRepo: true });
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/jpeg", 11));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, false);
+  const repo = db.slides.find((row) => row.id === "repo-main");
+  assert.strictEqual(repo.enabled, true);
+  assert.ok(!db.slides.some((row) => row.origin === "upload"));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(removed.includes(managedPath(1, "jpg")));
+  const enableIdx = db.log.findIndex((x) => x.action === "update" && x.filters.id === "upload-1" && x.payload.enabled === true);
+  const rollbackIdx = db.log.findIndex((x) => x.action === "update" && x.filters.id === "upload-1" && x.payload.enabled === false);
+  const delIdx = db.log.findIndex((x) => x.action === "delete" && x.filters.id === "upload-1");
+  const remIdx = db.log.findIndex((x) => x.op === "remove" && x.paths && x.paths[0] === managedPath(1, "jpg"));
+  assert.ok(enableIdx >= 0 && rollbackIdx > enableIdx && delIdx > rollbackIdx && remIdx > delIdx);
+}));
+
+asyncTests.push(test("first custom: repo disable and upload rollback both fail keeps both enabled", async () => {
+  const db = createMemoryDb({ failDisableRepo: true, failDisableUpload: true });
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/webp", 11));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, false);
+  const repo = db.slides.find((row) => row.id === "repo-main");
+  const upload = db.slides.find((row) => row.origin === "upload");
+  assert.strictEqual(repo.enabled, true);
+  assert.ok(upload);
+  assert.strictEqual(upload.enabled, true);
+  assert.ok(db.storageFiles.has(managedPath(1, "webp")));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(!removed.includes(managedPath(1, "webp")));
+  assert.strictEqual(db.slides.filter((row) => row.origin === "repo").length, 3);
+}));
+
+asyncTests.push(test("disabled managed replacement: enable fail keeps repo and does not delete a referenced object", async () => {
+  const oldPath = "hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
+  const oldUrl = "https://example.supabase.co/storage/v1/object/public/book-covers/" + oldPath;
+  const db = createMemoryDb({
+    failEnableUpload: true,
+    slides: repoSlides().concat([{
+      id: "custom-1",
+      enabled: false,
+      sort_order: 0,
+      origin: "upload",
+      repo_key: null,
+      image_url: oldUrl,
+      object_path: oldPath,
+      created_at: "2026-01-01T00:00:00.000Z"
+    }])
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/png", 12));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, false);
+  const repo = db.slides.find((row) => row.id === "repo-main");
+  const custom = db.slides.find((row) => row.id === "custom-1");
+  assert.strictEqual(repo.enabled, true);
+  assert.strictEqual(custom.enabled, false);
+  assert.strictEqual(custom.object_path, oldPath);
+  assert.ok(db.storageFiles.has(oldPath));
+  const newPath = managedPath(1, "png");
+  const livePaths = db.slides.map((row) => row.object_path).filter(Boolean);
+  assert.ok(!livePaths.includes(newPath));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(removed.includes(newPath));
+  assert.ok(!removed.includes(oldPath));
+  assert.ok(!db.log.some((x) => x.filters && x.filters.id === "repo-main" && x.payload && x.payload.enabled === false));
+}));
+
+asyncTests.push(test("disabled managed replacement: repo disable and custom rollback fail keeps both enabled", async () => {
+  const oldPath = "hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
+  const db = createMemoryDb({
+    failDisableRepo: true,
+    failDisableUpload: true,
+    slides: repoSlides().concat([{
+      id: "custom-1",
+      enabled: false,
+      sort_order: 0,
+      origin: "upload",
+      repo_key: null,
+      image_url: "https://example.supabase.co/storage/v1/object/public/book-covers/" + oldPath,
+      object_path: oldPath,
+      created_at: "2026-01-01T00:00:00.000Z"
+    }])
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/webp", 12));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, false);
+  const repo = db.slides.find((row) => row.id === "repo-main");
+  const custom = db.slides.find((row) => row.id === "custom-1");
+  const newPath = managedPath(1, "webp");
+  assert.strictEqual(repo.enabled, true);
+  assert.strictEqual(custom.enabled, true);
+  assert.strictEqual(custom.object_path, newPath);
+  assert.ok(db.storageFiles.has(newPath));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(!removed.includes(newPath));
 }));
 
 asyncTests.push(test("replacement uploads new then updates DB then cleans old object", async () => {
