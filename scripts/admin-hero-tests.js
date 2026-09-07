@@ -263,6 +263,10 @@ test("Admin Hero UI is one compact card after announcement", () => {
   assert.doesNotMatch(adminHtml, /heroSettingsForm/);
   assert.doesNotMatch(adminHtml.slice(h, adminHtml.indexOf('id="booksCard"')), /datetime-local/);
   assert.doesNotMatch(heroJs, /store_hero_campaigns/);
+  assert.doesNotMatch(heroJs, /restoredCustom/);
+  const restoreSrc = heroJs.slice(heroJs.indexOf("async function restoreSlot"), heroJs.indexOf("async function saveAll"));
+  assert.ok(restoreSrc.indexOf("enableRepo") >= 0 && restoreSrc.indexOf("enableRepo") < restoreSrc.indexOf("disableUpload"));
+  assert.ok(restoreSrc.indexOf("disableUpload") < restoreSrc.indexOf("deleteUploadRow"));
   assert.doesNotMatch(heroJs, /searchBooks/);
   assert.doesNotMatch(heroJs, /service_role/);
   assert.doesNotMatch(adminJs, /service_role/);
@@ -648,7 +652,7 @@ asyncTests.push(test("failed replacement keeps old object and cleans the new one
   assert.strictEqual(db.slides.find((row) => row.id === "custom-1").object_path, oldPath);
 }));
 
-asyncTests.push(test("restore disables custom, enables repo, deletes row, then storage", async () => {
+asyncTests.push(test("restore original: repo enable then custom disable then delete then storage", async () => {
   const oldPath = "hero/store-slides/slot-3-bbbbbbbb-cccc-dddd-eeee-ffffffffffff.webp";
   const db = createMemoryDb({
     slides: [
@@ -662,23 +666,19 @@ asyncTests.push(test("restore disables custom, enables repo, deletes row, then s
   const ctl = controller(db);
   await ctl.loadSlides();
   ctl.stageRestore(3);
-  const res = await ctl.saveAll({
-    trust_line: Hero.DEFAULT_TRUST_LINE,
-    body: Hero.DEFAULT_BODY,
-    rotation_interval_seconds: 7
-  });
+  const res = await ctl.saveAll(saveFields());
   assert.strictEqual(res.ok, true);
-  const disableIdx = db.log.findIndex((x) => x.action === "update" && x.filters.id === "custom-3" && x.payload.enabled === false);
   const repoIdx = db.log.findIndex((x) => x.action === "update" && x.filters.id === "repo-exterior" && x.payload.enabled === true);
+  const disableIdx = db.log.findIndex((x) => x.action === "update" && x.filters.id === "custom-3" && x.payload.enabled === false);
   const delIdx = db.log.findIndex((x) => x.action === "delete" && x.filters.id === "custom-3");
   const remIdx = db.log.findIndex((x) => x.op === "remove" && x.paths && x.paths[0] === oldPath);
-  assert.ok(disableIdx >= 0 && repoIdx > disableIdx && delIdx > repoIdx && remIdx > delIdx);
+  assert.ok(repoIdx >= 0 && disableIdx > repoIdx && delIdx > disableIdx && remIdx > delIdx);
   assert.ok(!db.slides.some((row) => row.id === "custom-3"));
   assert.strictEqual(db.slides.find((row) => row.id === "repo-exterior").enabled, true);
   assert.strictEqual(db.slides.filter((row) => row.origin === "repo").length, 3);
 }));
 
-asyncTests.push(test("failed repo re-enable restores custom row", async () => {
+asyncTests.push(test("restore original: repo enable fails leaves custom enabled and untouched", async () => {
   const oldPath = "hero/store-slides/slot-2-bbbbbbbb-cccc-dddd-eeee-ffffffffffff.jpg";
   const db = createMemoryDb({
     failEnableRepo: true,
@@ -689,19 +689,49 @@ asyncTests.push(test("failed repo re-enable restores custom row", async () => {
       { id: "custom-2", enabled: true, sort_order: 1, origin: "upload", repo_key: null, object_path: oldPath, image_url: "https://example.supabase.co/x.jpg", created_at: "2026-01-01T00:00:00.000Z" }
     ]
   });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
   const ctl = controller(db);
   await ctl.loadSlides();
   ctl.stageRestore(2);
-  const res = await ctl.saveAll({
-    trust_line: Hero.DEFAULT_TRUST_LINE,
-    body: Hero.DEFAULT_BODY,
-    rotation_interval_seconds: 7
-  });
+  const res = await ctl.saveAll(saveFields());
   assert.strictEqual(res.ok, false);
   const custom = db.slides.find((row) => row.id === "custom-2");
   assert.ok(custom);
   assert.strictEqual(custom.enabled, true);
-  assert.ok(db.log.every((x) => x.op !== "remove"));
+  assert.strictEqual(custom.object_path, oldPath);
+  assert.ok(!db.log.some((x) => x.action === "update" && x.filters.id === "custom-2"));
+  assert.ok(!db.log.some((x) => x.action === "delete" && x.filters.id === "custom-2"));
+  assert.ok(!db.log.some((x) => x.op === "remove"));
+  assert.ok(db.storageFiles.has(oldPath));
+  assert.ok(!(db.slides.find((row) => row.id === "repo-library").enabled === false && custom.enabled === false));
+}));
+
+asyncTests.push(test("restore original: custom disable fails keeps both enabled", async () => {
+  const oldPath = "hero/store-slides/slot-2-bbbbbbbb-cccc-dddd-eeee-ffffffffffff.jpg";
+  const db = createMemoryDb({
+    failDisableUpload: true,
+    slides: [
+      { id: "repo-main", enabled: true, sort_order: 0, origin: "repo", repo_key: "main", created_at: "2020-01-01T00:00:00.000Z" },
+      { id: "repo-library", enabled: false, sort_order: 1, origin: "repo", repo_key: "library", created_at: "2020-01-01T00:00:00.000Z" },
+      { id: "repo-exterior", enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", created_at: "2020-01-01T00:00:00.000Z" },
+      { id: "custom-2", enabled: true, sort_order: 1, origin: "upload", repo_key: null, object_path: oldPath, image_url: "https://example.supabase.co/x.jpg", created_at: "2026-01-01T00:00:00.000Z" }
+    ]
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.stageRestore(2);
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, false);
+  const repo = db.slides.find((row) => row.id === "repo-library");
+  const custom = db.slides.find((row) => row.id === "custom-2");
+  assert.strictEqual(repo.enabled, true);
+  assert.strictEqual(custom.enabled, true);
+  assert.strictEqual(custom.object_path, oldPath);
+  assert.ok(!db.log.some((x) => x.action === "delete" && x.filters.id === "custom-2"));
+  assert.ok(!db.log.some((x) => x.op === "remove"));
+  assert.ok(db.storageFiles.has(oldPath));
+  assert.ok(!(repo.enabled === false && custom.enabled === false));
 }));
 
 asyncTests.push(test("zero-row UPDATE is not success", async () => {
@@ -738,9 +768,14 @@ asyncTests.push(test("zero-row DELETE is not success and skips storage", async (
     body: Hero.DEFAULT_BODY,
     rotation_interval_seconds: 7
   });
-  assert.ok(res.ok === false || (res.slotResults && res.slotResults[0].result.cleanupFailed));
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.slotResults && res.slotResults[0].result.cleanupFailed);
   assert.ok(db.storageFiles.has(oldPath));
-  assert.ok(db.slides.some((row) => row.id === "custom-1"));
+  const custom = db.slides.find((row) => row.id === "custom-1");
+  assert.ok(custom);
+  assert.strictEqual(custom.enabled, false);
+  assert.strictEqual(db.slides.find((row) => row.id === "repo-main").enabled, true);
+  assert.ok(!db.log.some((x) => x.op === "remove"));
 }));
 
 asyncTests.push(test("storage delete refuses any non managed store-slides path", async () => {

@@ -625,17 +625,38 @@
       if (!slot.repoRow || !slot.repoRow.id) {
         return { ok: false, reason: "missing_repo", message: "ئەسلى رەسىم قۇرى تېپىلمىدى." };
       }
-      var disabled = await disableUpload(slot.managedRow.id);
-      if (!disabled.ok) return { ok: false, reason: disabled.reason || "upload_disable", error: disabled.error, message: disabled.message };
       var enabled = await enableRepo(slot);
       if (!enabled.ok) {
-        await enableUpload(slot.managedRow.id);
-        return { ok: false, reason: "repo_enable", restoredCustom: true, error: enabled.error, message: enabled.message };
+        return {
+          ok: false,
+          reason: "repo_enable",
+          customUntouched: true,
+          error: enabled.error,
+          message: enabled.message
+        };
+      }
+      var disabled = await disableUpload(slot.managedRow.id);
+      if (!disabled.ok) {
+        return {
+          ok: false,
+          reason: "upload_disable",
+          bothEnabled: true,
+          error: disabled.error,
+          message: disabled.message
+        };
       }
       var oldPath = trimText(slot.managedRow.object_path);
       var del = await deleteUploadRow(slot.managedRow);
       if (!del.ok) {
-        return { ok: true, restored: true, rowDeleted: false, storageSkipped: true, cleanupFailed: true, message: del.message };
+        return {
+          ok: false,
+          reason: "row_delete",
+          restoredVisible: true,
+          rowDeleted: false,
+          storageSkipped: true,
+          cleanupFailed: true,
+          message: del.message
+        };
       }
       if (oldPath) await removeObjectIfUnreferenced(oldPath);
       return { ok: true, restored: true, rowDeleted: true };
