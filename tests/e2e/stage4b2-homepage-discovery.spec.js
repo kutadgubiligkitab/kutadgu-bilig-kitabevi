@@ -293,7 +293,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     ];
     for (const [sel, name] of shots) {
       await page.locator(sel).scrollIntoViewIfNeeded();
-      const buf = await page.locator(sel).screenshot();
+      const buf = await page.locator(sel).screenshot({ animations: "disabled", timeout: 15000 });
       let wrote = false;
       let lastErr = null;
       for (const dir of dirs) {
