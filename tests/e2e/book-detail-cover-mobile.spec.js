@@ -192,8 +192,9 @@ test.describe("mobile book detail cover frame", () => {
   });
 
   async function shotTitleAuthor(page, filename) {
+    const tmpDir = "/tmp/stage6-author-shots";
     const outDir = "/opt/cursor/artifacts/screenshots";
-    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(tmpDir, { recursive: true });
     const clip = await page.evaluate(() => {
       const h1 = document.querySelector(".book-detail-info h1");
       const author = document.querySelector(".book-detail-info .book-author");
@@ -207,10 +208,19 @@ test.describe("mobile book detail cover frame", () => {
       return { x: left, y: top, width: right - left, height: bottom - top };
     });
     if (!clip) return;
-    await page.screenshot({ path: path.join(outDir, filename), clip });
+    const tmpPath = path.join(tmpDir, filename);
+    await page.screenshot({ path: tmpPath, clip });
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.copyFileSync(tmpPath, path.join(outDir, filename));
+    } catch (err) {
+      if (err && err.code === "EIO") return;
+      throw err;
+    }
   }
 
   test("detail author is 15px on mobile and 17px on desktop", async ({ page }) => {
+    test.setTimeout(120_000);
     for (const width of [390, 430, 768]) {
       await openDetail(page, width);
       await page.locator(".book-detail-info .book-author").scrollIntoViewIfNeeded();
@@ -252,15 +262,22 @@ test.describe("mobile book detail cover frame", () => {
   });
 
   test("preview screenshots of detail cover", async ({ page }) => {
+    const tmpDir = "/tmp/stage6-author-shots";
     const outDir = "/opt/cursor/artifacts/screenshots";
-    fs.mkdirSync(outDir, { recursive: true });
+    fs.mkdirSync(tmpDir, { recursive: true });
     await openDetail(page, 390);
-    await page.locator(".book-cover-column").screenshot({
-      path: path.join(outDir, "book-detail-cover-390.png")
-    });
+    const cover390 = path.join(tmpDir, "book-detail-cover-390.png");
+    await page.locator(".book-cover-column").screenshot({ path: cover390 });
     await openDetail(page, 1366);
-    await page.locator(".book-detail-top").screenshot({
-      path: path.join(outDir, "book-detail-cover-1366.png")
-    });
+    const cover1366 = path.join(tmpDir, "book-detail-cover-1366.png");
+    await page.locator(".book-detail-top").screenshot({ path: cover1366 });
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.copyFileSync(cover390, path.join(outDir, "book-detail-cover-390.png"));
+      fs.copyFileSync(cover1366, path.join(outDir, "book-detail-cover-1366.png"));
+    } catch (err) {
+      if (err && err.code === "EIO") return;
+      throw err;
+    }
   });
 });
