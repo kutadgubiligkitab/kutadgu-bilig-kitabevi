@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=34">
+  <link rel="stylesheet" href="admin.css?v=35">
 </head>
 <body>
 <div class="admin-shell">
@@ -183,6 +183,148 @@
           </div>
         </form>
         <div id="announcementList" class="admin-announce-list"></div>
+      </section>
+
+      <section class="admin-card" id="heroAdminCard">
+        <h2>🖼 باش بەت Hero باشقۇرۇش</h2>
+        <p class="admin-help">بۇ يەردە باش بەت Hero تېكىستى، ئايلىنىش ئارىلىقى ۋە تەكلىپ (campaign) باشقۇرۇلىدۇ. ئىختىيارىي بۆشۇقنى تازىلىسىڭىز، شۇ بۆلەك نورمال كىتابخانا سۈكۈت قىممىتىگە قايتىدۇ. سۈكۈت كىتابخانا رەسىملىرى بۇ يەردە باشقۇرۇلمايدۇ.</p>
+        <div id="heroAdminStatus" class="admin-status">Hero تەڭشىكى تەكشۈرۈلىۋاتىدۇ...</div>
+
+        <form id="heroSettingsForm" class="admin-form admin-hero-settings">
+          <label>
+            <span>ئۈستى قىسقا خەت (eyebrow)</span>
+            <input id="heroEyebrow" type="text" maxlength="80">
+          </label>
+          <label>
+            <span>ئىشەنچ قۇرى</span>
+            <input id="heroTrustLine" type="text" maxlength="80">
+          </label>
+          <label class="admin-wide">
+            <span>چۈشەندۈرۈش</span>
+            <textarea id="heroBody" rows="3" maxlength="500"></textarea>
+          </label>
+          <label>
+            <span>ئاساسىي كۇنۇپكا يېزىقى</span>
+            <input id="heroPrimaryLabel" type="text" maxlength="80">
+          </label>
+          <label>
+            <span>ئاساسىي ئۇلانما (پەقەت ئىچكى)</span>
+            <input id="heroPrimaryHref" type="text" maxlength="500" dir="ltr" placeholder="#books ياكى /adabiyat">
+          </label>
+          <label>
+            <span>ئىككىنچى كۇنۇپكا يېزىقى</span>
+            <input id="heroSecondaryLabel" type="text" maxlength="80">
+          </label>
+          <label>
+            <span>ئىككىنچى ئۇلانما (پەقەت ئىچكى)</span>
+            <input id="heroSecondaryHref" type="text" maxlength="500" dir="ltr" placeholder="#about">
+          </label>
+          <label>
+            <span>رەسىم ئايلىنىش ئارىلىقى</span>
+            <select id="heroRotation">
+              <option value="5">5 سېكۇنت</option>
+              <option value="7" selected>7 سېكۇنت</option>
+              <option value="10">10 سېكۇنت</option>
+              <option value="15">15 سېكۇنت</option>
+            </select>
+          </label>
+          <div class="admin-wide">
+            <button class="admin-primary" id="heroSettingsSave" type="submit">Hero تەڭشىكىنى ساقلاش</button>
+          </div>
+        </form>
+
+        <div class="admin-hero-preview" id="heroPreview">
+          <p class="admin-hero-preview-label">ئالدىن كۆرۈش (ساقلاشسىز)</p>
+          <div class="admin-hero-preview-stage">
+            <img id="heroPreviewImg" alt="">
+            <div class="admin-hero-preview-copy">
+              <div id="heroPreviewEyebrow" class="admin-hero-preview-eyebrow"></div>
+              <div id="heroPreviewTitle" class="admin-hero-preview-title"></div>
+              <div id="heroPreviewBody" class="admin-hero-preview-body"></div>
+              <div class="admin-hero-preview-actions">
+                <a id="heroPreviewPrimary" href="#books"></a>
+                <a id="heroPreviewSecondary" href="#about"></a>
+              </div>
+              <div id="heroPreviewMeta" class="admin-book-meta"></div>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="admin-hero-subhead">تەكلىپ (campaign)</h3>
+        <p class="admin-help">كىتاب تاللانسا رەسىم ئىختىيارىي — يوق بولسا كىتاب مۇقاۋىسى ئىشلىتىلىدۇ. كىتابسىز قوزغىتىلغان تەكلىپكە ماۋزۇ ۋە رەسىم شەرت. JPEG / PNG / WebP، ئەڭ چوڭى 5MB.</p>
+        <form id="heroCampaignForm" class="admin-form admin-hero-campaign-form">
+          <input type="hidden" id="heroCampaignEditId">
+          <div class="admin-wide admin-toolbar-group">
+            <button class="admin-secondary" id="heroCampaignNew" type="button">يېڭى Hero تەكلىپى</button>
+          </div>
+          <label class="admin-check">
+            <input id="heroCampaignEnabled" type="checkbox" checked>
+            <span>قوزغىتىلغان</span>
+          </label>
+          <label>
+            <span>تەرتىپ نومۇرى</span>
+            <input id="heroCampaignSort" type="number" step="1" value="0" dir="ltr">
+          </label>
+          <label class="admin-wide">
+            <span>كىتاب ئىزدەش (نام ياكى ئاپتور)</span>
+            <input id="heroBookSearch" type="search" inputmode="search" autocomplete="off" placeholder="كىتاب نامى ياكى ئاپتور">
+          </label>
+          <div id="heroBookResults" class="admin-hero-book-results admin-wide"></div>
+          <div id="heroBookSelected" class="admin-wide"></div>
+          <p id="heroBookWarning" class="admin-hero-warning admin-wide" hidden></p>
+          <div class="admin-wide">
+            <button class="admin-secondary" id="heroBookClear" type="button">تاللانغان كىتابنى چىقىرىۋېتىش</button>
+          </div>
+          <label class="admin-wide">
+            <span>ئۈستى قىسقا خەت</span>
+            <input id="heroCampaignEyebrow" type="text" maxlength="80">
+          </label>
+          <label class="admin-wide">
+            <span>ماۋزۇ</span>
+            <input id="heroCampaignTitle" type="text" maxlength="120">
+          </label>
+          <label class="admin-wide">
+            <span>چۈشەندۈرۈش</span>
+            <textarea id="heroCampaignBody" rows="3" maxlength="500"></textarea>
+          </label>
+          <label>
+            <span>ئاساسىي كۇنۇپكا</span>
+            <input id="heroCampaignPrimaryLabel" type="text" maxlength="80">
+          </label>
+          <label>
+            <span>ئاساسىي ئۇلانما</span>
+            <input id="heroCampaignPrimaryHref" type="text" maxlength="500" dir="ltr">
+          </label>
+          <label>
+            <span>ئىككىنچى كۇنۇپكا</span>
+            <input id="heroCampaignSecondaryLabel" type="text" maxlength="80">
+          </label>
+          <label>
+            <span>ئىككىنچى ئۇلانما</span>
+            <input id="heroCampaignSecondaryHref" type="text" maxlength="500" dir="ltr">
+          </label>
+          <label>
+            <span>باشلىنىش ۋاقتى</span>
+            <input id="heroCampaignStart" type="datetime-local">
+          </label>
+          <label>
+            <span>ئاخىرلىشىش ۋاقتى</span>
+            <input id="heroCampaignEnd" type="datetime-local">
+          </label>
+          <label class="admin-wide">
+            <span>ئىختىيارىي رەسىم (book-covers / hero/campaigns)</span>
+            <input id="heroCampaignImage" type="file" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <div class="admin-hero-image-row admin-wide">
+            <img id="heroCampaignImagePreview" alt="">
+            <button class="admin-secondary" id="heroCampaignImageRemove" type="button">رەسىمنى چىقىرىۋېتىش</button>
+          </div>
+          <div class="admin-wide admin-toolbar-group">
+            <button class="admin-primary" id="heroCampaignSave" type="submit">ساقلاش</button>
+            <button class="admin-secondary" id="heroCampaignReset" type="button">بىكار قىلىش / تازىلاش</button>
+          </div>
+        </form>
+        <div id="heroCampaignList" class="admin-hero-campaign-list"></div>
       </section>
       </div>
 
@@ -824,6 +966,7 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
-  <script defer src="admin.js?v=62"></script>
+<script defer src="admin-hero.js?v=1"></script>
+  <script defer src="admin.js?v=63"></script>
 </body>
 </html>

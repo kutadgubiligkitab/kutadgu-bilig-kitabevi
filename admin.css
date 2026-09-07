@@ -177,6 +177,44 @@ button{cursor:pointer}
   #mfaSetupBtn,#mfaCleanupBtn,#mfaRemoveBtn,#mfaVerifyBtn,#mfaEnrollCancelBtn,#mfaRemoveConfirmBtn,#mfaRemoveCancelBtn,#mfaGateSubmit,#mfaGateLogout,#idleLockSubmit,#idleLockLogout{min-height:44px}
 }
 #announcementCard.is-missing{border-color:#d8bd7d}
+#heroAdminCard,#heroAdminCard *{min-width:0}
+#heroAdminCard{overflow-x:hidden}
+.admin-hero-settings,.admin-hero-campaign-form{margin:12px 0 18px}
+.admin-hero-subhead{margin:18px 0 8px;font-size:16px}
+.admin-hero-preview{margin:0 0 18px;padding:12px;border:1px solid #e8dccb;border-radius:12px;background:#fbf8f2;overflow:hidden}
+.admin-hero-preview-label{margin:0 0 8px;font-size:12px;font-weight:800;color:#a27647}
+.admin-hero-preview-stage{display:grid;grid-template-columns:minmax(0,120px) minmax(0,1fr);gap:12px;align-items:start}
+.admin-hero-preview-stage img{width:100%;max-width:120px;height:90px;object-fit:contain;background:#eee9e1;border-radius:8px}
+.admin-hero-preview-copy{min-width:0}
+.admin-hero-preview-eyebrow,.admin-hero-preview-title,.admin-hero-preview-body,#heroPreviewMeta{overflow-wrap:anywhere;word-break:break-word}
+.admin-hero-preview-title{font-weight:800;line-height:1.5}
+.admin-hero-preview-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.admin-hero-preview-actions a{display:inline-flex;align-items:center;min-height:40px;padding:8px 12px;border-radius:8px;background:#70503d;color:#fff;text-decoration:none;max-width:100%}
+.admin-hero-preview-actions a:last-child{background:#eee4d7;color:#44352d}
+.admin-hero-book-results{display:grid;gap:6px;max-height:220px;overflow:auto}
+.admin-hero-book-hit{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;align-items:center;width:100%;text-align:right;border:1px solid #e8dccb;background:#fff;border-radius:9px;padding:8px;min-height:44px}
+.admin-hero-book-hit img{width:40px;height:52px;object-fit:contain;background:#eee9e1;border-radius:4px}
+.admin-hero-book-hit span{display:grid;gap:2px;min-width:0}
+.admin-hero-book-hit strong,.admin-hero-book-hit span span{overflow-wrap:anywhere}
+.admin-hero-book-picked{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:center;padding:8px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
+.admin-hero-book-picked img{width:48px;height:64px;object-fit:contain;background:#eee9e1;border-radius:6px}
+.admin-hero-warning{color:#a74f45;font-size:12px;line-height:1.7}
+.admin-hero-image-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.admin-hero-image-row img{width:86px;height:64px;object-fit:contain;background:#eee9e1;border:1px solid #e8dccb;border-radius:7px}
+.admin-hero-campaign-list{display:grid;gap:8px;min-width:0}
+.admin-hero-campaign-row{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid #e8dccb;border-radius:11px;background:#fff;min-width:0}
+.admin-hero-campaign-row img{width:48px;height:64px;object-fit:contain;background:#eee9e1;border-radius:6px}
+.admin-hero-campaign-row .admin-book-actions{justify-content:flex-end}
+@media(max-width:850px){
+  .admin-hero-preview-stage,.admin-hero-campaign-row{grid-template-columns:minmax(0,1fr)}
+  .admin-hero-campaign-row .admin-book-actions{grid-column:1/-1}
+}
+@media(prefers-color-scheme:dark){
+  #heroAdminCard{background:#2b221c;border-color:#4a3b32;color:#f3e7d8}
+  #heroAdminCard .admin-help,#heroAdminCard .admin-book-meta{color:#cbb6a3}
+  #heroAdminCard input,#heroAdminCard textarea,#heroAdminCard select{background:#3a2e26;color:#f3e7d8;border-color:#5a463a}
+  .admin-hero-preview,.admin-hero-campaign-row,.admin-hero-book-hit,.admin-hero-book-picked{background:#332820;border-color:#5a463a}
+}
 .admin-announce-settings{margin:12px 0 18px}
 .admin-announce-form{margin-bottom:16px}
 .admin-announce-list{display:grid;gap:8px}
