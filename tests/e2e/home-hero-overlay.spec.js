@@ -16,6 +16,12 @@ const SEEDED_STORE_SLIDES = [
   { enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", created_at: "2020-01-01" }
 ];
 
+const REPO = [
+  "/assets/store/shop-interior-main.webp",
+  "/assets/store/shop-interior-library.webp",
+  "/assets/store/shop-exterior.webp"
+];
+
 function json(route, body, status) {
   return route.fulfill({
     status: status || 200,
