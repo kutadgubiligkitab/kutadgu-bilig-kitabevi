@@ -121,6 +121,10 @@ test("listing, hub, detail, homepage, and my-books load Stage 4B-1 after safety 
     const safetyAt = html.indexOf("listing-card-safety.css");
     const stageAt = html.indexOf("stage4b-public-cards.css");
     assert.ok(safetyAt >= 0 && stageAt > safetyAt, file + " overlay must follow listing safety");
+    const mobileAt = html.search(/href=["'](?:\/)?mobile\.css/);
+    if (mobileAt >= 0) {
+      assert.ok(stageAt > mobileAt, file + " overlay must follow mobile.css");
+    }
   }
   const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const shell = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
