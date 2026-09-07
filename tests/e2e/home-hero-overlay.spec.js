@@ -10,10 +10,10 @@ const FALLBACK = {
   secondary: "بىز ھەققىدە"
 };
 
-const REPO = [
-  "/assets/store/shop-interior-main.webp",
-  "/assets/store/shop-interior-library.webp",
-  "/assets/store/shop-exterior.webp"
+const SEEDED_STORE_SLIDES = [
+  { enabled: true, sort_order: 0, origin: "repo", repo_key: "main", created_at: "2020-01-01" },
+  { enabled: true, sort_order: 1, origin: "repo", repo_key: "library", created_at: "2020-01-01" },
+  { enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", created_at: "2020-01-01" }
 ];
 
 function json(route, body, status) {
@@ -308,7 +308,133 @@ test.describe("homepage Hero overlay fail-open", () => {
     await expect(page.locator("[data-home-hero-title]")).toHaveText("بىرىنچى");
   });
 
-  test("campaign expiration returns to the store Hero", async ({ page }) => {
+  test("campaign expiration with seeded repo slides restores hard-coded store media", async ({ page }) => {
+    await mockHero(page, {
+      slides: SEEDED_STORE_SLIDES,
+      campaigns: [{
+        enabled: true,
+        sort_order: 0,
+        title: "ۋاقىتلىق تەكلىپ",
+        body: "ئالاھىدە تېكىست",
+        image_url: REPO[1],
+        created_at: "2020-01-01"
+      }]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-home-hero-title]")).toHaveText("ۋاقىتلىق تەكلىپ");
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveAttribute("data-hero-kind", "campaign");
+    await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "campaign");
+    await mockHero(page, { slides: SEEDED_STORE_SLIDES, campaigns: [] });
+    await page.evaluate(() => window.KutadguHeroContent.loadHero());
+    await expect(page.locator("[data-home-hero-title]")).toBeHidden();
+    await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator('[data-hero-kind="campaign"]')).toHaveCount(0);
+    await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
+    await expect(page.locator(".shop-hero-dots")).not.toHaveAttribute("hidden");
+    await expectFallbackStore(page);
+  });
+
+  test("repo main alt_text override is applied without changing store geometry", async ({ page }) => {
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "repo", repo_key: "main", alt_text: "سىناق ئالت تېكىستى", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "repo", repo_key: "library", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", created_at: "2020-01-01" }
+      ]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("alt", "سىناق ئالت تېكىستى");
+    const fit = await page.locator("[data-shop-hero-slide]").nth(0).evaluate((el) => getComputedStyle(el).objectFit);
+    expect(fit).toBe("cover");
+  });
+
+  test("store slide image error removes the matching dot", async ({ page }) => {
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "repo", repo_key: "main", alt_text: "بىرىنچى", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "repo", repo_key: "library", alt_text: "ئىككىنچى", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", alt_text: "ئۈچىنچى", created_at: "2020-01-01" }
+      ]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
+    await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
+    await page.evaluate(() => {
+      const img = document.querySelectorAll("[data-shop-hero-slide]")[1];
+      img.dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+    await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(2);
+    await page.evaluate(() => {
+      const slides = document.querySelectorAll("[data-shop-hero-slide]");
+      slides[slides.length - 1].dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(1);
+    await expect(page.locator(".shop-hero-dots")).toHaveAttribute("hidden", "");
+    await page.evaluate(() => {
+      document.querySelector("[data-shop-hero-slide]").dispatchEvent(new Event("error"));
+    });
+    await expectFallbackStore(page);
+  });
+
+  test("campaign mode has no overflow at 390 430 768 1366 and one dark mobile", async ({ page }) => {
+    const outDir = "/opt/cursor/artifacts/screenshots";
+    fs.mkdirSync(outDir, { recursive: true });
+    await mockHero(page, {
+      campaigns: [{
+        enabled: true,
+        sort_order: 0,
+        title: "قۇتادغۇبىلىك كىتابخانىسىنىڭ ئالاھىدە ئەدەبىيات تەۋسىيەسى ۋە قەدىمكى تۈرك ئەسەرلىرى",
+        body: "قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ خەلقىمىزگە تەۋسىيە قىلىمىز.",
+        image_url: REPO[0],
+        primary_label: "كىتابنى كۆرۈش",
+        primary_href: "/book/42",
+        secondary_label: "كىتابلار",
+        secondary_href: "#books",
+        created_at: "2020-01-01"
+      }]
+    });
+    for (const width of [390, 430, 768, 1366]) {
+      await page.setViewportSize({ width, height: width >= 1366 ? 900 : 844 });
+      await openHero(page);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, "campaign light " + width).toBeLessThanOrEqual(2);
+      await expect(page.locator("[data-home-hero-title]")).toBeVisible();
+      const fit = await page.locator("[data-shop-hero-slide]").first().evaluate((el) => getComputedStyle(el).objectFit);
+      expect(fit, "contain " + width).toBe("contain");
+      const primaryBox = await page.locator("[data-home-hero-primary]").boundingBox();
+      expect(primaryBox && primaryBox.width, "primary " + width).toBeGreaterThan(40);
+      const secondaryBox = await page.locator("[data-home-hero-secondary]").boundingBox();
+      expect(secondaryBox && secondaryBox.height, "secondary " + width).toBeGreaterThan(20);
+      await page.locator(".home-bookstore-hero").screenshot({
+        path: path.join(outDir, `hero-overlay-campaign-${width}.png`)
+      });
+      if (width === 390) {
+        await page.evaluate(() => {
+          document.body.classList.add("dark-mode");
+          document.documentElement.classList.add("dark-mode");
+        });
+        const darkOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        expect(darkOverflow, "campaign dark 390").toBeLessThanOrEqual(2);
+        await expect(page.locator("[data-home-hero-title]")).toBeVisible();
+        await page.locator(".home-bookstore-hero").screenshot({
+          path: path.join(outDir, "hero-overlay-campaign-390-dark.png")
+        });
+        await page.evaluate(() => {
+          document.body.classList.remove("dark-mode");
+          document.documentElement.classList.remove("dark-mode");
+        });
+      }
+    }
+  });
     const ends = new Date(Date.now() + 1200).toISOString();
     await mockHero(page, {
       campaigns: [{

@@ -188,6 +188,54 @@ test("interval settings only accept 5/7/10/15 seconds", () => {
   assert.strictEqual(hero.intervalFromSettings({}), 7000);
 });
 
+test("bookIdKey is bigint-safe and keeps exact decimal strings", () => {
+  const fn = js.slice(js.indexOf("function bookIdKey"), js.indexOf("function isPublicBookEligible"));
+  assert.doesNotMatch(fn, /Number\(id\)/);
+  assert.doesNotMatch(fn, /parseInt\s*\(/);
+  assert.doesNotMatch(fn, /(?:^|[^\w.])\+id/);
+  assert.strictEqual(hero.bookIdKey(42), "42");
+  assert.strictEqual(hero.bookIdKey("42"), "42");
+  assert.strictEqual(hero.bookIdKey("9007199254740993"), "9007199254740993");
+  assert.strictEqual(hero.bookIdKey(Number.MAX_SAFE_INTEGER), String(Number.MAX_SAFE_INTEGER));
+  assert.strictEqual(hero.bookIdKey(Number.MAX_SAFE_INTEGER + 1), "");
+  assert.strictEqual(hero.bookIdKey(Number("9007199254740993")), "");
+  assert.strictEqual(hero.bookIdKey(0), "");
+  assert.strictEqual(hero.bookIdKey("0"), "");
+  assert.strictEqual(hero.bookIdKey(-4), "");
+  assert.strictEqual(hero.bookIdKey("01"), "");
+  assert.strictEqual(hero.bookIdKey("1e2"), "");
+  assert.strictEqual(hero.bookIdKey("12.5"), "");
+  assert.strictEqual(hero.bookIdKey(1.5), "");
+  const linked = hero.buildCampaignItem({
+    enabled: true,
+    book_id: "9007199254740993",
+    title: "چوڭ ID",
+    image_url: "/assets/store/shop-interior-main.webp"
+  }, {
+    "9007199254740993": {
+      id: "9007199254740993",
+      title: "چوڭ ID",
+      image_url: "/assets/store/shop-interior-main.webp",
+      stock: 2,
+      is_active: true
+    }
+  });
+  assert.ok(linked);
+  assert.strictEqual(linked.defaultPrimaryHref, "/book/9007199254740993");
+});
+
+test("exact hardcoded gallery is sources plus original fallback alt", () => {
+  const exact = ["main", "library", "exterior"].map((key) => ({
+    src: hero.REPO_SLIDES[key].src,
+    alt: hero.REPO_SLIDES[key].alt
+  }));
+  assert.strictEqual(hero.isExactHardcodedStoreGallery(exact), true);
+  assert.strictEqual(hero.matchesHardcodedStoreSources(exact), true);
+  const customAlt = exact.map((row, i) => i === 0 ? { ...row, alt: "سىناق ئالت" } : row);
+  assert.strictEqual(hero.matchesHardcodedStoreSources(customAlt), true);
+  assert.strictEqual(hero.isExactHardcodedStoreGallery(customAlt), false);
+});
+
 if (failed) {
   console.error("\n" + failed + " home-hero-overlay test(s) failed");
   process.exit(1);

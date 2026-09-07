@@ -256,9 +256,13 @@
 
   function bookIdKey(id) {
     if (id == null || id === "") return "";
-    var n = Number(id);
-    if (Number.isFinite(n) && n > 0 && Math.floor(n) === n) return String(n);
-    return "";
+    if (typeof id === "number") {
+      if (!Number.isSafeInteger(id) || id <= 0) return "";
+      return String(id);
+    }
+    var s = String(id).trim();
+    if (!/^[1-9][0-9]*$/.test(s)) return "";
+    return s;
   }
 
   function isPublicBookEligible(book) {
@@ -472,12 +476,25 @@
       applyCampaignCopy(campaignItems[0]);
       return;
     }
-    if (!img || !img.parentNode) return;
-    img.parentNode.removeChild(img);
     var els = heroEls();
-    var remaining = els && els.frame ? els.frame.querySelectorAll("[data-shop-hero-slide]").length : 0;
-    if (!remaining) restoreHardcodedHero();
-    else refreshSlideshow();
+    if (!els || !els.frame || !img) return;
+    var slides = els.frame.querySelectorAll("[data-shop-hero-slide]");
+    var index = Array.prototype.indexOf.call(slides, img);
+    if (img.parentNode) img.parentNode.removeChild(img);
+    if (els.dots && index >= 0) {
+      var dots = els.dots.querySelectorAll("[data-shop-hero-dot]");
+      if (dots[index] && dots[index].parentNode) dots[index].parentNode.removeChild(dots[index]);
+    }
+    var remaining = els.frame.querySelectorAll("[data-shop-hero-slide]").length;
+    if (!remaining) {
+      restoreHardcodedHero();
+      return;
+    }
+    if (els.dots) {
+      if (remaining < 2) els.dots.setAttribute("hidden", "");
+      else els.dots.removeAttribute("hidden");
+    }
+    refreshSlideshow();
   }
 
   var lastSettings = null;
@@ -498,11 +515,20 @@
     if (els && els.media && snapshot) els.media.innerHTML = snapshot.mediaHtml;
   }
 
-  function matchesHardcodedStoreSlides(usable) {
+  function matchesHardcodedStoreSources(usable) {
     var order = ["main", "library", "exterior"];
     if (!usable || usable.length !== 3) return false;
     return order.every(function (key, i) {
       return usable[i] && usable[i].src === REPO_SLIDES[key].src;
+    });
+  }
+
+  function isExactHardcodedStoreGallery(usable) {
+    var order = ["main", "library", "exterior"];
+    if (!usable || usable.length !== 3) return false;
+    return order.every(function (key, i) {
+      var mapped = REPO_SLIDES[key];
+      return usable[i] && usable[i].src === mapped.src && usable[i].alt === mapped.alt;
     });
   }
 
@@ -524,8 +550,14 @@
       markReady();
       return;
     }
-    if (matchesHardcodedStoreSlides(usable)) {
+    if (isExactHardcodedStoreGallery(usable)) {
+      restoreHardcodedMedia();
       refreshSlideshow();
+      markReady();
+      return;
+    }
+    if (matchesHardcodedStoreSources(usable)) {
+      renderSlides(usable, false);
       markReady();
       return;
     }
@@ -740,6 +772,9 @@
     inSchedule: inSchedule,
     resolveStoreSlide: resolveStoreSlide,
     buildCampaignItem: buildCampaignItem,
+    bookIdKey: bookIdKey,
+    isExactHardcodedStoreGallery: isExactHardcodedStoreGallery,
+    matchesHardcodedStoreSources: matchesHardcodedStoreSources,
     restoreHardcodedHero: restoreHardcodedHero,
     captureHardcodedHero: captureHardcodedHero,
     loadHero: loadHero,
