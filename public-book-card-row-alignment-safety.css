@@ -1,0 +1,94 @@
+/* Public book-card same-row cart alignment.
+ * Host-scoped families only. Extra space after text/price, before cart.
+ * Forbidden: height:100%, global margin-top:auto, cover/image/aspect-ratio/object-fit.
+ */
+
+/* A — compact premium leftovers (not #premiumDiscoveryResults) */
+#premiumWizardResults .premium-book-grid,
+[data-people-also-viewed] .premium-book-grid,
+#searchResults .premium-empty-books {
+  align-items: stretch;
+}
+
+#premiumWizardResults .premium-book-card,
+[data-people-also-viewed] .premium-book-card,
+#searchResults .premium-empty-books .premium-book-card {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  height: auto;
+}
+
+#premiumWizardResults .premium-card-link,
+[data-people-also-viewed] .premium-card-link,
+#searchResults .premium-empty-books .premium-card-link {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* B — My Books newest/recommended mini cards; dormant homepage selector host */
+#myBooksApp .mybooks-grid:not([data-recently-viewed]),
+#homeShopSections .shop-grid {
+  align-items: stretch;
+}
+
+#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card,
+#homeShopSections .shop-grid .shop-mini-card {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  height: auto;
+}
+
+#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card > a,
+#homeShopSections .shop-grid .shop-mini-card > a {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* C — homepage carousel visual rows */
+#newBooksCarousel .home-carousel-track.is-single-row,
+#newBooksCarousel .home-carousel-row {
+  align-items: stretch;
+}
+
+#newBooksCarousel .home-carousel-card {
+  align-self: stretch;
+  height: auto;
+}
+
+#newBooksCarousel .home-carousel-info {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* D — featured marquee track only */
+#homeFeaturedBooks .home-featured-grid.is-marquee .home-featured-track {
+  align-items: stretch;
+}
+
+#homeFeaturedBooks .home-featured-grid.is-marquee .home-featured-track > .home-feature-card {
+  align-self: stretch;
+  height: auto;
+}
+
+/* E — horizontal favorite cards */
+#favoritesList .favorites-grid,
+#myBooksApp .favorites-grid {
+  align-items: stretch;
+}
+
+#favoritesList .favorites-grid .favorite-card,
+#myBooksApp .favorites-grid .favorite-card {
+  align-self: stretch;
+  height: auto;
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+#favoritesList .favorites-grid .favorite-card-info,
+#myBooksApp .favorites-grid .favorite-card-info {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
