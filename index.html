@@ -36,7 +36,7 @@
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 <link rel="stylesheet" href="mobile.css?v=24">
 <link rel="stylesheet" href="recently-viewed-card-safety.css?v=2" data-kutadgu-recently-viewed-card-safety="1">
-<link rel="stylesheet" href="stage3-shop-identity.css?v=4" data-kutadgu-stage3-identity="1">
+<link rel="stylesheet" href="stage3-shop-identity.css?v=5" data-kutadgu-stage3-identity="1">
 <link rel="stylesheet" href="stage4b-public-cards.css?v=1" data-kutadgu-stage4b-public-cards="1">
 <script src="recovery-bounce.js?v=1"></script>
 <script defer src="theme.js?v=5"></script>
@@ -45,7 +45,8 @@
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="analytics.js?v=2"></script>
 <script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=1"></script><script defer src="shop.js?v=118"></script>
 <script defer src="mobile.js?v=7"></script>
-<script defer src="home-hero-slideshow.js?v=1"></script>
+<script defer src="home-hero-slideshow.js?v=2"></script>
+<script defer src="home-hero-content.js?v=1"></script>
 </head>
 
 
@@ -105,24 +106,31 @@
     <div class="home-hero-inner">
 
         <div class="hero-content home-hero-copy">
-            <div class="home-hero-eyebrow">قۇتادغۇبىلىك كىتابخانىسى</div>
-            <div class="home-hero-trust">2013-يىلدىن بۇيان</div>
+            <div class="home-hero-eyebrow" data-home-hero-eyebrow>قۇتادغۇبىلىك كىتابخانىسى</div>
+            <div class="home-hero-trust" data-home-hero-trust>2013-يىلدىن بۇيان</div>
+            <div
+              class="home-hero-campaign-title"
+              data-home-hero-title
+              role="heading"
+              aria-level="1"
+              hidden
+            ></div>
 
-            <p>
+            <p data-home-hero-body>
                 قۇتادغۇبىلىك كىتابخانىسى — قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ، خەلقىمىزنىڭ بىلىم ۋە مەنىۋى ئېھتىياجىغا خىزمەت قىلىدىغان كىتابخانا.
             </p>
 
             <div class="home-hero-actions">
-                <a href="#books" class="button">
+                <a href="#books" class="button" data-home-hero-primary>
                     كىتابلارنى كۆرۈش
                 </a>
-                <a href="#about" class="home-hero-secondary">
+                <a href="#about" class="home-hero-secondary" data-home-hero-secondary>
                     بىز ھەققىدە
                 </a>
             </div>
         </div>
 
-        <div class="shop-hero-media" data-shop-hero-slideshow="1" role="region" aria-roledescription="carousel" aria-label="كىتابخانا رەسىملىرى">
+        <div class="shop-hero-media" data-shop-hero-slideshow="1" data-home-hero-media role="region" aria-roledescription="carousel" aria-label="كىتابخانا رەسىملىرى">
             <div class="shop-hero-frame">
                 <img data-shop-hero-slide data-hero-shot="main" class="is-active" src="/assets/store/shop-interior-main.webp" width="1440" height="1081" alt="قۇتادغۇبىلىك كىتابخانىسىنىڭ ئىچكى كۆرۈنۈشى" fetchpriority="high" decoding="async" aria-hidden="false">
                 <img data-shop-hero-slide data-hero-shot="library" src="/assets/store/shop-interior-library.webp" width="1440" height="1081" alt="قۇتادغۇبىلىك كىتابخانىسىنىڭ كۈتۈپخانا بۆلىكى" loading="lazy" decoding="async" aria-hidden="true">

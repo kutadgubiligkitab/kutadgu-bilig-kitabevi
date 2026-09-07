@@ -158,6 +158,17 @@ async function installReadSafeNetwork(page, opts = {}) {
           body: JSON.stringify([{ id: 1, rotation_interval_seconds: 5 }])
         });
       }
+      if (
+        url.includes("/rest/v1/store_hero_settings") ||
+        url.includes("/rest/v1/store_hero_store_slides") ||
+        url.includes("/rest/v1/store_hero_campaigns")
+      ) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "PGRST205", message: "Could not find the table" })
+        });
+      }
       return route.continue();
     }
     if (url.includes("/auth/v1/")) return route.continue();
