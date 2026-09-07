@@ -382,6 +382,15 @@
     }
   </style>
   <link rel="stylesheet" href="/mobile.css?v=24">
+  <style>
+    /* Stage 6: listing mobile.css .book-author { 10.5px !important } must not shrink detail. */
+    @media (max-width: 768px) {
+      .detail-page-body .book-detail-info .book-author {
+        font-size: 15px !important;
+        line-height: 1.8 !important;
+      }
+    }
+  </style>
   <link rel="stylesheet" href="/detail-similar-card-safety.css?v=2" data-kutadgu-similar-card-safety="1">
   <link rel="stylesheet" href="/recently-viewed-card-safety.css?v=2" data-kutadgu-recently-viewed-card-safety="1">
   <link rel="stylesheet" href="/detail-cover-mobile-safety.css?v=1" data-kutadgu-detail-cover-mobile-safety="1">
