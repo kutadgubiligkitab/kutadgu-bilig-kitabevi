@@ -1,0 +1,63 @@
+/* Stage 4B-2 — homepage discovery type and action chrome only.
+   Safety and compact-card files own cover frames, clamp layout, and card geometry.
+   This overlay must not set cover, card, or control sizing. */
+
+#homeFeaturedBooks .home-feature-title,
+#newBooksCarousel .home-carousel-title,
+#premiumDiscoveryResults .premium-card-link strong {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md) !important;
+  font-weight: var(--font-weight-bold) !important;
+}
+
+#homeFeaturedBooks .home-feature-author,
+#newBooksCarousel .home-carousel-author,
+#premiumDiscoveryResults .premium-card-link small {
+  color: var(--site-text-soft);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs) !important;
+  font-weight: var(--font-weight-normal);
+}
+
+#homeFeaturedBooks .home-feature-price,
+#newBooksCarousel .home-carousel-price,
+#premiumDiscoveryResults .premium-card-price {
+  color: var(--site-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-md) !important;
+  font-weight: var(--font-weight-bold) !important;
+}
+
+#homeFeaturedBooks .home-feature-cart,
+#newBooksCarousel .home-carousel-cart,
+#premiumDiscoveryResults .premium-card-cart {
+  background-color: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+#homeFeaturedBooks .home-feature-cart:hover:not(:disabled),
+#newBooksCarousel .home-carousel-cart:hover:not(:disabled),
+#premiumDiscoveryResults .premium-card-cart:hover:not(:disabled) {
+  background-color: var(--button-primary-hover) !important;
+}
+
+#homeFeaturedBooks .home-feature-heart:not(.is-favorite),
+#newBooksCarousel .home-carousel-fav:not(.is-favorite),
+#premiumDiscoveryResults .premium-card-favorite:not(.is-favorite) {
+  background-color: var(--site-card) !important;
+  color: var(--site-text-soft) !important;
+  border-color: var(--site-border) !important;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+#homeFeaturedBooks .home-feature-cart:focus-visible,
+#homeFeaturedBooks .home-feature-heart:focus-visible,
+#newBooksCarousel .home-carousel-cart:focus-visible,
+#newBooksCarousel .home-carousel-fav:focus-visible,
+#premiumDiscoveryResults .premium-card-cart:focus-visible,
+#premiumDiscoveryResults .premium-card-favorite:focus-visible {
+  outline: 2px solid var(--site-brown);
+  outline-offset: 2px;
+}
