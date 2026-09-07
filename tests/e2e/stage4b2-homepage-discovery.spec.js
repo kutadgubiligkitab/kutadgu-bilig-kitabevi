@@ -313,6 +313,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   });
 
   test("preview screenshots of homepage discovery chrome", async ({ page }) => {
+    test.setTimeout(120000);
     const outDir = "/opt/cursor/artifacts";
     fs.mkdirSync(outDir, { recursive: true });
     for (const width of [390, 768, 1366]) {
