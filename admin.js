@@ -4721,6 +4721,8 @@ function init(){
     $("#importCsvBtn")&&($("#importCsvBtn").onclick=openImport);
     $("#closeImportModal")&&($("#closeImportModal").onclick=closeImport);
     $("#cancelImportBtn")&&($("#cancelImportBtn").onclick=closeImport);
+    bindAnnouncementAdmin();
+    bindHeroAdminUi();
     bindMfaCard();
     if(mfaCtl&&typeof mfaCtl.refresh==="function")mfaCtl.refresh();
     return;
