@@ -57,10 +57,11 @@ test.describe("admin hero management", () => {
     await page.locator("#heroTrustLine").fill(payload);
     await page.locator("#heroBody").fill("<script>alert(2)</script>");
     await expect(page.locator("#heroTrustLine")).toHaveValue(payload);
-    const body = await page.locator("#heroBody").inputValue();
-    expect(body).toBe("<script>alert(2)</script>");
-    const html = await page.locator("#heroTrustLine").evaluate((el) => el.value);
-    expect(html).not.toMatch(/^<img /);
+    await expect(page.locator("#heroBody")).toHaveValue("<script>alert(2)</script>");
+    const injected = await page.locator("#heroAdminCard img[src='x']").count();
+    expect(injected).toBe(0);
+    const content = await page.locator("#heroTrustLine").evaluate((el) => el.innerHTML);
+    expect(content).not.toMatch(/<img/i);
   });
 
   for (const width of [390, 430, 768, 1366]) {
