@@ -22,6 +22,8 @@
 #premiumWizardResults .premium-card-link,
 [data-people-also-viewed] .premium-card-link,
 #searchResults .premium-empty-books .premium-card-link {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -62,14 +64,24 @@
   min-height: 0;
 }
 
-/* D — featured marquee track only */
+#newBooksCarousel .home-carousel-bottom {
+  margin-top: auto !important;
+}
+
+/* D — featured marquee track; also stretch the mobile display:contents grid */
+#homeFeaturedBooks .home-featured-grid,
 #homeFeaturedBooks .home-featured-grid.is-marquee .home-featured-track {
   align-items: stretch;
 }
 
+#homeFeaturedBooks .home-feature-card,
 #homeFeaturedBooks .home-featured-grid.is-marquee .home-featured-track > .home-feature-card {
   align-self: stretch;
   height: auto;
+}
+
+#homeFeaturedBooks .home-feature-bottom {
+  align-items: flex-end;
 }
 
 /* E — horizontal favorite cards */

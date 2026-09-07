@@ -99,7 +99,10 @@ test("new stylesheet omits global card/cart selectors and cover geometry", () =>
   assert.doesNotMatch(body, /aspect-ratio/);
   assert.doesNotMatch(body, /premium-card-cover|home-carousel-cover|home-feature-cover|favorite-cover|\bimg\b/);
   assert.doesNotMatch(body, /height:\s*100%/);
-  assert.doesNotMatch(body, /margin-top:\s*auto/);
+  const withoutCarouselBottom = body.replace(/#newBooksCarousel \.home-carousel-bottom\s*\{[^}]*\}/g, "");
+  assert.doesNotMatch(withoutCarouselBottom, /margin-top:\s*auto/);
+  assert.match(body, /#newBooksCarousel \.home-carousel-bottom\s*\{[^}]*margin-top:\s*auto/);
+  assert.match(body, /#homeFeaturedBooks \.home-feature-bottom/);
   assert.doesNotMatch(body, /justify-content:\s*space-between/);
   assert.doesNotMatch(body, /height:\s*\d+px/);
 });
