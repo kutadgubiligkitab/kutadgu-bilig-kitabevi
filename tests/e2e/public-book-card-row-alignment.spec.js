@@ -135,7 +135,7 @@ async function measure(page, cardSelector, cartSelector, opts = {}) {
       const img = card.querySelector("img");
       const cover = card.querySelector(".premium-card-cover, .home-feature-cover-frame, .home-carousel-cover, .mini-cover, .book-cover-frame, .book-image, .cover-stock-wrap, .favorite-cover");
       const title = titleSelector ? card.querySelector(titleSelector) : card.querySelector("strong, .home-feature-title, .home-carousel-title, .book-title, .shop-mini-title, .favorite-card-title, .advanced-search-title");
-      const afterCover = title;
+      const afterCover = card.querySelector(".premium-card-badges") || title;
       const coverBox = cover ? cover.getBoundingClientRect() : { bottom: 0 };
       const nextBox = afterCover ? afterCover.getBoundingClientRect() : { top: 0 };
       const cartBox = cart ? cart.getBoundingClientRect() : { bottom: 0 };
@@ -343,7 +343,10 @@ test.describe("public book-card same-row cart alignment", () => {
 
   test("H I J book-detail similar recent and people-also-viewed", async ({ page }) => {
     test.setTimeout(180000);
-    await seedLocalLists(page, { recentIds: ["91005", "91006", "91007", "91008"] });
+    await seedLocalLists(page, {
+      recentIds: ["91005", "91006", "91007", "91008"],
+      favIds: ["91009", "91010", "91011", "91012"]
+    });
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -360,13 +363,8 @@ test.describe("public book-card same-row cart alignment", () => {
           const extras = document.querySelector(".detail-extra-sections");
           const catalog = window.kutadguShop && window.kutadguShop.getCatalog ? window.kutadguShop.getCatalog() : [];
           const currentId = document.body.dataset.bookId || "";
-          return !!(extras && currentId && catalog.some((book) => String(book.id) === String(currentId)));
+          return extras && currentId && catalog.some((book) => String(book.id) === String(currentId)) && catalog.length >= 8;
         })).toBeTruthy();
-        const peopleCount = await page.locator("[data-people-also-viewed] .premium-book-card").count();
-        if (peopleCount < 2) {
-          await page.evaluate(() => { window.KUTADGU_PREMIUM_UX_READY = false; });
-          await page.addScriptTag({ url: "/premium-ux.js?v=12" });
-        }
         await expect.poll(async () => page.locator("[data-people-also-viewed] .premium-book-card").count()).toBeGreaterThan(1);
         const also = await measure(page, "[data-people-also-viewed] .premium-book-card", ".premium-card-cart");
         expectAlignedRows(also, { tile: true, clamp: true });
