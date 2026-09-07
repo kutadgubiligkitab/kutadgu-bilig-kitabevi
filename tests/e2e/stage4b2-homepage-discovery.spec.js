@@ -282,12 +282,30 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   }
 
   async function captureFamily(page, width, mode, outDir) {
-    await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
-    await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_${mode}.png` });
-    await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
-    await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_${mode}.png` });
-    await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
-    await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_${mode}.png` });
+    const dirs = [...new Set([outDir, "/tmp/stage4b2-screens"])];
+    for (const dir of dirs) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const shots = [
+      ["#homeFeaturedBooks", `stage4b2_featured_${width}_${mode}.png`],
+      ["#newBooksCarousel", `stage4b2_carousel_${width}_${mode}.png`],
+      ["#premiumDiscovery", `stage4b2_premium_${width}_${mode}.png`]
+    ];
+    for (const [sel, name] of shots) {
+      await page.locator(sel).scrollIntoViewIfNeeded();
+      const buf = await page.locator(sel).screenshot();
+      let wrote = false;
+      let lastErr = null;
+      for (const dir of dirs) {
+        try {
+          fs.writeFileSync(`${dir}/${name}`, buf);
+          wrote = true;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (!wrote) throw lastErr;
+    }
   }
 
   for (const width of [390, 768, 1366]) {
