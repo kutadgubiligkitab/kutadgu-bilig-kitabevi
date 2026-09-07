@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=34">
+  <link rel="stylesheet" href="admin.css?v=36">
 </head>
 <body>
 <div class="admin-shell">
@@ -183,6 +183,69 @@
           </div>
         </form>
         <div id="announcementList" class="admin-announce-list"></div>
+      </section>
+
+      <section class="admin-card" id="heroAdminCard">
+        <h2>🖼 باش بەت Hero باشقۇرۇش</h2>
+        <div id="heroAdminStatus" class="admin-status">Hero تەڭشىكى تەكشۈرۈلىۋاتىدۇ...</div>
+        <form id="heroForm" class="admin-form admin-hero-form">
+          <div class="admin-hero-slots admin-wide">
+            <p class="admin-hero-group-label">Hero رەسىملىرى</p>
+            <div class="admin-hero-slot" data-hero-slot="1">
+              <p class="admin-hero-slot-title">رەسىم 1</p>
+              <div class="admin-hero-slot-row">
+                <img id="heroSlot1Img" alt="" hidden>
+                <div class="admin-hero-slot-actions">
+                  <label class="admin-secondary admin-hero-file-label">رەسىم تاللاش<input id="heroSlot1File" type="file" accept="image/jpeg,image/png,image/webp"></label>
+                  <button class="admin-secondary" id="heroSlot1Restore" type="button">ئەسلى رەسىمگە قايتۇرۇش</button>
+                  <span id="heroSlot1Pending" class="admin-hero-pending" hidden>ئۆزگەرتىش ساقلانمىدى</span>
+                </div>
+              </div>
+            </div>
+            <div class="admin-hero-slot" data-hero-slot="2">
+              <p class="admin-hero-slot-title">رەسىم 2</p>
+              <div class="admin-hero-slot-row">
+                <img id="heroSlot2Img" alt="" hidden>
+                <div class="admin-hero-slot-actions">
+                  <label class="admin-secondary admin-hero-file-label">رەسىم تاللاش<input id="heroSlot2File" type="file" accept="image/jpeg,image/png,image/webp"></label>
+                  <button class="admin-secondary" id="heroSlot2Restore" type="button">ئەسلى رەسىمگە قايتۇرۇش</button>
+                  <span id="heroSlot2Pending" class="admin-hero-pending" hidden>ئۆزگەرتىش ساقلانمىدى</span>
+                </div>
+              </div>
+            </div>
+            <div class="admin-hero-slot" data-hero-slot="3">
+              <p class="admin-hero-slot-title">رەسىم 3</p>
+              <div class="admin-hero-slot-row">
+                <img id="heroSlot3Img" alt="" hidden>
+                <div class="admin-hero-slot-actions">
+                  <label class="admin-secondary admin-hero-file-label">رەسىم تاللاش<input id="heroSlot3File" type="file" accept="image/jpeg,image/png,image/webp"></label>
+                  <button class="admin-secondary" id="heroSlot3Restore" type="button">ئەسلى رەسىمگە قايتۇرۇش</button>
+                  <span id="heroSlot3Pending" class="admin-hero-pending" hidden>ئۆزگەرتىش ساقلانمىدى</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <label class="admin-wide">
+            <span>2013-يىلدىن بۇيان</span>
+            <input id="heroTrustLine" type="text" maxlength="80" value="2013-يىلدىن بۇيان">
+          </label>
+          <label class="admin-wide">
+            <span>باش بەت چۈشەندۈرۈشى</span>
+            <textarea id="heroBody" rows="4" maxlength="500">قۇتادغۇبىلىك كىتابخانىسى — قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ، خەلقىمىزنىڭ بىلىم ۋە مەنىۋى ئېھتىياجىغا خىزمەت قىلىدىغان كىتابخانا.</textarea>
+          </label>
+          <label>
+            <span>رەسىم ئالمىشىش ۋاقتى</span>
+            <select id="heroRotation">
+              <option value="5">5 سېكۇنت</option>
+              <option value="7" selected>7 سېكۇنت</option>
+              <option value="10">10 سېكۇنت</option>
+              <option value="15">15 سېكۇنت</option>
+            </select>
+          </label>
+          <div class="admin-wide">
+            <button class="admin-primary" id="heroSave" type="submit">Hero نى ساقلاش</button>
+          </div>
+        </form>
       </section>
       </div>
 
@@ -824,6 +887,7 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
-  <script defer src="admin.js?v=62"></script>
+<script defer src="admin-hero.js?v=5"></script>
+  <script defer src="admin.js?v=63"></script>
 </body>
 </html>

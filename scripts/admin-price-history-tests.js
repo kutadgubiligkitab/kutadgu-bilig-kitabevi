@@ -379,8 +379,8 @@ test("Admin HTML shows Price History for existing books only and confirmation co
   assert.match(adminHtml,/بۇ مەشغۇلات پەقەت ھازىرقى سېتىش باھاسىنى تارىختىكى باھاغا قايتۇرىدۇ\. ئەسلى باھا ئۆزگەرمەيدۇ/);
   assert.match(adminHtml,/بىكار قىلىش/);
   assert.match(adminHtml,/admin-price-history\.js\?v=3/);
-  assert.match(adminHtml,/admin\.js\?v=62/);
-  assert.match(adminHtml,/admin\.css\?v=34/);
+  assert.match(adminHtml,/admin\.js\?v=63/);
+  assert.match(adminHtml,/admin\.css\?v=36/);
   assert.match(adminJs,/btn\.hidden=isCreate\|\|!id/);
   assert.match(adminJs,/changeKindLabel/);
   assert.match(read("admin-price-history.js"),/تارىختىن قايتۇرۇلدى/);

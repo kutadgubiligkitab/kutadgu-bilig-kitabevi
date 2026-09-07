@@ -177,6 +177,29 @@ button{cursor:pointer}
   #mfaSetupBtn,#mfaCleanupBtn,#mfaRemoveBtn,#mfaVerifyBtn,#mfaEnrollCancelBtn,#mfaRemoveConfirmBtn,#mfaRemoveCancelBtn,#mfaGateSubmit,#mfaGateLogout,#idleLockSubmit,#idleLockLogout{min-height:44px}
 }
 #announcementCard.is-missing{border-color:#d8bd7d}
+#heroAdminCard,#heroAdminCard *{min-width:0}
+#heroAdminCard{overflow-x:hidden}
+.admin-hero-form{margin:8px 0 0}
+.admin-hero-group-label,.admin-hero-slot-title{margin:0 0 8px;font-weight:800}
+.admin-hero-slots{display:grid;gap:12px}
+.admin-hero-slot{padding:10px;border:1px solid #e8dccb;border-radius:11px;background:#fff;min-width:0}
+.admin-hero-slot-row{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:start}
+.admin-hero-slot-row img{width:72px;height:54px;object-fit:cover;background:#eee9e1;border-radius:8px;border:1px solid #eadfce}
+.admin-hero-slot-row img[hidden]{display:none!important}
+.admin-hero-slot-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.admin-hero-file-label{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 12px;cursor:pointer;max-width:100%;overflow:hidden}
+.admin-hero-file-label input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.admin-hero-pending{font-size:12px;color:#a27647;overflow-wrap:anywhere}
+@media(max-width:520px){
+  .admin-hero-slot-row{grid-template-columns:minmax(0,1fr)}
+  .admin-hero-slot-row img{width:100%;max-width:160px;height:90px}
+}
+@media(prefers-color-scheme:dark){
+  #heroAdminCard{background:#2b221c;border-color:#4a3b32;color:#f3e7d8}
+  #heroAdminCard .admin-help,#heroAdminCard .admin-book-meta{color:#cbb6a3}
+  #heroAdminCard input,#heroAdminCard textarea,#heroAdminCard select{background:#3a2e26;color:#f3e7d8;border-color:#5a463a}
+  .admin-hero-slot{background:#332820;border-color:#5a463a}
+}
 .admin-announce-settings{margin:12px 0 18px}
 .admin-announce-form{margin-bottom:16px}
 .admin-announce-list{display:grid;gap:8px}

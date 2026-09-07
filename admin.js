@@ -928,6 +928,24 @@ function bindAnnouncementAdmin(){
   $("#announceResetBtn")&&($("#announceResetBtn").onclick=resetAnnounceForm);
 }
 
+let heroAdminUi=null;
+function bindHeroAdminUi(){
+  const Hero=window.KutadguAdminHero;
+  if(!Hero||typeof Hero.bindHeroAdmin!=="function")return;
+  heroAdminUi=Hero.bindHeroAdmin({
+    getDb:()=>db,
+    getUser:()=>user,
+    getCfg:()=>cfg,
+    searchSafe,
+    postgrestIlike,
+    status,
+    Idle
+  });
+}
+async function loadHeroAdminCard(){
+  if(heroAdminUi&&typeof heroAdminUi.reloadAll==="function")await heroAdminUi.reloadAll();
+}
+
 function idleApi(){
   return window.KutadguAdminIdle||Idle;
 }
@@ -1147,7 +1165,7 @@ async function openAuthorizedDashboard(){
     if(mfaCtl&&typeof mfaCtl.refresh==="function")await mfaCtl.refresh();
     return;
   }
-  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadMfaCard()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadHeroAdminCard(),loadMfaCard()]);
 }
 
 function columnList(){
@@ -4703,6 +4721,8 @@ function init(){
     $("#importCsvBtn")&&($("#importCsvBtn").onclick=openImport);
     $("#closeImportModal")&&($("#closeImportModal").onclick=closeImport);
     $("#cancelImportBtn")&&($("#cancelImportBtn").onclick=closeImport);
+    bindAnnouncementAdmin();
+    bindHeroAdminUi();
     bindMfaCard();
     if(mfaCtl&&typeof mfaCtl.refresh==="function")mfaCtl.refresh();
     return;
@@ -4723,6 +4743,7 @@ function init(){
   $("#adminLogout").onclick=logout;
   $("#maintenanceToggleBtn")&&($("#maintenanceToggleBtn").onclick=toggleMaintenanceMode);
   bindAnnouncementAdmin();
+  bindHeroAdminUi();
   bindMfaCard();
   bindMfaGate();
   $("#importStaticBtn").onclick=importStatic;
@@ -4807,6 +4828,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
 };
 })();

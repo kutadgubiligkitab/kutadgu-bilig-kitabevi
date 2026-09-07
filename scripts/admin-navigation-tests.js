@@ -32,9 +32,10 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=34, admin.js v=62, admin-mfa.js v=3, and admin-idle.js v=3", () => {
-  assert.match(adminHtml, /admin\.css\?v=34/);
-  assert.match(adminHtml, /admin\.js\?v=62/);
+test("cache pins are admin.css v=36, admin.js v=63, admin-mfa.js v=3, and admin-idle.js v=3", () => {
+  assert.match(adminHtml, /admin\.css\?v=36/);
+  assert.match(adminHtml, /admin\.js\?v=63/);
+  assert.match(adminHtml, /admin-hero\.js\?v=5/);
   assert.match(adminHtml, /admin-mfa\.js\?v=3/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=32/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=52/);
@@ -53,6 +54,7 @@ test("section grouping keeps existing Admin cards", () => {
   assert.match(adminHtml, /class="admin-stats"/);
   assert.match(adminHtml, /id="booksCard"[^>]*data-admin-section-panel="books"/);
   assert.match(adminHtml, /id="announcementCard"/);
+  assert.match(adminHtml, /id="heroAdminCard"/);
   assert.match(adminHtml, /data-admin-section-panel="storefront"/);
   assert.match(adminHtml, /id="coverRepairCard"/);
   assert.match(adminHtml, /data-admin-section-panel="import-covers"/);
@@ -109,7 +111,7 @@ test("default section is books and hash parser falls back", () => {
 test("post-auth load list is unchanged", () => {
   assert.match(
     adminJs,
-    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadMfaCard\(\)\]\)/
+    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadHeroAdminCard\(\),loadMfaCard\(\)\]\)/
   );
   assert.match(adminJs, /show\("dashboardPanel"\);\s*applyDashboardSectionFromLocation\(\{replace:true\}\)/);
 });
