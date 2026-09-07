@@ -34,6 +34,9 @@
 -- v1 Hero button hrefs are internal only: #hash or /root-relative.
 -- v1 image_url values are https://... or /root-relative (not //...).
 -- origin=repo slides cannot be deleted via RLS.
+-- store_hero_store_slides identity (id, origin, repo_key, created_at) is
+-- immutable for authenticated via column-level UPDATE grants. Admins cannot
+-- convert repo rows to upload rows in order to delete them.
 -- ============================================================================
 
 BEGIN;
@@ -521,7 +524,22 @@ GRANT SELECT ON TABLE public.store_hero_settings TO anon, authenticated;
 GRANT INSERT, UPDATE ON TABLE public.store_hero_settings TO authenticated;
 
 GRANT SELECT ON TABLE public.store_hero_store_slides TO anon, authenticated;
-GRANT INSERT, UPDATE, DELETE ON TABLE public.store_hero_store_slides TO authenticated;
+
+-- Repeat-safe: drop any prior table-wide mutation grants (including a
+-- broad UPDATE that would allow changing origin/repo_key) before the
+-- column-level UPDATE grant.
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.store_hero_store_slides FROM authenticated;
+
+GRANT INSERT, DELETE ON TABLE public.store_hero_store_slides TO authenticated;
+GRANT UPDATE (
+  enabled,
+  sort_order,
+  image_url,
+  object_path,
+  alt_text,
+  updated_at,
+  updated_by
+) ON TABLE public.store_hero_store_slides TO authenticated;
 
 GRANT SELECT ON TABLE public.store_hero_campaigns TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON TABLE public.store_hero_campaigns TO authenticated;
@@ -529,7 +547,7 @@ GRANT INSERT, UPDATE, DELETE ON TABLE public.store_hero_campaigns TO authenticat
 COMMENT ON TABLE public.store_hero_settings IS
   'Singleton (id=1) homepage Hero interval and optional default-store copy. NULL copy fields preserve hard-coded index.html. Public read; Admin insert/update only.';
 COMMENT ON TABLE public.store_hero_store_slides IS
-  'Default bookstore Hero gallery. origin=repo seeds identify /assets/store WebP fallbacks and cannot be deleted (RLS). Public reads enabled rows; only Admins may write.';
+  'Default bookstore Hero gallery. origin=repo seeds identify /assets/store WebP fallbacks. Authenticated cannot UPDATE id/origin/repo_key/created_at. DELETE is RLS-limited to origin=upload. Public reads enabled rows; only Admins may write.';
 COMMENT ON TABLE public.store_hero_campaigns IS
   'Optional featured/campaign Hero items. Public reads enabled rows in the current date window; book/stock eligibility is applied by a future storefront layer. Only Admins may write. No stock quantity column.';
 
