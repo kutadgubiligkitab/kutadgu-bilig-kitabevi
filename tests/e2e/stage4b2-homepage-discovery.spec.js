@@ -214,17 +214,56 @@ const catalog = [
   bookRow({ id: 91004, title: "باشقا شېئىر", source: "sheirlar.html", category: "شېئىرلار", stock: 8 })
 ];
 
+const alignmentCatalog = [
+  ...catalog,
+  bookRow({
+    id: 91005,
+    title: "قىسقا",
+    author: "قىسقا ئاپتور",
+    is_new: false,
+    is_recommended: false,
+    stock: 6
+  }),
+  bookRow({
+    id: 91006,
+    title: `${LONG_TITLE} يەنە ئۇزۇن قۇر`,
+    author: "ئۇزۇن ئاپتور ئىسمى",
+    is_new: true,
+    is_recommended: true,
+    stock: 1,
+    stock_status: "low_stock"
+  }),
+  bookRow({
+    id: 91007,
+    title: "ئوتتۇرا ناملىق رومان",
+    author: "B",
+    is_new: false,
+    is_recommended: true,
+    stock: 4
+  }),
+  bookRow({
+    id: 91008,
+    title: "شېئىر قىسقا",
+    source: "sheirlar.html",
+    category: "شېئىرلار",
+    is_new: false,
+    is_recommended: false,
+    stock: 9
+  })
+];
+
 test.describe("Stage 4B-2 homepage discovery chrome", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await H.clearShopStorage(page);
   });
 
-  async function openHome(page, width) {
-    await mockHomepageBooks(page, catalog);
-    await page.setViewportSize({ width, height: width >= 1366 ? 900 : 844 });
+  async function openHome(page, width, books = catalog) {
+    await mockHomepageBooks(page, books);
+    await page.setViewportSize({ width, height: width >= 1366 ? 1100 : 900 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect.poll(async () => page.locator('link[data-kutadgu-stage4b2-homepage-discovery]').count()).toBeGreaterThan(0);
+    await expect.poll(async () => page.locator('link[data-kutadgu-premium-cart-row-alignment]').count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#homeFeaturedBooks .home-feature-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
@@ -355,6 +394,122 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       await captureFamily(page, width, "light", outDir);
       await enableDarkMode(page);
       await captureFamily(page, width, "dark", outDir);
+    }
+  });
+
+  function premiumRowMetrics() {
+    return () => {
+      const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card")];
+      return cards.map((card) => {
+        const cover = card.querySelector(".premium-card-cover");
+        const img = cover && cover.querySelector("img");
+        const title = card.querySelector(".premium-card-link strong");
+        const afterCover = card.querySelector(".premium-card-badges") || title;
+        const cart = card.querySelector(".premium-card-cart");
+        const coverBox = cover ? cover.getBoundingClientRect() : { bottom: 0 };
+        const nextBox = afterCover ? afterCover.getBoundingClientRect() : { top: 0 };
+        const cartBox = cart ? cart.getBoundingClientRect() : { bottom: 0, width: 0 };
+        const cardBox = card.getBoundingClientRect();
+        const titleCs = title ? getComputedStyle(title) : null;
+        const cardCs = getComputedStyle(card);
+        const cartCs = cart ? getComputedStyle(cart) : null;
+        const text = card.innerText || "";
+        return {
+          top: Math.round(cardBox.top * 100) / 100,
+          cartBottom: cartBox.bottom,
+          coverTitleGap: nextBox.top - coverBox.bottom,
+          objectFit: img ? getComputedStyle(img).objectFit : "",
+          overflowX: document.documentElement.scrollWidth - window.innerWidth,
+          heightCss: cardCs.height,
+          heightSpecified: cardCs.getPropertyValue("height"),
+          cartFullWidth: cartBox.width >= cardBox.width * 0.85,
+          cartWidthCss: cartCs ? cartCs.width : "",
+          titleClamp: titleCs ? String(titleCs.webkitLineClamp || titleCs.lineClamp || "") : "",
+          hasInStockLabel: /ئامباردا بار/.test(text),
+          exactQty: /\d+\s*دانە/.test(text) || /stock\s*[:=]\s*\d/i.test(text)
+        };
+      });
+    };
+  }
+
+  function groupByVisualRow(items) {
+    const rows = [];
+    for (const item of items) {
+      const row = rows.find((candidate) => Math.abs(candidate.top - item.top) <= 2);
+      if (row) row.items.push(item);
+      else rows.push({ top: item.top, items: [item] });
+    }
+    return rows;
+  }
+
+  function expectAlignedPremiumRows(items) {
+    expect(items.length).toBeGreaterThan(1);
+    for (const item of items) {
+      expect(item.objectFit).toBe("contain");
+      expect(item.coverTitleGap).toBeGreaterThanOrEqual(-1);
+      expect(item.coverTitleGap).toBeLessThan(28);
+      expect(item.overflowX).toBeLessThanOrEqual(2);
+      expect(item.heightCss).not.toBe("100%");
+      expect(item.heightSpecified).not.toBe("100%");
+      expect(item.cartFullWidth).toBeTruthy();
+      expect(item.titleClamp === "2" || item.titleClamp === "2.0").toBeTruthy();
+      expect(item.hasInStockLabel).toBeFalsy();
+      expect(item.exactQty).toBeFalsy();
+    }
+    const rows = groupByVisualRow(items);
+    const comparable = rows.filter((row) => row.items.length >= 2);
+    expect(comparable.length).toBeGreaterThan(0);
+    for (const row of comparable) {
+      const bottoms = row.items.map((item) => item.cartBottom);
+      expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
+    }
+  }
+
+  async function captureAlignedCarts(page, width, mode, outDir) {
+    const dirs = [...new Set([outDir, "/tmp/stage4b2-screens", "/tmp/premium-cart-row-screens"])];
+    for (const dir of dirs) fs.mkdirSync(dir, { recursive: true });
+    await page.locator("#premiumDiscoveryResults").scrollIntoViewIfNeeded();
+    const buf = await page.locator("#premiumDiscoveryResults").screenshot({ animations: "disabled", timeout: 15000 });
+    const name = `premium_cart_row_alignment_${width}_${mode}.png`;
+    let wrote = false;
+    let lastErr = null;
+    for (const dir of dirs) {
+      try {
+        fs.writeFileSync(`${dir}/${name}`, buf);
+        wrote = true;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (!wrote) throw lastErr;
+  }
+
+  for (const width of [390, 768, 1366]) {
+    test(`light premium cart row alignment at ${width}`, async ({ page }) => {
+      await openHome(page, width, alignmentCatalog);
+      const items = await page.evaluate(premiumRowMetrics());
+      expectAlignedPremiumRows(items);
+    });
+  }
+
+  for (const width of [390, 768, 1366]) {
+    test(`dark premium cart row alignment at ${width}`, async ({ page }) => {
+      await openHome(page, width, alignmentCatalog);
+      await enableDarkMode(page);
+      const items = await page.evaluate(premiumRowMetrics());
+      expectAlignedPremiumRows(items);
+    });
+  }
+
+  test("preview screenshots of aligned premium cart buttons", async ({ page }) => {
+    test.setTimeout(180000);
+    const outDir = "/opt/cursor/artifacts";
+    fs.mkdirSync(outDir, { recursive: true });
+    for (const width of [390, 768, 1366]) {
+      await openHome(page, width, alignmentCatalog);
+      await captureAlignedCarts(page, width, "light", outDir);
+      await enableDarkMode(page);
+      await captureAlignedCarts(page, width, "dark", outDir);
     }
   });
 });
