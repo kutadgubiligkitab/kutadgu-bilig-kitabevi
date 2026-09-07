@@ -147,6 +147,8 @@ test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload"
   assert.match(shopJs, /premium-ux\.js\?v=12/);
   assert.match(shopJs, /stage4b2-homepage-discovery\.css\?v=1/);
   assert.match(shopJs, /data-kutadgu-stage4b2-homepage-discovery/);
+  assert.match(shopJs, /premium-cart-row-alignment-safety\.css\?v=1/);
+  assert.match(shopJs, /data-kutadgu-premium-cart-row-alignment/);
   const ensureCovers = sliceBetween(shopJs, "function ensureCoverSystemCss(){", "function ensureStage4b2HomepageDiscoveryCss(){");
   assert.match(ensureCovers, /covers\.css\?v=2/);
   assert.match(ensureCovers, /ensureStage4b2HomepageDiscoveryCss\(\)/);
@@ -154,12 +156,14 @@ test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload"
   const premiumAt = loadPremium.indexOf("premium-ux.css?v=10");
   const coversAt = loadPremium.indexOf("ensureCoverSystemCss()");
   const overlayAt = loadPremium.indexOf("ensureStage4b2HomepageDiscoveryCss()");
-  assert.ok(premiumAt >= 0 && coversAt > premiumAt && overlayAt > coversAt, "loadPremiumUX order");
+  const alignmentAt = loadPremium.lastIndexOf("ensurePremiumCartRowAlignmentCss()");
+  assert.ok(premiumAt >= 0 && coversAt > premiumAt && overlayAt > coversAt && alignmentAt > overlayAt, "loadPremiumUX order");
   const boot = shopJs.slice(shopJs.indexOf("async function boot(){"));
   const bootPremium = boot.indexOf("await loadPremiumUX()");
   const bootCovers = boot.indexOf("ensureCoverSystemCss();", bootPremium);
   const bootOverlay = boot.indexOf("ensureStage4b2HomepageDiscoveryCss();", bootCovers);
-  assert.ok(bootPremium >= 0 && bootCovers > bootPremium && bootOverlay > bootCovers, "boot order");
+  const bootAlign = boot.indexOf("ensurePremiumCartRowAlignmentCss();", bootOverlay);
+  assert.ok(bootPremium >= 0 && bootCovers > bootPremium && bootOverlay > bootCovers && bootAlign > bootOverlay, "boot order");
 });
 
 test("this slice does not change SQL Admin auth or order surfaces", () => {

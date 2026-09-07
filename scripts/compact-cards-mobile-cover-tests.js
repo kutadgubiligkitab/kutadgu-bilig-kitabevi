@@ -13,6 +13,7 @@ const mobile = fs.readFileSync(path.join(root, "detail-cover-mobile-safety.css")
 const similar = fs.readFileSync(path.join(root, "detail-similar-card-safety.css"), "utf8");
 const recent = fs.readFileSync(path.join(root, "recently-viewed-card-safety.css"), "utf8");
 const listing = fs.readFileSync(path.join(root, "listing-card-safety.css"), "utf8");
+const cartRowSafetyPath = path.join(root, "premium-cart-row-alignment-safety.css");
 
 let failed = 0;
 function test(name, fn) {
@@ -80,6 +81,59 @@ test("compactCard and home carousel markup stay behaviorally unchanged", () => {
   assert.match(ux, /premium-card-cart/);
   assert.match(shop, /class="home-carousel-card/);
   assert.match(shop, /function cartButton\(/);
+});
+
+test("premium discovery cart-row alignment safety overlay", () => {
+  assert.ok(fs.existsSync(cartRowSafetyPath), "premium-cart-row-alignment-safety.css missing");
+  const safety = fs.readFileSync(cartRowSafetyPath, "utf8");
+  const body = safety.replace(/\/\*[\s\S]*?\*\//g, "");
+  const selectorChunks = body.split("{").slice(0, -1).map((chunk) => {
+    const parts = chunk.split("}");
+    return parts[parts.length - 1].trim();
+  }).filter(Boolean);
+  assert.ok(selectorChunks.length > 0, "expected alignment rules");
+  for (const chunk of selectorChunks) {
+    if (chunk.startsWith("@")) continue;
+    const selectors = chunk.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const sel of selectors) {
+      assert.ok(
+        sel.startsWith("#premiumDiscoveryResults ") ||
+        sel.startsWith("#premiumDiscoveryResults.") ||
+        sel.startsWith("#premiumDiscoveryResults:"),
+        "unscoped selector: " + sel
+      );
+    }
+  }
+  assert.match(body, /#premiumDiscoveryResults \.premium-book-grid\s*\{[^}]*align-items:\s*stretch/);
+  assert.match(body, /#premiumDiscoveryResults \.premium-book-card\s*\{[^}]*align-self:\s*stretch/);
+  assert.match(body, /#premiumDiscoveryResults \.premium-book-card\s*\{[^}]*height:\s*auto/);
+  assert.match(body, /#premiumDiscoveryResults \.premium-card-link\s*\{[^}]*flex:\s*1 1 auto/);
+  assert.match(body, /#premiumDiscoveryResults \.premium-card-link\s*\{[^}]*min-height:\s*0/);
+  assert.doesNotMatch(body, /height:\s*100%/);
+  assert.doesNotMatch(body, /margin-top:\s*auto/);
+  assert.doesNotMatch(body, /aspect-ratio/);
+  assert.doesNotMatch(body, /object-fit/);
+  assert.doesNotMatch(body, /premium-card-cover|\bimg\b/);
+  assert.doesNotMatch(body, /premium-card-cart[^}]*\b(?:width|height)\s*:/);
+  assert.doesNotMatch(body, /justify-content:\s*space-between/);
+  assert.match(shop, /premium-cart-row-alignment-safety\.css\?v=1/);
+  assert.match(shop, /data-kutadgu-premium-cart-row-alignment/);
+  const loadPremium = (() => {
+    const start = shop.indexOf("function loadPremiumUX(){");
+    const end = shop.indexOf("let staticShellReady=false;");
+    assert.ok(start >= 0 && end > start);
+    return shop.slice(start, end);
+  })();
+  const stage4b2At = loadPremium.indexOf("ensureStage4b2HomepageDiscoveryCss()");
+  const alignAt = loadPremium.lastIndexOf("ensurePremiumCartRowAlignmentCss()");
+  assert.ok(stage4b2At >= 0 && alignAt > stage4b2At, "alignment CSS must load after Stage 4B-2");
+  const ensureStage4b2 = (() => {
+    const start = shop.indexOf("function ensureStage4b2HomepageDiscoveryCss(){");
+    const end = shop.indexOf("function ensurePremiumCartRowAlignmentCss(){");
+    assert.ok(start >= 0 && end > start);
+    return shop.slice(start, end);
+  })();
+  assert.match(ensureStage4b2, /ensurePremiumCartRowAlignmentCss\(\)/);
 });
 
 test("this hotfix does not change SQL Admin auth or order surfaces", () => {

@@ -1,0 +1,23 @@
+/* Premium discovery cart-row alignment hotfix.
+ *
+ * Scoped ONLY to #premiumDiscoveryResults.
+ * Stretch cards in the same grid row to the row's tallest natural height,
+ * then let .premium-card-link consume leftover space so cart buttons share
+ * a common bottom line. Extra space sits after text/price, before cart.
+ *
+ * Forbidden: height:100%, margin-top:auto, space-between, cover/image rules,
+ * aspect-ratio, object-fit, fixed card/cover heights.
+ */
+#premiumDiscoveryResults .premium-book-grid {
+  align-items: stretch;
+}
+
+#premiumDiscoveryResults .premium-book-card {
+  align-self: stretch;
+  height: auto;
+}
+
+#premiumDiscoveryResults .premium-card-link {
+  flex: 1 1 auto;
+  min-height: 0;
+}
