@@ -156,7 +156,7 @@ async function measure(page, cardSelector, cartSelector, opts = {}) {
   }, { cardSelector, cartSelector, titleSelector: opts.titleSelector || "" });
 }
 
-function expectAlignedRows(items, { tile = true, clamp = false } = {}) {
+function expectAlignedRows(items, { tile = true, clamp = false, requireComparableRow = false } = {}) {
   expect(items.length).toBeGreaterThan(0);
   for (const item of items) {
     if (item.objectFit) expect(item.objectFit).toBe("contain");
@@ -177,12 +177,15 @@ function expectAlignedRows(items, { tile = true, clamp = false } = {}) {
     else rows.push({ top: item.top, items: [item] });
   }
   const comparable = rows.filter((row) => row.items.length >= 2);
-  if (comparable.length) {
-    for (const row of comparable) {
-      const bottoms = row.items.map((item) => item.cartBottom);
-      expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
-    }
+  if (requireComparableRow) expect(comparable.length).toBeGreaterThan(0);
+  for (const row of comparable) {
+    const bottoms = row.items.map((item) => item.cartBottom);
+    expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
   }
+}
+
+function requireRow(width, minWidth) {
+  return width >= minWidth;
 }
 
 async function enableDarkMode(page) {
@@ -190,6 +193,33 @@ async function enableDarkMode(page) {
     document.body.classList.add("dark-mode");
     document.documentElement.classList.add("dark-mode");
   });
+}
+
+async function applyMode(page, mode) {
+  if (mode === "dark") {
+    await enableDarkMode(page);
+    await expect.poll(async () =>
+      page.evaluate(() =>
+        document.documentElement.classList.contains("dark-mode") ||
+        document.body.classList.contains("dark-mode")
+      )
+    ).toBeTruthy();
+    return;
+  }
+  await page.evaluate(() => {
+    document.documentElement.classList.remove("dark-mode");
+    document.body.classList.remove("dark-mode");
+  });
+}
+
+async function assertDocumentMode(page, mode) {
+  if (mode !== "dark") return;
+  await expect.poll(async () =>
+    page.evaluate(() =>
+      document.documentElement.classList.contains("dark-mode") ||
+      document.body.classList.contains("dark-mode")
+    )
+  ).toBeTruthy();
 }
 
 async function seedLocalLists(page, { favIds = [], recentIds = [] } = {}) {
@@ -201,7 +231,8 @@ async function seedLocalLists(page, { favIds = [], recentIds = [] } = {}) {
   }, { favIds, recentIds });
 }
 
-async function capture(page, sel, name) {
+async function capture(page, sel, name, mode) {
+  await assertDocumentMode(page, mode);
   const dirs = ["/opt/cursor/artifacts", "/tmp/public-card-row-screens"];
   for (const dir of dirs) {
     try { fs.mkdirSync(dir, { recursive: true }); } catch (err) {}
@@ -226,7 +257,6 @@ test.describe("public book-card same-row cart alignment", () => {
   async function withModes(page, width, fn) {
     await page.setViewportSize({ width, height: width >= 1366 ? 1100 : 900 });
     await fn("light");
-    await enableDarkMode(page);
     await fn("dark");
   }
 
@@ -234,11 +264,12 @@ test.describe("public book-card same-row cart alignment", () => {
     test.setTimeout(120000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
-      await withModes(page, width, async () => {
+      await withModes(page, width, async (mode) => {
         await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator(".books-grid[data-catalog-source] .book-card:not(.is-skeleton)").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, ".books-grid[data-catalog-source] .book-card:not(.is-skeleton)", ".book-actions .add-to-cart", { titleSelector: ".book-title" });
-        expectAlignedRows(items, { tile: true, clamp: true });
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
         await expect(page.locator('.book-card[data-live-book-id="91003"] .add-to-cart')).toBeDisabled();
         await expect(page.locator(".books-grid")).not.toContainText("ئامباردا بار");
         await expect(page.locator(".books-grid")).not.toContainText("دانە");
@@ -250,11 +281,12 @@ test.describe("public book-card same-row cart alignment", () => {
     test.setTimeout(120000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
-      await withModes(page, width, async () => {
+      await withModes(page, width, async (mode) => {
         await page.goto("/adabiyat", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator(".books-grid[data-catalog-source] .book-card:not(.is-skeleton)").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, ".books-grid[data-catalog-source] .book-card:not(.is-skeleton)", ".book-actions .add-to-cart", { titleSelector: ".book-title" });
-        expectAlignedRows(items, { tile: true, clamp: true });
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
       });
     }
   });
@@ -267,10 +299,11 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.goto("/", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator('link[data-kutadgu-public-book-card-row-alignment]').count()).toBeGreaterThan(0);
         await expect.poll(async () => page.locator("#homeFeaturedBooks .home-feature-card:not(.is-skeleton)").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         await page.locator("#homeFeaturedBooks .home-feature-card img").first().evaluate((img) => img.decode?.() || Promise.resolve()).catch(() => {});
         const items = await measure(page, "#homeFeaturedBooks .home-feature-card:not(.is-skeleton)", ".home-feature-cart", { titleSelector: ".home-feature-title" });
-        expectAlignedRows(items, { tile: true, clamp: true });
-        await capture(page, "#homeFeaturedBooks", `public_align_featured_${width}_${mode}.png`);
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#homeFeaturedBooks", `public_align_featured_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -282,9 +315,10 @@ test.describe("public book-card same-row cart alignment", () => {
       await withModes(page, width, async (mode) => {
         await page.goto("/", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, "#newBooksCarousel .home-carousel-card:not(.is-skeleton)", ".home-carousel-cart", { titleSelector: ".home-carousel-title" });
-        expectAlignedRows(items, { tile: true, clamp: true });
-        await capture(page, "#newBooksCarousel", `public_align_carousel_${width}_${mode}.png`);
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 768) });
+        await capture(page, "#newBooksCarousel", `public_align_carousel_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -298,9 +332,10 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
         await page.locator("#premiumDiscovery [data-premium-group]").first().click();
         await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, "#premiumDiscoveryResults .premium-book-card", ".premium-card-cart");
-        expectAlignedRows(items, { tile: true, clamp: true });
-        await capture(page, "#premiumDiscoveryResults", `public_align_discovery_${width}_${mode}.png`);
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#premiumDiscoveryResults", `public_align_discovery_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -317,9 +352,10 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.locator('#premiumWizard [data-wizard-style="story"]').click();
         await page.locator('#premiumWizard [data-wizard-price="all"]').click();
         await expect.poll(async () => page.locator("#premiumWizardResults .premium-book-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, "#premiumWizardResults .premium-book-card", ".premium-card-cart");
-        expectAlignedRows(items, { tile: true, clamp: true });
-        await capture(page, "#premiumWizardResults", `public_align_wizard_${width}_${mode}.png`);
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#premiumWizardResults", `public_align_wizard_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -334,9 +370,10 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.locator("#searchInput").fill("zzzz-no-match-kutadgu");
         await page.locator("#searchInput").press("Enter");
         await expect.poll(async () => page.locator("#searchResults .premium-empty-books .premium-book-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, "#searchResults .premium-empty-books .premium-book-card", ".premium-card-cart");
-        expectAlignedRows(items, { tile: true, clamp: true });
-        await capture(page, "#searchResults .premium-empty-books", `public_align_search_empty_${width}_${mode}.png`);
+        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#searchResults .premium-empty-books", `public_align_search_empty_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -353,11 +390,7 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
         await H.waitForDetailTitle(page, LONG);
         await expect.poll(async () => page.locator("[data-detail-related] .shop-mini-card").count()).toBeGreaterThan(1);
-        const similar = await measure(page, "[data-detail-related] .detail-related-grid .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
-        expectAlignedRows(similar, { tile: true, clamp: true });
         await expect.poll(async () => page.locator("[data-recently-viewed] .shop-mini-card").count()).toBeGreaterThan(1);
-        const recent = await measure(page, "[data-recently-viewed] .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
-        expectAlignedRows(recent, { tile: true, clamp: true });
         await expect.poll(async () => page.evaluate(() => window.KUTADGU_PREMIUM_UX_READY === true)).toBeTruthy();
         await expect.poll(async () => page.evaluate(() => {
           const extras = document.querySelector(".detail-extra-sections");
@@ -366,9 +399,14 @@ test.describe("public book-card same-row cart alignment", () => {
           return extras && currentId && catalog.some((book) => String(book.id) === String(currentId)) && catalog.length >= 8;
         })).toBeTruthy();
         await expect.poll(async () => page.locator("[data-people-also-viewed] .premium-book-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
+        const similar = await measure(page, "[data-detail-related] .detail-related-grid .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
+        expectAlignedRows(similar, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        const recent = await measure(page, "[data-recently-viewed] .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
+        expectAlignedRows(recent, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
         const also = await measure(page, "[data-people-also-viewed] .premium-book-card", ".premium-card-cart");
-        expectAlignedRows(also, { tile: true, clamp: true });
-        await capture(page, "[data-people-also-viewed]", `public_align_people_also_${width}_${mode}.png`);
+        expectAlignedRows(also, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "[data-people-also-viewed]", `public_align_people_also_${width}_${mode}.png`, mode);
       });
     }
   });
@@ -381,18 +419,21 @@ test.describe("public book-card same-row cart alignment", () => {
       await withModes(page, width, async (mode) => {
         await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid .shop-mini-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const newest = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
-        expectAlignedRows(newest, { tile: true, clamp: false });
-        await capture(page, "#myBooksContent", `public_align_mybooks_newest_${width}_${mode}.png`);
+        expectAlignedRows(newest, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#myBooksContent", `public_align_mybooks_newest_${width}_${mode}.png`, mode);
         await page.locator('[data-mybooks-tab="recommended"]').click();
         await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid .shop-mini-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const rec = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
-        expectAlignedRows(rec, { tile: true, clamp: false });
-        await capture(page, "#myBooksContent", `public_align_mybooks_recommended_${width}_${mode}.png`);
+        expectAlignedRows(rec, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });
+        await capture(page, "#myBooksContent", `public_align_mybooks_recommended_${width}_${mode}.png`, mode);
         await page.locator('[data-mybooks-tab="recent"]').click();
         await expect.poll(async () => page.locator("#myBooksApp [data-recently-viewed] .shop-mini-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const recent = await measure(page, "#myBooksApp [data-recently-viewed] .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
-        expectAlignedRows(recent, { tile: true, clamp: true });
+        expectAlignedRows(recent, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
       });
     }
   });
@@ -405,14 +446,16 @@ test.describe("public book-card same-row cart alignment", () => {
       await withModes(page, width, async (mode) => {
         await page.goto("/favorites.html", { waitUntil: "domcontentloaded" });
         await expect.poll(async () => page.locator("#favoritesList .favorite-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const favs = await measure(page, "#favoritesList .favorite-card", ".favorite-card-actions .add-to-cart", { titleSelector: ".favorite-card-title" });
-        expectAlignedRows(favs, { tile: false, clamp: false });
-        await capture(page, "#favoritesList", `public_align_favorites_${width}_${mode}.png`);
+        expectAlignedRows(favs, { tile: false, clamp: false, requireComparableRow: requireRow(width, 768) });
+        await capture(page, "#favoritesList", `public_align_favorites_${width}_${mode}.png`, mode);
         await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
         await page.locator('[data-mybooks-tab="favorites"]').click();
         await expect.poll(async () => page.locator("#myBooksApp .favorites-grid .favorite-card").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const mine = await measure(page, "#myBooksApp .favorites-grid .favorite-card", ".favorite-card-actions .add-to-cart", { titleSelector: ".favorite-card-title" });
-        expectAlignedRows(mine, { tile: false, clamp: false });
+        expectAlignedRows(mine, { tile: false, clamp: false, requireComparableRow: requireRow(width, 768) });
       });
     }
   });
@@ -421,14 +464,15 @@ test.describe("public book-card same-row cart alignment", () => {
     test.setTimeout(120000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
-      await withModes(page, width, async () => {
+      await withModes(page, width, async (mode) => {
         await page.goto("/", { waitUntil: "domcontentloaded" });
         await page.waitForSelector("#searchInput", { timeout: 20000 });
         await page.locator("#searchInput").fill("رومان");
         await page.locator("#searchInput").press("Enter");
         await expect.poll(async () => page.locator("#searchResults .advanced-search-result").count()).toBeGreaterThan(1);
+        await applyMode(page, mode);
         const items = await measure(page, "#searchResults .advanced-search-result", ".advanced-search-actions .add-to-cart", { titleSelector: ".advanced-search-title" });
-        expectAlignedRows(items, { tile: false, clamp: false });
+        expectAlignedRows(items, { tile: false, clamp: false, requireComparableRow: requireRow(width, 1366) });
       });
     }
   });
