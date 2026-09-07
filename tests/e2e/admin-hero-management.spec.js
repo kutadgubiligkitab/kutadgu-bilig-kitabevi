@@ -26,6 +26,21 @@ test.describe("admin hero management", () => {
     await expect(page.locator("#heroRotation")).toHaveValue("7");
   });
 
+  test("empty preview has no broken image src", async ({ page }) => {
+    await openStorefrontAdmin(page);
+    await expect(page.locator("#heroPreviewImg")).toBeHidden();
+    const previewSrc = await page.locator("#heroPreviewImg").evaluate((el) => el.getAttribute("src"));
+    expect(previewSrc).toBeNull();
+    await expect(page.locator("#heroCampaignImagePreview")).toBeHidden();
+    const campaignSrc = await page.locator("#heroCampaignImagePreview").evaluate((el) => el.getAttribute("src"));
+    expect(campaignSrc).toBeNull();
+    const broken = await page.evaluate(() => {
+      const imgs = [...document.querySelectorAll("#heroAdminCard img")];
+      return imgs.filter((img) => img.getAttribute("src") === "" || (img.hasAttribute("src") && !img.getAttribute("src"))).map((img) => img.id || img.className);
+    });
+    expect(broken).toEqual([]);
+  });
+
   test("XSS-looking title stays plain text in preview", async ({ page }) => {
     await openStorefrontAdmin(page);
     const payload = "<img src=x onerror=alert(1)>";

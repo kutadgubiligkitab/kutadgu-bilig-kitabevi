@@ -185,6 +185,11 @@ button{cursor:pointer}
 .admin-hero-preview-label{margin:0 0 8px;font-size:12px;font-weight:800;color:#a27647}
 .admin-hero-preview-stage{display:grid;grid-template-columns:minmax(0,120px) minmax(0,1fr);gap:12px;align-items:start}
 .admin-hero-preview-stage img{width:100%;max-width:120px;height:90px;object-fit:contain;background:#eee9e1;border-radius:8px}
+#heroPreviewImg[hidden],
+#heroCampaignImagePreview[hidden],
+.admin-hero-book-picked img[hidden],
+.admin-hero-campaign-row img[hidden],
+.admin-hero-book-hit img[hidden]{display:none!important}
 .admin-hero-preview-copy{min-width:0}
 .admin-hero-preview-eyebrow,.admin-hero-preview-title,.admin-hero-preview-body,#heroPreviewMeta{overflow-wrap:anywhere;word-break:break-word}
 .admin-hero-preview-title{font-weight:800;line-height:1.5}

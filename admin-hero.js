@@ -35,6 +35,7 @@
   function isInternalHref(raw) {
     var t = trimText(raw);
     if (!t) return false;
+    if (t.indexOf("\\") !== -1) return false;
     if (/^(javascript|data|vbscript|file|blob)\s*:/i.test(t)) return false;
     if (/^https?:/i.test(t)) return false;
     if (t.indexOf("//") === 0) return false;
@@ -186,7 +187,8 @@
       ends_at: "",
       pendingFile: null,
       removeCustomImage: false,
-      previewObjectUrl: ""
+      previewObjectUrl: "",
+      bookLookupWarning: ""
     };
   }
 
@@ -295,6 +297,36 @@
     return "Hero يېزىلمىدى: " + String((error && (error.message || error)) || "نامەلۇم خاتالىق");
   }
 
+  var HERO_NOT_APPLIED_MESSAGE = "يېزىش قوللىنىلمىدى. قۇر قايتۇرۇلمىدى — 2-باسقۇچلۇق دەلىللەش (AAL2)، كىرىش ياكى ئىجازەتنى تەكشۈرۈڭ.";
+
+  function heroMutationRow(res) {
+    if (!res || res.error) return null;
+    var row = res.data;
+    if (Array.isArray(row)) row = row[0];
+    if (!row || row.id == null || row.id === "") return null;
+    return row;
+  }
+
+  function heroMutationApplied(res, expectedId) {
+    var row = heroMutationRow(res);
+    if (!row) return false;
+    if (expectedId == null || expectedId === "") return false;
+    return String(row.id).trim() === String(expectedId).trim();
+  }
+
+  function applySafeImgSrc(img, raw) {
+    if (!img) return false;
+    var src = trimText(raw);
+    if (src && isAllowedPreviewSrc(src)) {
+      img.setAttribute("src", src);
+      img.hidden = false;
+      return true;
+    }
+    img.removeAttribute("src");
+    img.hidden = true;
+    return false;
+  }
+
   function createHeroAdminController(opts) {
     opts = opts || {};
     var getDb = opts.getDb || function () { return opts.db || null; };
@@ -370,16 +402,21 @@
       if (!isSafeHeroCampaignObjectPath(path)) return { ok: false, reason: "path" };
       var db = getDb();
       if (!db || !db.storage) return { ok: false, reason: "no_storage" };
-      state.writes.upload += 1;
-      var up = await db.storage.from(bucketName()).upload(path, file, { upsert: false, contentType: check.mime });
-      if (up && up.error) return { ok: false, error: up.error };
-      var pub = db.storage.from(bucketName()).getPublicUrl(path);
-      var url = pub && pub.data && pub.data.publicUrl;
-      if (!isSafeImageUrl(url)) {
+      try {
+        state.writes.upload += 1;
+        var up = await db.storage.from(bucketName()).upload(path, file, { upsert: false, contentType: check.mime });
+        if (up && up.error) return { ok: false, error: up.error };
+        var pub = db.storage.from(bucketName()).getPublicUrl(path);
+        var url = pub && pub.data && pub.data.publicUrl;
+        if (!isSafeImageUrl(url)) {
+          await safeRemoveObject(path);
+          return { ok: false, reason: "unsafe_url" };
+        }
+        return { ok: true, path: path, url: url };
+      } catch (err) {
         await safeRemoveObject(path);
-        return { ok: false, reason: "unsafe_url" };
+        return { ok: false, reason: "upload_throw", error: err };
       }
-      return { ok: true, path: path, url: url };
     }
 
     function settingsPayloadFromRow(row) {
@@ -416,8 +453,11 @@
         updated_by: user.id
       });
       state.writes.settings += 1;
-      var res = await db.from("store_hero_settings").update(payload).eq("id", HERO_SETTINGS_ID);
+      var res = await db.from("store_hero_settings").update(payload).eq("id", HERO_SETTINGS_ID).select("id").maybeSingle();
       if (res && res.error) return { ok: false, error: res.error, message: formatHeroError(res.error) };
+      if (!heroMutationApplied(res, HERO_SETTINGS_ID)) {
+        return { ok: false, reason: "not_applied", message: HERO_NOT_APPLIED_MESSAGE };
+      }
       var reload = await loadSettings();
       if (!reload.ok) return { ok: false, error: reload.error, saved: true };
       return { ok: true, row: reload.row, form: reload.form };
@@ -451,6 +491,29 @@
       state.lastBookSearch.count = rows.length;
       state.lastBookSearch.ids = rows.map(function (row) { return bookIdKey(row && row.id); });
       return { ok: true, rows: rows };
+    }
+
+    async function loadLinkedBook(rawId) {
+      var id = bookIdKey(rawId);
+      if (!id) return { ok: false, reason: "invalid_id" };
+      var db = getDb();
+      if (!db) return { ok: false, reason: "no_db" };
+      var res = await db.from("books").select("id,title,author,image_url,is_active,stock").eq("id", id).maybeSingle();
+      if (res && res.error) return { ok: false, error: res.error };
+      var row = res && res.data;
+      var loadedId = bookIdKey(row && row.id);
+      if (!row || loadedId !== id) return { ok: false, reason: "missing" };
+      return {
+        ok: true,
+        book: {
+          id: loadedId,
+          title: row.title == null ? "" : String(row.title),
+          author: row.author == null ? "" : String(row.author),
+          image_url: row.image_url == null ? "" : String(row.image_url),
+          is_active: row.is_active,
+          stock: row.stock
+        }
+      };
     }
 
     function scheduleBookSearch(term, cb) {
@@ -513,8 +576,25 @@
       d.ends_at = toDatetimeLocal(row.ends_at);
       d.pendingFile = null;
       d.removeCustomImage = false;
+      d.bookLookupWarning = "";
       state.draft = d;
       return d;
+    }
+
+    async function beginEditCampaign(row) {
+      fillDraftFromRow(row, null);
+      var id = state.draft.book_id;
+      if (!id) return { ok: true, draft: state.draft };
+      var loaded = await loadLinkedBook(id);
+      if (loaded.ok && loaded.book) {
+        selectLinkedBook(loaded.book);
+        state.draft.bookLookupWarning = "";
+        return { ok: true, draft: state.draft };
+      }
+      state.draft.linkedBook = null;
+      state.draft.book_id = id;
+      state.draft.bookLookupWarning = "تاللانغان كىتاب ئوقۇلمىدى. كىتاب ID ساقلاندى.";
+      return { ok: true, draft: state.draft, bookLookupFailed: true };
     }
 
     function requestRemoveCustomImage() {
@@ -551,7 +631,7 @@
         secondary_href: isInternalHref(d.secondary_href) ? trimText(d.secondary_href) : "",
         status: status.label,
         enabled: !!d.enabled,
-        warning: linkedBookWarning(book)
+        warning: linkedBookWarning(book) || trimText(d.bookLookupWarning)
       };
     }
 
@@ -589,10 +669,14 @@
       try {
         if (editingId) {
           state.writes.campaignUpdate += 1;
-          var upd = await db.from("store_hero_campaigns").update(payload).eq("id", editingId);
+          var upd = await db.from("store_hero_campaigns").update(payload).eq("id", editingId).select("id").maybeSingle();
           if (upd && upd.error) {
             if (uploaded) await safeRemoveObject(uploaded.path);
             return { ok: false, error: upd.error, message: formatHeroError(upd.error), keptOld: true };
+          }
+          if (!heroMutationApplied(upd, editingId)) {
+            if (uploaded) await safeRemoveObject(uploaded.path);
+            return { ok: false, reason: "not_applied", message: HERO_NOT_APPLIED_MESSAGE, keptOld: true };
           }
           if (uploaded && oldPath && oldPath !== uploaded.path) await safeRemoveObject(oldPath);
           if (!uploaded && state.draft.removeCustomImage && oldPath) await safeRemoveObject(oldPath);
@@ -602,6 +686,10 @@
           if (ins && ins.error) {
             if (uploaded) await safeRemoveObject(uploaded.path);
             return { ok: false, error: ins.error, message: formatHeroError(ins.error), cleanedUpload: !!uploaded };
+          }
+          if (!heroMutationRow(ins)) {
+            if (uploaded) await safeRemoveObject(uploaded.path);
+            return { ok: false, reason: "not_applied", message: HERO_NOT_APPLIED_MESSAGE, cleanedUpload: !!uploaded };
           }
         }
       } catch (err) {
@@ -622,8 +710,12 @@
       var db = getDb();
       if (!db) return { ok: false, reason: "no_db" };
       var path = trimText(row.object_path);
-      var del = await db.from("store_hero_campaigns").delete().eq("id", row.id);
+      var expectedId = String(row.id);
+      var del = await db.from("store_hero_campaigns").delete().eq("id", expectedId).select("id").maybeSingle();
       if (del && del.error) return { ok: false, error: del.error, message: formatHeroError(del.error) };
+      if (!heroMutationApplied(del, expectedId)) {
+        return { ok: false, reason: "not_applied", message: HERO_NOT_APPLIED_MESSAGE, storageSkipped: true };
+      }
       if (isSafeHeroCampaignObjectPath(path)) {
         await safeRemoveObject(path);
       }
@@ -652,6 +744,8 @@
       clearLinkedBook: clearLinkedBook,
       resetDraft: resetDraft,
       fillDraftFromRow: fillDraftFromRow,
+      beginEditCampaign: beginEditCampaign,
+      loadLinkedBook: loadLinkedBook,
       setPendingFile: setPendingFile,
       requestRemoveCustomImage: requestRemoveCustomImage,
       buildPreviewModel: buildPreviewModel,
@@ -674,15 +768,9 @@
   }
 
   function applyPreviewToDom(model) {
+    applySafeImgSrc(el("heroPreviewImg"), model && model.image);
     var img = el("heroPreviewImg");
-    if (img) {
-      if (model.image && isAllowedPreviewSrc(model.image)) img.src = model.image;
-      else {
-        img.removeAttribute("src");
-        img.src = "";
-      }
-      img.alt = model.title || "Hero preview";
-    }
+    if (img) img.alt = (model && model.title) || "Hero preview";
     setText(el("heroPreviewEyebrow"), model.eyebrow);
     setText(el("heroPreviewTitle"), model.title || "كىتابخانا Hero");
     setText(el("heroPreviewBody"), model.body);
@@ -759,12 +847,8 @@
     if (el("heroCampaignEnd")) el("heroCampaignEnd").value = draft.ends_at || "";
     if (el("heroCampaignImage")) el("heroCampaignImage").value = "";
     renderSelectedBook(draft.linkedBook);
-    var img = el("heroCampaignImagePreview");
     var src = draft.previewObjectUrl || (!draft.removeCustomImage && isSafeImageUrl(draft.image_url) ? draft.image_url : "");
-    if (img) {
-      if (src && isAllowedPreviewSrc(src)) img.src = src;
-      else { img.removeAttribute("src"); img.src = ""; }
-    }
+    applySafeImgSrc(el("heroCampaignImagePreview"), src);
   }
 
   function renderSelectedBook(book) {
@@ -782,7 +866,7 @@
     row.className = "admin-hero-book-picked";
     var img = document.createElement("img");
     img.alt = "";
-    if (isSafeImageUrl(book.image_url)) img.src = String(book.image_url);
+    applySafeImgSrc(img, book.image_url);
     var meta = document.createElement("div");
     var title = document.createElement("div");
     title.className = "admin-book-title";
@@ -805,7 +889,7 @@
       btn.className = "admin-hero-book-hit";
       var img = document.createElement("img");
       img.alt = "";
-      if (isSafeImageUrl(book.image_url)) img.src = String(book.image_url);
+      applySafeImgSrc(img, book.image_url);
       var wrap = document.createElement("span");
       var t = document.createElement("strong");
       t.textContent = book.title || "";
@@ -841,7 +925,7 @@
       item.className = "admin-hero-campaign-row";
       var img = document.createElement("img");
       img.alt = "";
-      if (isSafeImageUrl(row.image_url)) img.src = String(row.image_url);
+      applySafeImgSrc(img, row.image_url);
       var body = document.createElement("div");
       var title = document.createElement("div");
       title.className = "admin-book-title";
@@ -858,10 +942,11 @@
       edit.type = "button";
       edit.textContent = "تەھرىرلەش";
       edit.addEventListener("click", function () {
-        ctl.fillDraftFromRow(row, row.book_id ? { id: bookIdKey(row.book_id), title: row.title || "", author: "", image_url: row.image_url || "" } : null);
-        writeCampaignForm(ctl.state.draft);
-        refreshPreview();
-        statusFn("تەكلىپ تەھرىرلەش ئۈچۈن ئېچىلدى.", "ok");
+        ctl.beginEditCampaign(row).then(function () {
+          writeCampaignForm(ctl.state.draft);
+          refreshPreview();
+          statusFn(ctl.state.draft.bookLookupWarning || "تەكلىپ تەھرىرلەش ئۈچۈن ئېچىلدى.", ctl.state.draft.bookLookupWarning ? "warn" : "ok");
+        });
       });
       var del = document.createElement("button");
       del.type = "button";
@@ -1025,6 +1110,8 @@
     if (el("heroCampaignReset")) el("heroCampaignReset").onclick = startNew;
     if (el("heroCampaignNew")) el("heroCampaignNew").onclick = startNew;
 
+    refreshPreview();
+
     return {
       controller: ctl,
       reloadAll: reloadAll,
@@ -1056,6 +1143,9 @@
     validateCampaignDraft: validateCampaignDraft,
     canRemoveCustomImage: canRemoveCustomImage,
     formatHeroError: formatHeroError,
+    HERO_NOT_APPLIED_MESSAGE: HERO_NOT_APPLIED_MESSAGE,
+    heroMutationApplied: heroMutationApplied,
+    applySafeImgSrc: applySafeImgSrc,
     createHeroAdminController: createHeroAdminController,
     bindHeroAdmin: bindHeroAdmin
   };

@@ -79,6 +79,9 @@ function createMemoryDb(opts) {
   let insertError = opts.insertError || null;
   let updateError = opts.updateError || null;
   let deleteError = opts.deleteError || null;
+  let zeroRowUpdate = !!opts.zeroRowUpdate;
+  let zeroRowDelete = !!opts.zeroRowDelete;
+  let uploadThrow = !!opts.uploadThrow;
 
   function run(q) {
     log.push({
@@ -97,10 +100,11 @@ function createMemoryDb(opts) {
         return { data: q.single ? row : (row ? [row] : []), error: null };
       }
       if (q.action === "update") {
-        if (Number(q.filters.id) !== 1) return { data: null, error: { message: "refused non-singleton" } };
+        if (Number(String(q.filters.id)) !== 1) return { data: null, error: { message: "refused non-singleton" } };
         if (updateError) return { data: null, error: updateError };
+        if (zeroRowUpdate) return { data: null, error: null };
         settings = Object.assign({}, settings, q.payload, { id: 1 });
-        return { data: [settings], error: null };
+        return { data: q.single ? { id: 1 } : [settings], error: null };
       }
       if (q.action === "insert") return { data: null, error: { message: "settings insert forbidden" } };
     }
@@ -116,17 +120,28 @@ function createMemoryDb(opts) {
       }
       if (q.action === "update") {
         if (updateError) return { data: null, error: updateError };
+        if (zeroRowUpdate) return { data: null, error: null };
+        const hit = campaigns.find((row) => String(row.id) === String(q.filters.id));
+        if (!hit) return { data: q.single ? null : [], error: null };
         campaigns = campaigns.map((row) => String(row.id) === String(q.filters.id) ? Object.assign({}, row, q.payload) : row);
-        return { data: [], error: null };
+        return { data: q.single ? { id: hit.id } : [{ id: hit.id }], error: null };
       }
       if (q.action === "delete") {
         if (deleteError) return { data: null, error: deleteError };
+        if (zeroRowDelete) return { data: null, error: null };
+        const existing = campaigns.find((row) => String(row.id) === String(q.filters.id));
+        if (!existing) return { data: q.single ? null : [], error: null };
         campaigns = campaigns.filter((row) => String(row.id) !== String(q.filters.id));
-        return { data: [], error: null };
+        return { data: q.single ? { id: existing.id } : [{ id: existing.id }], error: null };
       }
     }
     if (q.table === "books") {
       let rows = books.slice();
+      if (Object.prototype.hasOwnProperty.call(q.filters, "id")) {
+        const want = String(q.filters.id);
+        rows = rows.filter((b) => String(b.id) === want);
+        return { data: q.single ? (rows[0] || null) : rows, error: null };
+      }
       if (q.orFilter) {
         const term = String(q.orFilter);
         rows = rows.filter((b) => term.includes("title") || term.includes("author"));
@@ -169,6 +184,7 @@ function createMemoryDb(opts) {
       return {
         async upload(objectPath, file, opts) {
           log.push({ op: "upload", bucket, path: objectPath, type: file && file.type, size: file && file.size, opts });
+          if (uploadThrow) throw new Error("storage network exploded");
           if (opts && opts.uploadFail) return { error: { message: "upload fail" } };
           storageFiles.set(objectPath, file);
           return { data: { path: objectPath }, error: null };
@@ -194,7 +210,10 @@ function createMemoryDb(opts) {
     get campaigns() { return campaigns; },
     storageFiles,
     setInsertError(err) { insertError = err; },
-    setUpdateError(err) { updateError = err; }
+    setUpdateError(err) { updateError = err; },
+    setZeroRowUpdate(v) { zeroRowUpdate = !!v; },
+    setZeroRowDelete(v) { zeroRowDelete = !!v; },
+    setUploadThrow(v) { uploadThrow = !!v; }
   };
 }
 
@@ -260,6 +279,10 @@ test("unsafe hrefs are rejected for settings and campaigns", () => {
   });
   ["#books", "#about", "/book/123", "/adabiyat", "/children"].forEach((href) => {
     assert.strictEqual(Hero.isInternalHref(href), true, href);
+  });
+  ["/\\evil.example", "/foo\\bar", "\\\\evil.example"].forEach((href) => {
+    assert.strictEqual(Hero.isInternalHref(href), false, href);
+    assert.strictEqual(Hero.validateSettingsFields({ rotation_interval_seconds: 7, primary_href: href }).ok, false, href);
   });
 });
 
@@ -611,6 +634,168 @@ asyncTests.push(test("Admin Hero CSS guards overflow", () => {
   assert.match(adminCss, /#heroAdminCard\{overflow-x:hidden\}/);
   assert.match(adminCss, /#heroAdminCard,#heroAdminCard \*\{min-width:0\}/);
   assert.match(adminCss, /grid-template-columns:48px minmax\(0,1fr\) auto/);
+}));
+
+asyncTests.push(test("settings zero-row update is not success", async () => {
+  const db = createMemoryDb({ zeroRowUpdate: true });
+  const ctl = controller(db);
+  const before = db.settings.eyebrow;
+  const res = await ctl.saveSettings({
+    eyebrow: "قوللىنىلمىسۇن",
+    rotation_interval_seconds: 7,
+    primary_href: "#books"
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, "not_applied");
+  assert.match(res.message, /قوللىنىلمىدى/);
+  assert.strictEqual(db.settings.eyebrow, before);
+}));
+
+asyncTests.push(test("campaign zero-row update cleans only the new object", async () => {
+  const oldPath = "hero/campaigns/keep-zero.jpg";
+  const db = createMemoryDb({
+    zeroRowUpdate: true,
+    campaigns: [{
+      id: "c-zero",
+      enabled: true,
+      title: "كونا",
+      object_path: oldPath,
+      image_url: "https://example.supabase.co/storage/v1/object/public/book-covers/" + oldPath,
+      sort_order: 0
+    }]
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  ctl.fillDraftFromRow(db.campaigns[0]);
+  ctl.setPendingFile(fakeFile("image/png", 12));
+  const res = await ctl.saveCampaign();
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, "not_applied");
+  assert.ok(res.keptOld);
+  assert.strictEqual(ctl.state.draft.id, "c-zero");
+  assert.strictEqual(db.campaigns[0].object_path, oldPath);
+  assert.ok(db.storageFiles.has(oldPath));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(removed.includes("hero/campaigns/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png"));
+  assert.ok(!removed.includes(oldPath));
+}));
+
+asyncTests.push(test("campaign zero-row delete does not touch Storage", async () => {
+  const oldPath = "hero/campaigns/still-here.jpg";
+  const db = createMemoryDb({
+    zeroRowDelete: true,
+    campaigns: [{ id: "del-zero", enabled: true, title: "x", object_path: oldPath }]
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  const res = await ctl.deleteCampaign(db.campaigns[0], true);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, "not_applied");
+  assert.ok(res.storageSkipped);
+  assert.strictEqual(db.campaigns.length, 1);
+  assert.ok(db.storageFiles.has(oldPath));
+  assert.ok(!db.log.some((x) => x.op === "remove"));
+}));
+
+asyncTests.push(test("Edit loads real linked book and preview falls back after custom image remove", async () => {
+  const oldPath = "hero/campaigns/custom.png";
+  const db = createMemoryDb({
+    campaigns: [{
+      id: "c-real",
+      enabled: true,
+      book_id: "42",
+      title: null,
+      image_url: "/custom-campaign.webp",
+      object_path: oldPath,
+      sort_order: 0
+    }],
+    books: [{
+      id: "42",
+      title: "ھەقىقىي كىتاب",
+      author: "ئاپتور",
+      image_url: "/real-book-cover.webp",
+      is_active: true,
+      stock: 8
+    }]
+  });
+  const ctl = controller(db);
+  const edited = await ctl.beginEditCampaign(db.campaigns[0]);
+  assert.strictEqual(edited.ok, true);
+  assert.strictEqual(ctl.state.draft.book_id, "42");
+  assert.strictEqual(ctl.state.draft.linkedBook.title, "ھەقىقىي كىتاب");
+  assert.strictEqual(ctl.state.draft.linkedBook.image_url, "/real-book-cover.webp");
+  assert.notStrictEqual(ctl.state.draft.linkedBook.title, ctl.state.draft.title);
+  const allow = ctl.requestRemoveCustomImage();
+  assert.strictEqual(allow.ok, true);
+  const preview = ctl.buildPreviewModel();
+  assert.strictEqual(preview.image, "/real-book-cover.webp");
+  assert.notStrictEqual(preview.image, "/custom-campaign.webp");
+  const res = await ctl.saveCampaign();
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(db.campaigns[0].image_url, null);
+  assert.strictEqual(db.campaigns[0].object_path, null);
+}));
+
+asyncTests.push(test("inactive linked book warning uses real book state", async () => {
+  const db = createMemoryDb({
+    campaigns: [{ id: "c-warn", enabled: true, book_id: "42", title: null, image_url: null, sort_order: 0 }],
+    books: [{ id: "42", title: "يوشۇرۇن", author: "A", image_url: "/cover.webp", is_active: false, stock: 0 }]
+  });
+  const ctl = controller(db);
+  await ctl.beginEditCampaign(db.campaigns[0]);
+  const preview = ctl.buildPreviewModel();
+  assert.ok(preview.warning);
+  assert.match(preview.warning, /ئاممىۋى Hero/);
+}));
+
+asyncTests.push(test("book lookup failure preserves book_id without fake cover", async () => {
+  const db = createMemoryDb({
+    campaigns: [{ id: "c-miss", enabled: true, book_id: "99", title: null, image_url: "/custom-campaign.webp", sort_order: 0 }],
+    books: []
+  });
+  const ctl = controller(db);
+  const edited = await ctl.beginEditCampaign(db.campaigns[0]);
+  assert.ok(edited.bookLookupFailed);
+  assert.strictEqual(ctl.state.draft.book_id, "99");
+  assert.strictEqual(ctl.state.draft.linkedBook, null);
+  const preview = ctl.buildPreviewModel();
+  assert.ok(preview.warning);
+  assert.strictEqual(ctl.state.draft.linkedBook, null);
+  assert.strictEqual(ctl.state.draft.book_id, "99");
+}));
+
+asyncTests.push(test("thrown Storage upload is caught and only new path is cleaned", async () => {
+  const oldPath = "hero/campaigns/old-keep.jpg";
+  const db = createMemoryDb({
+    uploadThrow: true,
+    campaigns: [{ id: "c-throw", enabled: true, title: "كونا", object_path: oldPath, image_url: "https://example.supabase.co/x.jpg", sort_order: 0 }]
+  });
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  ctl.fillDraftFromRow(db.campaigns[0]);
+  ctl.setPendingFile(fakeFile("image/jpeg", 11));
+  const res = await ctl.uploadHeroImage(fakeFile("image/jpeg", 11));
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, "upload_throw");
+  assert.ok(db.storageFiles.has(oldPath));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(removed.includes("hero/campaigns/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg"));
+  assert.ok(!removed.includes(oldPath));
+}));
+
+asyncTests.push(test("applySafeImgSrc hides empty preview images", () => {
+  const img = {
+    hidden: false,
+    attrs: { src: "stale" },
+    setAttribute(k, v) { this.attrs[k] = v; },
+    removeAttribute(k) { delete this.attrs[k]; }
+  };
+  assert.strictEqual(Hero.applySafeImgSrc(img, ""), false);
+  assert.strictEqual(img.hidden, true);
+  assert.ok(!Object.prototype.hasOwnProperty.call(img.attrs, "src"));
+  assert.strictEqual(Hero.applySafeImgSrc(img, "/real-book-cover.webp"), true);
+  assert.strictEqual(img.hidden, false);
+  assert.strictEqual(img.attrs.src, "/real-book-cover.webp");
 }));
 
 Promise.all(asyncTests.filter(Boolean)).then(() => {
