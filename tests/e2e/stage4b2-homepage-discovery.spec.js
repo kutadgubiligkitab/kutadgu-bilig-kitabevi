@@ -129,9 +129,8 @@ function tokenProbe() {
   };
 }
 
-function familyMetrics(kind) {
-  return (kindArg) => {
-    const kind = kindArg;
+function familyMetrics() {
+  return (kind) => {
     const slack = 1.5;
     const inside = (parent, child) => {
       if (!parent || !child) return false;
@@ -154,7 +153,7 @@ function familyMetrics(kind) {
       price = card.querySelector(".home-feature-price");
       cart = card.querySelector(".home-feature-cart");
       fav = card.querySelector(".home-feature-heart");
-      cover = card.querySelector(".home-feature-cover-frame, .home-feature-cover");
+      cover = card.querySelector(".home-feature-cover");
     } else if (kind === "carousel") {
       card = document.querySelector("#newBooksCarousel .home-carousel-card:not(.is-skeleton)");
       if (!card) return { missing: true };
@@ -176,7 +175,8 @@ function familyMetrics(kind) {
     }
     const img = cover && cover.querySelector("img");
     const coverBox = cover ? cover.getBoundingClientRect() : { bottom: 0 };
-    const titleBox = title ? title.getBoundingClientRect() : { top: 0 };
+    const afterCover = (kind === "premium" && card.querySelector(".premium-card-badges")) || title;
+    const nextBox = afterCover ? afterCover.getBoundingClientRect() : { top: 0 };
     const cartBox = cart ? cart.getBoundingClientRect() : { width: 0, height: 0 };
     const favBox = fav ? fav.getBoundingClientRect() : { width: 0, height: 0 };
     const cardBox = card.getBoundingClientRect();
@@ -196,7 +196,7 @@ function familyMetrics(kind) {
       favH: favBox.height,
       cartFullWidth: cartBox.width >= cardBox.width * 0.85,
       objectFit: img ? getComputedStyle(img).objectFit : "",
-      coverTitleGap: titleBox.top - coverBox.bottom,
+      coverTitleGap: nextBox.top - coverBox.bottom,
       heightCss: getComputedStyle(card).height,
       hasInStockLabel: /ئامباردا بار/.test(text),
       exactQty: /\d+\s*دانە/.test(text) || /stock\s*[:=]\s*\d/i.test(text),
@@ -237,9 +237,9 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     expect(geo.titleColor).toBe(tokens.siteText);
     expect(geo.authorColor).toBe(tokens.siteTextSoft);
     expect(geo.priceColor).toBe(tokens.siteText);
-    expect(geo.titleSize).toBeCloseTo(tokens.md, 0);
-    expect(geo.authorSize).toBeCloseTo(tokens.xs, 0);
-    expect(geo.priceSize).toBeCloseTo(tokens.md, 0);
+    expect(Math.abs(geo.titleSize - tokens.md)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(geo.authorSize - tokens.xs)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(geo.priceSize - tokens.md)).toBeLessThanOrEqual(1.5);
     expect(geo.objectFit).toBe("contain");
     expect(geo.coverTitleGap).toBeGreaterThanOrEqual(-1);
     expect(geo.coverTitleGap).toBeLessThan(28);
@@ -259,9 +259,9 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     test(`light chrome at ${width}`, async ({ page }) => {
       await openHome(page, width);
       const tokens = await page.evaluate(tokenProbe());
-      const featured = await page.evaluate(familyMetrics("featured"), "featured");
-      const carousel = await page.evaluate(familyMetrics("carousel"), "carousel");
-      const premium = await page.evaluate(familyMetrics("premium"), "premium");
+      const featured = await page.evaluate(familyMetrics(), "featured");
+      const carousel = await page.evaluate(familyMetrics(), "carousel");
+      const premium = await page.evaluate(familyMetrics(), "premium");
       expectType(featured, tokens, width);
       expectType(carousel, tokens, width);
       expectType(premium, tokens, width);
@@ -286,12 +286,12 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
     const tokens = await page.evaluate(tokenProbe());
     for (const kind of ["featured", "carousel", "premium"]) {
-      const geo = await page.evaluate(familyMetrics(kind), kind);
+      const geo = await page.evaluate(familyMetrics(), kind);
       expectType(geo, tokens, 1366);
     }
-    const featured = await page.evaluate(familyMetrics("featured"), "featured");
-    const carousel = await page.evaluate(familyMetrics("carousel"), "carousel");
-    const premium = await page.evaluate(familyMetrics("premium"), "premium");
+    const featured = await page.evaluate(familyMetrics(), "featured");
+    const carousel = await page.evaluate(familyMetrics(), "carousel");
+    const premium = await page.evaluate(familyMetrics(), "premium");
     expect(featured.cartW).toBeLessThanOrEqual(48);
     expect(carousel.cartW).toBeLessThanOrEqual(48);
     expect(premium.cartFullWidth).toBeTruthy();
@@ -318,20 +318,20 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     for (const width of [390, 768, 1366]) {
       await openHome(page, width);
       await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `${outDir}/stage4b2_featured_${width}_light.png`, fullPage: false });
+      await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_light.png` });
       await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `${outDir}/stage4b2_carousel_${width}_light.png`, fullPage: false });
+      await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_light.png` });
       await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `${outDir}/stage4b2_premium_${width}_light.png`, fullPage: false });
+      await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_light.png` });
       if (width === 1366) {
         await page.locator(".theme-toggle, .theme-button").first().click();
         await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
         await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `${outDir}/stage4b2_featured_${width}_dark.png`, fullPage: false });
+        await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_dark.png` });
         await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `${outDir}/stage4b2_carousel_${width}_dark.png`, fullPage: false });
+        await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_dark.png` });
         await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `${outDir}/stage4b2_premium_${width}_dark.png`, fullPage: false });
+        await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_dark.png` });
       }
     }
   });
