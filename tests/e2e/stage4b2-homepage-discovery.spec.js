@@ -255,6 +255,33 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     }
   }
 
+  function expectDiscoveryChrome(featured, carousel, premium, tokens, width) {
+    expectType(featured, tokens, width);
+    expectType(carousel, tokens, width);
+    expectType(premium, tokens, width);
+    if (width >= 1366) {
+      expect(featured.cartW).toBeLessThanOrEqual(48);
+      expect(carousel.cartW).toBeLessThanOrEqual(48);
+    } else {
+      expect(featured.cartW).toBeLessThan(72);
+      expect(carousel.cartW).toBeLessThan(72);
+    }
+    expect(featured.cartFullWidth).toBeFalsy();
+    expect(carousel.cartFullWidth).toBeFalsy();
+    expect(premium.cartFullWidth).toBeTruthy();
+    expect(carousel.heightCss).not.toBe("100%");
+    expect(premium.heightCss).not.toBe("100%");
+  }
+
+  async function captureFamily(page, width, mode, outDir) {
+    await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
+    await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_${mode}.png` });
+    await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
+    await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_${mode}.png` });
+    await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
+    await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_${mode}.png` });
+  }
+
   for (const width of [390, 768, 1366]) {
     test(`light chrome at ${width}`, async ({ page }) => {
       await openHome(page, width);
@@ -262,40 +289,22 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       const featured = await page.evaluate(familyMetrics(), "featured");
       const carousel = await page.evaluate(familyMetrics(), "carousel");
       const premium = await page.evaluate(familyMetrics(), "premium");
-      expectType(featured, tokens, width);
-      expectType(carousel, tokens, width);
-      expectType(premium, tokens, width);
-      if (width >= 1366) {
-        expect(featured.cartW).toBeLessThanOrEqual(48);
-        expect(carousel.cartW).toBeLessThanOrEqual(48);
-      } else {
-        expect(featured.cartW).toBeLessThan(72);
-        expect(carousel.cartW).toBeLessThan(72);
-      }
-      expect(featured.cartFullWidth).toBeFalsy();
-      expect(carousel.cartFullWidth).toBeFalsy();
-      expect(premium.cartFullWidth).toBeTruthy();
-      expect(carousel.heightCss).not.toBe("100%");
-      expect(premium.heightCss).not.toBe("100%");
+      expectDiscoveryChrome(featured, carousel, premium, tokens, width);
     });
   }
 
-  test("dark mode keeps token colors and compact carts", async ({ page }) => {
-    await openHome(page, 1366);
-    await page.locator(".theme-toggle, .theme-button").first().click();
-    await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
-    const tokens = await page.evaluate(tokenProbe());
-    for (const kind of ["featured", "carousel", "premium"]) {
-      const geo = await page.evaluate(familyMetrics(), kind);
-      expectType(geo, tokens, 1366);
-    }
-    const featured = await page.evaluate(familyMetrics(), "featured");
-    const carousel = await page.evaluate(familyMetrics(), "carousel");
-    const premium = await page.evaluate(familyMetrics(), "premium");
-    expect(featured.cartW).toBeLessThanOrEqual(48);
-    expect(carousel.cartW).toBeLessThanOrEqual(48);
-    expect(premium.cartFullWidth).toBeTruthy();
-  });
+  for (const width of [390, 768, 1366]) {
+    test(`dark chrome at ${width}`, async ({ page }) => {
+      await openHome(page, width);
+      await page.locator(".theme-toggle, .theme-button").first().click();
+      await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+      const tokens = await page.evaluate(tokenProbe());
+      const featured = await page.evaluate(familyMetrics(), "featured");
+      const carousel = await page.evaluate(familyMetrics(), "carousel");
+      const premium = await page.evaluate(familyMetrics(), "premium");
+      expectDiscoveryChrome(featured, carousel, premium, tokens, width);
+    });
+  }
 
   test("stock states stay silent / low / unavailable on homepage cards", async ({ page }) => {
     await openHome(page, 1366);
@@ -313,27 +322,15 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   });
 
   test("preview screenshots of homepage discovery chrome", async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     const outDir = "/opt/cursor/artifacts";
     fs.mkdirSync(outDir, { recursive: true });
     for (const width of [390, 768, 1366]) {
       await openHome(page, width);
-      await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
-      await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_light.png` });
-      await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
-      await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_light.png` });
-      await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
-      await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_light.png` });
-      if (width === 1366) {
-        await page.locator(".theme-toggle, .theme-button").first().click();
-        await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
-        await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
-        await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_dark.png` });
-        await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
-        await page.locator("#newBooksCarousel").screenshot({ path: `${outDir}/stage4b2_carousel_${width}_dark.png` });
-        await page.locator("#premiumDiscovery").scrollIntoViewIfNeeded();
-        await page.locator("#premiumDiscovery").screenshot({ path: `${outDir}/stage4b2_premium_${width}_dark.png` });
-      }
+      await captureFamily(page, width, "light", outDir);
+      await page.locator(".theme-toggle, .theme-button").first().click();
+      await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+      await captureFamily(page, width, "dark", outDir);
     }
   });
 });
