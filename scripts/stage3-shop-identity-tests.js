@@ -67,7 +67,7 @@ test("About uses the real 2013 story and three service areas", () => {
 });
 
 test("About service chips keep dark brown text on cream (theme.css about p is white)", () => {
-  assert.match(html, /stage3-shop-identity\.css\?v=4/);
+  assert.match(html, /stage3-shop-identity\.css\?v=5/);
   assert.match(html, /<div class="about-service-chip">/);
   assert.doesNotMatch(html, /<p class="about-service-chip">/);
   assert.match(css, /#about\.about \.about-service-chips \.about-service-chip/);

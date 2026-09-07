@@ -36,12 +36,17 @@
   letter-spacing:0.02em;
 }
 
-.home-bookstore-hero h1{
+.home-bookstore-hero h1,
+.home-hero-campaign-title{
   margin:0 0 var(--space-3,12px);
   color:var(--site-text,var(--text));
   font-size:clamp(28px,3.4vw,42px);
   line-height:1.35;
   font-weight:var(--font-weight-bold,800);
+}
+
+.home-hero-campaign-title[hidden]{
+  display:none !important;
 }
 
 .home-bookstore-hero p{
@@ -106,6 +111,12 @@
 
 .shop-hero-frame [data-shop-hero-slide][data-hero-shot="exterior"]{
   object-position:center 58%;
+}
+
+.shop-hero-frame [data-shop-hero-slide][data-hero-kind="campaign"]{
+  object-fit:contain;
+  object-position:center;
+  background:var(--site-card,var(--card,#fffdf9));
 }
 
 .shop-hero-dots{
