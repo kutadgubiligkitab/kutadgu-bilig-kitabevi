@@ -9,7 +9,7 @@
   }
 
   if(typeof document==="undefined"){
-    const api={INTERVAL_MS,normalizeInterval,refresh:function(){},setIntervalMs:function(){},start:function(){},stop:function(){},show:function(){}};
+    const api={INTERVAL_MS,normalizeInterval,refresh:function(){},setIntervalMs:function(){},getIntervalMs:function(){return INTERVAL_MS;},start:function(){},stop:function(){},show:function(){}};
     if(typeof module!=="undefined"&&module.exports)module.exports=api;
     return;
   }
@@ -119,6 +119,10 @@
     start();
   }
 
+  function getIntervalMs(){
+    return intervalMs;
+  }
+
   query();
   bindDots();
   bindGlobals();
@@ -128,6 +132,7 @@
     INTERVAL_MS,
     refresh,
     setIntervalMs,
+    getIntervalMs,
     start,
     stop,
     show,

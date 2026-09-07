@@ -50,6 +50,7 @@ test("slideshow keeps 7000 default and exposes a safe refresh API", () => {
   assert.match(slideJs, /INTERVAL_MS=7000/);
   assert.match(slideJs, /kutadgu:hero-slide-change/);
   assert.match(slideJs, /KutadguHeroSlideshow/);
+  assert.match(slideJs, /getIntervalMs/);
   assert.match(slideJs, /prefers-reduced-motion:\s*reduce/);
   assert.strictEqual(slideshow.normalizeInterval(5000), 5000);
   assert.strictEqual(slideshow.normalizeInterval(7000), 7000);
@@ -222,6 +223,13 @@ test("bookIdKey is bigint-safe and keeps exact decimal strings", () => {
   });
   assert.ok(linked);
   assert.strictEqual(linked.defaultPrimaryHref, "/book/9007199254740993");
+});
+
+test("restoreHardcodedMedia restores snapshot aria-label", () => {
+  const fn = js.slice(js.indexOf("function restoreHardcodedMedia"), js.indexOf("function matchesHardcodedStoreSources"));
+  assert.match(fn, /snapshot\.mediaHtml/);
+  assert.match(fn, /snapshot\.ariaLabel/);
+  assert.match(fn, /setAttribute\("aria-label"/);
 });
 
 test("exact hardcoded gallery is sources plus original fallback alt", () => {

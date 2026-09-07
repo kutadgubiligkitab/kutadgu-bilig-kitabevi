@@ -142,10 +142,7 @@
       els.section.setAttribute("data-hero-mode", "store");
       els.section.classList.remove("is-hero-campaign");
     }
-    if (els.media) {
-      els.media.innerHTML = snapshot.mediaHtml;
-      if (snapshot.ariaLabel) els.media.setAttribute("aria-label", snapshot.ariaLabel);
-    }
+    restoreHardcodedMedia();
     setIntervalMs(HARDCODED_INTERVAL_MS);
     refreshSlideshow();
     markReady();
@@ -487,7 +484,8 @@
     }
     var remaining = els.frame.querySelectorAll("[data-shop-hero-slide]").length;
     if (!remaining) {
-      restoreHardcodedHero();
+      restoreHardcodedMedia();
+      refreshSlideshow();
       return;
     }
     if (els.dots) {
@@ -512,7 +510,9 @@
 
   function restoreHardcodedMedia() {
     var els = heroEls();
-    if (els && els.media && snapshot) els.media.innerHTML = snapshot.mediaHtml;
+    if (!els || !els.media || !snapshot) return;
+    els.media.innerHTML = snapshot.mediaHtml;
+    if (snapshot.ariaLabel) els.media.setAttribute("aria-label", snapshot.ariaLabel);
   }
 
   function matchesHardcodedStoreSources(usable) {
@@ -643,10 +643,11 @@
     };
   }
 
-  function applyCampaignMode(items, settings) {
+  function applyCampaignMode(items, settings, storeSlides) {
     mode = "campaign";
     campaignItems = items;
     lastSettings = settings;
+    lastStoreSlides = Array.isArray(storeSlides) ? storeSlides : [];
     setIntervalMs(intervalFromSettings(settings));
     renderSlides(items.map(toSlideView), true);
     applyCampaignCopy(items[0]);
@@ -730,7 +731,7 @@
           if (gen !== applyGen) return;
           var eligible = rows.filter(Boolean);
           if (eligible.length) {
-            applyCampaignMode(eligible, settings);
+            applyCampaignMode(eligible, settings, slides);
             return;
           }
           applyStoreMode(settings, slides);

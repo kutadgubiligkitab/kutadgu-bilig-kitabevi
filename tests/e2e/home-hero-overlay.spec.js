@@ -328,12 +328,15 @@ test.describe("homepage Hero overlay fail-open", () => {
     });
     await openHero(page);
     await expect(page.locator("[data-home-hero-title]")).toHaveText("ۋاقىتلىق تەكلىپ");
+    await expect(page.locator("[data-home-hero-media]")).toHaveAttribute("aria-label", "ئالاھىدە تەۋسىيە");
     await expect(page.locator("[data-shop-hero-slide]")).toHaveAttribute("data-hero-kind", "campaign");
     await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "campaign");
     await mockHero(page, { slides: SEEDED_STORE_SLIDES, campaigns: [] });
     await page.evaluate(() => window.KutadguHeroContent.loadHero());
     await expect(page.locator("[data-home-hero-title]")).toBeHidden();
     await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
+    await expect(page.locator("[data-home-hero-media]")).toHaveAttribute("aria-label", "كىتابخانا رەسىملىرى");
+    await expect(page.locator("[data-home-hero-media]")).not.toHaveAttribute("aria-label", "ئالاھىدە تەۋسىيە");
     await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
     await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
     await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
@@ -342,6 +345,72 @@ test.describe("homepage Hero overlay fail-open", () => {
     await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
     await expect(page.locator(".shop-hero-dots")).not.toHaveAttribute("hidden");
     await expectFallbackStore(page);
+  });
+
+  test("campaign image error falls back to the configured store gallery", async ({ page }) => {
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "repo", repo_key: "exterior", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "repo", repo_key: "main", created_at: "2020-01-01" }
+      ],
+      campaigns: [{
+        enabled: true,
+        sort_order: 0,
+        title: "ئاكتىپ تەكلىپ",
+        image_url: REPO[1],
+        created_at: "2020-01-01"
+      }]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-home-hero-title]")).toHaveText("ئاكتىپ تەكلىپ");
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveAttribute("data-hero-kind", "campaign");
+    await page.evaluate(() => {
+      document.querySelector("[data-shop-hero-slide]").dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
+    await expect(page.locator("[data-home-hero-title]")).toBeHidden();
+    await expect(page.locator('[data-hero-kind="campaign"]')).toHaveCount(0);
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+    await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(2);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[0]);
+  });
+
+  test("store image exhaustion keeps settings copy and restores hardcoded media", async ({ page }) => {
+    await mockHero(page, {
+      settings: [{
+        id: 1,
+        rotation_interval_seconds: 10,
+        eyebrow: "سىناق قاش قالدۇرۇلسۇن",
+        body: "سىناق تېكىست قالدۇرۇلسۇن"
+      }],
+      slides: [
+        { enabled: true, sort_order: 0, origin: "repo", repo_key: "main", alt_text: "بىرىنچى", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "repo", repo_key: "library", alt_text: "ئىككىنچى", created_at: "2020-01-01" }
+      ]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-home-hero-eyebrow]")).toHaveText("سىناق قاش قالدۇرۇلسۇن");
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+    await page.evaluate(() => {
+      const slides = document.querySelectorAll("[data-shop-hero-slide]");
+      slides[slides.length - 1].dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(1);
+    await page.evaluate(() => {
+      document.querySelector("[data-shop-hero-slide]").dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
+    await expect(page.locator("[data-home-hero-eyebrow]")).toHaveText("سىناق قاش قالدۇرۇلسۇن");
+    await expect(page.locator("[data-home-hero-body]")).toHaveText("سىناق تېكىست قالدۇرۇلسۇن");
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
+    await expect(page.locator("[data-home-hero-media]")).toHaveAttribute("aria-label", "كىتابخانا رەسىملىرى");
+    const interval = await page.evaluate(() => window.KutadguHeroSlideshow.getIntervalMs());
+    expect(interval).toBe(10000);
   });
 
   test("repo main alt_text override is applied without changing store geometry", async ({ page }) => {
