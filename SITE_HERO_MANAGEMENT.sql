@@ -30,7 +30,13 @@
 -- After apply:
 --   Storefront behavior is unchanged until a later public overlay exists.
 --   Empty/NULL overlays must leave the hard-coded Hero in place.
+--
+-- v1 Hero button hrefs are internal only: #hash or /root-relative.
+-- v1 image_url values are https://... or /root-relative (not //...).
+-- origin=repo slides cannot be deleted via RLS.
 -- ============================================================================
+
+BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.store_hero_settings (
   id integer PRIMARY KEY,
@@ -61,11 +67,54 @@ CREATE TABLE IF NOT EXISTS public.store_hero_settings (
     CHECK (primary_href IS NULL OR (char_length(btrim(primary_href)) > 0 AND char_length(primary_href) <= 500)),
   CONSTRAINT store_hero_settings_secondary_href_len
     CHECK (secondary_href IS NULL OR (char_length(btrim(secondary_href)) > 0 AND char_length(secondary_href) <= 500)),
-  CONSTRAINT store_hero_settings_primary_href_scheme
-    CHECK (primary_href IS NULL OR primary_href !~* '^\s*(javascript|data|vbscript|file)\s*:'),
-  CONSTRAINT store_hero_settings_secondary_href_scheme
-    CHECK (secondary_href IS NULL OR secondary_href !~* '^\s*(javascript|data|vbscript|file)\s*:')
+  CONSTRAINT store_hero_settings_primary_href_internal
+    CHECK (
+      primary_href IS NULL
+      OR btrim(primary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(primary_href) ~ '^/[^/]'
+        AND btrim(primary_href) !~ '\./'
+      )
+    ),
+  CONSTRAINT store_hero_settings_secondary_href_internal
+    CHECK (
+      secondary_href IS NULL
+      OR btrim(secondary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(secondary_href) ~ '^/[^/]'
+        AND btrim(secondary_href) !~ '\./'
+      )
+    )
 );
+
+ALTER TABLE public.store_hero_settings
+  DROP CONSTRAINT IF EXISTS store_hero_settings_primary_href_scheme;
+ALTER TABLE public.store_hero_settings
+  DROP CONSTRAINT IF EXISTS store_hero_settings_secondary_href_scheme;
+ALTER TABLE public.store_hero_settings
+  DROP CONSTRAINT IF EXISTS store_hero_settings_primary_href_internal;
+ALTER TABLE public.store_hero_settings
+  DROP CONSTRAINT IF EXISTS store_hero_settings_secondary_href_internal;
+ALTER TABLE public.store_hero_settings
+  ADD CONSTRAINT store_hero_settings_primary_href_internal
+    CHECK (
+      primary_href IS NULL
+      OR btrim(primary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(primary_href) ~ '^/[^/]'
+        AND btrim(primary_href) !~ '\./'
+      )
+    );
+ALTER TABLE public.store_hero_settings
+  ADD CONSTRAINT store_hero_settings_secondary_href_internal
+    CHECK (
+      secondary_href IS NULL
+      OR btrim(secondary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(secondary_href) ~ '^/[^/]'
+        AND btrim(secondary_href) !~ '\./'
+      )
+    );
 
 INSERT INTO public.store_hero_settings (id, rotation_interval_seconds)
 VALUES (1, 7)
@@ -90,7 +139,12 @@ CREATE TABLE IF NOT EXISTS public.store_hero_store_slides (
   CONSTRAINT store_hero_store_slides_origin_shape
     CHECK (
       (origin = 'repo' AND repo_key IN ('main', 'library', 'exterior') AND image_url IS NULL AND object_path IS NULL)
-      OR (origin = 'upload' AND repo_key IS NULL)
+      OR (
+        origin = 'upload'
+        AND repo_key IS NULL
+        AND image_url IS NOT NULL
+        AND object_path IS NOT NULL
+      )
     ),
   CONSTRAINT store_hero_store_slides_image_url_len
     CHECK (image_url IS NULL OR (char_length(btrim(image_url)) > 0 AND char_length(image_url) <= 2000)),
@@ -98,9 +152,44 @@ CREATE TABLE IF NOT EXISTS public.store_hero_store_slides (
     CHECK (object_path IS NULL OR (char_length(btrim(object_path)) > 0 AND char_length(object_path) <= 500)),
   CONSTRAINT store_hero_store_slides_alt_len
     CHECK (alt_text IS NULL OR (char_length(btrim(alt_text)) > 0 AND char_length(alt_text) <= 200)),
-  CONSTRAINT store_hero_store_slides_image_url_scheme
-    CHECK (image_url IS NULL OR image_url !~* '^\s*(javascript|data|vbscript|file)\s*:')
+  CONSTRAINT store_hero_store_slides_image_url_safe
+    CHECK (
+      image_url IS NULL
+      OR btrim(image_url) ~* '^https://[^/[:space:]].+$'
+      OR (
+        btrim(image_url) ~ '^/'
+        AND btrim(image_url) !~ '^//'
+      )
+    )
 );
+
+ALTER TABLE public.store_hero_store_slides
+  DROP CONSTRAINT IF EXISTS store_hero_store_slides_origin_shape;
+ALTER TABLE public.store_hero_store_slides
+  ADD CONSTRAINT store_hero_store_slides_origin_shape
+    CHECK (
+      (origin = 'repo' AND repo_key IN ('main', 'library', 'exterior') AND image_url IS NULL AND object_path IS NULL)
+      OR (
+        origin = 'upload'
+        AND repo_key IS NULL
+        AND image_url IS NOT NULL
+        AND object_path IS NOT NULL
+      )
+    );
+ALTER TABLE public.store_hero_store_slides
+  DROP CONSTRAINT IF EXISTS store_hero_store_slides_image_url_scheme;
+ALTER TABLE public.store_hero_store_slides
+  DROP CONSTRAINT IF EXISTS store_hero_store_slides_image_url_safe;
+ALTER TABLE public.store_hero_store_slides
+  ADD CONSTRAINT store_hero_store_slides_image_url_safe
+    CHECK (
+      image_url IS NULL
+      OR btrim(image_url) ~* '^https://[^/[:space:]].+$'
+      OR (
+        btrim(image_url) ~ '^/'
+        AND btrim(image_url) !~ '^//'
+      )
+    );
 
 CREATE UNIQUE INDEX IF NOT EXISTS store_hero_store_slides_repo_key_uidx
   ON public.store_hero_store_slides (repo_key)
@@ -166,13 +255,77 @@ CREATE TABLE IF NOT EXISTS public.store_hero_campaigns (
     CHECK (image_url IS NULL OR (char_length(btrim(image_url)) > 0 AND char_length(image_url) <= 2000)),
   CONSTRAINT store_hero_campaigns_object_path_len
     CHECK (object_path IS NULL OR (char_length(btrim(object_path)) > 0 AND char_length(object_path) <= 500)),
-  CONSTRAINT store_hero_campaigns_primary_href_scheme
-    CHECK (primary_href IS NULL OR primary_href !~* '^\s*(javascript|data|vbscript|file)\s*:'),
-  CONSTRAINT store_hero_campaigns_secondary_href_scheme
-    CHECK (secondary_href IS NULL OR secondary_href !~* '^\s*(javascript|data|vbscript|file)\s*:'),
-  CONSTRAINT store_hero_campaigns_image_url_scheme
-    CHECK (image_url IS NULL OR image_url !~* '^\s*(javascript|data|vbscript|file)\s*:')
+  CONSTRAINT store_hero_campaigns_primary_href_internal
+    CHECK (
+      primary_href IS NULL
+      OR btrim(primary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(primary_href) ~ '^/[^/]'
+        AND btrim(primary_href) !~ '\./'
+      )
+    ),
+  CONSTRAINT store_hero_campaigns_secondary_href_internal
+    CHECK (
+      secondary_href IS NULL
+      OR btrim(secondary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(secondary_href) ~ '^/[^/]'
+        AND btrim(secondary_href) !~ '\./'
+      )
+    ),
+  CONSTRAINT store_hero_campaigns_image_url_safe
+    CHECK (
+      image_url IS NULL
+      OR btrim(image_url) ~* '^https://[^/[:space:]].+$'
+      OR (
+        btrim(image_url) ~ '^/'
+        AND btrim(image_url) !~ '^//'
+      )
+    )
 );
+
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_primary_href_scheme;
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_secondary_href_scheme;
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_image_url_scheme;
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_primary_href_internal;
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_secondary_href_internal;
+ALTER TABLE public.store_hero_campaigns
+  DROP CONSTRAINT IF EXISTS store_hero_campaigns_image_url_safe;
+ALTER TABLE public.store_hero_campaigns
+  ADD CONSTRAINT store_hero_campaigns_primary_href_internal
+    CHECK (
+      primary_href IS NULL
+      OR btrim(primary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(primary_href) ~ '^/[^/]'
+        AND btrim(primary_href) !~ '\./'
+      )
+    );
+ALTER TABLE public.store_hero_campaigns
+  ADD CONSTRAINT store_hero_campaigns_secondary_href_internal
+    CHECK (
+      secondary_href IS NULL
+      OR btrim(secondary_href) ~ '^#[A-Za-z0-9_-]+$'
+      OR (
+        btrim(secondary_href) ~ '^/[^/]'
+        AND btrim(secondary_href) !~ '\./'
+      )
+    );
+ALTER TABLE public.store_hero_campaigns
+  ADD CONSTRAINT store_hero_campaigns_image_url_safe
+    CHECK (
+      image_url IS NULL
+      OR btrim(image_url) ~* '^https://[^/[:space:]].+$'
+      OR (
+        btrim(image_url) ~ '^/'
+        AND btrim(image_url) !~ '^//'
+      )
+    );
 
 CREATE INDEX IF NOT EXISTS store_hero_campaigns_sort_idx
   ON public.store_hero_campaigns (sort_order, created_at);
@@ -268,7 +421,7 @@ CREATE POLICY store_hero_store_slides_delete_admin
   ON public.store_hero_store_slides
   FOR DELETE
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (public.is_kutadgu_admin() AND origin = 'upload');
 
 DROP POLICY IF EXISTS store_hero_campaigns_insert_admin ON public.store_hero_campaigns;
 CREATE POLICY store_hero_campaigns_insert_admin
@@ -376,6 +529,8 @@ GRANT INSERT, UPDATE, DELETE ON TABLE public.store_hero_campaigns TO authenticat
 COMMENT ON TABLE public.store_hero_settings IS
   'Singleton (id=1) homepage Hero interval and optional default-store copy. NULL copy fields preserve hard-coded index.html. Public read; Admin insert/update only.';
 COMMENT ON TABLE public.store_hero_store_slides IS
-  'Default bookstore Hero gallery. origin=repo seeds identify /assets/store WebP fallbacks and must not delete those files. Public reads enabled rows; only Admins may write.';
+  'Default bookstore Hero gallery. origin=repo seeds identify /assets/store WebP fallbacks and cannot be deleted (RLS). Public reads enabled rows; only Admins may write.';
 COMMENT ON TABLE public.store_hero_campaigns IS
   'Optional featured/campaign Hero items. Public reads enabled rows in the current date window; book/stock eligibility is applied by a future storefront layer. Only Admins may write. No stock quantity column.';
+
+COMMIT;
