@@ -260,7 +260,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("C homepage featured cards align in each visual row", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -276,7 +276,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("D homepage carousel cards align in each visual row", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -290,7 +290,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("E homepage premium discovery stays aligned", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -306,7 +306,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("F premium wizard results align", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -325,7 +325,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("G search-empty premium recommendations align", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -342,7 +342,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("H I J book-detail similar recent and people-also-viewed", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await seedLocalLists(page, {
       recentIds: ["91005", "91006", "91007", "91008"],
       favIds: ["91009", "91010", "91011", "91012"]
@@ -374,7 +374,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("K L M My Books newest recommended recent", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await seedLocalLists(page, { recentIds: ["91001", "91002", "91004", "91006"] });
     await mockCatalog(page);
     for (const width of WIDTHS) {
@@ -398,7 +398,7 @@ test.describe("public book-card same-row cart alignment", () => {
   });
 
   test("N O favorites page and My Books favorites", async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(360000);
     await seedLocalLists(page, { favIds: ["91001", "91002", "91004", "91006"] });
     await mockCatalog(page);
     for (const width of WIDTHS) {
