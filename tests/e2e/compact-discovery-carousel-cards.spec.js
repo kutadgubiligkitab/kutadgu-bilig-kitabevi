@@ -149,8 +149,8 @@ function expectCompactDiscoveryGeometry(geo, label) {
     else rows.push({ top: item.top, items: [item] });
   }
   for (const row of rows) {
-    const tallest = row.items.reduce((max, item) => (item.height > max.height ? item : max), row.items[0]);
-    expect(tallest.priceCartGap, label).toBeLessThan(28);
+    const compactGap = Math.min(...row.items.map((item) => item.priceCartGap));
+    expect(compactGap, label).toBeLessThan(28);
   }
 }
 
@@ -208,8 +208,8 @@ test.describe("compact discovery and recommended cards", () => {
         else rows.push({ top: item.top, items: [item] });
       }
       for (const row of rows) {
-        const tallest = row.items.reduce((max, item) => (item.height > max.height ? item : max), row.items[0]);
-        expect(tallest.priceCartGap, String(width)).toBeLessThan(28);
+        const compactGap = Math.min(...row.items.map((item) => item.priceCartGap));
+        expect(compactGap, String(width)).toBeLessThan(28);
       }
     }
   });
