@@ -129,8 +129,8 @@ window.KUTADGU_BOOKS_SCHEMA = {
     dimensions: false,
     /* true after STAGE45_LEGACY_ID_MIGRATION.sql. Importer never writes books.id. */
     legacy_id: true,
-    /* false until GALLERY_IMAGES_MIGRATION.sql. Admin also live-detects the column. */
-    gallery_images: false
+    /* true after GALLERY_IMAGES_MIGRATION.sql (live books.gallery_images jsonb). Admin also live-detects the column. */
+    gallery_images: true
   }
 };
 

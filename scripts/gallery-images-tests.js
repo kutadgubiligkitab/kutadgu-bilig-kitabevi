@@ -63,6 +63,12 @@ test("magic-byte sniff does not trust extension",()=>{
   assert.strictEqual(G.sniffImageMime(Uint8Array.from([0x00,0x00,0x00,0,0,0,0,0,0,0,0,0])),"");
 });
 
+test("live schema capability enables gallery_images",()=>{
+  const cfg=fs.readFileSync(path.join(__dirname,"..","supabase-config.js"),"utf8");
+  assert.match(cfg,/optionalColumns:[\s\S]*gallery_images:\s*true/);
+  assert.doesNotMatch(cfg,/gallery_images:\s*false/);
+});
+
 test("sample-book-cover.png bytes are unchanged",()=>{
   const file=path.join(__dirname,"..","sample-book-cover.png");
   const buf=fs.readFileSync(file);
