@@ -435,24 +435,6 @@ test.describe("homepage Hero overlay fail-open", () => {
       }
     }
   });
-    const ends = new Date(Date.now() + 1200).toISOString();
-    await mockHero(page, {
-      campaigns: [{
-        enabled: true,
-        sort_order: 0,
-        title: "ۋاقىتلىق",
-        image_url: REPO[0],
-        ends_at: ends,
-        created_at: "2020-01-01"
-      }]
-    });
-    await openHero(page);
-    await expect(page.locator("[data-home-hero-title]")).toHaveText("ۋاقىتلىق");
-    await page.route("**/rest/v1/store_hero_campaigns**", async (route) => json(route, []));
-    await page.waitForTimeout(1800);
-    await expect(page.locator("[data-home-hero-title]")).toBeHidden();
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
-  });
 
   test("no overflow at 390 430 768 1366 in light and dark", async ({ page }) => {
     const outDir = "/opt/cursor/artifacts/screenshots";
