@@ -4129,12 +4129,24 @@ function ensureCoverSystemCss(){
     el.dataset.kutadguCovers="1";
   }
   document.head.appendChild(el);
+  ensureStage4b2HomepageDiscoveryCss();
+}
+function ensureStage4b2HomepageDiscoveryCss(){
+  let el=document.querySelector("link[data-kutadgu-stage4b2-homepage-discovery]");
+  if(!el){
+    el=document.createElement("link");
+    el.rel="stylesheet";
+    el.href="/stage4b2-homepage-discovery.css?v=1";
+    el.dataset.kutadguStage4b2HomepageDiscovery="1";
+  }
+  document.head.appendChild(el);
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=10";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
   ensureCoverSystemCss();
+  ensureStage4b2HomepageDiscoveryCss();
   return loadAssetScript("/premium-ux.js?v=12","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
@@ -4215,6 +4227,7 @@ async function boot(){
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
   try{await loadPremiumUX()}catch(error){console.warn(error)}
   ensureCoverSystemCss();
+  ensureStage4b2HomepageDiscoveryCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 window.kutadguShop={updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery};

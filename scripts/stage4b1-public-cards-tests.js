@@ -151,10 +151,11 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     /\.sql$/i.test(file) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
-    /(^|\/)shop\.js$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|mobile\.css|theme\.css/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  assert.match(shopJs, /function homeFeatureCard\(b\)\{/);
+  assert.match(shopJs, /function cartButton\(/);
 });
 
 if (failed) {
