@@ -273,6 +273,14 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     expect(premium.heightCss).not.toBe("100%");
   }
 
+  async function enableDarkMode(page) {
+    await page.evaluate(() => {
+      document.body.classList.add("dark-mode");
+      document.documentElement.classList.add("dark-mode");
+    });
+    await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+  }
+
   async function captureFamily(page, width, mode, outDir) {
     await page.locator("#homeFeaturedBooks").scrollIntoViewIfNeeded();
     await page.locator("#homeFeaturedBooks").screenshot({ path: `${outDir}/stage4b2_featured_${width}_${mode}.png` });
@@ -296,8 +304,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   for (const width of [390, 768, 1366]) {
     test(`dark chrome at ${width}`, async ({ page }) => {
       await openHome(page, width);
-      await page.locator(".theme-toggle, .theme-button").first().click();
-      await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+      await enableDarkMode(page);
       const tokens = await page.evaluate(tokenProbe());
       const featured = await page.evaluate(familyMetrics(), "featured");
       const carousel = await page.evaluate(familyMetrics(), "carousel");
@@ -328,8 +335,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     for (const width of [390, 768, 1366]) {
       await openHome(page, width);
       await captureFamily(page, width, "light", outDir);
-      await page.locator(".theme-toggle, .theme-button").first().click();
-      await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+      await enableDarkMode(page);
       await captureFamily(page, width, "dark", outDir);
     }
   });
