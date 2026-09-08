@@ -1010,6 +1010,7 @@ const STOREFRONT_CATEGORY_HUBS={
 };
 const STOREFRONT_APP_PAGES={
   "account.html":"/account.html",
+  "books.html":"/books",
   "cart.html":"/cart.html",
   "favorites.html":"/favorites.html",
   "index.html":"/",
@@ -2537,7 +2538,7 @@ async function renderHomeFeaturedBooks(){
         <h3>🕘 يېقىندا قوشۇلغانلار</h3>
         <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
       </div>
-      <a class="home-featured-all" href="#books">ھەممىسىنى كۆرۈش ←</a>
+      <a class="home-featured-all" href="/books">ھەممىسىنى كۆرۈش ←</a>
     </div>
     <div class="home-featured-grid is-skeleton-grid" aria-busy="true">${homeFeaturedSkeletonTrack(5)}${homeFeaturedSkeletonTrack(5)}</div>
   </section>`;
@@ -2789,11 +2790,17 @@ function searchEnhance(){
 
 function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loading:index<3?"eager":"lazy",fetchpriority:index<2?"high":""})}
 
+function listingCatalogSource(raw){
+  const source=String(raw||"").trim();
+  if(!source||source==="*"||source==="all"||source==="books.html")return "";
+  return source;
+}
+
 function setupCatalogFilters(){
   let grid=document.querySelector(".books-grid[data-catalog-source]");
   if(!grid||document.querySelector("#catalogFilterBar"))return;
   const isAdabiyatHub=grid.hasAttribute("data-adabiyat-hub");
-  const defaultSource=grid.dataset.catalogSource||"";
+  const defaultSource=listingCatalogSource(grid.dataset.catalogSource);
   const hubSources=isAdabiyatHub
     ?(String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(Boolean).length
       ?String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(value=>/^[a-z0-9.-]+\.html$/i.test(value))
@@ -4129,7 +4136,7 @@ function loadPublicHeader(){
     window.KutadguPublicHeader.ensure();
     return Promise.resolve();
   }
-  return loadAssetScript("/public-header.js?v=1","kutadguPublicHeaderScript").then(()=>{
+  return loadAssetScript("/public-header.js?v=2","kutadguPublicHeaderScript").then(()=>{
     if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function")window.KutadguPublicHeader.ensure();
   }).catch(error=>console.warn(error));
 }

@@ -50,6 +50,7 @@ const PUBLIC_INFO_SLUGS = [
 
 const PUBLIC_PAGE_PATHS = [
   "/",
+  "/books",
   ...CATEGORY_HUB_SLUGS.map(slug => `/${slug}`),
   ...PUBLIC_INFO_SLUGS.map(slug => `/${slug}`)
 ];

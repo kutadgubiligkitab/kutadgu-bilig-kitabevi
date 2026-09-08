@@ -49,6 +49,34 @@
     });
   }
 
+  function categoriesMenuHref() {
+    return storefrontAppHref("/#bookCategories");
+  }
+
+  function syncCategoriesMenuLink(menu) {
+    if (!menu) return;
+    const href = categoriesMenuHref();
+    const labeled = [...menu.querySelectorAll("a")].find((a) => String(a.textContent || "").replace(/\s+/g, " ").trim() === "كىتاب تۈرلىرى");
+    if (labeled) {
+      labeled.setAttribute("href", href);
+      return;
+    }
+    let injected = menu.querySelector("a[data-mobile-categories]");
+    if (!MOBILE_QUERY.matches) {
+      if (injected) injected.remove();
+      return;
+    }
+    if (injected) {
+      injected.setAttribute("href", href);
+      return;
+    }
+    injected = link("كىتاب تۈرلىرى", "/#bookCategories", "🗂️");
+    injected.setAttribute("data-mobile-categories", "1");
+    const books = menu.querySelector("a[href='/books'], a.kutadgu-header-books");
+    if (books && books.parentNode) books.after(injected);
+    else menu.appendChild(injected);
+  }
+
   function link(label, href, icon) {
     const a = document.createElement("a");
     a.href = storefrontAppHref(href);
@@ -63,8 +91,8 @@
     menu.setAttribute("aria-label", "ئاساسلىق يول باشلاش");
     [
       ["باش بەت", "/", "🏠"],
-      ["كىتابلار", "/#books", "📚"],
-      ["كىتاب تۈرلىرى", "/#books", "🗂️"],
+      ["كىتابلار", "/books", "📚"],
+      ["كىتاب تۈرلىرى", "/#bookCategories", "🗂️"],
       ["ياقتۇرغانلار", "favorites.html", "❤️"],
       ["سېۋەت", "cart.html", "🛒"],
       ["ھېسابىم / ئەزا بولۇش", "account.html", "👤"],
@@ -112,11 +140,16 @@
     const hoistMenu = () => {
       menu.classList.add("mobile-site-menu");
       if (!menu.id) menu.id = "mobileSiteMenu";
-      if (menu.parentElement === document.body) return;
+      if (menu.parentElement === document.body) {
+        syncCategoriesMenuLink(menu);
+        return;
+      }
       if (backdrop.parentElement === document.body) document.body.insertBefore(menu, backdrop);
       else document.body.appendChild(menu);
+      syncCategoriesMenuLink(menu);
     };
     const restoreMenu = () => {
+      menu.querySelectorAll("a[data-mobile-categories]").forEach((a) => a.remove());
       if (!homeParent || menu.parentElement === homeParent) return;
       if (homeNext && homeNext.parentNode === homeParent) homeParent.insertBefore(menu, homeNext);
       else homeParent.appendChild(menu);
@@ -185,6 +218,7 @@
       normalizeRootAppLinks(existing);
       normalizeRootAppLinks(menu);
       ensureMenuControls(existing, menu);
+      if (MOBILE_QUERY.matches) syncCategoriesMenuLink(menu);
       return;
     }
 
@@ -200,6 +234,7 @@
     header.append(brand, menu);
     document.body.prepend(header);
     ensureMenuControls(header, menu);
+    syncCategoriesMenuLink(menu);
   }
 
   function ensureBottomNav() {

@@ -81,6 +81,11 @@
       "permanent": true
     },
     {
+      "source": "/books.html",
+      "destination": "/books",
+      "permanent": true
+    },
+    {
       "source": "/order-info.html",
       "destination": "/order-info",
       "permanent": true
@@ -168,6 +173,10 @@
     {
       "source": "/children",
       "destination": "/children.html"
+    },
+    {
+      "source": "/books",
+      "destination": "/books.html"
     },
     {
       "source": "/order-info",

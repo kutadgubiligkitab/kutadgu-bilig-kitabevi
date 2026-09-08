@@ -32,6 +32,7 @@ test("cart favorites account and home are root-safe", () => {
   assert.strictEqual(header.rootAppHref("favorites.html"), "/favorites.html");
   assert.strictEqual(header.rootAppHref("account.html"), "/account.html");
   assert.strictEqual(header.rootAppHref("index.html"), "/");
+  assert.strictEqual(header.rootAppHref("books.html"), "/books");
   assert.strictEqual(header.rootAppHref("index.html#books"), "/#books");
   assert.strictEqual(header.rootAppHref("javascript:alert(1)", "/"), "/");
   assert.ok(!header.rootAppHref("cart.html").includes("/book/"));
@@ -55,8 +56,8 @@ test("header href rewriter never emits nested book app pages", () => {
 
 test("public pages load the shared header helper before shop/mobile", () => {
   [indexHtml, bookShell, cartHtml, favHtml, diniHtml].forEach((html) => {
-    assert.match(html, /public-header\.js\?v=1/);
-    const helper = html.indexOf("public-header.js?v=1");
+    assert.match(html, /public-header\.js\?v=\d+/);
+    const helper = html.search(/public-header\.js\?v=\d+/);
     const shopAt = html.search(/shop\.js\?v=\d+/);
     if (shopAt >= 0) assert.ok(helper >= 0 && helper < shopAt);
   });

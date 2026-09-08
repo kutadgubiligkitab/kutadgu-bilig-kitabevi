@@ -12,6 +12,7 @@
     "cart.html": "/cart.html",
     "favorites.html": "/favorites.html",
     "index.html": "/",
+    "books.html": "/books",
     "my-books.html": "/my-books.html",
     "order-info.html": "/order-info.html",
     "privacy.html": "/privacy.html",
@@ -216,17 +217,44 @@
     return link;
   }
 
+  function ensureBooksNavLink(nav) {
+    var booksHref = "/books";
+    var nodes = nav.querySelectorAll("a[href], a.kutadgu-header-books");
+    var link = nav.querySelector("a.kutadgu-header-books");
+    if (!link) {
+      for (var i = 0; i < nodes.length; i++) {
+        var href = String(nodes[i].getAttribute("href") || "").trim();
+        var text = String(nodes[i].textContent || "").replace(/\s+/g, " ").trim();
+        if (
+          href === "#books" ||
+          href === "/#books" ||
+          href === "/books" ||
+          href === "/books.html" ||
+          href === "books.html" ||
+          text === "كىتابلار"
+        ) {
+          link = nodes[i];
+          break;
+        }
+      }
+    }
+    if (!link) {
+      upsertLink(nav, booksHref, "كىتابلار", "kutadgu-header-books");
+      return;
+    }
+    link.setAttribute("href", booksHref);
+    link.classList.add("kutadgu-header-books");
+    if (!String(link.textContent || "").trim()) link.textContent = "كىتابلار";
+  }
+
   function ensurePageLinks(nav) {
     var homeHref = isHomepage() ? "#home" : "/";
-    var booksHref = isHomepage() ? "#books" : "/#books";
     var aboutHref = isHomepage() ? "#about" : "/#about";
     var contactHref = isHomepage() ? "#contact" : "/#contact";
     if (!nav.querySelector("a[href='#home'], a[href='/'], a[href='/index.html'], a[href='index.html']")) {
       upsertLink(nav, homeHref, "باش بەت", "kutadgu-header-home");
     }
-    if (!nav.querySelector("a[href='#books'], a[href='/#books']")) {
-      upsertLink(nav, booksHref, "كىتابلار", "kutadgu-header-books");
-    }
+    ensureBooksNavLink(nav);
     if (!nav.querySelector("a[href='#about'], a[href='/#about']")) {
       upsertLink(nav, aboutHref, "بىز ھەققىدە", "kutadgu-header-about");
     }

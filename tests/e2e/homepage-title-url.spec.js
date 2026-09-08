@@ -95,12 +95,13 @@ test.describe("homepage title and root URL", () => {
     await H.waitForShop(page);
     const link = page.locator("#homeFeaturedBooks .home-featured-all");
     await expect(link).toBeVisible();
-    await expect(link).toHaveAttribute("href", "#books");
+    await expect(link).toHaveAttribute("href", "/books");
     const href = await link.getAttribute("href");
     expect(href).not.toMatch(/my-books/);
     await link.click();
-    expect(new URL(page.url()).hash).toBe("#books");
-    await expect(page.locator("#books")).toBeVisible();
+    await expect.poll(async () => new URL(page.url()).pathname).toBe("/books");
+    await H.waitForShop(page);
+    await expect(page.locator(".page-header h1")).toContainText("بارلىق كىتابلار");
     expect(new URL(page.url()).pathname).not.toMatch(/my-books/);
   });
 });

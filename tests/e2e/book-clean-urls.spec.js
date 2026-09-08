@@ -326,7 +326,7 @@ test.describe("book clean URLs — responsive", () => {
         await page.locator(".mobile-menu-toggle").click();
         await expect(page.locator("nav#mobileSiteMenu.mobile-site-menu")).toHaveClass(/is-open/);
         await expect(page.locator(".mobile-menu-backdrop")).toHaveClass(/is-open/);
-        const booksLink = page.locator("nav#mobileSiteMenu.mobile-site-menu a[href$='#books']").first();
+        const booksLink = page.locator("nav#mobileSiteMenu.mobile-site-menu a[href='/books']").first();
         await expect(booksLink).toBeVisible();
         await page.locator(".mobile-menu-toggle").click();
         await expect(page.locator("nav#mobileSiteMenu.mobile-site-menu")).not.toHaveClass(/is-open/);

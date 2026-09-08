@@ -83,6 +83,7 @@ jobs.push(test("F private URLs never emitted", () => {
 jobs.push(test("pages sitemap has public hubs and trust pages only", () => {
   const xml = sitemap.buildUrlsetXml(sitemap.publicPageEntries());
   assert.ok(xml.includes("https://www.kutadgubilik.com/</loc>"));
+  assert.ok(xml.includes("/books</loc>"));
   assert.ok(xml.includes("/children</loc>"));
   assert.ok(!xml.includes("/children.html"));
   assert.ok(xml.includes("/privacy</loc>"));
