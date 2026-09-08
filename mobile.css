@@ -1073,8 +1073,7 @@
     font-size: 17px !important;
   }
 
-  .checkout-heading p,
-  .cart-order-steps {
+  .checkout-heading p {
     font-size: 12px !important;
     margin-bottom: 8px !important;
   }
