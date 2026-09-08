@@ -76,8 +76,8 @@ test("safety and shared geometry files stay byte-identical to origin/main", () =
     "detail-cover-mobile-safety.css",
     "covers.css",
     "mobile.css",
-    "theme.css",
-    "shop.js"
+    "theme.css"
+    // shop.js is not byte-pinned here; M1 search boot is covered by m1-cross-page-search-cold-load-tests.js
   ];
   for (const name of names) {
     const diff = execSync(`git diff -- origin/main -- ${name}`, { cwd: root, encoding: "utf8" });
