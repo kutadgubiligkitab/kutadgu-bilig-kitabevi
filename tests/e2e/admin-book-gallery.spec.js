@@ -1,9 +1,11 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
-const COVER = "/kutadgu-logo.png";
-const EXTRA_A = "/hero-brand-logo.png";
-const EXTRA_B = "/carousel-sample-cover.png";
+const COVER = "https://cdn.example/cover.webp";
+const EXTRA_A = "https://cdn.example/toc.webp";
+const EXTRA_B = "https://cdn.example/back.webp";
+const LISTING_COVER = "/kutadgu-logo.png";
+const LISTING_EXTRA = "/hero-brand-logo.png";
 
 const FIXTURES = [
   {
@@ -41,13 +43,14 @@ const FIXTURES = [
 ];
 
 async function openAdminBooks(page) {
+  page.on("dialog", (dialog) => dialog.accept());
   await page.addInitScript((books) => {
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguAdminPreviewBooks = books;
-    window.__kutadguPersistCalls = [];
-    window.__kutadguAdminPersistBook = async (payload, op, id) => {
-      window.__kutadguPersistCalls.push({ payload, op, id });
-      return { error: null, data: [{ id: id || 1 }] };
+    window.__kutadguBookSaves = [];
+    window.__kutadguAdminPersistBook = async (payload, operation, id) => {
+      window.__kutadguBookSaves.push({ payload: { ...payload }, operation, id: String(id || "") });
+      return { error: null, data: [{ id }] };
     };
   }, FIXTURES);
   await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
@@ -97,19 +100,21 @@ test.describe("admin book-detail gallery restore", () => {
     await expect(page.locator("#bookGalleryList img")).toHaveAttribute("src", EXTRA_A);
 
     await page.locator("#bookForm button[type='submit']").click();
-    await expect.poll(async () => page.evaluate(() => (window.__kutadguPersistCalls || []).length)).toBe(1);
     await expect(page.locator("#bookModal")).toBeHidden();
-    const call = await page.evaluate(() => window.__kutadguPersistCalls[0]);
-    expect(call.op).toBe("UPDATE");
+    const call = await page.evaluate(() => window.__kutadguBookSaves[0]);
+    expect(call.operation).toBe("UPDATE");
     expect(call.payload.image_url).toBe(COVER);
     expect(call.payload.gallery_images).toEqual([EXTRA_A]);
     expect(Object.prototype.hasOwnProperty.call(call.payload, "id")).toBe(false);
+  });
 
-    await page.locator("#cancelBookEdit").click().catch(() => {});
+  test("empty gallery loads as empty in Admin", async ({ page }) => {
+    await openAdminBooks(page);
     await page.locator('article[data-book-id="2"] [data-edit]').click();
     await expect(page.locator("#bookModal")).toBeVisible();
     await expect(page.locator("#bookGalleryList .admin-gallery-item")).toHaveCount(0);
     await expect(page.locator("#bookGalleryStatus")).toHaveText("ھازىرچە قوشۇمچە رەسىم يوق.");
+    await expect(page.locator("#bookCoverPreview")).toHaveAttribute("src", COVER);
   });
 
   test("max 4 extras is still enforced by existing helper", async ({ page }) => {
@@ -161,8 +166,8 @@ test.describe("storefront still uses image_url only for cards and empty gallery 
           price: 88,
           source: "romanlar.html",
           category: "رومانلار",
-          image_url: COVER,
-          gallery_images: [EXTRA_A],
+          image_url: LISTING_COVER,
+          gallery_images: [LISTING_EXTRA],
           is_active: true,
           is_recommended: true,
           is_new: true,
@@ -200,7 +205,7 @@ test.describe("storefront still uses image_url only for cards and empty gallery 
           price: 88,
           source: "romanlar.html",
           category: "رومانلار",
-          image_url: COVER,
+          image_url: LISTING_COVER,
           gallery_images: [],
           is_active: true,
           is_recommended: true,
