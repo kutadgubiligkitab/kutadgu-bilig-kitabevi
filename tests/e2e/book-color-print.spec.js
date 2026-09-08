@@ -70,19 +70,21 @@ async function openAdminBooks(page, extraInit) {
   await expect(page.locator("#dashboardPanel")).toBeVisible();
 }
 
-async function enableColorPrintSchema(page) {
-  await page.evaluate(() => {
-    const spec = window.KUTADGU_BOOKS_SCHEMA || { optionalColumns: {} };
-    spec.optionalColumns = spec.optionalColumns || {};
-    spec.optionalColumns.is_color_print = true;
-    window.KUTADGU_BOOKS_SCHEMA = spec;
-    window.__kutadguAdminTest.applyBooksSchema();
-  });
-}
-
 test.describe("optional book color-print flag", () => {
-  test("Admin stays usable and omits is_color_print when the column is unsupported", async ({ page }) => {
+  test("deployed schema shows the color-print checkbox on new books", async ({ page }) => {
     await openAdminBooks(page);
+    const enabled = await page.evaluate(() => window.KUTADGU_BOOKS_SCHEMA?.optionalColumns?.is_color_print);
+    expect(enabled).toBe(true);
+    await page.locator("#newBookBtn").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookIsColorPrint")).toBeVisible();
+    await expect(page.locator("#bookIsColorPrint")).not.toBeChecked();
+    await expect(page.locator('[data-book-col="is_color_print"]').first()).toContainText("ئىچكى بەتلىرى رەڭلىك");
+  });
+
+  test("missing-column detection can hide the field and omit it from save", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.evaluate(() => window.__kutadguAdminTest.disableColorPrintColumn());
     await page.locator("#newBookBtn").click();
     await expect(page.locator("#bookModal")).toBeVisible();
     await expect(page.locator("#bookIsColorPrint")).toBeHidden();
@@ -103,7 +105,6 @@ test.describe("optional book color-print flag", () => {
 
   test("new Admin form defaults unchecked and saves true/false", async ({ page }) => {
     await openAdminBooks(page);
-    await enableColorPrintSchema(page);
     await page.locator("#newBookBtn").click();
     await expect(page.locator("#bookModal")).toBeVisible();
     await expect(page.locator("#bookIsColorPrint")).toBeVisible();
@@ -142,7 +143,6 @@ test.describe("optional book color-print flag", () => {
 
   test("editing hydrates checked only when is_color_print is true", async ({ page }) => {
     await openAdminBooks(page);
-    await enableColorPrintSchema(page);
     await page.locator('article[data-book-id="1"] [data-edit]').click();
     await expect(page.locator("#bookModal")).toBeVisible();
     await expect(page.locator("#bookIsColorPrint")).toBeChecked();

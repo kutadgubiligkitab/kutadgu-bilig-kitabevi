@@ -109,8 +109,8 @@ window.KUTADGU_SUPABASE_CONFIG = {
   stock stays false until STAGE82_STOCK_FOUNDATION.sql. Admin live-detects stock
   (read-only select) so a frontend deploy before the manual migration does not
   crash book CRUD. stock_status is never a writable Admin field; status is derived.
-  is_color_print stays false until STAGE_COLOR_PRINT.sql. Admin live-detects it
-  so a frontend deploy before the manual migration does not crash book CRUD.
+  is_color_print stays true after STAGE_COLOR_PRINT.sql. Admin still live-detects it
+  so an environment without the column can hide the field and omit writes.
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -134,7 +134,7 @@ window.KUTADGU_BOOKS_SCHEMA = {
     /* true after GALLERY_IMAGES_MIGRATION.sql (live books.gallery_images jsonb). Admin also live-detects the column. */
     gallery_images: true,
     /* true after STAGE_COLOR_PRINT.sql. Admin also live-detects the column. */
-    is_color_print: false
+    is_color_print: true
   }
 };
 

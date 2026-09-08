@@ -55,8 +55,9 @@ test("migration adds boolean is_color_print default false, no row rewrites, no R
   assert.match(setup, /add column if not exists is_color_print boolean not null default false/i);
 });
 
-test("optional-column capability treats is_color_print as live-detected, schema false until SQL", () => {
-  assert.match(cfg, /is_color_print: false/);
+test("deployed schema capability enables is_color_print; live-detect can still hide it", () => {
+  assert.match(cfg, /is_color_print: true/);
+  assert.doesNotMatch(cfg, /is_color_print: false/);
   assert.match(cfg, /STAGE_COLOR_PRINT\.sql/);
   assert.match(adminJs, /OPTIONAL_BOOK_COLS=\[[^\]]*is_color_print/);
   assert.match(adminJs, /LIVE_OPTIONAL_BOOK_COLS=\{[^}]*is_color_print:false/);
@@ -66,6 +67,24 @@ test("optional-column capability treats is_color_print as live-detected, schema 
   assert.match(adminJs, /function enableColorPrintColumn\(/);
   assert.match(adminJs, /if\(presentBookCols\.has\("is_color_print"\)\)row\.is_color_print=/);
   assert.match(adminJs, /OPTIONAL_BOOK_COLS\.includes\(key\)&&!presentBookCols\.has\(key\)/);
+  const mergeVisible = (() => {
+    const LIVE = { is_color_print: false };
+    const spec = { optionalColumns: { is_color_print: true } };
+    const optional = { ...LIVE, ...(spec.optionalColumns || {}) };
+    const present = new Set();
+    ["is_color_print"].forEach((col) => { if (optional[col] !== false) present.add(col); });
+    return present.has("is_color_print");
+  })();
+  assert.strictEqual(mergeVisible, true);
+  const mergeHidden = (() => {
+    const LIVE = { is_color_print: false };
+    const spec = { optionalColumns: { is_color_print: false } };
+    const optional = { ...LIVE, ...(spec.optionalColumns || {}) };
+    const present = new Set();
+    ["is_color_print"].forEach((col) => { if (optional[col] !== false) present.add(col); });
+    return present.has("is_color_print");
+  })();
+  assert.strictEqual(mergeHidden, false);
 });
 
 test("Admin checkbox is optional, Uyghur labeled, no رەڭسىز option", () => {
@@ -153,7 +172,7 @@ test("import does not require is_color_print", () => {
 
 test("cache pins bumped with Admin and book-detail shop.js", () => {
   assert.match(adminHtml, /admin\.js\?v=66/);
-  assert.match(adminHtml, /supabase-config\.js\?v=18/);
+  assert.match(adminHtml, /supabase-config\.js\?v=19/);
   assert.match(read("index.html"), /shop\.js\?v=120/);
   assert.match(read("book-shell.html"), /shop\.js\?v=118/);
 });
