@@ -98,6 +98,21 @@ test("cover type and book size normalize to canonical stored values",()=>{
   assert.strictEqual(B.detailMetaVisible("A5"),true);
 });
 
+test("interior print type resolves color/bw/null and legacy true only",()=>{
+  assert.strictEqual(B.normalizeInteriorPrintType(""),null);
+  assert.strictEqual(B.normalizeInteriorPrintType("color"),"color");
+  assert.strictEqual(B.normalizeInteriorPrintType("bw"),"bw");
+  assert.strictEqual(B.interiorPrintTypeLabel("color"),"رەڭلىك");
+  assert.strictEqual(B.interiorPrintTypeLabel("bw"),"رەڭسىز");
+  assert.strictEqual(B.resolveInteriorPrintType({interior_print_type:"color"}),"color");
+  assert.strictEqual(B.resolveInteriorPrintType({interior_print_type:"bw"}),"bw");
+  assert.strictEqual(B.resolveInteriorPrintType({interior_print_type:null}),null);
+  assert.strictEqual(B.resolveInteriorPrintType({is_color_print:true}),"color");
+  assert.strictEqual(B.resolveInteriorPrintType({is_color_print:false}),null);
+  assert.strictEqual(B.interiorPrintDetailValue({interior_print_type:"bw"}),"رەڭسىز");
+  assert.strictEqual(B.interiorPrintDetailValue({is_color_print:false}),"");
+});
+
 test("unrelated edit omits unknown legacy cover_type instead of wiping it",()=>{
   const plan=B.canonicalOptionalForSave("", "free text", true, B.normalizeCoverType);
   assert.strictEqual(plan.include,false);
