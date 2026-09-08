@@ -2568,9 +2568,13 @@ async function renderHomeFeaturedBooks(){
     bindDynamicActions(host);
     setupHomeFeaturedMarquee(host);
   }catch(error){
+    if(token!==homeFeaturedRequestId)return;
     console.error("Recently added books query failed.",error);
     const grid=host.querySelector(".home-featured-grid");
-    if(grid)grid.innerHTML='<div class="empty-state shop-section-empty">يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
+    if(!grid)return;
+    grid.classList.remove("is-marquee","is-skeleton-grid");
+    grid.removeAttribute("aria-busy");
+    grid.innerHTML='<div class="empty-state shop-section-empty">يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
   }
 }
 
@@ -3975,6 +3979,7 @@ async function setupHomeCarousel(){
     tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
     const requestedMode=mode;
     if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
+    host.setAttribute("aria-busy","true");
     try{
       const loaded=modeCache.get(requestedMode)||await loadMode(requestedMode,false);
       if(mode!==requestedMode)return;
@@ -3982,11 +3987,19 @@ async function setupHomeCarousel(){
       if(!list.length){
         stop();
         dotsHost.innerHTML="";
+        host.removeAttribute("aria-busy");
         host.innerHTML='<div class="empty-state shop-section-empty">بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى.</div>';
         return;
       }
       draw(true);restart();
-    }catch(error){if(error?.name!=="AbortError"){console.error("Homepage carousel query failed.",error);host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';dotsHost.innerHTML=""}}
+    }catch(error){
+      if(error?.name==="AbortError"||mode!==requestedMode)return;
+      console.error("Homepage carousel query failed.",error);
+      stop();
+      dotsHost.innerHTML="";
+      host.removeAttribute("aria-busy");
+      host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
+    }
   }
   async function next(){
     if(!list.length)return;

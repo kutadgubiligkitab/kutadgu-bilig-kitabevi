@@ -88,7 +88,110 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
     await expect(page.locator("#homeCarouselTrack .home-carousel-card")).toHaveCount(0);
     await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+    await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card.is-skeleton")).toHaveCount(0);
+    await expect(page.locator("#homeCarouselDots .home-carousel-dot")).toHaveCount(0);
+    const before = await page.locator("#homeCarouselTrack").innerHTML();
+    await page.waitForTimeout(1600);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+    expect(await page.locator("#homeCarouselTrack").innerHTML()).toBe(before);
   });
+
+  test("featured query failure clears busy skeleton and marquee flags", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, failFeatured: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    const grid = page.locator("#homeFeaturedBooks .home-featured-grid");
+    await expect(grid).toContainText("يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+    await expect(grid).not.toHaveAttribute("aria-busy", "true");
+    await expect(grid).not.toHaveClass(/is-skeleton-grid/);
+    await expect(grid).not.toHaveClass(/is-marquee/);
+    await expect(page.locator("#homeFeaturedBooks .home-feature-card.is-skeleton")).toHaveCount(0);
+    await expect(page.locator("#homeFeaturedBooks .home-feature-card")).toHaveCount(0);
+  });
+
+  test("carousel query error clears busy, skeletons, dots, and autoplay", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, failNewest: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator("#homeCarouselTrack")).toContainText("كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+    await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card")).toHaveCount(0);
+    await expect(page.locator("#homeCarouselDots .home-carousel-dot")).toHaveCount(0);
+    const before = await page.locator("#homeCarouselTrack").innerHTML();
+    await page.waitForTimeout(1600);
+    expect(await page.locator("#homeCarouselTrack").innerHTML()).toBe(before);
+  });
+
+  test("carousel mode loading sets aria-busy then clears after success", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: true, bestseller: false, holdNewest: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card:not(.is-skeleton)").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card.is-skeleton").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).toHaveAttribute("aria-busy", "true");
+    await page.evaluate(() => window.__releaseCarouselNewest && window.__releaseCarouselNewest());
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card:not(.is-skeleton)").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Newest Stub");
+    await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+  });
+
+  test("stale carousel mode request does not overwrite the current mode", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: true, bestseller: false, holdNewest: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Recommended Stub");
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card.is-skeleton").first()).toBeVisible();
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Recommended Stub");
+    await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+    await page.evaluate(() => window.__releaseCarouselNewest && window.__releaseCarouselNewest());
+    await page.waitForTimeout(400);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Recommended Stub");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Newest Stub");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+  });
+
+  for (const width of [390, 430, 768, 1366]) {
+    test(`empty and error homepage states fit at ${width}px`, async ({ page }) => {
+      await H.installCarouselCatalogStub(page, {
+        recommended: false,
+        newest: false,
+        bestseller: false,
+        failFeatured: true
+      });
+      await page.setViewportSize({ width, height: 900 });
+      await H.openFresh(page, "/");
+      await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+      await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+      await expect(page.locator("#homeFeaturedBooks .home-featured-grid")).toContainText("يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+      await expect(page.locator("#homeFeaturedBooks .home-featured-grid")).not.toHaveClass(/is-skeleton-grid/);
+      const metrics = await page.evaluate(() => {
+        const carousel = document.querySelector("#newBooksCarousel");
+        const featured = document.querySelector("#homeFeaturedBooks");
+        const track = document.querySelector("#homeCarouselTrack");
+        const grid = document.querySelector("#homeFeaturedBooks .home-featured-grid");
+        return {
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          carouselH: carousel ? carousel.getBoundingClientRect().height : 0,
+          featuredH: featured ? featured.getBoundingClientRect().height : 0,
+          trackBusy: track ? track.getAttribute("aria-busy") : "missing",
+          gridBusy: grid ? grid.getAttribute("aria-busy") : "missing"
+        };
+      });
+      expect(metrics.overflow).toBeLessThanOrEqual(4);
+      expect(metrics.carouselH).toBeGreaterThan(80);
+      expect(metrics.featuredH).toBeGreaterThan(80);
+      expect(metrics.trackBusy).not.toBe("true");
+      expect(metrics.gridBusy).not.toBe("true");
+    });
+  }
 
   test("more than 4 books auto-advance by one book", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });

@@ -67,6 +67,40 @@ test("homepage collections drop static demo covers when Supabase is configured",
   assert.match(carousel, /homeCarouselSkeletonMarkup\(4\)/);
 });
 
+test("featured query error clears busy and skeleton classes without changing copy", () => {
+  const featured = sliceBetween(shop, "async function renderHomeFeaturedBooks()", "function renderHomeSections()");
+  assert.match(featured, /if\(token!==homeFeaturedRequestId\)return;/);
+  assert.match(featured, /grid\.classList\.remove\("is-marquee","is-skeleton-grid"\)/);
+  assert.match(featured, /grid\.removeAttribute\("aria-busy"\)/);
+  assert.match(featured, /يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى/);
+  const catchBody = featured.slice(featured.indexOf("}catch(error){"));
+  assert.ok(
+    catchBody.indexOf("if(token!==homeFeaturedRequestId)return;") < catchBody.indexOf("grid.innerHTML"),
+    "stale featured errors must return before mutating the grid"
+  );
+});
+
+test("carousel setMode sets busy while skeleton and clears it on empty and error", () => {
+  const carousel = sliceBetween(shop, "async function setupHomeCarousel()", "function loadMemberSystem");
+  const setMode = carousel.slice(carousel.indexOf("async function setMode"), carousel.indexOf("async function next()"));
+  assert.match(setMode, /host\.setAttribute\("aria-busy","true"\)/);
+  assert.match(setMode, /homeCarouselSkeletonMarkup\(4\)/);
+  assert.match(setMode, /host\.removeAttribute\("aria-busy"\)/);
+  assert.match(setMode, /بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى/);
+  assert.match(setMode, /كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى/);
+  assert.match(setMode, /if\(error\?\.name==="AbortError"\|\|mode!==requestedMode\)return;/);
+  assert.match(setMode, /stop\(\);/);
+  const emptyPath = setMode.slice(setMode.indexOf("if(!list.length){"), setMode.indexOf("draw(true)"));
+  assert.match(emptyPath, /host\.removeAttribute\("aria-busy"\)/);
+  const errorPath = setMode.slice(setMode.indexOf("}catch(error){"));
+  assert.match(errorPath, /host\.removeAttribute\("aria-busy"\)/);
+  assert.match(errorPath, /stop\(\);/);
+  assert.ok(
+    errorPath.indexOf("mode!==requestedMode") < errorPath.indexOf("host.innerHTML"),
+    "stale carousel errors must not overwrite the current mode"
+  );
+});
+
 test("sample-book-cover.png file is kept on disk", () => {
   assert.ok(fs.existsSync(path.join(root, "sample-book-cover.png")));
 });
