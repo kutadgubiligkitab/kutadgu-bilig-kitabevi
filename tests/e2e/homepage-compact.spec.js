@@ -358,6 +358,94 @@ test.describe("homepage compact first-view", () => {
     expect(tops.homeFeaturedBooks).toBeLessThan(tops.bookCategories);
   });
 
+  test("homepage category icons are decorative and hrefs stay intact", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    const cards = page.locator("#bookCategories a.card");
+    await expect(cards).toHaveCount(7);
+    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(7);
+    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(7);
+    const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children"]);
+  });
+
+  for (const width of [390, 430, 768, 1366]) {
+    test(`homepage category grid polish at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await H.openFresh(page, "/");
+      await page.locator("#bookCategories").scrollIntoViewIfNeeded();
+      await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+      const metrics = await page.evaluate(() => {
+        const grid = document.querySelector("#bookCategories .cards");
+        const cards = [...document.querySelectorAll("#bookCategories a.card")];
+        const last = cards[cards.length - 1];
+        const first = cards[0];
+        const gridBox = grid.getBoundingClientRect();
+        const lastBox = last.getBoundingClientRect();
+        const firstBox = first.getBoundingClientRect();
+        const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean);
+        const lastCenter = lastBox.left + lastBox.width / 2;
+        const gridCenter = gridBox.left + gridBox.width / 2;
+        return {
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          colCount: cols.length,
+          firstW: firstBox.width,
+          lastW: lastBox.width,
+          lastLeft: lastBox.left,
+          firstTop: firstBox.top,
+          secondTop: cards[1].getBoundingClientRect().top,
+          lastTop: lastBox.top,
+          sixthTop: cards[5].getBoundingClientRect().top,
+          centerDelta: Math.abs(lastCenter - gridCenter),
+          nth7: getComputedStyle(last).gridColumnStart
+        };
+      });
+      expect(metrics.overflow).toBeLessThanOrEqual(4);
+      if (width <= 768) {
+        expect(metrics.colCount).toBe(2);
+        expect(Math.abs(metrics.firstTop - metrics.secondTop)).toBeLessThan(2);
+        expect(metrics.lastTop).toBeGreaterThan(metrics.sixthTop + 8);
+        expect(metrics.centerDelta).toBeLessThan(8);
+        expect(Math.abs(metrics.lastW - metrics.firstW)).toBeLessThan(12);
+      } else {
+        expect(metrics.colCount).toBe(8);
+        expect(metrics.nth7).toBe("6");
+        const row1 = await page.evaluate(() => {
+          const cards = [...document.querySelectorAll("#bookCategories a.card")];
+          const top = Math.round(cards[0].getBoundingClientRect().top);
+          return {
+            firstRow: cards.slice(0, 4).every((c) => Math.abs(c.getBoundingClientRect().top - top) < 2),
+            secondRow: cards.slice(4).every((c) => Math.abs(c.getBoundingClientRect().top - cards[4].getBoundingClientRect().top) < 2)
+          };
+        });
+        expect(row1.firstRow).toBe(true);
+        expect(row1.secondRow).toBe(true);
+      }
+    });
+  }
+
+  test("homepage category cards keep contrast in dark mode", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await H.openFresh(page, "/");
+    await page.evaluate(() => document.body.classList.add("dark-mode"));
+    await page.locator("#bookCategories").scrollIntoViewIfNeeded();
+    const contrast = await page.evaluate(() => {
+      const card = document.querySelector("#bookCategories a.card");
+      const title = card.querySelector("h3");
+      const cs = getComputedStyle(card);
+      const ts = getComputedStyle(title);
+      return { bg: cs.backgroundColor, border: cs.borderTopColor, title: ts.color, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    expect(contrast.overflow).toBeLessThanOrEqual(4);
+    expect(contrast.bg).not.toBe("rgba(0, 0, 0, 0)");
+    expect(contrast.title).not.toBe("rgba(0, 0, 0, 0)");
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+    const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
+    expect(desktop).toBe(8);
+  });
+
   test("featured desktop marquee shows two visible rows without page overflow", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 20 });
     await page.setViewportSize({ width: 1280, height: 900 });

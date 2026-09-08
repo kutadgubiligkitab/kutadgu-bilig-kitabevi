@@ -1841,6 +1841,17 @@ header > .container{
     }
 }
 
+/* Phone 2-column: center the 7th category card on its own row, one-column wide. */
+@media (max-width:700px){
+    #bookCategories .cards .card:last-child{
+        grid-column:1 / -1 !important;
+        width:calc((100% - 10px) / 2) !important;
+        max-width:calc((100% - 10px) / 2) !important;
+        min-width:0 !important;
+        justify-self:center !important;
+    }
+}
+
 /* ===== HERO دىكى كىتاب مۇقاۋىسىنىڭ ئورنىغا ماركا لوگوسى ===== */
 .real-cover-wrap{
     height:94px !important;
