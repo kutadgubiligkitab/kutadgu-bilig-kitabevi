@@ -111,7 +111,8 @@ test.describe("optional book color-print flag", () => {
     await expect(page.locator('[data-book-col="is_color_print"]').first()).toContainText("ئىچكى بەتلىرى رەڭلىك");
     await expect(page.locator("text=پەقەت رەڭلىك نەشر بولسا تاللاڭ")).toBeVisible();
     await expect(page.locator("#bookForm")).not.toContainText("رەڭسىز");
-    await page.screenshot({ path: "/opt/cursor/artifacts/admin-color-print-checkbox.png", fullPage: false });
+    await page.locator("#bookIsColorPrint").scrollIntoViewIfNeeded();
+    await page.locator('[data-book-col="is_color_print"]').first().screenshot({ path: "/opt/cursor/artifacts/admin-color-print-checkbox.png" });
 
     await page.locator("#bookTitle").fill("Color Edition");
     await page.locator("#bookAuthor").fill("Author");
