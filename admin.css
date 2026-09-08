@@ -218,8 +218,9 @@ button{cursor:pointer}
 .admin-cover-repair-preview{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px;border:1px solid #e8dccb;border-radius:11px;background:#fbf8f2}
 .admin-cover-repair-preview[hidden]{display:none!important}
 .admin-cover-repair-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border-radius:6px}
-.admin-cover-preview{display:flex;align-items:center;gap:12px;margin-top:8px}
+.admin-cover-preview{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:8px;min-width:0}
 .admin-cover-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border:1px solid #e8dccb;border-radius:7px}
+#bookCoverText{min-width:0;overflow-wrap:anywhere}
 .admin-gallery-section{display:grid;gap:10px;padding:12px;border:1px dashed #dccdb9;border-radius:12px;background:#fbf8f2;min-width:0}
 .admin-gallery-head{display:grid;gap:4px}
 .admin-gallery-picker{position:relative;display:grid;gap:6px;justify-items:stretch;min-width:0}
@@ -241,7 +242,7 @@ button{cursor:pointer}
   opacity:0;
   pointer-events:none;
 }
-#bookGalleryPickBtn{width:auto;min-height:40px;justify-self:start}
+#bookGalleryPickBtn,#bookCoverPickBtn{width:auto;min-height:40px;justify-self:start}
 .admin-gallery-list{display:flex;flex-wrap:wrap;gap:10px;min-width:0}
 .admin-gallery-item{width:110px;display:grid;gap:6px;padding:8px;border:1px solid #e8dccb;border-radius:10px;background:#fff;min-width:0;overflow:hidden}
 .admin-gallery-item img{width:100%;height:92px;object-fit:contain;background:#eee9e1;border-radius:6px}

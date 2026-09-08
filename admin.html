@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=37">
+  <link rel="stylesheet" href="admin.css?v=38">
 </head>
 <body>
 <div class="admin-shell">
@@ -515,7 +515,12 @@
 
       <label class="admin-wide"><span>كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
 
-      <label class="admin-wide"><span>مۇقاۋا رەسىمى</span><input id="bookCover" type="file" accept="image/*"></label>
+      <div class="admin-wide admin-gallery-picker admin-cover-picker">
+        <span class="admin-gallery-picker-label" id="bookCoverPickerLabel">مۇقاۋا رەسىمى</span>
+        <input id="bookCover" class="admin-gallery-file-input" type="file" accept="image/*" aria-labelledby="bookCoverPickerLabel" aria-describedby="bookCoverPickStatus bookCoverText">
+        <button type="button" class="admin-secondary" id="bookCoverPickBtn" aria-controls="bookCover">مۇقاۋا رەسىمى تاللاش</button>
+        <span id="bookCoverPickStatus" class="admin-help">مۇقاۋا رەسىمى تاللانمىدى</span>
+      </div>
       <div class="admin-wide admin-cover-preview"><img id="bookCoverPreview" alt="مۇقاۋا"><span id="bookCoverText" class="admin-help">يېڭى ھۆججەت تاللانمىسا ھازىرقى مۇقاۋا ساقلىنىدۇ</span>
         <button type="button" class="admin-secondary" id="clearCoverPick">يېڭى رەسىم تاللاشنى بىكار قىلىش</button>
       </div>
@@ -891,6 +896,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=64"></script>
+  <script defer src="admin.js?v=65"></script>
 </body>
 </html>
