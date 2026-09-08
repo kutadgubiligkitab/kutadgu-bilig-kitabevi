@@ -220,13 +220,51 @@ button{cursor:pointer}
 .admin-cover-repair-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border-radius:6px}
 .admin-cover-preview{display:flex;align-items:center;gap:12px;margin-top:8px}
 .admin-cover-preview img{width:86px;height:115px;object-fit:contain;background:#eee9e1;border:1px solid #e8dccb;border-radius:7px}
-.admin-gallery-section{display:grid;gap:10px;padding:12px;border:1px dashed #dccdb9;border-radius:12px;background:#fbf8f2}
+.admin-gallery-section{display:grid;gap:10px;padding:12px;border:1px dashed #dccdb9;border-radius:12px;background:#fbf8f2;min-width:0}
 .admin-gallery-head{display:grid;gap:4px}
-.admin-gallery-list{display:flex;flex-wrap:wrap;gap:10px}
-.admin-gallery-item{width:110px;display:grid;gap:6px;padding:8px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
+.admin-gallery-picker{position:relative;display:grid;gap:6px;justify-items:stretch;min-width:0}
+.admin-gallery-picker-label{font-weight:700;color:#4b3327}
+.admin-form input.admin-gallery-file-input,
+.admin-gallery-file-input{
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  min-width:0 !important;
+  max-width:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0,0,0,0);
+  clip-path:inset(50%);
+  white-space:nowrap;
+  border:0 !important;
+  opacity:0;
+  pointer-events:none;
+}
+#bookGalleryPickBtn{width:auto;min-height:40px;justify-self:start}
+.admin-gallery-list{display:flex;flex-wrap:wrap;gap:10px;min-width:0}
+.admin-gallery-item{width:110px;display:grid;gap:6px;padding:8px;border:1px solid #e8dccb;border-radius:10px;background:#fff;min-width:0;overflow:hidden}
 .admin-gallery-item img{width:100%;height:92px;object-fit:contain;background:#eee9e1;border-radius:6px}
-.admin-gallery-item-actions{display:flex;flex-wrap:wrap;gap:4px}
-.admin-gallery-item-actions button{flex:1;min-width:0;padding:5px 6px;font-size:11px}
+.admin-gallery-item-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;min-width:0}
+.admin-gallery-item-actions button{min-width:0;min-height:32px;padding:5px 6px;font-size:11px}
+.admin-gallery-remove{
+  grid-column:1/-1;
+  justify-self:center;
+  width:40px;
+  height:40px;
+  min-width:40px;
+  min-height:40px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:0;
+  border-radius:9px;
+  background:#a74f45;
+  color:#fff;
+}
+.admin-gallery-remove svg{display:block;width:18px;height:18px;pointer-events:none}
+.admin-gallery-remove[disabled]{opacity:.45}
 .admin-help{color:#806f62;font-size:12px;line-height:1.8}
 #bookOriginalPriceStatus{overflow-wrap:anywhere}
 .admin-original-price-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;min-width:0}

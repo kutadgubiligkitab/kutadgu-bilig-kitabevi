@@ -69,6 +69,26 @@ test("live schema capability enables gallery_images",()=>{
   assert.doesNotMatch(cfg,/gallery_images:\s*false/);
 });
 
+test("Admin gallery delete control is an icon with Uyghur accessible name",()=>{
+  const js=fs.readFileSync(path.join(__dirname,"..","admin.js"),"utf8");
+  const html=fs.readFileSync(path.join(__dirname,"..","admin.html"),"utf8");
+  const css=fs.readFileSync(path.join(__dirname,"..","admin.css"),"utf8");
+  assert.match(js,/aria-label="ئۆچۈرۈش"/);
+  assert.match(js,/title="ئۆچۈرۈش"/);
+  assert.match(js,/class="admin-gallery-remove"/);
+  assert.match(js,/galleryTrashIcon\(\)/);
+  assert.match(js,/data-gallery-remove="\$\{index\}"[^>]*>\$\{galleryTrashIcon\(\)\}/);
+  assert.doesNotMatch(js,/<button type="button" class="admin-danger" data-gallery-remove="\$\{index\}">ئۆچۈرۈش<\/button>/);
+  assert.match(css,/\.admin-gallery-remove\{/);
+  assert.match(html,/id="bookGalleryPickBtn"/);
+  assert.match(html,/رەسىم تاللاش/);
+  assert.match(html,/id="bookGalleryPickStatus"/);
+  assert.match(html,/رەسىم تاللانمىدى/);
+  assert.match(html,/class="admin-gallery-file-input"/);
+  assert.match(js,/function galleryPickCountText\(count\)/);
+  assert.match(js,/return `\$\{n\} رەسىم تاللاندى`/);
+});
+
 test("sample-book-cover.png bytes are unchanged",()=>{
   const file=path.join(__dirname,"..","sample-book-cover.png");
   const buf=fs.readFileSync(file);

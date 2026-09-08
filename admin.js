@@ -2757,10 +2757,23 @@ function normalizeGalleryField(value,coverUrl){
   if(!Array.isArray(value))return [];
   return value.map(v=>String(v||"").trim()).filter(Boolean).slice(0,4);
 }
+function galleryPickCountText(count){
+  const n=Math.max(0,Number(count)||0);
+  if(!n)return "رەسىم تاللانمىدى";
+  return `${n} رەسىم تاللاندى`;
+}
+function setGalleryPickStatus(count){
+  const el=$("#bookGalleryPickStatus");
+  if(el)el.textContent=galleryPickCountText(count);
+}
+function galleryTrashIcon(){
+  return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 6h2v9h-2V9zm4 0h2v9h-2V9zM8 8h8l-.8 12.2A2 2 0 0 1 13.2 22h-2.4a2 2 0 0 1-2-1.8L8 8z"/></svg>`;
+}
 function resetGalleryDraft(urls){
   galleryDraft=(urls||[]).map(url=>({url,file:null,preview:url}));
   const input=$("#bookGallery");
   if(input)input.value="";
+  setGalleryPickStatus(0);
   renderGalleryDraft();
 }
 function renderGalleryDraft(){
@@ -2778,7 +2791,7 @@ function renderGalleryDraft(){
       <div class="admin-gallery-item-actions">
         <button type="button" data-gallery-up="${index}" ${index===0?"disabled":""}>↑</button>
         <button type="button" data-gallery-down="${index}" ${index===galleryDraft.length-1?"disabled":""}>↓</button>
-        <button type="button" class="admin-danger" data-gallery-remove="${index}">ئۆچۈرۈش</button>
+        <button type="button" class="admin-gallery-remove" data-gallery-remove="${index}" aria-label="ئۆچۈرۈش" title="ئۆچۈرۈش">${galleryTrashIcon()}</button>
       </div>
     </article>`).join("");
   host.querySelectorAll("[data-gallery-remove]").forEach(btn=>btn.onclick=()=>{
@@ -2797,6 +2810,19 @@ function renderGalleryDraft(){
     if(i>=galleryDraft.length-1)return;
     const swap=galleryDraft[i+1];galleryDraft[i+1]=galleryDraft[i];galleryDraft[i]=swap;
     renderGalleryDraft();
+  });
+}
+function bindGalleryPicker(){
+  const input=$("#bookGallery");
+  const btn=$("#bookGalleryPickBtn");
+  if(!input||input.dataset.galleryPickerBound==="1")return;
+  input.dataset.galleryPickerBound="1";
+  if(btn)btn.onclick=()=>input.click();
+  input.addEventListener("change",()=>{
+    const files=input.files||[];
+    setGalleryPickStatus(files.length);
+    addGalleryFiles(files);
+    input.value="";
   });
 }
 async function readMagicMime(file){
@@ -4585,6 +4611,7 @@ async function confirmImport(){
 
 function bindBookListUx(){
   renderSourceOptions();
+  bindGalleryPicker();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
   $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
@@ -4811,10 +4838,6 @@ function init(){
     $("#bookCoverPreview").src=URL.createObjectURL(file);
     $("#bookCoverPreview").style.visibility="visible";
     $("#bookCoverText").textContent=file.name;
-  });
-  $("#bookGallery")?.addEventListener("change",()=>{
-    addGalleryFiles($("#bookGallery").files||[]);
-    $("#bookGallery").value="";
   });
   $("#bookModal").addEventListener("click",e=>{if(saveInFlight||priceRollbackInFlight)return;if(e.target===$("#bookModal"))modal(false)});
   $("#importModal").addEventListener("click",e=>{if(e.target===$("#importModal")&&!importRunning)closeImport()});

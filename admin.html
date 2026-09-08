@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=36">
+  <link rel="stylesheet" href="admin.css?v=37">
 </head>
 <body>
 <div class="admin-shell">
@@ -526,9 +526,12 @@
           <strong>قوشۇمچە كىتاب رەسىملىرى</strong>
           <span class="admin-help">ئىختىيارىي — ئارقا مۇقاۋا، مۇندەرىجە، ئىچكى بەت. ئەڭ كۆپ 4 رەسىم. ئاساسىي مۇقاۋىغا تەگمەيدۇ.</span>
         </div>
-        <label><span>قوشۇمچە رەسىم يۈكلەش</span>
-          <input id="bookGallery" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
-        </label>
+        <div class="admin-gallery-picker">
+          <span class="admin-gallery-picker-label">قوشۇمچە رەسىم يۈكلەش</span>
+          <input id="bookGallery" class="admin-gallery-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple aria-describedby="bookGalleryPickStatus">
+          <button type="button" class="admin-secondary" id="bookGalleryPickBtn">رەسىم تاللاش</button>
+          <span id="bookGalleryPickStatus" class="admin-help">رەسىم تاللانمىدى</span>
+        </div>
         <div id="bookGalleryStatus" class="admin-help">ھازىرچە قوشۇمچە رەسىم يوق.</div>
         <div id="bookGalleryList" class="admin-gallery-list"></div>
       </div>
@@ -888,6 +891,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=63"></script>
+  <script defer src="admin.js?v=64"></script>
 </body>
 </html>
