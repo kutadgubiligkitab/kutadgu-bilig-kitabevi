@@ -158,6 +158,41 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
   });
 
+  for (const width of [390, 430, 768, 1366]) {
+    test(`empty and error homepage states fit at ${width}px`, async ({ page }) => {
+      await H.installCarouselCatalogStub(page, {
+        recommended: false,
+        newest: false,
+        bestseller: false,
+        failFeatured: true
+      });
+      await page.setViewportSize({ width, height: 900 });
+      await H.openFresh(page, "/");
+      await expect(page.locator("#homeCarouselTrack")).toContainText("بۇ بۆلۈمگە تېخى كىتاب تاللانمىدى");
+      await expect(page.locator("#homeCarouselTrack")).not.toHaveAttribute("aria-busy", "true");
+      await expect(page.locator("#homeFeaturedBooks .home-featured-grid")).toContainText("يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+      await expect(page.locator("#homeFeaturedBooks .home-featured-grid")).not.toHaveClass(/is-skeleton-grid/);
+      const metrics = await page.evaluate(() => {
+        const carousel = document.querySelector("#newBooksCarousel");
+        const featured = document.querySelector("#homeFeaturedBooks");
+        const track = document.querySelector("#homeCarouselTrack");
+        const grid = document.querySelector("#homeFeaturedBooks .home-featured-grid");
+        return {
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          carouselH: carousel ? carousel.getBoundingClientRect().height : 0,
+          featuredH: featured ? featured.getBoundingClientRect().height : 0,
+          trackBusy: track ? track.getAttribute("aria-busy") : "missing",
+          gridBusy: grid ? grid.getAttribute("aria-busy") : "missing"
+        };
+      });
+      expect(metrics.overflow).toBeLessThanOrEqual(4);
+      expect(metrics.carouselH).toBeGreaterThan(80);
+      expect(metrics.featuredH).toBeGreaterThan(80);
+      expect(metrics.trackBusy).not.toBe("true");
+      expect(metrics.gridBusy).not.toBe("true");
+    });
+  }
+
   test("more than 4 books auto-advance by one book", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 1280, height: 900 });
