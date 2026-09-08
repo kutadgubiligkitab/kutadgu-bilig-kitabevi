@@ -24,7 +24,7 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
-const lightboxSrc = sliceBetween(shop, "function openCoverLightbox(slides,startIndex,alt){", "function setupCoverZoom(book){");
+const lightboxSrc = sliceBetween(shop, "function openCoverLightbox(slides,startIndex,alt,openerEl){", "function setupCoverZoom(book){");
 const zoomSrc = sliceBetween(shop, "function setupCoverZoom(book){", "function renderBookGallery(book){");
 
 test("lightbox keeps existing dialog markup and navigation/close wiring", () => {
@@ -39,13 +39,22 @@ test("lightbox keeps existing dialog markup and navigation/close wiring", () => 
   assert.match(lightboxSrc, /if\(e\.key==="Escape"\)\{close\(\);return\}/);
   assert.match(lightboxSrc, /e\.key==="ArrowLeft"\|\|e\.key==="ArrowRight"/);
   assert.match(lightboxSrc, /overlay\.onclick=e=>\{if\(e\.target===overlay\)close\(\)\}/);
+  assert.match(lightboxSrc, /openerEl&&typeof openerEl\.focus==="function"/);
   assert.doesNotMatch(lightboxSrc, /inert/);
   assert.doesNotMatch(lightboxSrc, /aria-hidden/);
 });
 
-test("setupCoverZoom still opens the same lightbox from the cover image", () => {
-  assert.match(zoomSrc, /img\.onclick=/);
-  assert.match(zoomSrc, /openCoverLightbox\(slides\.length\?slides:\[current\],start,img\.alt\|\|""\)/);
+test("setupCoverZoom makes the cover IMG a keyboard button and passes it as opener", () => {
+  assert.match(zoomSrc, /img\.tabIndex=0/);
+  assert.match(zoomSrc, /setAttribute\("role","button"\)/);
+  assert.match(zoomSrc, /setAttribute\("title","مۇقاۋىنى چوڭ كۆرۈش"\)/);
+  assert.match(zoomSrc, /setAttribute\("aria-label","مۇقاۋىنى چوڭ كۆرۈش"\)/);
+  assert.match(zoomSrc, /const openCover=\(\)=>\{/);
+  assert.match(zoomSrc, /img\.onclick=openCover/);
+  assert.match(zoomSrc, /e\.key==="Enter"\)openCover\(\)/);
+  assert.match(zoomSrc, /e\.preventDefault\(\);openCover\(\)/);
+  assert.match(zoomSrc, /openCoverLightbox\(slides\.length\?slides:\[current\],start,img\.alt\|\|"",img\)/);
+  assert.doesNotMatch(zoomSrc, /createElement\("button"\)/);
 });
 
 function el(tag) {
@@ -57,14 +66,26 @@ function el(tag) {
     alt: "",
     src: "",
     hidden: false,
+    tabIndex: -1,
+    style: { display: "" },
     isConnected: false,
     parent: null,
     children: [],
     attrs: {},
     listeners: {},
     onclick: null,
+    classList: {
+      add(name) {
+        const parts = String(node.className || "").split(/\s+/).filter(Boolean);
+        if (!parts.includes(name)) parts.push(name);
+        node.className = parts.join(" ");
+      }
+    },
     setAttribute(name, value) { this.attrs[name] = String(value); },
-    getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null; },
+    getAttribute(name) {
+      if (name === "src" && this.src) return this.src;
+      return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null;
+    },
     appendChild(child) {
       child.parent = this;
       child.isConnected = true;
@@ -98,14 +119,24 @@ function el(tag) {
 function makeDocument() {
   const body = el("body");
   body.isConnected = true;
-  const opener = el("button");
-  opener.className = "detail-cover-zoomable";
-  opener.isConnected = true;
-  body.appendChild(opener);
+  const box = el("div");
+  box.className = "book-cover-box";
+  const img = el("img");
+  img.src = "https://example.com/a.webp";
+  img.alt = "cover";
+  img.setAttribute("src", "https://example.com/a.webp");
+  box.appendChild(img);
+  body.appendChild(box);
+  const other = el("button");
+  body.appendChild(other);
   const doc = {
-    activeElement: opener,
+    activeElement: other,
     body,
     keydown: [],
+    querySelector(sel) {
+      if (sel === ".book-cover-box img") return img;
+      return null;
+    },
     createElement(tag) {
       const node = el(tag);
       node.doc = doc;
@@ -119,18 +150,23 @@ function makeDocument() {
     }
   };
   body.doc = doc;
-  opener.doc = doc;
-  opener.focus();
-  return { doc, opener, body };
+  box.doc = doc;
+  img.doc = doc;
+  other.doc = doc;
+  other.focus();
+  return { doc, img, other, body };
 }
 
-function loadLightbox(document) {
+function loadApi(document) {
   return new Function("document", `
     function isSafeCoverUrl(src){ return /^https?:\\/\\//.test(String(src||"")); }
     function isSampleDemoCover(){ return false; }
     function assignCoverImage(img,url){ img.src=url; }
+    function detailGallerySlides(){ return ["https://example.com/a.webp","https://example.com/b.webp"]; }
+    function getDetailBook(){ return { title: "Test" }; }
     ${lightboxSrc}
-    return { openCoverLightbox };
+    ${zoomSrc}
+    return { openCoverLightbox, setupCoverZoom };
   `)(document);
 }
 
@@ -140,9 +176,10 @@ function overlayOf(body) {
 function child(overlay, className) {
   return overlay.children.find((n) => n.className === className);
 }
-function fireKey(doc, key, opts) {
+function fireDocKey(doc, key, opts) {
   const event = {
     key,
+    code: key === " " ? "Space" : key,
     shiftKey: !!(opts && opts.shiftKey),
     prevented: false,
     preventDefault() { this.prevented = true; }
@@ -150,24 +187,69 @@ function fireKey(doc, key, opts) {
   doc.keydown.slice().forEach((fn) => fn(event));
   return event;
 }
+function fireImgKey(img, key) {
+  const event = {
+    key,
+    code: key === " " ? "Space" : key,
+    prevented: false,
+    preventDefault() { this.prevented = true; }
+  };
+  (img.listeners.keydown || []).forEach((fn) => fn(event));
+  return event;
+}
 
-test("opening stores the opener and moves focus to the close button", () => {
-  const { doc, opener } = makeDocument();
-  const api = loadLightbox(doc);
-  api.openCoverLightbox(["https://example.com/a.webp"], 0, "cover");
-  const overlay = overlayOf(doc.body);
-  const closeBtn = child(overlay, "cover-zoom-close");
-  assert.ok(overlay);
-  assert.strictEqual(doc.activeElement, closeBtn);
-  assert.strictEqual(closeBtn.textContent, "✕");
-  fireKey(doc, "Escape");
-  assert.strictEqual(doc.activeElement, opener);
+test("setupCoverZoom makes the IMG keyboard-focusable with button semantics", () => {
+  const { doc, img } = makeDocument();
+  loadApi(doc).setupCoverZoom({});
+  assert.strictEqual(img.tagName, "IMG");
+  assert.strictEqual(img.tabIndex, 0);
+  assert.strictEqual(img.getAttribute("role"), "button");
+  assert.strictEqual(img.getAttribute("title"), "مۇقاۋىنى چوڭ كۆرۈش");
+  assert.strictEqual(img.getAttribute("aria-label"), "مۇقاۋىنى چوڭ كۆرۈش");
+  assert.match(img.className, /detail-cover-zoomable/);
 });
 
-test("Tab wraps last to first and Shift+Tab wraps first to last", () => {
-  const { doc } = makeDocument();
-  const api = loadLightbox(doc);
-  api.openCoverLightbox(["https://example.com/a.webp", "https://example.com/b.webp"], 0, "cover");
+test("Enter and Space on the cover IMG open the existing lightbox; Space prevents default", () => {
+  const { doc, img } = makeDocument();
+  loadApi(doc).setupCoverZoom({});
+  fireImgKey(img, "Enter");
+  assert.ok(overlayOf(doc.body));
+  assert.strictEqual(child(overlayOf(doc.body), "cover-zoom-close").textContent, "✕");
+  fireDocKey(doc, "Escape");
+  assert.strictEqual(overlayOf(doc.body), undefined);
+
+  const space = fireImgKey(img, " ");
+  assert.strictEqual(space.prevented, true);
+  assert.ok(overlayOf(doc.body));
+});
+
+test("the actual IMG is stored as opener and close restores focus to that IMG", () => {
+  const { doc, img, other } = makeDocument();
+  loadApi(doc).setupCoverZoom({});
+  other.focus();
+  img.onclick();
+  const overlay = overlayOf(doc.body);
+  const closeBtn = child(overlay, "cover-zoom-close");
+  assert.strictEqual(doc.activeElement, closeBtn);
+  fireDocKey(doc, "Escape");
+  assert.strictEqual(doc.activeElement, img);
+  assert.notStrictEqual(doc.activeElement, other);
+
+  other.focus();
+  img.onclick();
+  child(overlayOf(doc.body), "cover-zoom-close").onclick();
+  assert.strictEqual(doc.activeElement, img);
+
+  other.focus();
+  img.onclick();
+  overlayOf(doc.body).onclick({ target: overlayOf(doc.body) });
+  assert.strictEqual(doc.activeElement, img);
+});
+
+test("Tab wraps last to first and Shift+Tab wraps first to last after IMG open", () => {
+  const { doc, img } = makeDocument();
+  loadApi(doc).setupCoverZoom({});
+  img.onclick();
   const overlay = overlayOf(doc.body);
   const closeBtn = child(overlay, "cover-zoom-close");
   const prevBtn = child(overlay, "cover-zoom-prev");
@@ -175,67 +257,33 @@ test("Tab wraps last to first and Shift+Tab wraps first to last", () => {
   assert.strictEqual(doc.activeElement, closeBtn);
 
   nextBtn.focus();
-  const tab = fireKey(doc, "Tab");
+  const tab = fireDocKey(doc, "Tab");
   assert.strictEqual(tab.prevented, true);
   assert.strictEqual(doc.activeElement, closeBtn);
 
-  const shift = fireKey(doc, "Tab", { shiftKey: true });
+  const shift = fireDocKey(doc, "Tab", { shiftKey: true });
   assert.strictEqual(shift.prevented, true);
   assert.strictEqual(doc.activeElement, nextBtn);
 
   prevBtn.focus();
-  const mid = fireKey(doc, "Tab");
+  const mid = fireDocKey(doc, "Tab");
   assert.strictEqual(mid.prevented, false);
   assert.strictEqual(doc.activeElement, prevBtn);
 });
 
-test("single-control dialog traps Tab on the close button", () => {
-  const { doc } = makeDocument();
-  const api = loadLightbox(doc);
-  api.openCoverLightbox(["https://example.com/a.webp"], 0, "cover");
+test("Escape overlay and arrows still work; visible UI is unchanged", () => {
+  const { doc, img } = makeDocument();
+  loadApi(doc).setupCoverZoom({});
+  img.onclick();
   const overlay = overlayOf(doc.body);
-  const closeBtn = child(overlay, "cover-zoom-close");
-  assert.ok(!child(overlay, "cover-zoom-prev"));
-  const tab = fireKey(doc, "Tab");
-  assert.strictEqual(tab.prevented, true);
-  assert.strictEqual(doc.activeElement, closeBtn);
-  const shift = fireKey(doc, "Tab", { shiftKey: true });
-  assert.strictEqual(shift.prevented, true);
-  assert.strictEqual(doc.activeElement, closeBtn);
-});
-
-test("Escape and overlay click still close and restore opener; arrows still step", () => {
-  const { doc, opener } = makeDocument();
-  const api = loadLightbox(doc);
-  api.openCoverLightbox(["https://example.com/a.webp", "https://example.com/b.webp"], 0, "cover");
-  let overlay = overlayOf(doc.body);
   const count = overlay.children.find((n) => n.className === "cover-zoom-count");
   assert.strictEqual(count.textContent, "1 / 2");
-  fireKey(doc, "ArrowRight");
+  fireDocKey(doc, "ArrowRight");
   assert.strictEqual(count.textContent, "2 / 2");
-  fireKey(doc, "ArrowLeft");
+  fireDocKey(doc, "ArrowLeft");
   assert.strictEqual(count.textContent, "1 / 2");
-  fireKey(doc, "Escape");
-  assert.strictEqual(overlayOf(doc.body), undefined);
-  assert.strictEqual(doc.activeElement, opener);
-
-  api.openCoverLightbox(["https://example.com/a.webp"], 0, "cover");
-  overlay = overlayOf(doc.body);
-  overlay.onclick({ target: overlay });
-  assert.strictEqual(overlayOf(doc.body), undefined);
-  assert.strictEqual(doc.activeElement, opener);
-});
-
-test("close button still restores focus without new visible copy", () => {
-  const { doc, opener } = makeDocument();
-  const api = loadLightbox(doc);
-  api.openCoverLightbox(["https://example.com/a.webp"], 0, "cover");
-  const overlay = overlayOf(doc.body);
-  const closeBtn = child(overlay, "cover-zoom-close");
-  closeBtn.onclick();
-  assert.strictEqual(overlayOf(doc.body), undefined);
-  assert.strictEqual(doc.activeElement, opener);
   assert.doesNotMatch(lightboxSrc, /focus-trap|tabindex="-1"|Visually hidden|skip lightbox/i);
+  assert.doesNotMatch(zoomSrc, /createElement\("button"\)/);
 });
 
 if (failed) {

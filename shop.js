@@ -2092,10 +2092,10 @@ function setDetailHeroImage(src,alt){
   assignCoverImage(img,safe);
 }
 
-function openCoverLightbox(slides,startIndex,alt){
+function openCoverLightbox(slides,startIndex,alt,openerEl){
   const list=(slides||[]).map(src=>isSafeCoverUrl(src)?src:"").filter(Boolean);
   if(!list.length)return;
-  const opener=document.activeElement;
+  const opener=(openerEl&&typeof openerEl.focus==="function")?openerEl:document.activeElement;
   let index=Math.max(0,Math.min(startIndex||0,list.length-1));
   const overlay=document.createElement("div");
   overlay.className="cover-zoom-overlay";
@@ -2178,12 +2178,20 @@ function setupCoverZoom(book){
   if(!img||img.style.display==="none")return;
   img.classList.add("detail-cover-zoomable");
   img.setAttribute("title","مۇقاۋىنى چوڭ كۆرۈش");
+  img.tabIndex=0;
+  img.setAttribute("role","button");
+  img.setAttribute("aria-label","مۇقاۋىنى چوڭ كۆرۈش");
   const slides=detailGallerySlides(book||getDetailBook());
-  img.onclick=()=>{
+  const openCover=()=>{
     const current=img.getAttribute("src")||"";
     const start=Math.max(0,slides.indexOf(current));
-    openCoverLightbox(slides.length?slides:[current],start,img.alt||"");
+    openCoverLightbox(slides.length?slides:[current],start,img.alt||"",img);
   };
+  img.onclick=openCover;
+  img.addEventListener("keydown",e=>{
+    if(e.key==="Enter")openCover();
+    else if(e.key===" "||e.code==="Space"){e.preventDefault();openCover()}
+  });
 }
 
 function renderBookGallery(book){
