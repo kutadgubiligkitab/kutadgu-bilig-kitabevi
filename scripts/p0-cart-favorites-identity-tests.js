@@ -649,7 +649,7 @@ test("storefront pages keep cart markup pin shop.js v=113",()=>{
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=115/);
-  assert.match(home,/shop\.js\?v=119/);
+  assert.match(home,/shop\.js\?v=120/);
   assert.match(shop,/member\.js\?v=25/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);

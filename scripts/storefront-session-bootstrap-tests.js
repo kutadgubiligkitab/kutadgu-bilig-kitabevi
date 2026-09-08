@@ -176,7 +176,7 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=119/);
+  assert.match(indexHtml, /shop\.js\?v=120/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
   assert.match(cartHtml, /shop\.js\?v=115/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
