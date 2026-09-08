@@ -405,7 +405,14 @@ async function installCarouselCatalogStub(page, flags) {
   const bestseller = flags.bestseller === true;
   const bookCount = Math.max(1, Number(flags.bookCount) || 1);
   const featuredCount = flags.featuredCount == null ? null : Math.max(0, Number(flags.featuredCount) || 0);
-  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount }) => {
+  const failFeatured = flags.failFeatured === true;
+  const failModes = {
+    recommended: flags.failRecommended === true,
+    newest: flags.failNewest === true,
+    bestseller: flags.failBestseller === true
+  };
+  const holdNewest = flags.holdNewest === true;
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest }) => {
     window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
     let catalog = [];
     Object.defineProperty(window, "KITAP_CATALOG", {
@@ -452,6 +459,35 @@ async function installCarouselCatalogStub(page, flags) {
       id: (extra.id || 91001) + i,
       title: `${extra.title || "Carousel Stub Book"} ${i + 1}`
     }));
+    const abortError = () => {
+      const error = new Error("Aborted");
+      error.name = "AbortError";
+      return error;
+    };
+    const waitIfAborted = (init) => {
+      const signal = init && init.signal;
+      if (!signal) return null;
+      if (signal.aborted) return Promise.reject(abortError());
+      return new Promise((_, reject) => {
+        signal.addEventListener("abort", () => reject(abortError()), { once: true });
+      });
+    };
+    const holdNewestQuery = async (init) => {
+      if (!holdNewest) return;
+      window.__carouselNewestHold = window.__carouselNewestHold || new Promise((resolve) => {
+        window.__releaseCarouselNewest = resolve;
+      });
+      const aborted = waitIfAborted(init);
+      if (!aborted) {
+        await window.__carouselNewestHold;
+        return;
+      }
+      await Promise.race([window.__carouselNewestHold, aborted]);
+    };
+    const failJson = () => new Response(JSON.stringify({ message: "homepage-state-stub-error" }), {
+      status: 500,
+      headers: { "content-type": "application/json" }
+    });
     window.fetch = async (input, init) => {
       const url = String(typeof input === "string" ? input : input && input.url || "");
       const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
@@ -464,13 +500,22 @@ async function installCarouselCatalogStub(page, flags) {
       }
       if (url.includes("is_active=eq.false")) return jsonResponse([]);
       if (url.includes("is_recommended=eq.true")) {
+        if (failModes.recommended) return failJson();
         return jsonResponse(recommended ? stubBooks({ is_recommended: true, id: 91001, title: "Recommended Stub" }) : []);
       }
       if (url.includes("is_new=eq.true")) {
+        await holdNewestQuery(init);
+        if (failModes.newest) return failJson();
         return jsonResponse(newest ? stubBooks({ is_new: true, id: 92001, title: "Newest Stub" }) : []);
       }
       if (url.includes("sales_count=gt.0")) {
+        if (failModes.bestseller) return failJson();
         return jsonResponse(bestseller ? stubBooks({ sales_count: 4, id: 93001, title: "Bestseller Stub" }) : []);
+      }
+      if (failFeatured) {
+        const headers = (init && init.headers) || {};
+        const range = String(headers.Range || headers.range || "");
+        if (range === "0-19" || range.startsWith("0-19")) return failJson();
       }
       if (featuredCount != null) {
         return jsonResponse(Array.from({ length: featuredCount }, (_, i) => stubBook({
@@ -480,7 +525,7 @@ async function installCarouselCatalogStub(page, flags) {
       }
       return jsonResponse([]);
     };
-  }, { recommended, newest, bestseller, bookCount, featuredCount });
+  }, { recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest });
 }
 
 async function installAnnouncementFixtures(page, opts) {
