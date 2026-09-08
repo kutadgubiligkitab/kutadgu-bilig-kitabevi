@@ -79,6 +79,7 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     // is_featured is retained as legacy data, but new collection logic uses is_recommended only.
     isRecommended:flag("isRecommended","is_recommended",false),
     isColorPrint:flag("isColorPrint","is_color_print",false),
+    interiorPrintType:(bibliographicLib().normalizeInteriorPrintType?bibliographicLib().normalizeInteriorPrintType(value("interiorPrintType","interior_print_type","")):String(value("interiorPrintType","interior_print_type","")||"").trim())||"",
     isBestSeller:flag("isBestSeller","is_bestseller",false),
     salesCount:Number(value("salesCount","sales_count",book.sold_count??0))||0,
     isActive:value("isActive","is_active",true)!==false,
@@ -1904,6 +1905,10 @@ function getDetailBook(){
 }
 
 function colorPrintDetailValue(b){
+  const lib=bibliographicLib();
+  if(lib.interiorPrintDetailValue)return lib.interiorPrintDetailValue(b);
+  if(b&&(b.interiorPrintType==="color"||b.interior_print_type==="color"))return "رەڭلىك";
+  if(b&&(b.interiorPrintType==="bw"||b.interior_print_type==="bw"))return "رەڭسىز";
   return (b&&(b.isColorPrint===true||b.is_color_print===true))?"رەڭلىك":"";
 }
 

@@ -111,6 +111,9 @@ window.KUTADGU_SUPABASE_CONFIG = {
   crash book CRUD. stock_status is never a writable Admin field; status is derived.
   is_color_print stays true after STAGE_COLOR_PRINT.sql. Admin still live-detects it
   so an environment without the column can hide the field and omit writes.
+  interior_print_type stays false until STAGE_INTERIOR_PRINT_TYPE.sql. Admin
+  live-detects it so a frontend deploy before the manual migration does not
+  crash book CRUD. Legacy is_color_print remains the public fallback for color.
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -134,7 +137,9 @@ window.KUTADGU_BOOKS_SCHEMA = {
     /* true after GALLERY_IMAGES_MIGRATION.sql (live books.gallery_images jsonb). Admin also live-detects the column. */
     gallery_images: true,
     /* true after STAGE_COLOR_PRINT.sql. Admin also live-detects the column. */
-    is_color_print: true
+    is_color_print: true,
+    /* true after STAGE_INTERIOR_PRINT_TYPE.sql. Admin also live-detects the column. */
+    interior_print_type: false
   }
 };
 

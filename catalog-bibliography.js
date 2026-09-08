@@ -66,6 +66,35 @@ function staticSearchHaystack(book){
   ].filter(Boolean).join(" ");
 }
 
+const INTERIOR_PRINT_VALUES=["color","bw"];
+const INTERIOR_PRINT_LABELS={color:"رەڭلىك",bw:"رەڭسىز"};
+
+function normalizeInteriorPrintType(value){
+  if(value==null)return null;
+  const s=String(value).trim();
+  if(!s)return null;
+  const key=s.toLowerCase().replace(/[\s_-]+/g,"");
+  if(key==="color"||key==="colour")return "color";
+  if(key==="bw"||key==="blackandwhite"||key==="blackwhite")return "bw";
+  return null;
+}
+
+function interiorPrintTypeLabel(value){
+  const n=normalizeInteriorPrintType(value);
+  return n?INTERIOR_PRINT_LABELS[n]:"";
+}
+
+function resolveInteriorPrintType(book){
+  const n=normalizeInteriorPrintType(book&&(book.interiorPrintType??book.interior_print_type));
+  if(n)return n;
+  if(book&&(book.isColorPrint===true||book.is_color_print===true))return "color";
+  return null;
+}
+
+function interiorPrintDetailValue(book){
+  return interiorPrintTypeLabel(resolveInteriorPrintType(book));
+}
+
 function normalizeCoverType(value){
   if(value==null)return null;
   const s=String(value).trim();
@@ -151,13 +180,19 @@ const api={
   BOOK_SIZE_VALUES,
   COVER_TYPE_LABELS,
   BOOK_SIZE_LABELS,
+  INTERIOR_PRINT_VALUES,
+  INTERIOR_PRINT_LABELS,
   schemaOptional,
   parsePublishYear,
   parsePages,
   normalizeCoverType,
   normalizeBookSize,
+  normalizeInteriorPrintType,
   coverTypeLabel,
   bookSizeLabel,
+  interiorPrintTypeLabel,
+  resolveInteriorPrintType,
+  interiorPrintDetailValue,
   detailMetaVisible,
   canonicalOptionalForSave,
   normalizeIsbnDigits,

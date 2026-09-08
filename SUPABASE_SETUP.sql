@@ -48,6 +48,7 @@ create table if not exists public.books (
   is_featured boolean not null default false,
   is_recommended boolean not null default false,
   is_color_print boolean not null default false,
+  interior_print_type text,
   is_bestseller boolean not null default false,
   sales_count integer not null default 0 check (sales_count >= 0),
   created_at timestamptz not null default now(),
@@ -92,6 +93,16 @@ alter table public.books
   add constraint books_stock_nonnegative_chk
   check (stock >= 0);
 alter table public.books add column if not exists is_color_print boolean not null default false;
+alter table public.books add column if not exists interior_print_type text;
+alter table public.books alter column interior_print_type drop not null;
+alter table public.books alter column interior_print_type drop default;
+alter table public.books drop constraint if exists books_interior_print_type_chk;
+alter table public.books
+  add constraint books_interior_print_type_chk
+  check (
+    interior_print_type is null
+    or interior_print_type in ('color', 'bw')
+  );
 alter table public.books add column if not exists is_bestseller boolean not null default false;
 alter table public.books add column if not exists is_featured boolean not null default false;
 alter table public.books add column if not exists sales_count integer not null default 0;

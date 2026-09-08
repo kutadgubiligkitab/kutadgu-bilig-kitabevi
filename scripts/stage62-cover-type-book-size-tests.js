@@ -178,14 +178,14 @@ test("auth MFA idle lock password reset OAuth files are unchanged by this featur
 
 test("book.html loads catalog-bibliography before shop.js", () => {
   const bookHtml = read("book-shell.html");
-  const bib = bookHtml.indexOf("catalog-bibliography.js?v=2");
+  const bib = bookHtml.indexOf("catalog-bibliography.js?v=3");
   const shop = bookHtml.search(/shop\.js\?v=\d+/);
   assert.ok(bib > 0 && shop > bib);
 });
 
-test("Admin cache pins include bibliography v=2 and admin.js v=66", () => {
-  assert.match(adminHtml, /catalog-bibliography\.js\?v=2/);
-  assert.match(adminHtml, /admin\.js\?v=66/);
+test("Admin cache pins include bibliography v=3 and admin.js v=67", () => {
+  assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
+  assert.match(adminHtml, /admin\.js\?v=67/);
   assert.match(adminHtml, /admin\.css\?v=38/);
   assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
   assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);
