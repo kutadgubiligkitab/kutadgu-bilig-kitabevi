@@ -2793,8 +2793,13 @@ function searchEnhance(){
   res.innerHTML=fallbackNotice();
   try{
     const qParam=new URLSearchParams(location.search).get("q");
-    if(qParam){input.value=qParam;run(false)}
+    if(qParam)input.value=qParam;
   }catch(err){}
+  const runQueuedSearch=()=>{if(hasFilter())run(false)};
+  if(hasFilter()){
+    if(catalogBootSettled||remoteCatalog.available)runQueuedSearch();
+    else document.addEventListener("kutadgu:catalog-ready",runQueuedSearch,{once:true});
+  }
 }
 
 function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loading:index<3?"eager":"lazy",fetchpriority:index<2?"high":""})}
