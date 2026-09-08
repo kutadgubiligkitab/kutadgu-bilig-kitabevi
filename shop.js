@@ -2095,6 +2095,7 @@ function setDetailHeroImage(src,alt){
 function openCoverLightbox(slides,startIndex,alt){
   const list=(slides||[]).map(src=>isSafeCoverUrl(src)?src:"").filter(Boolean);
   if(!list.length)return;
+  const opener=document.activeElement;
   let index=Math.max(0,Math.min(startIndex||0,list.length-1));
   const overlay=document.createElement("div");
   overlay.className="cover-zoom-overlay";
@@ -2136,17 +2137,30 @@ function openCoverLightbox(slides,startIndex,alt){
     if(count)count.textContent=`${index+1} / ${list.length}`;
   };
   show();
+  const dialogFocusables=()=>[closeBtn,prevBtn,nextBtn].filter(Boolean);
   const close=()=>{
     overlay.remove();
     document.removeEventListener("keydown",onKey);
+    if(opener&&opener.isConnected&&typeof opener.focus==="function")opener.focus();
   };
   const step=dir=>{
     index=(index+dir+list.length)%list.length;
     show();
   };
   function onKey(e){
-    if(e.key==="Escape")close();
-    else if(list.length>1&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){
+    if(e.key==="Escape"){close();return}
+    if(e.key==="Tab"){
+      const nodes=dialogFocusables();
+      if(!nodes.length)return;
+      const first=nodes[0],last=nodes[nodes.length-1],active=document.activeElement;
+      if(e.shiftKey){
+        if(active===first||!overlay.contains(active)){e.preventDefault();last.focus()}
+      }else if(active===last||!overlay.contains(active)){
+        e.preventDefault();first.focus();
+      }
+      return;
+    }
+    if(list.length>1&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){
       e.preventDefault();
       step(e.key==="ArrowLeft"?1:-1);
     }
@@ -2156,6 +2170,7 @@ function openCoverLightbox(slides,startIndex,alt){
   nextBtn?.addEventListener("click",e=>{e.stopPropagation();step(1)});
   overlay.onclick=e=>{if(e.target===overlay)close()};
   document.addEventListener("keydown",onKey);
+  closeBtn.focus();
 }
 
 function setupCoverZoom(book){
