@@ -19,7 +19,7 @@ const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
-const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price"];
+const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print"];
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -37,7 +37,7 @@ const OPTIONAL_COL_ALIASES={
   legacy_id:["legacy_id","legacyid","static_id"],
   gallery_images:["gallery_images","gallery"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true,is_color_print:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let profileById=new Map();
@@ -1144,6 +1144,7 @@ async function routeSession(){
   }
   await detectOptionalGalleryColumn();
   await detectOptionalStockColumn();
+  await detectOptionalColorPrintColumn();
   if(gen!==routeGen)return;
   if(adminShouldHoldIdleLock()){
     enforceAdminIdleLock();
@@ -1836,6 +1837,7 @@ function clearForm(){
   $("#bookIsActive").checked=true;
   $("#bookIsNew").checked=false;
   $("#bookIsRecommended").checked=false;
+  if($("#bookIsColorPrint"))$("#bookIsColorPrint").checked=false;
   $("#bookIsbn").value="";
   setStockInputValue($("#bookStock"),null);
   syncDerivedStockStatus();
@@ -1895,6 +1897,7 @@ async function openEdit(id){
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
   $("#bookIsRecommended").checked=b.is_recommended===true;
+  if($("#bookIsColorPrint"))$("#bookIsColorPrint").checked=b.is_color_print===true;
   const coverPreview=Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?b.image_url:"";
   $("#bookCoverPreview").src=coverPreview;
   $("#bookCoverPreview").style.visibility=coverPreview?"visible":"hidden";
@@ -2750,6 +2753,40 @@ async function detectOptionalStockColumn(){
     console.warn(err);
   }
 }
+function isMissingColorPrintColumnError(error){
+  const msg=String(error&&error.message||"");
+  const code=String(error&&error.code||"");
+  return /is_color_print/i.test(msg)&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
+}
+function disableColorPrintColumn(){
+  LIVE_OPTIONAL_BOOK_COLS.is_color_print=false;
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.is_color_print=false;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function enableColorPrintColumn(){
+  LIVE_OPTIONAL_BOOK_COLS.is_color_print=true;
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.is_color_print=true;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+async function detectOptionalColorPrintColumn(){
+  if(!db)return;
+  try{
+    const {error}=await db.from("books").select("is_color_print").limit(1);
+    if(error&&isMissingColorPrintColumnError(error)){
+      disableColorPrintColumn();
+      return;
+    }
+    if(!error)enableColorPrintColumn();
+  }catch(err){
+    console.warn(err);
+  }
+}
 function galleryLib(){
   return window.KutadguGallery||{};
 }
@@ -3093,6 +3130,7 @@ async function saveBook(e){
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
     if(isbnColumn)row.isbn=isbn;
     if(presentBookCols.has("stock"))row.stock=stockValue;
+    if(presentBookCols.has("is_color_print"))row.is_color_print=$("#bookIsColorPrint")?$("#bookIsColorPrint").checked:false;
     if(presentBookCols.has("original_price")&&Orig.planInsertOriginalPrice&&Orig.planUpdateOriginalPrice){
       const planned=isEdit
         ?Orig.planUpdateOriginalPrice(editing&&editing.original_price,row.price,editing&&editing.price)
@@ -3141,6 +3179,14 @@ async function saveBook(e){
       ({error}=await persistBookRow(payload,plan.operation,editingBookId));
       if(!error){
         alert("stock ستونى تېخى Database دا يوق. STAGE82_STOCK_FOUNDATION.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
+      }
+    }
+    if(error&&Object.prototype.hasOwnProperty.call(payload||{},"is_color_print")&&isMissingColorPrintColumnError(error)){
+      disableColorPrintColumn();
+      delete payload.is_color_print;
+      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      if(!error){
+        alert("is_color_print ستونى تېخى Database دا يوق. STAGE_COLOR_PRINT.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
     }
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"original_price")&&(/original_price/i.test(String(error.message||""))||/42703/.test(String(error.code||"")))){
@@ -4869,6 +4915,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError
 };
 })();

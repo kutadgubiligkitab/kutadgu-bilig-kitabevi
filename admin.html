@@ -544,6 +544,8 @@
       <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
       <label class="admin-check admin-flag-check"><input id="bookIsNew" type="checkbox"><span>🆕 يېڭى قوشۇلغان (قولدا)</span></label>
       <label class="admin-check admin-flag-check"><input id="bookIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
+      <label class="admin-check admin-flag-check" data-book-col="is_color_print" hidden><input id="bookIsColorPrint" type="checkbox"><span>ئىچكى بەتلىرى رەڭلىك</span></label>
+      <p class="admin-help admin-wide" data-book-col="is_color_print" hidden>پەقەت رەڭلىك نەشر بولسا تاللاڭ. تاللانمىسا توربەتتە بۇ ھەقتە خەت كۆرۈنمەيدۇ.</p>
       <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
 
       <div id="createDuplicateWarning" class="admin-status warn admin-wide" hidden>
@@ -874,7 +876,7 @@
   </div>
 </div>
 
-<script defer src="supabase-config.js?v=17"></script>
+<script defer src="supabase-config.js?v=18"></script>
 <script defer src="app-config.js?v=4"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=2"></script>
@@ -896,6 +898,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=65"></script>
+  <script defer src="admin.js?v=66"></script>
 </body>
 </html>

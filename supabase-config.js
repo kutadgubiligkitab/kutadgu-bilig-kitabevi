@@ -109,6 +109,8 @@ window.KUTADGU_SUPABASE_CONFIG = {
   stock stays false until STAGE82_STOCK_FOUNDATION.sql. Admin live-detects stock
   (read-only select) so a frontend deploy before the manual migration does not
   crash book CRUD. stock_status is never a writable Admin field; status is derived.
+  is_color_print stays false until STAGE_COLOR_PRINT.sql. Admin live-detects it
+  so a frontend deploy before the manual migration does not crash book CRUD.
 */
 window.KUTADGU_BOOKS_SCHEMA = {
   identityId: true,
@@ -130,7 +132,9 @@ window.KUTADGU_BOOKS_SCHEMA = {
     /* true after STAGE45_LEGACY_ID_MIGRATION.sql. Importer never writes books.id. */
     legacy_id: true,
     /* true after GALLERY_IMAGES_MIGRATION.sql (live books.gallery_images jsonb). Admin also live-detects the column. */
-    gallery_images: true
+    gallery_images: true,
+    /* true after STAGE_COLOR_PRINT.sql. Admin also live-detects the column. */
+    is_color_print: false
   }
 };
 

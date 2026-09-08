@@ -47,6 +47,7 @@ create table if not exists public.books (
   is_new boolean not null default true,
   is_featured boolean not null default false,
   is_recommended boolean not null default false,
+  is_color_print boolean not null default false,
   is_bestseller boolean not null default false,
   sales_count integer not null default 0 check (sales_count >= 0),
   created_at timestamptz not null default now(),
@@ -90,6 +91,7 @@ alter table public.books drop constraint if exists books_stock_nonnegative_chk;
 alter table public.books
   add constraint books_stock_nonnegative_chk
   check (stock >= 0);
+alter table public.books add column if not exists is_color_print boolean not null default false;
 alter table public.books add column if not exists is_bestseller boolean not null default false;
 alter table public.books add column if not exists is_featured boolean not null default false;
 alter table public.books add column if not exists sales_count integer not null default 0;
