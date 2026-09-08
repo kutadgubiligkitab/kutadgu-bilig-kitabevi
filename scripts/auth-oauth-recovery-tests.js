@@ -197,7 +197,7 @@ test("reset-password.html loads reset-password.js v=9", () => {
   assert.match(account, /supabase-config\.js\?v=16/);
   assert.match(index, /supabase-config\.js\?v=17/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=17/);
-  assert.match(read("admin.html"), /admin\.js\?v=64/);
+  assert.match(read("admin.html"), /admin\.js\?v=65/);
 });
 
 test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {

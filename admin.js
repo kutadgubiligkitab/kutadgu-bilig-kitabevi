@@ -1843,6 +1843,7 @@ function clearForm(){
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
   $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
+  setCoverPickStatus(false);
   if($("#bookCoverType"))$("#bookCoverType").value="";
   if($("#bookSize"))$("#bookSize").value="";
   resetGalleryDraft([]);
@@ -1898,6 +1899,7 @@ async function openEdit(id){
   $("#bookCoverPreview").src=coverPreview;
   $("#bookCoverPreview").style.visibility=coverPreview?"visible":"hidden";
   $("#bookCoverText").textContent=b.image_url?"ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ":"مۇقاۋا يوق";
+  setCoverPickStatus(false);
   hideCreateConflict();
   resetGalleryDraft(normalizeGalleryField(b.gallery_images,b.image_url));
   modal(true);
@@ -2824,6 +2826,40 @@ function bindGalleryPicker(){
     addGalleryFiles(files);
     input.value="";
   });
+}
+function setCoverPickStatus(selected){
+  const el=$("#bookCoverPickStatus");
+  if(el)el.textContent=selected?"مۇقاۋا رەسىمى تاللاندى":"مۇقاۋا رەسىمى تاللانمىدى";
+}
+function clearCoverPick(){
+  const input=$("#bookCover");
+  if(input)input.value="";
+  setCoverPickStatus(false);
+  if(editing&&editing.image_url){
+    $("#bookCoverPreview").src=editing.image_url;
+    $("#bookCoverPreview").style.visibility="visible";
+    $("#bookCoverText").textContent="ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ";
+  }else{
+    $("#bookCoverPreview").src="";
+    $("#bookCoverPreview").style.visibility="hidden";
+    $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
+  }
+}
+function bindCoverPicker(){
+  const input=$("#bookCover");
+  const btn=$("#bookCoverPickBtn");
+  if(!input||input.dataset.coverPickerBound==="1")return;
+  input.dataset.coverPickerBound="1";
+  if(btn)btn.onclick=()=>input.click();
+  input.addEventListener("change",()=>{
+    const file=input.files&&input.files[0];
+    if(!file)return;
+    setCoverPickStatus(true);
+    $("#bookCoverPreview").src=URL.createObjectURL(file);
+    $("#bookCoverPreview").style.visibility="visible";
+    $("#bookCoverText").textContent=file.name;
+  });
+  $("#clearCoverPick")&&($("#clearCoverPick").onclick=clearCoverPick);
 }
 async function readMagicMime(file){
   const sniff=galleryLib().sniffImageMime;
@@ -4612,6 +4648,7 @@ async function confirmImport(){
 function bindBookListUx(){
   renderSourceOptions();
   bindGalleryPicker();
+  bindCoverPicker();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
   $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
@@ -4775,18 +4812,6 @@ function init(){
   bindMfaGate();
   $("#importStaticBtn").onclick=importStatic;
   $("#createDuplicateConfirm")&&($("#createDuplicateConfirm").onchange=()=>{createConflictAck=!!$("#createDuplicateConfirm").checked});
-  $("#clearCoverPick")&&($("#clearCoverPick").onclick=()=>{
-    $("#bookCover").value="";
-    if(editing&&editing.image_url){
-      $("#bookCoverPreview").src=editing.image_url;
-      $("#bookCoverPreview").style.visibility="visible";
-      $("#bookCoverText").textContent="ھازىرقى مۇقاۋا — يېڭى ھۆججەت تاللانمىسا ئۆزگەرمەيدۇ";
-    }else{
-      $("#bookCoverPreview").src="";
-      $("#bookCoverPreview").style.visibility="hidden";
-      $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
-    }
-  });
   $("#bookIsbn")&&$("#bookIsbn").addEventListener("blur",()=>{$("#bookIsbn").value=formatIsbn($("#bookIsbn").value)});
   $("#importCsvBtn").onclick=openImport;
   $("#closeImportModal").onclick=closeImport;
@@ -4831,13 +4856,6 @@ function init(){
   $("#adminOrderStatusFilter")&&$("#adminOrderStatusFilter").addEventListener("change",()=>{
     adminOrderPage=0;
     loadAdminOrders();
-  });
-  $("#bookCover").addEventListener("change",()=>{
-    const file=$("#bookCover").files[0];
-    if(!file)return;
-    $("#bookCoverPreview").src=URL.createObjectURL(file);
-    $("#bookCoverPreview").style.visibility="visible";
-    $("#bookCoverText").textContent=file.name;
   });
   $("#bookModal").addEventListener("click",e=>{if(saveInFlight||priceRollbackInFlight)return;if(e.target===$("#bookModal"))modal(false)});
   $("#importModal").addEventListener("click",e=>{if(e.target===$("#importModal")&&!importRunning)closeImport()});
