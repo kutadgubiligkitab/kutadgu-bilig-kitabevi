@@ -2322,7 +2322,6 @@ function paintUnauthorizedDetail(){
     const unavailable=document.createElement("div");
     unavailable.className="detail-purchase-panel detail-unavailable-panel";
     unavailable.innerHTML=`
-      <div class="detail-unavailable-title">بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ.</div>
       <p class="detail-order-tip">بۇ كىتاب تېخى سېتىلىشقا چىقىرىلمىغان ياكى ۋاقتىنچە يوشۇرۇلغان.</p>
       <p><a class="empty-state-button" href="/#books">كىتابلارنى كۆرۈش</a></p>
     `;
@@ -2409,7 +2408,7 @@ function decorateDetail(){
       <button type="button" class="share-button" data-share-id="${b.id}">🔗 ھەمبەھىرلەش</button>
     </div>
 
-    <div class="detail-order-tip">سېۋەتكە قوشقاندىن كېيىن WhatsApp ئارقىلىق زاكاز قىلىڭ. كۆرسىتىلگەن باھا كىتاب باھاسى؛ توشۇش ھەققى زاكازدا ئايرىم جەزمللىنىدۇ. دۇكاندىن ئېلىش ياكى كارگو تاللىسىڭىز بولىدۇ.</div>
+    <div class="detail-order-tip">سېۋەتكە قوشۇپ، WhatsApp ئارقىلىق زاكاز قىلىڭ.</div>
   `;
   box.appendChild(panel);
 
@@ -2547,7 +2546,6 @@ async function renderHomeFeaturedBooks(){
     <div class="home-featured-head">
       <div>
         <h3>🕘 يېقىندا قوشۇلغانلار</h3>
-        <p>باش بەتتىنلا كىتابلارنى كۆرۈپ تاللاڭ.</p>
       </div>
       <a class="home-featured-all" href="/books">ھەممىسىنى كۆرۈش ←</a>
     </div>
