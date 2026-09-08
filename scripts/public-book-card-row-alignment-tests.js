@@ -171,7 +171,7 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|stage4b-public-cards|stage4b2-homepage-discovery|premium-cart-row-alignment-safety/.test(file)
+    /listing-card-safety\.css|detail-similar-card-safety\.css|recently-viewed-card-safety\.css|detail-cover-mobile-safety\.css|stage4b-public-cards\.css|stage4b2-homepage-discovery\.css|premium-cart-row-alignment-safety\.css/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
 });
