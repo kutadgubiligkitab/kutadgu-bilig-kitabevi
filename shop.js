@@ -3570,10 +3570,22 @@ async function orderWithWhatsApp(){
   }
 }
 
+function syncDeliveryAddressRequired(){
+  const address=document.querySelector("#customerAddress");
+  if(!address)return;
+  const pickup=document.querySelector("#deliveryMethod")?.value==="دۇكاندىن ئېلىش";
+  if(pickup)address.removeAttribute("required");
+  else address.setAttribute("required","");
+  const mark=document.querySelector("#customerAddressRequiredMark");
+  if(mark)mark.hidden=pickup;
+}
+
 function setupCheckout(){
   let form=document.querySelector("#checkoutForm");if(!form||form.dataset.ready==="1")return;
   form.dataset.ready="1";
   loadCustomerData();
+  syncDeliveryAddressRequired();
+  document.querySelector("#deliveryMethod")?.addEventListener("change",syncDeliveryAddressRequired);
 
   form.querySelectorAll("input,textarea,select").forEach(el=>{
     el.addEventListener("change",saveCustomerData);
