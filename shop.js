@@ -1521,10 +1521,12 @@ function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-t
     return `<button type="button" class="${escapeAttr(className)} is-cart-unavailable" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true">ھازىرچە تەمىنلەنمەيدۇ</button>`;
   }
   const s=stockInfo(book);
-  if(s.canBuy){
-    return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}">${escapeHtml(label)}</button>`;
-  }
   const compact=String(label||"").replace(/\s+/g,"")==="🛒";
+  if(s.canBuy){
+    const title=String(book.title||"").trim();
+    const named=compact?` aria-label="${escapeAttr(title?`${title} — سېۋەتكە سېلىش`:"سېۋەتكە سېلىش")}"`:"";
+    return `<button type="button" class="${escapeAttr(className)}" data-cart-id="${escapeAttr(book.id)}"${named}>${escapeHtml(label)}</button>`;
+  }
   const mark=`<span class="cart-blocked-mark" aria-hidden="true">✕</span>`;
   const text=compact?`🛒${mark}`:`🛒 ${mark} تۈگەپ كەتتى`;
   return `<button type="button" class="${escapeAttr(className)} is-cart-unavailable" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true" aria-label="تۈگەپ كەتتى">${text}</button>`;

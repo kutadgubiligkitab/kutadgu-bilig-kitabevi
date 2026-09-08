@@ -126,10 +126,10 @@ test("card generators stay unchanged from origin/main", () => {
     sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;"),
     sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;")
   );
-  assert.strictEqual(
-    sliceBetween(shopJs, "function cartButton(book,label=", "function cart(){"),
-    sliceBetween(mainShop, "function cartButton(book,label=", "function cart(){")
-  );
+  // cartButton is not byte-pinned: L1 icon-only aria-label is covered by l1-home-cart-accessible-name-tests.js
+  const cartBtn = sliceBetween(shopJs, "function cartButton(book,label=", "function cart(){");
+  assert.match(cartBtn, /aria-label="تۈگەپ كەتتى"/);
+  assert.match(cartBtn, /replace\(\/\\s\+\/g,""\)==="🛒"/);
   assert.strictEqual(
     sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>"),
     sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>")
