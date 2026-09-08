@@ -51,7 +51,7 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; real shop hero photos replace the CSS scene", () => {
-  assert.match(html, /index\.css\?v=18/);
+  assert.match(html, /index\.css\?v=19/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=24/);
   assert.match(html, /shop\.js\?v=118/);
@@ -202,6 +202,27 @@ test("homepage mobile P1 keeps one working filter toggle and 44px carousel targe
   assert.match(mobileCss, /\.home-search-card-section\s*\{\s*margin:\s*8px auto 8px !important/);
   assert.match(shopCss, /@media\(max-width:700px\)\{[\s\S]*\.home-search-card-section\{[^}]*margin:8px auto 8px/);
   assert.match(shopCss, /#searchButton\{min-width:92px;min-height:50px/);
+});
+
+test("homepage category last card is centered on phone 2-column and icons are decorative", () => {
+  const cats = html.slice(html.indexOf('id="bookCategories"'), html.indexOf('id="orderProcess"'));
+  assert.match(cats, /href="\/adabiyat"/);
+  assert.match(cats, /href="\/universal"/);
+  assert.match(cats, /href="\/tibb"/);
+  assert.match(cats, /href="\/derslik"/);
+  assert.match(cats, /href="\/terbiye"/);
+  assert.match(cats, /href="\/dini"/);
+  assert.match(cats, /href="\/children"/);
+  const icons = cats.match(/<div class="icon"[^>]*>/g) || [];
+  assert.strictEqual(icons.length, 7);
+  icons.forEach((tag) => {
+    assert.match(tag, /aria-hidden="true"/);
+  });
+  assert.match(css, /#bookCategories \.cards \.card:last-child\{/);
+  assert.match(css, /@media \(max-width:700px\)\{[\s\S]*#bookCategories \.cards \.card:last-child\{[\s\S]*grid-column:1 \/ -1 !important/);
+  assert.match(css, /#bookCategories \.cards \.card:last-child\{[\s\S]*justify-self:center !important/);
+  assert.match(css, /#bookCategories \.cards \.card:last-child\{[\s\S]*width:calc\(\(100% - 10px\) \/ 2\) !important/);
+  assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(7\)\{[\s\S]*grid-column:6 \/ span 2 !important/);
 });
 
 if (failed) {
