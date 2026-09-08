@@ -1938,14 +1938,12 @@ body:not(.dark-mode) .about-points strong{
   }
 }
 
-.cart-order-steps,
 .order-steps-note{
   margin:8px 0 0;
   color:var(--site-text-soft,#806f62);
   font-size:13px;
   line-height:1.7;
 }
-.cart-order-steps{margin:0 0 10px;font-size:12px}
 .checkout-secondary-actions{
   margin-top:14px;
   padding-top:12px;
