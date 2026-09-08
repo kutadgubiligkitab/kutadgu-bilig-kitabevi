@@ -139,12 +139,22 @@ test.describe("mobile menu tap", () => {
     await openMobileMenu(page);
     await expectDrawerHoisted(page);
 
-    const books = page.locator(`${drawer()} a[href='#books']`);
-    await expectLinkReceivesHit(page, books, "#books");
+    const books = page.locator(`${drawer()} a[href='/books']`);
+    await expectLinkReceivesHit(page, books, "/books");
     await books.click();
-    await expect.poll(async () => new URL(page.url()).hash).toBe("#books");
-    await expect(page.locator(drawer())).not.toHaveClass(/is-open/);
-    await expect(page.locator("body")).not.toHaveClass(/mobile-menu-open/);
+    await expect.poll(async () => new URL(page.url()).pathname).toBe("/books");
+    await H.waitForShop(page);
+    await expect(page.locator(".page-header h1")).toContainText("بارلىق كىتابلار");
+
+    await H.openFresh(page, "/");
+    await openMobileMenu(page);
+    const categories = page.locator(`${drawer()} a[href*='bookCategories']`);
+    await expect(categories).toBeVisible();
+    const catHref = await categories.getAttribute("href");
+    expect(catHref).toMatch(/#bookCategories$/);
+    await expectLinkReceivesHit(page, categories, catHref);
+    await categories.click();
+    await expect.poll(async () => new URL(page.url()).hash).toBe("#bookCategories");
 
     await openMobileMenu(page);
     await expectLinkReceivesHit(page, page.locator(`${drawer()} a[href='#home']`), "#home");
@@ -212,10 +222,12 @@ test.describe("mobile menu tap", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
     await expect(page.locator(".mobile-menu-toggle")).toBeHidden();
-    await expect(page.locator("header nav a[href='#books']")).toBeVisible();
+    await expect(page.locator("header nav a[href='/books']")).toBeVisible();
     await expect.poll(async () => page.locator("header nav").count()).toBe(1);
-    await page.locator("header nav a[href='#books']").click();
-    await expect.poll(async () => new URL(page.url()).hash).toBe("#books");
+    await page.locator("header nav a[href='/books']").click();
+    await expect.poll(async () => new URL(page.url()).pathname).toBe("/books");
+    await H.waitForShop(page);
+    await expect(page.locator("header nav")).toBeVisible();
     await expect(page.locator("header nav")).not.toHaveClass(/is-open/);
   });
 
@@ -227,7 +239,7 @@ test.describe("mobile menu tap", () => {
 
     await page.setViewportSize({ width: 1280, height: 900 });
     await expect(page.locator(".mobile-menu-toggle")).toBeHidden();
-    await expect(page.locator("header nav a[href='#books']")).toBeVisible();
+    await expect(page.locator("header nav a[href='/books']")).toBeVisible();
     await expect.poll(async () => page.evaluate(() => {
       const navs = [...document.querySelectorAll("header nav, nav#mobileSiteMenu")];
       const unique = new Set(navs);
@@ -240,13 +252,14 @@ test.describe("mobile menu tap", () => {
       };
     })).toEqual({ unique: 1, inHeader: true, open: false, bodyLock: false });
 
-    await page.locator("header nav a[href='#books']").click();
-    await expect.poll(async () => new URL(page.url()).hash).toBe("#books");
+    await page.locator("header nav a[href='/books']").click();
+    await expect.poll(async () => new URL(page.url()).pathname).toBe("/books");
+    await H.waitForShop(page);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".mobile-menu-toggle")).toBeVisible();
     await openMobileMenu(page);
     await expect.poll(async () => page.evaluate(() => document.querySelectorAll("nav#mobileSiteMenu").length)).toBe(1);
-    await expectLinkReceivesHit(page, page.locator(`${drawer()} a[href='#books']`), "#books");
+    await expectLinkReceivesHit(page, page.locator(`${drawer()} a[href='/books']`), "/books");
   });
 });

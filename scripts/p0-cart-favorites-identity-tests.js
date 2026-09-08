@@ -525,7 +525,8 @@ test("guest items login A logout A login B does not give B A's local cart",()=>{
 
 test("homepage recently-added view-all points to public catalog not my-books",()=>{
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
-  assert.match(shop,/class="home-featured-all" href="#books"/);
+  assert.match(shop,/class="home-featured-all" href="\/books"/);
+  assert.doesNotMatch(shop,/class="home-featured-all" href="#books"/);
   assert.doesNotMatch(shop,/class="home-featured-all" href="my-books\.html"/);
   assert.match(shop,/class="shop-selector-all-link" href="my-books\.html"/);
   assert.match(shop,/kutadgu-shop-owner-v1/);
@@ -648,7 +649,7 @@ test("storefront pages keep cart markup pin shop.js v=113",()=>{
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=115/);
-  assert.match(home,/shop\.js\?v=118/);
+  assert.match(home,/shop\.js\?v=119/);
   assert.match(shop,/member\.js\?v=25/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);

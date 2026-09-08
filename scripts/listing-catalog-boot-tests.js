@@ -10,7 +10,7 @@ const css = fs.readFileSync(path.join(root, "shop.css"), "utf8");
 const LISTING_PAGES = [
   "romanlar.html","universal.html","children.html","dini.html","derslik.html","terbiye.html",
   "tibb.html","dastanlar.html","sheirlar.html","hekayiler.html","uyghur-adabiyati.html",
-  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html"
+  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html","books.html"
 ];
 let failed = 0;
 function test(name, fn) {
@@ -40,6 +40,13 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     const html = fs.readFileSync(path.join(root, file), "utf8");
     const grid = listingGrid(html);
     assert.match(html, /data-catalog-source="/, file);
+    if (file === "books.html") {
+      assert.match(html, /class="books-grid" data-catalog-source=""/, file);
+      assert.doesNotMatch(html, /data-catalog-source="[^"]+"/, file);
+      assert.match(html, /shop\.js\?v=119/, file);
+    } else {
+      assert.match(html, /shop\.js\?v=115/, file);
+    }
     assert.match(html, /aria-busy="true"/, file);
     assert.match(grid, /book-card is-skeleton/, file);
     assert.match(grid, /listing-skel-cover/, file);
@@ -48,7 +55,6 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     assert.doesNotMatch(grid, /رومان كىتابى|كىتابى 2|ئاپتور ئىسمى/, file);
     assert.match(html, /rel="canonical"/, file);
     assert.match(html, /CollectionPage/, file);
-    assert.match(html, /shop\.js\?v=115/, file);
     assert.match(html, /shop\.css\?v=54/, file);
     assert.match(html, /listing-card-safety\.css\?v=2/, file);
   }

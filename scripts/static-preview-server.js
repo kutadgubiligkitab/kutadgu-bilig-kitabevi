@@ -36,6 +36,7 @@ function send(res, status, headers, body) {
 const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
 const seo = require(path.join(root, "kutadgu-book-seo.js"));
 const CLEAN_HTML_SLUGS = new Set([
+  "books",
   ...(sitemap.CATEGORY_HUB_SLUGS || []),
   ...(sitemap.PUBLIC_INFO_SLUGS || [])
 ]);

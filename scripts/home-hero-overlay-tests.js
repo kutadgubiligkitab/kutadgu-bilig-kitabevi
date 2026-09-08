@@ -26,7 +26,8 @@ function test(name, fn) {
 test("hard-coded fallback identity is still in index.html", () => {
   assert.match(html, /قۇتادغۇبىلىك كىتابخانىسى/);
   assert.match(html, /2013-يىلدىن بۇيان/);
-  assert.match(html, /href="#books"/);
+  assert.match(html, /id="books"/);
+  assert.match(html, /href="\/books"/);
   assert.match(html, /href="#about"/);
   assert.match(html, /كىتابلارنى كۆرۈش/);
   assert.match(html, /بىز ھەققىدە/);
@@ -62,7 +63,7 @@ test("slideshow keeps 7000 default and exposes a safe refresh API", () => {
 });
 
 test("internal hrefs match SQL intent", () => {
-  ["#books", "#about", "/book/123", "/adabiyat", "/children"].forEach((href) => {
+  ["#books", "#about", "/books", "/book/123", "/adabiyat", "/children"].forEach((href) => {
     assert.strictEqual(hero.isInternalHref(href), true, href);
   });
   [

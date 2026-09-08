@@ -27,10 +27,9 @@ test.describe("homepage compact first-view", () => {
     expect(box && box.height).toBeGreaterThan(40);
   });
 
-  test("#books stays below the sticky header", async ({ page }) => {
+  test("id=books search section stays below the sticky header", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
-    await page.locator(".home-hero-actions a[href='#books']").click();
+    await H.openFresh(page, "/#books");
     await expect.poll(async () => new URL(page.url()).hash).toBe("#books");
     const gap = await page.evaluate(() => {
       const header = document.querySelector("header");

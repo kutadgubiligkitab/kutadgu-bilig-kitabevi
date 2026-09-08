@@ -68,7 +68,7 @@ async function expectFallbackStore(page) {
   await expect(copy.locator("[data-home-hero-eyebrow]")).toHaveText(FALLBACK.eyebrow);
   await expect(copy.locator("[data-home-hero-trust]")).toHaveText(FALLBACK.trust);
   await expect(copy.locator("[data-home-hero-primary]")).toHaveText(FALLBACK.primary);
-  await expect(copy.locator("[data-home-hero-primary]")).toHaveAttribute("href", "#books");
+  await expect(copy.locator("[data-home-hero-primary]")).toHaveAttribute("href", "/books");
   await expect(copy.locator("[data-home-hero-secondary]")).toHaveText(FALLBACK.secondary);
   await expect(copy.locator("[data-home-hero-secondary]")).toHaveAttribute("href", "#about");
   await expect(page.locator("[data-home-hero-title]")).toBeHidden();
@@ -235,7 +235,7 @@ test.describe("homepage Hero overlay fail-open", () => {
       }]
     });
     await openHero(page);
-    await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "#books");
+    await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "/books");
     await expect(page.locator("[data-home-hero-secondary]")).toHaveAttribute("href", "#about");
     await expect(page.locator("[data-home-hero-primary]")).toHaveText("خەتەرلىك");
   });
