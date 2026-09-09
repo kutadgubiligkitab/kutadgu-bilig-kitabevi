@@ -2814,7 +2814,7 @@ function searchEnhance(){
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
-  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";run(false)};
+  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";reset.dispatchEvent(new Event("input",{bubbles:true}));run(false)};
   res.innerHTML=fallbackNotice();
   try{
     const qParam=new URLSearchParams(location.search).get("q");
@@ -2989,7 +2989,7 @@ function setupCatalogFilters(){
   [text,minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedApply));
   text&&text.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);if(isAdabiyatHub)writeHubUrl(hubSub,text.value.trim(),"replace");apply(false)}});
   [sortEl,collection].forEach(el=>el&&el.addEventListener("change",()=>apply(false)));
-  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";apply(false)};
+  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="new";reset.dispatchEvent(new Event("input",{bubbles:true}));apply(false)};
   empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click()});
   if(isAdabiyatHub){
     hubSub=readHubSubFromUrl();
