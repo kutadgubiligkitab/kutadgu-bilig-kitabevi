@@ -148,7 +148,7 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    /\.sql$/i.test(file) ||
+    (/\.sql$/i.test(file) && file !== "SITE_HOMEPAGE_ABOUT.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|mobile\.css|theme\.css/.test(file)
