@@ -47,6 +47,33 @@
     }
   }
 
+  /* Path-only /book/<digits>. Query ?id= and non-numeric slugs are not server-gated clean URLs. */
+  function numericCleanBookIdFromLocation(loc) {
+    const locationRef = loc || (typeof location !== "undefined" ? location : null);
+    if (!locationRef) return "";
+    const path = String(locationRef.pathname || "");
+    const pathMatch = path.match(/^\/book\/([^/]+)\/?$/);
+    if (!pathMatch) return "";
+    let id = "";
+    try {
+      id = decodeURIComponent(pathMatch[1] || "").trim();
+    } catch (err) {
+      id = String(pathMatch[1] || "").trim();
+    }
+    return isCanonicalBookId(id) ? id : "";
+  }
+
+  function shouldDeferNumericCleanDetailSeo(loc, options) {
+    const opts = options || {};
+    if (!numericCleanBookIdFromLocation(loc)) return false;
+    return opts.pageBookHydrationDone !== true;
+  }
+
+  /* Unresolved noindex + /book.html is for bare/legacy/non-numeric shells, never numeric clean URLs. */
+  function shouldApplyUnresolvedDetailSeo(loc) {
+    return !numericCleanBookIdFromLocation(loc);
+  }
+
   function isBookDetailPath(pathname) {
     const path = String(pathname || "");
     return /(?:^|\/)book\.html$/i.test(path)
@@ -208,6 +235,9 @@
     bookPath,
     bookCanonicalUrl,
     parseBookIdFromLocation,
+    numericCleanBookIdFromLocation,
+    shouldDeferNumericCleanDetailSeo,
+    shouldApplyUnresolvedDetailSeo,
     isBookDetailPath,
     isLegacyBookQueryPath,
     legacyNumericIdRedirectPath,
