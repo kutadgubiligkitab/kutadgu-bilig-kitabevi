@@ -83,6 +83,8 @@ async function run() {
     assert.doesNotMatch(sql, /DELETE ON TABLE public\.store_homepage_about/);
     assert.doesNotMatch(sql, /ALTER TABLE public\.store_settings/);
     assert.doesNotMatch(sql, /INSERT INTO public\.store_settings/);
+    assert.doesNotMatch(sql, /jsonb_build_object\(\s*'year'/);
+    assert.match(sql, /Founding year 2013 is not stored/);
     assert.match(sql, /aal2 required to insert store_homepage_about/);
     assert.match(sql, /aal2 required to update store_homepage_about/);
     assert.match(sql, /MANUAL \/ REVIEWED APPLY ONLY/);
@@ -96,7 +98,9 @@ async function run() {
     assert.match(indexHtml, /class="about-closing"/);
     assert.match(indexHtml, /class="about-service-chips"/);
     assert.match(indexHtml, /class="about-service-chip"/);
-    assert.match(indexHtml, /data-about-field="year"/);
+    assert.match(indexHtml, /<span class="about-year-badge">2013<\/span>/);
+    assert.doesNotMatch(indexHtml, /data-about-field="year"/);
+    assert.match(indexHtml, /data-about-field="title"/);
     assert.match(indexHtml, /data-about-field="chip1"/);
     assert.match(indexHtml, /data-about-field="chip2"/);
     assert.match(indexHtml, /data-about-field="chip3"/);
@@ -122,6 +126,8 @@ async function run() {
   await test("public overlay uses textContent only and restores fallback on failure", () => {
     assert.match(homeAbout, /el\.textContent = next/);
     assert.doesNotMatch(homeAbout, /innerHTML/);
+    assert.deepStrictEqual(AboutPublic.FIELDS, ["title", "intro", "paragraph1", "paragraph2", "closing", "chip1", "chip2", "chip3"]);
+    assert.ok(!AboutPublic.FIELDS.includes("year"));
     const dirty = AboutPublic.normalizeContent({
       year: "2014<script>",
       title: "تېست",
@@ -129,15 +135,17 @@ async function run() {
       chip2: "ئىككى",
       chip3: "ئۈچ"
     });
-    assert.strictEqual(dirty.year, "2014script");
+    assert.strictEqual(dirty.year, undefined);
     assert.strictEqual(dirty.chip1, "بىر");
     const nodes = {};
     const fallback = AboutAdmin.FALLBACK;
     FIELDS.forEach((name) => {
       nodes[name] = { textContent: fallback[name] };
     });
+    const yearBadge = { textContent: "2013" };
     const section = {
       querySelector(sel) {
+        if (String(sel).indexOf('data-about-field="year"') >= 0) return yearBadge;
         const match = String(sel).match(/data-about-field="([^"]+)"/);
         return match ? nodes[match[1]] : null;
       }
@@ -166,7 +174,7 @@ async function run() {
       assert.strictEqual(nodes.chip1.textContent, "A");
       assert.strictEqual(nodes.chip2.textContent, "B");
       assert.strictEqual(nodes.chip3.textContent, "C");
-      assert.strictEqual(nodes.year.textContent, "2015");
+      assert.strictEqual(yearBadge.textContent, "2013");
     } finally {
       global.document = prev;
     }
@@ -180,9 +188,10 @@ async function run() {
     assert.match(adminHero, /admin-about\.js\?v=1/);
     assert.match(adminHero, /attachHomepageAboutAdmin/);
     assert.match(adminAbout, /aboutEditBtn/);
+    assert.doesNotMatch(adminAbout, /aboutField_year/);
+    assert.doesNotMatch(adminAbout, /year: "يىل"/);
 
     const saved = {
-      year: "2016",
       title: "تېست ماۋزۇ",
       intro: "كىرىش",
       paragraph1: "ئابزاس1",
@@ -202,15 +211,17 @@ async function run() {
     assert.strictEqual(loaded.content.chip1, "سېتىش تېستى");
     assert.strictEqual(loaded.content.chip2, "ئارىيەت تېستى");
     assert.strictEqual(loaded.content.chip3, "كۈتۈپخانا تېستى");
-    assert.strictEqual(loaded.content.year, "2016");
+    assert.strictEqual(loaded.content.year, undefined);
 
-    const next = Object.assign({}, saved, { chip1: "يېڭى 1", chip2: "يېڭى 2", chip3: "يېڭى 3" });
+    const next = Object.assign({}, saved, { chip1: "يېڭى 1", chip2: "يېڭى 2", chip3: "يېڭى 3", year: "1999" });
     const res = await ctl.save(next);
     assert.equal(res.ok, true);
     assert.strictEqual(res.content.chip1, "يېڭى 1");
     assert.strictEqual(res.content.chip2, "يېڭى 2");
     assert.strictEqual(res.content.chip3, "يېڭى 3");
+    assert.strictEqual(res.content.year, undefined);
     assert.strictEqual(db.getRow().content.chip1, "يېڭى 1");
+    assert.strictEqual(db.getRow().content.year, undefined);
     assert.ok(db.log.some((x) => x.action === "update"));
   });
 

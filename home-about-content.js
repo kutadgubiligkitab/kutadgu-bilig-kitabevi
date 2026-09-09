@@ -6,9 +6,9 @@
 (function (root) {
   "use strict";
 
-  var FIELDS = ["year", "title", "intro", "paragraph1", "paragraph2", "closing", "chip1", "chip2", "chip3"];
+  var FIELDS = ["title", "intro", "paragraph1", "paragraph2", "closing", "chip1", "chip2", "chip3"];
   var MAX = {
-    year: 20,
+    title: 80,
     title: 80,
     intro: 500,
     paragraph1: 800,

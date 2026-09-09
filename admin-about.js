@@ -3,13 +3,12 @@
 
   var ABOUT_ID = 1;
   var HomeAbout = (root && root.KutadguHomeAbout) || {};
-  var FIELDS = HomeAbout.FIELDS || ["year", "title", "intro", "paragraph1", "paragraph2", "closing", "chip1", "chip2", "chip3"];
+  var FIELDS = HomeAbout.FIELDS || ["title", "intro", "paragraph1", "paragraph2", "closing", "chip1", "chip2", "chip3"];
   var MAX = HomeAbout.MAX || {
-    year: 20, title: 80, intro: 500, paragraph1: 800, paragraph2: 800,
+    title: 80, intro: 500, paragraph1: 800, paragraph2: 800,
     closing: 500, chip1: 80, chip2: 80, chip3: 80
   };
   var LABELS = {
-    year: "يىل",
     title: "بۆلۈم ماۋزۇسى",
     intro: "كىرىش تېكىستى",
     paragraph1: "1-ئابزاس",
@@ -20,7 +19,6 @@
     chip3: "مۇلازىمەت بەلگىسى 3"
   };
   var FALLBACK = {
-    year: "2013",
     title: "بىز ھەققىدە",
     intro: "«بەخت ئېلىپ كېلىدىغان بىلىم» مەنىسىدىكى «قۇتادغۇبىلىك» نامىنى قوللانغان كىتابخانىمىز 2013-يىلى قۇرۇلغان.",
     paragraph1: "خەلقىمىزنىڭ بىلىمگە بولغان تەشنالىقى ۋە مەنىۋى ئېھتىياجىنى قاندۇرۇش، مىللىتىمىزنىڭ مەنىۋى ساپاسىنى بېيىتىش غايىسى بىلەن قۇرۇلغان.",
@@ -179,7 +177,7 @@
         label.className = "admin-wide";
         var span = document.createElement("span");
         span.textContent = LABELS[name] || name;
-        var input = (name === "year" || name === "title" || name.indexOf("chip") === 0)
+        var input = (name === "title" || name.indexOf("chip") === 0)
           ? document.createElement("input")
           : document.createElement("textarea");
         input.id = fieldInputId(name);

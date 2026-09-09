@@ -12,8 +12,8 @@
 --
 -- Purpose:
 --   store_homepage_about id=1 holds one JSON object of plain-text About
---   fields. Public SELECT; Admin INSERT/UPDATE only. No DELETE grant.
---   Empty/missing fields must keep the hard-coded index.html About text.
+--   fields (title, intro, paragraphs, closing, three service chips).
+--   Founding year 2013 is not stored and stays hard-coded in index.html.
 --
 -- Depends on:
 --   public.is_kutadgu_admin()  (defined in SUPABASE_SETUP.sql)
@@ -38,7 +38,6 @@ INSERT INTO public.store_homepage_about (id, content)
 VALUES (
   1,
   jsonb_build_object(
-    'year', '2013',
     'title', 'بىز ھەققىدە',
     'intro', '«بەخت ئېلىپ كېلىدىغان بىلىم» مەنىسىدىكى «قۇتادغۇبىلىك» نامىنى قوللانغان كىتابخانىمىز 2013-يىلى قۇرۇلغان.',
     'paragraph1', 'خەلقىمىزنىڭ بىلىمگە بولغان تەشنالىقى ۋە مەنىۋى ئېھتىياجىنى قاندۇرۇش، مىللىتىمىزنىڭ مەنىۋى ساپاسىنى بېيىتىش غايىسى بىلەن قۇرۇلغان.',
