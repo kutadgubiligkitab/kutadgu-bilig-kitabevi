@@ -791,11 +791,37 @@
       paintSlots(ctl);
     }
 
+    function attachHomepageAboutAdmin() {
+      if (typeof document === "undefined") return;
+      function bindAbout() {
+        if (root.KutadguAdminAbout && typeof root.KutadguAdminAbout.bindAboutAdmin === "function") {
+          root.KutadguAdminAbout.bindAboutAdmin(ctx);
+        }
+      }
+      if (root.KutadguAdminAbout && typeof root.KutadguAdminAbout.bindAboutAdmin === "function") {
+        bindAbout();
+        return;
+      }
+      var existing = document.querySelector("script[data-kutadgu-admin-about]");
+      if (existing) {
+        existing.addEventListener("load", bindAbout);
+        return;
+      }
+      var s = document.createElement("script");
+      s.src = "admin-about.js?v=1";
+      s.dataset.kutadguAdminAbout = "1";
+      s.onload = bindAbout;
+      (document.head || document.documentElement).appendChild(s);
+    }
+
     async function reloadAll() {
       var s = await ctl.loadSettings();
       writeSettingsForm(s.form || settingsFormFromRow(null));
       var slides = await ctl.loadSlides();
       paint();
+      if (root.KutadguAdminAbout && typeof root.KutadguAdminAbout.reload === "function") {
+        await root.KutadguAdminAbout.reload();
+      }
       if (!s.ok) {
         statusFn(el("heroAdminStatus"), formatHeroError(s.error), "error");
         return;
@@ -854,6 +880,7 @@
 
     writeSettingsForm(settingsFormFromRow(null));
     paint();
+    attachHomepageAboutAdmin();
 
     return {
       controller: ctl,

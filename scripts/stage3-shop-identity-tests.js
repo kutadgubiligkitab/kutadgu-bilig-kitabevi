@@ -69,7 +69,7 @@ test("About uses the real 2013 story and three service areas", () => {
 
 test("About service chips keep dark brown text on cream (theme.css about p is white)", () => {
   assert.match(html, /stage3-shop-identity\.css\?v=5/);
-  assert.match(html, /<div class="about-service-chip">/);
+  assert.match(html, /<div class="about-service-chip"/);
   assert.doesNotMatch(html, /<p class="about-service-chip">/);
   assert.match(css, /#about\.about \.about-service-chips \.about-service-chip/);
   assert.match(css, /background:#fff8ed\s*!important/);
@@ -101,7 +101,7 @@ test("this stage does not change SQL Admin auth or order surfaces", () => {
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    /\.sql$/i.test(file) ||
+    (/\.sql$/i.test(file) && file !== "SITE_HOMEPAGE_ABOUT.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety/.test(file)

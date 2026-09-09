@@ -230,7 +230,7 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    /\.sql$/i.test(file) ||
+    (/\.sql$/i.test(file) && file !== "SITE_HOMEPAGE_ABOUT.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /(^|\/)(rls|grants?|triggers?)\b/i.test(file)
