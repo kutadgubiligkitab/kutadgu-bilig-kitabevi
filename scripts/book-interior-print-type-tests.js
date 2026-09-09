@@ -189,7 +189,7 @@ test("cache pins bumped for Admin, homepage, and book-shell", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
   assert.match(read("index.html"), /shop\.js\?v=121/);
   assert.match(read("index.html"), /supabase-config\.js\?v=20/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=119/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=122/);
   assert.match(read("book-shell.html"), /catalog-bibliography\.js\?v=3/);
 });
 

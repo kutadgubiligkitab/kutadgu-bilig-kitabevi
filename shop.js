@@ -1386,13 +1386,18 @@ async function hydrateBooksByIds(ids=[]){
   }
 }
 
+let pageBookHydrationDone=false;
 async function hydratePageBook(){
-  if(isStorefrontHomepage())return;
-  const Seo=window.KutadguBookSeo||{};
-  const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
-  if(!id||!remoteCatalog.available)return;
-  try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
-  catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
+  try{
+    if(isStorefrontHomepage())return;
+    const Seo=window.KutadguBookSeo||{};
+    const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
+    if(!id||!remoteCatalog.available)return;
+    try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
+    catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
+  }finally{
+    pageBookHydrationDone=true;
+  }
 }
 
 function resolveStoredBookId(id){
@@ -2321,11 +2326,14 @@ function renderDetailExtras(book){
 
 function paintUnauthorizedDetail(){
   const Seo=window.KutadguBookSeo||{};
-  if(Seo.applyUnresolvedDetailDocument)Seo.applyUnresolvedDetailDocument(document);
-  else{
-    setHeadMeta('meta[name="robots"]',{name:"robots",content:"noindex, follow"});
-    setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:siteOrigin()+"/book.html"});
-    document.head.querySelector("#kutadguBookSchema")?.remove();
+  const applyUnresolved=Seo.shouldApplyUnresolvedDetailSeo?Seo.shouldApplyUnresolvedDetailSeo(location):!(Seo.numericCleanBookIdFromLocation&&Seo.numericCleanBookIdFromLocation(location));
+  if(applyUnresolved){
+    if(Seo.applyUnresolvedDetailDocument)Seo.applyUnresolvedDetailDocument(document);
+    else{
+      setHeadMeta('meta[name="robots"]',{name:"robots",content:"noindex, follow"});
+      setHeadMeta('link[rel="canonical"]',{tag:"link",rel:"canonical",href:siteOrigin()+"/book.html"});
+      document.head.querySelector("#kutadguBookSchema")?.remove();
+    }
   }
   document.title="كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى";
   const img=document.querySelector(".book-cover-box img");
@@ -2361,6 +2369,8 @@ function decorateDetail(){
     return;
   }
   if(!isBookDetailDocument())return;
+  const Seo=window.KutadguBookSeo||{};
+  if(Seo.shouldDeferNumericCleanDetailSeo?Seo.shouldDeferNumericCleanDetailSeo(location,{pageBookHydrationDone}):(Seo.numericCleanBookIdFromLocation&&Seo.numericCleanBookIdFromLocation(location)&&!pageBookHydrationDone))return;
   let b=getDetailBook();
   if(!b||(!isStorefrontVisible(b)&&b.isRemote!==true)){
     paintUnauthorizedDetail();
