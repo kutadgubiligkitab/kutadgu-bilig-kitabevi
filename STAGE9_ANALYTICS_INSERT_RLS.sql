@@ -48,16 +48,18 @@ create policy "public can insert analytics"
     and (order_total is null or (order_total >= 0 and order_total <= 9999999.99))
     and case
       when meta is null then true
-      when event_name <> 'whatsapp_order_click' then false
-      when jsonb_typeof(meta) <> 'object' then false
-      when (meta - 'book_ids') <> '{}'::jsonb then false
-      when jsonb_typeof(meta -> 'book_ids') <> 'array' then false
-      when jsonb_array_length(meta -> 'book_ids') > 200 then false
+      when event_name is distinct from 'whatsapp_order_click' then false
+      when jsonb_typeof(meta) is distinct from 'object' then false
+      when not (meta ? 'book_ids') then false
+      when (meta - 'book_ids') is distinct from '{}'::jsonb then false
+      when jsonb_typeof(meta -> 'book_ids') is distinct from 'array' then false
+      when coalesce(jsonb_array_length(meta -> 'book_ids'), 0) > 200 then false
       else not exists (
         select 1
-        from jsonb_array_elements_text(meta -> 'book_ids') as book_id_elem
-        where char_length(book_id_elem) > 32
-           or book_id_elem !~ '^\d+$'
+        from jsonb_array_elements(meta -> 'book_ids') as elem(value)
+        where jsonb_typeof(elem.value) is distinct from 'string'
+           or char_length(elem.value #>> '{}') > 32
+           or (elem.value #>> '{}') !~ '^\d+$'
       )
     end
     and created_at >= (now() - interval '5 minutes')

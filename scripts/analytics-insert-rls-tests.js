@@ -53,29 +53,122 @@ const ALLOWED = [
   "filter_apply"
 ];
 
-function jsonbTypeof(value) {
+const SQL_NULL = Symbol("sql-null");
+
+function pgJsonbTypeof(value) {
+  if (value === SQL_NULL || value === undefined) return SQL_NULL;
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   if (typeof value === "object") return "object";
   if (typeof value === "string") return "string";
   if (typeof value === "number") return "number";
   if (typeof value === "boolean") return "boolean";
-  return "null";
+  return SQL_NULL;
 }
 
-function bookIdsValid(ids) {
-  if (!Array.isArray(ids) || ids.length > 200) return false;
-  return ids.every((id) => {
-    const text = String(id);
-    return text.length <= 32 && /^\d+$/.test(text);
+function pgIsDistinctFrom(left, right) {
+  if (left === SQL_NULL && right === SQL_NULL) return false;
+  if (left === SQL_NULL || right === SQL_NULL) return true;
+  return left !== right;
+}
+
+function pgIsTrue(value) {
+  return value === true;
+}
+
+function pgOr(a, b) {
+  if (a === true || b === true) return true;
+  if (a === false && b === false) return false;
+  return SQL_NULL;
+}
+
+function pgGt(left, right) {
+  if (left === SQL_NULL || right === SQL_NULL) return SQL_NULL;
+  return left > right;
+}
+
+function pgNotMatch(text, re) {
+  if (text === SQL_NULL || text == null) return SQL_NULL;
+  return !re.test(text);
+}
+
+function pgCharLength(text) {
+  if (text === SQL_NULL || text == null) return SQL_NULL;
+  return String(text).length;
+}
+
+function pgArrow(meta, key) {
+  if (meta === SQL_NULL || meta == null || typeof meta !== "object" || Array.isArray(meta)) return SQL_NULL;
+  if (!Object.prototype.hasOwnProperty.call(meta, key)) return SQL_NULL;
+  return meta[key];
+}
+
+function pgHasKey(meta, key) {
+  if (meta === SQL_NULL || meta == null || typeof meta !== "object" || Array.isArray(meta)) return false;
+  return Object.prototype.hasOwnProperty.call(meta, key);
+}
+
+function pgMinusKey(meta, key) {
+  if (meta === SQL_NULL || meta == null || typeof meta !== "object" || Array.isArray(meta)) return SQL_NULL;
+  const out = {};
+  Object.keys(meta).forEach((k) => {
+    if (k !== key) out[k] = meta[k];
+  });
+  return out;
+}
+
+function pgCase(branches, fallback) {
+  for (let i = 0; i < branches.length; i += 1) {
+    if (pgIsTrue(branches[i][0])) return branches[i][1];
+  }
+  return fallback;
+}
+
+function pgJsonText(value) {
+  if (value === SQL_NULL || value === undefined) return SQL_NULL;
+  if (value === null) return SQL_NULL;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return SQL_NULL;
+}
+
+function pgMetaExistsBadElement(ids) {
+  if (!Array.isArray(ids)) return false;
+  return ids.some((elem) => {
+    const where = pgOr(
+      pgOr(
+        pgIsDistinctFrom(pgJsonbTypeof(elem), "string"),
+        pgGt(pgCharLength(pgJsonText(elem)), 32)
+      ),
+      pgNotMatch(pgJsonText(elem), /^\d+$/)
+    );
+    return pgIsTrue(where);
   });
 }
 
-function extraMetaKeys(meta) {
-  return Object.keys(meta).filter((key) => key !== "book_ids");
+/* PostgreSQL CASE / IS DISTINCT FROM / EXISTS (WHERE is TRUE only). */
+function pgMetaCheck(eventName, meta) {
+  if (meta === undefined) meta = null;
+  const eventDistinct = pgIsDistinctFrom(eventName, "whatsapp_order_click");
+  const typeDistinct = pgIsDistinctFrom(pgJsonbTypeof(meta), "object");
+  const missingKey = meta !== null && !pgHasKey(meta, "book_ids");
+  const extraKeys = meta !== null && pgHasKey(meta, "book_ids")
+    && pgIsDistinctFrom(JSON.stringify(pgMinusKey(meta, "book_ids")), "{}");
+  const bookIds = meta === null ? SQL_NULL : pgArrow(meta, "book_ids");
+  const typeArr = pgIsDistinctFrom(pgJsonbTypeof(bookIds), "array");
+  const tooLong = Array.isArray(bookIds) && bookIds.length > 200;
+
+  return pgCase([
+    [meta === null, true],
+    [eventDistinct, false],
+    [typeDistinct, false],
+    [missingKey, false],
+    [extraKeys, false],
+    [typeArr, false],
+    [tooLong, false]
+  ], !pgMetaExistsBadElement(Array.isArray(bookIds) ? bookIds : []));
 }
 
-/* Mirrors STAGE9 WITH CHECK. created_at omitted = DB default now() in the same transaction. */
 function passesInsertCheck(row, nowMs) {
   const now = nowMs == null ? Date.now() : nowMs;
   if (!ALLOWED.includes(row.event_name)) return false;
@@ -90,13 +183,7 @@ function passesInsertCheck(row, nowMs) {
   if (!inRange(row.result_count, 0, 100000)) return false;
   if (!inRange(row.item_count, 0, 200)) return false;
   if (!inRange(row.order_total, 0, 9999999.99)) return false;
-  if (row.meta != null) {
-    if (row.event_name !== "whatsapp_order_click") return false;
-    if (jsonbTypeof(row.meta) !== "object") return false;
-    if (extraMetaKeys(row.meta).length) return false;
-    if (jsonbTypeof(row.meta.book_ids) !== "array") return false;
-    if (!bookIdsValid(row.meta.book_ids)) return false;
-  }
+  if (!pgMetaCheck(row.event_name, row.meta === undefined ? null : row.meta)) return false;
   const created = row.created_at == null ? now : Date.parse(row.created_at);
   if (!Number.isFinite(created)) return false;
   const fiveMin = 5 * 60 * 1000;
@@ -136,10 +223,25 @@ test("policy allowlists current storefront event names and bounds", () => {
   assert.match(body, /result_count <= 100000/);
   assert.match(body, /item_count <= 200/);
   assert.match(body, /order_total <= 9999999\.99/);
-  assert.match(body, /jsonb_array_length\(meta -> 'book_ids'\) > 200/);
+  assert.match(body, /coalesce\(jsonb_array_length\(meta -> 'book_ids'\), 0\) > 200/);
   assert.match(body, /interval '5 minutes'/);
   assert.doesNotMatch(body, /created_at\s*=\s*now\(\)/);
   assert.doesNotMatch(body, /book_id ~ '/);
+});
+
+test("meta CASE is NULL-safe (IS DISTINCT FROM, required book_ids, JSON string elements)", () => {
+  const body = checks[0];
+  assert.match(body, /event_name is distinct from 'whatsapp_order_click'/);
+  assert.match(body, /jsonb_typeof\(meta\) is distinct from 'object'/);
+  assert.match(body, /not \(meta \? 'book_ids'\)/);
+  assert.match(body, /\(meta - 'book_ids'\) is distinct from '\{\}'::jsonb/);
+  assert.match(body, /jsonb_typeof\(meta -> 'book_ids'\) is distinct from 'array'/);
+  assert.match(body, /jsonb_array_elements\(meta -> 'book_ids'\)/);
+  assert.match(body, /jsonb_typeof\(elem\.value\) is distinct from 'string'/);
+  assert.match(body, /elem\.value #>> '\{\}'/);
+  assert.doesNotMatch(body, /jsonb_array_elements_text/);
+  assert.doesNotMatch(body, /jsonb_typeof\(meta -> 'book_ids'\) <> 'array'/);
+  assert.doesNotMatch(body, /jsonb_typeof\(meta\) <> 'object'/);
 });
 
 test("new migration is repeat-safe and does not rewrite Admin RPC or execute from CI", () => {
@@ -202,17 +304,33 @@ test("D: negative and excessive numeric values are rejected", () => {
   assert.ok(passesInsertCheck({ ...base, item_count: 200, result_count: 100000, order_total: 9999999.99 }));
 });
 
-test("E: malformed meta is rejected; valid whatsapp meta is accepted", () => {
-  const wa = { event_name: "whatsapp_order_click", book_id: "102" };
-  assert.ok(passesInsertCheck({ ...wa, meta: { book_ids: ["102", "103"] } }));
-  assert.ok(passesInsertCheck({ ...wa, meta: null }));
+test("E: PostgreSQL NULL-semantics meta regressions", () => {
+  const wa = "whatsapp_order_click";
+  assert.strictEqual(pgMetaCheck(wa, null), true, "NULL meta");
+  assert.strictEqual(pgMetaCheck(wa, {}), false, "meta = {}");
+  assert.strictEqual(pgMetaCheck(wa, { extra: 1 }), false, "missing book_ids");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: null }), false, "book_ids JSON null");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: [null] }), false, "array JSON null element");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: [123] }), false, "numeric JSON element");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: ["123"] }), true, "string digit ids");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: ["102"], extra: 1 }), false, "extra key");
+  assert.strictEqual(pgMetaCheck(wa, { book_ids: Array.from({ length: 201 }, (_, i) => String(i + 1)) }), false, ">200 ids");
+
+  const row = (meta) => ({ event_name: wa, book_id: "102", meta });
+  assert.ok(passesInsertCheck(row(null)));
+  assert.ok(!passesInsertCheck(row({})));
+  assert.ok(!passesInsertCheck(row({ extra: 1 })));
+  assert.ok(!passesInsertCheck(row({ book_ids: null })));
+  assert.ok(!passesInsertCheck(row({ book_ids: [null] })));
+  assert.ok(!passesInsertCheck(row({ book_ids: [123] })));
+  assert.ok(passesInsertCheck(row({ book_ids: ["123"] })));
+  assert.ok(!passesInsertCheck(row({ book_ids: ["102"], extra: 1 })));
+  assert.ok(!passesInsertCheck(row({ book_ids: Array.from({ length: 201 }, (_, i) => String(i + 1)) })));
   assert.ok(!passesInsertCheck({ event_name: "page_view", meta: { book_ids: ["1"] } }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: ["102"] }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: { book_ids: ["102"], extra: 1 } }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: { book_ids: "102" } }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: { book_ids: ["abc"] } }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: { book_ids: ["1".repeat(33)] } }));
-  assert.ok(!passesInsertCheck({ ...wa, meta: { book_ids: Array.from({ length: 201 }, (_, i) => String(i + 1)) } }));
+
+  assert.ok(pgIsTrue(pgIsDistinctFrom(SQL_NULL, "array")), "NULL IS DISTINCT FROM 'array' is TRUE");
+  assert.strictEqual(pgJsonbTypeof(pgArrow({}, "book_ids")), SQL_NULL, "missing key -> SQL NULL");
+  assert.ok(!pgIsTrue(SQL_NULL), "CASE WHEN does not take a SQL NULL condition");
 });
 
 test("F: far-past created_at is rejected; omitted created_at (DB default) is accepted", () => {
