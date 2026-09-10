@@ -205,7 +205,11 @@ test("PR1 migration does not rewrite storage, store settings, announcements, or 
   assert.doesNotMatch(sql, /analytics_events/);
   assert.doesNotMatch(sql, /get_kutadgu_analytics/);
   assert.doesNotMatch(sql, /get_kutadgu_book_stock_sum/);
-  assert.match(setup, /create policy "public can insert analytics" on public\.analytics_events for insert to anon,authenticated with check \(true\)/);
+  assert.match(setup, /create policy "public can insert analytics"/);
+  assert.match(setup, /on public\.analytics_events[\s\S]*for insert[\s\S]*to anon,\s*authenticated/);
+  assert.match(setup, /event_name in \(/);
+  assert.match(setup, /page_view/);
+  assert.doesNotMatch(setup.match(/create policy "public can insert analytics"[\s\S]*?;/)[0], /with check \(true\)/);
   assert.match(setup, /create policy "admin can upload book covers" on storage\.objects for insert to authenticated\nwith check \(bucket_id = 'book-covers' and public\.is_kutadgu_admin\(\)\)/);
 });
 

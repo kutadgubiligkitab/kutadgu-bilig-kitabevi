@@ -242,7 +242,9 @@ test("profiles member UPDATE and analytics INSERT remain without AAL2", () => {
   });
   assert.match(setup, /create policy "member can update own profile" on public\.profiles for update to authenticated/);
   assert.doesNotMatch(sql, /on public\.profiles/i);
-  assert.match(setup, /create policy "public can insert analytics" on public\.analytics_events for insert to anon,authenticated with check \(true\)/);
+  assert.match(setup, /create policy "public can insert analytics"/);
+  assert.match(setup, /on public\.analytics_events[\s\S]*for insert[\s\S]*to anon,\s*authenticated/);
+  assert.doesNotMatch(setup.match(/create policy "public can insert analytics"[\s\S]*?;/)[0], /with check \(true\)/);
   const analyticsInsert = [...setup.matchAll(/create policy "[^"]+" on public\.analytics_events[\s\S]*?;/gi)].map((m) => m[0]);
   analyticsInsert.forEach((block) => assert.doesNotMatch(block, /aal2/i));
   const fav = policyBlock(setup, "favorite owner access");

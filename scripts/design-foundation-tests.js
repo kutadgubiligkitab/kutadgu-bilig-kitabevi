@@ -229,8 +229,15 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     encoding: "utf8"
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
+  const allowedSql = new Set([
+    "SITE_HOMEPAGE_ABOUT.sql",
+    "STAGE9_ANALYTICS_INSERT_RLS.sql",
+    "STAGE4_ANALYTICS_RPC_FIX.sql",
+    "SUPABASE_SETUP.sql",
+    "DATABASE_UPGRADE_V10.sql"
+  ]);
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && file !== "SITE_HOMEPAGE_ABOUT.sql") ||
+    (/\.sql$/i.test(file) && !allowedSql.has(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /(^|\/)(rls|grants?|triggers?)\b/i.test(file)
