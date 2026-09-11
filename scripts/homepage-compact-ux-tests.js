@@ -225,6 +225,24 @@ test("homepage category last card is centered on phone 2-column and icons are de
   assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(7\)\{[\s\S]*grid-column:6 \/ span 2 !important/);
 });
 
+test("recently-added homepage cards right-align title and author only", () => {
+  const rtl = fs.readFileSync(path.join(root, "home-featured-book-text-rtl.css"), "utf8");
+  const body = rtl.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(html, /home-featured-book-text-rtl\.css\?v=1/);
+  assert.match(html, /data-kutadgu-home-featured-book-text-rtl="1"/);
+  assert.match(html, /id="homeFeaturedBooks"/);
+  assert.match(html, /يېقىندا قوشۇلغانلار/);
+  assert.match(html, /ھەممىسىنى كۆرۈش/);
+  assert.match(body, /#homeFeaturedBooks \.home-feature-title/);
+  assert.match(body, /#homeFeaturedBooks \.home-feature-author/);
+  assert.match(body, /direction:\s*rtl/);
+  assert.match(body, /text-align:\s*right/);
+  assert.doesNotMatch(body, /home-feature-price|home-feature-cart|home-feature-heart|home-feature-cover|home-carousel|book-title|book-author/);
+  const stageAt = html.indexOf("stage4b-public-cards.css");
+  const rtlAt = html.indexOf("home-featured-book-text-rtl.css");
+  assert.ok(stageAt >= 0 && rtlAt > stageAt);
+});
+
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
   process.exit(1);
