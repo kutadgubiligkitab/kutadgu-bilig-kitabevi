@@ -372,21 +372,30 @@ CREATE POLICY store_hero_settings_select_admin
   ON public.store_hero_settings
   FOR SELECT
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (
+    public.is_kutadgu_admin()
+    AND (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 DROP POLICY IF EXISTS store_hero_store_slides_select_admin ON public.store_hero_store_slides;
 CREATE POLICY store_hero_store_slides_select_admin
   ON public.store_hero_store_slides
   FOR SELECT
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (
+    public.is_kutadgu_admin()
+    AND (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 DROP POLICY IF EXISTS store_hero_campaigns_select_admin ON public.store_hero_campaigns;
 CREATE POLICY store_hero_campaigns_select_admin
   ON public.store_hero_campaigns
   FOR SELECT
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (
+    public.is_kutadgu_admin()
+    AND (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 -- Admin writes (permissive is_kutadgu_admin)
 DROP POLICY IF EXISTS store_hero_settings_insert_admin ON public.store_hero_settings;

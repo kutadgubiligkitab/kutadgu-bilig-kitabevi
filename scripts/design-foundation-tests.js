@@ -231,8 +231,15 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const allowedSql = new Set([
     "SITE_HOMEPAGE_ABOUT.sql",
+    "SITE_ANNOUNCEMENT_BAR.sql",
+    "SITE_HERO_MANAGEMENT.sql",
     "STAGE9_ANALYTICS_INSERT_RLS.sql",
     "STAGE4_ANALYTICS_RPC_FIX.sql",
+    "STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql",
+    "STAGE2C_AAL2_ADMIN_SELECT_RLS.sql",
+    "STAGE8_STORE_ANALYTICS.sql",
+    "STAGE46_ANALYTICS_LEGACY_ID.sql",
+    "STAGE91_ADMIN_IMPORT_SCALE.sql",
     "SUPABASE_SETUP.sql",
     "DATABASE_UPGRADE_V10.sql"
   ]);

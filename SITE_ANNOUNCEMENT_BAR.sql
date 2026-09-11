@@ -72,7 +72,10 @@ CREATE POLICY store_announcements_select_admin
   ON public.store_announcements
   FOR SELECT
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (
+    public.is_kutadgu_admin()
+    AND (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 DROP POLICY IF EXISTS store_announcements_insert_admin ON public.store_announcements;
 CREATE POLICY store_announcements_insert_admin

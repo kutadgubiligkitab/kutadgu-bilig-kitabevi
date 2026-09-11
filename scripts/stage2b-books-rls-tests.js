@@ -77,13 +77,13 @@ test("canonical public active-books SELECT policy exists for anon and authentica
   assert.match(setup, /create policy "public can read active books" on public\.books for select to anon,authenticated using \(is_active = true\)/);
 });
 
-test("authenticated admin SELECT policy uses is_kutadgu_admin()", () => {
+test("authenticated admin SELECT of inactive books requires is_kutadgu_admin() and AAL2", () => {
   const admin = policyBlock(sql, "admin can read all books");
   assert.match(admin, /FOR SELECT/);
   assert.match(admin, /TO authenticated/);
   assert.doesNotMatch(admin, /TO anon/);
-  assert.match(admin, /USING \(public\.is_kutadgu_admin\(\)\)/);
-  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\)\)/);
+  assert.match(admin, /USING \(\s*public\.is_kutadgu_admin\(\)\s*AND \(select auth\.jwt\(\)->>'aal'\) = 'aal2'\s*\)/);
+  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\) and \(select auth\.jwt\(\)->>'aal'\) = 'aal2'\)/);
 });
 
 test("admin INSERT UPDATE DELETE stay gated by is_kutadgu_admin()", () => {

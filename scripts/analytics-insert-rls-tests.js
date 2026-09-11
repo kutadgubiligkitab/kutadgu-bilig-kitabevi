@@ -338,10 +338,11 @@ test("F: far-past created_at is rejected; omitted created_at (DB default) is acc
   assert.ok(!passesInsertCheck({ event_name: "page_view", created_at: "2020-01-01T00:00:00.000Z" }));
 });
 
-test("G: Admin SELECT/RPC and storefront INSERT path are unchanged", () => {
+test("G: Admin RPC stays authenticated-only; Admin body requires AAL2 after admin check", () => {
   const stage8 = read("STAGE8_STORE_ANALYTICS.sql");
   assert.match(stage8, /create or replace function public\.get_kutadgu_analytics/i);
   assert.match(stage8, /if not public\.is_kutadgu_admin\(\)/);
+  assert.match(stage8, /if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2'/);
   assert.match(stage8, /grant execute on function public\.get_kutadgu_analytics\(integer\) to authenticated/);
   assert.match(stage8, /revoke all on function public\.get_kutadgu_analytics\(integer\) from anon/);
   const admin = read("admin.js");

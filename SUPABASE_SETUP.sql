@@ -328,7 +328,7 @@ drop policy if exists "public can read books" on public.books;
 drop policy if exists "public can read active books" on public.books;
 create policy "public can read active books" on public.books for select to anon,authenticated using (is_active = true);
 drop policy if exists "admin can read all books" on public.books;
-create policy "admin can read all books" on public.books for select to authenticated using (public.is_kutadgu_admin());
+create policy "admin can read all books" on public.books for select to authenticated using (public.is_kutadgu_admin() and (select auth.jwt()->>'aal') = 'aal2');
 drop policy if exists "admin can insert books" on public.books;
 create policy "admin can insert books" on public.books for insert to authenticated with check (public.is_kutadgu_admin());
 drop policy if exists "admin can update books" on public.books;
@@ -527,7 +527,7 @@ drop policy if exists "member can update own profile" on public.profiles;
 create policy "member can update own profile" on public.profiles for update to authenticated
 using (id = auth.uid() and status = 'active') with check (id = auth.uid() and status = 'active');
 drop policy if exists "admin can read all profiles" on public.profiles;
-create policy "admin can read all profiles" on public.profiles for select to authenticated using (public.is_kutadgu_admin());
+create policy "admin can read all profiles" on public.profiles for select to authenticated using (public.is_kutadgu_admin() and (select auth.jwt()->>'aal') = 'aal2');
 
 drop policy if exists "favorite owner access" on public.member_favorites;
 create policy "favorite owner access" on public.member_favorites for all to authenticated
@@ -541,7 +541,7 @@ create policy "member can read own orders" on public.orders for select to authen
 drop policy if exists "member can create own orders" on public.orders;
 -- Members persist orders only via public.create_member_order(). Direct INSERT is revoked.
 drop policy if exists "admin can read all orders" on public.orders;
-create policy "admin can read all orders" on public.orders for select to authenticated using (public.is_kutadgu_admin());
+create policy "admin can read all orders" on public.orders for select to authenticated using (public.is_kutadgu_admin() and (select auth.jwt()->>'aal') = 'aal2');
 drop policy if exists "admin can update orders" on public.orders;
 create policy "admin can update orders" on public.orders for update to authenticated
 using (public.is_kutadgu_admin()) with check (public.is_kutadgu_admin());
@@ -1078,7 +1078,7 @@ create policy "public can insert analytics"
     and created_at <= (now() + interval '5 minutes')
   );
 drop policy if exists "admin can read analytics" on public.analytics_events;
-create policy "admin can read analytics" on public.analytics_events for select to authenticated using (public.is_kutadgu_admin());
+create policy "admin can read analytics" on public.analytics_events for select to authenticated using (public.is_kutadgu_admin() and (select auth.jwt()->>'aal') = 'aal2');
 
 
 -- ===== Analytics aggregate RPC (v10) =====
@@ -1096,6 +1096,9 @@ declare
 begin
   if not public.is_kutadgu_admin() then
     raise exception 'admin only';
+  end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
   end if;
   select jsonb_build_object(
     'page_views',(select count(*) from public.analytics_events where created_at>=v_since and event_name='page_view'),
