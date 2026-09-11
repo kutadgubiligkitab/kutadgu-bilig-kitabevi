@@ -1,6 +1,7 @@
 "use strict";
 
 const visibility = require("./catalog-visibility.js");
+const { bookCanonicalUrl } = require("./kutadgu-book-seo.js");
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
@@ -67,6 +68,42 @@ async function lookupPublicNumericBook(id, options) {
   }
 }
 
+function injectBeforeHeadClose(html, tag) {
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `  ${tag}\n</head>`);
+  }
+  return `${html}\n${tag}`;
+}
+
+function upsertFirstTag(html, findRe, tag) {
+  if (findRe.test(html)) return html.replace(findRe, tag);
+  return injectBeforeHeadClose(html, tag);
+}
+
+function keepFirstTag(html, findRe) {
+  let seen = false;
+  return html.replace(findRe, (match) => {
+    if (seen) return "";
+    seen = true;
+    return match;
+  });
+}
+
+/* First-byte head for FOUND public numeric books. Fail-closed: invalid ids leave HTML unchanged. */
+function applyFoundPublicBookHead(html, id) {
+  const canonical = String(id == null ? "" : id).trim();
+  if (!isCanonicalBookId(canonical)) return String(html || "");
+  const href = bookCanonicalUrl(canonical);
+  let out = String(html || "");
+  const robotsMeta = '<meta name="robots" content="index, follow">';
+  const canonicalLink = `<link rel="canonical" href="${href}">`;
+  out = upsertFirstTag(out, /<meta\s+name=["']robots["'][^>]*>/i, robotsMeta);
+  out = upsertFirstTag(out, /<link\s+rel=["']canonical["'][^>]*>/i, canonicalLink);
+  out = keepFirstTag(out, /<meta\s+name=["']robots["'][^>]*>/gi);
+  out = keepFirstTag(out, /<link\s+rel=["']canonical["'][^>]*>/gi);
+  return out;
+}
+
 function missingBookHtml() {
   return `<!DOCTYPE html>
 <html lang="ug" dir="rtl">
@@ -119,6 +156,7 @@ module.exports = {
   parseNumericBookId,
   publicBookLookupUrl,
   lookupPublicNumericBook,
+  applyFoundPublicBookHead,
   missingBookHtml,
   lookupFailureHtml
 };

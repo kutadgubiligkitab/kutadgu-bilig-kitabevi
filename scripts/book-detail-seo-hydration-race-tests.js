@@ -160,10 +160,20 @@ async function run() {
   });
 
   await test("C: genuinely missing/inactive numeric books remain noindex", async () => {
+    const found = await invokeBookPublic("/book/108", async () => jsonResponse(200, [{ id: 108 }]));
+    assert.strictEqual(found.status, 200);
+    assert.ok(found.body.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/108">'));
+    assert.match(found.body, /<meta\s+name=["']robots["']\s+content=["']index, follow["']>/i);
+    assert.strictEqual((found.body.match(/rel=["']canonical["']/gi) || []).length, 1);
+    assert.ok(found.body.includes("data-dynamic-book"));
+    assert.ok(!found.body.includes("كىتاب تېپىلمىدى"));
+
     const missing = await invokeBookPublic("/book/999999999", async () => jsonResponse(200, []));
     assert.strictEqual(missing.status, 404);
     assert.match(missing.body, /noindex/i);
     assert.ok(!missing.body.includes("kutadguBookSchema"));
+    assert.ok(!missing.body.includes("https://www.kutadgubilik.com/book/999999999"));
+    assert.doesNotMatch(missing.body, /content=["']index, follow["']/i);
 
     const hiddenLookup = await publicBook.lookupPublicNumericBook("12", {
       fetchImpl: async () => jsonResponse(200, [])

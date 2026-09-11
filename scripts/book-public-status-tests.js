@@ -133,6 +133,11 @@ async function run() {
     assert.doesNotMatch(foundGet.cache, /stale-while-revalidate/i);
     assert.ok(foundGet.body.includes("data-dynamic-book"));
     assert.ok(!foundGet.body.includes("كىتاب تېپىلمىدى"));
+    assert.match(foundGet.body, /<meta\s+name=["']robots["']\s+content=["']index, follow["']>/i);
+    assert.ok(foundGet.body.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/106">'));
+    assert.strictEqual((foundGet.body.match(/rel=["']canonical["']/gi) || []).length, 1);
+    assert.strictEqual((foundGet.body.match(/name=["']robots["']/gi) || []).length, 1);
+    assert.doesNotMatch(foundGet.body, /localhost/i);
 
     const foundHead = await invoke("/api/book-public?id=106", "HEAD", async () => jsonResponse(200, [{ id: "106" }]));
     assert.strictEqual(foundHead.status, 200);
@@ -147,6 +152,9 @@ async function run() {
     assert.ok(!missingGet.body.includes("@type"));
     assert.ok(!missingGet.body.includes("kutadguBookSchema"));
     assert.ok(!/canonical[^>]+999999999/.test(missingGet.body));
+    assert.ok(!missingGet.body.includes("https://www.kutadgubilik.com/book/999999999"));
+    assert.match(missingGet.body, /<meta\s+name=["']robots["']\s+content=["']noindex, follow["']>/i);
+    assert.doesNotMatch(missingGet.body, /content=["']index, follow["']/i);
 
     const missingHead = await invoke("/book/999999999", "HEAD", async () => jsonResponse(200, []));
     assert.strictEqual(missingHead.status, 404);
@@ -157,6 +165,65 @@ async function run() {
     assert.match(fail.cache, /no-store/i);
     assert.notStrictEqual(fail.status, 404);
     assert.ok(fail.body.includes("ۋاقىتلىق خاتالىق"));
+  });
+
+  await test("FOUND raw HTML injects one production canonical from the validated id", async () => {
+    const shell = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
+    assert.doesNotMatch(shell, /rel=["']canonical["']/i);
+    assert.doesNotMatch(shell, /name=["']robots["']/i);
+
+    const a = publicBook.applyFoundPublicBookHead(shell, "122");
+    const b = publicBook.applyFoundPublicBookHead(shell, "7");
+    assert.ok(a.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/122">'));
+    assert.ok(b.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/7">'));
+    assert.ok(!a.includes("/book/7"));
+    assert.ok(!b.includes("/book/122"));
+    assert.match(a, /<meta\s+name=["']robots["']\s+content=["']index, follow["']>/i);
+    assert.strictEqual((a.match(/rel=["']canonical["']/gi) || []).length, 1);
+
+    const unchanged = publicBook.applyFoundPublicBookHead(shell, "not-a-book");
+    assert.strictEqual(unchanged, shell);
+
+    const viaHandler = await invoke("/book/122", "GET", async () => jsonResponse(200, [{ id: 122 }]));
+    assert.strictEqual(viaHandler.status, 200);
+    assert.ok(viaHandler.body.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/122">'));
+    assert.match(viaHandler.body, /<meta\s+name=["']robots["']\s+content=["']index, follow["']>/i);
+    assert.ok(viaHandler.body.includes("data-dynamic-book"));
+    assert.ok(!viaHandler.body.includes("كىتاب تېپىلمىدى"));
+
+    const hydrated = viaHandler.body.replace(
+      /<link\s+rel=["']canonical["'][^>]*>/i,
+      '<link rel="canonical" href="https://www.kutadgubilik.com/book/122">'
+    );
+    assert.strictEqual((hydrated.match(/<link\s+rel=["']canonical["']/gi) || []).length, 1);
+  });
+
+  await test("client SEO upsert reuses the server canonical instead of duplicating it", () => {
+    const shell = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
+    const firstByte = publicBook.applyFoundPublicBookHead(shell, "108");
+    function setHeadMeta(html, selector, attributes) {
+      if (selector === 'link[rel="canonical"]') {
+        if (/<link\s+rel=["']canonical["']/i.test(html)) {
+          return html.replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${attributes.href}">`);
+        }
+        return html.replace(/<\/head>/i, `  <link rel="canonical" href="${attributes.href}">\n</head>`);
+      }
+      if (selector === 'meta[name="robots"]') {
+        if (/<meta\s+name=["']robots["']/i.test(html)) {
+          return html.replace(/<meta\s+name=["']robots["'][^>]*>/i, `<meta name="robots" content="${attributes.content}">`);
+        }
+        return html.replace(/<\/head>/i, `  <meta name="robots" content="${attributes.content}">\n</head>`);
+      }
+      return html;
+    }
+    const after = setHeadMeta(
+      setHeadMeta(firstByte, 'meta[name="robots"]', { content: "index, follow" }),
+      'link[rel="canonical"]',
+      { href: "https://www.kutadgubilik.com/book/108" }
+    );
+    assert.strictEqual((after.match(/rel=["']canonical["']/gi) || []).length, 1);
+    assert.strictEqual((after.match(/name=["']robots["']/gi) || []).length, 1);
+    assert.ok(after.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/108">'));
   });
 
   await test("legacy 308 rewrites remain in front of the existence gate", () => {
