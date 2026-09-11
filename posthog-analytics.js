@@ -15,6 +15,13 @@
   const pending = [];
   // Never retain query strings, fragments, or arbitrary user-provided route segments.
   const safePath = () => /^\/[a-z0-9/-]*(?:\.html)?$/i.test(location.pathname) ? location.pathname : "/";
+  // Keep SDK anonymous IDs (often UUIDs). Core looksSensitive treats 11+ digits as a phone number.
+  function anonymousDistinctId(value) {
+    const id = String(value == null ? "" : value).trim();
+    if (!id) return "";
+    if (id.indexOf("@") >= 0) return "";
+    return id;
+  }
   function capture(name, properties) {
     if (!enabled() || failed) return;
     try {
@@ -60,8 +67,13 @@
     delete properties.$referrer;
     delete properties.$referring_domain;
     delete properties.session_id;
-    const core = window.KutadguAnalyticsCore;
-    if (properties.distinct_id && core?.looksSensitive?.(properties.distinct_id)) delete properties.distinct_id;
+    const distinctId = anonymousDistinctId(
+      Object.prototype.hasOwnProperty.call(source, "distinct_id") ? source.distinct_id : event.distinct_id
+    );
+    if (distinctId) {
+      properties.distinct_id = distinctId;
+      event.distinct_id = distinctId;
+    } else delete properties.distinct_id;
     event.properties = properties;
     return event;
   }

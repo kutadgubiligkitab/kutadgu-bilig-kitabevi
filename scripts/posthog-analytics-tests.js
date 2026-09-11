@@ -74,6 +74,33 @@ function setup(overrides = {}) {
   assert.ok(!("search_query" in event.properties));
   assert.ok(!("session_id" in event.properties));
   assert.equal(event.properties.token, "phc_test");
+  assert.equal(event.properties.distinct_id, "anon");
+  const uuid = "01936c8e-7c3a-7c11-9f2a-7b1e4c8d9e0f";
+  const kept = opt.before_send({event: "$pageview", distinct_id: uuid, properties: {distinct_id: uuid, $device_id: uuid}});
+  assert.equal(kept.properties.distinct_id, uuid);
+  assert.equal(kept.distinct_id, uuid);
+  const fromEvent = opt.before_send({event: "book_view", distinct_id: uuid, properties: {book_id: "102", path: "/book/102"}});
+  assert.equal(fromEvent.properties.distinct_id, uuid);
+  const droppedEmail = opt.before_send({event: "$pageview", properties: {distinct_id: "user@example.com"}});
+  assert.ok(!droppedEmail.properties.distinct_id);
+  const sensitive = opt.before_send({event: "$pageview", properties: {
+    distinct_id: uuid, $set: {email: "a@b.c", name: "Ali", phone: "+90536"}, $set_once: {address: "Istanbul"},
+    $referrer: "https://evil.example/?q=1", session_id: "test-session", $current_url: "https://kutadgubilik.com/book/102?token=secret#frag"
+  }});
+  const sensitiveJson = JSON.stringify(sensitive);
+  assert.equal(sensitive.properties.distinct_id, uuid);
+  assert.ok(!sensitiveJson.includes("a@b.c"));
+  assert.ok(!sensitiveJson.includes("Ali"));
+  assert.ok(!sensitiveJson.includes("+90536"));
+  assert.ok(!sensitiveJson.includes("Istanbul"));
+  assert.ok(!sensitiveJson.includes("test-session"));
+  assert.ok(!sensitiveJson.includes("token=secret"));
+  assert.ok(!sensitiveJson.includes("#frag"));
+  assert.ok(!("session_id" in sensitive.properties));
+  assert.ok(!("$set" in sensitive.properties));
+  assert.ok(!("$set_once" in sensitive.properties));
+  assert.ok(!("$referrer" in sensitive.properties));
+  assert.equal(sensitive.properties.$current_url, "https://kutadgubilik.com/book/102");
   assert.equal(opt.before_send({event: "$autocapture"}), null);
   assert.equal(opt.before_send({event: "$web_vitals"}), null);
   assert.equal(opt.before_send({event: "$pageleave"}), null);
