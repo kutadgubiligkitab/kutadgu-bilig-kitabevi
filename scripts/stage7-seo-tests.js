@@ -163,6 +163,84 @@ jobs.push(test("J missing author/ISBN/description omitted; placeholder author sk
   assert.ok(!seo.datePublishedIfTrustworthy({ publishYear: "999" }));
 }));
 
+jobs.push(test("Book JSON-LD breadcrumb uses clean public category URLs", () => {
+  const expected = {
+    "children.html": "https://www.kutadgubilik.com/children",
+    "dini.html": "https://www.kutadgubilik.com/dini",
+    "romanlar.html": "https://www.kutadgubilik.com/romanlar",
+    "universal.html": "https://www.kutadgubilik.com/universal",
+    "tarikhiy-romanlar.html": "https://www.kutadgubilik.com/tarikhiy-romanlar",
+    "sheirlar.html": "https://www.kutadgubilik.com/sheirlar",
+    "hekayiler.html": "https://www.kutadgubilik.com/hekayiler",
+    "dunya-edebiyati.html": "https://www.kutadgubilik.com/dunya-edebiyati"
+  };
+  Object.keys(expected).forEach((source) => {
+    assert.strictEqual(seo.categoryCanonicalUrl(source), expected[source], source);
+  });
+  assert.deepStrictEqual([...seo.CATEGORY_HUB_SLUGS].sort(), [...sitemap.CATEGORY_HUB_SLUGS].sort());
+  sitemap.CATEGORY_HUB_SLUGS.forEach((slug) => {
+    const href = seo.categoryCanonicalUrl(`${slug}.html`);
+    assert.strictEqual(href, `https://www.kutadgubilik.com/${slug}`, slug);
+    assert.ok(!href.includes(".html"), slug);
+    assert.ok(!href.includes("localhost"), slug);
+    assert.ok(!href.includes("vercel.app"), slug);
+  });
+  assert.ok(!seo.categoryCanonicalUrl("children.html", "http://localhost:4173").includes("localhost"));
+
+  const json = seo.buildBookJsonLd({
+    id: "122",
+    title: "كىتاب",
+    category: "بالىلار",
+    source: "children.html",
+    author: "ئابدۇرېھىم ئۆتكۈر",
+    isbn: "9789750802959",
+    description: "چۈشەندۈرۈش",
+    publisher: "نەشرىيات",
+    language: "ug",
+    publishYear: "2001",
+    price: 120
+  }, { visible: true, stockKey: "in", image: "https://www.kutadgubilik.com/covers/x.jpg" });
+  const book = json["@graph"][0];
+  const crumbs = json["@graph"][1].itemListElement;
+  assert.strictEqual(book["@type"], "Book");
+  assert.strictEqual(book.name, "كىتاب");
+  assert.strictEqual(book.url, "https://www.kutadgubilik.com/book/122");
+  assert.strictEqual(book.author.name, "ئابدۇرېھىم ئۆتكۈر");
+  assert.strictEqual(book.isbn, "9789750802959");
+  assert.strictEqual(book.description, "چۈشەندۈرۈش");
+  assert.strictEqual(book.publisher.name, "نەشرىيات");
+  assert.strictEqual(book.inLanguage, "ug");
+  assert.strictEqual(book.image, "https://www.kutadgubilik.com/covers/x.jpg");
+  assert.strictEqual(book.datePublished, "2001");
+  assert.strictEqual(book.offers.price, 120);
+  assert.strictEqual(book.offers.priceCurrency, "TRY");
+  assert.strictEqual(book.offers.availability, "https://schema.org/InStock");
+  assert.strictEqual(crumbs[0].item, "https://www.kutadgubilik.com/");
+  assert.strictEqual(crumbs[1].item, "https://www.kutadgubilik.com/children");
+  assert.ok(!crumbs[1].item.includes(".html"));
+  assert.strictEqual(crumbs[2].item, "https://www.kutadgubilik.com/book/122");
+  assert.ok(!JSON.stringify(json).includes("localhost"));
+  assert.ok(!JSON.stringify(json).includes("vercel.app"));
+
+  const evil = seo.buildBookJsonLd({
+    id: "8",
+    title: "كىتاب",
+    category: "بالىلار",
+    source: "https://evil.example/children.html"
+  });
+  const evilCat = evil["@graph"][1].itemListElement[1];
+  assert.strictEqual(evilCat.name, "بالىلار");
+  assert.ok(!evilCat.item);
+  assert.ok(!JSON.stringify(evil).includes("evil.example"));
+  assert.strictEqual(seo.categoryCanonicalUrl("javascript:alert(1)"), "");
+  assert.strictEqual(seo.categoryCanonicalUrl("https://evil.example/romanlar.html"), "");
+  assert.strictEqual(seo.categoryCanonicalUrl("admin.html"), "");
+  assert.strictEqual(seo.categoryCanonicalUrl("cart.html"), "");
+  assert.strictEqual(seo.categoryCanonicalUrl("index.html"), "");
+  assert.strictEqual(seo.categoryCanonicalUrl(""), "");
+  assert.strictEqual(evil["@graph"][0].url, "https://www.kutadgubilik.com/book/8");
+}));
+
 jobs.push(test("public info pages use www clean canonicals", () => {
   sitemap.PUBLIC_INFO_SLUGS.forEach(slug => {
     const html = fs.readFileSync(path.join(__dirname, "..", `${slug}.html`), "utf8");

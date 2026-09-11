@@ -158,6 +158,68 @@
     }
   }
 
+  /* Trusted public category hubs. Same slugs as kutadgu-sitemap CATEGORY_HUB_SLUGS. */
+  const CATEGORY_HUB_SLUGS = [
+    "adabiyat",
+    "romanlar",
+    "tarikhiy-romanlar",
+    "sheirlar",
+    "hekayiler",
+    "dastanlar",
+    "dunya-edebiyati",
+    "adabiyat-roman",
+    "uyghur-adabiyati",
+    "universal",
+    "tibb",
+    "derslik",
+    "terbiye",
+    "dini",
+    "children"
+  ];
+
+  function isTrustedCategorySlug(value) {
+    const slug = String(value || "").trim();
+    return CATEGORY_HUB_SLUGS.indexOf(slug) >= 0;
+  }
+
+  function categorySourceFile(value) {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return "";
+    if (/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(raw) || raw.startsWith("//") || /[<>"'`]/.test(raw)) {
+      return "";
+    }
+    let path = raw.split("#")[0].split("?")[0].replace(/^\.\//, "");
+    if (/^https?:\/\//i.test(path)) {
+      try {
+        const url = new URL(path);
+        if (url.origin !== PRODUCTION_ORIGIN) return "";
+        path = url.pathname || "";
+      } catch (err) {
+        return "";
+      }
+    }
+    return String(path.split("/").pop() || "").toLowerCase();
+  }
+
+  function categoryCanonicalPath(source) {
+    const file = categorySourceFile(source);
+    if (!file) return "";
+    if (isTrustedCategorySlug(file)) return "/" + file;
+    const htmlMatch = file.match(/^([a-z0-9-]+)\.html$/);
+    if (!htmlMatch) return "";
+    const name = htmlMatch[1];
+    if (isTrustedCategorySlug(name)) return "/" + name;
+    const numbered = name.match(/^([a-z0-9-]+)-\d+$/);
+    if (numbered && isTrustedCategorySlug(numbered[1])) return "/" + numbered[1];
+    return "";
+  }
+
+  function categoryCanonicalUrl(source, origin) {
+    const path = categoryCanonicalPath(source);
+    if (!path) return "";
+    return productionOrigin(origin) + path;
+  }
+
   function buildBookJsonLd(book, options) {
     const opts = options || {};
     const origin = productionOrigin(opts.origin);
@@ -191,11 +253,14 @@
     }
     const graph = [data];
     if (book && book.category) {
+      const categoryItem = { "@type": "ListItem", position: 2, name: book.category };
+      const categoryUrl = categoryCanonicalUrl(book.source, origin);
+      if (categoryUrl) categoryItem.item = categoryUrl;
       graph.push({
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "قۇتادغۇبىلىك كىتابخانىسى", item: origin + "/" },
-          { "@type": "ListItem", position: 2, name: book.category, item: absoluteUrl(book.source || "index.html", origin) },
+          categoryItem,
           { "@type": "ListItem", position: 3, name: book.title, item: canonical }
         ]
       });
@@ -249,6 +314,9 @@
     datePublishedIfTrustworthy,
     metaDescription,
     absoluteUrl,
+    CATEGORY_HUB_SLUGS,
+    categoryCanonicalPath,
+    categoryCanonicalUrl,
     buildBookJsonLd,
     applyUnresolvedDetailDocument
   };
