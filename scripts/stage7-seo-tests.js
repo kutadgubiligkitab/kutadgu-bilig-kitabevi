@@ -402,6 +402,8 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
   assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-pages.xml"));
   assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-books.xml"));
   assert.ok(!pagesXml.includes("changefreq"));
+  assert.ok(pagesXml.includes("/books</loc>"));
+  assert.ok(!pagesXml.includes("/books.html"));
   assert.ok(pagesXml.includes("/children</loc>"));
   assert.ok(pagesXml.includes("/privacy</loc>"));
   assert.ok(!pagesXml.includes("/privacy.html"));
@@ -412,6 +414,19 @@ jobs.push(test("static sitemap files are indexes/pages without private URLs", ()
   assert.ok(!pagesXml.includes("ozumuzni-etirap-qilayli.html"));
   assert.ok(!pagesXml.includes("kutadgu-bilig-kitab.vercel.app"));
   assert.ok(!indexXml.includes("kutadgu-bilig-kitab.vercel.app"));
+}));
+
+jobs.push(test("checked-in sitemap-pages.xml matches publicPageEntries() including /books", () => {
+  const pagesXml = fs.readFileSync(path.join(__dirname, "..", "sitemap-pages.xml"), "utf8");
+  const expected = sitemap.publicPageEntries().map((entry) => entry.loc);
+  const actual = [...pagesXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+  assert.ok(expected.includes("https://www.kutadgubilik.com/books"));
+  assert.deepStrictEqual(actual, expected);
+  actual.forEach((loc) => {
+    assert.ok(!sitemap.locLooksPrivate(loc), loc);
+    assert.ok(!loc.endsWith(".html"), loc);
+    assert.ok(!/\/book\/\d+/.test(loc), loc);
+  });
 }));
 
 jobs.push(test("lastmod omitted when timestamp is untrustworthy", () => {

@@ -2,6 +2,7 @@
 <!-- Public storefront pages only. Book detail URLs live in sitemap-books.xml (server-generated). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://www.kutadgubilik.com/</loc></url>
+  <url><loc>https://www.kutadgubilik.com/books</loc></url>
   <url><loc>https://www.kutadgubilik.com/adabiyat</loc></url>
   <url><loc>https://www.kutadgubilik.com/romanlar</loc></url>
   <url><loc>https://www.kutadgubilik.com/tarikhiy-romanlar</loc></url>
