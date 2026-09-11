@@ -96,6 +96,20 @@ test.describe("book clean URLs", () => {
     expect(page.url()).not.toMatch(/[?&]id=/);
   });
 
+  test("B4 raw GET HTML for a found numeric book already has one clean canonical", async ({ page, request, baseURL }) => {
+    const book = await H.discoverLiveBook(page);
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const res = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    const canonical = `https://www.kutadgubilik.com/book/${book.id}`;
+    expect(html).toContain(`<link rel="canonical" href="${canonical}">`);
+    expect(html).toMatch(/<meta\s+name=["']robots["']\s+content=["']index,\s*follow["']/i);
+    expect((html.match(/rel=["']canonical["']/gi) || []).length).toBe(1);
+    expect((html.match(/name=["']robots["']/gi) || []).length).toBe(1);
+    expect(html).not.toMatch(/kutadguBookSchema/);
+  });
+
   test("C invalid /book/not-a-number stays safe and noindex", async ({ page, request, baseURL }) => {
     const origin = String(baseURL || "").replace(/\/$/, "");
     const res = await request.get(`${origin}/book/not-a-number`, { maxRedirects: 0 });

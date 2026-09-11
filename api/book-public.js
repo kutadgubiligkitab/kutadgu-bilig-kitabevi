@@ -34,7 +34,7 @@ module.exports = async function bookPublic(req, res) {
   if (result.outcome === "found") {
     let html;
     try {
-      html = fs.readFileSync(SHELL_PATH);
+      html = publicBook.applyFoundPublicBookHead(fs.readFileSync(SHELL_PATH, "utf8"), id);
     } catch (err) {
       send(res, 503, {
         "Content-Type": "text/html; charset=utf-8",
