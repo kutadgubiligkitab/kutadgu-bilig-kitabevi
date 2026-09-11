@@ -48,6 +48,27 @@ test("cover wrap is a flex contain frame, not a clipping block", () => {
   assert.match(safety, /max-height:100%\s*!important/);
 });
 
+test("listing title and author use RTL right alignment without moving price or covers", () => {
+  const rtl = fs.readFileSync(path.join(root, "listing-book-card-text-rtl.css"), "utf8");
+  const body = rtl.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(body, /\.books-grid\[data-catalog-source\] \.book-card \.book-title/);
+  assert.match(body, /\.books-grid\[data-catalog-source\] \.book-card \.book-author/);
+  assert.match(body, /direction:\s*rtl/);
+  assert.match(body, /text-align:\s*right/);
+  assert.doesNotMatch(body, /book-price|book-actions|add-to-cart|favorite-button|aspect-ratio|object-fit|cover-stock-wrap/);
+  assert.doesNotMatch(body, /home-feature|home-carousel|premium-book-card|shop-mini-card/);
+  const pages = LISTING_PAGES.concat(["books.html"]);
+  for (const file of pages) {
+    const html = fs.readFileSync(path.join(root, file), "utf8");
+    assert.match(html, /listing-book-card-text-rtl\.css\?v=1/, file);
+    assert.match(html, /data-kutadgu-listing-book-card-text-rtl="1"/, file);
+    const safetyAt = html.indexOf("listing-card-safety.css");
+    const stageAt = html.indexOf("stage4b-public-cards.css");
+    const rtlAt = html.indexOf("listing-book-card-text-rtl.css");
+    assert.ok(safetyAt >= 0 && stageAt > safetyAt && rtlAt > stageAt, `${file} RTL overlay must follow listing safety and Stage 4B`);
+  }
+});
+
 test("live listing pages load the safety stylesheet after unified layout", () => {
   for (const file of LISTING_PAGES) {
     const html = fs.readFileSync(path.join(root, file), "utf8");
