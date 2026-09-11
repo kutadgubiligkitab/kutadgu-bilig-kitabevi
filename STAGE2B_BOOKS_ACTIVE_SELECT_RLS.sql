@@ -7,9 +7,9 @@
 -- Purpose:
 --   Public/API clients (anon + normal authenticated) may SELECT only
 --   books where is_active = true.
---   Authenticated Admins (public.is_kutadgu_admin()) may SELECT all
---   books, including inactive rows, so Admin can manage hidden books.
---   Admin INSERT / UPDATE / DELETE policies are not rewritten.
+--   Authenticated Admins (public.is_kutadgu_admin()) with JWT AAL2 may
+--   SELECT all books, including inactive rows, so Admin can manage hidden
+--   books after MFA. Admin INSERT / UPDATE / DELETE policies are not rewritten.
 --
 -- Also persists the live manual hardening:
 --   REVOKE EXECUTE ON FUNCTION public.is_kutadgu_admin() FROM anon;
@@ -44,7 +44,10 @@ CREATE POLICY "admin can read all books"
   ON public.books
   FOR SELECT
   TO authenticated
-  USING (public.is_kutadgu_admin());
+  USING (
+    public.is_kutadgu_admin()
+    AND (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 REVOKE EXECUTE ON FUNCTION public.is_kutadgu_admin() FROM anon;
 GRANT EXECUTE ON FUNCTION public.is_kutadgu_admin() TO authenticated;

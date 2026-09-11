@@ -123,7 +123,7 @@ test("MFA UI lives in System section and not on login", () => {
   assert.match(system, /hidden/);
 });
 
-test("AAL2 is UI-gated only; SQL and checkAdmin stay unchanged", () => {
+test("checkAdmin stays AAL1; Admin JS does not send aal2 in books queries", () => {
   assert.match(mfaJs, /getAuthenticatorAssuranceLevel/);
   assert.match(mfaJs, /function evaluateAccess/);
   assert.match(adminJs, /checkAdmin\(session\.user\)/);
@@ -168,14 +168,18 @@ test("failed verify does not sign out", () => {
   assert.doesNotMatch(verifyFn[0], /signOut/);
 });
 
-test("no service_role; grant function and Stage 2B SELECT stay without AAL2", () => {
+test("no service_role; is_kutadgu_admin and public book SELECT stay without AAL2", () => {
   assert.doesNotMatch(mfaJs, /service_role/);
   assert.doesNotMatch(adminJs, /service_role/);
   const fn = setupSql.match(/create or replace function public\.is_kutadgu_admin\(\)[\s\S]*?\$\$;/);
   assert.ok(fn);
   assert.doesNotMatch(fn[0], /aal2/i);
   assert.doesNotMatch(fn[0], /auth\.jwt\(\)/);
-  assert.doesNotMatch(stage2b, /aal2/i);
+  const publicSelect = stage2b.match(/CREATE POLICY "public can read active books"[\s\S]*?;/);
+  assert.ok(publicSelect);
+  assert.doesNotMatch(publicSelect[0], /aal2/i);
+  assert.match(stage2b, /CREATE POLICY "admin can read all books"/);
+  assert.match(stage2b, /AND \(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
 });
 
 test("password reset and Google OAuth files stay TokenHash/PKCE as before", () => {

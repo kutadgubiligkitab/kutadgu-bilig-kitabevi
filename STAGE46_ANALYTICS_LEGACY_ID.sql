@@ -25,6 +25,9 @@ begin
   if not public.is_kutadgu_admin() then
     raise exception 'admin only';
   end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
+  end if;
 
   select jsonb_build_object(
     'page_views', (

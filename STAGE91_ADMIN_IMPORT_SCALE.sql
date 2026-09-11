@@ -20,6 +20,9 @@ begin
   if not public.is_kutadgu_admin() then
     raise exception 'admin only' using errcode = '42501';
   end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
+  end if;
 
   if to_regclass('public.books') is null then
     return 0;

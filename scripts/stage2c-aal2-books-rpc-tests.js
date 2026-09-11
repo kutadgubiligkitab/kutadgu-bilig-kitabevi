@@ -109,29 +109,27 @@ test("DELETE AAL2 policy is AS RESTRICTIVE USING only", () => {
   assert.match(setupBlock, new RegExp(String.raw`as restrictive for delete to authenticated using \(` + JWT_AAL2 + String.raw`\)`));
 });
 
-test("no AAL2 SELECT policy on books", () => {
+test("PR1 write AAL2 policies are not SELECT; public books SELECT stays without AAL2", () => {
   const created = [...sql.matchAll(/CREATE POLICY[\s\S]*?;/gi)].map((m) => m[0]);
   assert.strictEqual(created.length, 3);
   created.forEach((block) => {
     assert.doesNotMatch(block, /FOR SELECT/i);
   });
-  const setupSelect = [...setup.matchAll(/create policy "[^"]+" on public\.books for select[\s\S]*?;/gi)]
-    .map((m) => m[0]);
-  assert.ok(setupSelect.length >= 2);
-  setupSelect.forEach((block) => {
-    assert.doesNotMatch(block, /aal2/i);
-    assert.doesNotMatch(block, /auth\.jwt\(\)/);
-  });
+  const publicSelect = policyBlock(setup, "public can read active books");
+  assert.doesNotMatch(publicSelect, /aal2/i);
+  assert.doesNotMatch(publicSelect, /auth\.jwt\(\)/);
+  const adminSelect = policyBlock(setup, "admin can read all books");
+  assert.match(adminSelect, /is_kutadgu_admin\(\)/);
+  assert.match(adminSelect, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
 });
 
-test("existing public active SELECT and Admin all SELECT stay intact", () => {
+test("existing public active SELECT stays intact; Admin all SELECT requires AAL2", () => {
   assert.match(setup, /create policy "public can read active books" on public\.books for select to anon,authenticated using \(is_active = true\)/);
-  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\)\)/);
+  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\) and \(select auth\.jwt\(\)->>'aal'\) = 'aal2'\)/);
   assert.match(stage2b, /CREATE POLICY "public can read active books"/);
   assert.match(stage2b, /USING \(is_active = true\)/);
   assert.match(stage2b, /CREATE POLICY "admin can read all books"/);
-  assert.match(stage2b, /USING \(public\.is_kutadgu_admin\(\)\)/);
-  assert.doesNotMatch(stage2b, /aal2/i);
+  assert.match(stage2b, /AND \(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
 });
 
 test("permissive Admin write policies still use only is_kutadgu_admin()", () => {
@@ -183,16 +181,18 @@ test("set_member_status still checks is_kutadgu_admin then JWT aal2 before UPDAT
   });
 });
 
-test("no table-wide profiles AAL2 policy", () => {
+test("member profile policies have no AAL2; admin SELECT-all requires Admin + AAL2", () => {
   assert.doesNotMatch(sql, /ON public\.profiles/i);
   assert.doesNotMatch(sql, /on public\.profiles/i);
-  const profilePolicies = [...setup.matchAll(/create policy "[^"]+" on public\.profiles[\s\S]*?;/gi)]
-    .map((m) => m[0]);
-  assert.ok(profilePolicies.length >= 3);
-  profilePolicies.forEach((block) => {
+  const own = policyBlock(setup, "member can read own profile");
+  const upd = policyBlock(setup, "member can update own profile");
+  const admin = policyBlock(setup, "admin can read all profiles");
+  [own, upd].forEach((block) => {
     assert.doesNotMatch(block, /aal2/i);
     assert.doesNotMatch(block, /auth\.jwt\(\)/);
   });
+  assert.match(admin, /is_kutadgu_admin\(\)/);
+  assert.match(admin, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
   assert.match(setup, /create policy "member can update own profile" on public\.profiles for update to authenticated/);
 });
 
@@ -222,9 +222,11 @@ test("member cart/favorites stay without AAL2; member order creation is RPC with
   const memberSelect = policyBlock(setup, "member can read own orders");
   const adminSelect = policyBlock(setup, "admin can read all orders");
   const createOrder = functionBody(setup, "public.create_member_order");
-  [fav, cart, memberSelect, adminSelect, createOrder].forEach((block) => {
+  [fav, cart, memberSelect, createOrder].forEach((block) => {
     assert.doesNotMatch(block, /aal2/i);
   });
+  assert.match(adminSelect, /is_kutadgu_admin\(\)/);
+  assert.match(adminSelect, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
   assert.doesNotMatch(createOrder, /auth\.jwt\(\)/);
 });
 

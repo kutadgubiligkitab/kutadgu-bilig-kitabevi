@@ -83,7 +83,7 @@ test("this hotfix does not change SQL Admin auth or order surfaces", () => {
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && !["SITE_HOMEPAGE_ABOUT.sql","STAGE9_ANALYTICS_INSERT_RLS.sql","STAGE4_ANALYTICS_RPC_FIX.sql","SUPABASE_SETUP.sql","DATABASE_UPGRADE_V10.sql"].includes(file)) ||
+    (/\.sql$/i.test(file) && !["SITE_HOMEPAGE_ABOUT.sql","SITE_ANNOUNCEMENT_BAR.sql","SITE_HERO_MANAGEMENT.sql","STAGE9_ANALYTICS_INSERT_RLS.sql","STAGE4_ANALYTICS_RPC_FIX.sql","STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql","STAGE2C_AAL2_ADMIN_SELECT_RLS.sql","STAGE8_STORE_ANALYTICS.sql","STAGE46_ANALYTICS_LEGACY_ID.sql","STAGE91_ADMIN_IMPORT_SCALE.sql","SUPABASE_SETUP.sql","DATABASE_UPGRADE_V10.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)admin\.(html|js|css)$/i.test(file)
   );

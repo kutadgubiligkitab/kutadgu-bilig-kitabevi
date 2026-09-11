@@ -163,10 +163,10 @@ test("orders AAL2 is UPDATE only and isolated from member order creation", () =>
   assert.doesNotMatch(createOrder, /auth\.jwt\(\)/);
   const memberSelect = policyBlock(setup, "member can read own orders");
   const adminSelect = policyBlock(setup, "admin can read all orders");
-  [memberSelect, adminSelect].forEach((block) => {
-    assert.doesNotMatch(block, /aal2/i);
-    assert.doesNotMatch(block, /auth\.jwt\(\)/);
-  });
+  assert.doesNotMatch(memberSelect, /aal2/i);
+  assert.doesNotMatch(memberSelect, /auth\.jwt\(\)/);
+  assert.match(adminSelect, /is_kutadgu_admin\(\)/);
+  assert.match(adminSelect, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
   assert.match(setup, /create policy "admin can update orders" on public\.orders for update to authenticated\nusing \(public\.is_kutadgu_admin\(\)\) with check \(public\.is_kutadgu_admin\(\)\)/);
   const orderPolicies = [...sql.matchAll(/CREATE POLICY "aal2 required[^"]*orders"[\s\S]*?;/gi)].map((m) => m[0]);
   assert.strictEqual(orderPolicies.length, 1);
@@ -221,7 +221,7 @@ test("Phase 3B PR1 books AAL2 and set_member_status remain unchanged", () => {
   assert.match(booksSql, /CREATE POLICY "aal2 required to insert books"/);
   assert.match(setup, /create policy "aal2 required to insert books" on public\.books as restrictive for insert to authenticated with check \(/);
   assert.match(setup, /create policy "public can read active books" on public\.books for select to anon,authenticated using \(is_active = true\)/);
-  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\)\)/);
+  assert.match(setup, /create policy "admin can read all books" on public\.books for select to authenticated using \(public\.is_kutadgu_admin\(\) and \(select auth\.jwt\(\)->>'aal'\) = 'aal2'\)/);
   assert.doesNotMatch(sql, /on public\.books/i);
   assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.set_member_status/i);
   assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.is_kutadgu_admin/i);
@@ -235,18 +235,22 @@ test("Phase 3B PR1 books AAL2 and set_member_status remain unchanged", () => {
 });
 
 test("profiles member UPDATE and analytics INSERT remain without AAL2", () => {
-  const profilePolicies = [...setup.matchAll(/create policy "[^"]+" on public\.profiles[\s\S]*?;/gi)].map((m) => m[0]);
-  assert.ok(profilePolicies.length >= 3);
-  profilePolicies.forEach((block) => {
+  const own = policyBlock(setup, "member can read own profile");
+  const upd = policyBlock(setup, "member can update own profile");
+  const admin = policyBlock(setup, "admin can read all profiles");
+  [own, upd].forEach((block) => {
     assert.doesNotMatch(block, /aal2/i);
   });
+  assert.match(admin, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
   assert.match(setup, /create policy "member can update own profile" on public\.profiles for update to authenticated/);
   assert.doesNotMatch(sql, /on public\.profiles/i);
   assert.match(setup, /create policy "public can insert analytics"/);
   assert.match(setup, /on public\.analytics_events[\s\S]*for insert[\s\S]*to anon,\s*authenticated/);
   assert.doesNotMatch(setup.match(/create policy "public can insert analytics"[\s\S]*?;/)[0], /with check \(true\)/);
-  const analyticsInsert = [...setup.matchAll(/create policy "[^"]+" on public\.analytics_events[\s\S]*?;/gi)].map((m) => m[0]);
-  analyticsInsert.forEach((block) => assert.doesNotMatch(block, /aal2/i));
+  const insert = policyBlock(setup, "public can insert analytics");
+  const read = policyBlock(setup, "admin can read analytics");
+  assert.doesNotMatch(insert, /aal2/i);
+  assert.match(read, /\(select auth\.jwt\(\)->>'aal'\) = 'aal2'/);
   const fav = policyBlock(setup, "favorite owner access");
   const cart = policyBlock(setup, "cart owner access");
   [fav, cart].forEach((block) => assert.doesNotMatch(block, /aal2/i));

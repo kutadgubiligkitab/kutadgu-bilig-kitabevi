@@ -72,7 +72,7 @@ create policy "public can insert analytics"
     and created_at <= (now() + interval '5 minutes')
   );
 drop policy if exists "admin can read analytics" on public.analytics_events;
-create policy "admin can read analytics" on public.analytics_events for select to authenticated using (public.is_kutadgu_admin());
+create policy "admin can read analytics" on public.analytics_events for select to authenticated using (public.is_kutadgu_admin() and (select auth.jwt()->>'aal') = 'aal2');
 
 
 grant usage, select on sequence public.analytics_events_id_seq to anon,authenticated;
@@ -89,6 +89,9 @@ declare
 begin
   if not public.is_kutadgu_admin() then
     raise exception 'admin only';
+  end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
   end if;
   select jsonb_build_object(
     'page_views',(select count(*) from public.analytics_events where created_at>=v_since and event_name='page_view'),

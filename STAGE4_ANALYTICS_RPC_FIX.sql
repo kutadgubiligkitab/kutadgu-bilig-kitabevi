@@ -97,7 +97,10 @@ create policy "admin can read analytics"
   on public.analytics_events
   for select
   to authenticated
-  using (public.is_kutadgu_admin());
+  using (
+    public.is_kutadgu_admin()
+    and (select auth.jwt()->>'aal') = 'aal2'
+  );
 
 do $$
 declare
@@ -123,6 +126,9 @@ declare
 begin
   if not public.is_kutadgu_admin() then
     raise exception 'admin only';
+  end if;
+  if (select auth.jwt()->>'aal') is distinct from 'aal2' then
+    raise exception 'AAL2 required' using errcode = '42501';
   end if;
 
   select jsonb_build_object(
