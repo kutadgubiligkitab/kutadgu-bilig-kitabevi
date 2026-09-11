@@ -121,10 +121,34 @@
     return String(book && book.isbn || "").replace(/[\s-]+/g, "").trim();
   }
 
+  function isbn13ChecksumValid(isbn) {
+    if (!/^[0-9]{13}$/.test(isbn)) return false;
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const n = isbn.charCodeAt(i) - 48;
+      sum += (i % 2 === 0) ? n : n * 3;
+    }
+    const check = (10 - (sum % 10)) % 10;
+    return check === (isbn.charCodeAt(12) - 48);
+  }
+
+  function isbn10ChecksumValid(isbn) {
+    const compact = String(isbn || "").toUpperCase();
+    if (!/^[0-9]{9}[0-9X]$/.test(compact)) return false;
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += (compact.charCodeAt(i) - 48) * (10 - i);
+    }
+    const last = compact.charAt(9);
+    sum += last === "X" ? 10 : (last.charCodeAt(0) - 48);
+    return sum % 11 === 0;
+  }
+
   function isbnIfTrustworthy(book) {
     const isbn = storefrontIsbn(book);
-    if (/^[0-9]{13}$/.test(isbn)) return isbn;
-    if (/^[0-9]{9}[0-9X]$/i.test(isbn)) return isbn.toUpperCase();
+    if (/^[0-9]{13}$/.test(isbn) && isbn13ChecksumValid(isbn)) return isbn;
+    const ten = isbn.toUpperCase();
+    if (/^[0-9]{9}[0-9X]$/.test(ten) && isbn10ChecksumValid(ten)) return ten;
     return "";
   }
 

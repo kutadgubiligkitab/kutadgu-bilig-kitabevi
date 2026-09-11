@@ -163,6 +163,47 @@ jobs.push(test("J missing author/ISBN/description omitted; placeholder author sk
   assert.ok(!seo.datePublishedIfTrustworthy({ publishYear: "999" }));
 }));
 
+jobs.push(test("isbnIfTrustworthy requires a valid ISBN checksum", () => {
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9789750802959" }), "9789750802959");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "0306406152" }), "0306406152");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "080442957X" }), "080442957X");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "080442957x" }), "080442957X");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "978-975-08-0295-9" }), "9789750802959");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "0 306 40615 2" }), "0306406152");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "7228052258" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9789750802950" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "not-an-isbn" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "12345" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "978975080295" }), "");
+
+  const omitted = seo.buildBookJsonLd({
+    id: "129",
+    title: "كىتاب",
+    author: "ئابدۇرېھىم ئۆتكۈر",
+    isbn: "7228052258",
+    description: "چۈشەندۈرۈش",
+    publisher: "نەشرىيات",
+    language: "ug",
+    publishYear: "2001",
+    price: 120
+  }, { visible: true, stockKey: "in", image: "https://www.kutadgubilik.com/covers/x.jpg" });
+  const node = omitted["@graph"][0];
+  assert.ok(!Object.prototype.hasOwnProperty.call(node, "isbn"));
+  assert.strictEqual(node["@type"], "Book");
+  assert.strictEqual(node.name, "كىتاب");
+  assert.strictEqual(node.url, "https://www.kutadgubilik.com/book/129");
+  assert.strictEqual(node.author.name, "ئابدۇرېھىم ئۆتكۈر");
+  assert.strictEqual(node.description, "چۈشەندۈرۈش");
+  assert.strictEqual(node.publisher.name, "نەشرىيات");
+  assert.strictEqual(node.inLanguage, "ug");
+  assert.strictEqual(node.image, "https://www.kutadgubilik.com/covers/x.jpg");
+  assert.strictEqual(node.datePublished, "2001");
+  assert.strictEqual(node.offers.price, 120);
+  assert.strictEqual(node.offers.priceCurrency, "TRY");
+  assert.strictEqual(node.offers.availability, "https://schema.org/InStock");
+  assert.ok(!JSON.stringify(omitted).includes("7228052258"));
+}));
+
 jobs.push(test("Book JSON-LD breadcrumb uses clean public category URLs", () => {
   const expected = {
     "children.html": "https://www.kutadgubilik.com/children",
