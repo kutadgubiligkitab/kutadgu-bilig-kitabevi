@@ -22,6 +22,7 @@ function read(rel) {
 const sql = read("STAGE2C_AAL2_ADMIN_SELECT_RLS.sql");
 const writeRepair = read("STAGE2C_AAL2_RESTRICTIVE_REPAIR.sql");
 const setup = read("SUPABASE_SETUP.sql");
+const v10 = read("DATABASE_UPGRADE_V10.sql");
 const stage2b = read("STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql");
 const stage8 = read("STAGE8_STORE_ANALYTICS.sql");
 const stage91 = read("STAGE91_ADMIN_IMPORT_SCALE.sql");
@@ -51,6 +52,32 @@ function functionBody(source, name) {
   ));
   assert.ok(match, "missing function " + name);
   return match[0];
+}
+
+function stripAal2Auth(fn) {
+  return fn.replace(
+    /\s*if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2' then\s*raise exception 'AAL2 required' using errcode = '42501';\s*end if;/i,
+    ""
+  );
+}
+
+function compactSql(fn) {
+  return fn.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function assertAdminThenImmediateAal2(fn) {
+  assert.match(fn, /if not public\.is_kutadgu_admin\(\) then/);
+  assert.match(fn, /if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2' then/);
+  assert.match(fn, /raise exception 'AAL2 required' using errcode = '42501'/);
+  const adminBlock = fn.match(
+    /if not public\.is_kutadgu_admin\(\) then\s*raise exception 'admin only'(?: using errcode = '42501')?;\s*end if;/i
+  );
+  assert.ok(adminBlock, "admin authorization block missing");
+  const afterAdmin = fn.slice(fn.indexOf(adminBlock[0]) + adminBlock[0].length);
+  assert.match(
+    afterAdmin,
+    /^\s*if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2' then/
+  );
 }
 
 function rlsAllows(policies, ctx) {
@@ -212,20 +239,33 @@ function rpcAllows(isAdmin, aal) {
   return true;
 }
 
+test("repair get_kutadgu_analytics matches production v10 body plus AAL2 only", () => {
+  const repairFn = functionBody(sql, "public.get_kutadgu_analytics");
+  const setupFn = functionBody(setup, "public.get_kutadgu_analytics");
+  const v10Fn = functionBody(v10, "public.get_kutadgu_analytics");
+  assert.match(repairFn, /security definer/i);
+  assert.doesNotMatch(repairFn, /\bstable\b/i);
+  assert.doesNotMatch(repairFn, /\bfunnel\b/i);
+  assert.doesNotMatch(repairFn, /top_cart_books/i);
+  assert.doesNotMatch(repairFn, /top_whatsapp_books/i);
+  assert.doesNotMatch(repairFn, /top_searches/i);
+  assert.doesNotMatch(repairFn, /zero_result_searches/i);
+  assert.doesNotMatch(repairFn, /legacy_id/i);
+  assertAdminThenImmediateAal2(repairFn);
+  assert.strictEqual(compactSql(stripAal2Auth(repairFn)), compactSql(stripAal2Auth(setupFn)));
+  assert.strictEqual(compactSql(stripAal2Auth(repairFn)), compactSql(stripAal2Auth(v10Fn)));
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_kutadgu_analytics\(integer\) FROM public;/i);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.get_kutadgu_analytics\(integer\) FROM anon;/i);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.get_kutadgu_analytics\(integer\) TO authenticated;/i);
+});
+
 test("get_kutadgu_analytics and get_kutadgu_book_stock_sum require Admin then AAL2", () => {
-  [functionBody(sql, "public.get_kutadgu_analytics"), functionBody(stage8, "public.get_kutadgu_analytics")].forEach((fn) => {
-    assert.match(fn, /security definer/i);
-    assert.match(fn, /if not public\.is_kutadgu_admin\(\) then/);
-    assert.match(fn, /if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2' then/);
-    assert.match(fn, /raise exception 'AAL2 required' using errcode = '42501'/);
-    const adminAt = fn.search(/is_kutadgu_admin\(\)/);
-    const aalAt = fn.search(/is distinct from 'aal2'/);
-    assert.ok(adminAt >= 0 && aalAt > adminAt);
-  });
+  assertAdminThenImmediateAal2(functionBody(stage8, "public.get_kutadgu_analytics"));
   [functionBody(sql, "public.get_kutadgu_book_stock_sum"), functionBody(stage91, "public.get_kutadgu_book_stock_sum")].forEach((fn) => {
     assert.match(fn, /if not public\.is_kutadgu_admin\(\) then/);
     assert.match(fn, /if \(select auth\.jwt\(\)->>'aal'\) is distinct from 'aal2' then/);
     assert.match(fn, /raise exception 'AAL2 required' using errcode = '42501'/);
+    assertAdminThenImmediateAal2(fn);
   });
   assert.strictEqual(rpcAllows(false, "aal1"), false);
   assert.strictEqual(rpcAllows(false, "aal2"), false);
