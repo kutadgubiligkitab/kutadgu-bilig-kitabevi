@@ -1,7 +1,0 @@
-/* Listing catalog cards: Uyghur title and author read RTL and sit on the right.
-   Scoped to live catalog grids. Covers, price, actions, and card geometry stay unchanged. */
-.books-grid[data-catalog-source] .book-card .book-title,
-.books-grid[data-catalog-source] .book-card .book-author {
-  direction: rtl;
-  text-align: right;
-}

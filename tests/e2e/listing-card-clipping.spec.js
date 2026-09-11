@@ -123,11 +123,6 @@ function cardMetricsScript() {
       titleClamp: titleStyle ? (titleStyle.webkitLineClamp || titleStyle.lineClamp) : "",
       titleLineHeight: titleStyle ? Number.parseFloat(titleStyle.lineHeight) : 0,
       titleFontSize: titleStyle ? Number.parseFloat(titleStyle.fontSize) : 0,
-      titleDirection: titleStyle ? titleStyle.direction : "",
-      titleAlign: titleStyle ? titleStyle.textAlign : "",
-      authorDirection: author ? getComputedStyle(author).direction : "",
-      authorAlign: author ? getComputedStyle(author).textAlign : "",
-      priceAlign: price ? getComputedStyle(price).textAlign : "",
       objectFit: img ? getComputedStyle(img).objectFit : "",
       imageDisplay: image ? getComputedStyle(image).display : "",
       imageRatio: imageBox && imageBox.height ? imageBox.width / imageBox.height : 0,
@@ -160,11 +155,6 @@ test.describe("listing card clipping hotfix", () => {
     expect(geo.actionKidsInside).toBeTruthy();
     expect(geo.overlap).toBeFalsy();
     expect(String(geo.titleClamp)).toBe("2");
-    expect(geo.titleDirection).toBe("rtl");
-    expect(geo.titleAlign).toBe("right");
-    expect(geo.authorDirection).toBe("rtl");
-    expect(geo.authorAlign).toBe("right");
-    expect(geo.priceAlign).toBe("center");
     expect(geo.titleLineHeight / geo.titleFontSize).toBeGreaterThanOrEqual(1.55);
     expect(geo.objectFit).toBe("contain");
     expect(geo.imageDisplay).toContain("flex");
@@ -195,10 +185,6 @@ test.describe("listing card clipping hotfix", () => {
       expect(geo.actionKidsInside, String(width)).toBeTruthy();
       expect(geo.objectFit, String(width)).toBe("contain");
       expect(geo.overlap, String(width)).toBeFalsy();
-      expect(geo.titleDirection, String(width)).toBe("rtl");
-      expect(geo.titleAlign, String(width)).toBe("right");
-      expect(geo.authorAlign, String(width)).toBe("right");
-      expect(geo.priceAlign, String(width)).toBe("center");
       if (width === 390) expect(geo.gridCols, "390 2-col").toBe(2);
     }
   });

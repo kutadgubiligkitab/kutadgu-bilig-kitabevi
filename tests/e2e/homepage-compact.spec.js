@@ -652,6 +652,45 @@ test.describe("homepage compact first-view", () => {
     expect(after).toEqual(before);
   });
 
+  test("recently-added title and author are RTL and right-aligned; price row stays space-between", async ({ page }) => {
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 8 });
+    for (const width of [1366, 390]) {
+      await page.setViewportSize({ width, height: width >= 1000 ? 900 : 844 });
+      await H.openFresh(page, "/");
+      await expect(page.locator("#homeFeaturedBooks .home-featured-all")).toBeVisible();
+      await expect.poll(async () => page.locator("#homeFeaturedBooks .home-feature-card:not(.is-skeleton) .home-feature-title").count()).toBeGreaterThan(0);
+      const geo = await page.evaluate(() => {
+        const card = document.querySelector("#homeFeaturedBooks .home-feature-card:not(.is-skeleton)");
+        if (!card) return { missing: true };
+        const title = card.querySelector(".home-feature-title");
+        const author = card.querySelector(".home-feature-author");
+        const price = card.querySelector(".home-feature-price");
+        const bottom = card.querySelector(".home-feature-bottom");
+        const cart = card.querySelector(".home-feature-cart");
+        const titleStyle = title ? getComputedStyle(title) : null;
+        const authorStyle = author ? getComputedStyle(author) : null;
+        return {
+          missing: false,
+          titleDirection: titleStyle ? titleStyle.direction : "",
+          titleAlign: titleStyle ? titleStyle.textAlign : "",
+          authorDirection: authorStyle ? authorStyle.direction : "",
+          authorAlign: authorStyle ? authorStyle.textAlign : "",
+          bottomJustify: bottom ? getComputedStyle(bottom).justifyContent : "",
+          hasPrice: !!price,
+          hasCart: !!cart
+        };
+      });
+      expect(geo.missing, String(width)).toBeFalsy();
+      expect(geo.titleDirection, String(width)).toBe("rtl");
+      expect(geo.titleAlign, String(width)).toBe("right");
+      expect(geo.authorDirection, String(width)).toBe("rtl");
+      expect(geo.authorAlign, String(width)).toBe("right");
+      expect(geo.bottomJustify, String(width)).toBe("space-between");
+      expect(geo.hasPrice, String(width)).toBeTruthy();
+      expect(geo.hasCart, String(width)).toBeTruthy();
+    }
+  });
+
   test("featured hover pauses both rows and mouse leave resumes", async ({ page }) => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, featuredCount: 12 });
     await page.setViewportSize({ width: 1280, height: 900 });
