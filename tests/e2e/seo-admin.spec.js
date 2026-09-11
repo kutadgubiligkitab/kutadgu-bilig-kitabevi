@@ -26,7 +26,8 @@ test.describe("seo + admin", () => {
     expect(res.status()).toBe(200);
     const body = await res.text();
     expect(body).toContain("Sitemap: https://www.kutadgubilik.com/sitemap.xml");
-    expect(body).toContain("Disallow: /admin.html");
+    expect(body).not.toContain("Disallow: /admin.html");
+    expect(body).not.toMatch(/Disallow:\s*\/(admin\.html|account\.html|cart\.html)/);
   });
 
   test("17 admin login page loads", async ({ page }) => {
