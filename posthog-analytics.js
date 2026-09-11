@@ -42,16 +42,26 @@
   function beforeSend(event) {
     if (!enabled() || !event || (event.event !== "$pageview" && !allowed.has(event.event))) return null;
     const source = event.properties || {}, properties = {};
-    for (const key of sdkFields.concat(fields))
+    const copyKeys = event.event === "$pageview" ? sdkFields : sdkFields.concat(fields);
+    for (const key of copyKeys)
       if (Object.prototype.hasOwnProperty.call(source, key)) properties[key] = source[key];
-    properties.$current_url = location.origin + safePath();
-    properties.$pathname = safePath();
+    const path = safePath();
+    properties.path = path;
+    properties.$current_url = location.origin + path;
+    properties.$pathname = path;
     properties.$process_person_profile = false;
     properties.$ip = "0.0.0.0";
     // The SDK requires the public ingestion token inside properties.
     properties.token = cfg.publicProjectKey;
     delete event.$set;
     delete event.$set_once;
+    delete properties.$set;
+    delete properties.$set_once;
+    delete properties.$referrer;
+    delete properties.$referring_domain;
+    delete properties.session_id;
+    const core = window.KutadguAnalyticsCore;
+    if (properties.distinct_id && core?.looksSensitive?.(properties.distinct_id)) delete properties.distinct_id;
     event.properties = properties;
     return event;
   }

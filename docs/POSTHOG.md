@@ -11,13 +11,23 @@ are forwarded; existing `page_view` is ignored because the SDK owns `$pageview`.
 Search filtering uses the existing core. Unknown fields, legacy IDs, session IDs
 from Supabase, URL queries/fragments, referrers, and person properties are omitted.
 
-The first version deliberately disables autocapture, session replay, heatmaps,
-performance and console/network recording locally, regardless of remote project
-settings. This avoids collecting checkout fields, WhatsApp URLs/message bodies,
-or authentication URLs outside the reviewed event bridge. Remote project settings
-are not changed. Those features require a separate privacy review before enabling.
-In-memory anonymous IDs provide same-page funnels only, not cross-page identity.
-Existing search heuristics cannot recognize every possible personal name or address
+The first version collects only one SDK `$pageview` per load plus the nine
+allowlisted custom events. Official PostHog JS docs (SDK config
+`capture_performance` and Web Vitals) allow Web Vitals independently of click
+autocapture (`capture_performance: { web_vitals: true, network_timing: false }`).
+This PR still sets `capture_performance: false` and `before_send` drops
+`$web_vitals`. Enabling Web Vitals would add a new event type and URL-bearing
+properties outside the reviewed first-release set; keep it for a later
+privacy-safe phase.
+
+Autocapture, session replay, heatmaps, exception capture, surveys, automatic
+person profiles, and console/network recording stay disabled locally, regardless
+of remote project settings. This avoids collecting checkout fields, WhatsApp
+URLs/message bodies, or authentication URLs outside the reviewed event bridge.
+Remote project settings are not changed. Those features require a separate
+privacy review before enabling. In-memory anonymous IDs provide same-page
+funnels only, not cross-page identity. `identify()` is not called. Existing
+search heuristics cannot recognize every possible personal name or address
 entered into search; the bridge preserves that existing protection.
 
 Only the explicit production host list loads the SDK. Previews and local tests
