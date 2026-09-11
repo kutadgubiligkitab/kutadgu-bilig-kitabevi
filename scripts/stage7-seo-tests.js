@@ -244,15 +244,30 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
   assert.ok(!(vercel.rewrites || []).some(r => r.source === "/universal-2"));
 }));
 
-jobs.push(test("G robots.txt sitemap location and private disallows", () => {
+jobs.push(test("G robots.txt keeps sitemap URL and does not Disallow noindex HTML pages", () => {
   const robots = fs.readFileSync(path.join(__dirname, "..", "robots.txt"), "utf8");
+  const pagesXml = fs.readFileSync(path.join(__dirname, "..", "sitemap-pages.xml"), "utf8");
+  const noindexPages = [
+    "admin.html",
+    "admin-quality-preview.html",
+    "account.html",
+    "reset-password.html",
+    "cart.html",
+    "favorites.html",
+    "my-books.html"
+  ];
+  assert.ok(robots.includes("User-agent: *"));
+  assert.ok(robots.includes("Allow: /"));
   assert.ok(robots.includes("Sitemap: https://www.kutadgubilik.com/sitemap.xml"));
-  assert.ok(robots.includes("Disallow: /admin.html"));
-  assert.ok(robots.includes("Disallow: /admin-quality-preview.html"));
-  assert.ok(robots.includes("Disallow: /cart.html"));
-  assert.ok(robots.includes("Disallow: /account.html"));
   assert.ok(!/Disallow: \/\*\.js/.test(robots));
   assert.ok(!/Disallow: \/\*\.css/.test(robots));
+  noindexPages.forEach((file) => {
+    const html = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    assert.match(html, /<meta\s+name=["']robots["']\s+content=["']noindex/i, file + " missing noindex");
+    assert.doesNotMatch(robots, new RegExp(String.raw`Disallow:\s*/${file.replace(".", "\\.")}`));
+    assert.ok(!pagesXml.includes("/" + file), file + " leaked into sitemap-pages.xml");
+    assert.ok(!sitemap.publicPageEntries().some((entry) => entry.loc.endsWith("/" + file)));
+  });
 }));
 
 jobs.push(test("book.html shell does not ship a first-byte robots or canonical veto", () => {
