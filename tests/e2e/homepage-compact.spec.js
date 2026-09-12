@@ -379,6 +379,7 @@ test.describe("homepage compact first-view", () => {
         const grid = document.querySelector("#bookCategories .cards");
         const cards = [...document.querySelectorAll("#bookCategories a.card")];
         const last = cards[cards.length - 1];
+        const seventh = cards[6];
         const first = cards[0];
         const gridBox = grid.getBoundingClientRect();
         const lastBox = last.getBoundingClientRect();
@@ -386,9 +387,20 @@ test.describe("homepage compact first-view", () => {
         const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean);
         const lastCenter = lastBox.left + lastBox.width / 2;
         const gridCenter = gridBox.left + gridBox.width / 2;
+        const boxes = cards.map((c) => c.getBoundingClientRect());
+        let overlap = false;
+        for (let i = 0; i < boxes.length; i++) {
+          for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i];
+            const b = boxes[j];
+            const separate = a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1;
+            if (!separate) overlap = true;
+          }
+        }
         return {
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           colCount: cols.length,
+          hrefs: cards.map((el) => el.getAttribute("href")),
           firstW: firstBox.width,
           lastW: lastBox.width,
           lastLeft: lastBox.left,
@@ -396,11 +408,18 @@ test.describe("homepage compact first-view", () => {
           secondTop: cards[1].getBoundingClientRect().top,
           lastTop: lastBox.top,
           sixthTop: cards[5].getBoundingClientRect().top,
+          seventhTop: seventh ? seventh.getBoundingClientRect().top : 0,
+          eighthTop: cards[7] ? cards[7].getBoundingClientRect().top : 0,
+          ninthTop: cards[8] ? cards[8].getBoundingClientRect().top : 0,
           centerDelta: Math.abs(lastCenter - gridCenter),
-          nth7: getComputedStyle(last).gridColumnStart
+          nth7: seventh ? getComputedStyle(seventh).gridColumnStart : "",
+          overlap
         };
       });
       expect(metrics.overflow).toBeLessThanOrEqual(4);
+      expect(metrics.overlap).toBe(false);
+      expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar"]);
+      expect(metrics.hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
       if (width <= 768) {
         expect(metrics.colCount).toBe(2);
         expect(Math.abs(metrics.firstTop - metrics.secondTop)).toBeLessThan(2);
@@ -410,16 +429,23 @@ test.describe("homepage compact first-view", () => {
       } else {
         expect(metrics.colCount).toBe(8);
         expect(metrics.nth7).toBe("6");
-        const row1 = await page.evaluate(() => {
+        const rows = await page.evaluate(() => {
           const cards = [...document.querySelectorAll("#bookCategories a.card")];
           const top = Math.round(cards[0].getBoundingClientRect().top);
+          const second = Math.round(cards[4].getBoundingClientRect().top);
+          const third = Math.round(cards[7].getBoundingClientRect().top);
           return {
             firstRow: cards.slice(0, 4).every((c) => Math.abs(c.getBoundingClientRect().top - top) < 2),
-            secondRow: cards.slice(4).every((c) => Math.abs(c.getBoundingClientRect().top - cards[4].getBoundingClientRect().top) < 2)
+            originalSecondRow: cards.slice(4, 7).every((c) => Math.abs(c.getBoundingClientRect().top - second) < 2),
+            appendedThirdRow: cards.slice(7, 9).every((c) => Math.abs(c.getBoundingClientRect().top - third) < 2)
           };
         });
-        expect(row1.firstRow).toBe(true);
-        expect(row1.secondRow).toBe(true);
+        expect(rows.firstRow).toBe(true);
+        expect(rows.originalSecondRow).toBe(true);
+        expect(rows.appendedThirdRow).toBe(true);
+        expect(metrics.seventhTop).toBeGreaterThan(metrics.firstTop + 8);
+        expect(metrics.eighthTop).toBeGreaterThan(metrics.seventhTop + 8);
+        expect(Math.abs(metrics.eighthTop - metrics.ninthTop)).toBeLessThan(2);
       }
     });
   }
