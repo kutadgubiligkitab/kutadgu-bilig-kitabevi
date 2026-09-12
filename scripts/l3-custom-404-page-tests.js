@@ -39,9 +39,9 @@ const EXPECTED_REWRITE_SOURCES = [
   "/book/:id",
   "/book.html",
   "/book",
-  "/kbg/static/:path*",
-  "/kbg/array/:path*",
-  "/kbg/:path*",
+  "/kbg/static/:path(.*)",
+  "/kbg/array/:path(.*)",
+  "/kbg/:path(.*)",
 ];
 
 function test(name, fn) {
@@ -133,12 +133,12 @@ test("existing known route rewrites remain untouched", () => {
   assert.ok(bySource("/book/:id", "/book-shell.html"));
   assert.ok(bySource("/book", "/book-shell.html"));
   assert.ok(
-    bySource("/kbg/static/:path*", "https://eu-assets.i.posthog.com/static/:path*")
+    bySource("/kbg/static/:path(.*)", "https://eu-assets.i.posthog.com/static/:path")
   );
   assert.ok(
-    bySource("/kbg/array/:path*", "https://eu.i.posthog.com/array/:path*")
+    bySource("/kbg/array/:path(.*)", "https://eu-assets.i.posthog.com/array/:path")
   );
-  assert.ok(bySource("/kbg/:path*", "https://eu.i.posthog.com/:path*"));
+  assert.ok(bySource("/kbg/:path(.*)", "https://eu.i.posthog.com/:path"));
 });
 
 console.log("l3-custom-404-page-tests: all passed");

@@ -247,16 +247,16 @@
       "destination": "/book-shell.html"
     },
     {
-      "source": "/kbg/static/:path*",
-      "destination": "https://eu-assets.i.posthog.com/static/:path*"
+      "source": "/kbg/static/:path(.*)",
+      "destination": "https://eu-assets.i.posthog.com/static/:path"
     },
     {
-      "source": "/kbg/array/:path*",
-      "destination": "https://eu.i.posthog.com/array/:path*"
+      "source": "/kbg/array/:path(.*)",
+      "destination": "https://eu-assets.i.posthog.com/array/:path"
     },
     {
-      "source": "/kbg/:path*",
-      "destination": "https://eu.i.posthog.com/:path*"
+      "source": "/kbg/:path(.*)",
+      "destination": "https://eu.i.posthog.com/:path"
     }
   ],
   "headers": [

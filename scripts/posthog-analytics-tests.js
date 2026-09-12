@@ -80,22 +80,38 @@ function setup(overrides = {}) {
   assert.match(source, /new Set\(\["book_view", "add_to_cart", "whatsapp_order_click", "search",\s*"zero_result_search", "add_to_favorite", "remove_from_favorite", "contact_click", "filter_apply"\]\)/);
   const vercel = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
   const rewrites = vercel.rewrites || [];
-  const assetProxy = rewrites.find((rule) => rule.source === "/kbg/static/:path*");
-  const arrayProxy = rewrites.find((rule) => rule.source === "/kbg/array/:path*");
-  const ingestProxy = rewrites.find((rule) => rule.source === "/kbg/:path*");
-  assert.equal(assetProxy.destination, "https://eu-assets.i.posthog.com/static/:path*");
-  assert.equal(arrayProxy.destination, "https://eu.i.posthog.com/array/:path*");
-  assert.equal(ingestProxy.destination, "https://eu.i.posthog.com/:path*");
-  const assetIdx = rewrites.findIndex((rule) => rule.source === "/kbg/static/:path*");
-  const arrayIdx = rewrites.findIndex((rule) => rule.source === "/kbg/array/:path*");
-  const ingestIdx = rewrites.findIndex((rule) => rule.source === "/kbg/:path*");
+  const assetProxy = rewrites.find((rule) => rule.source === "/kbg/static/:path(.*)");
+  const arrayProxy = rewrites.find((rule) => rule.source === "/kbg/array/:path(.*)");
+  const ingestProxy = rewrites.find((rule) => rule.source === "/kbg/:path(.*)");
+  assert.equal(assetProxy.destination, "https://eu-assets.i.posthog.com/static/:path");
+  assert.equal(arrayProxy.destination, "https://eu-assets.i.posthog.com/array/:path");
+  assert.equal(ingestProxy.destination, "https://eu.i.posthog.com/:path");
+  const assetIdx = rewrites.findIndex((rule) => rule.source === "/kbg/static/:path(.*)");
+  const arrayIdx = rewrites.findIndex((rule) => rule.source === "/kbg/array/:path(.*)");
+  const ingestIdx = rewrites.findIndex((rule) => rule.source === "/kbg/:path(.*)");
   const lastBookstoreIdx = rewrites.findIndex(
     (rule) => rule.source === "/book" && rule.destination === "/book-shell.html"
   );
   assert.ok(assetIdx > lastBookstoreIdx);
   assert.equal(arrayIdx, assetIdx + 1);
   assert.equal(ingestIdx, arrayIdx + 1);
-  assert.ok(arrayIdx < ingestIdx);
+  assert.ok(!rewrites.some((rule) => String(rule.source || "").includes(":path*")));
+  function firstKbgRewrite(pathname) {
+    for (const rule of rewrites) {
+      const source = String(rule.source || "");
+      const marker = "/:path(.*)";
+      if (!source.startsWith("/kbg") || !source.endsWith(marker)) continue;
+      const prefix = source.slice(0, -marker.length) + "/";
+      if (!pathname.startsWith(prefix)) continue;
+      return String(rule.destination).replace(":path", pathname.slice(prefix.length));
+    }
+    return null;
+  }
+  assert.equal(firstKbgRewrite("/kbg/static/array.js"), "https://eu-assets.i.posthog.com/static/array.js");
+  assert.equal(firstKbgRewrite("/kbg/array/config.js"), "https://eu-assets.i.posthog.com/array/config.js");
+  assert.equal(firstKbgRewrite("/kbg/e/"), "https://eu.i.posthog.com/e/");
+  assert.equal(firstKbgRewrite("/kbg/e"), "https://eu.i.posthog.com/e");
+  assert.equal(firstKbgRewrite("/kbg/batch/"), "https://eu.i.posthog.com/batch/");
   for (const sourcePath of ["/sitemap.xml", "/adabiyat", "/dictionary", "/grammar", "/books", "/book/:id(\\d+)", "/book/:id", "/book"])
     assert.ok(rewrites.some((rule) => rule.source === sourcePath), sourcePath);
   const event = opt.before_send({event: "$pageview", properties: {$current_url: "https://kutadgubilik.com/book/102?email=private", path: "/book/102?email=private", $referrer: "private", $set: {email: "private"}, token: "private", distinct_id: "anon", search_query: "private", session_id: "test-session"}});
