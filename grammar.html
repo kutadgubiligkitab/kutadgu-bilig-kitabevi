@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ug">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>گرامماتىكا | قۇتادغۇبىلىك كىتابخانىسى</title>
+<meta name="description" content="قۇتادغۇبىلىك كىتابخانىسىدىكى گرامماتىكا كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.">
+<link rel="canonical" href="https://www.kutadgubilik.com/grammar">
+<meta property="og:site_name" content="قۇتادغۇبىلىك كىتابخانىسى">
+<meta property="og:locale" content="ug">
+<meta property="og:type" content="website">
+<meta property="og:title" content="گرامماتىكا - قۇتادغۇبىلىك كىتابخانىسى">
+<meta property="og:description" content="قۇتادغۇبىلىك كىتابخانىسىدىكى گرامماتىكا كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.">
+<meta property="og:url" content="https://www.kutadgubilik.com/grammar">
+<meta property="og:image" content="https://www.kutadgubilik.com/kutadgu-logo.png">
+<meta property="og:image:alt" content="قۇتادغۇبىلىك كىتابخانىسى لوگوسى">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="گرامماتىكا - قۇتادغۇبىلىك كىتابخانىسى">
+<meta name="twitter:description" content="قۇتادغۇبىلىك كىتابخانىسىدىكى گرامماتىكا كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.">
+<meta name="twitter:image" content="https://www.kutadgubilik.com/kutadgu-logo.png">
+<meta name="robots" content="index, follow">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"CollectionPage","name":"گرامماتىكا","description":"قۇتادغۇبىلىك كىتابخانىسىدىكى گرامماتىكا كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.","url":"https://www.kutadgubilik.com/grammar","isPartOf":{"@type":"WebSite","name":"قۇتادغۇبىلىك كىتابخانىسى","url":"https://www.kutadgubilik.com/"},"inLanguage":"ug"}
+</script>
+
+<style>
+
+@font-face {
+    font-family: "UKIJ CJK";
+    src: url("UKIJCJK.woff2") format("woff2"), url("UKIJCJK.ttf") format("truetype");
+    font-display: swap;
+}
+
+:root {
+    --cream: #f6f0e5;
+    --cream-light: #fbf8f2;
+    --brown-dark: #4b3327;
+    --brown: #70503d;
+    --brown-light: #a98262;
+    --gold: #b99555;
+    --gold-light: #e2c98d;
+    --text: #44352d;
+    --text-light: #806f62;
+    --white-warm: #fffdf9;
+    --border: #e8dccb;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    direction: rtl;
+    scroll-behavior: smooth;
+}
+
+body {
+    background: var(--cream);
+    color: var(--text);
+    font-family: "UKIJ CJK", Arial, sans-serif;
+    line-height: 1.8;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+header {
+    background: var(--brown-dark);
+    color: white;
+
+    padding: 18px 7%;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    box-shadow: 0 3px 15px rgba(75,51,39,0.15);
+}
+
+.logo {
+    font-size: 21px;
+    font-weight: bold;
+}
+
+nav {
+    display: flex;
+    gap: 25px;
+}
+
+nav a {
+    color: #fffaf2;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+nav a:hover {
+    color: var(--gold-light);
+}
+
+
+/* =========================
+   PAGE HEADER
+========================= */
+
+.page-header {
+    text-align: center;
+    padding: 55px 20px 35px;
+}
+
+.page-icon {
+    font-size: 46px;
+    margin-bottom: 10px;
+}
+
+.page-header h1 {
+    color: var(--brown-dark);
+
+    font-size: 36px;
+    font-weight: bold;
+
+    margin-bottom: 8px;
+}
+
+.page-header p {
+    color: var(--text-light);
+    font-size: 15px;
+}
+
+
+/* =========================
+   BOOK SECTION
+========================= */
+
+.books-section {
+    width: 100%;
+    max-width: 1200px;
+
+    margin: 0 auto;
+
+    padding: 15px 25px 70px;
+}
+
+.books-grid {
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+
+    gap: 28px;
+}
+
+
+/* =========================
+   BOOK CARD
+========================= */
+
+.book-card {
+    background: var(--white-warm);
+
+    border: 1px solid var(--border);
+
+    border-radius: 16px;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 5px 18px rgba(75,51,39,0.07);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.book-card:hover {
+    transform: translateY(-5px);
+
+    box-shadow:
+        0 12px 28px rgba(75,51,39,0.13);
+}
+
+
+/* =========================
+   BOOK COVER
+========================= */
+
+.book-cover {
+    display: block;
+
+    width: 100%;
+    height: 310px;
+
+    background: var(--cream-light);
+
+    overflow: hidden;
+
+    position: relative;
+}
+
+.book-cover img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    transition: transform 0.3s ease;
+}
+
+.book-card:hover .book-cover img {
+    transform: scale(1.025);
+}
+
+
+/* =========================
+   BOOK INFO
+========================= */
+
+.book-info {
+    padding: 18px 18px 21px;
+
+    text-align: center;
+}
+
+.book-title {
+    color: var(--brown-dark);
+
+    font-size: 20px;
+    font-weight: bold;
+
+    margin-bottom: 5px;
+}
+
+.book-author {
+    color: var(--text-light);
+
+    font-size: 14px;
+
+    margin-bottom: 12px;
+}
+
+
+/* =========================
+   PRICE
+========================= */
+
+.price {
+    color: var(--brown-dark);
+
+    font-size: 18px;
+    font-weight: bold;
+
+    margin-bottom: 13px;
+}
+
+
+/* =========================
+   BUTTON
+========================= */
+
+.book-button {
+    display: inline-block;
+
+    background: var(--brown-dark);
+    color: white;
+
+    padding: 8px 25px;
+
+    border-radius: 7px;
+
+    font-size: 13px;
+
+    transition:
+        background 0.2s,
+        transform 0.2s;
+}
+
+.book-button:hover {
+    background: var(--brown);
+
+    transform: translateY(-1px);
+}
+
+
+/* =========================
+   BACK BUTTON
+========================= */
+
+.back-area {
+    text-align: center;
+
+    padding: 0 20px 55px;
+}
+
+.back-button {
+    display: inline-block;
+
+    background: var(--brown);
+
+    color: white;
+
+    padding: 11px 28px;
+
+    border-radius: 8px;
+
+    font-size: 14px;
+}
+
+.back-button:hover {
+    background: var(--brown-dark);
+}
+
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
+
+    header {
+        padding: 16px 5%;
+    }
+
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+}
+
+
+/* =========================
+   PHONE
+========================= */
+
+@media (max-width: 600px) {
+
+    header {
+        padding: 15px 4%;
+
+        flex-direction: column;
+
+        gap: 9px;
+    }
+
+    .logo {
+        font-size: 18px;
+    }
+
+    nav {
+        gap: 18px;
+    }
+
+    nav a {
+        font-size: 13px;
+    }
+
+    .page-header {
+        padding: 40px 15px 28px;
+    }
+
+    .page-icon {
+        font-size: 40px;
+    }
+
+    .page-header h1 {
+        font-size: 29px;
+    }
+
+    .page-header p {
+        font-size: 13px;
+    }
+
+    .books-section {
+        padding: 10px 15px 55px;
+    }
+
+    .books-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+
+    .book-cover {
+        height: 240px;
+    }
+
+    .book-info {
+        padding: 13px 10px 16px;
+    }
+
+    .book-title {
+        font-size: 17px;
+    }
+
+    .book-author {
+        font-size: 12px;
+    }
+
+    .price {
+        font-size: 15px;
+    }
+
+    .book-button {
+        padding: 7px 17px;
+        font-size: 12px;
+    }
+
+}
+
+
+/* =========================
+   VERY SMALL PHONE
+========================= */
+
+@media (max-width: 380px) {
+
+    .books-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .book-cover {
+        height: 300px;
+    }
+
+}
+
+</style>
+<link href="theme.css?v=9" rel="stylesheet"/>
+<link rel="stylesheet" href="shop.css?v=54">
+
+<style id="unified-book-card-layout">
+.book-card .book-image,
+.book-card .book-cover {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
+  background: #eee9e1 !important;
+  overflow: hidden !important;
+  padding: 4px !important;
+  box-sizing: border-box !important;
+}
+.book-card .book-image img,
+.book-card .book-cover img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  display: block !important;
+}
+</style>
+<link rel="stylesheet" href="listing-card-safety.css?v=2" data-kutadgu-listing-card-safety="1">
+  <link rel="stylesheet" href="mobile.css?v=2">
+<link rel="stylesheet" href="stage4b-public-cards.css?v=1" data-kutadgu-stage4b-public-cards="1">
+</head>
+<body>
+<!-- =========================
+     HEADER
+========================= -->
+<header>
+<a class="logo" href="index.html"><img src="kutadgu-logo.webp" alt="قۇتادغۇبىلىك لوگوسى" class="kutadgu-site-logo"><span class="kutadgu-brand-text">
+        قۇتادغۇبىلىك كىتابخانىسى
+    </span></a>
+<nav>
+<a href="index.html">
+            باش بەت
+        </a>
+<a href="index.html#books">
+            كىتاب تۈرلىرى
+        </a>
+</nav>
+</header>
+<!-- =========================
+     PAGE HEADER
+========================= -->
+<section class="page-header">
+<div class="page-icon">
+        📝
+    </div>
+<h1>
+        گرامماتىكا
+    </h1>
+<p>
+        تىل گرامماتىكىسى ھەققىدىكى كىتابلار
+    </p>
+</section>
+<!-- =========================
+     BOOKS
+========================= -->
+<section class="books-section">
+<div class="books-grid" data-catalog-source="grammar.html" aria-busy="true">
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+<article class="book-card is-skeleton" aria-hidden="true">
+<div class="book-image"><span class="listing-skel-cover" aria-hidden="true"></span></div>
+<div class="book-info">
+<div class="home-skel-line home-skel-line-title"></div>
+<div class="home-skel-line home-skel-line-meta"></div>
+<div class="home-skel-line listing-skel-price"></div>
+</div>
+</article>
+</div>
+</section>
+<!-- =========================
+     BACK
+========================= -->
+<div class="back-area">
+<a class="back-button" href="index.html#books">
+        ← كىتاب تۈرلىرىگە قايتىش
+    </a>
+</div>
+<script defer src="theme.js?v=5"></script>
+<script defer src="supabase-config.js?v=11"></script><script defer src="catalog.js?v=1"></script><script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="/posthog-config.js?v=1"></script><script defer src="/posthog-analytics.js?v=1"></script><script defer src="analytics.js?v=2"></script><script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=1"></script><script defer src="shop.js?v=115"></script>
+  <script defer src="mobile.js?v=7"></script>
+</body>
+</html>

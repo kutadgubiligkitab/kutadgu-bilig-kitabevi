@@ -1008,7 +1008,9 @@ const STOREFRONT_CATEGORY_HUBS={
   "terbiye.html":"/terbiye",
   "tibb.html":"/tibb",
   "universal.html":"/universal",
-  "uyghur-adabiyati.html":"/uyghur-adabiyati"
+  "uyghur-adabiyati.html":"/uyghur-adabiyati",
+  "dictionary.html":"/dictionary",
+  "grammar.html":"/grammar"
 };
 const STOREFRONT_APP_PAGES={
   "account.html":"/account.html",

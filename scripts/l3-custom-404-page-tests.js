@@ -27,6 +27,8 @@ const EXPECTED_REWRITE_SOURCES = [
   "/terbiye",
   "/dini",
   "/children",
+  "/dictionary",
+  "/grammar",
   "/books",
   "/order-info",
   "/privacy",

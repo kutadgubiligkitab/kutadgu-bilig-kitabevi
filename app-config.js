@@ -54,7 +54,8 @@
       {source:"adabiyat-roman.html",label:"ئەدەبىيات رومانلىرى"},{source:"uyghur-adabiyati.html",label:"ئۇيغۇر ئەدەبىياتى"},
       {source:"universal.html",label:"ئۇنىۋېرسال"},{source:"tibb.html",label:"تېبابەت ۋە ساغلاملىق"},
       {source:"derslik.html",label:"دەرسلىك"},{source:"terbiye.html",label:"پەرزەنت تەربىيەسى"},
-      {source:"dini.html",label:"دىنىي كىتابلار"},{source:"children.html",label:"بالىلار كىتابلىرى"}
+      {source:"dini.html",label:"دىنىي كىتابلار"},{source:"children.html",label:"بالىلار كىتابلىرى"},
+      {source:"dictionary.html",label:"لۇغەت"},{source:"grammar.html",label:"گرامماتىكا"}
     ],
     discoveryGroups:current.discoveryGroups||[
       {

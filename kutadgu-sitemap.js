@@ -39,7 +39,9 @@ const CATEGORY_HUB_SLUGS = [
   "derslik",
   "terbiye",
   "dini",
-  "children"
+  "children",
+  "dictionary",
+  "grammar"
 ];
 
 const PUBLIC_INFO_SLUGS = [

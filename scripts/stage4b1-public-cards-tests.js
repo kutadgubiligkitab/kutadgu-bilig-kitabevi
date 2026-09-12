@@ -19,7 +19,8 @@ const shopJs = fs.readFileSync(path.join(root, "shop.js"), "utf8");
 const LISTING_PAGES = [
   "romanlar.html","universal.html","children.html","dini.html","derslik.html","terbiye.html",
   "tibb.html","dastanlar.html","sheirlar.html","hekayiler.html","uyghur-adabiyati.html",
-  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html","books.html"
+  "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html","books.html",
+  "dictionary.html","grammar.html"
 ];
 
 let failed = 0;
