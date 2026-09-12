@@ -18,6 +18,7 @@ function test(name, fn) {
 
 const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "index.css"), "utf8");
+const tabletCss = fs.readFileSync(path.join(root, "home-category-tablet-grid.css"), "utf8");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
 test("idle search does not inject the tall hint into #searchResults", () => {
@@ -227,6 +228,13 @@ test("homepage category last card is centered on phone 2-column and icons are de
   assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(7\)\{[\s\S]*grid-column:6 \/ span 2 !important/);
   assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(8\)\{[\s\S]*grid-column:3 \/ span 2 !important/);
   assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(9\)\{[\s\S]*grid-column:5 \/ span 2 !important/);
+  assert.match(html, /home-category-tablet-grid\.css\?v=1/);
+  assert.ok(html.indexOf("home-category-tablet-grid.css") > html.indexOf("mobile.css"));
+  assert.match(tabletCss, /@media \(min-width: 701px\) and \(max-width: 1100px\)/);
+  assert.match(tabletCss, /#bookCategories \.cards \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\) !important/);
+  assert.match(tabletCss, /#bookCategories \.cards \.card:last-child \{[\s\S]*grid-column: auto !important/);
+  assert.doesNotMatch(tabletCss, /@media \(max-width: 700px\)/);
+  assert.doesNotMatch(tabletCss, /@media \(min-width: 1101px\)/);
 });
 
 test("recently-added homepage cards right-align title and author only", () => {

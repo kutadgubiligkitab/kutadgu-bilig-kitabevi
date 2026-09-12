@@ -369,7 +369,7 @@ test.describe("homepage compact first-view", () => {
     expect(hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
   });
 
-  for (const width of [390, 430, 768, 1366]) {
+  for (const width of [390, 430, 768, 834, 1024, 1100, 1366]) {
     test(`homepage category grid polish at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await H.openFresh(page, "/");
@@ -430,12 +430,34 @@ test.describe("homepage compact first-view", () => {
       expect(metrics.overlap).toBe(false);
       expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar"]);
       expect(metrics.hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
-      if (width <= 768) {
+      if (width <= 700) {
         expect(metrics.colCount).toBe(2);
         expect(Math.abs(metrics.firstTop - metrics.secondTop)).toBeLessThan(2);
         expect(metrics.lastTop).toBeGreaterThan(metrics.sixthTop + 8);
         expect(metrics.centerDelta).toBeLessThan(8);
         expect(Math.abs(metrics.lastW - metrics.firstW)).toBeLessThan(12);
+      } else if (width <= 1100) {
+        expect(metrics.colCount).toBe(3);
+        expect(metrics.nth8).toBe("auto");
+        expect(metrics.nth9).toBe("auto");
+        expect(Math.abs(metrics.firstW - metrics.lastW)).toBeLessThan(12);
+        const tabletRows = await page.evaluate(() => {
+          const cards = [...document.querySelectorAll("#bookCategories a.card")];
+          const rowTop = (i) => Math.round(cards[i].getBoundingClientRect().top);
+          return {
+            row1: cards.slice(0, 3).every((c) => Math.abs(c.getBoundingClientRect().top - cards[0].getBoundingClientRect().top) < 2),
+            row2: cards.slice(3, 6).every((c) => Math.abs(c.getBoundingClientRect().top - cards[3].getBoundingClientRect().top) < 2),
+            row3: cards.slice(6, 9).every((c) => Math.abs(c.getBoundingClientRect().top - cards[6].getBoundingClientRect().top) < 2),
+            stacked: rowTop(3) > rowTop(0) + 8 && rowTop(6) > rowTop(3) + 8
+          };
+        });
+        expect(tabletRows.row1).toBe(true);
+        expect(tabletRows.row2).toBe(true);
+        expect(tabletRows.row3).toBe(true);
+        expect(tabletRows.stacked).toBe(true);
+        expect(Math.abs(metrics.seventhTop - metrics.eighthTop)).toBeLessThan(2);
+        expect(Math.abs(metrics.eighthTop - metrics.ninthTop)).toBeLessThan(2);
+        expect(metrics.eighthTop).toBeGreaterThan(metrics.sixthTop + 8);
       } else {
         expect(metrics.colCount).toBe(8);
         expect(metrics.nth7).toBe("6");
@@ -479,6 +501,18 @@ test.describe("homepage compact first-view", () => {
     expect(contrast.bg).not.toBe("rgba(0, 0, 0, 0)");
     expect(contrast.title).not.toBe("rgba(0, 0, 0, 0)");
     await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+    const tablet = await page.evaluate(() => {
+      const grid = document.querySelector("#bookCategories .cards");
+      const title = document.querySelector("#bookCategories a.card h3");
+      return {
+        cols: getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length,
+        title: getComputedStyle(title).color
+      };
+    });
+    expect(tablet.cols).toBe(3);
+    expect(tablet.title).not.toBe("rgba(0, 0, 0, 0)");
     await page.setViewportSize({ width: 1366, height: 900 });
     await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
     const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
