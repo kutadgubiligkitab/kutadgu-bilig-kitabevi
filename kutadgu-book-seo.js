@@ -198,7 +198,9 @@
     "derslik",
     "terbiye",
     "dini",
-    "children"
+    "children",
+    "dictionary",
+    "grammar"
   ];
 
   function isTrustedCategorySlug(value) {

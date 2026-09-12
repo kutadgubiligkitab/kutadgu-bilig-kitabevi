@@ -81,6 +81,16 @@
       "permanent": true
     },
     {
+      "source": "/dictionary.html",
+      "destination": "/dictionary",
+      "permanent": true
+    },
+    {
+      "source": "/grammar.html",
+      "destination": "/grammar",
+      "permanent": true
+    },
+    {
       "source": "/books.html",
       "destination": "/books",
       "permanent": true
@@ -173,6 +183,14 @@
     {
       "source": "/children",
       "destination": "/children.html"
+    },
+    {
+      "source": "/dictionary",
+      "destination": "/dictionary.html"
+    },
+    {
+      "source": "/grammar",
+      "destination": "/grammar.html"
     },
     {
       "source": "/books",
