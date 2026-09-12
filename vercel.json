@@ -245,6 +245,14 @@
     {
       "source": "/book",
       "destination": "/book-shell.html"
+    },
+    {
+      "source": "/kbg/static/:path*",
+      "destination": "https://eu-assets.i.posthog.com/static/:path*"
+    },
+    {
+      "source": "/kbg/:path*",
+      "destination": "https://eu.i.posthog.com/:path*"
     }
   ],
   "headers": [

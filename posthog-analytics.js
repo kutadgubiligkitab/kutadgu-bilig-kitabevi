@@ -81,13 +81,13 @@
     const script = document.createElement("script");
     script.async = true;
     script.crossOrigin = "anonymous";
-    script.src = "https://eu-assets.i.posthog.com/static/array.js";
+    script.src = "/kbg/static/array.js";
     script.onerror = () => { failed = true; pending.length = 0; };
     script.onload = function () {
       try {
         if (!enabled() || !window.posthog?.init) { failed = true; pending.length = 0; return; }
         window.posthog.init(cfg.publicProjectKey, {
-          api_host: "https://eu.i.posthog.com", ui_host: "https://eu.posthog.com",
+          api_host: "/kbg", ui_host: "https://eu.posthog.com",
           persistence: "memory", person_profiles: "never", ip: false,
           capture_pageview: true, capture_pageleave: false,
           autocapture: false, rageclick: false, capture_dead_clicks: false,
