@@ -1849,6 +1849,27 @@ header > .container{
     }
 }
 
+/* Tablet/iPad: 9 category cards as a balanced 3 × 3 grid. */
+@media (min-width:701px) and (max-width:1100px){
+    #bookCategories .cards{
+        display:grid !important;
+        grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    }
+    #bookCategories .cards .card,
+    #bookCategories .cards .card:nth-child(5),
+    #bookCategories .cards .card:nth-child(6),
+    #bookCategories .cards .card:nth-child(7),
+    #bookCategories .cards .card:nth-child(8),
+    #bookCategories .cards .card:nth-child(9),
+    #bookCategories .cards .card:last-child{
+        grid-column:auto !important;
+        grid-row:auto !important;
+        width:100% !important;
+        max-width:none !important;
+        justify-self:stretch !important;
+    }
+}
+
 /* Phone 2-column: center the 7th category card on its own row, one-column wide. */
 @media (max-width:700px){
     #bookCategories .cards .card:last-child{
