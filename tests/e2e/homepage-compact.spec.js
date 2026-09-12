@@ -361,11 +361,12 @@ test.describe("homepage compact first-view", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
     const cards = page.locator("#bookCategories a.card");
-    await expect(cards).toHaveCount(7);
-    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(7);
-    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(7);
+    await expect(cards).toHaveCount(9);
+    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(9);
+    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(9);
     const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children"]);
+    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar"]);
+    expect(hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
   });
 
   for (const width of [390, 430, 768, 1366]) {
@@ -373,7 +374,7 @@ test.describe("homepage compact first-view", () => {
       await page.setViewportSize({ width, height: 900 });
       await H.openFresh(page, "/");
       await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-      await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+      await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
       const metrics = await page.evaluate(() => {
         const grid = document.querySelector("#bookCategories .cards");
         const cards = [...document.querySelectorAll("#bookCategories a.card")];
@@ -438,9 +439,9 @@ test.describe("homepage compact first-view", () => {
     expect(contrast.overflow).toBeLessThanOrEqual(4);
     expect(contrast.bg).not.toBe("rgba(0, 0, 0, 0)");
     expect(contrast.title).not.toBe("rgba(0, 0, 0, 0)");
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
     await page.setViewportSize({ width: 1366, height: 900 });
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(7);
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
     const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
     expect(desktop).toBe(8);
   });
