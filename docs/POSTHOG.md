@@ -31,12 +31,14 @@ search heuristics cannot recognize every possible personal name or address
 entered into search; the bridge preserves that existing protection.
 
 The browser SDK asset and event ingestion use a first-party Vercel reverse
-proxy at `/kbg` (not a storefront page). `/kbg/static/*` rewrites to
-`https://eu-assets.i.posthog.com/static/*`. `/kbg/array/*` rewrites to
-`https://eu.i.posthog.com/array/*` (listed before the generic catch-all). Other
-`/kbg/*` requests rewrite to `https://eu.i.posthog.com/*`. `api_host` is `/kbg`.
-`ui_host` stays `https://eu.posthog.com` so the PostHog app URL is unchanged.
-The proxy path avoids words like posthog, analytics, tracking, and telemetry.
+proxy at `/kbg` (not a storefront page), with official named-regex sources
+(`:path(.*)`). `/kbg/static/:path(.*)` rewrites to
+`https://eu-assets.i.posthog.com/static/:path`. `/kbg/array/:path(.*)` rewrites
+to `https://eu-assets.i.posthog.com/array/:path` (before the catch-all). Other
+`/kbg/:path(.*)` requests, including trailing-slash ingestion such as `/kbg/e/`,
+rewrite to `https://eu.i.posthog.com/:path`. `api_host` is `/kbg`. `ui_host`
+stays `https://eu.posthog.com` so the PostHog app URL is unchanged. The proxy
+path avoids words like posthog, analytics, tracking, and telemetry.
 
 Only the explicit production host list loads the SDK. Previews and local tests
 remain disabled by default; override the public config before its script loads
