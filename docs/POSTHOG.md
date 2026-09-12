@@ -30,6 +30,13 @@ funnels only, not cross-page identity. `identify()` is not called. Existing
 search heuristics cannot recognize every possible personal name or address
 entered into search; the bridge preserves that existing protection.
 
+The browser SDK asset and event ingestion use a first-party Vercel reverse
+proxy at `/kbg` (not a storefront page). `/kbg/static/*` rewrites to
+`https://eu-assets.i.posthog.com/static/*`. Other `/kbg/*` requests rewrite to
+`https://eu.i.posthog.com/*`. `api_host` is `/kbg`. `ui_host` stays
+`https://eu.posthog.com` so the PostHog app URL is unchanged. The proxy path
+avoids words like posthog, analytics, tracking, and telemetry.
+
 Only the explicit production host list loads the SDK. Previews and local tests
 remain disabled by default; override the public config before its script loads
 to test a specific preview hostname. Set `enabled: false` to stop loading/sending.
