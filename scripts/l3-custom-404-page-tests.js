@@ -40,6 +40,7 @@ const EXPECTED_REWRITE_SOURCES = [
   "/book.html",
   "/book",
   "/kbg/static/:path*",
+  "/kbg/array/:path*",
   "/kbg/:path*",
 ];
 
@@ -133,6 +134,9 @@ test("existing known route rewrites remain untouched", () => {
   assert.ok(bySource("/book", "/book-shell.html"));
   assert.ok(
     bySource("/kbg/static/:path*", "https://eu-assets.i.posthog.com/static/:path*")
+  );
+  assert.ok(
+    bySource("/kbg/array/:path*", "https://eu.i.posthog.com/array/:path*")
   );
   assert.ok(bySource("/kbg/:path*", "https://eu.i.posthog.com/:path*"));
 });

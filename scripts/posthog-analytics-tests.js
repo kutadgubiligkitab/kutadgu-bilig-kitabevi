@@ -81,16 +81,21 @@ function setup(overrides = {}) {
   const vercel = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
   const rewrites = vercel.rewrites || [];
   const assetProxy = rewrites.find((rule) => rule.source === "/kbg/static/:path*");
+  const arrayProxy = rewrites.find((rule) => rule.source === "/kbg/array/:path*");
   const ingestProxy = rewrites.find((rule) => rule.source === "/kbg/:path*");
   assert.equal(assetProxy.destination, "https://eu-assets.i.posthog.com/static/:path*");
+  assert.equal(arrayProxy.destination, "https://eu.i.posthog.com/array/:path*");
   assert.equal(ingestProxy.destination, "https://eu.i.posthog.com/:path*");
   const assetIdx = rewrites.findIndex((rule) => rule.source === "/kbg/static/:path*");
+  const arrayIdx = rewrites.findIndex((rule) => rule.source === "/kbg/array/:path*");
   const ingestIdx = rewrites.findIndex((rule) => rule.source === "/kbg/:path*");
   const lastBookstoreIdx = rewrites.findIndex(
     (rule) => rule.source === "/book" && rule.destination === "/book-shell.html"
   );
   assert.ok(assetIdx > lastBookstoreIdx);
-  assert.equal(ingestIdx, assetIdx + 1);
+  assert.equal(arrayIdx, assetIdx + 1);
+  assert.equal(ingestIdx, arrayIdx + 1);
+  assert.ok(arrayIdx < ingestIdx);
   for (const sourcePath of ["/sitemap.xml", "/adabiyat", "/dictionary", "/grammar", "/books", "/book/:id(\\d+)", "/book/:id", "/book"])
     assert.ok(rewrites.some((rule) => rule.source === sourcePath), sourcePath);
   const event = opt.before_send({event: "$pageview", properties: {$current_url: "https://kutadgubilik.com/book/102?email=private", path: "/book/102?email=private", $referrer: "private", $set: {email: "private"}, token: "private", distinct_id: "anon", search_query: "private", session_id: "test-session"}});
