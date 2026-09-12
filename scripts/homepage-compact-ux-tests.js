@@ -213,8 +213,10 @@ test("homepage category last card is centered on phone 2-column and icons are de
   assert.match(cats, /href="\/terbiye"/);
   assert.match(cats, /href="\/dini"/);
   assert.match(cats, /href="\/children"/);
+  assert.match(cats, /href="\/dictionary"/);
+  assert.match(cats, /href="\/grammar"/);
   const icons = cats.match(/<div class="icon"[^>]*>/g) || [];
-  assert.strictEqual(icons.length, 7);
+  assert.strictEqual(icons.length, 9);
   icons.forEach((tag) => {
     assert.match(tag, /aria-hidden="true"/);
   });
