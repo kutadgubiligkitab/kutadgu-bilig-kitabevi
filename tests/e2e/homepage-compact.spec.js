@@ -413,6 +413,16 @@ test.describe("homepage compact first-view", () => {
           ninthTop: cards[8] ? cards[8].getBoundingClientRect().top : 0,
           centerDelta: Math.abs(lastCenter - gridCenter),
           nth7: seventh ? getComputedStyle(seventh).gridColumnStart : "",
+          nth8: cards[7] ? getComputedStyle(cards[7]).gridColumnStart : "",
+          nth9: cards[8] ? getComputedStyle(cards[8]).gridColumnStart : "",
+          pairCenterDelta: (() => {
+            const a = boxes[7];
+            const b = boxes[8];
+            if (!a || !b) return 99;
+            const pairLeft = Math.min(a.left, b.left);
+            const pairRight = Math.max(a.right, b.right);
+            return Math.abs((pairLeft + pairRight) / 2 - gridCenter);
+          })(),
           overlap
         };
       });
@@ -429,6 +439,9 @@ test.describe("homepage compact first-view", () => {
       } else {
         expect(metrics.colCount).toBe(8);
         expect(metrics.nth7).toBe("6");
+        expect(metrics.nth8).toBe("3");
+        expect(metrics.nth9).toBe("5");
+        expect(metrics.pairCenterDelta).toBeLessThan(8);
         const rows = await page.evaluate(() => {
           const cards = [...document.querySelectorAll("#bookCategories a.card")];
           const top = Math.round(cards[0].getBoundingClientRect().top);

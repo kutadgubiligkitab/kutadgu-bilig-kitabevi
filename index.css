@@ -1839,6 +1839,14 @@ header > .container{
     .home-main-section .cards .card:nth-child(7){
         grid-column:6 / span 2 !important;
     }
+
+    /* 8- ۋە 9- كارتا ئۈچىنچى قۇردا ئوتتۇرىغا توغرىلىنىدۇ */
+    .home-main-section .cards .card:nth-child(8){
+        grid-column:3 / span 2 !important;
+    }
+    .home-main-section .cards .card:nth-child(9){
+        grid-column:5 / span 2 !important;
+    }
 }
 
 /* Phone 2-column: center the 7th category card on its own row, one-column wide. */
