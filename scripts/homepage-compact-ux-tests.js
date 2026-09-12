@@ -51,7 +51,7 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; real shop hero photos replace the CSS scene", () => {
-  assert.match(html, /index\.css\?v=19/);
+  assert.match(html, /index\.css\?v=20/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=24/);
   assert.match(html, /shop\.js\?v=121/);
@@ -225,6 +225,8 @@ test("homepage category last card is centered on phone 2-column and icons are de
   assert.match(css, /#bookCategories \.cards \.card:last-child\{[\s\S]*justify-self:center !important/);
   assert.match(css, /#bookCategories \.cards \.card:last-child\{[\s\S]*width:calc\(\(100% - 10px\) \/ 2\) !important/);
   assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(7\)\{[\s\S]*grid-column:6 \/ span 2 !important/);
+  assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(8\)\{[\s\S]*grid-column:3 \/ span 2 !important/);
+  assert.match(css, /@media \(min-width:1101px\)\{[\s\S]*\.home-main-section \.cards \.card:nth-child\(9\)\{[\s\S]*grid-column:5 \/ span 2 !important/);
 });
 
 test("recently-added homepage cards right-align title and author only", () => {
