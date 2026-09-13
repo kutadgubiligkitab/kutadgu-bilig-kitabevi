@@ -40,6 +40,7 @@ test.describe("admin navigation", () => {
     await expect(page.locator("#loginForm")).toBeVisible();
     await expect(page.locator("#maintenanceCard")).toBeHidden();
     await expect(page.locator("#mfaCard")).toBeHidden();
+    await expect(page.locator("#bookStaffCard")).toBeHidden();
     await expect(page.locator("#mfaGatePanel")).toBeHidden();
     await expect(page.locator("#booksCard")).toBeHidden();
   });
@@ -78,6 +79,9 @@ test.describe("admin navigation", () => {
 
     await page.locator('[data-admin-section="system"]').click();
     await expectOnlySection(page, "system");
+    await expect(page.locator("#bookStaffCard")).toBeVisible();
+    await expect(page.locator("#bookStaffAddBtn")).toBeVisible();
+    await expect(page.locator("#bookStaffList")).toBeVisible();
 
     await page.locator('[data-admin-section="books"]').click();
     await expectOnlySection(page, "books");

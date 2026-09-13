@@ -74,8 +74,8 @@ test("Admin UI is Uyghur with confirm, no English ON/OFF labels", () => {
   assert.match(adminJs, /from\("store_settings"\)\.update/);
   assert.doesNotMatch(adminHtml, />\s*ON\s*</);
   assert.doesNotMatch(adminHtml, />\s*OFF\s*</);
-  assert.match(adminHtml, /admin\.js\?v=68/);
-  assert.match(adminHtml, /admin\.css\?v=39/);
+  assert.match(adminHtml, /admin\.js\?v=69/);
+  assert.match(adminHtml, /admin\.css\?v=40/);
 });
 
 test("homepage title and root URL files were not rewritten by this feature", () => {

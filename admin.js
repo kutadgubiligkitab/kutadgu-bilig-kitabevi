@@ -240,6 +240,7 @@ function showAdminSection(sectionId,opts){
   if(select&&select.value!==id)select.value=id;
   if(id==="orders")loadAdminOrders();
   if(id==="submissions")loadPendingSubmissions();
+  if(id==="system")loadBookStaffAccounts();
   if(options.updateHash===false||!dashboardAuthorized())return;
   const next="#"+id;
   if((location.hash||"")===next)return;
@@ -1486,6 +1487,198 @@ function bindPendingSubmissionActions(){
     const reject=e.target.closest("[data-reject-submission]");
     if(approve)reviewStaffSubmission(approve.getAttribute("data-approve-submission"),"approve");
     else if(reject)reviewStaffSubmission(reject.getAttribute("data-reject-submission"),"reject");
+  });
+}
+
+const BOOK_STAFF_PROFILE_SELECT="id,email,full_name";
+let bookStaffAccounts=[];
+let bookStaffBusy=false;
+function normalizeBookStaffEmail(value){
+  return String(value||"").trim().toLowerCase();
+}
+function shortBookStaffUserId(id){
+  const raw=String(id||"").trim();
+  return raw?raw.slice(0,8):"—";
+}
+function formatBookStaffError(error){
+  const code=String(error&&error.code||"");
+  const msg=String(error&&(error.message||error.details||error.hint||error.code)||"");
+  const low=msg.toLowerCase();
+  if(code==="PGRST202"||code==="42883"||low.includes("could not find the function")||low.includes("schema cache")||/function .* does not exist/i.test(msg)){
+    return "خادىم فۇنكسىيەسى تېپىلمىدى. Database RPC تەڭشەكنى تەكشۈرۈڭ.";
+  }
+  if(isAal2OrderUpdateError(error)||low.includes("aal2 required")){
+    return aal2RequiredOrderUpdateMessage();
+  }
+  if(low.includes("admin permission")||low.includes("permission denied")||code==="42501"){
+    return "بۇ مەشغۇلات ئۈچۈن Admin ھوقۇقى كېرەك.";
+  }
+  if(low.includes("authenticated user not found")){
+    return "بۇ Email بىلەن تىزىملاتقان ھېسابات تېپىلمىدى. خادىم ئاۋۋال شۇ Email بىلەن تىزىملىتىڭ.";
+  }
+  if(code==="22023"||low.includes("valid email")){
+    return "ئىناۋەتلىك Email كىرگۈزۈڭ.";
+  }
+  if(code==="P0002"||low.includes("book staff user not found")){
+    return "بۇ خادىم تېپىلمىدى ياكى ئاللىقاچان ئۆزگەرتىلگەن.";
+  }
+  if(low.includes("failed to fetch")||low.includes("network")||low.includes("load failed")){
+    return "تور ياكى Database ئۇلىنىشى مەغلۇپ بولدى.";
+  }
+  return "مەشغۇلات مەغلۇپ بولدى: "+(error&&error.message||msg||"نامەلۇم خاتالىق");
+}
+function renderBookStaffAccounts(){
+  const host=$("#bookStaffList");
+  if(!host)return;
+  if(!bookStaffAccounts.length){
+    host.innerHTML='<div class="admin-empty">كىتاب قوشۇش خادىمى يوق.</div>';
+    return;
+  }
+  host.innerHTML=bookStaffAccounts.map(row=>{
+    const active=row.active!==false;
+    const name=row.full_name||"";
+    const email=row.email||"—";
+    return `<article class="admin-staff-row" data-staff-id="${esc(row.user_id)}">
+      <div>
+        <div class="admin-staff-title" dir="ltr">${esc(email)}</div>
+        ${name?`<div class="admin-staff-meta">${esc(name)}</div>`:""}
+        <div><span class="admin-staff-status ${active?"is-active":"is-inactive"}">${active?"active":"inactive"}</span></div>
+        <div class="admin-staff-meta">قوشۇلغان ۋاقتى ${esc(dateText(row.created_at))} · ID ${esc(shortBookStaffUserId(row.user_id))}</div>
+        <div class="admin-staff-actions">
+          <button type="button" class="${active?"admin-secondary":"admin-primary"}" data-staff-toggle="${esc(row.user_id)}" data-staff-active="${active?"0":"1"}">${active?"توختىتىش":"قايتا قوزغىتىش"}</button>
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+}
+async function loadBookStaffAccounts(){
+  const statusEl=$("#bookStaffStatus");
+  if(!db){
+    bookStaffAccounts=[];
+    renderBookStaffAccounts();
+    status(statusEl,"Database تېخى ئۇلانمىدى.","warn");
+    return;
+  }
+  status(statusEl,"كىتاب قوشۇش خادىملىرى يۈكلىنىۋاتىدۇ...");
+  try{
+    const staffResult=await db.from("book_staff_users")
+      .select("user_id,active,created_at,created_by")
+      .order("created_at",{ascending:false});
+    if(staffResult.error){
+      bookStaffAccounts=[];
+      renderBookStaffAccounts();
+      status(statusEl,formatBookStaffError(staffResult.error),"error");
+      return;
+    }
+    const rows=staffResult.data||[];
+    const ids=rows.map(r=>r.user_id).filter(Boolean);
+    let profiles=[];
+    if(ids.length){
+      const profileResult=await db.from("profiles").select(BOOK_STAFF_PROFILE_SELECT).in("id",ids);
+      if(profileResult.error){
+        bookStaffAccounts=[];
+        renderBookStaffAccounts();
+        status(statusEl,formatBookStaffError(profileResult.error),"error");
+        return;
+      }
+      profiles=profileResult.data||[];
+    }
+    const byId=new Map(profiles.map(p=>[p.id,p]));
+    bookStaffAccounts=rows.map(row=>{
+      const profile=byId.get(row.user_id)||{};
+      return {
+        user_id:row.user_id,
+        active:row.active,
+        created_at:row.created_at,
+        created_by:row.created_by,
+        email:profile.email||"",
+        full_name:profile.full_name||""
+      };
+    });
+    renderBookStaffAccounts();
+    status(statusEl,bookStaffAccounts.length?`خادىم سانى: ${bookStaffAccounts.length}`:"كىتاب قوشۇش خادىمى يوق.","ok");
+  }catch(err){
+    bookStaffAccounts=[];
+    renderBookStaffAccounts();
+    status(statusEl,formatBookStaffError(err),"error");
+  }
+}
+async function addBookStaffAccount(){
+  if(bookStaffBusy)return;
+  if(!db){
+    status($("#bookStaffStatus"),"Database تېخى ئۇلانمىدى.","error");
+    return;
+  }
+  const email=normalizeBookStaffEmail($("#bookStaffEmail")&&$("#bookStaffEmail").value);
+  if(!email||email.indexOf("@")<0){
+    status($("#bookStaffStatus"),"ئىناۋەتلىك Email كىرگۈزۈڭ.","error");
+    return;
+  }
+  if(!confirm("بۇ Email نى كىتاب قوشۇش خادىمى قىلامسىز؟\nبۇ پەقەت چەكلىك خادىم ھوقۇقى بېرىدۇ، تولۇق Admin قىلمايدۇ.\nخادىم ئاۋۋال شۇ Email بىلەن تىزىملاتقان بولۇشى كېرەك."))return;
+  bookStaffBusy=true;
+  const addBtn=$("#bookStaffAddBtn");
+  if(addBtn)addBtn.disabled=true;
+  status($("#bookStaffStatus"),"خادىم قوشۇلىۋاتىدۇ...");
+  try{
+    const {error}=await db.rpc("add_kutadgu_book_staff",{p_email:email});
+    if(error){
+      status($("#bookStaffStatus"),formatBookStaffError(error),"error");
+      return;
+    }
+    if($("#bookStaffEmail"))$("#bookStaffEmail").value="";
+    status($("#bookStaffStatus"),"خادىم قوشۇلدى. تولۇق Admin قىلىنمىدى.","ok");
+    await loadBookStaffAccounts();
+  }catch(err){
+    status($("#bookStaffStatus"),formatBookStaffError(err),"error");
+  }finally{
+    bookStaffBusy=false;
+    if(addBtn)addBtn.disabled=false;
+  }
+}
+async function setBookStaffActive(userId,active){
+  const id=String(userId||"").trim();
+  if(!id||bookStaffBusy)return;
+  if(!db){
+    status($("#bookStaffStatus"),"Database تېخى ئۇلانمىدى.","error");
+    return;
+  }
+  const enable=!!active;
+  const confirmed=enable
+    ?confirm("بۇ خادىمنى قايتا قوزغىتامسىز؟ كىتاب قوشۇش ھوقۇقى قايتىدۇ.")
+    :confirm("بۇ خادىمنى توختىتامسىز؟ كىتاب قوشۇش ھوقۇقى توختايدۇ.");
+  if(!confirmed)return;
+  bookStaffBusy=true;
+  status($("#bookStaffStatus"),enable?"قايتا قوزغىتىلىۋاتىدۇ...":"توختىتىلىۋاتىدۇ...");
+  try{
+    const {error}=await db.rpc("set_kutadgu_book_staff_active",{p_user_id:id,p_active:enable});
+    if(error){
+      status($("#bookStaffStatus"),formatBookStaffError(error),"error");
+      return;
+    }
+    status($("#bookStaffStatus"),enable?"خادىم قايتا قوزغىتىلدى.":"خادىم توختىتىلدى.","ok");
+    await loadBookStaffAccounts();
+  }catch(err){
+    status($("#bookStaffStatus"),formatBookStaffError(err),"error");
+  }finally{
+    bookStaffBusy=false;
+  }
+}
+function bindBookStaffUi(){
+  const form=$("#bookStaffAddForm");
+  if(form&&form.dataset.bound!=="1"){
+    form.dataset.bound="1";
+    form.addEventListener("submit",e=>{
+      e.preventDefault();
+      addBookStaffAccount();
+    });
+  }
+  const host=$("#bookStaffList");
+  if(!host||host.dataset.bound==="1")return;
+  host.dataset.bound="1";
+  host.addEventListener("click",e=>{
+    const btn=e.target.closest("[data-staff-toggle]");
+    if(!btn)return;
+    setBookStaffActive(btn.getAttribute("data-staff-toggle"),btn.getAttribute("data-staff-active")==="1");
   });
 }
 
@@ -4999,6 +5192,7 @@ function init(){
   applyFieldDirections();
   bindAdminNavigation();
   bindPendingSubmissionActions();
+  bindBookStaffUi();
   bindMfaGate();
   if(window.__kutadguSkipAdminAuth){
     if(window.__kutadguAdminAalTest){
@@ -5105,6 +5299,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
 };
 })();
