@@ -8,16 +8,38 @@ const BOOK_SIZES=["A4","A5","B5","other"];
 const INTERIOR=["color","bw"];
 const IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif"];
 const MAX_COVER_BYTES=5*1024*1024;
+const STAFF_COVER_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
+const STAFF_COVER_BUCKET="book-covers";
 let mfaGateCtl=null;
 let mfaAttachCtl=null;
 let staffUid="";
+let staffRouteSeq=0;
+let lastStaffPanel="staffLoading";
 
 function memberApi(){return window.KutadguMember}
 function mfaApi(){return window.KutadguAdminMfa||{}}
 function db(){
   try{return memberApi()&&memberApi().getClient&&memberApi().getClient()}catch(e){return null}
 }
-function showPanel(id){
+function currentStaffUserId(){
+  try{
+    const user=memberApi()&&memberApi().getUser&&memberApi().getUser();
+    return user&&user.id?String(user.id):"";
+  }catch(e){return ""}
+}
+function beginStaffRoute(){
+  return {seq:++staffRouteSeq,uid:currentStaffUserId()};
+}
+function isCurrentStaffRoute(token){
+  return !!(token && token.seq===staffRouteSeq && token.uid===currentStaffUserId());
+}
+function invalidateStaffRoutes(){
+  staffRouteSeq++;
+  staffUid="";
+}
+function showPanel(id,token){
+  if(token && !isCurrentStaffRoute(token))return;
+  lastStaffPanel=id;
   ["staffLoading","staffSignedOut","staffForbidden","mfaGatePanel","mfaEnrollPanelWrap","staffWorkspace"].forEach(name=>{
     const el=$("#"+name);if(el)el.hidden=name!==id;
   });
@@ -62,6 +84,35 @@ function staffCoverObjectPath(uid,file){
   const d=String(now.getUTCDate()).padStart(2,"0");
   const rand=Math.random().toString(36).slice(2,8);
   return "staff/"+String(uid)+"/"+y+m+d+"-"+rand+"-cover."+ext;
+}
+function configuredCoverOrigin(){
+  const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
+  return String(cfg.url||"").replace(/\/$/,"");
+}
+function configuredCoverBucket(){
+  const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
+  return String(cfg.bucket||STAFF_COVER_BUCKET);
+}
+function staffCoverPublicUrl(uid,objectPath){
+  const id=String(uid||"");
+  const path=String(objectPath||"").replace(/^\/+/,"");
+  if(!id||path.indexOf("staff/"+id+"/")!==0)throw new Error("مۇقاۋا يولى توغرا ئەمەس.");
+  if(path.includes("..")||/[?#@]/.test(path))throw new Error("مۇقاۋا يولى توغرا ئەمەس.");
+  if(configuredCoverOrigin()!==STAFF_COVER_ORIGIN)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  if(configuredCoverBucket()!==STAFF_COVER_BUCKET)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  return STAFF_COVER_ORIGIN+"/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/"+path;
+}
+function assertStaffCoverPublicUrl(uid,url){
+  const id=String(uid||"");
+  const t=String(url||"").trim();
+  let parsed=null;
+  try{parsed=new URL(t)}catch(e){parsed=null}
+  if(!parsed||parsed.protocol!=="https:"||parsed.origin!==STAFF_COVER_ORIGIN)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  if(parsed.search||parsed.hash||parsed.username||parsed.password)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  if(/[?#@]/.test(t)||t.includes(".."))throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  const expected="/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/staff/"+id+"/";
+  if(parsed.pathname.indexOf(expected)!==0)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
+  return parsed.origin+parsed.pathname;
 }
 function validateCoverFile(file){
   if(!file)return null;
@@ -212,9 +263,19 @@ async function uploadStaffCover(client,uid,file){
   const bucket=cfg.bucket||"book-covers";
   const path=staffCoverObjectPath(uid,valid);
   if(path.indexOf("staff/"+uid+"/")!==0)throw new Error("مۇقاۋا يولى توغرا ئەمەس.");
+  if(bucket!==STAFF_COVER_BUCKET)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
   const {error}=await client.storage.from(bucket).upload(path,valid,{upsert:false,contentType:valid.type||undefined});
   if(error)throw error;
-  return path;
+  const canonical=staffCoverPublicUrl(uid,path);
+  let fromApi="";
+  try{
+    const pub=client.storage.from(bucket).getPublicUrl(path);
+    fromApi=String(pub&&pub.data&&pub.data.publicUrl||"").trim();
+  }catch(e){fromApi=""}
+  if(fromApi){
+    try{assertStaffCoverPublicUrl(uid,fromApi)}catch(e){fromApi=""}
+  }
+  return assertStaffCoverPublicUrl(uid,canonical);
 }
 function staffSurface(inspect){
   const level=String(inspect&&inspect.assurance&&inspect.assurance.currentLevel||"").toLowerCase();
@@ -236,53 +297,71 @@ function bindMfa(client){
   if(typeof Mfa.attach==="function"&&!mfaAttachCtl){
     mfaAttachCtl=Mfa.attach({
       getDb:()=>client,
-      isAdminSession:()=>!!(memberApi()&&memberApi().getUser&&memberApi().getUser())
+      isAdminSession:()=>!!currentStaffUserId()
     });
+    const verifyBtn=$("#mfaVerifyBtn");
+    if(verifyBtn){
+      verifyBtn.onclick=async function(){
+        if(mfaAttachCtl&&mfaAttachCtl.verifyOtp)await mfaAttachCtl.verifyOtp();
+        await afterStaffMfaVerified();
+      };
+    }
   }
 }
+async function afterStaffMfaVerified(){
+  await routeStaffSession();
+}
 async function routeStaffSession(){
+  const token=beginStaffRoute();
   const member=memberApi();
-  if(!member){showPanel("staffSignedOut");return}
+  if(!member){showPanel("staffSignedOut",token);return}
   await member.ready;
+  if(!isCurrentStaffRoute(token))return;
   const user=member.getUser&&member.getUser();
   const logout=$("#staffLogout");
   if(!user||!user.id){
+    if(!isCurrentStaffRoute(token))return;
     clearStaffPrivateUi();
-    showPanel("staffSignedOut");
+    showPanel("staffSignedOut",token);
     return;
   }
+  if(token.uid && token.uid!==String(user.id))return;
   staffUid=String(user.id);
   if(logout)logout.hidden=false;
   const ident=$("#staffIdentity");
   if(ident)ident.textContent=user.email||"";
   const client=db();
-  if(!client){showPanel("staffSignedOut");return}
+  if(!client){showPanel("staffSignedOut",token);return}
   const staff=await rpcIsBookStaff(client);
+  if(!isCurrentStaffRoute(token))return;
   if(!staff.ok||!staff.staff){
-    showPanel("staffForbidden");
+    showPanel("staffForbidden",token);
     return;
   }
   bindMfa(client);
+  if(!isCurrentStaffRoute(token))return;
   const Mfa=mfaApi();
   const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>client):{assurance:{currentLevel:null},classified:{configured:false}};
+  if(!isCurrentStaffRoute(token))return;
   const surface=staffSurface(inspect);
   if(surface==="form"){
     fillSourceOptions();
-    showPanel("staffWorkspace");
+    showPanel("staffWorkspace",token);
     return;
   }
   if(surface==="gate"){
-    showPanel("mfaGatePanel");
+    showPanel("mfaGatePanel",token);
     return;
   }
-  showPanel("mfaEnrollPanelWrap");
+  showPanel("mfaEnrollPanelWrap",token);
   if(mfaAttachCtl&&mfaAttachCtl.refresh)await mfaAttachCtl.refresh();
 }
 async function logoutStaff(){
-  const member=memberApi();
-  if(member&&member.signOut)await member.signOut();
+  invalidateStaffRoutes();
   clearStaffPrivateUi();
   showPanel("staffSignedOut");
+  const member=memberApi();
+  if(member&&member.signOut)await member.signOut();
 }
 async function submitBook(e){
   e.preventDefault();
@@ -300,6 +379,7 @@ async function submitBook(e){
     let imageUrl="";
     const file=$("#staffCoverFile")&&$("#staffCoverFile").files&&$("#staffCoverFile").files[0];
     if(file)imageUrl=await uploadStaffCover(client,String(user.id),file);
+    if(imageUrl)imageUrl=assertStaffCoverPublicUrl(String(user.id),imageUrl);
     const values=formValues();
     values.image_url=imageUrl;
     const payload=buildPayload(values);
@@ -320,11 +400,22 @@ async function submitBook(e){
 window.KutadguBookStaff={
   ALLOWED_FIELDS,
   FORBIDDEN_FIELDS,
+  STAFF_COVER_ORIGIN,
+  STAFF_COVER_BUCKET,
   isActiveStaffResult,
   staffCoverObjectPath,
+  staffCoverPublicUrl,
+  assertStaffCoverPublicUrl,
   buildPayload,
   staffSurface,
-  validateCoverFile
+  validateCoverFile,
+  beginStaffRoute,
+  isCurrentStaffRoute,
+  invalidateStaffRoutes,
+  routeStaffSession,
+  logoutStaff,
+  afterStaffMfaVerified,
+  lastStaffPanel:function(){return lastStaffPanel}
 };
 
 async function init(){
