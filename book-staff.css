@@ -1,5 +1,6 @@
 @font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.woff2") format("woff2"),url("UKIJCJK.ttf") format("truetype");font-display:swap}
 body[data-book-staff-page="true"]{margin:0;background:var(--cream,#f6f0e5);color:var(--text,#44352d);font-family:"UKIJ CJK",Arial,sans-serif}
+body[data-book-staff-page="true"] .member-standalone-floating,body[data-book-staff-page="true"] .shop-floating{display:none!important}
 .staff-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px max(4%,18px);background:#4b3327;color:#fff}
 .staff-top-meta{display:grid;gap:2px;font-size:14px}.staff-top-meta strong{font-size:16px}
 .staff-top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
