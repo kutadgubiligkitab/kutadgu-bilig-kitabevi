@@ -294,8 +294,12 @@ BEGIN
      AND v_image_url !~* '^https?://'
      AND v_image_url !~ '^/' THEN
     NULL;
-  ELSIF v_image_url ~* 'storage/v1/object'
-     AND position(('/book-covers/' || v_staff_path) in v_image_url) > 0 THEN
+  ELSIF v_image_url LIKE (
+      'https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/'
+      || v_staff_path
+      || '%'
+    )
+     AND v_image_url !~ '[?#@]' THEN
     NULL;
   ELSE
     RAISE EXCEPTION 'image_url must be empty or a book-covers staff path for this user' USING ERRCODE = '42501';

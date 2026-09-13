@@ -260,31 +260,40 @@ test("submit_book_for_approval matches production books columns and forces pendi
   assert.doesNotMatch(fn, /payload->>'is_recommended'/);
 });
 
-test("staff image_url allows empty or own book-covers staff path only", () => {
+test("staff image_url allows empty or own Kutadgu book-covers staff path only", () => {
   const fn = functionBlock(sql, "public.submit_book_for_approval");
+  const origin = "https://fxlojnqwyojqjskfggmh.supabase.co";
+  const publicPrefix = origin + "/storage/v1/object/public/book-covers/";
   assert.match(fn, /image_url must be empty or a book-covers staff path for this user/);
   assert.match(fn, /v_staff_path := 'staff\/' \|\| v_uid::text \|\| '\/'/);
-  assert.match(fn, /storage\/v1\/object/);
+  assert.match(fn, /https:\/\/fxlojnqwyojqjskfggmh\.supabase\.co\/storage\/v1\/object\/public\/book-covers\//);
   assert.match(fn, /javascript\|data\|vbscript\|file/);
+  assert.doesNotMatch(fn, /v_image_url ~\* 'storage\/v1\/object'/);
   const uid = "11111111-1111-1111-1111-111111111111";
   function staffImageAllowed(url) {
     if (!url) return true;
-    if (url.includes("..") || /^(javascript|data|vbscript|file):/i.test(url)) return false;
+    if (url.includes("..") || /^(javascript|data|vbscript|file):/i.test(url) || /[?#@]/.test(url)) return false;
     const staffPath = "staff/" + uid + "/";
     if (url.startsWith(staffPath) && !/^https?:\/\//i.test(url) && !url.startsWith("/")) return true;
-    if (/storage\/v1\/object/i.test(url) && url.includes("/book-covers/" + staffPath)) return true;
+    if (url.startsWith(publicPrefix + staffPath)) return true;
     return false;
   }
   assert.strictEqual(staffImageAllowed(""), true);
   assert.strictEqual(staffImageAllowed("staff/" + uid + "/cover.webp"), true);
+  assert.strictEqual(staffImageAllowed(publicPrefix + "staff/" + uid + "/cover.webp"), true);
   assert.strictEqual(
-    staffImageAllowed("https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/staff/" + uid + "/cover.webp"),
-    true
+    staffImageAllowed("https://evil.example/storage/v1/object/public/book-covers/staff/" + uid + "/cover.webp"),
+    false
+  );
+  assert.strictEqual(
+    staffImageAllowed("https://another-project.supabase.co/storage/v1/object/public/book-covers/staff/" + uid + "/cover.webp"),
+    false
   );
   assert.strictEqual(staffImageAllowed("https://cdn.example/cover.webp"), false);
   assert.strictEqual(staffImageAllowed("https://evil.example/staff/" + uid + "/cover.webp"), false);
   assert.strictEqual(staffImageAllowed("/assets/store/shop-exterior.webp"), false);
   assert.strictEqual(staffImageAllowed("staff/other-user/cover.webp"), false);
+  assert.strictEqual(staffImageAllowed(publicPrefix + "102.webp"), false);
   assert.strictEqual(staffImageAllowed("javascript:alert(1)"), false);
 });
 
