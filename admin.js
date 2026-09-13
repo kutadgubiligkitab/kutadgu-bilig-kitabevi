@@ -1551,15 +1551,16 @@ function renderBookStaffAccounts(){
     </article>`;
   }).join("");
 }
-async function loadBookStaffAccounts(){
+async function loadBookStaffAccounts(opts){
+  const quiet=!!(opts&&opts.quiet);
   const statusEl=$("#bookStaffStatus");
   if(!db){
     bookStaffAccounts=[];
     renderBookStaffAccounts();
     status(statusEl,"Database تېخى ئۇلانمىدى.","warn");
-    return;
+    return false;
   }
-  status(statusEl,"كىتاب قوشۇش خادىملىرى يۈكلىنىۋاتىدۇ...");
+  if(!quiet)status(statusEl,"كىتاب قوشۇش خادىملىرى يۈكلىنىۋاتىدۇ...");
   try{
     const staffResult=await db.from("book_staff_users")
       .select("user_id,active,created_at,created_by")
@@ -1568,7 +1569,7 @@ async function loadBookStaffAccounts(){
       bookStaffAccounts=[];
       renderBookStaffAccounts();
       status(statusEl,formatBookStaffError(staffResult.error),"error");
-      return;
+      return false;
     }
     const rows=staffResult.data||[];
     const ids=rows.map(r=>r.user_id).filter(Boolean);
@@ -1579,7 +1580,7 @@ async function loadBookStaffAccounts(){
         bookStaffAccounts=[];
         renderBookStaffAccounts();
         status(statusEl,formatBookStaffError(profileResult.error),"error");
-        return;
+        return false;
       }
       profiles=profileResult.data||[];
     }
@@ -1596,11 +1597,13 @@ async function loadBookStaffAccounts(){
       };
     });
     renderBookStaffAccounts();
-    status(statusEl,bookStaffAccounts.length?`خادىم سانى: ${bookStaffAccounts.length}`:"كىتاب قوشۇش خادىمى يوق.","ok");
+    if(!quiet)status(statusEl,bookStaffAccounts.length?`خادىم سانى: ${bookStaffAccounts.length}`:"كىتاب قوشۇش خادىمى يوق.","ok");
+    return true;
   }catch(err){
     bookStaffAccounts=[];
     renderBookStaffAccounts();
     status(statusEl,formatBookStaffError(err),"error");
+    return false;
   }
 }
 async function addBookStaffAccount(){
@@ -1626,8 +1629,8 @@ async function addBookStaffAccount(){
       return;
     }
     if($("#bookStaffEmail"))$("#bookStaffEmail").value="";
-    status($("#bookStaffStatus"),"خادىم قوشۇلدى. تولۇق Admin قىلىنمىدى.","ok");
-    await loadBookStaffAccounts();
+    const refreshed=await loadBookStaffAccounts({quiet:true});
+    if(refreshed)status($("#bookStaffStatus"),"خادىم قوشۇلدى. تولۇق Admin قىلىنمىدى.","ok");
   }catch(err){
     status($("#bookStaffStatus"),formatBookStaffError(err),"error");
   }finally{
@@ -1655,8 +1658,8 @@ async function setBookStaffActive(userId,active){
       status($("#bookStaffStatus"),formatBookStaffError(error),"error");
       return;
     }
-    status($("#bookStaffStatus"),enable?"خادىم قايتا قوزغىتىلدى.":"خادىم توختىتىلدى.","ok");
-    await loadBookStaffAccounts();
+    const refreshed=await loadBookStaffAccounts({quiet:true});
+    if(refreshed)status($("#bookStaffStatus"),enable?"خادىم قايتا قوزغىتىلدى.":"خادىم توختىتىلدى.","ok");
   }catch(err){
     status($("#bookStaffStatus"),formatBookStaffError(err),"error");
   }finally{

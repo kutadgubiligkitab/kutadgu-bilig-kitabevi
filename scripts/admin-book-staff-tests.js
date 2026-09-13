@@ -106,6 +106,23 @@ test("activate/deactivate calls set_kutadgu_book_staff_active RPC only", () => {
   assert.doesNotMatch(render, /ئۆچۈرۈش|data-delete/);
 });
 
+test("successful add, deactivate, and reactivate keep action success after refresh", () => {
+  const load = sliceFn(adminJs, "loadBookStaffAccounts");
+  const add = sliceFn(adminJs, "addBookStaffAccount");
+  const set = sliceFn(adminJs, "setBookStaffActive");
+  assert.match(load, /return true/);
+  assert.match(load, /return false/);
+  assert.match(add, /const refreshed=await loadBookStaffAccounts\(\{quiet:true\}\)/);
+  assert.match(add, /if\(refreshed\)status\(\$\("#bookStaffStatus"\),"خادىم قوشۇلدى\. تولۇق Admin قىلىنمىدى\.","ok"\)/);
+  assert.ok(add.indexOf("await loadBookStaffAccounts") < add.indexOf("خادىم قوشۇلدى"));
+  assert.match(set, /const refreshed=await loadBookStaffAccounts\(\{quiet:true\}\)/);
+  assert.match(set, /if\(refreshed\)status\(\$\("#bookStaffStatus"\),enable\?"خادىم قايتا قوزغىتىلدى\.":"خادىم توختىتىلدى\.","ok"\)/);
+  assert.ok(set.indexOf("await loadBookStaffAccounts") < set.indexOf("خادىم قايتا قوزغىتىلدى"));
+  assert.doesNotMatch(add, /status\(\$\("#bookStaffStatus"\),"خادىم قوشۇلدى[\s\S]*await loadBookStaffAccounts\(\)/);
+  assert.doesNotMatch(set, /خادىم توختىتىلدى[\s\S]*await loadBookStaffAccounts\(\)/);
+  assert.match(load, /status\(statusEl,formatBookStaffError/);
+});
+
 test("loader reads staff rows and only id,email,full_name from profiles", () => {
   const fn = sliceFn(adminJs, "loadBookStaffAccounts");
   assert.match(fn, /\.from\("book_staff_users"\)/);
