@@ -116,7 +116,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=2/);
+  assert.match(staffHtml, /book-staff\.js\?v=3/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=26/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -132,8 +132,20 @@ add("staff page is private, separate from admin, and not in public chrome", () =
   assert.doesNotMatch(read("sitemap-pages.xml"), /book-staff/);
 });
 
-add("Book Staff form uses Uyghur dropdown labels with unchanged backend values", () => {
-  assert.match(staffHtml, /book-staff\.css\?v=4/);
+add("Book Staff visible copy is Uyghur and cover picker stays native under the hood", () => {
+  assert.doesNotMatch(staffHtml, /Authenticator/);
+  assert.doesNotMatch(staffHtml, /\bTOTP\b/);
+  assert.doesNotMatch(staffHtml, /\bAAL2\b/);
+  assert.match(staffHtml, /دەلىللەش ئەپى كودى/);
+  assert.match(staffHtml, /2-باسقۇچلۇق دەلىللەش كېرەك/);
+  assert.match(staffHtml, /دەلىللەش QR كودى/);
+  assert.match(staffHtml, /خەلقئارا كىتاب نومۇرى \(ISBN\)/);
+  assert.match(staffHtml, /id="staffCoverPickBtn"[^>]*>مۇقاۋا رەسىمى تاللاش/);
+  assert.match(staffHtml, /id="staffCoverFileName"[^>]*>رەسىم تاللانمىدى/);
+  assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
+  assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
+  assert.match(staffHtml, /book-staff\.css\?v=5/);
+  assert.match(staffHtml, /book-staff\.js\?v=3/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -148,7 +160,12 @@ add("Book Staff form uses Uyghur dropdown labels with unchanged backend values",
   assert.match(css, /\.staff-form label>span\{[\s\S]*line-height:1\.7/);
   assert.match(css, /textarea\{[\s\S]*line-height:1\.8/);
   assert.match(css, /input\[type="checkbox"\]\{[\s\S]*width:22px/);
-  assert.match(staffHtml, /book-staff\.js\?v=2/);
+  assert.match(css, /\.staff-file-input\{/);
+  assert.match(css, /clip:rect\(0,0,0,0\)/);
+  assert.match(staffJs, /staffCoverFile"\)\.files/);
+  const api = loadStaffApi();
+  assert.doesNotMatch(api.staffVisibleCopy("Authenticator كودى"), /Authenticator/);
+  assert.doesNotMatch(api.staffVisibleCopy("TOTP / AAL2"), /\bTOTP\b|\bAAL2\b/);
 });
 
 add("staff JS never writes books directly and never uses admin_users", () => {
@@ -227,7 +244,8 @@ add("AAL2 unlocks form; AAL1 with TOTP gates; missing TOTP enrolls; invalid OTP 
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal2" }, classified: { configured: true } }), "form");
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal1" }, classified: { configured: true } }), "gate");
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal1" }, classified: { configured: false } }), "enroll");
-  assert.match(staffJs, /AAL2 required/);
+  assert.match(staffJs, /level!=="aal2"/);
+  assert.match(staffJs, /2-باسقۇچلۇق دەلىللەش كېرەك/);
   assert.match(staffHtml, /id="mfaGateForm"/);
   assert.match(staffHtml, /id="mfaSetupBtn"/);
   assert.match(staffJs, /afterStaffMfaVerified/);

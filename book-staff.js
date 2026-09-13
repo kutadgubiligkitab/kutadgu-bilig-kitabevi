@@ -230,9 +230,57 @@ function resetStaffForm(){
   if(form)form.reset();
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
+  setCoverFileStatus(null);
   const success=$("#staffSuccess");if(success)success.hidden=true;
   const bookForm=$("#staffBookForm");if(bookForm)bookForm.hidden=false;
   setStatus($("#staffSubmitStatus"),"", "");
+}
+function coverFileLabel(file){
+  const raw=String(file&&file.name||"").replace(/\\/g,"/").split("/").pop();
+  return raw.replace(/[<>\u0000-\u001f]/g,"");
+}
+function setCoverFileStatus(file){
+  const el=$("#staffCoverFileName");
+  if(!el)return;
+  el.textContent=file?coverFileLabel(file):"رەسىم تاللانمىدى";
+}
+function bindCoverPicker(){
+  const input=$("#staffCoverFile");
+  const btn=$("#staffCoverPickBtn");
+  if(btn&&input)btn.addEventListener("click",()=>input.click());
+  if(input)input.addEventListener("change",()=>setCoverFileStatus(input.files&&input.files[0]));
+}
+function staffVisibleCopy(text){
+  return String(text||"")
+    .replace(/Authenticator/g,"دەلىللەش ئەپى")
+    .replace(/\bTOTP\b/g,"دەلىللەش ئەپى")
+    .replace(/\bAAL2\b/g,"2-باسقۇچلۇق دەلىللەش")
+    .replace(/\bMFA\b/g,"دەلىللەش")
+    .replace(/Admin قۇلۇپلانمايدۇ/g,"ھېساب قۇلۇپلانمايدۇ")
+    .replace(/Admin نورمال ئىشلەيدۇ/g,"كىتاب يوللاش داۋاملىشىدۇ")
+    .replace(/Admin كىرىش ئۆزگەرمىدى/g,"كىرىش ئۆزگەرمىدى");
+}
+function localizeStaffMfaCopy(){
+  ["mfaGateStatus","mfaStatus"].forEach(id=>{
+    const el=$("#"+id);
+    if(!el||!el.textContent)return;
+    const next=staffVisibleCopy(el.textContent);
+    if(next!==el.textContent)el.textContent=next;
+  });
+  const qr=$("#mfaQr");
+  if(qr&&qr.getAttribute){
+    const alt=staffVisibleCopy(qr.getAttribute("alt")||"");
+    if(alt)qr.setAttribute("alt",alt);
+  }
+}
+let mfaCopyObserver=null;
+function observeStaffMfaCopy(){
+  if(mfaCopyObserver||typeof MutationObserver!=="function")return;
+  mfaCopyObserver=new MutationObserver(()=>localizeStaffMfaCopy());
+  ["mfaGateStatus","mfaStatus"].forEach(id=>{
+    const el=$("#"+id);
+    if(el)mfaCopyObserver.observe(el,{childList:true,characterData:true,subtree:true});
+  });
 }
 function clearStaffPrivateUi(){
   staffUid="";
@@ -247,10 +295,10 @@ async function requireAal2(client){
     const ready=await Mfa.ensurePrimarySessionReady(()=>client);
     if(!ready||!ready.ok)throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
   }
-  if(typeof Mfa.inspectAccess!=="function")throw new Error("MFA تەكشۈرۈلمىدى.");
+  if(typeof Mfa.inspectAccess!=="function")throw new Error("دەلىللەش تەكشۈرۈلمىدى.");
   const inspect=await Mfa.inspectAccess(()=>client);
   const level=Mfa.normalizeLevel?Mfa.normalizeLevel(inspect&&inspect.assurance&&inspect.assurance.currentLevel):"";
-  if(level!=="aal2")throw new Error("AAL2 required");
+  if(level!=="aal2")throw new Error("2-باسقۇچلۇق دەلىللەش كېرەك.");
   return inspect;
 }
 async function uploadStaffCover(client,uid,file){
@@ -303,13 +351,16 @@ function bindMfa(client){
     if(verifyBtn){
       verifyBtn.onclick=async function(){
         if(mfaAttachCtl&&mfaAttachCtl.verifyOtp)await mfaAttachCtl.verifyOtp();
+        localizeStaffMfaCopy();
         await afterStaffMfaVerified();
       };
     }
+    observeStaffMfaCopy();
   }
 }
 async function afterStaffMfaVerified(){
   await routeStaffSession();
+  localizeStaffMfaCopy();
 }
 async function routeStaffSession(){
   const token=beginStaffRoute();
@@ -351,10 +402,12 @@ async function routeStaffSession(){
   }
   if(surface==="gate"){
     showPanel("mfaGatePanel",token);
+    localizeStaffMfaCopy();
     return;
   }
   showPanel("mfaEnrollPanelWrap",token);
   if(mfaAttachCtl&&mfaAttachCtl.refresh)await mfaAttachCtl.refresh();
+  localizeStaffMfaCopy();
 }
 async function logoutStaff(){
   invalidateStaffRoutes();
@@ -415,11 +468,14 @@ window.KutadguBookStaff={
   routeStaffSession,
   logoutStaff,
   afterStaffMfaVerified,
+  staffVisibleCopy,
+  setCoverFileStatus,
   lastStaffPanel:function(){return lastStaffPanel}
 };
 
 async function init(){
   fillSourceOptions();
+  bindCoverPicker();
   document.addEventListener("kutadgu-member-change",()=>{routeStaffSession()});
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);
