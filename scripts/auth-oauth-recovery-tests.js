@@ -168,9 +168,14 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
-  assert.match(account, /member\.js\?v=25/);
-  assert.match(read("shop.js"), /member\.js\?v=25/);
-  assert.match(index, /shop\.js\?v=121/);
+  assert.match(member, /auth:\{detectSessionInUrl:true,persistSession:true,flowType:"pkce"\}/);
+  assert.doesNotMatch(member, /exchangeCodeForSession/);
+  assert.doesNotMatch(read("account.js"), /exchangeCodeForSession/);
+  assert.match(account, /member\.js\?v=26/);
+  assert.doesNotMatch(account, /member\.js\?v=25/);
+  assert.match(read("shop.js"), /member\.js\?v=26/);
+  assert.doesNotMatch(read("shop.js"), /member\.js\?v=25/);
+  assert.match(index, /shop\.js\?v=123/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -194,10 +199,152 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
 test("reset-password.html loads reset-password.js v=9", () => {
   assert.match(read("reset-password.html"), /reset-password\.js\?v=9/);
   assert.match(read("reset-password.html"), /supabase-config\.js\?v=16/);
-  assert.match(account, /supabase-config\.js\?v=16/);
-  assert.match(index, /supabase-config\.js\?v=20/);
+  assert.match(account, /supabase-config\.js\?v=21/);
+  assert.doesNotMatch(account, /supabase-config\.js\?v=16/);
+  assert.match(index, /supabase-config\.js\?v=21/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=20/);
   assert.match(read("admin.html"), /admin\.js\?v=70/);
+});
+
+test("account.html no longer pins stale auth assets", () => {
+  const configPins = account.match(/supabase-config\.js\?v=\d+/g) || [];
+  const memberPins = account.match(/member\.js\?v=\d+/g) || [];
+  const accountPins = account.match(/account\.js\?v=\d+/g) || [];
+  assert.deepStrictEqual(configPins, ["supabase-config.js?v=21"]);
+  assert.deepStrictEqual(memberPins, ["member.js?v=26"]);
+  assert.deepStrictEqual(accountPins, ["account.js?v=5"]);
+  assert.match(member, /provenMemberSession/);
+  assert.match(member, /recoverProvenMemberSession/);
+  assert.match(member, /refreshSession/);
+  assert.match(member, /event==="SIGNED_OUT"/);
+});
+
+test("production Google OAuth redirect target is www account.html", () => {
+  const www = loadConfig({
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com"
+  });
+  assert.strictEqual(www.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilik.com/account.html");
+  assert.doesNotMatch(www.kutadguGoogleAccountRedirectTo(), /reset-password/);
+});
+
+function runConfigWithLocation(location) {
+  const replaced = [];
+  const loc = Object.assign({
+    pathname: "/account.html",
+    search: "",
+    hash: "",
+    href: "https://www.kutadgubilik.com/account.html",
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com",
+    replace(url) { replaced.push(url); }
+  }, location || {});
+  const sandbox = {
+    window: {},
+    URLSearchParams,
+    URL,
+    console,
+    location: loc
+  };
+  sandbox.window = sandbox;
+  sandbox.window.location = loc;
+  vm.runInNewContext(
+    cfg.replace(/\(function kutadguLoadMaintenanceGuard\(\)\{[\s\S]*?\}\)\(\);/, ""),
+    sandbox
+  );
+  return { window: sandbox.window, replaced };
+}
+
+test("apex/custom-domain Google PKCE callback canonicalizes to www account.html", () => {
+  const apex = runConfigWithLocation({
+    hostname: "kutadgubilik.com",
+    origin: "https://kutadgubilik.com",
+    pathname: "/account.html",
+    search: "?code=oauth-pkce-code",
+    hash: "",
+    href: "https://kutadgubilik.com/account.html?code=oauth-pkce-code"
+  });
+  assert.deepStrictEqual(apex.replaced, ["https://www.kutadgubilik.com/account.html?code=oauth-pkce-code"]);
+  const www = runConfigWithLocation({
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com",
+    pathname: "/account.html",
+    search: "?code=oauth-pkce-code",
+    hash: "",
+    href: "https://www.kutadgubilik.com/account.html?code=oauth-pkce-code"
+  });
+  assert.deepStrictEqual(www.replaced, []);
+  const recoveryApex = runConfigWithLocation({
+    hostname: "kutadgubilik.com",
+    origin: "https://kutadgubilik.com",
+    pathname: "/index.html",
+    search: "?type=recovery&token_hash=abc",
+    hash: "",
+    href: "https://kutadgubilik.com/?type=recovery&token_hash=abc"
+  });
+  assert.ok(recoveryApex.replaced[0].startsWith("https://www.kutadgubilik.com"));
+  assert.match(recoveryApex.replaced[0], /type=recovery/);
+});
+
+test("Google PKCE callback is not routed to password recovery", () => {
+  const w = loadConfig();
+  assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=oauth-pkce-code", ""), false);
+  assert.strictEqual(w.kutadguIsPasswordRecoveryType("?code=oauth-pkce-code&type=signup", ""), false);
+  const accountCallback = runConfigWithLocation({
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com",
+    pathname: "/account.html",
+    search: "?code=oauth-pkce-code",
+    hash: "",
+    href: "https://www.kutadgubilik.com/account.html?code=oauth-pkce-code"
+  });
+  assert.ok(accountCallback.replaced.every((url) => !/reset-password/.test(url)));
+});
+
+test("PKCE callback restores a proven session without a second code exchange", () => {
+  function provenMemberSession(session) {
+    if (!session || typeof session !== "object" || Array.isArray(session)) return null;
+    const uid = String(session.user && session.user.id || "").trim();
+    const token = String(session.access_token || "").trim();
+    if (!uid || !token) return null;
+    const rawExp = session.expires_at != null ? session.expires_at : (session.expiresAt != null ? session.expiresAt : null);
+    if (rawExp === "" || rawExp == null) return null;
+    const expiresAt = Number(rawExp);
+    if (!Number.isFinite(expiresAt) || expiresAt <= 0) return null;
+    const expiresAtMs = expiresAt > 1e12 ? expiresAt : expiresAt * 1000;
+    if (expiresAtMs <= Date.now()) return null;
+    return session;
+  }
+  const exchanges = [];
+  const restored = {
+    user: { id: "google-user-id", email: "member@example.com" },
+    access_token: "pkce-access",
+    refresh_token: "pkce-refresh",
+    expires_at: Math.floor(Date.now() / 1000) + 3600
+  };
+  function recoverProvenMemberSession(auth) {
+    const result = auth.getSession();
+    const current = provenMemberSession(result.data && result.data.session);
+    if (current) return current;
+    if (typeof auth.exchangeCodeForSession === "function") {
+      exchanges.push("app");
+      auth.exchangeCodeForSession("oauth-pkce-code");
+    }
+    return null;
+  }
+  const auth = {
+    getSession() { return { data: { session: restored }, error: null }; },
+    exchangeCodeForSession() {
+      exchanges.push("duplicate");
+      return { data: { session: restored }, error: null };
+    }
+  };
+  const session = recoverProvenMemberSession(auth);
+  assert.ok(provenMemberSession(session));
+  assert.strictEqual(session.user.id, "google-user-id");
+  assert.deepStrictEqual(exchanges, []);
+  assert.doesNotMatch(member, /exchangeCodeForSession/);
+  assert.doesNotMatch(read("account.js"), /exchangeCodeForSession/);
 });
 
 test("recovery email CTA uses TokenHash and forbids ConfirmationURL PKCE", () => {

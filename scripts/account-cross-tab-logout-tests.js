@@ -38,7 +38,7 @@ function sliceBetween(src, startNeedle, endNeedle) {
 test("account.html pins a single member.js and one account.js", () => {
   const memberScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
   const accountScripts = accountHtml.match(/account\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(memberScripts, ["member.js?v=25"]);
+  assert.deepStrictEqual(memberScripts, ["member.js?v=26"]);
   assert.deepStrictEqual(accountScripts, ["account.js?v=5"]);
   assert.doesNotMatch(accountHtml, /<script[^>]+src="member\.js[^"]*"[^>]*>[\s\S]*<script[^>]+src="member\.js/);
 });
@@ -474,6 +474,42 @@ test("8 login, register, and profile save still work", async () => {
   assert.strictEqual(profile.dom.byId.profileName.value, "باتۇر بەك يېڭىلاندى");
   assert.strictEqual(profile.dom.byId.profileCity.value, "Izmir");
   assert.match(profile.dom.byId.profileStatus.textContent, /ساقلاندى/);
+});
+
+test("9 Google PKCE restored session shows memberPanel and hides authPanel", async () => {
+  const googleUser = {
+    id: "google-user-id",
+    email: "member@example.com",
+    created_at: "2026-01-02T10:00:00Z",
+    app_metadata: { provider: "google", providers: ["email", "google"] }
+  };
+  const googleProfile = {
+    full_name: "Google ئەزا",
+    email: "member@example.com",
+    visit_count: 3,
+    created_at: "2026-01-02T10:00:00Z",
+    last_seen_at: "2026-09-13T12:00:00Z",
+    phone: "",
+    country: "",
+    city: "",
+    address: ""
+  };
+  const callback = bootAccount({
+    user: null,
+    profile: null,
+    ordersByUser: { "google-user-id": [] }
+  });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(callback.dom.byId.authPanel.hidden, false);
+  assert.strictEqual(callback.dom.byId.memberPanel.hidden, true);
+  callback.member.__set({ nextUser: googleUser, nextProfile: googleProfile, nextBlocked: false });
+  callback.dom.document.dispatchEvent({ type: "kutadgu-member-change" });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(callback.dom.byId.memberPanel.hidden, false);
+  assert.strictEqual(callback.dom.byId.authPanel.hidden, true);
+  assert.strictEqual(callback.dom.byId.loginForm.hidden, false);
+  assert.strictEqual(callback.dom.byId.memberEmail.textContent, "member@example.com");
+  assert.doesNotMatch(accountHtml, /reset-password\.html/);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {
