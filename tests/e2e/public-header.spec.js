@@ -149,6 +149,55 @@ test.describe("unified public header", () => {
     expect(String(count || "").trim()).toMatch(/^\d+$/);
   });
 
+  test("medium 820 and 1024 keep search off logo and nav", async ({ page }) => {
+    for (const width of [820, 1024]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await expect.poll(async () => page.locator("header.kutadgu-public-header").count()).toBeGreaterThan(0);
+      const geo = await page.evaluate(() => {
+        const header = document.querySelector("header.kutadgu-public-header");
+        const logo = header.querySelector(".logo");
+        const search = header.querySelector(".kutadgu-header-search");
+        const nav = header.querySelector("nav");
+        const main = document.querySelector("main, .hero, .home-bookstore-hero, .books-container");
+        const bar = document.getElementById("kutadguAnnounceBar");
+        const hb = header.getBoundingClientRect();
+        const logoB = logo.getBoundingClientRect();
+        const searchB = search.getBoundingClientRect();
+        const navB = nav.getBoundingClientRect();
+        const mainB = main ? main.getBoundingClientRect() : null;
+        const announceB = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect() : null;
+        const overlap = (a, b) => !(a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1);
+        const navLinks = [...nav.querySelectorAll("a")].map((a) => a.getBoundingClientRect());
+        return {
+          overflowX: document.documentElement.scrollWidth - window.innerWidth,
+          headerH: hb.height,
+          mainTop: mainB ? mainB.top : 0,
+          headerBottom: hb.bottom,
+          searchOverlapsLogo: overlap(searchB, logoB),
+          searchOverlapsNav: overlap(searchB, navB),
+          logoNavDelta: Math.abs(logoB.top - navB.top),
+          searchBelowNav: searchB.top >= navB.bottom - 1,
+          navVisible: navB.width > 8 && navB.height > 8 && navLinks.every((b) => b.width > 8),
+          announceBelowSearch: !announceB || announceB.top >= searchB.bottom - 1,
+          searchH: searchB.height
+        };
+      });
+      expect(geo.overflowX, `${width} overflow`).toBeLessThanOrEqual(1);
+      expect(geo.searchOverlapsLogo, `${width} search/logo`).toBe(false);
+      expect(geo.searchOverlapsNav, `${width} search/nav`).toBe(false);
+      expect(geo.logoNavDelta, `${width} logo/nav row`).toBeLessThanOrEqual(14);
+      expect(geo.searchBelowNav, `${width} search row`).toBe(true);
+      expect(geo.navVisible, `${width} nav`).toBe(true);
+      expect(geo.announceBelowSearch, `${width} announce`).toBe(true);
+      expect(geo.searchH, `${width} searchH`).toBeGreaterThanOrEqual(36);
+      expect(geo.searchH, `${width} searchH max`).toBeLessThanOrEqual(48);
+      expect(geo.headerH, `${width} headerH`).toBeGreaterThan(70);
+      expect(geo.headerH, `${width} headerH max`).toBeLessThanOrEqual(200);
+      expect(geo.mainTop + 1, `${width} main`).toBeGreaterThanOrEqual(geo.headerBottom);
+    }
+  });
+
   test("desktop 1366 header is one compact bar, not a tall brown column", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
