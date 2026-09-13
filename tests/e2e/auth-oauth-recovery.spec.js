@@ -90,6 +90,18 @@ test.describe("auth oauth vs recovery", () => {
     expect(JSON.stringify(urls)).not.toContain("kutadgu-bilig-kitab.vercel.app");
   });
 
+  test("account.html loads current supabase-config and member.js pins", async ({ page }) => {
+    await page.goto("/account.html", { waitUntil: "domcontentloaded" });
+    const scripts = await page.evaluate(() =>
+      [...document.querySelectorAll("script[src]")].map((s) => s.getAttribute("src"))
+    );
+    expect(scripts.filter((src) => /supabase-config\.js/.test(src))).toEqual(["supabase-config.js?v=21"]);
+    expect(scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=26"]);
+    expect(scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=5"]);
+    expect(scripts.join("\n")).not.toMatch(/supabase-config\.js\?v=16/);
+    expect(scripts.join("\n")).not.toMatch(/member\.js\?v=25/);
+  });
+
   test("C next=account PKCE code does not bounce to account.html or enable reset", async ({ page }) => {
     await page.goto("/reset-password.html?next=account&code=pkce-recovery-code", { waitUntil: "domcontentloaded" });
     await expect.poll(() => new URL(page.url()).pathname).toBe("/reset-password.html");

@@ -112,7 +112,7 @@ function badgeApi({ owner, cart, sessionUser, liveUser, sessionBootDone, expires
 test("account.html does not load shop.js and member owns the safe badge", () => {
   assert.doesNotMatch(accountHtml, /shop\.js/);
   assert.match(accountHtml, /public-header\.js/);
-  assert.match(accountHtml, /member\.js\?v=25/);
+  assert.match(accountHtml, /member\.js\?v=26/);
   assert.match(member, /function shopOwnerAllowsLocalDisplay\(owner,uid\)\{/);
   assert.match(member, /function identityBootstrapPending\(\)\{/);
   assert.match(member, /function refreshSafeCartCount\(\)\{/);
