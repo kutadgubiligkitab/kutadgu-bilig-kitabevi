@@ -300,6 +300,50 @@ header.kutadgu-public-header > #kutadguAnnounceBar {
   }
 }
 
+/* Medium desktop: keep logo+nav on row 1; move search to a full-width row 2. */
+@media (min-width: 769px) and (max-width: 1199px) {
+  body.has-kutadgu-public-header > header.kutadgu-public-header,
+  header.kutadgu-public-header {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto auto !important;
+    column-gap: 12px;
+    row-gap: 8px;
+    min-height: 0 !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  header.kutadgu-public-header > .logo {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    max-width: 100%;
+  }
+
+  header.kutadgu-public-header > nav {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: end;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  header.kutadgu-public-header > .kutadgu-header-search {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    flex: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    justify-self: stretch !important;
+  }
+
+  header.kutadgu-public-header > #kutadguAnnounceBar {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+  }
+}
+
 @media (max-width: 768px) {
   body.has-kutadgu-public-header > header.kutadgu-public-header,
   header.kutadgu-public-header.is-mobile-enhanced,
