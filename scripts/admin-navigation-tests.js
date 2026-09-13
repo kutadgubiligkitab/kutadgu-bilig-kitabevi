@@ -32,9 +32,9 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=38, admin.js v=67, admin-mfa.js v=3, and admin-idle.js v=3", () => {
-  assert.match(adminHtml, /admin\.css\?v=38/);
-  assert.match(adminHtml, /admin\.js\?v=67/);
+test("cache pins are admin.css v=39, admin.js v=68, admin-mfa.js v=3, and admin-idle.js v=3", () => {
+  assert.match(adminHtml, /admin\.css\?v=39/);
+  assert.match(adminHtml, /admin\.js\?v=68/);
   assert.match(adminHtml, /admin-hero\.js\?v=5/);
   assert.match(adminHtml, /admin-mfa\.js\?v=3/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=32/);
@@ -106,6 +106,7 @@ test("default section is books and hash parser falls back", () => {
   assert.strictEqual(parse("import-covers"), "import-covers");
   assert.strictEqual(parse("#customers"), "customers");
   assert.strictEqual(parse("#orders"), "orders");
+  assert.strictEqual(parse("#submissions"), "submissions");
 });
 
 test("post-auth load list is unchanged", () => {
@@ -141,6 +142,7 @@ test("nav labels use the required Uyghur section titles", () => {
   assert.match(adminHtml, /👥 ئەزالار/);
   assert.match(adminHtml, /📦 زاكازلار/);
   assert.match(adminHtml, /⚙️ سىستېما/);
+  assert.match(adminHtml, /📥 تەستىق ساقلاۋاتقان كىتابلار/);
 });
 
 if (failed) {

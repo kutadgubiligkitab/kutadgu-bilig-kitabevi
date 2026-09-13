@@ -2,6 +2,7 @@ const { test, expect } = require("./playwright-test");
 
 const SECTIONS = {
   books: "#booksCard",
+  submissions: "#submissionsCard",
   overview: "#overviewSection",
   storefront: "#announcementCard",
   "import-covers": "#coverRepairCard",
@@ -54,6 +55,11 @@ test.describe("admin navigation", () => {
     await expectOnlySection(page, "overview");
     await expect(page.locator("#adminStatus")).toBeVisible();
     await expect(page.locator(".admin-stats").first()).toBeVisible();
+
+    await page.locator('[data-admin-section="submissions"]').click();
+    await expectOnlySection(page, "submissions");
+    await expect(page.locator("#pendingSubmissionList")).toBeVisible();
+    await expect(page.locator("#pendingSubmissionCount")).toContainText("تەستىق ساقلاۋاتقان");
 
     await page.locator('[data-admin-section="storefront"]').click();
     await expectOnlySection(page, "storefront");
