@@ -2665,6 +2665,10 @@ function bookTime(book){const value=Date.parse(book?.createdAt||"");return Numbe
 function uniqueCategories(){
   let seen=new Set(),out=[];
   C.forEach(b=>{let v=(b.category||"").trim();if(v&&!seen.has(v)){seen.add(v);out.push(v)}});
+  (window.KUTADGU_APP_CONFIG?.catalogCategories||[]).forEach(item=>{
+    const v=String(item?.label||"").trim();
+    if(v&&!seen.has(v)){seen.add(v);out.push(v)}
+  });
   return out;
 }
 function sortBooks(items,mode){

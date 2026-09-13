@@ -55,7 +55,7 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /index\.css\?v=20/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=24/);
-  assert.match(html, /shop\.js\?v=121/);
+  assert.match(html, /shop\.js\?v=122/);
   assert.match(html, /mobile\.js\?v=8/);
   assert.match(html, /public-header\.js\?v=2/);
   assert.match(html, /stage3-shop-identity\.css\?v=5/);
@@ -253,6 +253,27 @@ test("recently-added homepage cards right-align title and author only", () => {
   const stageAt = html.indexOf("stage4b-public-cards.css");
   const rtlAt = html.indexOf("home-featured-book-text-rtl.css");
   assert.ok(stageAt >= 0 && rtlAt > stageAt);
+});
+
+test("homepage category filter includes canonical Dictionary and Grammar labels", () => {
+  const fn = shop.slice(shop.indexOf("function uniqueCategories(){"), shop.indexOf("function sortBooks("));
+  assert.match(fn, /KUTADGU_APP_CONFIG\?\.catalogCategories/);
+  assert.match(fn, /item\?\.label/);
+  const cfg = fs.readFileSync(path.join(root, "app-config.js"), "utf8");
+  assert.match(cfg, /source:"dictionary.html",label:"لۇغەت"/);
+  assert.match(cfg, /source:"grammar.html",label:"گرامماتىكا"/);
+  const uniqueCategories = new Function(`
+    const C = [{category:"رومانلار"},{category:"دىنىي كىتابلار"}];
+    const window = { KUTADGU_APP_CONFIG: { catalogCategories: [
+      {source:"romanlar.html",label:"رومانلار"},
+      {source:"dini.html",label:"دىنىي كىتابلار"},
+      {source:"dictionary.html",label:"لۇغەت"},
+      {source:"grammar.html",label:"گرامماتىكا"}
+    ]}};
+    ${fn}
+    return uniqueCategories();
+  `)();
+  assert.deepStrictEqual(uniqueCategories, ["رومانلار", "دىنىي كىتابلار", "لۇغەت", "گرامماتىكا"]);
 });
 
 if (failed) {

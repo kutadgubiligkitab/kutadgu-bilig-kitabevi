@@ -15,6 +15,64 @@ test.describe("homepage compact first-view", () => {
     expect(height).toBeLessThan(8);
   });
 
+  test("homepage category filter includes Dictionary and Grammar", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect.poll(async () => page.locator("#searchCategory").count()).toBeGreaterThan(0);
+    const values = await page.locator("#searchCategory option").evaluateAll((opts) => opts.map((o) => o.value));
+    expect(values[0]).toBe("");
+    expect(values).toContain("رومانلار");
+    expect(values).toContain("دىنىي كىتابلار");
+    expect(values).toContain("لۇغەت");
+    expect(values).toContain("گرامماتىكا");
+
+    async function setFilter(selector, value) {
+      await page.locator(selector).evaluate((el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }, value);
+    }
+
+    await setFilter("#searchCategory", "رومانلار");
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
+    const romanHits = page.locator("#searchResults .advanced-search-result");
+    if (await romanHits.count()) {
+      await expect(romanHits.first()).toBeVisible();
+      const metas = await page.locator("#searchResults .advanced-search-meta").allTextContents();
+      expect(metas.some((text) => text.includes("رومانلار"))).toBeTruthy();
+    }
+
+    await setFilter("#searchCategory", "لۇغەت");
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
+    const dictHits = page.locator("#searchResults .advanced-search-result");
+    const dictCount = await dictHits.count();
+    if (dictCount) {
+      const metas = await page.locator("#searchResults .advanced-search-meta").allTextContents();
+      expect(metas.filter((text) => text.includes("لۇغەت")).length).toBeGreaterThan(0);
+    }
+
+    await setFilter("#searchCategory", "گرامماتىكا");
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
+    const grammarHits = page.locator("#searchResults .advanced-search-result");
+    if (await grammarHits.count()) {
+      const metas = await page.locator("#searchResults .advanced-search-meta").allTextContents();
+      expect(metas.filter((text) => text.includes("گرامماتىكا")).length).toBeGreaterThan(0);
+    }
+
+    await setFilter("#searchSort", "title");
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
+    await expect(page.locator("#searchSort")).toHaveValue("title");
+
+    await page.locator("#searchInput").fill("لۇغەت");
+    await page.locator("#searchButton").click();
+    await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
+
+    await page.locator("#searchReset").evaluate((el) => el.click());
+    await expect.poll(async () => page.locator("#searchCategory").inputValue()).toBe("");
+    await expect.poll(async () => page.locator("#searchInput").inputValue()).toBe("");
+    await expect.poll(async () => page.locator("#searchResults .advanced-search-result").count()).toBe(0);
+  });
+
   test("search still returns results after typing", async ({ page }) => {
     const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/");
