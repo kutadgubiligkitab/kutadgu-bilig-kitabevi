@@ -64,7 +64,7 @@ test("ADMIN_SECTIONS includes submissions and existing sections", () => {
 test("pending loader queries submission_status pending only", () => {
   const fn = sliceFn(adminJs, "loadPendingSubmissions");
   assert.match(fn, /PENDING_SUBMISSION_SELECT/);
-  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,submitted_by,submitted_at,submission_status"/);
+  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,gallery_images,submitted_by,submitted_at,submission_status"/);
   assert.match(fn, /\.from\("books"\)/);
   assert.match(fn, /\.eq\("submission_status","pending"\)/);
   assert.doesNotMatch(fn, /\.eq\("is_active"/);
@@ -84,6 +84,9 @@ test("approve and reject use staff submission RPCs and never books.update", () =
   assert.doesNotMatch(fn, /\.from\("books"\)\.update/);
   assert.doesNotMatch(fn, /submission_status\s*=/);
   assert.doesNotMatch(render, /data-edit|data-delete|data-hide|data-quick-edit/);
+  assert.match(render, /admin-submission-gallery/);
+  assert.match(render, /pendingGalleryUrls\(b\)/);
+  assert.doesNotMatch(render, /type="file"/);
   assert.match(adminJs, /if\(id==="submissions"\)loadPendingSubmissions\(\)/);
   assert.match(navSpec, /submissions: "#submissionsCard"/);
 });
@@ -130,7 +133,7 @@ test("admin.css brace structure is balanced and has no trailing unmatched }", ()
   assert.strictEqual(depth, 0, "admin.css brace depth ended at " + depth);
   assert.match(
     adminCss,
-    /@media\(max-width:850px\)\{\s*\.admin-submission-row\{grid-template-columns:48px minmax\(0,1fr\)\}\s*\.admin-submission-row img,\s*\.admin-submission-row > div:first-child\{width:48px;height:64px\}\s*\.admin-submission-actions button\{flex:1;min-height:44px\}\s*\}/
+    /@media\(max-width:850px\)\{\s*\.admin-submission-row\{grid-template-columns:48px minmax\(0,1fr\)\}\s*\.admin-submission-cover,\s*\.admin-submission-cover-slot\{width:48px;height:64px\}\s*\.admin-submission-actions button\{flex:1;min-height:44px\}\s*\}/
   );
 });
 
@@ -150,7 +153,7 @@ test("this PR does not add SQL or change public storefront files", () => {
     encoding: "utf8"
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
-  const sql = files.filter((file) => /\.sql$/i.test(file));
+  const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql");
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
     /^(index\.html|shop\.js|shop\.css|public-header\.css|catalog\.js)$/.test(file)

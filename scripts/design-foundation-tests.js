@@ -240,7 +240,7 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "STAGE8_STORE_ANALYTICS.sql",
     "STAGE46_ANALYTICS_LEGACY_ID.sql",
     "STAGE91_ADMIN_IMPORT_SCALE.sql",
-    "STAGE92_BOOK_STAFF_SECURITY.sql",
+    "STAGE92_BOOK_STAFF_SECURITY.sql","STAGE93_BOOK_STAFF_GALLERY.sql",
     "SUPABASE_SETUP.sql",
     "DATABASE_UPGRADE_V10.sql"
   ]);

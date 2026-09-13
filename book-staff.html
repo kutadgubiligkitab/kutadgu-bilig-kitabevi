@@ -8,7 +8,7 @@
   <meta name="robots" content="noindex, nofollow">
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="account.css?v=6">
-  <link rel="stylesheet" href="book-staff.css?v=5">
+  <link rel="stylesheet" href="book-staff.css?v=6">
 </head>
 <body data-book-staff-page="true">
   <header class="staff-topbar">
@@ -153,6 +153,16 @@
             <span id="staffCoverFileName" class="staff-file-name">رەسىم تاللانمىدى</span>
           </div>
         </div>
+        <div class="staff-wide staff-file">
+          <span class="staff-file-heading">مۇندەرىجە / ئىچكى بەت رەسىملىرى</span>
+          <p class="staff-help">ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ.</p>
+          <div class="staff-file-row">
+            <input id="staffGalleryFiles" class="staff-file-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif">
+            <button class="account-secondary" id="staffGalleryPickBtn" type="button">رەسىملەرنى تاللاش</button>
+            <span id="staffGalleryFileName" class="staff-file-name">رەسىم تاللانمىدى</span>
+          </div>
+          <div id="staffGalleryList" class="staff-gallery-list"></div>
+        </div>
         <button class="account-primary staff-wide" id="staffSubmitBtn" type="submit">تەستىققا يوللاش</button>
       </form>
     </section>
@@ -162,6 +172,6 @@
   <script defer src="app-config.js?v=4"></script>
   <script defer src="member.js?v=26"></script>
   <script defer src="admin-mfa.js?v=3"></script>
-  <script defer src="book-staff.js?v=4"></script>
+  <script defer src="book-staff.js?v=5"></script>
 </body>
 </html>

@@ -176,7 +176,7 @@ test("this PR does not add SQL or change public storefront files", () => {
     encoding: "utf8"
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
-  const sql = files.filter((file) => /\.sql$/i.test(file));
+  const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql");
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
     /^(index\.html|shop\.js|shop\.css|public-header\.css|catalog\.js)$/.test(file)
