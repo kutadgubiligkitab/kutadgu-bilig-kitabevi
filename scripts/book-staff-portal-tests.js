@@ -452,6 +452,20 @@ add("Admin MFA and pending/staff management files stay authoritative", () => {
   assert.doesNotMatch(staffHtml, /approve_staff_book_submission/);
 });
 
+add("non-admin Admin routing cannot signOut a Book Staff member session", () => {
+  const route = adminJs.match(/async function routeSession\(\)\{[\s\S]*?async function openAuthorizedDashboard/);
+  assert.ok(route);
+  const denyStart = route[0].indexOf("const ok=await checkAdmin(session.user);");
+  const deny = route[0].slice(denyStart, route[0].indexOf("if(gen!==routeGen)return;", denyStart));
+  assert.doesNotMatch(deny, /signOut/);
+  assert.match(deny, /user=null/);
+  assert.match(deny, /show\("loginPanel"\)/);
+  assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
+  assert.doesNotMatch(staffJs, /admin_users/);
+  assert.match(staffHtml, /href="\/account\.html"/);
+  assert.match(read("book-staff.html"), /book-staff\.js\?v=6/);
+});
+
 add("Google OAuth account pins from PR 155 remain on account.html", () => {
   assert.match(accountHtml, /supabase-config\.js\?v=21/);
   assert.match(accountHtml, /member\.js\?v=26/);

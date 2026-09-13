@@ -560,6 +560,20 @@ test("12 inactive staff and RPC failure fail closed", async () => {
   assert.strictEqual(thrown.dom.byId.bookStaffEntry.hidden, true);
 });
 
+test("admin.html does not globally signOut a shared member session", () => {
+  const adminJs = fs.readFileSync(path.join(root, "admin.js"), "utf8");
+  const route = adminJs.match(/async function routeSession\(\)\{[\s\S]*?async function openAuthorizedDashboard/);
+  assert.ok(route);
+  const denyStart = route[0].indexOf("const ok=await checkAdmin(session.user);");
+  const deny = route[0].slice(denyStart, route[0].indexOf("if(gen!==routeGen)return;", denyStart));
+  assert.doesNotMatch(deny, /signOut/);
+  assert.match(deny, /بۇ ھېسابات Admin ھېسابى ئەمەس/);
+  assert.match(adminJs, /onAuthStateChange\(\(\)=>setTimeout\(routeSession,0\)\)/);
+  assert.doesNotMatch(adminJs.match(/db\.auth\.onAuthStateChange[\s\S]{0,80}/)[0], /signOut/);
+  const logoutFn = adminJs.match(/async function logout\(\)\{[\s\S]*?function openImport/);
+  assert.match(logoutFn[0], /auth\.signOut/);
+});
+
 Promise.resolve().then(() => Promise.all(pending)).then(() => {
   if (failed) {
     console.error("\n" + failed + " test(s) failed");

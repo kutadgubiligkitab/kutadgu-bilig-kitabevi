@@ -144,6 +144,16 @@ test("checkAdmin stays AAL1; Admin JS does not send aal2 in books queries", () =
     assert.doesNotMatch(chunk[0], /aal2/i);
   });
   assert.match(adminJs, /async function loadMfaCard/);
+  const denyStart = route[0].indexOf("const ok=await checkAdmin(session.user);");
+  const denyEnd = route[0].indexOf("if(gen!==routeGen)return;", denyStart);
+  const deny = route[0].slice(denyStart, denyEnd);
+  assert.ok(deny.length > 0, "missing non-admin checkAdmin branch");
+  assert.doesNotMatch(deny, /signOut/);
+  assert.match(deny, /بۇ ھېسابات Admin ھېسابى ئەمەس/);
+  assert.match(deny, /show\("loginPanel"\)/);
+  const logoutFn = adminJs.match(/async function logout\(\)\{[\s\S]*?function openImport/);
+  assert.ok(logoutFn);
+  assert.match(logoutFn[0], /db\.auth\.signOut/);
 });
 
 test("MFA never persists or logs secrets", () => {
