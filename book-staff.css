@@ -76,9 +76,30 @@ body[data-book-staff-page="true"] .staff-form #staffSubmitBtn{
   margin-top:6px;
   min-height:48px;
 }
-.staff-check{display:flex;align-items:center;gap:10px;min-height:44px}
-body[data-book-staff-page="true"] .staff-form .staff-check{display:flex;align-items:center;gap:10px;min-height:48px;padding:4px 2px}
-.staff-check input{width:22px;height:22px;flex:none}
+body[data-book-staff-page="true"] .staff-form .staff-check{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:10px;
+  min-height:48px;
+  padding:6px 2px;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+body[data-book-staff-page="true"] .staff-form .staff-check input[type="checkbox"]{
+  width:22px;
+  height:22px;
+  min-width:22px;
+  min-height:22px;
+  padding:0;
+  flex:none;
+}
+body[data-book-staff-page="true"] .staff-form .staff-check>span{
+  flex:1 1 auto;
+  min-width:0;
+  line-height:1.7;
+}
 .staff-success p{margin:8px 0}
 body[data-book-staff-page="true"] .account-card{padding:28px 26px}
 @media(max-width:700px){

@@ -133,7 +133,7 @@ add("staff page is private, separate from admin, and not in public chrome", () =
 });
 
 add("Book Staff form uses Uyghur dropdown labels with unchanged backend values", () => {
-  assert.match(staffHtml, /book-staff\.css\?v=3/);
+  assert.match(staffHtml, /book-staff\.css\?v=4/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -147,7 +147,7 @@ add("Book Staff form uses Uyghur dropdown labels with unchanged backend values",
   assert.match(css, /min-height:48px/);
   assert.match(css, /\.staff-form label>span\{[\s\S]*line-height:1\.7/);
   assert.match(css, /textarea\{[\s\S]*line-height:1\.8/);
-  assert.match(css, /@media\(max-width:700px\)/);
+  assert.match(css, /input\[type="checkbox"\]\{[\s\S]*width:22px/);
   assert.match(staffHtml, /book-staff\.js\?v=2/);
 });
 
