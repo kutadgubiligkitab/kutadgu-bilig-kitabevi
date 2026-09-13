@@ -130,7 +130,7 @@ test("admin.css brace structure is balanced and has no trailing unmatched }", ()
   assert.strictEqual(depth, 0, "admin.css brace depth ended at " + depth);
   assert.match(
     adminCss,
-    /@media\(max-width:850px\)\{\s*\.admin-submission-row\{grid-template-columns:48px minmax\(0,1fr\)\}\s*\.admin-submission-row img,\s*\.admin-submission-row > div:first-child\{width:48px;height:64px\}\s*\.admin-submission-actions button\{flex:1;min-height:44px\}\s*\}\s*$/
+    /@media\(max-width:850px\)\{\s*\.admin-submission-row\{grid-template-columns:48px minmax\(0,1fr\)\}\s*\.admin-submission-row img,\s*\.admin-submission-row > div:first-child\{width:48px;height:64px\}\s*\.admin-submission-actions button\{flex:1;min-height:44px\}\s*\}/
   );
 });
 

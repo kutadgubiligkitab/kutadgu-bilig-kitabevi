@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=39">
+  <link rel="stylesheet" href="admin.css?v=40">
 </head>
 <body>
 <div class="admin-shell">
@@ -140,6 +140,16 @@
             </div>
           </div>
         </div>
+      </section>
+      <section class="admin-card" id="bookStaffCard">
+        <h2>👤 كىتاب قوشۇش خادىملىرى</h2>
+        <p class="admin-help">خادىم ئاۋۋال شۇ Email بىلەن نورمال تىزىملاتقان بولۇشى كېرەك. بۇ يەرگە قوشۇش پەقەت چەكلىك «كىتاب قوشۇش خادىمى» ھوقۇقى بېرىدۇ؛ تولۇق Admin قىلمايدۇ.</p>
+        <form id="bookStaffAddForm" class="admin-form">
+          <label class="admin-wide"><span>Email</span><input id="bookStaffEmail" type="email" dir="ltr" autocomplete="off" inputmode="email" placeholder="staff@example.com"></label>
+          <div class="admin-wide"><button class="admin-primary" id="bookStaffAddBtn" type="submit">قوشۇش</button></div>
+        </form>
+        <div id="bookStaffStatus" class="admin-status">كىتاب قوشۇش خادىملىرى يۈكلىنىدۇ.</div>
+        <div id="bookStaffList" class="admin-staff-list"></div>
       </section>
       </div>
 
@@ -913,6 +923,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=68"></script>
+  <script defer src="admin.js?v=70"></script>
 </body>
 </html>
