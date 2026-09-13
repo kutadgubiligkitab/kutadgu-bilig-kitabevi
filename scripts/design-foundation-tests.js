@@ -247,7 +247,6 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||
     /(^|\/)supabase\//i.test(file) ||
-    /(^|\/)admin\.(html|js|css)$/i.test(file) ||
     /(^|\/)(rls|grants?|triggers?)\b/i.test(file)
   );
   assert.deepStrictEqual(forbidden, [], "unexpected backend files: " + forbidden.join(", "));

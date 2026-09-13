@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=38">
+  <link rel="stylesheet" href="admin.css?v=39">
 </head>
 <body>
 <div class="admin-shell">
@@ -66,6 +66,7 @@
         <nav class="admin-sidenav" aria-label="باشقۇرۇش بۆلەكلىرى">
           <p class="admin-sidenav-title">باشقۇرۇش تىزىملىكى</p>
           <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="overview">📊 ئومۇمىي كۆرۈنۈش</button>
           <button type="button" class="admin-nav-item" data-admin-section="storefront">📢 توربەت مەزمۇنى</button>
           <button type="button" class="admin-nav-item" data-admin-section="import-covers">📥 ئىمپورت ۋە مۇقاۋا</button>
@@ -79,6 +80,7 @@
             <label for="adminSectionSelect">باشقۇرۇش بۆلىكى</label>
             <select id="adminSectionSelect" aria-label="باشقۇرۇش بۆلىكى">
               <option value="books">📚 كىتابلار</option>
+              <option value="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</option>
               <option value="overview">📊 ئومۇمىي كۆرۈنۈش</option>
               <option value="storefront">📢 توربەت مەزمۇنى</option>
               <option value="import-covers">📥 ئىمپورت ۋە مۇقاۋا</option>
@@ -332,6 +334,14 @@
         </div>
         <div id="adminBookList" class="admin-book-list"></div>
         <div id="adminPager" class="admin-pager"></div>
+      </section>
+
+      <section class="admin-card" id="submissionsCard" data-admin-section-panel="submissions" hidden>
+        <h2>📥 تەستىق ساقلاۋاتقان كىتابلار</h2>
+        <p class="admin-help">پەقەت Book Staff يوللىغان ۋە تېخى تەستىقلانمىغان كىتابلار. تەستىقلاش ياكى رەت قىلىش Database RPC ئارقىلىق بولىدۇ.</p>
+        <p id="pendingSubmissionCount" class="admin-help" role="status">تەستىق ساقلاۋاتقان: 0</p>
+        <div id="pendingSubmissionStatus" class="admin-status">تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىدۇ.</div>
+        <div id="pendingSubmissionList" class="admin-submission-list"></div>
       </section>
 
       <div data-admin-section-panel="import-covers" hidden>
@@ -903,6 +913,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=3"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=67"></script>
+  <script defer src="admin.js?v=68"></script>
 </body>
 </html>

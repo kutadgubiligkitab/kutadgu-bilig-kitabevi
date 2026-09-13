@@ -62,7 +62,7 @@ const H = loadHelpers();
 test("1 Orders section exists in desktop Admin navigation", () => {
   assert.match(adminHtml, /data-admin-section="orders">📦 زاكازلار/);
   assert.match(adminHtml, /class="admin-sidenav"/);
-  assert.match(adminJs, /const ADMIN_SECTIONS=\["overview","books","storefront","import-covers","insights","customers","orders","system"\]/);
+  assert.match(adminJs, /const ADMIN_SECTIONS=\["overview","books","submissions","storefront","import-covers","insights","customers","orders","system"\]/);
 });
 
 test("2 Orders section exists in the Admin section picker/mobile navigation", () => {
