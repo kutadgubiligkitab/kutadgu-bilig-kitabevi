@@ -96,10 +96,9 @@ test("visible Contact hours match JSON-LD Monday-Saturday and Sunday windows", (
   const store = JSON.parse(jsonLd[1])["@graph"].find((n) => n["@type"] === "BookStore");
   assert.deepStrictEqual(store.openingHours, ["Mo-Sa 08:30-20:00", "Su 10:30-18:00"]);
   const hoursBlock = html.slice(html.indexOf("contact-hours"), html.indexOf("contact-whatsapp"));
-  assert.match(hoursBlock, /دۈشەنبە–شەنبە: 08:30–20:00/);
-  assert.match(hoursBlock, /يەكشەنبە: 10:30–18:00/);
+  assert.match(hoursBlock, /دۈشەنبە–شەنبە\n<span dir="ltr">08:30–20:00<\/span>\nيەكشەنبە\n<span dir="ltr">10:30–18:00<\/span>/);
   assert.doesNotMatch(hoursBlock, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
-  assert.match(cfg, /hours: "دۈشەنبە–شەنبە: 08:30–20:00\\nيەكشەنبە: 10:30–18:00"/);
+  assert.match(cfg, /hours: "دۈشەنبە–شەنبە\\n08:30–20:00\\nيەكشەنبە\\n10:30–18:00"/);
   assert.doesNotMatch(cfg, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
   assert.match(html, /supabase-config\.js\?v=21/);
 });

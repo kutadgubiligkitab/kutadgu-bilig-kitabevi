@@ -35,8 +35,11 @@ test.describe("Stage 3 real shop identity", () => {
     expect(chipColor.color).toBe("rgb(61, 42, 35)");
     expect(chipColor.background).toBe("rgb(255, 248, 237)");
     await expect(page.locator("#contact")).toContainText("08:30–20:00");
-    await expect(page.locator("#contact .contact-hours")).toContainText("دۈشەنبە–شەنبە: 08:30–20:00");
-    await expect(page.locator("#contact .contact-hours")).toContainText("يەكشەنبە: 10:30–18:00");
+    await expect(page.locator("#contact .contact-hours")).toContainText("دۈشەنبە–شەنبە");
+    await expect(page.locator("#contact .contact-hours")).toContainText("08:30–20:00");
+    await expect(page.locator("#contact .contact-hours")).toContainText("يەكشەنبە");
+    await expect(page.locator("#contact .contact-hours")).toContainText("10:30–18:00");
+    await expect(page.locator('#contact .contact-hours span[dir="ltr"]')).toHaveCount(2);
     await expect(page.locator("#contact")).not.toContainText("ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ");
     const jsonHours = await page.evaluate(() => {
       const raw = [...document.querySelectorAll('script[type="application/ld+json"]')].map((el) => el.textContent).join("\n");
