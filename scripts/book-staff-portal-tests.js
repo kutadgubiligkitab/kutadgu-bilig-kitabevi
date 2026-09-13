@@ -117,7 +117,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=5/);
+  assert.match(staffHtml, /book-staff\.js\?v=6/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=26/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -146,7 +146,7 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
   assert.match(staffHtml, /book-staff\.css\?v=6/);
-  assert.match(staffHtml, /book-staff\.js\?v=5/);
+  assert.match(staffHtml, /book-staff\.js\?v=6/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -288,10 +288,26 @@ add("staff gallery is local-only until submit, max 4, and URLs stay on own galle
   assert.match(staffJs, /addGalleryFiles\(input\.files\)/);
   assert.match(staffJs, /uploadStaffGallery\(client,String\(user\.id\),galleryDraft/);
   assert.match(staffJs, /upsert:false/);
-  const path = api.staffGalleryObjectPath(uid, { name: "page.PNG" }, 0);
+  assert.match(staffJs, /galleryFileExtension/);
+  assert.match(staffJs, /if\(fromApi\)publicUrl=assertStaffGalleryPublicUrl\(uid,fromApi\)/);
+  assert.doesNotMatch(staffJs, /urls\.push\(assertStaffGalleryPublicUrl\(uid,canonical\)\)/);
+  assert.strictEqual(api.galleryFileExtension({ name: "page.exe", type: "image/jpeg", size: 12 }), "jpg");
+  const jpegPath = api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/jpeg", size: 12 }, 0);
+  assert.match(jpegPath, /^staff\/11111111-1111-4111-8111-111111111111\/gallery\/\d{8}-[a-z0-9]+-0\.jpg$/);
+  assert.doesNotMatch(jpegPath, /\.exe$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/png", size: 12 }, 1), /\.png$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/webp", size: 12 }, 2), /\.webp$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/gif", size: 12 }, 3), /\.gif$/);
+  assert.throws(() => api.galleryFileExtension({ name: "page.jpg", type: "image/svg+xml", size: 12 }));
+  assert.throws(() => api.staffGalleryObjectPath(uid, { name: "page.PNG" }, 0));
+  const path = api.staffGalleryObjectPath(uid, { name: "page.PNG", type: "image/png", size: 12 }, 0);
   assert.match(path, /^staff\/11111111-1111-4111-8111-111111111111\/gallery\/\d{8}-[a-z0-9]+-0\.png$/);
   const url = api.staffGalleryPublicUrl(uid, path);
   assert.strictEqual(api.assertStaffGalleryPublicUrl(uid, url), url);
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.exe"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.html"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.svg"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/noext"));
   assert.throws(() => api.assertStaffGalleryPublicUrl(other, url));
   assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/cover.jpg"));
   assert.throws(() => api.assertStaffGalleryPublicUrl(uid, "https://evil.example/storage/v1/object/public/book-covers/staff/" + uid + "/gallery/a.jpg"));

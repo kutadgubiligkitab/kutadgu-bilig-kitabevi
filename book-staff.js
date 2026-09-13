@@ -116,8 +116,20 @@ function assertStaffCoverPublicUrl(uid,url){
   if(parsed.pathname.indexOf(expected)!==0)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
   return parsed.origin+parsed.pathname;
 }
+function galleryFileExtension(file){
+  const valid=validateCoverFile(file);
+  if(!valid)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
+  const map={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"};
+  const ext=map[valid.type];
+  if(!ext)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
+  return ext;
+}
+function isSafeStaffGalleryFilename(name){
+  const rest=String(name||"");
+  return !!rest && !rest.includes("/") && /^[A-Za-z0-9._-]+$/.test(rest) && /\.(jpe?g|png|webp|gif)$/i.test(rest);
+}
 function staffGalleryObjectPath(uid,file,index){
-  const ext=String((file&&file.name||"page.jpg").split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const ext=galleryFileExtension(file);
   const now=new Date();
   const y=now.getUTCFullYear();
   const m=String(now.getUTCMonth()+1).padStart(2,"0");
@@ -132,7 +144,7 @@ function staffGalleryPublicUrl(uid,objectPath){
   if(!id||path.indexOf("staff/"+id+"/gallery/")!==0)throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
   if(path.includes("..")||/[?#@]/.test(path))throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
   const rest=path.slice(("staff/"+id+"/gallery/").length);
-  if(!rest||rest.includes("/")||!/^[A-Za-z0-9._-]+$/.test(rest))throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
+  if(!isSafeStaffGalleryFilename(rest))throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
   if(configuredCoverOrigin()!==STAFF_COVER_ORIGIN)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
   if(configuredCoverBucket()!==STAFF_COVER_BUCKET)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
   return STAFF_COVER_ORIGIN+"/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/"+path;
@@ -149,7 +161,7 @@ function assertStaffGalleryPublicUrl(uid,url){
   const expected="/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/staff/"+id+"/gallery/";
   if(parsed.pathname.indexOf(expected)!==0)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
   const rest=parsed.pathname.slice(expected.length);
-  if(!rest||rest.includes("/")||!/^[A-Za-z0-9._-]+$/.test(rest))throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  if(!isSafeStaffGalleryFilename(rest))throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
   return parsed.origin+parsed.pathname;
 }
 function validateCoverFile(file){
@@ -521,16 +533,16 @@ async function uploadStaffGallery(client,uid,files){
     if(path.indexOf("staff/"+uid+"/gallery/")!==0)throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
     const {error}=await client.storage.from(bucket).upload(path,valid,{upsert:false,contentType:valid.type||undefined});
     if(error)throw error;
-    const canonical=staffGalleryPublicUrl(uid,path);
-    let fromApi="";
+    const canonical=assertStaffGalleryPublicUrl(uid,staffGalleryPublicUrl(uid,path));
+    let publicUrl=canonical;
     try{
       const pub=client.storage.from(bucket).getPublicUrl(path);
-      fromApi=String(pub&&pub.data&&pub.data.publicUrl||"").trim();
-    }catch(e){fromApi=""}
-    if(fromApi){
-      try{assertStaffGalleryPublicUrl(uid,fromApi)}catch(e){fromApi=""}
+      const fromApi=String(pub&&pub.data&&pub.data.publicUrl||"").trim();
+      if(fromApi)publicUrl=assertStaffGalleryPublicUrl(uid,fromApi);
+    }catch(e){
+      publicUrl=canonical;
     }
-    urls.push(assertStaffGalleryPublicUrl(uid,canonical));
+    urls.push(assertStaffGalleryPublicUrl(uid,publicUrl));
   }
   return urls;
 }
@@ -672,6 +684,7 @@ window.KutadguBookStaff={
   staffCoverObjectPath,
   staffCoverPublicUrl,
   assertStaffCoverPublicUrl,
+  galleryFileExtension,
   staffGalleryObjectPath,
   staffGalleryPublicUrl,
   assertStaffGalleryPublicUrl,

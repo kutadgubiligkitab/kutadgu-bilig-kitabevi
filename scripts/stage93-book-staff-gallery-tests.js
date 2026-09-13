@@ -50,6 +50,7 @@ function staffGalleryAllowed(uid, url) {
   if (!t.startsWith(prefix)) return false;
   const rest = t.slice(prefix.length);
   if (!rest || rest.includes("/") || !/^[A-Za-z0-9._-]+$/.test(rest)) return false;
+  if (!/\.(jpe?g|png|webp|gif)$/i.test(rest)) return false;
   return true;
 }
 
@@ -93,10 +94,19 @@ test("server gallery validation accepts own URLs and rejects unsafe payloads", (
   assert.match(fn, /IF v_gallery_len > 4 THEN/);
   assert.match(fn, /v_gallery := '\[\]'::jsonb/);
   assert.match(fn, /v_gallery := v_gallery \|\| jsonb_build_array\(v_gallery_url\)/);
+  assert.match(fn, /v_gallery_rest !~\* '\\.\(jpe\?g\|png\|webp\|gif\)\$'/);
   const uid = "11111111-1111-4111-8111-111111111111";
   const other = "22222222-2222-4222-8222-222222222222";
   const own = PUBLIC_PREFIX + "staff/" + uid + "/gallery/a.jpg";
   assert.strictEqual(staffGalleryAllowed(uid, own), true);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/a.jpeg"), true);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/a.PNG"), true);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/a.webp"), true);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/a.gif"), true);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/page.exe"), false);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/page.html"), false);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/page.svg"), false);
+  assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/gallery/noext"), false);
   assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + other + "/gallery/a.jpg"), false);
   assert.strictEqual(staffGalleryAllowed(uid, PUBLIC_PREFIX + "staff/" + uid + "/cover.jpg"), false);
   assert.strictEqual(staffGalleryAllowed(uid, "https://evil.example/storage/v1/object/public/book-covers/staff/" + uid + "/gallery/a.jpg"), false);
@@ -116,8 +126,11 @@ test("staff client still cannot write books or use admin privileges", () => {
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.match(staffJs, /rpc\("submit_book_for_approval",\{payload:payload\}\)/);
   assert.match(staffJs, /level!=="aal2"/);
-  assert.match(staffJs, /staff\/"\+String\(uid\)\+"\/gallery\//);
-  assert.match(staffJs, /upsert:false/);
+  assert.match(staffJs, /"image\/jpeg":"jpg"/);
+  assert.match(staffJs, /function galleryFileExtension\(file\)/);
+  const galleryPathFn = staffJs.slice(staffJs.indexOf("function galleryFileExtension("), staffJs.indexOf("function staffGalleryPublicUrl("));
+  assert.doesNotMatch(galleryPathFn, /file&&file\.name|split\("\."\)\.pop/);
+  assert.match(staffJs, /if\(fromApi\)publicUrl=assertStaffGalleryPublicUrl\(uid,fromApi\)/);
 });
 
 test("Admin pending review shows gallery read-only and approval RPCs stay unchanged", () => {

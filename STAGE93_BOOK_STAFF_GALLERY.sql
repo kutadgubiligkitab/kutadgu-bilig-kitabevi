@@ -290,7 +290,8 @@ BEGIN
       v_gallery_rest := substr(v_gallery_url, length(v_gallery_prefix) + 1);
       IF v_gallery_rest = ''
          OR position('/' in v_gallery_rest) > 0
-         OR v_gallery_rest !~ '^[A-Za-z0-9._-]+$' THEN
+         OR v_gallery_rest !~ '^[A-Za-z0-9._-]+$'
+         OR v_gallery_rest !~* '\.(jpe?g|png|webp|gif)$' THEN
         RAISE EXCEPTION 'gallery_images must be book-covers staff gallery URLs for this user' USING ERRCODE = '42501';
       END IF;
       v_gallery := v_gallery || jsonb_build_array(v_gallery_url);
