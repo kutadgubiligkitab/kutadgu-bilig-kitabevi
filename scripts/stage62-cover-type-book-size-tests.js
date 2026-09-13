@@ -183,9 +183,9 @@ test("book.html loads catalog-bibliography before shop.js", () => {
   assert.ok(bib > 0 && shop > bib);
 });
 
-test("Admin cache pins include bibliography v=3 and admin.js v=71", () => {
+test("Admin cache pins include bibliography v=3 and admin.js v=72", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
-  assert.match(adminHtml, /admin\.js\?v=71/);
+  assert.match(adminHtml, /admin\.js\?v=72/);
   assert.match(adminHtml, /admin\.css\?v=41/);
   assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
   assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);

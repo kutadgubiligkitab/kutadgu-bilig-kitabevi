@@ -1120,9 +1120,10 @@ async function routeSession(){
   if(!session){show("loginPanel");$("#adminLogout").hidden=true;return}
   const ok=await checkAdmin(session.user);
   if(!ok){
-    await db.auth.signOut();
+    user=null;
     show("loginPanel");
-    status($("#loginStatus"),"بۇ ھېسابات Admin تىزىملىكىدە يوق.","error");
+    $("#adminLogout").hidden=true;
+    status($("#loginStatus"),"بۇ ھېسابات Admin ھېسابى ئەمەس.","error");
     return;
   }
   if(gen!==routeGen)return;
