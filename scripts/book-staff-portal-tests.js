@@ -116,7 +116,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=3/);
+  assert.match(staffHtml, /book-staff\.js\?v=4/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=26/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -145,7 +145,7 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
   assert.match(staffHtml, /book-staff\.css\?v=5/);
-  assert.match(staffHtml, /book-staff\.js\?v=3/);
+  assert.match(staffHtml, /book-staff\.js\?v=4/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -166,6 +166,50 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   const api = loadStaffApi();
   assert.doesNotMatch(api.staffVisibleCopy("Authenticator كودى"), /Authenticator/);
   assert.doesNotMatch(api.staffVisibleCopy("TOTP / AAL2"), /\bTOTP\b|\bAAL2\b/);
+  const jargon = "API|MFA|TOTP|AAL2|Authenticator";
+  const staffVisibleHtml = staffHtml.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
+  assert.doesNotMatch(staffVisibleHtml, new RegExp("\\b(" + jargon + ")\\b"));
+  ["MFA API يوق", "دەلىللەش API يوق", "Authenticator كودى", "TOTP / AAL2"].forEach((raw) => {
+    const visible = api.staffFriendlyMessage(raw);
+    assert.doesNotMatch(visible, new RegExp("\\b(" + jargon + ")\\b"));
+    assert.match(visible, /[\u0600-\u06FF]/);
+  });
+  assert.strictEqual(api.staffVisibleCopy("MFA API يوق"), "دەلىللەش مۇلازىمىتى تېپىلمىدى.");
+  assert.strictEqual(api.staffFriendlyMessage("MFA API يوق"), "دەلىللەش مۇلازىمىتى تېپىلمىدى.");
+  assert.strictEqual(api.staffFriendlyMessage("دەلىللەش API يوق"), "دەلىللەش مۇلازىمىتى تېپىلمىدى.");
+});
+
+add("staff runtime maps known English backend errors and hides unknown raw messages", () => {
+  const api = loadStaffApi();
+  const generic = api.STAFF_GENERIC_ERROR;
+  assert.strictEqual(generic, "مەشغۇلات تاماملانمىدى. سەل تۇرۇپ قايتا سىناڭ.");
+  const known = {
+    "Authentication required": "كىرىش كېرەك. قايتا كىرىڭ.",
+    "Book staff permission required": "كىتاب قوشۇش ھوقۇقى يوق.",
+    "AAL2 required": "2-باسقۇچلۇق دەلىللەش كېرەك.",
+    "Invalid book payload": "كىتاب ئۇچۇرى توغرا ئەمەس.",
+    "Unsupported book field": "بۇ مەيدان قوللىمايدۇ.",
+    "jwt expired": "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.",
+    "Auth session missing!": "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.",
+    "new row violates row-level security policy": "ھۆججەت يوللاشقا رۇخسەت يوق ياكى مەغلۇپ بولدى.",
+    "Failed to fetch": "تور ئۇلىنىشى مەغلۇپ بولدى. قايتا سىناڭ."
+  };
+  Object.keys(known).forEach((en) => {
+    assert.strictEqual(api.staffFriendlyMessage({ message: en }), known[en]);
+    assert.doesNotMatch(api.staffFriendlyMessage({ message: en }), /\b(API|MFA|TOTP|AAL2|Authenticator)\b/);
+  });
+  const unknown = api.staffFriendlyMessage({ message: "column books.secret_token does not exist" });
+  assert.strictEqual(unknown, generic);
+  assert.doesNotMatch(unknown, /secret_token|column books/);
+  const jwtLeak = api.staffFriendlyMessage({ message: "token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaa.bbb" });
+  assert.strictEqual(jwtLeak, generic);
+  assert.doesNotMatch(jwtLeak, /eyJ/);
+  const uyghur = "رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.";
+  assert.strictEqual(api.staffFriendlyMessage(uyghur), uyghur);
+  assert.strictEqual(api.staffFriendlyMessage("خەلقئارا كىتاب نومۇرى (ISBN) توغرا ئەمەس."), "خەلقئارا كىتاب نومۇرى (ISBN) توغرا ئەمەس.");
+  assert.match(staffJs, /setStatus\(status,staffFriendlyMessage\(err\),"error"\)/);
+  assert.match(staffJs, /level!=="aal2"/);
+  assert.doesNotMatch(staffJs, /CREATE TABLE|ALTER TABLE/);
 });
 
 add("staff JS never writes books directly and never uses admin_users", () => {
