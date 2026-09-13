@@ -198,6 +198,64 @@ test.describe("unified public header", () => {
     }
   });
 
+  test("1200 and 1366 keep search off logo and nav on home, dictionary, and grammar", async ({ page }) => {
+    const cases = [
+      { path: "/", width: 1200 },
+      { path: "/", width: 1366 },
+      { path: "/dictionary", width: 1200 },
+      { path: "/dictionary", width: 1366 },
+      { path: "/grammar", width: 1200 },
+      { path: "/grammar", width: 1366 }
+    ];
+    for (const { path, width } of cases) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      await expect.poll(async () => page.locator("header.kutadgu-public-header").count()).toBeGreaterThan(0);
+      const geo = await page.evaluate(() => {
+        const header = document.querySelector("header.kutadgu-public-header");
+        const logo = header.querySelector(".logo");
+        const search = header.querySelector(".kutadgu-header-search");
+        const nav = header.querySelector("nav");
+        const main = document.querySelector("main, .hero, .home-bookstore-hero, .books-container, .books-section, .page-header");
+        const hb = header.getBoundingClientRect();
+        const logoB = logo.getBoundingClientRect();
+        const searchB = search.getBoundingClientRect();
+        const navB = nav.getBoundingClientRect();
+        const mainB = main ? main.getBoundingClientRect() : null;
+        const overlap = (a, b) => !(a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1);
+        const navLinks = [...nav.querySelectorAll("a")].map((a) => ({
+          text: String(a.textContent || "").replace(/\s+/g, " ").trim(),
+          box: a.getBoundingClientRect()
+        }));
+        return {
+          overflowX: document.documentElement.scrollWidth - window.innerWidth,
+          headerH: hb.height,
+          mainTop: mainB ? mainB.top : 0,
+          headerBottom: hb.bottom,
+          searchOverlapsLogo: overlap(searchB, logoB),
+          searchOverlapsNav: overlap(searchB, navB),
+          logoOverlapsNav: overlap(logoB, navB),
+          navVisible: navB.width > 8 && navB.height > 8 && navLinks.every((item) => item.box.width > 8),
+          navLinkCount: navLinks.length,
+          searchH: searchB.height,
+          searchW: searchB.width
+        };
+      });
+      expect(geo.overflowX, `${path} ${width} overflow`).toBeLessThanOrEqual(1);
+      expect(geo.searchOverlapsLogo, `${path} ${width} search/logo`).toBe(false);
+      expect(geo.searchOverlapsNav, `${path} ${width} search/nav`).toBe(false);
+      expect(geo.logoOverlapsNav, `${path} ${width} logo/nav`).toBe(false);
+      expect(geo.navVisible, `${path} ${width} nav`).toBe(true);
+      expect(geo.navLinkCount, `${path} ${width} nav links`).toBeGreaterThanOrEqual(4);
+      expect(geo.searchH, `${path} ${width} searchH`).toBeGreaterThanOrEqual(36);
+      expect(geo.searchH, `${path} ${width} searchH max`).toBeLessThanOrEqual(48);
+      expect(geo.searchW, `${path} ${width} searchW`).toBeGreaterThanOrEqual(180);
+      expect(geo.headerH, `${path} ${width} headerH`).toBeGreaterThan(50);
+      expect(geo.headerH, `${path} ${width} headerH max`).toBeLessThanOrEqual(220);
+      expect(geo.mainTop + 1, `${path} ${width} main`).toBeGreaterThanOrEqual(geo.headerBottom);
+    }
+  });
+
   test("desktop 1366 header is one compact bar, not a tall brown column", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -246,7 +304,7 @@ test.describe("unified public header", () => {
       const limits = {
         390: { headerMax: 210, searchHMax: 48, overflowMax: 1 },
         768: { headerMax: 200, searchHMax: 48, overflowMax: 1 },
-        1366: { headerMax: 120, searchHMax: 48, overflowMax: 1 }
+        1366: { headerMax: path === "/" ? 120 : 220, searchHMax: 48, overflowMax: 1 }
       };
       for (const width of [390, 768, 1366]) {
         await page.setViewportSize({ width, height: width === 1366 ? 768 : 844 });

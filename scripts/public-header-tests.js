@@ -96,9 +96,11 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(css, /display:\s*grid !important/);
   assert.match(css, /@media \(min-width: 769px\) and \(max-width: 1199px\)/);
   assert.match(css, /grid-column:\s*1 \/ -1 !important/);
+  assert.match(css, /@media \(min-width: 1200px\)/);
+  assert.match(css, /flex-wrap:\s*wrap !important/);
   assert.doesNotMatch(css, /admin-topbar/);
   const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
-  assert.match(helperJs, /public-header\.css\?v=3/);
+  assert.match(helperJs, /public-header\.css\?v=4/);
 });
 
 test("helper does not touch admin/auth/order/sql surfaces", () => {

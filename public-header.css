@@ -344,6 +344,58 @@ header.kutadgu-public-header > #kutadguAnnounceBar {
   }
 }
 
+/* Wide desktop: keep a single compact row when logo+search+nav fit.
+   If they do not (homepage ~1200px, Dictionary/Grammar through 1366),
+   wrap search under logo+nav instead of overlapping. */
+@media (min-width: 1200px) {
+  body.has-kutadgu-public-header > header.kutadgu-public-header,
+  header.kutadgu-public-header {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    align-content: center !important;
+    column-gap: 16px;
+    row-gap: 8px;
+    min-height: 64px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  header.kutadgu-public-header > .logo {
+    order: 1;
+    flex: 0 1 auto !important;
+    max-width: min(34vw, 280px);
+  }
+
+  header.kutadgu-public-header > nav {
+    order: 2;
+    flex: 0 1 auto !important;
+    justify-self: unset;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap !important;
+  }
+
+  header.kutadgu-public-header > .kutadgu-header-search {
+    order: 3;
+    flex: 1 1 280px !important;
+    width: auto !important;
+    min-width: min(280px, 100%) !important;
+    max-width: 360px !important;
+    margin: 0 !important;
+    justify-self: unset;
+  }
+
+  header.kutadgu-public-header > #kutadguAnnounceBar {
+    order: 4;
+    flex: 1 0 100% !important;
+    grid-column: unset;
+    grid-row: unset;
+  }
+}
+
 @media (max-width: 768px) {
   body.has-kutadgu-public-header > header.kutadgu-public-header,
   header.kutadgu-public-header.is-mobile-enhanced,
