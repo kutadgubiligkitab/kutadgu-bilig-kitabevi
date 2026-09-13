@@ -19,6 +19,10 @@
 --   default; title, is_active, sales_count, and other catalog fields are
 --   not rewritten.
 --
+-- Production books columns:
+--   is_available exists and must be forced false on staff submit.
+--   Do not INSERT catalog fields that are absent in production.
+--
 -- Depends on:
 --   public.books, public.admin_users, public.is_kutadgu_admin()
 --   STAGE2B / STAGE2C books + book-covers AAL2 policies
@@ -115,11 +119,8 @@ DECLARE
   v_category text;
   v_source text;
   v_image_url text;
-  v_href text;
   v_pages integer;
   v_translator text;
-  v_language text;
-  v_publish_date text;
   v_publish_year integer;
   v_publisher text;
   v_cover_type text;
@@ -147,6 +148,28 @@ DECLARE
     'legacy_id',
     'gallery_images'
   ];
+  v_allowed text[] := ARRAY[
+    'title',
+    'author',
+    'category',
+    'price',
+    'image_url',
+    'description',
+    'source',
+    'original_price',
+    'stock',
+    'isbn',
+    'translator',
+    'publisher',
+    'publish_year',
+    'pages',
+    'cover_type',
+    'book_size',
+    'dimensions',
+    'is_color_print',
+    'interior_print_type'
+  ];
+  v_staff_path text;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Authentication required' USING ERRCODE = '28000';
@@ -163,12 +186,20 @@ BEGIN
   IF payload ?| v_forbidden THEN
     RAISE EXCEPTION 'Client may not set publication or identity fields' USING ERRCODE = '42501';
   END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_object_keys(payload) AS k(key)
+    WHERE NOT (k.key = ANY (v_allowed))
+  ) THEN
+    RAISE EXCEPTION 'Unsupported book field' USING ERRCODE = '22023';
+  END IF;
 
   v_title := btrim(COALESCE(payload->>'title', ''));
+  v_author := btrim(COALESCE(payload->>'author', ''));
   v_category := btrim(COALESCE(payload->>'category', ''));
   v_source := btrim(COALESCE(payload->>'source', ''));
-  IF v_title = '' OR v_category = '' OR v_source = '' THEN
-    RAISE EXCEPTION 'title, category and source are required' USING ERRCODE = '22023';
+  IF v_title = '' OR v_author = '' OR v_category = '' OR v_source = '' THEN
+    RAISE EXCEPTION 'title, author, category and source are required' USING ERRCODE = '22023';
   END IF;
 
   IF payload ? 'price' AND jsonb_typeof(payload->'price') = 'number' THEN
@@ -242,12 +273,9 @@ BEGIN
     v_publish_year := NULL;
   END IF;
 
-  v_author := left(btrim(COALESCE(payload->>'author', '')), 500);
+  v_author := left(v_author, 500);
   v_image_url := left(btrim(COALESCE(payload->>'image_url', '')), 2000);
-  v_href := left(btrim(COALESCE(payload->>'href', '')), 2000);
   v_translator := left(btrim(COALESCE(payload->>'translator', '')), 500);
-  v_language := left(btrim(COALESCE(payload->>'language', '')), 120);
-  v_publish_date := left(btrim(COALESCE(payload->>'publish_date', '')), 120);
   v_publisher := left(btrim(COALESCE(payload->>'publisher', '')), 500);
   v_dimensions := left(btrim(COALESCE(payload->>'dimensions', '')), 120);
   v_description := left(btrim(COALESCE(payload->>'description', '')), 20000);
@@ -256,14 +284,21 @@ BEGIN
   v_category := left(v_category, 200);
   v_source := left(v_source, 200);
 
-  IF v_image_url <> '' AND (
-    position('..' in v_image_url) > 0
-    OR (
-      v_image_url ~* 'book-covers|storage/v1/object'
-      AND position(('staff/' || v_uid::text || '/') in v_image_url) = 0
-    )
-  ) THEN
-    RAISE EXCEPTION 'image_url must stay on the submitting staff cover path' USING ERRCODE = '42501';
+  v_staff_path := 'staff/' || v_uid::text || '/';
+  IF v_image_url = '' THEN
+    NULL;
+  ELSIF position('..' in v_image_url) > 0
+     OR v_image_url ~* '^(javascript|data|vbscript|file):' THEN
+    RAISE EXCEPTION 'image_url must be empty or a book-covers staff path for this user' USING ERRCODE = '42501';
+  ELSIF v_image_url LIKE (v_staff_path || '%')
+     AND v_image_url !~* '^https?://'
+     AND v_image_url !~ '^/' THEN
+    NULL;
+  ELSIF v_image_url ~* 'storage/v1/object'
+     AND position(('/book-covers/' || v_staff_path) in v_image_url) > 0 THEN
+    NULL;
+  ELSE
+    RAISE EXCEPTION 'image_url must be empty or a book-covers staff path for this user' USING ERRCODE = '42501';
   END IF;
 
   IF payload ? 'cover_type' AND payload->>'cover_type' IS NOT NULL THEN
@@ -313,11 +348,8 @@ BEGIN
     category,
     source,
     image_url,
-    href,
     pages,
     translator,
-    language,
-    publish_date,
     publish_year,
     publisher,
     cover_type,
@@ -329,6 +361,7 @@ BEGIN
     is_color_print,
     interior_print_type,
     is_active,
+    is_available,
     is_new,
     is_featured,
     is_recommended,
@@ -345,11 +378,8 @@ BEGIN
     v_category,
     v_source,
     v_image_url,
-    v_href,
     v_pages,
     v_translator,
-    v_language,
-    v_publish_date,
     v_publish_year,
     v_publisher,
     v_cover_type,
@@ -360,6 +390,7 @@ BEGIN
     v_isbn,
     v_is_color_print,
     v_interior_print_type,
+    false,
     false,
     false,
     false,
@@ -501,7 +532,8 @@ BEGIN
 
   UPDATE public.books
      SET submission_status = 'approved',
-         is_active = true
+         is_active = true,
+         is_available = true
    WHERE id = p_book_id
      AND submission_status = 'pending';
 
@@ -536,7 +568,8 @@ BEGIN
 
   UPDATE public.books
      SET submission_status = 'rejected',
-         is_active = false
+         is_active = false,
+         is_available = false
    WHERE id = p_book_id
      AND submission_status = 'pending';
 

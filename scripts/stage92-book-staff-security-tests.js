@@ -227,30 +227,65 @@ test("staff cover INSERT is own-path only; no staff UPDATE or DELETE", () => {
   assert.strictEqual(rlsAllows(coverPolicies, { ...adminAal2, cmd: "DELETE" }), true);
 });
 
-test("submit_book_for_approval forces pending inactive and rejects client publication fields", () => {
+test("submit_book_for_approval matches production books columns and forces pending unavailable", () => {
   const fn = functionBlock(sql, "public.submit_book_for_approval");
   assert.match(fn, /auth\.uid\(\)/);
   assert.match(fn, /is_kutadgu_book_staff\(\)/);
   assert.match(fn, /auth\.jwt\(\)->>'aal'\) IS DISTINCT FROM 'aal2'/);
+  assert.match(fn, /title, author, category and source are required/);
   assert.match(fn, /'id'/);
   assert.match(fn, /'created_at'/);
   assert.match(fn, /'updated_at'/);
   assert.match(fn, /'sales_count'/);
   assert.match(fn, /'is_active'/);
+  assert.match(fn, /'is_available'/);
   assert.match(fn, /'is_recommended'/);
   assert.match(fn, /'is_new'/);
   assert.match(fn, /'is_bestseller'/);
   assert.match(fn, /'is_featured'/);
   assert.match(fn, /Client may not set publication or identity fields/);
-  assert.match(fn, /submission_status,\s*submitted_by,\s*submitted_at/);
-  assert.match(fn, /false,\s*false,\s*false,\s*false,\s*false,\s*0,\s*'pending',\s*v_uid,\s*now\(\)/);
+  assert.match(fn, /is_active,\s*is_available,\s*is_new,\s*is_featured,\s*is_recommended,\s*is_bestseller,\s*sales_count/);
+  assert.match(fn, /false,\s*false,\s*false,\s*false,\s*false,\s*false,\s*0,\s*'pending',\s*v_uid,\s*now\(\)/);
   assert.match(fn, /price must be non-negative/);
   assert.match(fn, /stock must be non-negative/);
+  assert.doesNotMatch(fn, /\bhref\b/i);
+  assert.doesNotMatch(fn, /v_language|payload->>'language'|,\s*language,/);
+  assert.doesNotMatch(fn, /publish_date/);
   assert.doesNotMatch(fn, /is_active\s*=\s*true/);
+  assert.doesNotMatch(fn, /is_available\s*=\s*true/);
   assert.doesNotMatch(fn, /is_new\s*=\s*true/);
   assert.doesNotMatch(fn, /payload->>'is_active'/);
+  assert.doesNotMatch(fn, /payload->>'is_available'/);
   assert.doesNotMatch(fn, /payload->>'sales_count'/);
   assert.doesNotMatch(fn, /payload->>'is_recommended'/);
+});
+
+test("staff image_url allows empty or own book-covers staff path only", () => {
+  const fn = functionBlock(sql, "public.submit_book_for_approval");
+  assert.match(fn, /image_url must be empty or a book-covers staff path for this user/);
+  assert.match(fn, /v_staff_path := 'staff\/' \|\| v_uid::text \|\| '\/'/);
+  assert.match(fn, /storage\/v1\/object/);
+  assert.match(fn, /javascript\|data\|vbscript\|file/);
+  const uid = "11111111-1111-1111-1111-111111111111";
+  function staffImageAllowed(url) {
+    if (!url) return true;
+    if (url.includes("..") || /^(javascript|data|vbscript|file):/i.test(url)) return false;
+    const staffPath = "staff/" + uid + "/";
+    if (url.startsWith(staffPath) && !/^https?:\/\//i.test(url) && !url.startsWith("/")) return true;
+    if (/storage\/v1\/object/i.test(url) && url.includes("/book-covers/" + staffPath)) return true;
+    return false;
+  }
+  assert.strictEqual(staffImageAllowed(""), true);
+  assert.strictEqual(staffImageAllowed("staff/" + uid + "/cover.webp"), true);
+  assert.strictEqual(
+    staffImageAllowed("https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/staff/" + uid + "/cover.webp"),
+    true
+  );
+  assert.strictEqual(staffImageAllowed("https://cdn.example/cover.webp"), false);
+  assert.strictEqual(staffImageAllowed("https://evil.example/staff/" + uid + "/cover.webp"), false);
+  assert.strictEqual(staffImageAllowed("/assets/store/shop-exterior.webp"), false);
+  assert.strictEqual(staffImageAllowed("staff/other-user/cover.webp"), false);
+  assert.strictEqual(staffImageAllowed("javascript:alert(1)"), false);
 });
 
 test("existing books remain approved via column default without catalog rewrite", () => {
@@ -275,10 +310,12 @@ test("Admin staff management and approval RPCs require Admin plus AAL2", () => {
   const approve = functionBlock(sql, "public.approve_staff_book_submission");
   assert.match(approve, /submission_status = 'approved'/);
   assert.match(approve, /is_active = true/);
+  assert.match(approve, /is_available = true/);
   assert.match(approve, /submission_status = 'pending'/);
   const reject = functionBlock(sql, "public.reject_staff_book_submission");
   assert.match(reject, /submission_status = 'rejected'/);
   assert.match(reject, /is_active = false/);
+  assert.match(reject, /is_available = false/);
   assert.match(reject, /submission_status = 'pending'/);
 });
 
