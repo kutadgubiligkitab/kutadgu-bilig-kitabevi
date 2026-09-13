@@ -212,7 +212,7 @@ test("account.html no longer pins stale auth assets", () => {
   const accountPins = account.match(/account\.js\?v=\d+/g) || [];
   assert.deepStrictEqual(configPins, ["supabase-config.js?v=21"]);
   assert.deepStrictEqual(memberPins, ["member.js?v=26"]);
-  assert.deepStrictEqual(accountPins, ["account.js?v=5"]);
+  assert.deepStrictEqual(accountPins, ["account.js?v=6"]);
   assert.match(member, /provenMemberSession/);
   assert.match(member, /recoverProvenMemberSession/);
   assert.match(member, /refreshSession/);

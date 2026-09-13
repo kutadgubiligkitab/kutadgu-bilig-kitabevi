@@ -70,6 +70,7 @@ jobs.push(test("F private URLs never emitted", () => {
     { loc: "https://www.kutadgubilik.com/account.html" },
     { loc: "https://www.kutadgubilik.com/favorites.html" },
     { loc: "https://www.kutadgubilik.com/my-books.html" },
+    { loc: "https://www.kutadgubilik.com/book-staff.html" },
     { loc: "https://www.kutadgubilik.com/book/1" }
   ]);
   assert.ok(!xml.includes("admin.html"));
@@ -77,6 +78,7 @@ jobs.push(test("F private URLs never emitted", () => {
   assert.ok(!xml.includes("account.html"));
   assert.ok(!xml.includes("favorites.html"));
   assert.ok(!xml.includes("my-books.html"));
+  assert.ok(!xml.includes("book-staff.html"));
   assert.ok(xml.includes("/book/1"));
 }));
 
@@ -373,7 +375,8 @@ jobs.push(test("G robots.txt keeps sitemap URL and does not Disallow noindex HTM
     "reset-password.html",
     "cart.html",
     "favorites.html",
-    "my-books.html"
+    "my-books.html",
+    "book-staff.html"
   ];
   assert.ok(robots.includes("User-agent: *"));
   assert.ok(robots.includes("Allow: /"));

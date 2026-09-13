@@ -23,7 +23,7 @@
 
   function isAdminSurface() {
     var n = pageName();
-    return n === "admin.html" || n === "admin-quality-preview.html";
+    return n === "admin.html" || n === "admin-quality-preview.html" || n === "book-staff.html";
   }
 
   function isAuthRecoverySurface() {

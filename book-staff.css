@@ -1,0 +1,26 @@
+@font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.woff2") format("woff2"),url("UKIJCJK.ttf") format("truetype");font-display:swap}
+body[data-book-staff-page="true"]{margin:0;background:var(--cream,#f6f0e5);color:var(--text,#44352d);font-family:"UKIJ CJK",Arial,sans-serif}
+body[data-book-staff-page="true"] .member-standalone-floating,body[data-book-staff-page="true"] .shop-floating{display:none!important}
+.staff-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px max(4%,18px);background:#4b3327;color:#fff}
+.staff-top-meta{display:grid;gap:2px;font-size:14px}.staff-top-meta strong{font-size:16px}
+.staff-top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.staff-top-actions .account-secondary,.staff-top-actions .account-home{min-height:44px}
+.staff-main{width:min(94%,820px);margin:auto;padding:32px 0 80px}
+.staff-links{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.staff-links .account-inline-link,.staff-links a{min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;text-decoration:none}
+.staff-help,.staff-mfa p{color:#806f62;font-size:13px}
+.staff-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.staff-toolbar button{min-height:44px}
+.staff-mfa-enroll:not([hidden]){display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
+.staff-mfa-enroll img{width:min(180px,70vw);background:#fff;border:1px solid #e8dccb;border-radius:12px;padding:8px}
+.staff-mfa-enroll code{display:block;direction:ltr;text-align:left;word-break:break-all;margin:8px 0;padding:8px;background:#f6f0e5;border-radius:8px}
+.staff-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.staff-form h1,.staff-help,.staff-wide,.staff-check{grid-column:1/-1}
+.staff-form select,.staff-form input[type="file"]{width:100%;min-height:44px;border:1px solid #d9c9b5;border-radius:10px;background:#fff;padding:10px 12px}
+.staff-check{display:flex;align-items:center;gap:10px;min-height:44px}
+.staff-check input{width:22px;height:22px}
+.staff-success p{margin:8px 0}
+@media(max-width:700px){
+  .staff-form{grid-template-columns:1fr}
+  .staff-topbar{align-items:flex-start}
+}

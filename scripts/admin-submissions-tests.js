@@ -153,9 +153,14 @@ test("this PR does not add SQL or change public storefront files", () => {
   const sql = files.filter((file) => /\.sql$/i.test(file));
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
-    /^(index\.html|shop\.js|shop\.css|public-header\.(js|css)|catalog\.js)$/.test(file)
+    /^(index\.html|shop\.js|shop\.css|public-header\.css|catalog\.js)$/.test(file)
   );
   assert.deepStrictEqual(storefront, [], storefront.join(", "));
+  if (files.includes("public-header.js")) {
+    const header = read("public-header.js");
+    assert.match(header, /"book-staff\.html": true/);
+    assert.doesNotMatch(header, /is_kutadgu_admin|admin_users/);
+  }
   assert.doesNotMatch(adminJs, /submit_book_for_approval/);
   assert.doesNotMatch(adminHtml, /is_kutadgu_book_staff/);
 });

@@ -163,7 +163,7 @@ window.KUTADGU_CONTACT_CONFIG = {
 (function kutadguLoadMaintenanceGuard(){
   try{
     var file=(location.pathname.split("/").pop()||"").toLowerCase();
-    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html")return;
+    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html"||file==="book-staff.html")return;
     document.documentElement.classList.add("kutadgu-maint-pending");
     if(!document.getElementById("kutadgu-maintenance-boot-style")){
       var css=document.createElement("style");
@@ -183,7 +183,7 @@ window.KUTADGU_CONTACT_CONFIG = {
 (function kutadguLoadAnnouncementBar(){
   try{
     var file=(location.pathname.split("/").pop()||"").toLowerCase();
-    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html")return;
+    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html"||file==="book-staff.html")return;
     if(document.querySelector('script[data-kutadgu-announcements="1"]'))return;
     var s=document.createElement("script");
     s.src="/kutadgu-announcements.js?v=6";
