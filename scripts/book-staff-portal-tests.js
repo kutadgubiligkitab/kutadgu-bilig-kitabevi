@@ -132,6 +132,25 @@ add("staff page is private, separate from admin, and not in public chrome", () =
   assert.doesNotMatch(read("sitemap-pages.xml"), /book-staff/);
 });
 
+add("Book Staff form uses Uyghur dropdown labels with unchanged backend values", () => {
+  assert.match(staffHtml, /book-staff\.css\?v=3/);
+  assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
+  assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
+  assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
+  assert.match(staffHtml, /<option value="A4">A4<\/option>/);
+  assert.match(staffHtml, /<option value="A5">A5<\/option>/);
+  assert.match(staffHtml, /<option value="B5">B5<\/option>/);
+  assert.match(staffHtml, /<option value="color">رەڭلىك<\/option>/);
+  assert.match(staffHtml, /<option value="bw">قارا-ئاق<\/option>/);
+  const css = read("book-staff.css");
+  assert.match(css, /gap:20px/);
+  assert.match(css, /min-height:48px/);
+  assert.match(css, /\.staff-form label>span\{[\s\S]*line-height:1\.7/);
+  assert.match(css, /textarea\{[\s\S]*line-height:1\.8/);
+  assert.match(css, /@media\(max-width:700px\)/);
+  assert.match(staffHtml, /book-staff\.js\?v=2/);
+});
+
 add("staff JS never writes books directly and never uses admin_users", () => {
   assert.doesNotMatch(staffJs, /\.from\("books"\)\.(insert|update|upsert|delete)/);
   assert.doesNotMatch(staffJs, /admin_users/);
