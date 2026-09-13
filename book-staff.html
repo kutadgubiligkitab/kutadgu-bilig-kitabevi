@@ -8,7 +8,7 @@
   <meta name="robots" content="noindex, nofollow">
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="account.css?v=6">
-  <link rel="stylesheet" href="book-staff.css?v=2">
+  <link rel="stylesheet" href="book-staff.css?v=5">
 </head>
 <body data-book-staff-page="true">
   <header class="staff-topbar">
@@ -51,9 +51,9 @@
     </section>
 
     <section id="mfaGatePanel" class="account-card staff-mfa" hidden>
-      <h1>Authenticator كودى</h1>
-      <p>كىتاب يوللاش ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك.</p>
-      <div id="mfaGateStatus" class="account-status">Authenticator دىكى 6 خانىلىق كودنى كىرگۈزۈڭ.</div>
+      <h1>دەلىللەش ئەپى كودى</h1>
+      <p>كىتاب يوللاش ئۈچۈن 2-باسقۇچلۇق دەلىللەش كېرەك.</p>
+      <div id="mfaGateStatus" class="account-status">دەلىللەش ئەپىدىكى 6 خانىلىق كودنى كىرگۈزۈڭ.</div>
       <form id="mfaGateForm" class="account-form">
         <label><span>6 خانىلىق كود</span><input id="mfaGateOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" required></label>
         <button class="account-primary" id="mfaGateSubmit" type="submit">جەزملەش</button>
@@ -62,11 +62,11 @@
     </section>
 
     <section id="mfaEnrollPanelWrap" class="account-card staff-mfa" hidden>
-      <h1>Authenticator تەڭشەش</h1>
-      <p>بۇ ھېسابقا تېخى تەستىقلانغان TOTP ئۇلانمىغان. كىتاب يوللاشتىن بۇرۇن Authenticator تەڭشەڭ.</p>
-      <div id="mfaStatus" class="account-status">تەڭشەلمىگەن — Authenticator تېخى ئۇلانمىغان.</div>
+      <h1>2-باسقۇچلۇق دەلىللەشنى تەڭشەش</h1>
+      <p>بۇ ھېسابقا تېخى دەلىللەش ئەپى ئۇلانمىغان. كىتاب يوللاشتىن بۇرۇن 2-باسقۇچلۇق دەلىللەشنى تەڭشەڭ.</p>
+      <div id="mfaStatus" class="account-status">تەڭشەلمىگەن — دەلىللەش ئەپى تېخى ئۇلانمىغان.</div>
       <div class="staff-toolbar">
-        <button class="account-primary" id="mfaSetupBtn" type="button">Authenticator تەڭشەش</button>
+        <button class="account-primary" id="mfaSetupBtn" type="button">2-باسقۇچلۇق دەلىللەشنى تەڭشەش</button>
         <button class="account-secondary" id="mfaCleanupBtn" type="button" hidden>قالدۇق تەڭشەكنى تازىلاش</button>
       </div>
       <div id="mfaRemoveConfirm" hidden></div>
@@ -74,9 +74,9 @@
       <button id="mfaRemoveConfirmBtn" type="button" hidden></button>
       <button id="mfaRemoveCancelBtn" type="button" hidden></button>
       <div id="mfaEnrollPanel" class="staff-mfa-enroll" hidden>
-        <img id="mfaQr" alt="Authenticator QR" width="180" height="180" hidden>
+        <img id="mfaQr" alt="دەلىللەش QR كودى" width="180" height="180" hidden>
         <div>
-          <p>ئەپتە قولدا كىرگۈزۈش كودى پەقەت بۇ ئېكراندا. ساقلانمايدۇ.</p>
+          <p>دەلىللەش ئەپىگە قولدا كىرگۈزۈش كودى پەقەت بۇ ئېكراندا كۆرۈنىدۇ. ساقلانمايدۇ.</p>
           <code id="mfaSecret" dir="ltr"></code>
           <label><span>6 خانىلىق كود</span><input id="mfaOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr"></label>
           <div class="staff-toolbar">
@@ -113,7 +113,7 @@
         <label><span>باھا (₺) *</span><input id="staffPrice" dir="ltr" type="number" min="0" step="0.01" required></label>
         <label><span>ئەسلى باھا (₺)</span><input id="staffOriginalPrice" dir="ltr" type="number" min="0" step="0.01"></label>
         <label><span>ئامبار سانى</span><input id="staffStock" dir="ltr" type="number" min="0" step="1"></label>
-        <label><span>ISBN</span><input id="staffIsbn" dir="ltr" maxlength="32"></label>
+        <label><span>خەلقئارا كىتاب نومۇرى (ISBN)</span><input id="staffIsbn" dir="ltr" maxlength="32"></label>
         <label><span>تەرجىمان</span><input id="staffTranslator" dir="auto" maxlength="500"></label>
         <label><span>نەشرىيات</span><input id="staffPublisher" dir="auto" maxlength="500"></label>
         <label><span>نەشر يىلى</span><input id="staffPublishYear" dir="ltr" type="number" min="1000" max="2100" step="1"></label>
@@ -121,9 +121,9 @@
         <label><span>مۇقاۋا تۈرى</span>
           <select id="staffCoverType">
             <option value="">—</option>
-            <option value="hardcover">hardcover</option>
-            <option value="paperback">paperback</option>
-            <option value="other">other</option>
+            <option value="hardcover">قاتتىق مۇقاۋا</option>
+            <option value="paperback">يۇمشاق مۇقاۋا</option>
+            <option value="other">باشقا</option>
           </select>
         </label>
         <label><span>كىتاب ئۆلچىمى</span>
@@ -132,7 +132,7 @@
             <option value="A4">A4</option>
             <option value="A5">A5</option>
             <option value="B5">B5</option>
-            <option value="other">other</option>
+            <option value="other">باشقا</option>
           </select>
         </label>
         <label><span>ئۆلچەم</span><input id="staffDimensions" dir="ltr" maxlength="120"></label>
@@ -140,12 +140,19 @@
         <label><span>ئىچكى بېسىش تىپى</span>
           <select id="staffInteriorPrint">
             <option value="">—</option>
-            <option value="color">color</option>
-            <option value="bw">bw</option>
+            <option value="color">رەڭلىك</option>
+            <option value="bw">قارا-ئاق</option>
           </select>
         </label>
         <label class="staff-wide"><span>چۈشەندۈرۈش</span><textarea id="staffDescription" dir="auto" rows="5" maxlength="20000"></textarea></label>
-        <label class="staff-wide"><span>مۇقاۋا رەسىمى</span><input id="staffCoverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></label>
+        <div class="staff-wide staff-file">
+          <span class="staff-file-heading">مۇقاۋا رەسىمى</span>
+          <div class="staff-file-row">
+            <input id="staffCoverFile" class="staff-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+            <button class="account-secondary" id="staffCoverPickBtn" type="button">مۇقاۋا رەسىمى تاللاش</button>
+            <span id="staffCoverFileName" class="staff-file-name">رەسىم تاللانمىدى</span>
+          </div>
+        </div>
         <button class="account-primary staff-wide" id="staffSubmitBtn" type="submit">تەستىققا يوللاش</button>
       </form>
     </section>
@@ -155,6 +162,6 @@
   <script defer src="app-config.js?v=4"></script>
   <script defer src="member.js?v=26"></script>
   <script defer src="admin-mfa.js?v=3"></script>
-  <script defer src="book-staff.js?v=2"></script>
+  <script defer src="book-staff.js?v=4"></script>
 </body>
 </html>

@@ -230,9 +230,113 @@ function resetStaffForm(){
   if(form)form.reset();
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
+  setCoverFileStatus(null);
   const success=$("#staffSuccess");if(success)success.hidden=true;
   const bookForm=$("#staffBookForm");if(bookForm)bookForm.hidden=false;
   setStatus($("#staffSubmitStatus"),"", "");
+}
+function coverFileLabel(file){
+  const raw=String(file&&file.name||"").replace(/\\/g,"/").split("/").pop();
+  return raw.replace(/[<>\u0000-\u001f]/g,"");
+}
+function setCoverFileStatus(file){
+  const el=$("#staffCoverFileName");
+  if(!el)return;
+  el.textContent=file?coverFileLabel(file):"رەسىم تاللانمىدى";
+}
+function bindCoverPicker(){
+  const input=$("#staffCoverFile");
+  const btn=$("#staffCoverPickBtn");
+  if(btn&&input)btn.addEventListener("click",()=>input.click());
+  if(input)input.addEventListener("change",()=>setCoverFileStatus(input.files&&input.files[0]));
+}
+const STAFF_GENERIC_ERROR="مەشغۇلات تاماملانمىدى. سەل تۇرۇپ قايتا سىناڭ.";
+const STAFF_KNOWN_ERRORS=[
+  {re:/MFA\s+API\s+يوق/i,msg:"دەلىللەش مۇلازىمىتى تېپىلمىدى."},
+  {re:/Authentication required/i,msg:"كىرىش كېرەك. قايتا كىرىڭ."},
+  {re:/Book staff permission required/i,msg:"كىتاب قوشۇش ھوقۇقى يوق."},
+  {re:/Admin permission required/i,msg:"بۇ مەشغۇلاتقا ھوقۇق يەتمىدى."},
+  {re:/AAL2 required/i,msg:"2-باسقۇچلۇق دەلىللەش كېرەك."},
+  {re:/Invalid book payload/i,msg:"كىتاب ئۇچۇرى توغرا ئەمەس."},
+  {re:/Unsupported book field/i,msg:"بۇ مەيدان قوللىمايدۇ."},
+  {re:/Client may not set publication or identity fields/i,msg:"بۇ مەيدانلارنى ئۆزگەرتكىلى بولمايدۇ."},
+  {re:/title,\s*author,\s*category and source are required/i,msg:"ماۋزۇ، ئاپتور، تۈر ۋە مەنبە كېرەك."},
+  {re:/price is required/i,msg:"باھا كېرەك ۋە مەنپىي بولمىسۇن."},
+  {re:/price must be non-negative/i,msg:"باھا مەنپىي بولمىسۇن."},
+  {re:/original_price must be/i,msg:"ئەسلى باھا توغرا ئەمەس."},
+  {re:/stock must be/i,msg:"ئامبار سانى توغرا ئەمەس."},
+  {re:/pages must be/i,msg:"بەت سانى توغرا ئەمەس."},
+  {re:/publish_year/i,msg:"نەشر يىلى توغرا ئەمەس."},
+  {re:/image_url must be empty/i,msg:"مۇقاۋا ئادرېسى توغرا ئەمەس."},
+  {re:/invalid cover_type/i,msg:"مۇقاۋا تىپى توغرا ئەمەس."},
+  {re:/invalid book_size/i,msg:"كىتاب چوڭلۇقى توغرا ئەمەس."},
+  {re:/invalid interior_print_type/i,msg:"ئىچكى بېسىش تىپى توغرا ئەمەس."},
+  {re:/jwt expired|invalid jwt|bad[_\s-]?jwt|session expired|refresh[_\s-]?token|Auth session missing|invalid[_\s-]?session|not authenticated/i,msg:"كىرىش ۋاقتى توشتى. قايتا كىرىڭ."},
+  {re:/row-level security|\bRLS\b|permission denied|not allowed|not authorized|unauthorized|new row violates|storage.*policy|Bucket not found|object not found|mime type|payload too large|resource already exists|duplicate/i,msg:"ھۆججەت يوللاشقا رۇخسەت يوق ياكى مەغلۇپ بولدى."},
+  {re:/failed to fetch|networkerror|network error|load failed|fetch failed|ERR_NETWORK|ECONNRESET|\btimeout\b|\boffline\b/i,msg:"تور ئۇلىنىشى مەغلۇپ بولدى. قايتا سىناڭ."}
+];
+function extractErrorText(err){
+  if(err==null||err==="")return "";
+  if(typeof err==="string")return err;
+  if(typeof err.message==="string"&&err.message)return err.message;
+  if(typeof err.error_description==="string"&&err.error_description)return err.error_description;
+  try{return String(err)}catch(e){return ""}
+}
+function looksLikeSecret(text){
+  return /eyJ[A-Za-z0-9_-]{20,}|\bservice_role\b|\bsbp_|\bsb_secret|Bearer\s+[A-Za-z0-9._-]+|-----BEGIN/i.test(String(text||""));
+}
+function staffVisibleCopy(text){
+  let next=String(text||"")
+    .replace(/MFA\s+API\s+يوق/gi,"دەلىللەش مۇلازىمىتى تېپىلمىدى.")
+    .replace(/Authenticator/g,"دەلىللەش ئەپى")
+    .replace(/\bTOTP\b/g,"دەلىللەش ئەپى")
+    .replace(/\bAAL2\b/g,"2-باسقۇچلۇق دەلىللەش")
+    .replace(/\bMFA\b/g,"دەلىللەش")
+    .replace(/Admin قۇلۇپلانمايدۇ/g,"ھېساب قۇلۇپلانمايدۇ")
+    .replace(/Admin نورمال ئىشلەيدۇ/g,"كىتاب يوللاش داۋاملىشىدۇ")
+    .replace(/Admin كىرىش ئۆزگەرمىدى/g,"كىرىش ئۆزگەرمىدى");
+  if(/\bAPI\b/i.test(next))return "دەلىللەش مۇلازىمىتى تېپىلمىدى.";
+  return next;
+}
+function looksSafeStaffMessage(text){
+  const t=String(text||"").trim();
+  if(!t||looksLikeSecret(t))return false;
+  if(/\b(API|MFA|TOTP|AAL2|Authenticator|JWT|RLS|PGRST|postgres|supabase)\b/i.test(t))return false;
+  const stripped=t.replace(/\b(JPEG|PNG|WebP|GIF|ISBN|QR|MB|A4|A5|B5)\b/gi,"").replace(/[0-9./()\-–—,،:：]+/g,"").replace(/\s+/g,"");
+  if(/[A-Za-z]/.test(stripped))return false;
+  return /[\u0600-\u06FF]/.test(t);
+}
+function staffFriendlyMessage(err){
+  const raw=extractErrorText(err).replace(/[<>\u0000-\u001f]/g,"");
+  if(!raw||looksLikeSecret(raw))return STAFF_GENERIC_ERROR;
+  for(let i=0;i<STAFF_KNOWN_ERRORS.length;i++){
+    if(STAFF_KNOWN_ERRORS[i].re.test(raw))return STAFF_KNOWN_ERRORS[i].msg;
+  }
+  const visible=staffVisibleCopy(raw);
+  if(looksSafeStaffMessage(visible))return visible;
+  return STAFF_GENERIC_ERROR;
+}
+function localizeStaffMfaCopy(){
+  ["mfaGateStatus","mfaStatus"].forEach(id=>{
+    const el=$("#"+id);
+    if(!el||!el.textContent)return;
+    const next=staffFriendlyMessage(el.textContent);
+    if(next!==el.textContent)el.textContent=next;
+  });
+  const qr=$("#mfaQr");
+  if(qr&&qr.getAttribute){
+    const alt=staffVisibleCopy(qr.getAttribute("alt")||"");
+    if(alt)qr.setAttribute("alt",alt);
+  }
+}
+let mfaCopyObserver=null;
+function observeStaffMfaCopy(){
+  if(mfaCopyObserver||typeof MutationObserver!=="function")return;
+  mfaCopyObserver=new MutationObserver(()=>localizeStaffMfaCopy());
+  ["mfaGateStatus","mfaStatus"].forEach(id=>{
+    const el=$("#"+id);
+    if(el)mfaCopyObserver.observe(el,{childList:true,characterData:true,subtree:true});
+  });
 }
 function clearStaffPrivateUi(){
   staffUid="";
@@ -247,10 +351,10 @@ async function requireAal2(client){
     const ready=await Mfa.ensurePrimarySessionReady(()=>client);
     if(!ready||!ready.ok)throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
   }
-  if(typeof Mfa.inspectAccess!=="function")throw new Error("MFA تەكشۈرۈلمىدى.");
+  if(typeof Mfa.inspectAccess!=="function")throw new Error("دەلىللەش تەكشۈرۈلمىدى.");
   const inspect=await Mfa.inspectAccess(()=>client);
   const level=Mfa.normalizeLevel?Mfa.normalizeLevel(inspect&&inspect.assurance&&inspect.assurance.currentLevel):"";
-  if(level!=="aal2")throw new Error("AAL2 required");
+  if(level!=="aal2")throw new Error("2-باسقۇچلۇق دەلىللەش كېرەك.");
   return inspect;
 }
 async function uploadStaffCover(client,uid,file){
@@ -303,13 +407,16 @@ function bindMfa(client){
     if(verifyBtn){
       verifyBtn.onclick=async function(){
         if(mfaAttachCtl&&mfaAttachCtl.verifyOtp)await mfaAttachCtl.verifyOtp();
+        localizeStaffMfaCopy();
         await afterStaffMfaVerified();
       };
     }
+    observeStaffMfaCopy();
   }
 }
 async function afterStaffMfaVerified(){
   await routeStaffSession();
+  localizeStaffMfaCopy();
 }
 async function routeStaffSession(){
   const token=beginStaffRoute();
@@ -351,10 +458,12 @@ async function routeStaffSession(){
   }
   if(surface==="gate"){
     showPanel("mfaGatePanel",token);
+    localizeStaffMfaCopy();
     return;
   }
   showPanel("mfaEnrollPanelWrap",token);
   if(mfaAttachCtl&&mfaAttachCtl.refresh)await mfaAttachCtl.refresh();
+  localizeStaffMfaCopy();
 }
 async function logoutStaff(){
   invalidateStaffRoutes();
@@ -391,7 +500,7 @@ async function submitBook(e){
     $("#staffNewBookId").textContent=String(newId||"");
     const cover=$("#staffCoverFile");if(cover)cover.value="";
   }catch(err){
-    setStatus(status,String(err&&err.message||err),"error");
+    setStatus(status,staffFriendlyMessage(err),"error");
   }finally{
     btn.disabled=false;
   }
@@ -415,11 +524,16 @@ window.KutadguBookStaff={
   routeStaffSession,
   logoutStaff,
   afterStaffMfaVerified,
+  staffVisibleCopy,
+  staffFriendlyMessage,
+  STAFF_GENERIC_ERROR,
+  setCoverFileStatus,
   lastStaffPanel:function(){return lastStaffPanel}
 };
 
 async function init(){
   fillSourceOptions();
+  bindCoverPicker();
   document.addEventListener("kutadgu-member-change",()=>{routeStaffSession()});
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);
