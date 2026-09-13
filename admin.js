@@ -1352,7 +1352,7 @@ function dateText(value){
   const two=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
-const PENDING_SUBMISSION_SELECT="id,title,author,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,submitted_by,submitted_at,submission_status";
+const PENDING_SUBMISSION_SELECT="id,title,author,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,gallery_images,submitted_by,submitted_at,submission_status";
 let pendingSubmissions=[];
 let pendingSubmissionBusy=false;
 function pendingSubmissionCountLabel(count){
@@ -1379,6 +1379,23 @@ function formatStaffSubmissionError(error){
   }
   return "مەشغۇلات مەغلۇپ بولدى: "+(error&&error.message||msg||"نامەلۇم خاتالىق");
 }
+function pendingGalleryUrls(b){
+  const raw=b&&b.gallery_images;
+  let list=[];
+  if(Array.isArray(raw))list=raw;
+  else if(typeof raw==="string"){
+    try{
+      const parsed=JSON.parse(raw);
+      if(Array.isArray(parsed))list=parsed;
+    }catch(e){list=[]}
+  }
+  const out=[];
+  list.forEach(item=>{
+    const url=String(item==null?"":item).trim();
+    if(url&&Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(url))out.push(url);
+  });
+  return out.slice(0,4);
+}
 function renderPendingSubmissions(){
   const host=$("#pendingSubmissionList");
   const countEl=$("#pendingSubmissionCount");
@@ -1389,7 +1406,7 @@ function renderPendingSubmissions(){
     return;
   }
   host.innerHTML=pendingSubmissions.map(b=>{
-    const cover=Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?`<img src="${esc(b.image_url)}" alt="${esc(b.title||"")}">`:"<div>📕</div>";
+    const cover=Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?`<img class="admin-submission-cover" src="${esc(b.image_url)}" alt="${esc(b.title||"")}">`:`<div class="admin-submission-cover-slot">📕</div>`;
     const extra=[
       b.publisher||"",
       b.publish_year||"",
@@ -1399,6 +1416,8 @@ function renderPendingSubmissions(){
       b.book_size||""
     ].filter(Boolean).join(" · ");
     const orig=b.original_price!=null&&b.original_price!==""?` · ئەسلى باھا ${money(b.original_price)}`:"";
+    const gallery=pendingGalleryUrls(b).map((url,index)=>`<figure class="admin-submission-gallery-item"><span>${index+1}</span><img src="${esc(url)}" alt=""></figure>`).join("");
+    const galleryBlock=gallery?`<div class="admin-submission-gallery">${gallery}</div>`:"";
     return `<article class="admin-submission-row" data-pending-id="${esc(b.id)}">
       ${cover}
       <div>
@@ -1407,6 +1426,7 @@ function renderPendingSubmissions(){
         <div class="admin-submission-meta">${esc(b.author||"—")} · ${esc(b.category||"")} · ${esc(b.source||"")}</div>
         <div class="admin-submission-meta">باھا ${money(b.price)}${orig} · ئامبار ${b.stock==null?"—":esc(b.stock)} · ID ${esc(b.id)}</div>
         ${extra?`<div class="admin-submission-meta">${esc(extra)}</div>`:""}
+        ${galleryBlock}
         <div class="admin-submission-meta">يوللىغۇچى ${esc(b.submitted_by||"—")} · ${esc(dateText(b.submitted_at))}</div>
         <div class="admin-submission-actions">
           <button type="button" class="admin-primary" data-approve-submission="${esc(b.id)}">تەستىقلاش</button>

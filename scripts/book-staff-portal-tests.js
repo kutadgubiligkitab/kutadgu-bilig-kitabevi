@@ -45,7 +45,8 @@ function loadStaffHarness() {
         onclick: null,
         files: [],
         addEventListener() {},
-        reset() {}
+        reset() {},
+        querySelectorAll() { return []; }
       };
     }
     return panels[id];
@@ -116,7 +117,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=4/);
+  assert.match(staffHtml, /book-staff\.js\?v=6/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=26/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -144,8 +145,8 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFileName"[^>]*>رەسىم تاللانمىدى/);
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
-  assert.match(staffHtml, /book-staff\.css\?v=5/);
-  assert.match(staffHtml, /book-staff\.js\?v=4/);
+  assert.match(staffHtml, /book-staff\.css\?v=6/);
+  assert.match(staffHtml, /book-staff\.js\?v=6/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -154,6 +155,12 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /<option value="B5">B5<\/option>/);
   assert.match(staffHtml, /<option value="color">رەڭلىك<\/option>/);
   assert.match(staffHtml, /<option value="bw">قارا-ئاق<\/option>/);
+  assert.match(staffHtml, /مۇندەرىجە \/ ئىچكى بەت رەسىملىرى/);
+  assert.match(staffHtml, /ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ/);
+  assert.match(staffHtml, /id="staffGalleryPickBtn"[^>]*>رەسىملەرنى تاللاش/);
+  assert.match(staffHtml, /id="staffGalleryFileName"[^>]*>رەسىم تاللانمىدى/);
+  assert.match(staffHtml, /id="staffGalleryFiles"[^>]*type="file"/);
+  assert.match(staffHtml, /id="staffGalleryFiles"[^>]*multiple/);
   const css = read("book-staff.css");
   assert.match(css, /gap:20px/);
   assert.match(css, /min-height:48px/);
@@ -263,6 +270,77 @@ add("payload whitelist matches Stage92 and excludes protected fields", () => {
   assert.throws(() => api.buildPayload({ title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1", cover_type: "leather" }));
 });
 
+add("staff gallery is local-only until submit, max 4, and URLs stay on own gallery prefix", () => {
+  const api = loadStaffApi();
+  const uid = "11111111-1111-4111-8111-111111111111";
+  const other = "22222222-2222-4222-8222-222222222222";
+  const origin = "https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/";
+  assert.strictEqual(api.MAX_STAFF_GALLERY, 4);
+  const jpeg = { name: "toc.jpg", type: "image/jpeg", size: 12 };
+  assert.strictEqual(api.addGalleryFiles([jpeg, jpeg, jpeg, jpeg]).ok, true);
+  assert.strictEqual(api.galleryDraft().length, 4);
+  const extra = api.addGalleryFiles([jpeg]);
+  assert.strictEqual(extra.ok, false);
+  assert.match(String(extra.error && extra.error.message), /ئەڭ كۆپ 4/);
+  assert.strictEqual(api.galleryDraft().length, 4);
+  api.removeGalleryItem(0);
+  assert.strictEqual(api.galleryDraft().length, 3);
+  assert.match(staffJs, /addGalleryFiles\(input\.files\)/);
+  assert.match(staffJs, /uploadStaffGallery\(client,String\(user\.id\),galleryDraft/);
+  assert.match(staffJs, /upsert:false/);
+  assert.match(staffJs, /galleryFileExtension/);
+  assert.match(staffJs, /if\(fromApi\)publicUrl=assertStaffGalleryPublicUrl\(uid,fromApi\)/);
+  assert.doesNotMatch(staffJs, /urls\.push\(assertStaffGalleryPublicUrl\(uid,canonical\)\)/);
+  assert.strictEqual(api.galleryFileExtension({ name: "page.exe", type: "image/jpeg", size: 12 }), "jpg");
+  const jpegPath = api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/jpeg", size: 12 }, 0);
+  assert.match(jpegPath, /^staff\/11111111-1111-4111-8111-111111111111\/gallery\/\d{8}-[a-z0-9]+-0\.jpg$/);
+  assert.doesNotMatch(jpegPath, /\.exe$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/png", size: 12 }, 1), /\.png$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/webp", size: 12 }, 2), /\.webp$/);
+  assert.match(api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/gif", size: 12 }, 3), /\.gif$/);
+  assert.throws(() => api.galleryFileExtension({ name: "page.jpg", type: "image/svg+xml", size: 12 }));
+  assert.throws(() => api.staffGalleryObjectPath(uid, { name: "page.PNG" }, 0));
+  const path = api.staffGalleryObjectPath(uid, { name: "page.PNG", type: "image/png", size: 12 }, 0);
+  assert.match(path, /^staff\/11111111-1111-4111-8111-111111111111\/gallery\/\d{8}-[a-z0-9]+-0\.png$/);
+  const url = api.staffGalleryPublicUrl(uid, path);
+  assert.strictEqual(api.assertStaffGalleryPublicUrl(uid, url), url);
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.exe"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.html"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/page.svg"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/noext"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(other, url));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/cover.jpg"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, "https://evil.example/storage/v1/object/public/book-covers/staff/" + uid + "/gallery/a.jpg"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, url + "?x=1"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, url + "#x"));
+  assert.throws(() => api.assertStaffGalleryPublicUrl(uid, origin + "staff/" + uid + "/gallery/../a.jpg"));
+  const ordered = [
+    origin + "staff/" + uid + "/gallery/a.jpg",
+    origin + "staff/" + uid + "/gallery/b.jpg"
+  ];
+  const payload = api.buildPayload({
+    title: "Test Book",
+    author: "Author",
+    source: "dini.html",
+    category: "دىنىي كىتابلار",
+    price: "1",
+    staff_uid: uid,
+    gallery_images: ordered
+  });
+  assert.deepStrictEqual(payload.gallery_images, ordered);
+  assert.throws(() => api.buildPayload({
+    title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
+    staff_uid: uid,
+    gallery_images: [origin + "staff/" + other + "/gallery/a.jpg"]
+  }));
+  assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
+  assert.doesNotMatch(staffJs, /\.from\("books"\)\.(insert|update|upsert|delete)/);
+  assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
+  assert.match(staffJs, /level!=="aal2"/);
+  assert.strictEqual(api.staffFriendlyMessage("gallery_images may contain at most 4 items"), "ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ.");
+  assert.strictEqual(api.staffFriendlyMessage("gallery_images must be book-covers staff gallery URLs for this user"), "ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+});
+
 add("cover public URL is browser-usable and scoped to this staff user", () => {
   const api = loadStaffApi();
   const uid = "11111111-1111-4111-8111-111111111111";
@@ -357,13 +435,14 @@ add("successful TOTP verification re-routes to the staff form without refresh", 
   assert.strictEqual(h.panels.mfaEnrollPanelWrap.hidden, true);
 });
 
-add("backend Stage92 already has staff RPC and AAL2; this PR adds no SQL", () => {
+add("backend Stage92 already has staff RPC and AAL2; gallery lives in Stage93 SQL file", () => {
   assert.match(sql, /is_kutadgu_book_staff/);
   assert.match(sql, /submit_book_for_approval/);
   assert.match(sql, /auth\.jwt\(\)->>'aal'\) IS DISTINCT FROM 'aal2'/);
   assert.match(sql, /staff\/' \|\| v_uid::text \|\| '\//);
   assert.doesNotMatch(staffJs, /CREATE TABLE|ALTER TABLE/);
   assert.doesNotMatch(accountJs, /CREATE TABLE/);
+  assert.match(read("STAGE93_BOOK_STAFF_GALLERY.sql"), /gallery_images/);
 });
 
 add("Admin MFA and pending/staff management files stay authoritative", () => {

@@ -1,13 +1,14 @@
 (function(){
 "use strict";
 const $=s=>document.querySelector(s);
-const ALLOWED_FIELDS=["title","author","category","price","image_url","description","source","original_price","stock","isbn","translator","publisher","publish_year","pages","cover_type","book_size","dimensions","is_color_print","interior_print_type"];
-const FORBIDDEN_FIELDS=["id","legacy_id","language","href","publish_date","created_at","updated_at","sales_count","is_active","is_available","is_new","is_featured","is_recommended","is_bestseller","submission_status","submitted_by","submitted_at","gallery_images"];
+const ALLOWED_FIELDS=["title","author","category","price","image_url","description","source","original_price","stock","isbn","translator","publisher","publish_year","pages","cover_type","book_size","dimensions","is_color_print","interior_print_type","gallery_images"];
+const FORBIDDEN_FIELDS=["id","legacy_id","language","href","publish_date","created_at","updated_at","sales_count","is_active","is_available","is_new","is_featured","is_recommended","is_bestseller","submission_status","submitted_by","submitted_at"];
 const COVER_TYPES=["hardcover","paperback","other"];
 const BOOK_SIZES=["A4","A5","B5","other"];
 const INTERIOR=["color","bw"];
 const IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif"];
 const MAX_COVER_BYTES=5*1024*1024;
+const MAX_STAFF_GALLERY=4;
 const STAFF_COVER_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
 const STAFF_COVER_BUCKET="book-covers";
 let mfaGateCtl=null;
@@ -15,6 +16,7 @@ let mfaAttachCtl=null;
 let staffUid="";
 let staffRouteSeq=0;
 let lastStaffPanel="staffLoading";
+let galleryDraft=[];
 
 function memberApi(){return window.KutadguMember}
 function mfaApi(){return window.KutadguAdminMfa||{}}
@@ -114,6 +116,54 @@ function assertStaffCoverPublicUrl(uid,url){
   if(parsed.pathname.indexOf(expected)!==0)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
   return parsed.origin+parsed.pathname;
 }
+function galleryFileExtension(file){
+  const valid=validateCoverFile(file);
+  if(!valid)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
+  const map={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"};
+  const ext=map[valid.type];
+  if(!ext)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
+  return ext;
+}
+function isSafeStaffGalleryFilename(name){
+  const rest=String(name||"");
+  return !!rest && !rest.includes("/") && /^[A-Za-z0-9._-]+$/.test(rest) && /\.(jpe?g|png|webp|gif)$/i.test(rest);
+}
+function staffGalleryObjectPath(uid,file,index){
+  const ext=galleryFileExtension(file);
+  const now=new Date();
+  const y=now.getUTCFullYear();
+  const m=String(now.getUTCMonth()+1).padStart(2,"0");
+  const d=String(now.getUTCDate()).padStart(2,"0");
+  const rand=Math.random().toString(36).slice(2,8);
+  const n=String(Math.max(0,Number(index)||0));
+  return "staff/"+String(uid)+"/gallery/"+y+m+d+"-"+rand+"-"+n+"."+ext;
+}
+function staffGalleryPublicUrl(uid,objectPath){
+  const id=String(uid||"");
+  const path=String(objectPath||"").replace(/^\/+/,"");
+  if(!id||path.indexOf("staff/"+id+"/gallery/")!==0)throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
+  if(path.includes("..")||/[?#@]/.test(path))throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
+  const rest=path.slice(("staff/"+id+"/gallery/").length);
+  if(!isSafeStaffGalleryFilename(rest))throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
+  if(configuredCoverOrigin()!==STAFF_COVER_ORIGIN)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  if(configuredCoverBucket()!==STAFF_COVER_BUCKET)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  return STAFF_COVER_ORIGIN+"/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/"+path;
+}
+function assertStaffGalleryPublicUrl(uid,url){
+  const id=String(uid||"");
+  const t=String(url||"").trim();
+  if(!t||t.length>2000)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  let parsed=null;
+  try{parsed=new URL(t)}catch(e){parsed=null}
+  if(!parsed||parsed.protocol!=="https:"||parsed.origin!==STAFF_COVER_ORIGIN)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  if(parsed.search||parsed.hash||parsed.username||parsed.password)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  if(/[?#@]/.test(t)||t.includes(".."))throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  const expected="/storage/v1/object/public/"+STAFF_COVER_BUCKET+"/staff/"+id+"/gallery/";
+  if(parsed.pathname.indexOf(expected)!==0)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  const rest=parsed.pathname.slice(expected.length);
+  if(!isSafeStaffGalleryFilename(rest))throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  return parsed.origin+parsed.pathname;
+}
 function validateCoverFile(file){
   if(!file)return null;
   if(IMAGE_TYPES.indexOf(file.type)<0)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
@@ -195,6 +245,11 @@ function buildPayload(values){
   payload.is_color_print=!!values.is_color_print;
   const imageUrl=String(values.image_url||"").trim();
   if(imageUrl)payload.image_url=imageUrl;
+  if(Object.prototype.hasOwnProperty.call(values,"gallery_images")){
+    if(!Array.isArray(values.gallery_images))throw new Error("ئىچكى رەسىم تىزىمى توغرا ئەمەس.");
+    if(values.gallery_images.length>MAX_STAFF_GALLERY)throw new Error("ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ.");
+    payload.gallery_images=values.gallery_images.map(url=>assertStaffGalleryPublicUrl(values.staff_uid||staffUid,url));
+  }
   Object.keys(payload).forEach(key=>{
     if(FORBIDDEN_FIELDS.indexOf(key)>=0)throw new Error("قوغدىلىدىغان مەيدان يوللانمايدۇ.");
     if(ALLOWED_FIELDS.indexOf(key)<0)throw new Error("بۇ مەيدان يوللانمايدۇ: "+key);
@@ -231,6 +286,7 @@ function resetStaffForm(){
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
   setCoverFileStatus(null);
+  resetGallerySelection();
   const success=$("#staffSuccess");if(success)success.hidden=true;
   const bookForm=$("#staffBookForm");if(bookForm)bookForm.hidden=false;
   setStatus($("#staffSubmitStatus"),"", "");
@@ -249,6 +305,80 @@ function bindCoverPicker(){
   const btn=$("#staffCoverPickBtn");
   if(btn&&input)btn.addEventListener("click",()=>input.click());
   if(input)input.addEventListener("change",()=>setCoverFileStatus(input.files&&input.files[0]));
+}
+function galleryPreviewUrl(file){
+  try{
+    if(typeof URL!=="undefined"&&URL.createObjectURL)return URL.createObjectURL(file);
+  }catch(e){}
+  return "";
+}
+function revokeGalleryPreview(item){
+  if(!item||!item.preview||String(item.preview).indexOf("blob:")!==0)return;
+  try{if(typeof URL!=="undefined"&&URL.revokeObjectURL)URL.revokeObjectURL(item.preview)}catch(e){}
+}
+function setGalleryFileStatus(){
+  const el=$("#staffGalleryFileName");
+  if(!el)return;
+  el.textContent=galleryDraft.length?galleryDraft.length+" پارچە رەسىم تاللاندى":"رەسىم تاللانمىدى";
+}
+function renderGalleryDraft(){
+  const host=$("#staffGalleryList");
+  setGalleryFileStatus();
+  if(!host)return;
+  host.innerHTML=galleryDraft.map((item,index)=>{
+    const src=item&&item.preview?esc(item.preview):"";
+    return `<article class="staff-gallery-item">
+      <span class="staff-gallery-num">${index+1}</span>
+      ${src?`<img src="${src}" alt="${index+1}" draggable="false">`:"<div></div>"}
+      <button type="button" class="account-secondary staff-gallery-remove" data-gallery-remove="${index}">ئۆچۈرۈش</button>
+    </article>`;
+  }).join("");
+  host.querySelectorAll&&host.querySelectorAll("[data-gallery-remove]").forEach(btn=>{
+    btn.addEventListener("click",()=>removeGalleryItem(Number(btn.getAttribute("data-gallery-remove"))));
+  });
+}
+function addGalleryFiles(fileList){
+  const incoming=[];
+  if(fileList&&typeof fileList.length==="number"){
+    for(let i=0;i<fileList.length;i++)if(fileList[i])incoming.push(fileList[i]);
+  }
+  if(!incoming.length)return {ok:true};
+  if(galleryDraft.length+incoming.length>MAX_STAFF_GALLERY){
+    return {ok:false,error:new Error("ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ.")};
+  }
+  try{
+    incoming.forEach(file=>validateCoverFile(file));
+  }catch(error){
+    return {ok:false,error:error};
+  }
+  incoming.forEach(file=>{
+    galleryDraft.push({file:file,preview:galleryPreviewUrl(file)});
+  });
+  renderGalleryDraft();
+  return {ok:true};
+}
+function removeGalleryItem(index){
+  const i=Number(index);
+  if(!Number.isInteger(i)||i<0||i>=galleryDraft.length)return;
+  revokeGalleryPreview(galleryDraft[i]);
+  galleryDraft.splice(i,1);
+  renderGalleryDraft();
+}
+function resetGallerySelection(){
+  galleryDraft.forEach(revokeGalleryPreview);
+  galleryDraft=[];
+  const input=$("#staffGalleryFiles");if(input)input.value="";
+  renderGalleryDraft();
+}
+function bindGalleryPicker(){
+  const input=$("#staffGalleryFiles");
+  const btn=$("#staffGalleryPickBtn");
+  if(btn&&input)btn.addEventListener("click",()=>input.click());
+  if(input)input.addEventListener("change",()=>{
+    const result=addGalleryFiles(input.files);
+    input.value="";
+    if(!result.ok)setStatus($("#staffSubmitStatus"),staffFriendlyMessage(result.error),"error");
+  });
 }
 const STAFF_GENERIC_ERROR="مەشغۇلات تاماملانمىدى. سەل تۇرۇپ قايتا سىناڭ.";
 const STAFF_KNOWN_ERRORS=[
@@ -271,6 +401,11 @@ const STAFF_KNOWN_ERRORS=[
   {re:/invalid cover_type/i,msg:"مۇقاۋا تىپى توغرا ئەمەس."},
   {re:/invalid book_size/i,msg:"كىتاب چوڭلۇقى توغرا ئەمەس."},
   {re:/invalid interior_print_type/i,msg:"ئىچكى بېسىش تىپى توغرا ئەمەس."},
+  {re:/gallery_images must be a JSON array/i,msg:"ئىچكى رەسىم تىزىمى توغرا ئەمەس."},
+  {re:/gallery_images may contain at most 4/i,msg:"ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ."},
+  {re:/gallery_images items must be strings/i,msg:"ئىچكى رەسىم ئادرېسى توغرا ئەمەس."},
+  {re:/gallery_images URL is invalid/i,msg:"ئىچكى رەسىم ئادرېسى توغرا ئەمەس."},
+  {re:/gallery_images must be book-covers staff gallery URLs/i,msg:"ئىچكى رەسىم ئادرېسى توغرا ئەمەس."},
   {re:/jwt expired|invalid jwt|bad[_\s-]?jwt|session expired|refresh[_\s-]?token|Auth session missing|invalid[_\s-]?session|not authenticated/i,msg:"كىرىش ۋاقتى توشتى. قايتا كىرىڭ."},
   {re:/row-level security|\bRLS\b|permission denied|not allowed|not authorized|unauthorized|new row violates|storage.*policy|Bucket not found|object not found|mime type|payload too large|resource already exists|duplicate/i,msg:"ھۆججەت يوللاشقا رۇخسەت يوق ياكى مەغلۇپ بولدى."},
   {re:/failed to fetch|networkerror|network error|load failed|fetch failed|ERR_NETWORK|ECONNRESET|\btimeout\b|\boffline\b/i,msg:"تور ئۇلىنىشى مەغلۇپ بولدى. قايتا سىناڭ."}
@@ -381,6 +516,36 @@ async function uploadStaffCover(client,uid,file){
   }
   return assertStaffCoverPublicUrl(uid,canonical);
 }
+async function uploadStaffGallery(client,uid,files){
+  const list=Array.isArray(files)?files.filter(Boolean):[];
+  if(!list.length)return [];
+  if(list.length>MAX_STAFF_GALLERY)throw new Error("ئەڭ كۆپ 4 پارچە رەسىم تاللىغىلى بولىدۇ.");
+  await requireAal2(client);
+  const staff=await rpcIsBookStaff(client);
+  if(!staff.ok||!staff.staff)throw new Error("كىتاب قوشۇش ھوقۇقى يوق.");
+  const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
+  const bucket=cfg.bucket||"book-covers";
+  if(bucket!==STAFF_COVER_BUCKET)throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
+  const urls=[];
+  for(let i=0;i<list.length;i++){
+    const valid=validateCoverFile(list[i]);
+    const path=staffGalleryObjectPath(uid,valid,i);
+    if(path.indexOf("staff/"+uid+"/gallery/")!==0)throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
+    const {error}=await client.storage.from(bucket).upload(path,valid,{upsert:false,contentType:valid.type||undefined});
+    if(error)throw error;
+    const canonical=assertStaffGalleryPublicUrl(uid,staffGalleryPublicUrl(uid,path));
+    let publicUrl=canonical;
+    try{
+      const pub=client.storage.from(bucket).getPublicUrl(path);
+      const fromApi=String(pub&&pub.data&&pub.data.publicUrl||"").trim();
+      if(fromApi)publicUrl=assertStaffGalleryPublicUrl(uid,fromApi);
+    }catch(e){
+      publicUrl=canonical;
+    }
+    urls.push(assertStaffGalleryPublicUrl(uid,publicUrl));
+  }
+  return urls;
+}
 function staffSurface(inspect){
   const level=String(inspect&&inspect.assurance&&inspect.assurance.currentLevel||"").toLowerCase();
   if(level==="aal2")return "form";
@@ -489,8 +654,11 @@ async function submitBook(e){
     const file=$("#staffCoverFile")&&$("#staffCoverFile").files&&$("#staffCoverFile").files[0];
     if(file)imageUrl=await uploadStaffCover(client,String(user.id),file);
     if(imageUrl)imageUrl=assertStaffCoverPublicUrl(String(user.id),imageUrl);
+    const galleryUrls=await uploadStaffGallery(client,String(user.id),galleryDraft.map(item=>item&&item.file));
     const values=formValues();
     values.image_url=imageUrl;
+    values.staff_uid=String(user.id);
+    values.gallery_images=galleryUrls;
     const payload=buildPayload(values);
     const {data,error}=await client.rpc("submit_book_for_approval",{payload:payload});
     if(error)throw error;
@@ -499,6 +667,7 @@ async function submitBook(e){
     $("#staffSuccess").hidden=false;
     $("#staffNewBookId").textContent=String(newId||"");
     const cover=$("#staffCoverFile");if(cover)cover.value="";
+    resetGallerySelection();
   }catch(err){
     setStatus(status,staffFriendlyMessage(err),"error");
   }finally{
@@ -515,6 +684,15 @@ window.KutadguBookStaff={
   staffCoverObjectPath,
   staffCoverPublicUrl,
   assertStaffCoverPublicUrl,
+  galleryFileExtension,
+  staffGalleryObjectPath,
+  staffGalleryPublicUrl,
+  assertStaffGalleryPublicUrl,
+  addGalleryFiles,
+  removeGalleryItem,
+  resetGallerySelection,
+  galleryDraft:function(){return galleryDraft.slice()},
+  MAX_STAFF_GALLERY,
   buildPayload,
   staffSurface,
   validateCoverFile,
@@ -534,6 +712,7 @@ window.KutadguBookStaff={
 async function init(){
   fillSourceOptions();
   bindCoverPicker();
+  bindGalleryPicker();
   document.addEventListener("kutadgu-member-change",()=>{routeStaffSession()});
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);

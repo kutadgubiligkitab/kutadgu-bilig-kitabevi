@@ -589,15 +589,15 @@ button{cursor:pointer}
   border-radius:13px;
   background:#fff;
 }
-.admin-submission-row img,
-.admin-submission-row > div:first-child{
+.admin-submission-cover,
+.admin-submission-cover-slot{
   width:64px;
   height:86px;
   object-fit:contain;
   background:#eee9e1;
   border-radius:6px;
 }
-.admin-submission-row > div:first-child{
+.admin-submission-cover-slot{
   display:flex;
   align-items:center;
   justify-content:center;
@@ -614,11 +614,37 @@ button{cursor:pointer}
   padding:3px 10px;
   font-size:12px;
 }
+.admin-submission-gallery{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+  max-width:100%;
+}
+.admin-submission-gallery-item{
+  margin:0;
+  width:56px;
+  min-width:0;
+}
+.admin-submission-gallery-item span{
+  display:block;
+  font-size:11px;
+  font-weight:800;
+  color:#70503d;
+  margin-bottom:4px;
+}
+.admin-submission-gallery-item img{
+  width:56px;
+  height:72px;
+  object-fit:contain;
+  background:#eee9e1;
+  border-radius:6px;
+}
 .admin-submission-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 @media(max-width:850px){
   .admin-submission-row{grid-template-columns:48px minmax(0,1fr)}
-  .admin-submission-row img,
-  .admin-submission-row > div:first-child{width:48px;height:64px}
+  .admin-submission-cover,
+  .admin-submission-cover-slot{width:48px;height:64px}
   .admin-submission-actions button{flex:1;min-height:44px}
 }
 
