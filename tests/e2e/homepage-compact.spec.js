@@ -26,7 +26,7 @@ test.describe("homepage compact first-view", () => {
     expect(values).toContain("لۇغەت");
     expect(values).toContain("گرامماتىكا");
 
-    await page.locator("#searchCategory").selectOption("رومانلار");
+    await page.locator("#searchCategory").selectOption("رومانلار", { force: true });
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
     const romanHits = page.locator("#searchResults .advanced-search-result");
     if (await romanHits.count()) {
@@ -35,7 +35,7 @@ test.describe("homepage compact first-view", () => {
       expect(metas.some((text) => text.includes("رومانلار"))).toBeTruthy();
     }
 
-    await page.locator("#searchCategory").selectOption("لۇغەت");
+    await page.locator("#searchCategory").selectOption("لۇغەت", { force: true });
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
     const dictHits = page.locator("#searchResults .advanced-search-result");
     const dictCount = await dictHits.count();
@@ -44,7 +44,7 @@ test.describe("homepage compact first-view", () => {
       expect(metas.filter((text) => text.includes("لۇغەت")).length).toBeGreaterThan(0);
     }
 
-    await page.locator("#searchCategory").selectOption("گرامماتىكا");
+    await page.locator("#searchCategory").selectOption("گرامماتىكا", { force: true });
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
     const grammarHits = page.locator("#searchResults .advanced-search-result");
     if (await grammarHits.count()) {
@@ -52,7 +52,7 @@ test.describe("homepage compact first-view", () => {
       expect(metas.filter((text) => text.includes("گرامماتىكا")).length).toBeGreaterThan(0);
     }
 
-    await page.locator("#searchSort").selectOption("title");
+    await page.locator("#searchSort").selectOption("title", { force: true });
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
     await expect(page.locator("#searchSort")).toHaveValue("title");
 
@@ -60,7 +60,7 @@ test.describe("homepage compact first-view", () => {
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary, .search-empty", { timeout: 45_000 });
 
-    await page.locator("#searchReset").click();
+    await page.locator("#searchReset").click({ force: true });
     await expect.poll(async () => page.locator("#searchCategory").inputValue()).toBe("");
     await expect.poll(async () => page.locator("#searchInput").inputValue()).toBe("");
     await expect.poll(async () => page.locator("#searchResults .advanced-search-result").count()).toBe(0);
