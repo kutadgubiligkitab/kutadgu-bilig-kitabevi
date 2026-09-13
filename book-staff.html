@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>كىتاب قوشۇش - قۇتادغۇبىلىك كىتابخانىسى</title>
+  <meta name="description" content="كىتاب قوشۇش خادىم بېتى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="theme.css?v=9">
+  <link rel="stylesheet" href="account.css?v=6">
+  <link rel="stylesheet" href="book-staff.css?v=1">
+</head>
+<body data-book-staff-page="true">
+  <header class="staff-topbar">
+    <a class="account-brand" href="/">
+      <picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo.webp"><img src="/kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" width="38" height="38" decoding="async"></picture>
+      <span>قۇتادغۇبىلىك كىتابخانىسى</span>
+    </a>
+    <div class="staff-top-meta">
+      <strong>📚 كىتاب قوشۇش</strong>
+      <span id="staffIdentity"></span>
+    </div>
+    <nav class="staff-top-actions">
+      <a class="account-home" href="/account.html">ھېسابىمغا قايتىش</a>
+      <button id="staffLogout" class="account-secondary" type="button" hidden>چىقىش</button>
+    </nav>
+  </header>
+
+  <main class="staff-main">
+    <section id="staffLoading" class="account-card account-loading">
+      <div class="account-spinner" aria-hidden="true"></div>
+      <p>ھوقۇق تەكشۈرۈلۈۋاتىدۇ...</p>
+    </section>
+
+    <section id="staffSignedOut" class="account-card account-message" hidden>
+      <h1>ئاۋۋال ھېسابىڭىزغا كىرىڭ</h1>
+      <p>كىتاب قوشۇش خادىم بېتى پەقەت تىزىملاتقان ھېساب بىلەن ئىشلىتىلىدۇ.</p>
+      <p class="staff-links">
+        <a class="account-primary account-inline-link" href="/account.html">ھېساب بېتى</a>
+        <a class="account-secondary account-inline-link" href="/">باش بەت</a>
+      </p>
+    </section>
+
+    <section id="staffForbidden" class="account-card account-message" hidden>
+      <h1>كىتاب قوشۇش ھوقۇقى يوق</h1>
+      <p>بۇ ھېسابقا كىتاب قوشۇش خادىمى ھوقۇقى بېرىلمىگەن.</p>
+      <p class="staff-links">
+        <a class="account-primary account-inline-link" href="/account.html">ھېسابىمغا قايتىش</a>
+        <a class="account-secondary account-inline-link" href="/">باش بەت</a>
+      </p>
+    </section>
+
+    <section id="mfaGatePanel" class="account-card staff-mfa" hidden>
+      <h1>Authenticator كودى</h1>
+      <p>كىتاب يوللاش ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك.</p>
+      <div id="mfaGateStatus" class="account-status">Authenticator دىكى 6 خانىلىق كودنى كىرگۈزۈڭ.</div>
+      <form id="mfaGateForm" class="account-form">
+        <label><span>6 خانىلىق كود</span><input id="mfaGateOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" required></label>
+        <button class="account-primary" id="mfaGateSubmit" type="submit">جەزملەش</button>
+        <button class="account-secondary" id="mfaGateLogout" type="button">چىقىش</button>
+      </form>
+    </section>
+
+    <section id="mfaEnrollPanelWrap" class="account-card staff-mfa" hidden>
+      <h1>Authenticator تەڭشەش</h1>
+      <p>بۇ ھېسابقا تېخى تەستىقلانغان TOTP ئۇلانمىغان. كىتاب يوللاشتىن بۇرۇن Authenticator تەڭشەڭ.</p>
+      <div id="mfaStatus" class="account-status">تەڭشەلمىگەن — Authenticator تېخى ئۇلانمىغان.</div>
+      <div class="staff-toolbar">
+        <button class="account-primary" id="mfaSetupBtn" type="button">Authenticator تەڭشەش</button>
+        <button class="account-secondary" id="mfaCleanupBtn" type="button" hidden>قالدۇق تەڭشەكنى تازىلاش</button>
+      </div>
+      <div id="mfaRemoveConfirm" hidden></div>
+      <button id="mfaRemoveBtn" type="button" hidden></button>
+      <button id="mfaRemoveConfirmBtn" type="button" hidden></button>
+      <button id="mfaRemoveCancelBtn" type="button" hidden></button>
+      <div id="mfaEnrollPanel" class="staff-mfa-enroll" hidden>
+        <img id="mfaQr" alt="Authenticator QR" width="180" height="180" hidden>
+        <div>
+          <p>ئەپتە قولدا كىرگۈزۈش كودى پەقەت بۇ ئېكراندا. ساقلانمايدۇ.</p>
+          <code id="mfaSecret" dir="ltr"></code>
+          <label><span>6 خانىلىق كود</span><input id="mfaOtp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr"></label>
+          <div class="staff-toolbar">
+            <button class="account-primary" id="mfaVerifyBtn" type="button">كودنى جەزملەش</button>
+            <button class="account-secondary" id="mfaEnrollCancelBtn" type="button">بىكار قىلىش</button>
+          </div>
+        </div>
+      </div>
+      <p class="staff-links">
+        <a href="/account.html">ھېسابىمغا قايتىش</a>
+        <a href="/">باش بەت</a>
+      </p>
+    </section>
+
+    <section id="staffWorkspace" hidden>
+      <div id="staffSubmitStatus" class="account-status" hidden></div>
+      <div id="staffSuccess" class="account-card staff-success" hidden>
+        <h1>✅ كىتاب باشقۇرغۇچىنىڭ تەستىقىغا يوللاندى.</h1>
+        <p>كىتاب نومۇرى: <strong id="staffNewBookId" dir="ltr"></strong></p>
+        <p>بۇ كىتاب ھازىرچە تور بەتتە كۆرۈنمەيدۇ. تولۇق باشقۇرغۇچى تەستىقلىغاندىن كېيىنلا تور بەتتە چىقىدۇ.</p>
+        <button id="staffAddAnother" class="account-primary" type="button">يەنە بىر كىتاب قوشۇش</button>
+      </div>
+      <form id="staffBookForm" class="account-card account-form staff-form" novalidate>
+        <h1>يېڭى كىتاب يوللاش</h1>
+        <p class="staff-help">پەقەت يېڭى كىتاب قوشۇلىدۇ. تەستىقتىن بۇرۇن تور بەتتە كۆرۈنمەيدۇ.</p>
+        <label><span>كىتاب نامى *</span><input id="staffTitle" dir="auto" required maxlength="500"></label>
+        <label><span>ئاپتور *</span><input id="staffAuthor" dir="auto" required maxlength="500"></label>
+        <label><span>تۈر *</span>
+          <select id="staffSource" required>
+            <option value="">تۈر تاللاڭ</option>
+          </select>
+        </label>
+        <input id="staffCategory" type="hidden">
+        <label><span>باھا (₺) *</span><input id="staffPrice" dir="ltr" type="number" min="0" step="0.01" required></label>
+        <label><span>ئەسلى باھا (₺)</span><input id="staffOriginalPrice" dir="ltr" type="number" min="0" step="0.01"></label>
+        <label><span>ئامبار سانى</span><input id="staffStock" dir="ltr" type="number" min="0" step="1"></label>
+        <label><span>ISBN</span><input id="staffIsbn" dir="ltr" maxlength="32"></label>
+        <label><span>تەرجىمان</span><input id="staffTranslator" dir="auto" maxlength="500"></label>
+        <label><span>نەشرىيات</span><input id="staffPublisher" dir="auto" maxlength="500"></label>
+        <label><span>نەشر يىلى</span><input id="staffPublishYear" dir="ltr" type="number" min="1000" max="2100" step="1"></label>
+        <label><span>بەت سانى</span><input id="staffPages" dir="ltr" type="number" min="1" step="1"></label>
+        <label><span>مۇقاۋا تۈرى</span>
+          <select id="staffCoverType">
+            <option value="">—</option>
+            <option value="hardcover">hardcover</option>
+            <option value="paperback">paperback</option>
+            <option value="other">other</option>
+          </select>
+        </label>
+        <label><span>كىتاب ئۆلچىمى</span>
+          <select id="staffBookSize">
+            <option value="">—</option>
+            <option value="A4">A4</option>
+            <option value="A5">A5</option>
+            <option value="B5">B5</option>
+            <option value="other">other</option>
+          </select>
+        </label>
+        <label><span>ئۆلچەم</span><input id="staffDimensions" dir="ltr" maxlength="120"></label>
+        <label class="staff-check"><input id="staffColorPrint" type="checkbox"><span>رەڭلىك بېسىش</span></label>
+        <label><span>ئىچكى بېسىش تىپى</span>
+          <select id="staffInteriorPrint">
+            <option value="">—</option>
+            <option value="color">color</option>
+            <option value="bw">bw</option>
+          </select>
+        </label>
+        <label class="staff-wide"><span>چۈشەندۈرۈش</span><textarea id="staffDescription" dir="auto" rows="5" maxlength="20000"></textarea></label>
+        <label class="staff-wide"><span>مۇقاۋا رەسىمى</span><input id="staffCoverFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></label>
+        <button class="account-primary staff-wide" id="staffSubmitBtn" type="submit">تەستىققا يوللاش</button>
+      </form>
+    </section>
+  </main>
+  <script defer src="theme.js?v=5"></script>
+  <script defer src="supabase-config.js?v=21"></script>
+  <script defer src="app-config.js?v=4"></script>
+  <script defer src="member.js?v=26"></script>
+  <script defer src="admin-mfa.js?v=3"></script>
+  <script defer src="book-staff.js?v=1"></script>
+</body>
+</html>

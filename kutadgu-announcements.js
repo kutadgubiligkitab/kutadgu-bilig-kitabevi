@@ -41,7 +41,7 @@
 
   function isSkippedSurface() {
     var n = pageName();
-    return n === "admin.html" || n === "admin-quality-preview.html" || n === "reset-password.html";
+    return n === "admin.html" || n === "admin-quality-preview.html" || n === "reset-password.html" || n === "book-staff.html";
   }
 
   function clampInterval(value) {

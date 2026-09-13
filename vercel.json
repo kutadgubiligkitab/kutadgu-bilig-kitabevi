@@ -269,6 +269,24 @@
         }
       ]
     },
+    {
+      "source": "/book-staff.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/book-staff.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
       {
         "source": "/admin.js",
         "headers": [

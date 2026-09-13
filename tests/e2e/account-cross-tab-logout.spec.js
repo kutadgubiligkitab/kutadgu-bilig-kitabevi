@@ -230,7 +230,7 @@ test.describe("account cross-tab logout privacy", () => {
       client: !!(window.KutadguMember && window.KutadguMember.getUser)
     }));
     expect(info.scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=26"]);
-    expect(info.scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=5"]);
+    expect(info.scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=6"]);
     expect(info.client).toBe(true);
   });
 });

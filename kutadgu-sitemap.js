@@ -21,7 +21,8 @@ const PRIVATE_PATH_MARKERS = [
   "/reset-password.html",
   "/cart.html",
   "/favorites.html",
-  "/my-books.html"
+  "/my-books.html",
+  "/book-staff.html"
 ];
 
 const CATEGORY_HUB_SLUGS = [

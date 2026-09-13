@@ -2,7 +2,7 @@
   "use strict";
 
   const MOBILE_QUERY = window.matchMedia("(max-width: 768px)");
-  const STORE_PAGES_EXCLUDED = new Set(["admin.html", "reset-password.html"]);
+  const STORE_PAGES_EXCLUDED = new Set(["admin.html", "reset-password.html", "book-staff.html"]);
   const ROOT_APP_PAGES = {
     "account.html": "/account.html",
     "cart.html": "/cart.html",

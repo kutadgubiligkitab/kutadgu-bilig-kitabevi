@@ -66,7 +66,37 @@ function switchTab(tab){
   $("#authSubtitle").textContent=tab==="signup"?"بىر مىنۇتتا ھېساب قۇرۇپ، كىتابلىرىڭىزنى ساقلاڭ.":"ساقلانغان كىتاب، سېۋەت ۋە زاكازلىرىڭىزنى كۆرۈڭ.";
   clearStatus($("#authStatus"));
 }
+function hideBookStaffEntry(){
+  const entry=$("#bookStaffEntry");
+  if(entry)entry.hidden=true;
+}
+function isActiveBookStaffResult(data){
+  if(data===true)return true;
+  if(data===false||data==null)return false;
+  if(Array.isArray(data))return data[0]===true;
+  return false;
+}
+async function refreshBookStaffEntry(token){
+  hideBookStaffEntry();
+  if(!token||!isCurrentAccountRender(token))return;
+  const member=api();
+  const user=member&&member.getUser&&member.getUser();
+  if(!user||!user.id)return;
+  let client=null;
+  try{client=member.getClient&&member.getClient()}catch(e){return}
+  if(!client||typeof client.rpc!=="function")return;
+  try{
+    const result=await client.rpc("is_kutadgu_book_staff");
+    if(result&&result.error)return;
+    if(!isCurrentAccountRender(token))return;
+    if(isActiveBookStaffResult(result&&result.data)){
+      const entry=$("#bookStaffEntry");
+      if(entry)entry.hidden=false;
+    }
+  }catch(e){}
+}
 function clearPrivateAccountUi(){
+  hideBookStaffEntry();
   const welcome=$("#memberWelcome");if(welcome)welcome.textContent="ھېسابىم";
   const email=$("#memberEmail");if(email)email.textContent="";
   const created=$("#memberCreated");if(created)created.textContent="—";
@@ -136,6 +166,8 @@ async function renderMember(){
   if(api().applyFieldDirections)api().applyFieldDirections(document);
   if(!isCurrentAccountRender(token))return;
   await renderOrders(token);
+  if(!isCurrentAccountRender(token))return;
+  await refreshBookStaffEntry(token);
 }
 function onMemberChange(){
   if(api().isBlocked()){showBlockedAccount();return}

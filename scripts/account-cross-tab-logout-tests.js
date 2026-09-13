@@ -39,7 +39,7 @@ test("account.html pins a single member.js and one account.js", () => {
   const memberScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
   const accountScripts = accountHtml.match(/account\.js\?v=\d+/g) || [];
   assert.deepStrictEqual(memberScripts, ["member.js?v=26"]);
-  assert.deepStrictEqual(accountScripts, ["account.js?v=5"]);
+  assert.deepStrictEqual(accountScripts, ["account.js?v=6"]);
   assert.doesNotMatch(accountHtml, /<script[^>]+src="member\.js[^"]*"[^>]*>[\s\S]*<script[^>]+src="member\.js/);
 });
 
@@ -125,6 +125,7 @@ function makeAccountDom() {
     "loginForm", "signupForm", "loginEmail", "loginPassword",
     "signupName", "signupEmail", "signupPassword", "signupConfirm",
     "googleSignIn", "forgotPassword", "memberLogout",
+    "bookStaffEntry", "bookStaffOpen",
     "memberWelcome", "memberEmail", "memberCreated", "memberLastSeen",
     "memberVisits", "memberOrders", "profileStatus", "profileForm",
     "profileName", "profilePhone", "profileCountry", "profileCity",
@@ -132,11 +133,13 @@ function makeAccountDom() {
   ];
   ids.forEach((id) => {
     const tag = /Form$/.test(id) ? "form" : /profile|login|signup|Email|Password|Name|Phone|Country|City/.test(id) ? "input" : "div";
-    const hidden = ["accountSetup", "authPanel", "memberPanel", "signupForm"].includes(id);
+    const hidden = ["accountSetup", "authPanel", "memberPanel", "signupForm", "bookStaffEntry"].includes(id);
     byId[id] = new El(id === "profileAddress" ? "textarea" : tag, { id, hidden });
   });
   byId.profileAddress = new El("textarea", { id: "profileAddress", hidden: false });
   byId.orderList.innerHTML = '<div class="account-empty">زاكازلار يۈكلىنىۋاتىدۇ...</div>';
+  byId.bookStaffOpen.href = "/book-staff.html";
+  byId.bookStaffOpen.textContent = "📚 كىتاب قوشۇش";
   byId.memberWelcome.textContent = "ھېسابىم";
   byId.memberCreated.textContent = "—";
   byId.memberLastSeen.textContent = "—";
@@ -247,6 +250,22 @@ function bootAccount(opts = {}) {
     getProfile: () => profile,
     isBlocked: () => blocked,
     applyFieldDirections() {},
+    getClient() {
+      if (opts.staffRpcThrow) {
+        return {
+          rpc() { return Promise.reject(opts.staffRpcThrow); }
+        };
+      }
+      return {
+        rpc(name) {
+          if (name !== "is_kutadgu_book_staff") {
+            return Promise.resolve({ data: null, error: new Error("unexpected rpc") });
+          }
+          if (opts.staffRpcError) return Promise.resolve({ data: null, error: opts.staffRpcError });
+          return Promise.resolve({ data: opts.staffRpc === true, error: null });
+        }
+      };
+    },
     async getOrders() {
       if (ordersHold) await ordersHold;
       const id = user && user.id;
@@ -332,6 +351,7 @@ function privateLeak(byId, marker) {
 function assertLoggedOut(byId) {
   assert.strictEqual(byId.memberPanel.hidden, true);
   assert.strictEqual(byId.authPanel.hidden, false);
+  assert.strictEqual(byId.bookStaffEntry.hidden, true);
   assert.strictEqual(byId.memberWelcome.textContent, "ھېسابىم");
   assert.strictEqual(byId.memberEmail.textContent, "");
   assert.strictEqual(byId.memberCreated.textContent, "—");
@@ -510,6 +530,34 @@ test("9 Google PKCE restored session shows memberPanel and hides authPanel", asy
   assert.strictEqual(callback.dom.byId.loginForm.hidden, false);
   assert.strictEqual(callback.dom.byId.memberEmail.textContent, "member@example.com");
   assert.doesNotMatch(accountHtml, /reset-password\.html/);
+});
+
+test("10 normal member does not see Book Staff entry", async () => {
+  const { dom } = bootAccount({ user: userA(), profile: profileA(), staffRpc: false });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(dom.byId.memberPanel.hidden, false);
+  assert.strictEqual(dom.byId.bookStaffEntry.hidden, true);
+});
+
+test("11 active Book Staff sees كىتاب قوشۇش linking to /book-staff.html", async () => {
+  const { dom } = bootAccount({ user: userA(), profile: profileA(), staffRpc: true });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(dom.byId.bookStaffEntry.hidden, false);
+  assert.strictEqual(dom.byId.bookStaffOpen.href, "/book-staff.html");
+  assert.match(dom.byId.bookStaffOpen.textContent, /كىتاب قوشۇش/);
+  assert.doesNotMatch(dom.byId.bookStaffEntry.textContent, /Full Admin|admin_users|Admin/);
+});
+
+test("12 inactive staff and RPC failure fail closed", async () => {
+  const inactive = bootAccount({ user: userA(), profile: profileA(), staffRpc: false });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(inactive.dom.byId.bookStaffEntry.hidden, true);
+  const failed = bootAccount({ user: userA(), profile: profileA(), staffRpcError: new Error("network") });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(failed.dom.byId.bookStaffEntry.hidden, true);
+  const thrown = bootAccount({ user: userA(), profile: profileA(), staffRpcThrow: new Error("offline") });
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(thrown.dom.byId.bookStaffEntry.hidden, true);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {

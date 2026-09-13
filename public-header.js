@@ -22,7 +22,8 @@
   var EXCLUDED_FILES = {
     "admin.html": true,
     "reset-password.html": true,
-    "admin-quality-preview.html": true
+    "admin-quality-preview.html": true,
+    "book-staff.html": true
   };
 
   function pageFile() {
