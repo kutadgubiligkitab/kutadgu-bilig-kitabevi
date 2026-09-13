@@ -98,6 +98,42 @@ test("submission errors surface missing RPC, permission, AAL2, stale, and networ
   assert.match(fn, /failed to fetch/);
 });
 
+function cssBraceBalance(css) {
+  const withoutComments = String(css).replace(/\/\*[\s\S]*?\*\//g, "");
+  let depth = 0;
+  let min = 0;
+  let quote = "";
+  for (let i = 0; i < withoutComments.length; i++) {
+    const ch = withoutComments[i];
+    const prev = i > 0 ? withoutComments[i - 1] : "";
+    if (quote) {
+      if (ch === quote && prev !== "\\") quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth < min) min = depth;
+    }
+  }
+  return { depth, min, quote };
+}
+
+test("admin.css brace structure is balanced and has no trailing unmatched }", () => {
+  const { depth, min, quote } = cssBraceBalance(adminCss);
+  assert.strictEqual(quote, "", "unclosed CSS string");
+  assert.ok(min >= 0, "admin.css has an unmatched closing brace");
+  assert.strictEqual(depth, 0, "admin.css brace depth ended at " + depth);
+  assert.match(
+    adminCss,
+    /@media\(max-width:850px\)\{\s*\.admin-submission-row\{grid-template-columns:48px minmax\(0,1fr\)\}\s*\.admin-submission-row img,\s*\.admin-submission-row > div:first-child\{width:48px;height:64px\}\s*\.admin-submission-actions button\{flex:1;min-height:44px\}\s*\}\s*$/
+  );
+});
+
 test("existing Admin sections remain in navigation", () => {
   ["books", "overview", "storefront", "import-covers", "insights", "customers", "orders", "system"].forEach((id) => {
     assert.match(adminHtml, new RegExp(`data-admin-section="${id}"`));
