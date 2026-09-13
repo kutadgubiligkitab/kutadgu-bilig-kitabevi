@@ -88,6 +88,22 @@ test("homepage Google snippet description and logo alts are cleaned", () => {
   assert.doesNotMatch(html, /kutadgubilig\.com/);
 });
 
+test("visible Contact hours match JSON-LD Monday-Saturday and Sunday windows", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const cfg = fs.readFileSync(path.join(root, "supabase-config.js"), "utf8");
+  const jsonLd = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(jsonLd, "JSON-LD missing");
+  const store = JSON.parse(jsonLd[1])["@graph"].find((n) => n["@type"] === "BookStore");
+  assert.deepStrictEqual(store.openingHours, ["Mo-Sa 08:30-20:00", "Su 10:30-18:00"]);
+  const hoursBlock = html.slice(html.indexOf("contact-hours"), html.indexOf("contact-whatsapp"));
+  assert.match(hoursBlock, /دۈشەنبە–شەنبە: 08:30–20:00/);
+  assert.match(hoursBlock, /يەكشەنبە: 10:30–18:00/);
+  assert.doesNotMatch(hoursBlock, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
+  assert.match(cfg, /hours: "دۈشەنبە–شەنبە: 08:30–20:00\\nيەكشەنبە: 10:30–18:00"/);
+  assert.doesNotMatch(cfg, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
+  assert.match(html, /supabase-config\.js\?v=21/);
+});
+
 test("homepage logo points to /", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, /<a href="\/" class="logo">/);

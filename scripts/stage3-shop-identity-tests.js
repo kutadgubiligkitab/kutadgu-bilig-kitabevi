@@ -79,13 +79,15 @@ test("About service chips keep dark brown text on cream (theme.css about p is wh
 
 test("contact presents address hours WhatsApp and Instagram", () => {
   assert.match(html, /Kemalpaşa Mah\. 1\. Turna Sk/);
-  assert.match(html, /08:30–20:00/);
-  assert.match(html, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
+  assert.match(html, /دۈشەنبە–شەنبە: 08:30–20:00/);
+  assert.match(html, /يەكشەنبە: 10:30–18:00/);
+  assert.doesNotMatch(html, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
   assert.match(html, /@kutadgu_bilig_kitabhanisi/);
   assert.match(html, /instagram\.com\/kutadgu_bilig_kitabhanisi\/"/);
   assert.match(html, /rel="noopener noreferrer"/);
   assert.match(html, /wa\.me\/905368999888/);
-  assert.match(cfg, /hours: "ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ\\n08:30–20:00"/);
+  assert.match(cfg, /hours: "دۈشەنبە–شەنبە: 08:30–20:00\\nيەكشەنبە: 10:30–18:00"/);
+  assert.doesNotMatch(cfg, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
   assert.match(cfg, /KUTADGU_WHATSAPP_NUMBER = "905368999888"/);
   const contact = shop.slice(shop.indexOf("function renderContactSection(){"), shop.indexOf("async function orderWithWhatsApp(){"));
   assert.match(contact, /contact-address/);
