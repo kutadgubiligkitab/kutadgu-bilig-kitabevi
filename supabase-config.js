@@ -156,7 +156,7 @@ window.KUTADGU_CONTACT_CONFIG = {
   instagramUrl: "https://www.instagram.com/kutadgu_bilig_kitabhanisi/",
   address: "Kemalpaşa Mah. 1. Turna Sk. Akpınar Apt. No: 25/C, Kapı No: K, Küçükçekmece / İstanbul",
   addressUrl: "https://www.google.com/maps/search/?api=1&query=KEMALPA%C5%9EA%20MAH.%201.%20TURNA%20SK.%20AKPINAR%20APT.%20NO%3A%2025%2FC%2C%20KAPI%20NO%3A%20K%2C%20K%C3%9C%C3%87%C3%9CK%C3%87EKMECE%20%2F%20%C4%B0STANBUL",
-  hours: "ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ\n08:30–20:00",
+  hours: "دۈشەنبە–شەنبە\n08:30–20:00\nيەكشەنبە\n10:30–18:00",
   storePhoto: ""
 };
 

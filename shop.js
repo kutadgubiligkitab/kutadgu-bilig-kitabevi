@@ -3584,7 +3584,13 @@ function renderContactSection(){
     cards.push(href?`<a class="${classes}" href="${href}"${/^https?:/i.test(href)?' target="_blank" rel="noopener noreferrer"':""}>${body}</a>`:`<div class="${classes}">${body}</div>`);
   };
   add("📍","دۇكان ئادرېسى",cfg.address,cfg.addressUrl||"","contact-address");
-  add("🕒","خىزمەت ۋاقتى",cfg.hours,"","contact-hours");
+  if(cfg.hours){
+    const hoursHtml=String(cfg.hours).split("\n").map(line=>{
+      const text=safeText(line);
+      return /^\d{2}:\d{2}/.test(line.trim())?`<span dir="ltr">${text}</span>`:text;
+    }).join("\n");
+    cards.push(`<div class="contact-card contact-hours"><span aria-hidden="true">🕒</span><div><strong>خىزمەت ۋاقتى</strong><small>${hoursHtml}</small></div></div>`);
+  }
   const waHref=whatsapp?`https://wa.me/${whatsapp}`:"https://wa.me/";
   cards.push(`<a class="contact-card contact-whatsapp" href="${waHref}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><div><strong>WhatsApp</strong><small class="contact-number-ltr" dir="ltr"><bdi dir="ltr">${whatsapp?safeText(cfg.whatsappDisplay||cfg.phone||"ئۇچۇر يوللاش"):"WhatsApp ئارقىلىق ئالاقىلىشىش"}</bdi></small></div></a>`);
   add("☎️","تېلېفون",cfg.phone,cfg.phone?`tel:${String(cfg.phone).replace(/[^+\d]/g,"")}`:"","",true);
