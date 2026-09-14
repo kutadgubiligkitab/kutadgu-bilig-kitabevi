@@ -185,10 +185,10 @@ test("migration is repeat-safe, CHECK-constrained, and backfills only true→col
 
 test("cache pins bumped for Admin, homepage, and book-shell", () => {
   assert.match(adminHtml, /admin\.js\?v=73/);
-  assert.match(adminHtml, /supabase-config\.js\?v=20/);
+  assert.match(adminHtml, /supabase-config\.js\?v=22/);
   assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
-  assert.match(read("index.html"), /shop\.js\?v=121/);
-  assert.match(read("index.html"), /supabase-config\.js\?v=20/);
+  assert.match(read("index.html"), /shop\.js\?v=124/);
+  assert.match(read("index.html"), /supabase-config\.js\?v=22/);
   assert.match(read("book-shell.html"), /shop\.js\?v=122/);
   assert.match(read("book-shell.html"), /catalog-bibliography\.js\?v=3/);
 });
