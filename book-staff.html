@@ -8,7 +8,8 @@
   <meta name="robots" content="noindex, nofollow">
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="account.css?v=6">
-  <link rel="stylesheet" href="book-staff.css?v=6">
+  <link rel="stylesheet" href="book-staff.css?v=7">
+  <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body data-book-staff-page="true">
   <header class="staff-topbar">
@@ -102,8 +103,9 @@
       <form id="staffBookForm" class="account-card account-form staff-form" novalidate>
         <h1>يېڭى كىتاب يوللاش</h1>
         <p class="staff-help">پەقەت يېڭى كىتاب قوشۇلىدۇ. تەستىقتىن بۇرۇن تور بەتتە كۆرۈنمەيدۇ.</p>
-        <label><span>كىتاب نامى *</span><input id="staffTitle" dir="auto" required maxlength="500"></label>
+        <label><span>كىتاب نامى *</span><input id="staffTitle" dir="auto" required maxlength="500"><div id="staffTitleSimilarWarning" class="kutadgu-title-warn" hidden></div></label>
         <label><span>ئاپتور *</span><input id="staffAuthor" dir="auto" required maxlength="500"></label>
+        <p class="kutadgu-combo-hint" id="staffEntrySuggestHint">بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ.</p>
         <label><span>تۈر *</span>
           <select id="staffSource" required>
             <option value="">تۈر تاللاڭ</option>
@@ -172,6 +174,7 @@
   <script defer src="app-config.js?v=4"></script>
   <script defer src="member.js?v=27"></script>
   <script defer src="admin-mfa.js?v=3"></script>
-  <script defer src="book-staff.js?v=6"></script>
+  <script defer src="kutadgu-book-entry-suggest.js?v=1"></script>
+  <script defer src="book-staff.js?v=7"></script>
 </body>
 </html>

@@ -53,7 +53,7 @@ test("A. Book Staff / member non-admin Admin visit does not call global signOut"
   assert.match(deny, /بۇ ھېسابات Admin ھېسابى ئەمەس/);
   assert.doesNotMatch(deny, /تىزىملىكىدە يوق/);
   assert.match(staffHtml, /href="\/account\.html"/);
-  assert.match(staffHtml, /book-staff\.js\?v=6/);
+  assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
   assert.match(accountHtml, /account\.js\?v=6/);
@@ -99,7 +99,7 @@ test("E. No role, RLS, or admin_users weakening", () => {
   assert.doesNotMatch(accountJs, /from\("admin_users"\)/);
   assert.doesNotMatch(adminJs, /CREATE POLICY|ALTER TABLE|DROP POLICY/);
   assert.doesNotMatch(staffJs, /add_kutadgu_book_staff/);
-  assert.match(adminHtml, /admin\.js\?v=75/);
+  assert.match(adminHtml, /admin\.js\?v=77/);
 });
 
 if (failed) {

@@ -117,7 +117,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=6/);
+  assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=27/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -145,8 +145,12 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFileName"[^>]*>رەسىم تاللانمىدى/);
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
-  assert.match(staffHtml, /book-staff\.css\?v=6/);
-  assert.match(staffHtml, /book-staff\.js\?v=6/);
+  assert.match(staffHtml, /book-staff\.css\?v=7/);
+  assert.match(staffHtml, /book-staff\.js\?v=7/);
+  assert.match(staffHtml, /kutadgu-book-entry-suggest\.js\?v=1/);
+  assert.match(staffHtml, /kutadgu-book-entry-suggest\.css\?v=1/);
+  assert.match(staffHtml, /بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ/);
+  assert.match(staffHtml, /id="staffTitleSimilarWarning"/);
   assert.match(staffHtml, /<option value="hardcover">قاتتىق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="paperback">يۇمشاق مۇقاۋا<\/option>/);
   assert.match(staffHtml, /<option value="other">باشقا<\/option>/);
@@ -463,7 +467,7 @@ add("non-admin Admin routing cannot signOut a Book Staff member session", () => 
   assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.match(staffHtml, /href="\/account\.html"/);
-  assert.match(read("book-staff.html"), /book-staff\.js\?v=6/);
+  assert.match(read("book-staff.html"), /book-staff\.js\?v=7/);
 });
 
 add("Google OAuth account pins from PR 155 remain on account.html", () => {

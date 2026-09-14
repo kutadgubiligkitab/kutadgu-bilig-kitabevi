@@ -1110,6 +1110,7 @@ async function routeSession(){
     }
     if(ready&&ready.reason==="network"&&user)return;
     user=null;
+    clearAdminSuggestionState();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     if(ready&&ready.reason==="network"){
@@ -1120,10 +1121,17 @@ async function routeSession(){
     return;
   }
   const session=ready.session;
-  if(!session){show("loginPanel");$("#adminLogout").hidden=true;return}
+  if(!session){
+    user=null;
+    clearAdminSuggestionState();
+    show("loginPanel");
+    $("#adminLogout").hidden=true;
+    return;
+  }
   const ok=await checkAdmin(session.user);
   if(!ok){
     user=null;
+    clearAdminSuggestionState();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     status($("#loginStatus"),"بۇ ھېسابات Admin ھېسابى ئەمەس.","error");
@@ -1173,7 +1181,7 @@ async function openAuthorizedDashboard(){
     if(mfaCtl&&typeof mfaCtl.refresh==="function")await mfaCtl.refresh();
     return;
   }
-  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadHeroAdminCard(),loadMfaCard()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadHeroAdminCard(),loadMfaCard(),loadAdminSuggestionRows()]);
 }
 
 function columnList(){
@@ -4700,6 +4708,7 @@ async function logout(){
   if(api.clearState)api.clearState();
   if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
   user=null;
+  clearAdminSuggestionState();
   show("loginPanel");
   $("#adminLogout").hidden=true;
 }
@@ -5266,10 +5275,63 @@ async function confirmImport(){
   }
 }
 
+let adminSuggestLoadUid="";
+let adminSuggestLoadGen=0;
+let adminSuggestLoadPromise=null;
+function suggestionCatalogRows(){
+  return Array.isArray(window.__kutadguSuggestionRows)?window.__kutadguSuggestionRows:[];
+}
+function clearAdminSuggestionState(){
+  adminSuggestLoadGen++;
+  adminSuggestLoadUid="";
+  adminSuggestLoadPromise=null;
+  const S=window.KutadguBookEntrySuggest;
+  if(S&&typeof S.clearSuggestionCache==="function")S.clearSuggestionCache("admin");
+  window.__kutadguSuggestionRows=[];
+}
+function loadAdminSuggestionRows(){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||typeof S.loadSuggestionRows!=="function")return Promise.resolve([]);
+  if(window.__kutadguSkipSuggestFetch||window.__kutadguSkipAdminAuth){
+    if(!Array.isArray(window.__kutadguSuggestionRows))window.__kutadguSuggestionRows=[];
+    return Promise.resolve(suggestionCatalogRows());
+  }
+  const uid=user&&user.id?String(user.id):"";
+  if(!uid||!db)return Promise.resolve([]);
+  if(adminSuggestLoadUid===uid&&adminSuggestLoadPromise)return adminSuggestLoadPromise;
+  const gen=++adminSuggestLoadGen;
+  adminSuggestLoadUid=uid;
+  if(S.clearSuggestionCache)S.clearSuggestionCache("admin");
+  adminSuggestLoadPromise=S.loadSuggestionRows(db,{cacheKey:"admin"}).then(function(rows){
+    if(gen!==adminSuggestLoadGen)return [];
+    window.__kutadguSuggestionRows=rows||[];
+    return window.__kutadguSuggestionRows;
+  });
+  return adminSuggestLoadPromise;
+}
+function bindBookEntrySuggestions(){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||window.__kutadguBookEntrySuggestBound)return;
+  window.__kutadguBookEntrySuggestBound=true;
+  if(!Array.isArray(window.__kutadguSuggestionRows))window.__kutadguSuggestionRows=[];
+  const getRows=()=>suggestionCatalogRows();
+  if($("#bookAuthor"))S.attachCombobox($("#bookAuthor"),()=>S.uniqueValuesFromRows(getRows(),"author"));
+  if($("#bookTranslator"))S.attachCombobox($("#bookTranslator"),()=>S.uniqueValuesFromRows(getRows(),"translator"));
+  if($("#bookPublisher"))S.attachCombobox($("#bookPublisher"),()=>S.uniqueValuesFromRows(getRows(),"publisher"));
+  if($("#bookTitle"))S.attachTitleWarning($("#bookTitle"),getRows,{
+    box:$("#bookTitleSimilarWarning"),
+    getExcludeId:function(){
+      if(editing&&editing.id!=null)return String(editing.id);
+      return ($("#bookId")&&$("#bookId").value)||"";
+    }
+  });
+}
+
 function bindBookListUx(){
   renderSourceOptions();
   bindGalleryPicker();
   bindCoverPicker();
+  bindBookEntrySuggestions();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
   $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
@@ -5495,6 +5557,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
+  loadAdminSuggestionRows,clearAdminSuggestionState,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
 };
 })();
