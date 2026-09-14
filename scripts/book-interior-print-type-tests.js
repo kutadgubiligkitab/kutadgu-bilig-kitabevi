@@ -42,7 +42,7 @@ test("1-4 Admin 3-state select sits near cover type / book size with unselected 
   const sizeAt = form.indexOf('id="bookSize"');
   const printAt = form.indexOf('id="bookInteriorPrintType"');
   assert.ok(printAt > sizeAt);
-  assert.match(form, /data-book-col="interior_print_type" hidden/);
+  assert.match(form, /data-book-col="interior_print_type"[^>]*\bhidden\b/);
   assert.match(form, /ئىچكى بېسىلىشى/);
   assert.match(form, /\(ئىختىيارىي\)/);
   assert.match(form, /<select id="bookInteriorPrintType">/);

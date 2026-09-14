@@ -195,7 +195,6 @@ test.describe("Stage Admin 1J pending book edit", () => {
     expect(payload.gallery_images).toEqual([G1, G2]);
 
     await page.locator("[data-edit-submission]").click();
-    page.once("dialog", (dialog) => dialog.accept());
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser"),
       page.locator("#bookGalleryPickBtn").click()

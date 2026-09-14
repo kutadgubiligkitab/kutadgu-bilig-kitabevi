@@ -21,7 +21,7 @@ function read(rel) {
 function functionBlock(source, name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = source.match(new RegExp(
-    String.raw`CREATE OR REPLACE FUNCTION ${escaped}\([\s\S]*?\$[a-z]*\$;`,
+    String.raw`CREATE OR REPLACE FUNCTION ${escaped}\([\s\S]*?\$[a-z_]*\$;`,
     "i"
   ));
   assert.ok(match, "missing function " + name);
