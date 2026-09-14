@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=42">
+  <link rel="stylesheet" href="admin.css?v=43">
 </head>
 <body>
 <div class="admin-shell">
@@ -533,7 +533,10 @@
           <option value="other">باشقا</option>
         </select>
       </label>
-      <label data-book-col="interior_print_type" data-pending-hide="1" hidden><span>ئىچكى بېسىلىشى <small class="admin-optional">(ئىختىيارىي)</small></span>
+      <label data-pending-only="1"><span>ئەسلى باھا</span><input id="pendingOriginalPrice" type="number" min="0" step="0.01" dir="ltr" inputmode="decimal"></label>
+      <label data-pending-only="1"><span>ئۆلچەم</span><input id="pendingDimensions" dir="ltr" maxlength="120"></label>
+      <label class="admin-check" data-pending-only="1"><input id="pendingColorPrint" type="checkbox"><span>رەڭلىك بېسىش</span></label>
+      <label data-book-col="interior_print_type" hidden><span>ئىچكى بېسىلىشى <small class="admin-optional">(ئىختىيارىي)</small></span>
         <select id="bookInteriorPrintType">
           <option value="">تاللانمىغان</option>
           <option value="color">رەڭلىك</option>
@@ -924,6 +927,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=4"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=74"></script>
+  <script defer src="admin.js?v=75"></script>
 </body>
 </html>

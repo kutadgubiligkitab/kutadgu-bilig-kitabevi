@@ -645,6 +645,8 @@ button{cursor:pointer}
 #bookModal.is-pending-edit #bookSaveDiag,
 #bookModal.is-pending-edit #createDuplicateWarning{display:none !important}
 #bookModal.is-pending-edit #pendingEditHelp{display:block}
+#bookModal:not(.is-pending-edit) [data-pending-only="1"]{display:none !important}
+#bookModal.is-pending-edit [data-book-col="interior_print_type"]{display:block !important}
 @media(max-width:850px){
   .admin-submission-row{grid-template-columns:48px minmax(0,1fr)}
   .admin-submission-cover,

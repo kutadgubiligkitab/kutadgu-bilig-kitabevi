@@ -32,6 +32,10 @@ DECLARE
   v_description text;
   v_stock integer;
   v_isbn text;
+  v_original_price numeric(12,2);
+  v_dimensions text := '';
+  v_is_color_print boolean;
+  v_interior_print_type text;
   v_gallery jsonb := NULL;
   v_gallery_url text;
   v_gallery_item jsonb;
@@ -56,11 +60,7 @@ DECLARE
     'legacy_id',
     'href',
     'language',
-    'publish_date',
-    'original_price',
-    'interior_print_type',
-    'is_color_print',
-    'dimensions'
+    'publish_date'
   ];
   v_allowed text[] := ARRAY[
     'title',
@@ -78,7 +78,11 @@ DECLARE
     'pages',
     'cover_type',
     'book_size',
-    'gallery_images'
+    'gallery_images',
+    'original_price',
+    'dimensions',
+    'is_color_print',
+    'interior_print_type'
   ];
 BEGIN
   IF auth.uid() IS NULL THEN
@@ -210,6 +214,43 @@ BEGIN
     END IF;
   END IF;
 
+  IF payload ? 'original_price' THEN
+    IF payload->'original_price' IS NULL OR jsonb_typeof(payload->'original_price') = 'null' OR btrim(COALESCE(payload->>'original_price', '')) = '' THEN
+      v_original_price := NULL;
+    ELSIF jsonb_typeof(payload->'original_price') = 'number' THEN
+      v_original_price := (payload->>'original_price')::numeric;
+    ELSIF jsonb_typeof(payload->'original_price') = 'string' AND btrim(payload->>'original_price') ~ '^[0-9]+(\.[0-9]+)?$' THEN
+      v_original_price := btrim(payload->>'original_price')::numeric;
+    ELSE
+      RAISE EXCEPTION 'original_price must be a non-negative number' USING ERRCODE = '22023';
+    END IF;
+    IF v_original_price IS NOT NULL AND v_original_price < 0 THEN
+      RAISE EXCEPTION 'original_price must be non-negative' USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  IF payload ? 'dimensions' THEN
+    v_dimensions := left(btrim(COALESCE(payload->>'dimensions', '')), 120);
+  END IF;
+
+  IF payload ? 'is_color_print' THEN
+    IF jsonb_typeof(payload->'is_color_print') IS DISTINCT FROM 'boolean' THEN
+      RAISE EXCEPTION 'is_color_print must be a boolean' USING ERRCODE = '22023';
+    END IF;
+    v_is_color_print := (payload->>'is_color_print')::boolean;
+  END IF;
+
+  IF payload ? 'interior_print_type' THEN
+    IF payload->'interior_print_type' IS NULL OR jsonb_typeof(payload->'interior_print_type') = 'null' THEN
+      v_interior_print_type := NULL;
+    ELSE
+      v_interior_print_type := NULLIF(btrim(COALESCE(payload->>'interior_print_type', '')), '');
+      IF v_interior_print_type IS NOT NULL AND v_interior_print_type NOT IN ('color', 'bw') THEN
+        RAISE EXCEPTION 'invalid interior_print_type' USING ERRCODE = '22023';
+      END IF;
+    END IF;
+  END IF;
+
   IF payload ? 'image_url' AND payload->'image_url' IS NOT NULL AND jsonb_typeof(payload->'image_url') IS DISTINCT FROM 'null' THEN
     v_image_url := btrim(payload->>'image_url');
     IF v_image_url = '' THEN
@@ -286,6 +327,10 @@ BEGIN
          description = CASE WHEN payload ? 'description' THEN v_description ELSE description END,
          image_url = CASE WHEN payload ? 'image_url' THEN COALESCE(v_image_url, image_url) ELSE image_url END,
          gallery_images = CASE WHEN payload ? 'gallery_images' THEN v_gallery ELSE gallery_images END,
+         original_price = CASE WHEN payload ? 'original_price' THEN v_original_price ELSE original_price END,
+         dimensions = CASE WHEN payload ? 'dimensions' THEN v_dimensions ELSE dimensions END,
+         is_color_print = CASE WHEN payload ? 'is_color_print' THEN v_is_color_print ELSE is_color_print END,
+         interior_print_type = CASE WHEN payload ? 'interior_print_type' THEN v_interior_print_type ELSE interior_print_type END,
          submission_status = 'pending'
    WHERE id = p_book_id
      AND submission_status = 'pending';

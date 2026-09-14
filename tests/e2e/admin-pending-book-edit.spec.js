@@ -21,6 +21,10 @@ const PENDING_BOOK = {
   pages: 120,
   cover_type: "paperback",
   book_size: "A5",
+  original_price: 60,
+  dimensions: "14x21",
+  is_color_print: true,
+  interior_print_type: "bw",
   description: "قىسقىچە چۈشەندۈرۈش",
   image_url: COVER,
   gallery_images: [G1, G2],
@@ -73,6 +77,10 @@ async function openPendingAdmin(page) {
         id: Number(id),
         approve,
         title: row && row.title,
+        original_price: row && row.original_price,
+        dimensions: row && row.dimensions,
+        is_color_print: row && row.is_color_print,
+        interior_print_type: row && row.interior_print_type,
         payloadTitle: row && row.title,
         is_active: row && row.is_active,
         submission_status: row && row.submission_status
@@ -121,6 +129,14 @@ test.describe("Stage Admin 1J pending book edit", () => {
     await expect(page.locator("#bookPublisher")).toHaveValue(PENDING_BOOK.publisher);
     await expect(page.locator("#bookIsbn")).toHaveValue(PENDING_BOOK.isbn);
     await expect(page.locator("#bookPrice")).toHaveValue(String(PENDING_BOOK.price));
+    await expect(page.locator("#pendingOriginalPrice")).toBeVisible();
+    await expect(page.locator("#pendingOriginalPrice")).toHaveValue("60");
+    await expect(page.locator("#pendingDimensions")).toHaveValue("14x21");
+    await expect(page.locator("#pendingColorPrint")).toBeChecked();
+    await expect(page.locator("#bookInteriorPrintType")).toBeVisible();
+    await expect(page.locator("#bookInteriorPrintType")).toHaveValue("bw");
+    await expect(page.locator("#bookOriginalPriceCorrectBtn")).toBeHidden();
+    await expect(page.locator("#bookPriceHistoryBtn")).toBeHidden();
     await expect(page.locator("#bookCoverPreview")).toHaveAttribute("src", COVER);
     await expect(page.locator("#bookGalleryList img").nth(0)).toHaveAttribute("src", G1);
     await expect(page.locator("#bookGalleryList img").nth(1)).toHaveAttribute("src", G2);
@@ -152,6 +168,10 @@ test.describe("Stage Admin 1J pending book edit", () => {
     expect(save.pending[0].payload.author).toBe(PENDING_BOOK.author);
     expect(save.pending[0].payload.image_url).toBe(COVER);
     expect(save.pending[0].payload.gallery_images).toEqual([G1, G2]);
+    expect(save.pending[0].payload.original_price).toBe(60);
+    expect(save.pending[0].payload.dimensions).toBe("14x21");
+    expect(save.pending[0].payload.is_color_print).toBe(true);
+    expect(save.pending[0].payload.interior_print_type).toBe("bw");
     expect(save.pending[0].payload).not.toHaveProperty("is_active");
     expect(save.pending[0].payload).not.toHaveProperty("is_available");
     expect(save.pending[0].payload).not.toHaveProperty("submission_status");
@@ -173,7 +193,41 @@ test.describe("Stage Admin 1J pending book edit", () => {
     const review = await page.evaluate(() => window.__kutadguReviews[0]);
     expect(review.approve).toBe(true);
     expect(review.title).toBe("تەستىقلىنىدىغان نام");
+    expect(review.original_price).toBe(60);
+    expect(review.dimensions).toBe("14x21");
+    expect(review.is_color_print).toBe(true);
+    expect(review.interior_print_type).toBe("bw");
     expect(review.submission_status).toBe("pending");
+  });
+
+  test("E staff extras: edit original_price only preserves the rest", async ({ page }) => {
+    await openPendingAdmin(page);
+    await page.locator("[data-edit-submission]").click();
+    await expect(page.locator("#pendingOriginalPrice")).toHaveValue("60");
+    await page.locator("#pendingOriginalPrice").fill("88");
+    await page.locator("#bookSaveBtn").click();
+    await expect(page.locator("#pendingSubmissionStatus")).toContainText("ئۆزگەرتىشلەر ساقلىنىپ بولدى");
+    const payload = await page.evaluate(() => window.__kutadguPendingSaves[0].payload);
+    expect(payload.original_price).toBe(88);
+    expect(payload.dimensions).toBe("14x21");
+    expect(payload.is_color_print).toBe(true);
+    expect(payload.interior_print_type).toBe("bw");
+    expect(payload.title).toBe(PENDING_BOOK.title);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.locator('[data-admin-section="submissions"]').click();
+    await page.locator("[data-edit-submission]").click();
+    await expect(page.locator("#pendingOriginalPrice")).toHaveValue("88");
+    await expect(page.locator("#pendingDimensions")).toHaveValue("14x21");
+    await expect(page.locator("#pendingColorPrint")).toBeChecked();
+    await expect(page.locator("#bookInteriorPrintType")).toHaveValue("bw");
+    await page.locator("#cancelBookEdit").click();
+    await page.locator("[data-approve-submission]").click();
+    const review = await page.evaluate(() => window.__kutadguReviews[0]);
+    expect(review.approve).toBe(true);
+    expect(review.original_price).toBe(88);
+    expect(review.dimensions).toBe("14x21");
+    expect(review.is_color_print).toBe(true);
+    expect(review.interior_print_type).toBe("bw");
   });
 
   test("H reject still works on an unedited pending card", async ({ page }) => {

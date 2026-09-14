@@ -1356,7 +1356,7 @@ function dateText(value){
   const two=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
-const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available";
+const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available";
 let pendingSubmissions=[];
 let pendingSubmissionBusy=false;
 let pendingEditMode=false;
@@ -1546,6 +1546,19 @@ function applyPendingEditChrome(on){
   if(galleryBtn)galleryBtn.textContent=pendingEditMode?"رەسىمنى ئالماشتۇرۇش":"رەسىم تاللاش";
   if(galleryHead)galleryHead.textContent=pendingEditMode?"ئىچكى بەت رەسىملىرى":"قوشۇمچە كىتاب رەسىملىرى";
   if(descLabel)descLabel.innerHTML=pendingEditMode?'قىسقىچە چۈشەندۈرۈش <small class="admin-optional">(ئىختىيارىي)</small>':'كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small>';
+  document.querySelectorAll("[data-pending-only='1']").forEach(el=>{el.hidden=!pendingEditMode});
+  const interiorWrap=$("#bookInteriorPrintType")&&$("#bookInteriorPrintType").closest("[data-book-col='interior_print_type']");
+  const interiorLabel=interiorWrap&&interiorWrap.querySelector("span");
+  if(interiorLabel&&!interiorLabel.dataset.normalLabel)interiorLabel.dataset.normalLabel=interiorLabel.innerHTML;
+  if(interiorWrap){
+    if(pendingEditMode)interiorWrap.hidden=false;
+    else interiorWrap.hidden=!presentBookCols.has("interior_print_type");
+  }
+  if(interiorLabel){
+    interiorLabel.innerHTML=pendingEditMode
+      ?'ئىچكى بېسىش تىپى <small class="admin-optional">(ئىختىيارىي)</small>'
+      :(interiorLabel.dataset.normalLabel||interiorLabel.innerHTML);
+  }
   const diag=$("#bookSaveDiag");
   if(diag&&pendingEditMode){diag.hidden=true;diag.textContent=""}
 }
@@ -1553,6 +1566,39 @@ function restoreBookSaveBtnLabel(){
   const saveBtn=$("#bookSaveBtn");
   if(!saveBtn)return;
   saveBtn.textContent=pendingEditMode?"ئۆزگەرتىشلەرنى ساقلاش":"💾 ساقلاش";
+}
+function fillPendingReviewFields(row){
+  const orig=$("#pendingOriginalPrice");
+  if(orig)orig.value=row&&row.original_price!=null&&row.original_price!==""?row.original_price:"";
+  const dim=$("#pendingDimensions");
+  if(dim)dim.value=row&&row.dimensions!=null?String(row.dimensions):"";
+  const color=$("#pendingColorPrint");
+  if(color)color.checked=!!(row&&row.is_color_print===true);
+  if($("#bookInteriorPrintType")){
+    const raw=row&&row.interior_print_type;
+    $("#bookInteriorPrintType").value=(raw==="color"||raw==="bw")?raw:"";
+  }
+}
+function readPendingReviewFields(){
+  const rawOrig=String($("#pendingOriginalPrice")&&$("#pendingOriginalPrice").value||"").trim();
+  let originalPrice=null;
+  if(rawOrig){
+    if(!/^[0-9]+(\.[0-9]+)?$/.test(rawOrig))return {ok:false,error:"ئەسلى باھا توغرا ئەمەس."};
+    originalPrice=Number(rawOrig);
+    if(!Number.isFinite(originalPrice)||originalPrice<0)return {ok:false,error:"ئەسلى باھا توغرا ئەمەس."};
+  }
+  const dimensions=String($("#pendingDimensions")&&$("#pendingDimensions").value||"").trim().slice(0,120);
+  const interior=String($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value||"").trim();
+  if(interior&&interior!=="color"&&interior!=="bw")return {ok:false,error:"ئىچكى بېسىش تىپى توغرا ئەمەس."};
+  return {
+    ok:true,
+    values:{
+      original_price:originalPrice,
+      dimensions,
+      is_color_print:!!($("#pendingColorPrint")&&$("#pendingColorPrint").checked),
+      interior_print_type:interior||null
+    }
+  };
 }
 function pendingEditPayload(row,imageUrl,galleryUrls){
   const payload={
@@ -1571,6 +1617,10 @@ function pendingEditPayload(row,imageUrl,galleryUrls){
   if(presentBookCols.has("stock"))payload.stock=row.stock==null?null:row.stock;
   if(presentBookCols.has("cover_type")&&Object.prototype.hasOwnProperty.call(row,"cover_type"))payload.cover_type=row.cover_type||null;
   if(presentBookCols.has("book_size")&&Object.prototype.hasOwnProperty.call(row,"book_size"))payload.book_size=row.book_size||null;
+  payload.original_price=Object.prototype.hasOwnProperty.call(row,"original_price")?row.original_price:null;
+  payload.dimensions=row.dimensions==null?"":String(row.dimensions).slice(0,120);
+  payload.is_color_print=row.is_color_print===true;
+  payload.interior_print_type=row.interior_print_type==="color"||row.interior_print_type==="bw"?row.interior_print_type:null;
   if(imageUrl)payload.image_url=imageUrl;
   if(presentBookCols.has("gallery_images"))payload.gallery_images=normalizeGalleryField(galleryUrls,imageUrl)||[];
   ["is_active","is_available","is_new","is_recommended","submission_status","submitted_by","submitted_at","sales_count","id"].forEach(key=>delete payload[key]);
@@ -2287,6 +2337,9 @@ function clearForm(){
   if($("#bookCoverType"))$("#bookCoverType").value="";
   if($("#bookSize"))$("#bookSize").value="";
   if($("#bookInteriorPrintType"))$("#bookInteriorPrintType").value="";
+  if($("#pendingOriginalPrice"))$("#pendingOriginalPrice").value="";
+  if($("#pendingDimensions"))$("#pendingDimensions").value="";
+  if($("#pendingColorPrint"))$("#pendingColorPrint").checked=false;
   resetGalleryDraft([]);
   $("#bookModalTitle").textContent="➕ يېڭى كىتاب";
   renderOriginalPriceStatus(null,{create:true});
@@ -2338,8 +2391,13 @@ async function openEdit(id){
   if($("#bookCoverType"))$("#bookCoverType").value=(Bib.normalizeCoverType?Bib.normalizeCoverType(b.cover_type):"")||"";
   if($("#bookSize"))$("#bookSize").value=(Bib.normalizeBookSize?Bib.normalizeBookSize(b.book_size):"")||"";
   if($("#bookInteriorPrintType")){
-    const printType=Bib.resolveInteriorPrintType?Bib.resolveInteriorPrintType(b):(b.interior_print_type||(b.is_color_print===true?"color":""));
-    $("#bookInteriorPrintType").value=printType||"";
+    if(isPendingSubmissionRow(b)){
+      const raw=b.interior_print_type;
+      $("#bookInteriorPrintType").value=(raw==="color"||raw==="bw")?raw:"";
+    }else{
+      const printType=Bib.resolveInteriorPrintType?Bib.resolveInteriorPrintType(b):(b.interior_print_type||(b.is_color_print===true?"color":""));
+      $("#bookInteriorPrintType").value=printType||"";
+    }
   }
   $("#bookDescription").value=b.description||"";
   $("#bookIsActive").checked=b.is_active!==false;
@@ -2355,6 +2413,7 @@ async function openEdit(id){
   applyPendingEditChrome(isPendingSubmissionRow(b));
   if(pendingEditMode){
     $("#bookModalTitle").textContent="كىتاب ئۇچۇرلىرىنى تەكشۈرۈش";
+    fillPendingReviewFields(b);
   }
   modal(true);
   logSavePlan(planCurrentSave());
@@ -3550,6 +3609,12 @@ async function saveBook(e){
     alert("تەھرىرلەش ئۈچۈن كىتاب ID تېپىلمىدى. يېڭى قۇر قوشۇلمايدۇ.");
     return;
   }
+  const pendingSave=pendingEditMode||isPendingSubmissionRow(editing);
+  let pendingReview=null;
+  if(pendingSave){
+    pendingReview=readPendingReviewFields();
+    if(!pendingReview.ok){alert(pendingReview.error);return}
+  }
   const isEdit=plan.operation==="UPDATE";
   const editingBookId=plan.editingBookId;
   const author=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookAuthor").value):$("#bookAuthor").value.trim();
@@ -3615,19 +3680,21 @@ async function saveBook(e){
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
     if(isbnColumn)row.isbn=isbn;
     if(presentBookCols.has("stock"))row.stock=stockValue;
-    if(presentBookCols.has("interior_print_type")){
-      const printType=Bib.normalizeInteriorPrintType?Bib.normalizeInteriorPrintType($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value):((($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value)||"")||null);
-      row.interior_print_type=printType||null;
-      if(presentBookCols.has("is_color_print"))row.is_color_print=printType==="color";
+    if(!pendingSave){
+      if(presentBookCols.has("interior_print_type")){
+        const printType=Bib.normalizeInteriorPrintType?Bib.normalizeInteriorPrintType($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value):((($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value)||"")||null);
+        row.interior_print_type=printType||null;
+        if(presentBookCols.has("is_color_print"))row.is_color_print=printType==="color";
+      }
+      if(presentBookCols.has("original_price")&&Orig.planInsertOriginalPrice&&Orig.planUpdateOriginalPrice){
+        const planned=isEdit
+          ?Orig.planUpdateOriginalPrice(editing&&editing.original_price,row.price,editing&&editing.price)
+          :Orig.planInsertOriginalPrice(row.price);
+        if(planned&&planned.include)row.original_price=planned.original_price;
+      }
     }
-    if(presentBookCols.has("original_price")&&Orig.planInsertOriginalPrice&&Orig.planUpdateOriginalPrice){
-      const planned=isEdit
-        ?Orig.planUpdateOriginalPrice(editing&&editing.original_price,row.price,editing&&editing.price)
-        :Orig.planInsertOriginalPrice(row.price);
-      if(planned&&planned.include)row.original_price=planned.original_price;
-    }
-    const pendingSave=pendingEditMode||isPendingSubmissionRow(editing);
     if(pendingSave){
+      Object.assign(row,pendingReview.values);
       const pendingPayload=pendingEditPayload(row,imageUrl,galleryUrls);
       const pendingResult=await persistPendingSubmission(editingBookId,pendingPayload);
       if(pendingResult&&pendingResult.error)throw pendingResult.error;
@@ -5428,6 +5495,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
+  parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
 };
 })();

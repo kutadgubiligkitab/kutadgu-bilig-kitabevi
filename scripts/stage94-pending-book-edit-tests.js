@@ -71,11 +71,21 @@ test("whitelist matches production catalog fields only", () => {
   [
     "title", "author", "category", "source", "price", "stock", "isbn",
     "translator", "publisher", "publish_year", "pages", "cover_type",
-    "book_size", "description", "image_url", "gallery_images"
+    "book_size", "description", "image_url", "gallery_images",
+    "original_price", "dimensions", "is_color_print", "interior_print_type"
   ].forEach((col) => {
     assert.match(allowed[0], new RegExp("'" + col + "'"));
   });
-  assert.doesNotMatch(allowed[0], /'language'|'sales_count'|'original_price'|'href'/);
+  assert.doesNotMatch(allowed[0], /'language'|'sales_count'|'href'/);
+  const forbidden = fn.match(/v_forbidden text\[\] := ARRAY\[[\s\S]*?\];/);
+  assert.ok(forbidden);
+  assert.doesNotMatch(forbidden[0], /'original_price'|'dimensions'|'is_color_print'|'interior_print_type'/);
+  assert.match(fn, /original_price must be a non-negative number/);
+  assert.match(fn, /is_color_print must be a boolean/);
+  assert.match(fn, /invalid interior_print_type/);
+  assert.match(fn, /left\(btrim\(COALESCE\(payload->>'dimensions', ''\)\), 120\)/);
+  assert.match(fn, /original_price = CASE WHEN payload \? 'original_price'/);
+  assert.match(fn, /dimensions = CASE WHEN payload \? 'dimensions'/);
 });
 
 test("Admin client reuses the existing editor and pending save skips books.update", () => {
@@ -89,9 +99,20 @@ test("Admin client reuses the existing editor and pending save skips books.updat
   assert.match(save, /const pendingSave=pendingEditMode\|\|isPendingSubmissionRow\(editing\)/);
   assert.match(save, /ئۆزگەرتىشلەر ساقلىنىپ بولدى/);
   assert.doesNotMatch(save, /Save and Approve/);
-  assert.match(adminHtml, /ئۆزگەرتىشلەرنى ساقلاش|id="bookSaveBtn"/);
-  assert.match(adminHtml, /بىكار قىلىش/);
-  assert.match(adminJs, /كىتاب ئۇچۇرلىرىنى تەكشۈرۈش/);
+  assert.match(adminHtml, /id="pendingOriginalPrice"/);
+  assert.match(adminHtml, />ئەسلى باھا</);
+  assert.match(adminHtml, /id="pendingDimensions"/);
+  assert.match(adminHtml, />ئۆلچەم</);
+  assert.match(adminHtml, /id="pendingColorPrint"/);
+  assert.match(adminHtml, />رەڭلىك بېسىش</);
+  assert.match(adminJs, /ئىچكى بېسىش تىپى/);
+  assert.match(adminJs, /fillPendingReviewFields/);
+  assert.match(adminJs, /readPendingReviewFields/);
+  const pendingPayload = adminJs.slice(adminJs.indexOf("function pendingEditPayload("), adminJs.indexOf("async function persistPendingSubmission("));
+  assert.match(pendingPayload, /original_price/);
+  assert.match(pendingPayload, /dimensions/);
+  assert.match(pendingPayload, /is_color_print/);
+  assert.match(pendingPayload, /interior_print_type/);
 });
 
 test("Book Staff and Member clients cannot call pending edit", () => {

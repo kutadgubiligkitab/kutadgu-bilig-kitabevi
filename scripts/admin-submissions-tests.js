@@ -64,7 +64,7 @@ test("ADMIN_SECTIONS includes submissions and existing sections", () => {
 test("pending loader queries submission_status pending only", () => {
   const fn = sliceFn(adminJs, "loadPendingSubmissions");
   assert.match(fn, /PENDING_SUBMISSION_SELECT/);
-  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available"/);
+  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available"/);
   assert.match(fn, /\.from\("books"\)/);
   assert.match(fn, /\.eq\("submission_status","pending"\)/);
   assert.doesNotMatch(fn, /\.eq\("is_active"/);
