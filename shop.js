@@ -4367,7 +4367,7 @@ function ensureStorefrontCards1aPolishCss(){
     el=document.createElement("link");
     el.rel="stylesheet";
     el.href="/storefront-cards-1a-polish.css?v=1";
-    el.dataset.kutadguStorefrontCards1a="1";
+    el.setAttribute("data-kutadgu-storefront-cards-1a","1");
   }
   document.head.appendChild(el);
 }
