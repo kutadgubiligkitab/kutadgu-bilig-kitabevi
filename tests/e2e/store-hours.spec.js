@@ -63,7 +63,6 @@ async function openStorefrontAdmin(page) {
   });
   await page.goto("/admin.html#storefront", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#dashboardPanel")).toBeVisible();
-  await page.locator('[data-admin-section="storefront"]').click();
   await expect(page.locator("#shopHoursCard")).toBeVisible({ timeout: 15000 });
 }
 
