@@ -286,6 +286,148 @@ button{cursor:pointer}
 .admin-modal-card{width:min(96%,900px);max-height:92vh;overflow:auto;background:#fffdf9;border-radius:16px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
 .admin-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .admin-modal-head button{width:40px;height:40px;border:0;border-radius:50%;background:#eee4d7}
+
+#bookModal{padding:12px}
+#bookModal .admin-modal-card{
+  display:flex;
+  flex-direction:column;
+  width:min(96%,920px);
+  max-height:min(92vh,900px);
+  overflow:hidden;
+  padding:0;
+}
+#bookModal .admin-modal-head{
+  flex-shrink:0;
+  margin:0;
+  padding:18px 22px 10px;
+}
+#bookModal #pendingEditHelp{
+  flex-shrink:0;
+  margin:0 22px 10px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid #f3d2a4;
+  background:#fff8ee;
+  color:#7a4a12;
+  font-size:13px;
+  line-height:1.7;
+}
+#bookForm.admin-book-form{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+  gap:0;
+}
+#bookModal .admin-book-form-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  overflow-x:hidden;
+  padding:4px 22px 16px;
+}
+#bookModal .admin-book-form-footer{
+  flex-shrink:0;
+  background:#fffdf9;
+  border-top:1px solid #eadfce;
+  box-shadow:0 -8px 18px rgba(26,21,16,.06);
+  padding:12px 22px max(16px, env(safe-area-inset-bottom));
+}
+#bookModal .admin-book-form-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+#bookModal .admin-book-form-actions .admin-primary,
+#bookModal .admin-book-form-actions .admin-secondary{
+  min-height:44px;
+}
+#bookModal .admin-book-section{
+  margin:0 0 18px;
+  padding:0 0 16px;
+  border-bottom:1px solid rgba(212,163,115,.32);
+}
+#bookModal .admin-book-section:last-of-type{
+  margin-bottom:0;
+  padding-bottom:4px;
+  border-bottom:0;
+}
+#bookModal .admin-book-section-title{
+  margin:0 0 12px;
+  font-size:1.02rem;
+  font-weight:800;
+  color:#4b3327;
+  line-height:1.5;
+}
+#bookModal .admin-book-section-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 16px;
+  min-width:0;
+}
+#bookModal .admin-book-span{
+  grid-column:1/-1;
+  min-width:0;
+}
+#bookModal .admin-book-section-grid label>span:first-child{
+  font-size:13px;
+  font-weight:700;
+  color:#4b3327;
+}
+#bookModal .admin-book-section-grid input,
+#bookModal .admin-book-section-grid textarea,
+#bookModal .admin-book-section-grid select{
+  min-height:44px;
+  border-radius:9px;
+}
+#bookModal .admin-book-section-grid textarea{min-height:96px;resize:vertical}
+#bookModal .admin-help,
+#bookModal .kutadgu-combo-hint{
+  color:#8a7a6a;
+  font-size:12px;
+  line-height:1.55;
+  font-weight:500;
+}
+#bookModal .kutadgu-combo-hint{margin:0}
+#bookModal .kutadgu-combo-list{z-index:40}
+#bookModal .admin-cover-picker,
+#bookModal .admin-cover-preview,
+#bookModal .admin-gallery-section{
+  min-width:0;
+}
+#bookModal .admin-gallery-section{
+  padding:10px 12px;
+  gap:8px;
+}
+#bookModal .admin-gallery-list:empty{display:none}
+#bookModal .admin-book-visibility-grid{
+  align-items:stretch;
+}
+#bookModal #createDuplicateWarning{margin-bottom:10px}
+#bookModal #bookSaveDiag[hidden]{display:none !important}
+@media(max-width:767px){
+  #bookModal .admin-book-section-grid{grid-template-columns:1fr}
+  #bookModal .admin-book-form-actions .admin-primary,
+  #bookModal .admin-book-form-actions .admin-secondary{
+    width:100%;
+  }
+}
+@media(max-width:520px){
+  #bookModal{padding:0;align-items:stretch}
+  #bookModal .admin-modal-card{
+    width:100%;
+    max-height:100vh;
+    max-height:100dvh;
+    border-radius:0;
+  }
+  #bookModal .admin-modal-head,
+  #bookModal .admin-book-form-scroll{padding-inline:16px}
+  #bookModal #pendingEditHelp,
+  #bookModal .admin-book-form-footer{margin-inline:0;padding-inline:16px}
+}
 .admin-empty{text-align:center;padding:35px;color:#806f62}
 @media(max-width:850px){.admin-stats{grid-template-columns:repeat(2,1fr)}.admin-form{grid-template-columns:1fr}.admin-wide{grid-column:auto}.admin-book-row{grid-template-columns:48px 1fr}.admin-book-actions{grid-column:1/-1}.admin-book-row img{width:48px;height:64px}}
 @media(max-width:520px){.admin-topbar{align-items:flex-start;flex-direction:column}.admin-stats{grid-template-columns:1fr 1fr}.admin-card{padding:15px}.admin-main{width:92%}.admin-toolbar{align-items:stretch;flex-direction:column}.admin-search{min-width:0;width:100%}}
