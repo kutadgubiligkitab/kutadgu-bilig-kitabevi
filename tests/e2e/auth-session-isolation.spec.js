@@ -149,6 +149,7 @@ test.describe("Admin and Member auth sessions are isolated", () => {
     });
     await page.goto("/account.html", { waitUntil: "domcontentloaded" });
     await page.evaluate(async () => {
+      if (window.KutadguMember && window.KutadguMember.ready) await window.KutadguMember.ready;
       if (window.KutadguMember && window.KutadguMember.signOut) await window.KutadguMember.signOut();
     });
     const state = await authState(page);
@@ -177,7 +178,10 @@ test.describe("Admin and Member auth sessions are isolated", () => {
     const same = { id: "admin-1", email: "same@example.com" };
     await installIsolatedAuth(page, { adminUser: same, memberUser: same });
     await page.goto("/account.html", { waitUntil: "domcontentloaded" });
-    await page.evaluate(async () => { await window.KutadguMember.signOut(); });
+    await page.evaluate(async () => {
+      if (window.KutadguMember && window.KutadguMember.ready) await window.KutadguMember.ready;
+      if (window.KutadguMember && window.KutadguMember.signOut) await window.KutadguMember.signOut();
+    });
     let state = await authState(page);
     expect(state.member).toBeFalsy();
     expect(state.admin && state.admin.user.email).toBe("same@example.com");
