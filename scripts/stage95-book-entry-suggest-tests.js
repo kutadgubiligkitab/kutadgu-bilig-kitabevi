@@ -197,9 +197,8 @@ test("Pending edit, gallery, isolation, and RLS files stay intact", () => {
 });
 
 test("visible copy is Uyghur and hides technical jargon", () => {
-  const hint = /بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ/;
-  assert.match(adminHtml, hint);
-  assert.match(staffHtml, hint);
+  assert.match(adminHtml, /بۇرۇنقى ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ/);
+  assert.match(staffHtml, /بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ/);
   const adminHint = adminHtml.match(/id="bookEntrySuggestHint"[^>]*>[\s\S]*?<\/p>/)[0];
   const staffHint = staffHtml.match(/id="staffEntrySuggestHint"[^>]*>[\s\S]*?<\/p>/)[0];
   const warnJs = suggestJs.match(/kutadgu-title-warn-msg">[^<]+/)[0];

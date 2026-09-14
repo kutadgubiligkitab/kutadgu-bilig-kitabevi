@@ -177,7 +177,7 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
 
 test("pending Full Admin edit reuses the book modal and never publishes on save", () => {
   assert.match(adminHtml, /id="pendingEditHelp"/);
-  assert.match(adminHtml, /ساقلىغاندىن كېيىن كىتاب يەنىلا تەستىق كۈتۈش ھالىتىدە تۇرىدۇ/);
+  assert.match(adminHtml, /تۈزىتىپ ساقلىسىڭىز، كىتاب يەنىلا تەستىق كۈتۈپ تۇرىدۇ/);
   assert.match(adminJs, /rpc\("update_pending_staff_book_submission"/);
   const save = sliceFn(adminJs, "saveBook");
   assert.match(save, /persistPendingSubmission/);
