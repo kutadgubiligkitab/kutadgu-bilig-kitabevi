@@ -12,7 +12,7 @@
 --
 -- Purpose:
 --   store_shop_hours id=1 holds weekday (Mon–Sat) and Sunday open/close times.
---   Public SELECT of that row only. Admin INSERT/UPDATE + AAL2. No DELETE.
+--   Public SELECT of id and content on that row only (not updated_at/updated_by).
 --   Seeded values match the current Contact page / JSON-LD hours.
 --
 -- Depends on:
@@ -84,10 +84,13 @@ CREATE POLICY "aal2 required to update store_shop_hours"
   WITH CHECK ((select auth.jwt()->>'aal') = 'aal2');
 
 REVOKE ALL ON TABLE public.store_shop_hours FROM PUBLIC;
-GRANT SELECT ON TABLE public.store_shop_hours TO anon, authenticated;
+REVOKE SELECT ON TABLE public.store_shop_hours FROM anon, authenticated;
+GRANT SELECT (id, content)
+  ON TABLE public.store_shop_hours
+  TO anon, authenticated;
 GRANT INSERT, UPDATE ON TABLE public.store_shop_hours TO authenticated;
 
 COMMENT ON TABLE public.store_shop_hours IS
-  'Singleton (id=1) shop opening hours as one JSON object. Public read; Full Admin insert/update only with AAL2. Missing/failed reads must keep Contact and JSON-LD fallback hours.';
+  'Singleton (id=1) shop opening hours as one JSON object. Public SELECT is column-level (id, content) only — not updated_at/updated_by. Full Admin insert/update only with AAL2. Missing/failed reads must keep Contact and JSON-LD fallback hours.';
 
 COMMIT;

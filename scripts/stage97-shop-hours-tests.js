@@ -115,7 +115,6 @@ test("SQL is a singleton hours object and does not alter store_settings or About
   assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.store_shop_hours/);
   assert.match(sql, /CONSTRAINT store_shop_hours_singleton CHECK \(id = 1\)/);
   assert.match(sql, /weekdayOpen', '08:30'/);
-  assert.match(sql, /GRANT SELECT ON TABLE public\.store_shop_hours TO anon, authenticated/);
   assert.match(sql, /GRANT INSERT, UPDATE ON TABLE public\.store_shop_hours TO authenticated/);
   assert.doesNotMatch(sql, /GRANT INSERT, UPDATE ON TABLE public\.store_shop_hours TO anon/);
   assert.doesNotMatch(sql, /DELETE ON TABLE public\.store_shop_hours/);
@@ -129,6 +128,26 @@ test("SQL is a singleton hours object and does not alter store_settings or About
   assert.match(sql, /AS RESTRICTIVE/);
   assert.match(maint, /value boolean NOT NULL DEFAULT false/);
   assert.match(aboutSql, /store_homepage_about/);
+});
+
+test("public SELECT is column-level id,content only; Admin write + AAL2 unchanged", () => {
+  assert.doesNotMatch(sql, /GRANT SELECT ON TABLE public\.store_shop_hours TO anon, authenticated/);
+  assert.doesNotMatch(sql, /GRANT SELECT ON TABLE public\.store_shop_hours TO anon/);
+  assert.doesNotMatch(sql, /GRANT SELECT ON TABLE public\.store_shop_hours TO authenticated/);
+  assert.match(sql, /REVOKE SELECT ON TABLE public\.store_shop_hours FROM anon, authenticated/);
+  assert.match(sql, /GRANT SELECT \(id, content\)\s+ON TABLE public\.store_shop_hours\s+TO anon, authenticated/);
+  assert.doesNotMatch(sql, /GRANT SELECT \([^)]*updated_at/);
+  assert.doesNotMatch(sql, /GRANT SELECT \([^)]*updated_by/);
+  assert.match(sql, /GRANT INSERT, UPDATE ON TABLE public\.store_shop_hours TO authenticated/);
+  assert.match(sql, /store_shop_hours_insert_admin/);
+  assert.match(sql, /store_shop_hours_update_admin/);
+  assert.match(sql, /is_kutadgu_admin\(\) AND id = 1/);
+  assert.match(sql, /aal2 required to insert store_shop_hours/);
+  assert.match(sql, /aal2 required to update store_shop_hours/);
+  assert.match(sql, /AS RESTRICTIVE/);
+  assert.match(read("store-hours-content.js"), /store_shop_hours\?select=id,content/);
+  assert.doesNotMatch(read("store-hours-content.js"), /updated_at|updated_by/);
+  assert.match(read("admin-shop-hours.js"), /select\("id,content"\)/);
 });
 
 test("Book Staff, Member, and browser clients cannot write shop hours", () => {
