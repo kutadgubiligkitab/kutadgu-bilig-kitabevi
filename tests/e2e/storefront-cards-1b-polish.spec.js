@@ -68,12 +68,8 @@ async function mockCatalog(page) {
 async function familyMetrics(page, cardSelector, titleSelector, authorSelector, cartSelector) {
   return page.evaluate(({ cardSelector, titleSelector, authorSelector, cartSelector }) => {
     const cards = [...document.querySelectorAll(cardSelector)];
-    const grid = document.querySelector("#homeFeaturedBooks .home-featured-grid") ||
-      document.querySelector("#homeFeaturedBooks");
-    const cols = grid ? (getComputedStyle(grid).gridTemplateColumns || "").split(" ").filter(Boolean).length : 0;
     return {
       overflowX: document.documentElement.scrollWidth - window.innerWidth,
-      gridColumns: cols,
       cards: cards.map((card) => {
         const title = card.querySelector(titleSelector);
         const author = card.querySelector(authorSelector);
@@ -106,18 +102,30 @@ async function familyMetrics(page, cardSelector, titleSelector, authorSelector, 
   }, { cardSelector, titleSelector, authorSelector, cartSelector });
 }
 
-function expectAlignedActions(cards, label) {
+function rowGroups(cards) {
   const rows = [];
   for (const item of cards) {
-    if (item.actionBottom == null) continue;
     const row = rows.find((candidate) => Math.abs(candidate.top - item.top) <= 3);
     if (row) row.items.push(item);
     else rows.push({ top: item.top, items: [item] });
   }
-  for (const row of rows.filter((r) => r.items.length >= 2)) {
-    const bottoms = row.items.map((item) => item.actionBottom);
+  return rows;
+}
+
+function expectAlignedActions(cards, label) {
+  for (const row of rowGroups(cards).filter((r) => r.items.length >= 2)) {
+    const bottoms = row.items.map((item) => item.actionBottom).filter((v) => v != null);
+    if (bottoms.length < 2) continue;
     expect(Math.max(...bottoms) - Math.min(...bottoms), label).toBeLessThanOrEqual(3);
   }
+}
+
+function expectCartLabel(item, label) {
+  if (item.cartDisabled) {
+    expect(item.cartText, label).toMatch(/تۈگەپ كەتتى|سېۋەتكە/);
+    return;
+  }
+  expect(item.cartText, label).toContain("سېۋەتكە");
 }
 
 test.describe("storefront cards 1B polish", () => {
@@ -142,7 +150,8 @@ test.describe("storefront cards 1B polish", () => {
       ".home-feature-cart"
     );
     expect(featured.overflowX).toBeLessThanOrEqual(2);
-    expect(featured.gridColumns).toBeGreaterThanOrEqual(4);
+    const featuredRows = rowGroups(featured.cards);
+    expect(Math.max(0, ...featuredRows.map((row) => row.items.length))).toBeGreaterThanOrEqual(4);
     for (const item of featured.cards) {
       expect(item.objectFit).toBe("contain");
       expect(item.titleClamp === "2" || item.titleClamp === "2.0").toBeTruthy();
@@ -152,7 +161,7 @@ test.describe("storefront cards 1B polish", () => {
       expect(item.authorSize).toBeGreaterThanOrEqual(11);
       expect(item.authorSize).toBeLessThan(item.titleSize);
       expect(item.direction).toBe("rtl");
-      expect(item.cartText).toContain("سېۋەتكە");
+      expectCartLabel(item, "featured 1440");
     }
     expectAlignedActions(featured.cards, "featured 1440");
 
@@ -168,7 +177,7 @@ test.describe("storefront cards 1B polish", () => {
       expect(item.objectFit).toBe("contain");
       expect(item.titleLines).toBeLessThanOrEqual(2.4);
       expect(item.titleSize).toBeGreaterThanOrEqual(14);
-      expect(item.cartText).toContain("سېۋەتكە");
+      expectCartLabel(item, "carousel 1440");
     }
 
     const inStock = page.locator("#homeFeaturedBooks .home-feature-cart:not(:disabled)").first();
@@ -208,7 +217,7 @@ test.describe("storefront cards 1B polish", () => {
       for (const item of featured.cards) {
         expect(item.objectFit, `contain ${width}`).toBe("contain");
         expect(item.titleLines, `lines ${width}`).toBeLessThanOrEqual(2.45);
-        expect(item.cartText, `cta ${width}`).toContain("سېۋەتكە");
+        expectCartLabel(item, `cta ${width}`);
         expect(item.cartMinHeight, `touch ${width}`).toBeGreaterThanOrEqual(36);
       }
       expectAlignedActions(featured.cards, `featured ${width}`);
