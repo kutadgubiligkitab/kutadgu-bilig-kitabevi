@@ -8,6 +8,7 @@
 <meta name="robots" content="noindex, follow">
 
   <link rel="stylesheet" href="admin.css?v=43">
+  <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
 <div class="admin-shell">
@@ -485,8 +486,9 @@
     <form id="bookForm" class="admin-form" data-save-mode="create">
       <input id="bookId" type="hidden">
 
-      <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required></label>
+      <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required><div id="bookTitleSimilarWarning" class="kutadgu-title-warn" hidden></div></label>
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
+      <p class="kutadgu-combo-hint" id="bookEntrySuggestHint">بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ.</p>
       <label data-book-col="isbn"><span>ISBN / باركود <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">بوشلۇق ۋە سىزىقچىلار ئاپتوماتىك تازىلىنىدۇ. ISBN-10 / ISBN-13 ساقلىنىدۇ؛ يوق كىتابلارغا ISBN توختىماڭ.</span></label>
 
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01">
@@ -927,6 +929,7 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=4"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=75"></script>
+<script defer src="kutadgu-book-entry-suggest.js?v=1"></script>
+  <script defer src="admin.js?v=76"></script>
 </body>
 </html>

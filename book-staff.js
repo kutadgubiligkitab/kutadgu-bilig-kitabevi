@@ -39,12 +39,36 @@ function invalidateStaffRoutes(){
   staffRouteSeq++;
   staffUid="";
 }
+function suggestionCatalogRows(){
+  return Array.isArray(window.__kutadguSuggestionRows)?window.__kutadguSuggestionRows:[];
+}
+function bindBookEntrySuggestions(){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||window.__kutadguStaffSuggestBound)return;
+  window.__kutadguStaffSuggestBound=true;
+  if(!Array.isArray(window.__kutadguSuggestionRows))window.__kutadguSuggestionRows=[];
+  const getRows=()=>suggestionCatalogRows();
+  if($("#staffAuthor"))S.attachCombobox($("#staffAuthor"),()=>S.uniqueValuesFromRows(getRows(),"author"));
+  if($("#staffTranslator"))S.attachCombobox($("#staffTranslator"),()=>S.uniqueValuesFromRows(getRows(),"translator"));
+  if($("#staffPublisher"))S.attachCombobox($("#staffPublisher"),()=>S.uniqueValuesFromRows(getRows(),"publisher"));
+  if($("#staffTitle"))S.attachTitleWarning($("#staffTitle"),getRows,{box:$("#staffTitleSimilarWarning")});
+}
+function loadStaffSuggestionRows(){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||window.__kutadguSkipSuggestFetch)return;
+  const client=db();
+  if(!client||typeof client.from!=="function")return;
+  S.loadSuggestionRows(client,{cacheKey:"staff"}).then(function(rows){
+    window.__kutadguSuggestionRows=rows||[];
+  });
+}
 function showPanel(id,token){
   if(token && !isCurrentStaffRoute(token))return;
   lastStaffPanel=id;
   ["staffLoading","staffSignedOut","staffForbidden","mfaGatePanel","mfaEnrollPanelWrap","staffWorkspace"].forEach(name=>{
     const el=$("#"+name);if(el)el.hidden=name!==id;
   });
+  if(id==="staffWorkspace")loadStaffSuggestionRows();
 }
 function setStatus(el,message,type){
   if(!el)return;el.hidden=!message;el.textContent=message||"";el.className=("account-status "+(type||"")).trim();
@@ -713,6 +737,7 @@ async function init(){
   fillSourceOptions();
   bindCoverPicker();
   bindGalleryPicker();
+  bindBookEntrySuggestions();
   document.addEventListener("kutadgu-member-change",()=>{routeStaffSession()});
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);

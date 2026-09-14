@@ -5266,10 +5266,38 @@ async function confirmImport(){
   }
 }
 
+function suggestionCatalogRows(){
+  return Array.isArray(window.__kutadguSuggestionRows)?window.__kutadguSuggestionRows:[];
+}
+function bindBookEntrySuggestions(){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||window.__kutadguBookEntrySuggestBound)return;
+  window.__kutadguBookEntrySuggestBound=true;
+  if(!Array.isArray(window.__kutadguSuggestionRows))window.__kutadguSuggestionRows=[];
+  const skipFetch=!!(window.__kutadguSkipSuggestFetch||window.__kutadguSkipAdminAuth);
+  if(!skipFetch&&db){
+    S.loadSuggestionRows(db,{cacheKey:"admin"}).then(function(rows){
+      window.__kutadguSuggestionRows=rows||[];
+    });
+  }
+  const getRows=()=>suggestionCatalogRows();
+  if($("#bookAuthor"))S.attachCombobox($("#bookAuthor"),()=>S.uniqueValuesFromRows(getRows(),"author"));
+  if($("#bookTranslator"))S.attachCombobox($("#bookTranslator"),()=>S.uniqueValuesFromRows(getRows(),"translator"));
+  if($("#bookPublisher"))S.attachCombobox($("#bookPublisher"),()=>S.uniqueValuesFromRows(getRows(),"publisher"));
+  if($("#bookTitle"))S.attachTitleWarning($("#bookTitle"),getRows,{
+    box:$("#bookTitleSimilarWarning"),
+    getExcludeId:function(){
+      if(editing&&editing.id!=null)return String(editing.id);
+      return ($("#bookId")&&$("#bookId").value)||"";
+    }
+  });
+}
+
 function bindBookListUx(){
   renderSourceOptions();
   bindGalleryPicker();
   bindCoverPicker();
+  bindBookEntrySuggestions();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
   $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
