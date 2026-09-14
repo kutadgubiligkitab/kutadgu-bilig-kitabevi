@@ -120,20 +120,24 @@ test("protected CSS and premium-ux.js stay byte-identical to origin/main", () =>
   }
 });
 
-test("card generators stay unchanged from origin/main", () => {
+function stripCards1bCartLabel(src) {
+  return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
+}
+
+test("card generators stay unchanged from origin/main except Cards 1B cart labels", () => {
   const mainShop = gitShowMain("shop.js");
-  assert.strictEqual(
-    sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;"),
-    sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;")
-  );
+  const home = sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
+  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
+  assert.strictEqual(stripCards1bCartLabel(home), stripCards1bCartLabel(mainHome));
+  assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   // cartButton is not byte-pinned: L1 icon-only aria-label is covered by l1-home-cart-accessible-name-tests.js
   const cartBtn = sliceBetween(shopJs, "function cartButton(book,label=", "function cart(){");
   assert.match(cartBtn, /aria-label="تۈگەپ كەتتى"/);
   assert.match(cartBtn, /replace\(\/\\s\+\/g,""\)==="🛒"/);
-  assert.strictEqual(
-    sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>"),
-    sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>")
-  );
+  const carousel = sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>");
+  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
+  assert.strictEqual(stripCards1bCartLabel(carousel), stripCards1bCartLabel(mainCarousel));
+  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
   assert.strictEqual(

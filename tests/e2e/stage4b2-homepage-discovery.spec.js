@@ -299,11 +299,15 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     expectType(carousel, tokens, width);
     expectType(premium, tokens, width);
     if (width >= 1366) {
-      expect(featured.cartW).toBeLessThanOrEqual(48);
-      expect(carousel.cartW).toBeLessThanOrEqual(48);
+      expect(featured.cartW).toBeGreaterThan(48);
+      expect(carousel.cartW).toBeGreaterThan(48);
+      expect(featured.cartW).toBeLessThan(140);
+      expect(carousel.cartW).toBeLessThan(140);
     } else {
-      expect(featured.cartW).toBeLessThan(72);
-      expect(carousel.cartW).toBeLessThan(72);
+      expect(featured.cartW).toBeGreaterThan(40);
+      expect(carousel.cartW).toBeGreaterThan(40);
+      expect(featured.cartW).toBeLessThan(160);
+      expect(carousel.cartW).toBeLessThan(160);
     }
     expect(featured.cartFullWidth).toBeFalsy();
     expect(carousel.cartFullWidth).toBeFalsy();

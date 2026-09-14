@@ -28,9 +28,9 @@ const cartSrc = sliceBetween(shop, "function cartButton(book,label=", "function 
 const homeSrc = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
 const carouselSrc = sliceBetween(shop, "async function setupHomeCarousel()", "function loadMemberSystem");
 
-test("homepage featured and carousel still pass icon-only 🛒 into cartButton", () => {
-  assert.match(homeSrc, /cartButton\(b,"🛒","add-to-cart home-feature-cart"\)/);
-  assert.match(carouselSrc, /cartButton\(b,"🛒","home-carousel-cart add-to-cart"\)/);
+test("homepage featured and carousel pass a visible سېۋەتكە cart label", () => {
+  assert.match(homeSrc, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
+  assert.match(carouselSrc, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
 });
 
 function loadCartButton() {
@@ -50,25 +50,27 @@ function loadCartButton() {
 }
 
 const api = loadCartButton();
-const featured = api.cartButton({ id: "101", title: "ئىسكەندەرنامە", stock: 4 }, "🛒", "add-to-cart home-feature-cart");
-const carousel = api.cartButton({ id: "101", title: "ئىسكەندەرنامە", stock: 4 }, "🛒", "home-carousel-cart add-to-cart");
+const featured = api.cartButton({ id: "101", title: "ئىسكەندەرنامە", stock: 4 }, "🛒 سېۋەتكە", "add-to-cart home-feature-cart");
+const carousel = api.cartButton({ id: "101", title: "ئىسكەندەرنامە", stock: 4 }, "🛒 سېۋەتكە", "home-carousel-cart add-to-cart");
 const quoted = api.cartButton({ id: "7", title: 'Kitap "A"', stock: 4 }, "🛒", "add-to-cart home-feature-cart");
 const textBtn = api.cartButton({ id: "2", title: "نورمال", stock: 4 });
 const detailBtn = api.cartButton({ id: "3", title: "نورمال", stock: 4 }, "🛒 سېۋەتكە قوشۇش", "add-to-cart detail-cart");
-const outCompact = api.cartButton({ id: "0", title: "تۈگەپ", stock: 0 }, "🛒", "home-carousel-cart add-to-cart");
+const outLabeled = api.cartButton({ id: "0", title: "تۈگەپ", stock: 0 }, "🛒 سېۋەتكە", "home-carousel-cart add-to-cart");
 const outText = api.cartButton({ id: "0", title: "تۈگەپ", stock: 0 });
+const outCompact = api.cartButton({ id: "0", title: "تۈگەپ", stock: 0 }, "🛒", "home-carousel-cart add-to-cart");
 
-test("icon-only in-stock featured and carousel buttons get a book-title aria-label", () => {
-  assert.match(featured, /aria-label="ئىسكەندەرنامە — سېۋەتكە سېلىش"/);
-  assert.match(carousel, /aria-label="ئىسكەندەرنامە — سېۋەتكە سېلىش"/);
-  assert.match(quoted, /aria-label="Kitap &quot;A&quot; — سېۋەتكە سېلىش"/);
+test("visible featured and carousel labels include سېۋەتكە and keep data-cart-id", () => {
+  assert.match(featured, />🛒 سېۋەتكە<\/button>/);
+  assert.match(carousel, />🛒 سېۋەتكە<\/button>/);
+  assert.match(featured, /data-cart-id="101"/);
+  assert.match(carousel, /data-cart-id="101"/);
+  assert.doesNotMatch(featured, /aria-label=/);
+  assert.doesNotMatch(carousel, /aria-label=/);
 });
 
-test("visible icon-only label stays 🛒", () => {
-  assert.match(featured, />🛒<\/button>/);
-  assert.match(carousel, />🛒<\/button>/);
-  assert.doesNotMatch(featured, />[^<]*سېۋەتكە سېلىش<\/button>/);
-  assert.doesNotMatch(carousel, />[^<]*سېۋەتكە سېلىش<\/button>/);
+test("compact icon-only cartButton path remains available for narrow callers", () => {
+  assert.match(quoted, />🛒<\/button>/);
+  assert.match(quoted, /aria-label="Kitap &quot;A&quot; — سېۋەتكە سېلىش"/);
 });
 
 test("normal text cart buttons stay unchanged", () => {
@@ -79,10 +81,12 @@ test("normal text cart buttons stay unchanged", () => {
 });
 
 test("out-of-stock accessible labeling remains تۈگەپ كەتتى", () => {
+  assert.match(outLabeled, /aria-label="تۈگەپ كەتتى"/);
   assert.match(outCompact, /aria-label="تۈگەپ كەتتى"/);
   assert.match(outText, /aria-label="تۈگەپ كەتتى"/);
   assert.match(outCompact, />🛒<span class="cart-blocked-mark" aria-hidden="true">✕<\/span></);
-  assert.doesNotMatch(outCompact, /ئىسكەندەرنامە — سېۋەتكە سېلىش/);
+  assert.match(outLabeled, /disabled aria-disabled="true"/);
+  assert.doesNotMatch(outLabeled, /ئىسكەندەرنامە — سېۋەتكە سېلىش/);
   assert.doesNotMatch(outText, /سېۋەتكە سېلىش"/);
 });
 
