@@ -170,7 +170,7 @@ test("admin.css staff styles are balanced", () => {
   assert.match(adminCss, /\.admin-staff-actions button\{flex:1;min-height:44px\}/);
 });
 
-test("this PR does not add SQL or change public storefront files", () => {
+test("this PR does not add SQL; storefront auth isolation may touch index.html and shop.js only", () => {
   const out = execSync("git diff --name-only origin/main HEAD; git diff --name-only; git diff --cached --name-only", {
     cwd: root,
     encoding: "utf8"
@@ -179,7 +179,7 @@ test("this PR does not add SQL or change public storefront files", () => {
   const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql");
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
-    /^(index\.html|shop\.js|shop\.css|public-header\.css|catalog\.js)$/.test(file)
+    /^(shop\.css|public-header\.css|catalog\.js)$/.test(file)
   );
   assert.deepStrictEqual(storefront, [], storefront.join(", "));
   if (files.includes("public-header.js")) {

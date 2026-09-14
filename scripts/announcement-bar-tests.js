@@ -89,7 +89,7 @@ test("storefront fail-open, textContent only, mount inside header", () => {
   assert.doesNotMatch(js, /padding-inline-end:3em/);
   assert.doesNotMatch(js, /translate3d\(-50%/);
   assert.match(cfg, /kutadgu-announcements\.js\?v=6/);
-  assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
+  assert.match(cfg, /kutadgu-maintenance\.js\?v=3/);
 });
 
 test("filterActive respects enabled and start/end window", () => {
@@ -128,7 +128,7 @@ test("Admin card is separate from book CRUD with Uyghur labels", () => {
   assert.match(adminHtml, /id="announceSaveBtn"/);
   assert.match(adminHtml, /id="maintenanceToggleBtn"/);
   assert.match(adminHtml, /ئېلان بالدىقى/);
-  assert.match(adminHtml, /admin\.js\?v=72/);
+  assert.match(adminHtml, /admin\.js\?v=73/);
   assert.match(adminHtml, /admin\.css\?v=41/);
   assert.match(adminJs, /from\("store_announcements"\)\.insert/);
   assert.match(adminJs, /from\("store_announcements"\)\.update/);

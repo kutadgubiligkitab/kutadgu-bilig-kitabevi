@@ -44,10 +44,8 @@ test("every live listing page first-paints skeletons without demo cards", () => 
     if (file === "books.html") {
       assert.match(html, /class="books-grid" data-catalog-source=""/, file);
       assert.doesNotMatch(html, /data-catalog-source="[^"]+"/, file);
-      assert.match(html, /shop\.js\?v=121/, file);
-    } else {
-      assert.match(html, /shop\.js\?v=115/, file);
     }
+    assert.match(html, /shop\.js\?v=124/, file);
     assert.match(html, /aria-busy="true"/, file);
     assert.match(grid, /book-card is-skeleton/, file);
     assert.match(grid, /listing-skel-cover/, file);

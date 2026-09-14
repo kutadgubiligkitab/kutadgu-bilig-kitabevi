@@ -168,20 +168,25 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /function googleAccountRedirectTo/);
   assert.match(member, /flowType:"pkce"/);
   assert.match(member, /signInWithOAuth\(\{provider:"google",options:\{redirectTo\}\}/);
-  assert.match(member, /auth:\{detectSessionInUrl:true,persistSession:true,flowType:"pkce"\}/);
+  assert.match(member, /auth:memberAuthOptions\(\)/);
+  assert.match(member, /storageKey:memberAuthStorageKey\(\)/);
+  assert.match(member, /signOut\(\{scope:"local"\}\)/);
   assert.doesNotMatch(member, /exchangeCodeForSession/);
   assert.doesNotMatch(read("account.js"), /exchangeCodeForSession/);
-  assert.match(account, /member\.js\?v=26/);
+  assert.match(account, /member\.js\?v=27/);
   assert.doesNotMatch(account, /member\.js\?v=25/);
-  assert.match(read("shop.js"), /member\.js\?v=26/);
+  assert.match(read("shop.js"), /member\.js\?v=27/);
   assert.doesNotMatch(read("shop.js"), /member\.js\?v=25/);
-  assert.match(index, /shop\.js\?v=123/);
+  assert.match(index, /shop\.js\?v=124/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
   assert.match(resetJs, /event==="PASSWORD_RECOVERY"/);
   assert.doesNotMatch(resetJs, /event==="PASSWORD_RECOVERY" \|\| event==="SIGNED_IN"/);
   assert.match(resetJs, /detectSessionInUrl:false/);
+  assert.match(resetJs, /storageKey:storageKey/);
+  assert.match(resetJs, /nextAdmin/);
+  assert.match(resetJs, /signOut\(\{scope:"local"\}\)/);
   assert.match(resetJs, /verifyOtp\(\{token_hash:info\.tokenHash,type:"recovery"\}\)/);
   assert.doesNotMatch(resetJs, /exchangeCodeForSession/);
   assert.doesNotMatch(resetJs, /isPkceRecoveryCallback/);
@@ -196,22 +201,22 @@ test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", ()
   assert.doesNotMatch(resetJs, /console\.(log|info|debug|warn)\([^)]*token_hash/);
 });
 
-test("reset-password.html loads reset-password.js v=9", () => {
-  assert.match(read("reset-password.html"), /reset-password\.js\?v=9/);
-  assert.match(read("reset-password.html"), /supabase-config\.js\?v=16/);
-  assert.match(account, /supabase-config\.js\?v=21/);
+test("reset-password.html loads reset-password.js v=10", () => {
+  assert.match(read("reset-password.html"), /reset-password\.js\?v=10/);
+  assert.match(read("reset-password.html"), /supabase-config\.js\?v=22/);
+  assert.match(account, /supabase-config\.js\?v=22/);
   assert.doesNotMatch(account, /supabase-config\.js\?v=16/);
-  assert.match(index, /supabase-config\.js\?v=21/);
-  assert.match(read("admin.html"), /supabase-config\.js\?v=20/);
-  assert.match(read("admin.html"), /admin\.js\?v=72/);
+  assert.match(index, /supabase-config\.js\?v=22/);
+  assert.match(read("admin.html"), /supabase-config\.js\?v=22/);
+  assert.match(read("admin.html"), /admin\.js\?v=73/);
 });
 
 test("account.html no longer pins stale auth assets", () => {
   const configPins = account.match(/supabase-config\.js\?v=\d+/g) || [];
   const memberPins = account.match(/member\.js\?v=\d+/g) || [];
   const accountPins = account.match(/account\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(configPins, ["supabase-config.js?v=21"]);
-  assert.deepStrictEqual(memberPins, ["member.js?v=26"]);
+  assert.deepStrictEqual(configPins, ["supabase-config.js?v=22"]);
+  assert.deepStrictEqual(memberPins, ["member.js?v=27"]);
   assert.deepStrictEqual(accountPins, ["account.js?v=6"]);
   assert.match(member, /provenMemberSession/);
   assert.match(member, /recoverProvenMemberSession/);

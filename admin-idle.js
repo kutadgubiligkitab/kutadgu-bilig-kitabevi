@@ -12,7 +12,13 @@
   const IDLE_MS = 30 * 60 * 1000;
   const STORAGE_KEY = "kutadgu-admin-idle-v1";
   const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart"];
-  const AUTH_KEY_RE = /^sb-.+-auth-token$/;
+  const AUTH_KEY_RE = /^sb-.+-auth-token(?:-code-verifier)?$/;
+  const NAMED_AUTH_KEYS = {
+    "kutadgu-member-auth-v1": true,
+    "kutadgu-admin-auth-v1": true,
+    "kutadgu-member-auth-v1-code-verifier": true,
+    "kutadgu-admin-auth-v1-code-verifier": true
+  };
   const WRITE_THROTTLE_MS = 1000;
 
   function now() {
@@ -81,7 +87,9 @@
   }
 
   function isAuthStorageKey(key) {
-    return AUTH_KEY_RE.test(String(key || ""));
+    const k = String(key || "");
+    if (NAMED_AUTH_KEYS[k]) return true;
+    return AUTH_KEY_RE.test(k);
   }
 
   function isPersistedLock(state) {

@@ -379,7 +379,7 @@ test("Admin HTML shows Price History for existing books only and confirmation co
   assert.match(adminHtml,/بۇ مەشغۇلات پەقەت ھازىرقى سېتىش باھاسىنى تارىختىكى باھاغا قايتۇرىدۇ\. ئەسلى باھا ئۆزگەرمەيدۇ/);
   assert.match(adminHtml,/بىكار قىلىش/);
   assert.match(adminHtml,/admin-price-history\.js\?v=3/);
-  assert.match(adminHtml,/admin\.js\?v=72/);
+  assert.match(adminHtml,/admin\.js\?v=73/);
   assert.match(adminHtml,/admin\.css\?v=41/);
   assert.match(adminJs,/btn\.hidden=isCreate\|\|!id/);
   assert.match(adminJs,/changeKindLabel/);
@@ -402,7 +402,7 @@ test("original-price lock, bulk price, reset, and quick edit still write the exp
 
 test("cache pins and Auth/TOTP/idle files were not rewritten by price history",()=>{
   assert.match(adminHtml,/admin-mfa\.js\?v=3/);
-  assert.match(adminHtml,/admin-idle\.js\?v=3/);
+  assert.match(adminHtml,/admin-idle\.js\?v=4/);
   assert.match(adminHtml,/admin-original-price\.js\?v=5/);
   assert.match(adminHtml,/admin-bulk-price\.js\?v=3/);
   const mfa=read("admin-mfa.js");

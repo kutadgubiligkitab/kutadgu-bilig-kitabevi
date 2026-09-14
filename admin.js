@@ -4529,7 +4529,7 @@ async function login(e){
 async function logout(){
   const api=idleApi();
   if(api.clearState)api.clearState();
-  if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut();
+  if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
   user=null;
   show("loginPanel");
   $("#adminLogout").hidden=true;
@@ -5254,7 +5254,10 @@ function init(){
     $("#setupPanel .admin-status").textContent="Supabase JavaScript كۈتۈپخانىسى يۈكلەنمىدى. تور ئۇلىنىشىنى تەكشۈرۈڭ.";
     return;
   }
-  db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey);
+  db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
+    auth:(typeof window.kutadguAdminAuthOptions==="function"?window.kutadguAdminAuthOptions():{persistSession:true,detectSessionInUrl:false,flowType:"pkce",storageKey:String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1")})
+  });
+  if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
   bindBookListUx();
   $("#loginForm").addEventListener("submit",login);
   $("#forgotPasswordBtn").onclick=requestPasswordReset;

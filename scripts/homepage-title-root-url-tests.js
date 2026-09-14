@@ -100,7 +100,7 @@ test("visible Contact hours match JSON-LD Monday-Saturday and Sunday windows", (
   assert.doesNotMatch(hoursBlock, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
   assert.match(cfg, /hours: "دۈشەنبە–شەنبە\\n08:30–20:00\\nيەكشەنبە\\n10:30–18:00"/);
   assert.doesNotMatch(cfg, /ھەپتىنىڭ 7 كۈنى تولۇق ئېچىلىدۇ/);
-  assert.match(html, /supabase-config\.js\?v=21/);
+  assert.match(html, /supabase-config\.js\?v=22/);
 });
 
 test("homepage logo points to /", () => {

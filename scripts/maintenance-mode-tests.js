@@ -61,7 +61,7 @@ test("guard covers storefront and skips Admin + password recovery", () => {
 });
 
 test("supabase-config loads one centralized guard without mass HTML", () => {
-  assert.match(cfg, /kutadgu-maintenance\.js\?v=2/);
+  assert.match(cfg, /kutadgu-maintenance\.js\?v=3/);
   assert.match(cfg, /admin\.html/);
   assert.doesNotMatch(cfg, /service_role/);
 });
@@ -74,7 +74,7 @@ test("Admin UI is Uyghur with confirm, no English ON/OFF labels", () => {
   assert.match(adminJs, /from\("store_settings"\)\.update/);
   assert.doesNotMatch(adminHtml, />\s*ON\s*</);
   assert.doesNotMatch(adminHtml, />\s*OFF\s*</);
-  assert.match(adminHtml, /admin\.js\?v=72/);
+  assert.match(adminHtml, /admin\.js\?v=73/);
   assert.match(adminHtml, /admin\.css\?v=41/);
 });
 

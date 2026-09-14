@@ -188,20 +188,19 @@
     return parseMaintenanceRow(rows[0]);
   }
 
-  function readStoredAuthSession() {
-    var c = publicConfig();
-    var ref = "";
-    try {
-      ref = new URL(c.url).hostname.split(".")[0] || "";
-    } catch (e) {}
+  function authStorageKeysForBypass() {
     var keys = [];
-    if (ref) keys.push("sb-" + ref + "-auth-token");
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && /^sb-.+-auth-token$/.test(k) && keys.indexOf(k) === -1) keys.push(k);
-      }
-    } catch (e2) {}
+    var admin = "";
+    var member = "";
+    try { admin = typeof window.kutadguAdminAuthStorageKey === "function" ? window.kutadguAdminAuthStorageKey() : String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY || "kutadgu-admin-auth-v1"); } catch (e1) { admin = "kutadgu-admin-auth-v1"; }
+    try { member = typeof window.kutadguMemberAuthStorageKey === "function" ? window.kutadguMemberAuthStorageKey() : String(window.KUTADGU_MEMBER_AUTH_STORAGE_KEY || "kutadgu-member-auth-v1"); } catch (e2) { member = "kutadgu-member-auth-v1"; }
+    if (admin) keys.push(admin);
+    if (member && keys.indexOf(member) === -1) keys.push(member);
+    return keys;
+  }
+
+  function readStoredAuthSession() {
+    var keys = authStorageKeysForBypass();
     for (var j = 0; j < keys.length; j++) {
       try {
         var raw = localStorage.getItem(keys[j]);
@@ -221,8 +220,11 @@
     try {
       var c = publicConfig();
       if (!c.url || !c.key) return null;
+      var adminOpts = typeof window.kutadguAdminAuthOptions === "function"
+        ? window.kutadguAdminAuthOptions()
+        : { persistSession: true, detectSessionInUrl: false, flowType: "pkce", storageKey: "kutadgu-admin-auth-v1" };
       if (!window.__kutadguMaintSb) {
-        window.__kutadguMaintSb = window.supabase.createClient(c.url, c.key);
+        window.__kutadguMaintSb = window.supabase.createClient(c.url, c.key, { auth: adminOpts });
       }
       var sessionRes = await window.__kutadguMaintSb.auth.getSession();
       var session = sessionRes && sessionRes.data && sessionRes.data.session;
