@@ -34,7 +34,7 @@ test("search query path is unchanged", () => {
   assert.match(enhance, /function hasFilter\(\)\{return !!\(input\.value\.trim\(\)/);
   assert.match(enhance, /inputTimer=setTimeout\(\(\)=>run\(false\),400\)/);
   assert.match(enhance, /await queryCatalog\(state,/);
-  assert.match(enhance, /sort:collectionMode==="new"\?"new":sortEl\?\.value\|\|"new"/);
+  assert.match(enhance, /sort:collectionMode==="new"\?"new":sortEl\?\.value\|\|"relevance"/);
 });
 
 test("desktop compact CSS is gated to min-width 701px", () => {
@@ -55,8 +55,9 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /index\.css\?v=20/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=24/);
-  assert.match(html, /shop\.js\?v=124/);
-  assert.match(html, /mobile\.js\?v=8/);
+  assert.match(html, /shop\.js\?v=125/);
+  assert.match(html, /kutadgu-search-rank\.js\?v=1/);
+  assert.match(html, /mobile\.js\?v=9/);
   assert.match(html, /public-header\.js\?v=2/);
   assert.match(html, /stage3-shop-identity\.css\?v=5/);
   assert.match(html, /home-hero-slideshow\.js\?v=2/);

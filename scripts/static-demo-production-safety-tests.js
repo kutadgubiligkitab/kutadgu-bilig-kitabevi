@@ -78,7 +78,7 @@ test("unauthorized static detail does not keep fake price or add-to-cart chrome"
 test("future legacy mapping still indexes remote legacy_id onto the canonical book", () => {
   const index = sliceBetween(shop, "function indexCatalogBook(book){", "function persistedAliases(){");
   assert.match(index, /catalogCache\.set\(String\(book\.legacyId\),book\)/);
-  const remoteUrl = sliceBetween(shop, "function remoteBooksUrl(input={}){", "async function fetchRemotePage(input={},options={}){");
+  const remoteUrl = sliceBetween(shop, "function remoteBooksUrl(input={},flags={}){", "async function fetchRemotePage(input={},options={}){");
   assert.match(remoteUrl, /legacy_id\.in\./);
 });
 
@@ -108,12 +108,12 @@ test("static fixture detail HTML first paint is a neutral shell, not a sellable 
   assert.match(romanlar2, /<h1>كىتاب<\/h1>/);
 });
 
-test("pins use shop.js v=124 on homepage, book-shell, and static fixtures, and catalog-visibility.js v=3", () => {
-  assert.match(indexHtml, /shop\.js\?v=124/);
+test("pins use shop.js v=125 on homepage, book-shell, and static fixtures, and catalog-visibility.js v=3", () => {
+  assert.match(indexHtml, /shop\.js\?v=125/);
   assert.match(indexHtml, /catalog-visibility\.js\?v=3/);
-  assert.match(bookHtml, /shop\.js\?v=124/);
+  assert.match(bookHtml, /shop\.js\?v=125/);
   assert.match(bookHtml, /catalog-visibility\.js\?v=3/);
-  assert.match(romanlar2, /shop\.js\?v=124/);
+  assert.match(romanlar2, /shop\.js\?v=125/);
   assert.match(shop, /member\.js\?v=27/);
   assert.match(shop, /premium-ux\.js\?v=12/);
 });

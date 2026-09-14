@@ -134,7 +134,7 @@ test("17 missing interior_print_type column does not break Admin/catalog", () =>
   assert.match(adminJs, /function disableInteriorPrintTypeColumn\(/);
   assert.match(save, /disableInteriorPrintTypeColumn\(\)/);
   assert.match(save, /delete payload\.interior_print_type/);
-  assert.match(shop, /params=new URLSearchParams\(\{select:"\*"\}\)/);
+  assert.match(shop, /params=new URLSearchParams\(\{select:flags\.rankFields\?rankSelectList\(\):"\*"\}\)/);
   const omit = (() => {
     const OPTIONAL_BOOK_COLS = ["interior_print_type", "is_color_print", "stock"];
     const presentBookCols = new Set(["is_color_print"]);
@@ -186,9 +186,9 @@ test("cache pins bumped for Admin, homepage, and book-shell", () => {
   assert.match(adminHtml, /admin\.js\?v=77/);
   assert.match(adminHtml, /supabase-config\.js\?v=22/);
   assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
-  assert.match(read("index.html"), /shop\.js\?v=124/);
+  assert.match(read("index.html"), /shop\.js\?v=125/);
   assert.match(read("index.html"), /supabase-config\.js\?v=22/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=124/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=125/);
   assert.match(read("book-shell.html"), /catalog-bibliography\.js\?v=3/);
 });
 
