@@ -4359,6 +4359,17 @@ function ensurePublicBookCardRowAlignmentCss(){
     el.dataset.kutadguPublicBookCardRowAlignment="1";
   }
   document.head.appendChild(el);
+  ensureStorefrontCards1aPolishCss();
+}
+function ensureStorefrontCards1aPolishCss(){
+  let el=document.querySelector("link[data-kutadgu-storefront-cards-1a]");
+  if(!el){
+    el=document.createElement("link");
+    el.rel="stylesheet";
+    el.href="/storefront-cards-1a-polish.css?v=1";
+    el.dataset.kutadguStorefrontCards1a="1";
+  }
+  document.head.appendChild(el);
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
