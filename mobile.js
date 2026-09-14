@@ -264,7 +264,7 @@
       if (control.matches("[type=checkbox], [type=radio]")) return count + (control.checked ? 1 : 0);
       const value = String(control.value || "").trim();
       const isDefaultSort = control.id === "searchSort" || control.id === "catalogSort";
-      return count + (value && !(isDefaultSort && value === "new") ? 1 : 0);
+      return count + (value && !(isDefaultSort && value === "relevance") ? 1 : 0);
     }, 0);
   }
 
