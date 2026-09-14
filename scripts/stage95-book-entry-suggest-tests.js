@@ -141,8 +141,8 @@ test("Admin uses Admin db client; Book Staff uses Member client and current book
   const submitEnd = staffJs.indexOf("\nwindow.KutadguBookStaff=");
   const submit = staffJs.slice(submitStart, submitEnd);
   assert.doesNotMatch(submit, /filterTitleMatches|kutadgu-title-warn|similar/);
-  assert.match(adminHtml, /kutadgu-book-entry-suggest\.js\?v=1/);
-  assert.match(adminHtml, /admin\.js\?v=77/);
+  assert.match(adminHtml, /kutadgu-book-entry-suggest\.js\?v=2/);
+  assert.match(adminHtml, /admin\.js\?v=78/);
   assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.doesNotMatch(suggestJs, /<datalist|service_role/);
   assert.doesNotMatch(adminJs, /<datalist/);

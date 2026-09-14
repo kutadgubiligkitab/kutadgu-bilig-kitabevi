@@ -23,6 +23,43 @@
     return normalizeText(value).toLocaleLowerCase();
   }
 
+  function suggestionRowFromBook(book, idOverride) {
+    var source = book || {};
+    var rawId = idOverride != null && String(idOverride) !== '' ? idOverride : source.id;
+    if (rawId == null || String(rawId).trim() === '') return null;
+    var idText = String(rawId).trim();
+    return {
+      id: /^\d+$/.test(idText) ? Number(idText) : idText,
+      title: normalizeText(source.title),
+      author: normalizeText(source.author),
+      translator: normalizeText(source.translator),
+      publisher: normalizeText(source.publisher),
+      isbn: normalizeText(source.isbn)
+    };
+  }
+
+  function upsertSuggestionRow(rows, book, idOverride) {
+    var next = suggestionRowFromBook(book, idOverride);
+    var list = Array.isArray(rows) ? rows.slice() : [];
+    if (!next) return list;
+    var idKey = String(next.id);
+    var replaced = false;
+    for (var i = 0; i < list.length; i += 1) {
+      if (String((list[i] && list[i].id) || '') === idKey) {
+        list[i] = next;
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) list.push(next);
+    return list;
+  }
+
+  function replaceSuggestionCache(cacheKey, rows) {
+    if (!cacheKey) return;
+    caches[cacheKey] = Array.isArray(rows) ? rows.slice() : [];
+  }
+
   function uniqueValuesFromRows(rows, field) {
     var seen = Object.create(null);
     var out = [];
@@ -339,6 +376,9 @@
     filterTitleMatches: filterTitleMatches,
     titlesLookSimilar: titlesLookSimilar,
     loadSuggestionRows: loadSuggestionRows,
+    suggestionRowFromBook: suggestionRowFromBook,
+    upsertSuggestionRow: upsertSuggestionRow,
+    replaceSuggestionCache: replaceSuggestionCache,
     clearSuggestionCache: clearSuggestionCache,
     attachCombobox: attachCombobox,
     attachTitleWarning: attachTitleWarning
