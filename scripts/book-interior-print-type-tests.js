@@ -134,7 +134,7 @@ test("17 missing interior_print_type column does not break Admin/catalog", () =>
   assert.match(adminJs, /function disableInteriorPrintTypeColumn\(/);
   assert.match(save, /disableInteriorPrintTypeColumn\(\)/);
   assert.match(save, /delete payload\.interior_print_type/);
-  assert.match(shop, /params=new URLSearchParams\(\{select:"\*"\}\)/);
+  assert.match(shop, /params=new URLSearchParams\(\{select:flags\.rankFields\?rankSelectList\(\):"\*"\}\)/);
   const omit = (() => {
     const OPTIONAL_BOOK_COLS = ["interior_print_type", "is_color_print", "stock"];
     const presentBookCols = new Set(["is_color_print"]);

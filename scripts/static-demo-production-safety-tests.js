@@ -78,7 +78,7 @@ test("unauthorized static detail does not keep fake price or add-to-cart chrome"
 test("future legacy mapping still indexes remote legacy_id onto the canonical book", () => {
   const index = sliceBetween(shop, "function indexCatalogBook(book){", "function persistedAliases(){");
   assert.match(index, /catalogCache\.set\(String\(book\.legacyId\),book\)/);
-  const remoteUrl = sliceBetween(shop, "function remoteBooksUrl(input={}){", "async function fetchRemotePage(input={},options={}){");
+  const remoteUrl = sliceBetween(shop, "function remoteBooksUrl(input={},flags={}){", "async function fetchRemotePage(input={},options={}){");
   assert.match(remoteUrl, /legacy_id\.in\./);
 });
 

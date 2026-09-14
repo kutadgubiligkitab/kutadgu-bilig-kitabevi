@@ -84,8 +84,8 @@ test("save still omits is_color_print when the optional column is unsupported", 
 });
 
 test("public catalog uses select * so a missing column cannot fail the listing query", () => {
-  assert.match(shop, /function remoteBooksUrl\(input=\{\}\)\{/);
-  assert.match(shop, /params=new URLSearchParams\(\{select:"\*"\}\)/);
+  assert.match(shop, /function remoteBooksUrl\(input=\{\},flags=\{\}\)\{/);
+  assert.match(shop, /params=new URLSearchParams\(\{select:flags\.rankFields\?rankSelectList\(\):"\*"\}\)/);
 });
 
 test("legacy is_color_print still feeds public detail; cards never show a print badge", () => {
