@@ -3714,23 +3714,28 @@ async function saveBook(e){
     }
     let payload=writeBookRow(row,{mode:isEdit?"update":"insert",omitId:!isEdit});
     if(isEdit&&Write.stripIdentityFields)payload=Write.stripIdentityFields(payload);
-    let {error}=await persistBookRow(payload,plan.operation,editingBookId);
+    let persistResult=null;
+    async function runPersist(nextPayload,op,id){
+      persistResult=await persistBookRow(nextPayload,op,id);
+      return persistResult&&persistResult.error;
+    }
+    let error=await runPersist(payload,plan.operation,editingBookId);
     if(error&&generatedIdError(error)&&plan.operation==="INSERT"){
       generatedAlwaysId=true;
       payload=writeBookRow(row,{omitId:true,mode:"insert"});
-      ({error}=await persistBookRow(payload,"INSERT",""));
+      error=await runPersist(payload,"INSERT","");
     }
     if(error&&/gallery_images/.test(String(error.message||""))){
       presentBookCols.delete("gallery_images");
       delete payload.gallery_images;
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
     }
     const bibMissing=Bib.missingColumnsFromError?Bib.missingColumnsFromError(error):[];
     if(error&&bibMissing.length){
       const cols=Bib.BIB_OPTIONAL_COLS||bibMissing;
       disableBibColumns(cols);
       cols.forEach(col=>delete payload[col]);
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("تەرجىمان / نەشرىيات / نەشر يىلى / بەت سانى ستونى تېخى Database دا يوق. STAGE61_BIBLIOGRAPHIC_METADATA.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
@@ -3739,19 +3744,19 @@ async function saveBook(e){
     if(error&&sizeMissing.length){
       disableBibColumns(sizeMissing);
       sizeMissing.forEach(col=>delete payload[col]);
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("مۇقاۋا تۈرى / كىتاب ئۆلچىمى ستونى تېخى Database دا يوق. STAGE62_COVER_TYPE_BOOK_SIZE.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
     }
     if(error&&payload&&payload.cover_type==null&&/null value/i.test(String(error.message||""))&&/cover_type/i.test(String(error.message||""))){
       payload.cover_type="";
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
     }
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"stock")&&isMissingStockColumnError(error)){
       disableStockColumn();
       delete payload.stock;
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("stock ستونى تېخى Database دا يوق. STAGE82_STOCK_FOUNDATION.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
@@ -3759,7 +3764,7 @@ async function saveBook(e){
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"is_color_print")&&isMissingColorPrintColumnError(error)){
       disableColorPrintColumn();
       delete payload.is_color_print;
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("is_color_print ستونى تېخى Database دا يوق. STAGE_COLOR_PRINT.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
@@ -3767,7 +3772,7 @@ async function saveBook(e){
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"interior_print_type")&&isMissingInteriorPrintTypeColumnError(error)){
       disableInteriorPrintTypeColumn();
       delete payload.interior_print_type;
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("interior_print_type ستونى تېخى Database دا يوق. STAGE_INTERIOR_PRINT_TYPE.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
@@ -3775,12 +3780,19 @@ async function saveBook(e){
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"original_price")&&(/original_price/i.test(String(error.message||""))||/42703/.test(String(error.code||"")))){
       presentBookCols.delete("original_price");
       delete payload.original_price;
-      ({error}=await persistBookRow(payload,plan.operation,editingBookId));
+      error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("original_price ستونى تېخى Database دا يوق. STAGE64_ORIGINAL_PRICE.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
     }
     if(error)throw error;
+    rememberAdminSuggestionRow({
+      title:row.title,
+      author:row.author,
+      translator:row.translator,
+      publisher:row.publisher,
+      isbn:isbnColumn?isbn:(row.isbn||"")
+    },persistSavedId(persistResult,isEdit?editingBookId:""));
     modal(false);
     await Promise.all([loadBooks(),loadStats()]);
   }catch(err){
@@ -5281,6 +5293,22 @@ let adminSuggestLoadPromise=null;
 function suggestionCatalogRows(){
   return Array.isArray(window.__kutadguSuggestionRows)?window.__kutadguSuggestionRows:[];
 }
+function persistSavedId(result,fallback){
+  const rows=result&&result.data;
+  if(Array.isArray(rows)&&rows[0]&&rows[0].id!=null&&String(rows[0].id)!=="")return rows[0].id;
+  if(fallback!=null&&String(fallback)!=="")return fallback;
+  return "";
+}
+function rememberAdminSuggestionRow(book,savedId){
+  const S=window.KutadguBookEntrySuggest;
+  if(!S||typeof S.upsertSuggestionRow!=="function")return;
+  if(savedId==null||String(savedId)==="")return;
+  const next=S.upsertSuggestionRow(suggestionCatalogRows(),book,savedId);
+  window.__kutadguSuggestionRows=next;
+  if(typeof S.replaceSuggestionCache==="function")S.replaceSuggestionCache("admin",next);
+  else if(typeof S.clearSuggestionCache==="function")S.clearSuggestionCache("admin");
+  if(adminSuggestLoadUid)adminSuggestLoadPromise=Promise.resolve(next);
+}
 function clearAdminSuggestionState(){
   adminSuggestLoadGen++;
   adminSuggestLoadUid="";
@@ -5557,6 +5585,6 @@ $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
 
 window.__kutadguAdminTest={
-  loadAdminSuggestionRows,clearAdminSuggestionState,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
+  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
 };
 })();
