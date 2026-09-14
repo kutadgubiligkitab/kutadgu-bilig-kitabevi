@@ -74,6 +74,7 @@ async function openAdminEditor(page, extraInit) {
 
 async function openStaffForm(page) {
   await page.addInitScript((rows) => {
+    window.__kutadguSkipStaffRoute = true;
     window.__kutadguSkipSuggestFetch = true;
     window.__kutadguSuggestionRows = rows;
   }, SUGGEST_ROWS);
@@ -81,8 +82,12 @@ async function openStaffForm(page) {
   await page.evaluate(() => {
     const workspace = document.getElementById("staffWorkspace");
     const loading = document.getElementById("staffLoading");
-    if (workspace) workspace.hidden = false;
+    const signedOut = document.getElementById("staffSignedOut");
+    const form = document.getElementById("staffBookForm");
     if (loading) loading.hidden = true;
+    if (signedOut) signedOut.hidden = true;
+    if (workspace) workspace.hidden = false;
+    if (form) form.hidden = false;
   });
   await expect(page.locator("#staffBookForm")).toBeVisible();
 }
@@ -168,10 +173,12 @@ test.describe("book entry suggestions", () => {
     await expect(author).toHaveValue("ئابدۇللا ھاجى روزى");
 
     await page.locator("#staffTranslator").fill("ئەلى");
-    await expect(page.locator("#staffTranslator").locator("xpath=following-sibling::ul[@role='listbox'] [role='option']")).toHaveText("ئەلى تەرجىمان");
+    const translatorList = page.locator("#staffTranslator").locator("xpath=following-sibling::ul[@role='listbox']");
+    await expect(translatorList.locator("[role='option']")).toHaveText("ئەلى تەرجىمان");
 
     await page.locator("#staffPublisher").fill("مىللەت");
-    await expect(page.locator("#staffPublisher").locator("xpath=following-sibling::ul[@role='listbox'] [role='option']")).toHaveText("مىللەتلەر نەشرىياتى");
+    const publisherList = page.locator("#staffPublisher").locator("xpath=following-sibling::ul[@role='listbox']");
+    await expect(publisherList.locator("[role='option']")).toHaveText("مىللەتلەر نەشرىياتى");
 
     await page.locator("#staffTitle").fill("ئىسلام تارىخى");
     await expect(page.locator("#staffTitleSimilarWarning")).toBeVisible();
@@ -226,7 +233,8 @@ test.describe("book entry suggestions", () => {
     await expect(page.locator("#bookTitle")).toHaveValue(PENDING_BOOK.title);
     await expect(page.locator("#bookAuthor")).toHaveValue(PENDING_BOOK.author);
     await page.locator("#bookAuthor").fill("ھاجى");
-    await expect(page.locator("#bookAuthor").locator("xpath=following-sibling::ul[@role='listbox'] [role='option']")).toHaveCount(1);
+    const pendingAuthorList = page.locator("#bookAuthor").locator("xpath=following-sibling::ul[@role='listbox']");
+    await expect(pendingAuthorList.locator("[role='option']")).toHaveCount(1);
     await page.locator("#bookAuthor").fill(PENDING_BOOK.author);
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookModal")).toBeHidden();
@@ -246,6 +254,12 @@ test.describe("book entry suggestions", () => {
       await page.locator("#bookAuthor").fill("ھاجى");
       await expect(page.locator("#bookAuthor").locator("xpath=following-sibling::ul[@role='listbox']")).toBeVisible();
       await noOverflow(page);
+    });
+  }
+
+  for (const width of [390, 768, 1366]) {
+    test(`Book Staff has no horizontal overflow at ${width}px with dropdown open`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
       await openStaffForm(page);
       await page.locator("#staffAuthor").fill("ھاجى");
       await expect(page.locator("#staffAuthor").locator("xpath=following-sibling::ul[@role='listbox']")).toBeVisible();

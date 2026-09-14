@@ -1,7 +1,8 @@
 @font-face{font-family:"UKIJ CJK";src:url("UKIJCJK.woff2") format("woff2"),url("UKIJCJK.ttf") format("truetype");font-display:swap}
-body[data-book-staff-page="true"]{margin:0;background:var(--cream,#f6f0e5);color:var(--text,#44352d);font-family:"UKIJ CJK",Arial,sans-serif;overflow-x:hidden}
+body[data-book-staff-page="true"]{margin:0;background:var(--cream,#f6f0e5);color:var(--text,#44352d);font-family:"UKIJ CJK",Arial,sans-serif;overflow-x:hidden;max-width:100%}
+html:has(body[data-book-staff-page="true"]){overflow-x:hidden;max-width:100%}
 body[data-book-staff-page="true"] .member-standalone-floating,body[data-book-staff-page="true"] .shop-floating{display:none!important}
-.staff-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px max(4%,18px);background:#4b3327;color:#fff}
+.staff-topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px max(4%,18px);background:#4b3327;color:#fff;max-width:100%;box-sizing:border-box}
 .staff-top-meta{display:grid;gap:2px;font-size:14px}.staff-top-meta strong{font-size:16px}
 .staff-top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .staff-top-actions .account-secondary,.staff-top-actions .account-home{min-height:44px}
@@ -21,7 +22,7 @@ body[data-book-staff-page="true"] .staff-form.account-card.account-form{
   padding:28px 26px 26px;
   min-width:0;
 }
-.staff-form h1,.staff-help,.staff-wide,.staff-check,.staff-file{grid-column:1/-1}
+.staff-form h1,.staff-help,.staff-wide,.staff-check,.staff-file,.kutadgu-combo-hint{grid-column:1/-1}
 body[data-book-staff-page="true"] .staff-form h1{margin:0 0 2px;line-height:1.55}
 body[data-book-staff-page="true"] .staff-form .staff-help{margin:0 0 4px}
 body[data-book-staff-page="true"] .staff-form label{
@@ -38,7 +39,7 @@ body[data-book-staff-page="true"] .staff-form label>span{
   padding:2px 2px 0;
   overflow:visible;
 }
-body[data-book-staff-page="true"] .staff-form input,
+body[data-book-staff-page="true"] .staff-form input:not([type="file"]),
 body[data-book-staff-page="true"] .staff-form select,
 body[data-book-staff-page="true"] .staff-form textarea{
   width:100%;
@@ -52,7 +53,7 @@ body[data-book-staff-page="true"] .staff-form textarea{
   line-height:1.6;
   overflow:visible;
 }
-body[data-book-staff-page="true"] .staff-form input,
+body[data-book-staff-page="true"] .staff-form input:not([type="file"]),
 body[data-book-staff-page="true"] .staff-form select{
   min-height:48px;
   padding:12px 14px;
@@ -179,7 +180,7 @@ body[data-book-staff-page="true"] .account-card{padding:28px 26px}
   body[data-book-staff-page="true"] .account-card{padding:22px 16px}
   .staff-topbar{align-items:flex-start}
   .staff-main{width:min(100% - 24px,820px);padding:22px 0 72px}
-  body[data-book-staff-page="true"] .staff-form input,
+  body[data-book-staff-page="true"] .staff-form input:not([type="file"]),
   body[data-book-staff-page="true"] .staff-form select,
   body[data-book-staff-page="true"] .staff-form #staffSubmitBtn,
   body[data-book-staff-page="true"] .staff-form .staff-check,

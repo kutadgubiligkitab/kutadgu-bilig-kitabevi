@@ -145,7 +145,7 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFileName"[^>]*>رەسىم تاللانمىدى/);
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
-  assert.match(staffHtml, /book-staff\.css\?v=6/);
+  assert.match(staffHtml, /book-staff\.css\?v=7/);
   assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.match(staffHtml, /kutadgu-book-entry-suggest\.js\?v=1/);
   assert.match(staffHtml, /kutadgu-book-entry-suggest\.css\?v=1/);
