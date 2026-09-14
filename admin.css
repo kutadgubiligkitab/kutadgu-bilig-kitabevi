@@ -200,6 +200,31 @@ button{cursor:pointer}
   #heroAdminCard input,#heroAdminCard textarea,#heroAdminCard select{background:#3a2e26;color:#f3e7d8;border-color:#5a463a}
   .admin-hero-slot{background:#332820;border-color:#5a463a}
 }
+#shopHoursCard{min-width:0;overflow-x:hidden}
+#shopHoursStatus[hidden]{display:none!important}
+.admin-shop-hours-form{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+.admin-shop-hours-block{
+  margin:0;
+  padding:12px;
+  border:1px solid #e8dccb;
+  border-radius:12px;
+  min-width:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 16px;
+}
+.admin-shop-hours-block legend{
+  font-weight:800;
+  padding:0 6px;
+  color:#4b3327;
+}
+.admin-shop-hours-form input[type="time"]{
+  min-height:44px;
+  direction:ltr;
+}
+@media(max-width:639px){
+  .admin-shop-hours-block{grid-template-columns:1fr}
+}
 .admin-announce-settings{margin:12px 0 18px}
 .admin-announce-form{margin-bottom:16px}
 .admin-announce-list{display:grid;gap:8px}

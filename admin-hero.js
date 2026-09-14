@@ -814,6 +814,29 @@
       (document.head || document.documentElement).appendChild(s);
     }
 
+    function attachShopHoursAdmin() {
+      if (typeof document === "undefined") return;
+      function bindHours() {
+        if (root.KutadguAdminShopHours && typeof root.KutadguAdminShopHours.bindShopHoursAdmin === "function") {
+          root.KutadguAdminShopHours.bindShopHoursAdmin(ctx);
+        }
+      }
+      if (root.KutadguAdminShopHours && typeof root.KutadguAdminShopHours.bindShopHoursAdmin === "function") {
+        bindHours();
+        return;
+      }
+      var existing = document.querySelector("script[data-kutadgu-admin-shop-hours]");
+      if (existing) {
+        existing.addEventListener("load", bindHours);
+        return;
+      }
+      var s = document.createElement("script");
+      s.src = "admin-shop-hours.js?v=1";
+      s.dataset.kutadguAdminShopHours = "1";
+      s.onload = bindHours;
+      (document.head || document.documentElement).appendChild(s);
+    }
+
     async function reloadAll() {
       var s = await ctl.loadSettings();
       writeSettingsForm(s.form || settingsFormFromRow(null));
@@ -821,6 +844,9 @@
       paint();
       if (root.KutadguAdminAbout && typeof root.KutadguAdminAbout.reload === "function") {
         await root.KutadguAdminAbout.reload();
+      }
+      if (root.KutadguAdminShopHours && typeof root.KutadguAdminShopHours.reload === "function") {
+        await root.KutadguAdminShopHours.reload();
       }
       if (!s.ok) {
         statusFn(el("heroAdminStatus"), formatHeroError(s.error), "error");
@@ -881,6 +907,7 @@
     writeSettingsForm(settingsFormFromRow(null));
     paint();
     attachHomepageAboutAdmin();
+    attachShopHoursAdmin();
 
     return {
       controller: ctl,
