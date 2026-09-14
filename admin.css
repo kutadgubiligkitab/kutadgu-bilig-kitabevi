@@ -377,7 +377,7 @@ button{cursor:pointer}
   font-weight:700;
   color:#4b3327;
 }
-#bookModal .admin-book-section-grid input,
+#bookModal .admin-book-section-grid input:not([type="file"]):not(.admin-gallery-file-input),
 #bookModal .admin-book-section-grid textarea,
 #bookModal .admin-book-section-grid select{
   min-height:44px;

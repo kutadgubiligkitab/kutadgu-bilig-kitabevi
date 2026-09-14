@@ -82,8 +82,9 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     expect(visible).not.toMatch(/image_url/);
     expect(visible).not.toMatch(/sample-book-cover\.png/);
     expect(visible).toContain("ئىختىيارىي.");
-    expect(visible).toContain("0 = تۈگەپ كەتتى.");
     expect(visible).toContain("خەلقئارا كىتاب نومۇرى (ISBN)");
+    await expect(page.locator("#bookForm label[data-book-col='stock']")).toContainText("0 = تۈگەپ كەتتى.");
+    await expect(page.locator("#createDuplicateWarning")).toBeHidden();
   });
 
   test("sticky save bar does not cover the last visibility fields", async ({ page }) => {
@@ -137,8 +138,15 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     await page.locator("#bookAuthor").fill("ئابدۇللا ھاجى روزى");
     await page.locator("#bookPrice").fill("12");
     await page.locator("#bookSource").selectOption("universal.html");
+    await expect(page.locator("#createDuplicateWarning")).toBeHidden();
+    await expect(page.locator("#createDuplicateConfirm")).toHaveCount(1);
+    await page.locator("#bookTitle").fill("پۈتۈنلەي يېڭى نام");
+    await expect(page.locator("#bookTitleSimilarWarning")).toBeHidden();
     await page.locator("#bookSaveBtn").click();
-    await expect(page.locator("#createDuplicateWarning")).toBeVisible();
-    await expect(page.locator("#createDuplicateMessage")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => (window.__kutadguBookSaves || []).length)).toBe(1);
+    const save = await page.evaluate(() => window.__kutadguBookSaves[0]);
+    expect(save.operation).toBe("INSERT");
+    expect(save.payload.title).toBe("پۈتۈنلەي يېڭى نام");
+    expect(save.payload.author).toBe("ئابدۇللا ھاجى روزى");
   });
 });
