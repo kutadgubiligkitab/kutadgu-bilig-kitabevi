@@ -124,18 +124,24 @@ test("card generators stay unchanged from origin/main", () => {
     sliceBetween(shopJs, "function favoriteCard(b){", "function renderFavoritesPage(){"),
     sliceBetween(mainShop, "function favoriteCard(b){", "function renderFavoritesPage(){")
   );
+  const home = sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
+  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
   assert.strictEqual(
-    sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;"),
-    sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;")
+    home.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\""),
+    mainHome.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"")
   );
+  assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   assert.strictEqual(
     sliceBetween(shopJs, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b){"),
     sliceBetween(mainShop, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b){")
   );
+  const carousel = sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>");
+  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
   assert.strictEqual(
-    sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>"),
-    sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>")
+    carousel.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\""),
+    mainCarousel.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"")
   );
+  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
   assert.strictEqual(

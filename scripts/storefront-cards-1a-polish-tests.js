@@ -102,8 +102,8 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=127/);
-  assert.match(shop, /storefront-cards-1a-polish\.css\?v=1/);
+  assert.match(indexHtml, /shop\.js\?v=128/);
+  assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
   assert.match(ensurePublic, /ensureStorefrontCards1aPolishCss\(\)/);
@@ -112,20 +112,24 @@ test("shop.js loads polish CSS last after public row-alignment overlay", () => {
   assert.ok(publicAt >= 0);
 });
 
-test("card generators and Search 1A rank helper stay unchanged", () => {
+function stripCards1bCartLabel(src) {
+  return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
+}
+
+test("card generators and Search 1A rank helper stay unchanged except Cards 1B cart labels", () => {
   const mainShop = execSync("git show origin/main:shop.js", { cwd: root, encoding: "utf8" });
   assert.strictEqual(
     sliceBetween(shop, "function miniCard(b){", "function favoriteCard(b){"),
     sliceBetween(mainShop, "function miniCard(b){", "function favoriteCard(b){")
   );
-  assert.strictEqual(
-    sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;"),
-    sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;")
-  );
-  assert.strictEqual(
-    sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>"),
-    sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>")
-  );
+  const home = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
+  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
+  assert.strictEqual(stripCards1bCartLabel(home), stripCards1bCartLabel(mainHome));
+  assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
+  const carousel = sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>");
+  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
+  assert.strictEqual(stripCards1bCartLabel(carousel), stripCards1bCartLabel(mainCarousel));
+  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   assert.match(shop, /usesSearchRelevance/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });

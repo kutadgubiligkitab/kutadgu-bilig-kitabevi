@@ -2668,7 +2668,7 @@ function homeFeatureCard(b){
           <div class="home-feature-bottom">
             <span class="home-feature-price">${money(b.price)}</span>
             ${stockBadge(b)}
-            ${cartButton(b,"🛒","add-to-cart home-feature-cart")}
+            ${cartButton(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart")}
           </div>
         </div>
       </a>
@@ -4095,7 +4095,7 @@ async function setupHomeCarousel(){
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
         ${stockBadge(b)}
-        <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒","home-carousel-cart add-to-cart")}</div>
+        <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}</div>
       </div>
     </article>`;
   }
@@ -4366,7 +4366,7 @@ function ensureStorefrontCards1aPolishCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="/storefront-cards-1a-polish.css?v=1";
+    el.href="/storefront-cards-1a-polish.css?v=2";
     el.setAttribute("data-kutadgu-storefront-cards-1a","1");
   }
   document.head.appendChild(el);

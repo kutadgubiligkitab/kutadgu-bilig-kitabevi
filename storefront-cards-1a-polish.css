@@ -245,3 +245,81 @@ body.dark-mode #newBooksCarousel .home-carousel-author{
     min-height:44px;
   }
 }
+
+/* Stage Storefront Cards 1B — tighter title stack, modest desktop type, labeled cart CTA */
+.books-grid[data-catalog-source] .book-card .book-title,
+#premiumDiscoveryResults .premium-card-link strong,
+#premiumWizardResults .premium-card-link strong,
+[data-people-also-viewed] .premium-card-link strong,
+#searchResults .premium-empty-books .premium-card-link strong,
+#newBooksCarousel .home-carousel-title,
+#homeFeaturedBooks .home-feature-title{
+  padding-block:0 0.06em;
+}
+#homeFeaturedBooks .home-feature-info{
+  padding:8px 10px 8px !important;
+}
+#homeFeaturedBooks .home-feature-author{
+  margin-top:2px !important;
+}
+#homeFeaturedBooks .home-feature-bottom{
+  padding-top:6px !important;
+}
+#newBooksCarousel .home-carousel-info{
+  padding:6px 4px 0 !important;
+}
+@media (min-width:901px){
+  #homeFeaturedBooks .home-feature-title,
+  #newBooksCarousel .home-carousel-title,
+  #premiumDiscoveryResults .premium-card-link strong,
+  #premiumWizardResults .premium-card-link strong,
+  [data-people-also-viewed] .premium-card-link strong,
+  #searchResults .premium-empty-books .premium-card-link strong{
+    font-size:15px !important;
+  }
+  #homeFeaturedBooks .home-feature-author,
+  #newBooksCarousel .home-carousel-author,
+  #premiumDiscoveryResults .premium-card-link small,
+  #premiumWizardResults .premium-card-link small,
+  [data-people-also-viewed] .premium-card-link small,
+  #searchResults .premium-empty-books .premium-card-link small{
+    font-size:12px !important;
+  }
+}
+#homeFeaturedBooks .home-feature-bottom,
+#newBooksCarousel .home-carousel-bottom{
+  min-width:0;
+}
+#homeFeaturedBooks .home-feature-price,
+#newBooksCarousel .home-carousel-price{
+  min-width:0;
+}
+#homeFeaturedBooks .home-feature-cart,
+#newBooksCarousel .home-carousel-cart{
+  width:auto !important;
+  min-width:44px;
+  height:auto !important;
+  min-height:36px;
+  padding:5px 9px !important;
+  border-radius:999px !important;
+  font-size:11px !important;
+  font-weight:800;
+  line-height:1.3;
+  white-space:nowrap;
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  flex:0 1 auto;
+  max-width:calc(100% - 4px);
+  overflow:hidden;
+  box-sizing:border-box;
+}
+@media (max-width:700px){
+  #homeFeaturedBooks .home-feature-cart,
+  #newBooksCarousel .home-carousel-cart{
+    min-height:44px;
+    font-size:12px !important;
+    padding:6px 10px !important;
+  }
+}
