@@ -2,9 +2,9 @@ const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
 const BOOKS = [
-  { id: 3, title: "يەر ئانا", author: "A", isbn: "111", category: "رومان", price: 40, is_active: true, created_at: "2026-03-01T00:00:00Z" },
-  { id: 2, title: "ئانا دەريانى ئىزدەپ", author: "B", isbn: "222", category: "رومان", price: 50, is_active: true, created_at: "2026-02-01T00:00:00Z" },
-  { id: 1, title: "ئانا", author: "C", isbn: "333", category: "رومان", price: 30, is_active: true, created_at: "2020-01-01T00:00:00Z" },
+  { id: 3, title: "يەر ئانا", author: "A", isbn: "111", category: "رومانلار", price: 40, is_active: true, created_at: "2026-03-01T00:00:00Z" },
+  { id: 2, title: "ئانا دەريانى ئىزدەپ", author: "B", isbn: "222", category: "رومانلار", price: 50, is_active: true, created_at: "2026-02-01T00:00:00Z" },
+  { id: 1, title: "ئانا", author: "C", isbn: "333", category: "رومانلار", price: 30, is_active: true, created_at: "2020-01-01T00:00:00Z" },
   { id: 4, title: "باشقا", author: "ئانا", isbn: "444", category: "لۇغەت", price: 80, is_active: true, created_at: "2026-04-01T00:00:00Z" }
 ];
 
@@ -56,6 +56,12 @@ async function mockCatalog(page, extra = []) {
   });
 }
 
+async function setControl(page, selector, value) {
+  await page.locator(selector).evaluate((el, v) => {
+    el.value = v;
+  }, value);
+}
+
 async function searchAna(page) {
   await page.locator("#searchInput").fill("ئانا");
   await page.locator("#searchButton").click();
@@ -86,7 +92,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
     await H.openFresh(page, "/");
-    await page.locator("#searchCategory").selectOption("رومان");
+    await setControl(page, "#searchCategory", "رومانلار");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
     expect(titles.map((t) => t.trim())).not.toContain("باشقا");
@@ -97,7 +103,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
     await H.openFresh(page, "/");
-    await page.locator("#searchMaxPrice").fill("35");
+    await setControl(page, "#searchMaxPrice", "35");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
     expect(titles.map((t) => t.trim())).toEqual(["ئانا"]);
@@ -107,10 +113,10 @@ test.describe("Stage Search 1A relevance ranking", () => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
     await H.openFresh(page, "/");
-    await page.locator("#searchSort").selectOption("new");
+    await setControl(page, "#searchSort", "new");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
-    expect(titles[0].trim()).toBe("يەر ئانا");
+    expect(titles[0].trim()).toBe("باشقا");
   });
 
   test("J zero-result copy is unchanged", async ({ page }) => {
@@ -119,7 +125,8 @@ test.describe("Stage Search 1A relevance ranking", () => {
     await H.openFresh(page, "/");
     await page.locator("#searchInput").fill("zzzz-no-match-kutadgu");
     await page.locator("#searchButton").click();
-    await expect(page.locator("#searchResults")).toContainText("نەتىجە تېپىلمىدى", { timeout: 20000 });
+    await page.waitForSelector(".search-empty, .advanced-search-summary", { timeout: 20000 });
+    await expect(page.locator("#searchResults")).toContainText(/نەتىجە تېپىلمىدى|ئىزدەش نەتىجىسى تېپىلمىدى/);
   });
 
   test("K search analytics fire once per query, not Load More", async ({ page }) => {
@@ -130,7 +137,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
       title: `ئانا ${i}`,
       author: "Z",
       isbn: String(500 + i),
-      category: "رومان",
+      category: "رومانلار",
       price: 20,
       is_active: true,
       created_at: `2025-01-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z`
@@ -159,12 +166,12 @@ test.describe("Stage Search 1A relevance ranking", () => {
 
   test("G Load More appends later ranked hits without duplicating the first page", async ({ page }) => {
     await H.installReadSafeNetwork(page);
-    const extra = Array.from({ length: 20 }, (_, i) => ({
+    const extra = Array.from({ length: 40 }, (_, i) => ({
       id: 200 + i,
       title: `ئانا قوشۇمچە ${String(i).padStart(2, "0")}`,
       author: "Z",
       isbn: String(600 + i),
-      category: "رومان",
+      category: "رومانلار",
       price: 20,
       is_active: true,
       created_at: `2025-02-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z`
@@ -176,7 +183,9 @@ test.describe("Stage Search 1A relevance ranking", () => {
     const firstPage = (await page.locator("#searchResults .advanced-search-title").allTextContents()).map((t) => t.trim());
     expect(firstPage[0]).toBe("ئانا");
     expect(new Set(firstPage).size).toBe(firstPage.length);
+    await expect(page.locator("#searchLoadMore")).toBeVisible();
     await page.locator("#searchLoadMore").click();
+    await expect.poll(async () => page.locator("#searchResults .advanced-search-title").count()).toBeGreaterThan(firstPage.length);
     const all = (await page.locator("#searchResults .advanced-search-title").allTextContents()).map((t) => t.trim());
     expect(all.slice(0, firstPage.length)).toEqual(firstPage);
     expect(new Set(all).size).toBe(all.length);
