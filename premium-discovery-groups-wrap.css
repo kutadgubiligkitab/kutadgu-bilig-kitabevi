@@ -1,0 +1,19 @@
+/* Discovery group wrap safety: extra top-level buttons must wrap, not overflow. */
+#premiumDiscovery .premium-discovery-groups {
+  overflow-x: hidden;
+}
+#premiumDiscovery .premium-group-button {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: center;
+  flex-wrap: wrap;
+}
+#premiumDiscovery .premium-wizard-step button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}

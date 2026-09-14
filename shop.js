@@ -4431,7 +4431,7 @@ async function boot(){
   bootStarted=true;
   if(maybeRedirectLegacyBookUrl())return;
   const publicHeaderReady=loadPublicHeader();
-  try{await loadAssetScript("/app-config.js?v=4","kutadguAppConfigScript")}catch(error){console.warn(error)}
+  try{await loadAssetScript("/app-config.js?v=5","kutadguAppConfigScript")}catch(error){console.warn(error)}
   try{await publicHeaderReady}catch(error){console.warn(error)}
   initStaticShell();
   loadMemberSystem();
