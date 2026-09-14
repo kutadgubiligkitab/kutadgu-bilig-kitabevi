@@ -124,7 +124,7 @@ test.describe("storefront cards 1A polish", () => {
     await expect.poll(async () => page.evaluate(() => (window.kutadguShop && window.kutadguShop.cart && window.kutadguShop.cart().length) || 0)).toBeGreaterThan(0);
     const fav = page.locator(".book-card[data-live-book-id='91001'] .favorite-button");
     await fav.click();
-    await expect(fav).toHaveAttribute("aria-pressed", "true");
+    await expect(fav).toHaveClass(/is-favorite/);
     await expect(page.locator(".book-card[data-live-book-id='91001'] .detail-button")).toHaveAttribute("href", /91001/);
   });
 
