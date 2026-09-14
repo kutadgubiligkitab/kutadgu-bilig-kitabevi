@@ -80,7 +80,19 @@
         id:"children",
         label:"بالىلار",
         icon:"🧒",
-        categories:["بالىلار كىتابلىرى","پەرزەنت تەربىيەسى","دەرسلىك"]
+        categories:["بالىلار كىتابلىرى"]
+      },
+      {
+        id:"parenting",
+        label:"پەرزەنت تەربىيەسى",
+        icon:"🏡",
+        categories:["پەرزەنت تەربىيەسى"]
+      },
+      {
+        id:"textbooks",
+        label:"دەرسلىك",
+        icon:"📘",
+        categories:["دەرسلىك"]
       }
     ]
   };

@@ -77,7 +77,7 @@ test("/adabiyat is books-first with hub markup and no emoji cards", () => {
   assert.match(html, /rel="canonical" href="https:\/\/www\.kutadgubilik.com\/adabiyat"/);
   assert.doesNotMatch(html, /canonical[^>]+adabiyat\?/);
   assert.match(html, /public-header\.js\?v=1/);
-  assert.match(html, /shop\.js\?v=125/);
+  assert.match(html, /shop\.js\?v=126/);
   assert.match(html, /listing-card-safety\.css\?v=2/);
 });
 
