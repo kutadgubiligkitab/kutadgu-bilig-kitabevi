@@ -718,12 +718,11 @@ function stampShopOwner(){
 }
 function peekPersistedShopUserId(){
   try{
-    const url=String(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url||"").trim();
-    if(!url)return "";
-    let ref="";
-    try{ref=String(new URL(url).hostname.split(".")[0]||"").trim()}catch(err){}
-    if(!ref||!/^[a-z0-9-]+$/i.test(ref))return "";
-    const raw=localStorage.getItem("sb-"+ref+"-auth-token");
+    const key=String((window.KUTADGU_MEMBER_AUTH_STORAGE_KEY)||"kutadgu-member-auth-v1");
+    if(typeof window.kutadguPeekPersistedAuthUserId==="function"){
+      return String(window.kutadguPeekPersistedAuthUserId(key)||"");
+    }
+    const raw=localStorage.getItem(key);
     if(!raw)return "";
     const parsed=JSON.parse(raw);
     if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return "";
@@ -4166,7 +4165,7 @@ function loadMemberSystem(){
   if(window.KutadguMember)return;
   if(document.querySelector('script[data-kutadgu-member-script],script[src*="member.js"]'))return;
   const script=document.createElement("script");
-        script.src="/member.js?v=26";script.async=false;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=27";script.async=false;script.dataset.kutadguMemberScript="1";
   (document.body||document.documentElement).appendChild(script);
 }
 function refreshAfterMemberSync(){

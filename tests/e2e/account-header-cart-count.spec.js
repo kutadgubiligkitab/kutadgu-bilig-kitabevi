@@ -14,7 +14,7 @@ async function seedShop(page, {
     try {
       localStorage.setItem("kutadgu-cart-v1", cartItems);
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
-      const authKey = "sb-fxlojnqwyojqjskfggmh-auth-token";
+      const authKey = "kutadgu-member-auth-v1";
       if (sessionId) {
         localStorage.setItem(authKey, JSON.stringify({
           access_token: "test-access-token",

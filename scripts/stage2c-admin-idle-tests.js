@@ -41,6 +41,8 @@ test("IDLE_MS is 30 minutes and storage key is Admin-only", () => {
   assert.strictEqual(Idle.STORAGE_KEY, "kutadgu-admin-idle-v1");
   assert.deepStrictEqual(Idle.ACTIVITY_EVENTS, ["pointerdown", "keydown", "touchstart"]);
   assert.strictEqual(Idle.isAuthStorageKey("sb-fxlojnqwyojqjskfggmh-auth-token"), true);
+  assert.strictEqual(Idle.isAuthStorageKey("kutadgu-admin-auth-v1"), true);
+  assert.strictEqual(Idle.isAuthStorageKey("kutadgu-member-auth-v1"), true);
   assert.strictEqual(Idle.isAuthStorageKey("kutadgu-admin-idle-v1"), false);
 });
 

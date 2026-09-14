@@ -65,7 +65,7 @@ async function seedShop(page, {
       if (display) localStorage.setItem("kutadgu-cart-display-v1", display);
       else localStorage.removeItem("kutadgu-cart-display-v1");
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
-      const authKey = "sb-fxlojnqwyojqjskfggmh-auth-token";
+      const authKey = "kutadgu-member-auth-v1";
       if (sessionId) {
         localStorage.setItem(authKey, JSON.stringify({
           access_token: "test-access-token",

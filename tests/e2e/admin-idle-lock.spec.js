@@ -330,11 +330,11 @@ test.describe("stage 2C Admin idle lock", () => {
   test("idle lock does not call signOut (no auth token cleared)", async ({ page }) => {
     await installIdleAdmin(page, { locked: true });
     await page.addInitScript(() => {
-      try { localStorage.setItem("sb-fxlojnqwyojqjskfggmh-auth-token", JSON.stringify({ access_token: "keep" })); } catch (e) {}
+      try { localStorage.setItem("kutadgu-admin-auth-v1", JSON.stringify({ access_token: "keep" })); } catch (e) {}
     });
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#idleLockPanel")).toBeVisible();
-    const kept = await page.evaluate(() => localStorage.getItem("sb-fxlojnqwyojqjskfggmh-auth-token"));
+    const kept = await page.evaluate(() => localStorage.getItem("kutadgu-admin-auth-v1"));
     expect(kept).toContain("keep");
   });
 

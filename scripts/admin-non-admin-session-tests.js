@@ -86,7 +86,7 @@ test("C. Full Admin MFA/AAL2 routing is unchanged after checkAdmin succeeds", ()
 test("D. Explicit Admin logout still signs out", () => {
   const logoutFn = adminJs.match(/async function logout\(\)\{[\s\S]*?function openImport/);
   assert.ok(logoutFn);
-  assert.match(logoutFn[0], /db\.auth\.signOut/);
+  assert.match(logoutFn[0], /db\.auth\.signOut\(\{scope:"local"\}\)/);
   assert.match(logoutFn[0], /user=null/);
   assert.match(logoutFn[0], /show\("loginPanel"\)/);
   assert.match(adminHtml, /id="adminLogout"/);
@@ -99,7 +99,7 @@ test("E. No role, RLS, or admin_users weakening", () => {
   assert.doesNotMatch(accountJs, /from\("admin_users"\)/);
   assert.doesNotMatch(adminJs, /CREATE POLICY|ALTER TABLE|DROP POLICY/);
   assert.doesNotMatch(staffJs, /add_kutadgu_book_staff/);
-  assert.match(adminHtml, /admin\.js\?v=72/);
+  assert.match(adminHtml, /admin\.js\?v=73/);
 });
 
 if (failed) {

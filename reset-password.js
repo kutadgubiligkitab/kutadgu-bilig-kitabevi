@@ -139,8 +139,13 @@ async function init(){
     return;
   }
 
+  const nextAdmin=String(info.next||new URLSearchParams(location.search).get("next")||"").toLowerCase()==="admin";
+  const storageKey=nextAdmin
+    ?(typeof window.kutadguAdminAuthStorageKey==="function"?window.kutadguAdminAuthStorageKey():String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1"))
+    :(typeof window.kutadguMemberAuthStorageKey==="function"?window.kutadguMemberAuthStorageKey():String(window.KUTADGU_MEMBER_AUTH_STORAGE_KEY||"kutadgu-member-auth-v1"));
+  if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
-    auth:{detectSessionInUrl:false,persistSession:true,flowType:"pkce"}
+    auth:{detectSessionInUrl:false,persistSession:true,flowType:"pkce",storageKey:storageKey}
   });
   setFormEnabled(false);
 
@@ -208,7 +213,7 @@ async function init(){
     }
 
     status("✅ پارول مۇۋەپپەقىيەتلىك يېڭىلاندى. ھازىر كىرىش بېتىگە قايتىسىز.","ok");
-    await db.auth.signOut();
+    await db.auth.signOut({scope:"local"});
     authSub?.subscription?.unsubscribe?.();
     setTimeout(()=>location.replace(returnTarget()),1200);
   });

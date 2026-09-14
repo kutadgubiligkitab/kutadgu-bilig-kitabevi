@@ -157,7 +157,7 @@ function ownerApi({
   wrapCurrentSession = false,
   extraStore = {},
   configUrl = "https://fxlojnqwyojqjskfggmh.supabase.co",
-  authKey = "sb-fxlojnqwyojqjskfggmh-auth-token"
+  authKey = "kutadgu-member-auth-v1"
 } = {}) {
   const store = { ...extraStore };
   if (owner) store["kutadgu-shop-owner-v1"] = owner;
@@ -293,9 +293,10 @@ test("configured-project token with matching owner and future expires_at allows 
   assert.strictEqual(api.peekPersistedShopUserId(), uid);
   assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
   const peek = sliceBetween(shop, "function peekPersistedShopUserId(){", "function currentShopUserId(){");
-  assert.match(peek, /sb-"\+ref\+"-auth-token/);
+  assert.match(peek, /kutadgu-member-auth-v1/);
   assert.doesNotMatch(peek, /localStorage\.length/);
   assert.doesNotMatch(peek, /sb-\.\+-auth-token/);
+  assert.doesNotMatch(peek, /sb-"\+ref\+"-auth-token/);
 });
 
 test("matching owner with expired expires_at is blocked before member identity resolves", () => {
@@ -337,8 +338,20 @@ test("unrelated project auth token is ignored even with a matching user id", () 
   assert.strictEqual(api.peekPersistedShopUserId(), "");
   assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), false);
   const noConfig = ownerApi({ owner: uid, sessionUser: uid, configUrl: "" });
-  assert.strictEqual(noConfig.peekPersistedShopUserId(), "");
-  assert.strictEqual(noConfig.shopOwnerAllowsLocalDisplay(), false);
+  assert.strictEqual(noConfig.peekPersistedShopUserId(), uid);
+  assert.strictEqual(noConfig.shopOwnerAllowsLocalDisplay(), true);
+  const adminOnly = ownerApi({
+    owner: uid,
+    extraStore: {
+      "kutadgu-admin-auth-v1": JSON.stringify({
+        access_token: "tok",
+        refresh_token: "refresh-only-is-not-enough",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: { id: uid }
+      })
+    }
+  });
+  assert.strictEqual(adminOnly.peekPersistedShopUserId(), "");
 });
 
 test("live KutadguMember identity allows same-owner display when persisted token is expired", () => {

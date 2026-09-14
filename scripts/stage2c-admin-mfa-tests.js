@@ -201,8 +201,9 @@ test("password reset and Google OAuth files stay TokenHash/PKCE as before", () =
 
 test("Admin client still has no Google OAuth and unchanged persist defaults", () => {
   assert.doesNotMatch(adminJs, /signInWithOAuth/);
-  assert.match(adminJs, /createClient\(cfg\.url,cfg\.anonKey\|\|cfg\.publishableKey\)/);
-  assert.doesNotMatch(adminJs, /detectSessionInUrl/);
+  assert.match(adminJs, /createClient\(cfg\.url,cfg\.anonKey\|\|cfg\.publishableKey,\{/);
+  assert.match(adminJs, /detectSessionInUrl:false/);
+  assert.match(adminJs, /kutadgu-admin-auth-v1/);
   assert.doesNotMatch(adminJs, /persistSession:\s*false/);
 });
 

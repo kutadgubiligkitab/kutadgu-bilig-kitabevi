@@ -38,7 +38,7 @@ async function seedCart(page, { snapshot = true, extraSnapshot = false, maliciou
       if (display) localStorage.setItem("kutadgu-cart-display-v1", display);
       else localStorage.removeItem("kutadgu-cart-display-v1");
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
-      const authKey = "sb-fxlojnqwyojqjskfggmh-auth-token";
+      const authKey = "kutadgu-member-auth-v1";
       if (sessionId) {
         const session = {
           access_token: "test-access-token",

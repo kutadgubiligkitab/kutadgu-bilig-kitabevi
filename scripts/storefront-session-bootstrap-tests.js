@@ -79,7 +79,7 @@ function identityApi({
     };
     if (accessToken !== null) session.access_token = accessToken;
     if (exp !== "missing") session.expires_at = exp;
-    store["sb-fxlojnqwyojqjskfggmh-auth-token"] = JSON.stringify(session);
+    store["kutadgu-member-auth-v1"] = JSON.stringify(session);
   }
   const localStorage = {
     getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
@@ -176,11 +176,11 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=123/);
+  assert.match(indexHtml, /shop\.js\?v=124/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
   assert.match(cartHtml, /shop\.js\?v=115/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
-  assert.match(accountHtml, /member\.js\?v=26/);
+  assert.match(accountHtml, /member\.js\?v=27/);
   assert.doesNotMatch(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
 });
@@ -221,7 +221,7 @@ test("shop.js does not await member boot before catalog first paint", () => {
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
   assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
-  assert.match(shop, /member\.js\?v=26/);
+  assert.match(shop, /member\.js\?v=27/);
   assert.match(shop, /script\[src\*="member\.js"\]/);
 });
 
@@ -690,7 +690,7 @@ test("logout still abandons member shop state and account page still loads membe
   assert.match(member, /recoveredIdentityId="signed-out"/);
   assert.match(member, /async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
   const accountScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(accountScripts, ["member.js?v=26"]);
+  assert.deepStrictEqual(accountScripts, ["member.js?v=27"]);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {

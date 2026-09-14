@@ -43,7 +43,7 @@ function seedSession(page, userId) {
       user: { id }
     });
     try {
-      localStorage.setItem("sb-fxlojnqwyojqjskfggmh-auth-token", payload);
+      localStorage.setItem("kutadgu-admin-auth-v1", payload);
     } catch (e) {}
   }, userId);
 }

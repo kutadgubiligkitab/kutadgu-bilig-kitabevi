@@ -56,7 +56,7 @@ async function seedMember(page, { cart = [], fav = [], snapshotIds = [] } = {}) 
       if (display) localStorage.setItem("kutadgu-cart-display-v1", display);
       else localStorage.removeItem("kutadgu-cart-display-v1");
       localStorage.setItem("kutadgu-shop-owner-v1", ownerId);
-      localStorage.setItem("sb-fxlojnqwyojqjskfggmh-auth-token", JSON.stringify({
+      localStorage.setItem("kutadgu-member-auth-v1", JSON.stringify({
         access_token: "test-access-token",
         refresh_token: "test-refresh-token",
         token_type: "bearer",

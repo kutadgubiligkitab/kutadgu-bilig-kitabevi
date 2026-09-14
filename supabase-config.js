@@ -95,6 +95,68 @@ window.KUTADGU_SUPABASE_CONFIG = {
   bucket: "book-covers"
 };
 
+window.KUTADGU_MEMBER_AUTH_STORAGE_KEY = "kutadgu-member-auth-v1";
+window.KUTADGU_ADMIN_AUTH_STORAGE_KEY = "kutadgu-admin-auth-v1";
+
+window.kutadguMemberAuthStorageKey = function(){
+  return String(window.KUTADGU_MEMBER_AUTH_STORAGE_KEY||"kutadgu-member-auth-v1");
+};
+window.kutadguAdminAuthStorageKey = function(){
+  return String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1");
+};
+window.kutadguMemberAuthOptions = function(){
+  return {detectSessionInUrl:true,persistSession:true,flowType:"pkce",storageKey:window.kutadguMemberAuthStorageKey()};
+};
+window.kutadguAdminAuthOptions = function(){
+  return {detectSessionInUrl:false,persistSession:true,flowType:"pkce",storageKey:window.kutadguAdminAuthStorageKey()};
+};
+window.kutadguLegacySupabaseAuthStorageKey = function(url){
+  try{
+    const raw=String(url||(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url)||"").trim();
+    if(!raw)return "";
+    const ref=String(new URL(raw).hostname.split(".")[0]||"").trim();
+    if(!ref||!/^[a-z0-9-]+$/i.test(ref))return "";
+    return "sb-"+ref+"-auth-token";
+  }catch(e){return ""}
+};
+window.kutadguPeekPersistedAuthUserId = function(storageKey){
+  try{
+    const key=String(storageKey||"").trim();
+    if(!key)return "";
+    const raw=localStorage.getItem(key);
+    if(!raw)return "";
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return "";
+    const session=parsed.currentSession&&typeof parsed.currentSession==="object"&&!Array.isArray(parsed.currentSession)
+      ?parsed.currentSession
+      :parsed;
+    if(!session||typeof session!=="object"||Array.isArray(session))return "";
+    const token=String(session.access_token||"").trim();
+    const uid=String(session.user&&session.user.id||"").trim();
+    if(!token||!uid)return "";
+    const rawExp=session.expires_at!=null?session.expires_at
+      :(session.expiresAt!=null?session.expiresAt
+      :(parsed.expiresAt!=null?parsed.expiresAt:null));
+    if(rawExp===""||rawExp==null)return "";
+    const expiresAt=Number(rawExp);
+    if(!Number.isFinite(expiresAt)||expiresAt<=0)return "";
+    const expiresAtMs=expiresAt>1e12?expiresAt:expiresAt*1000;
+    if(expiresAtMs<=Date.now())return "";
+    return uid;
+  }catch(err){}
+  return "";
+};
+window.kutadguForgetLegacySharedAuthStorage = function(){
+  const legacy=window.kutadguLegacySupabaseAuthStorageKey();
+  const member=window.kutadguMemberAuthStorageKey();
+  const admin=window.kutadguAdminAuthStorageKey();
+  if(!legacy||legacy===member||legacy===admin)return;
+  try{
+    localStorage.removeItem(legacy);
+    localStorage.removeItem(legacy+"-code-verifier");
+  }catch(e){}
+};
+
 /*
   Live public.books capabilities for this Supabase project (fxlojnqwyojqjskfggmh).
   Verified read-only via PostgREST column selects. Not a secret; not a probe list.
@@ -173,7 +235,7 @@ window.KUTADGU_CONTACT_CONFIG = {
     }
     if(document.querySelector('script[data-kutadgu-maintenance="1"]'))return;
     var s=document.createElement("script");
-    s.src="/kutadgu-maintenance.js?v=2";
+    s.src="/kutadgu-maintenance.js?v=3";
     s.async=true;
     s.dataset.kutadguMaintenance="1";
     (document.head||document.documentElement).appendChild(s);

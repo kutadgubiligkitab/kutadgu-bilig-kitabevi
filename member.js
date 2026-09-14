@@ -414,14 +414,28 @@ function writeShopOwner(owner){
 function stampShopOwnerForCurrentUser(){
   writeShopOwner(user?.id?String(user.id):SHOP_OWNER_GUEST);
 }
+function memberAuthStorageKey(){
+  try{
+    if(typeof window.kutadguMemberAuthStorageKey==="function"){
+      const k=String(window.kutadguMemberAuthStorageKey()||"").trim();
+      if(k)return k;
+    }
+    const k=String(window.KUTADGU_MEMBER_AUTH_STORAGE_KEY||"").trim();
+    if(k)return k;
+  }catch(e){}
+  return "kutadgu-member-auth-v1";
+}
+function memberAuthOptions(){
+  if(typeof window.kutadguMemberAuthOptions==="function")return window.kutadguMemberAuthOptions();
+  return {detectSessionInUrl:true,persistSession:true,flowType:"pkce",storageKey:memberAuthStorageKey()};
+}
 function peekPersistedShopUserId(){
   try{
-    const url=String(window.KUTADGU_SUPABASE_CONFIG&&window.KUTADGU_SUPABASE_CONFIG.url||"").trim();
-    if(!url)return "";
-    let ref="";
-    try{ref=String(new URL(url).hostname.split(".")[0]||"").trim()}catch(err){}
-    if(!ref||!/^[a-z0-9-]+$/i.test(ref))return "";
-    const raw=localStorage.getItem("sb-"+ref+"-auth-token");
+    const key=String((window&&window.KUTADGU_MEMBER_AUTH_STORAGE_KEY)||"kutadgu-member-auth-v1");
+    if(typeof window.kutadguPeekPersistedAuthUserId==="function"){
+      return String(window.kutadguPeekPersistedAuthUserId(key)||"");
+    }
+    const raw=localStorage.getItem(key);
     if(!raw)return "";
     const parsed=JSON.parse(raw);
     if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return "";
@@ -936,7 +950,7 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
     try{
       await fetchProfile();
       if(profile?.status==="suspended"){
-        blocked=true;renderButton();emit();await db.auth.signOut();user=null;return;
+        blocked=true;renderButton();emit();await db.auth.signOut({scope:"local"});user=null;return;
       }
       if(trackLogin&&Date.now()-lastLoginRecordedAt>5000){
         await db.rpc("record_member_login");lastLoginRecordedAt=Date.now();
@@ -1005,7 +1019,7 @@ async function signOut(){
     localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
     liveUser:idSuffix(user&&user.id)
   });
-  if(db)await db.auth.signOut();
+  if(db)await db.auth.signOut({scope:"local"});
   if(pending)try{await pending}catch(e){}
   user=null;profile=null;blocked=false;
   if(!user){
@@ -1090,6 +1104,8 @@ const api=window.KutadguMember={
   getProfile:()=>profile,
   isBlocked:()=>blocked,
   refreshProfile:fetchProfile,
+  MEMBER_AUTH_STORAGE_KEY:memberAuthStorageKey(),
+  memberAuthStorageKey,
   signUp,signIn,signInWithGoogle,signOut,resetPassword,updateProfile,getOrders,saveOrder,syncKey,applyFieldDirections,
   readShopOwner,writeShopOwner,shouldMergeLocalForUser,localItemsForMerge,shopStateReadyFor,
   peekPersistedShopUserId,currentShopUserId,shopOwnerAllowsLocalDisplay,refreshSafeCartCount,
@@ -1104,8 +1120,9 @@ async function init(){
   try{
     await loadSdk();
     const cfg=liveConfig();
+    if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
     db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
-      auth:{detectSessionInUrl:true,persistSession:true,flowType:"pkce"}
+      auth:memberAuthOptions()
     });
     db.auth.onAuthStateChange((event,session)=>{
       if(event==="SIGNED_OUT"){

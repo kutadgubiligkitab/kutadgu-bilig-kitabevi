@@ -38,7 +38,7 @@ function ownerApi({
   extraStore = {},
   configUrl = "https://fxlojnqwyojqjskfggmh.supabase.co",
   sessionBootDone = false,
-  authKey = "sb-fxlojnqwyojqjskfggmh-auth-token"
+  authKey = "kutadgu-member-auth-v1"
 } = {}) {
   const store = { ...extraStore };
   if (owner) store["kutadgu-shop-owner-v1"] = owner;
@@ -76,7 +76,7 @@ function badgeApi({ owner, cart, sessionUser, liveUser, sessionBootDone, expires
     "kutadgu-cart-v1": JSON.stringify(cart)
   };
   if (sessionUser) {
-    store["sb-fxlojnqwyojqjskfggmh-auth-token"] = JSON.stringify({
+    store["kutadgu-member-auth-v1"] = JSON.stringify({
       access_token: "tok",
       refresh_token: "refresh",
       expires_at: expiresAt == null ? Math.floor(Date.now() / 1000) + 3600 : expiresAt,
@@ -112,7 +112,7 @@ function badgeApi({ owner, cart, sessionUser, liveUser, sessionBootDone, expires
 test("account.html does not load shop.js and member owns the safe badge", () => {
   assert.doesNotMatch(accountHtml, /shop\.js/);
   assert.match(accountHtml, /public-header\.js/);
-  assert.match(accountHtml, /member\.js\?v=26/);
+  assert.match(accountHtml, /member\.js\?v=27/);
   assert.match(member, /function shopOwnerAllowsLocalDisplay\(owner,uid\)\{/);
   assert.match(member, /function identityBootstrapPending\(\)\{/);
   assert.match(member, /function refreshSafeCartCount\(\)\{/);
