@@ -134,7 +134,7 @@ test("staff client still cannot write books or use admin privileges", () => {
 });
 
 test("Admin pending review shows gallery read-only and approval RPCs stay unchanged", () => {
-  assert.match(adminJs, /gallery_images,submitted_by,submitted_at,submission_status"/);
+  assert.match(adminJs, /gallery_images,description,submitted_by,submitted_at,submission_status/);
   assert.match(adminJs, /function pendingGalleryUrls/);
   assert.match(adminJs, /admin-submission-gallery/);
   assert.match(adminJs, /isSafeCoverUrl\(url\)/);
