@@ -1,0 +1,247 @@
+/* Stage Storefront Cards 1A — visual polish overlay.
+   Loaded last. Host-scoped public card families only.
+   Does not change grid column counts, handlers, or cover URLs. */
+
+/* ----- Listing catalog tiles ----- */
+.books-grid[data-catalog-source] .book-card .book-title{
+  line-height:1.75;
+  min-height:calc(1.75em * 2);
+  padding-block:0.08em 0.14em;
+  box-sizing:content-box;
+}
+.books-grid[data-catalog-source] .book-card .book-author{
+  line-height:1.7;
+  min-height:1.7em;
+  padding-block:0.04em 0.1em;
+  box-sizing:content-box;
+}
+.books-grid[data-catalog-source] .book-card .book-price{
+  min-height:1.5em;
+  line-height:1.5;
+}
+.books-grid[data-catalog-source] .book-card .book-image img,
+.books-grid[data-catalog-source] .book-card .book-cover img,
+.books-grid[data-catalog-source] .book-card .cover-stock-wrap img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+/* ----- Discovery / wizard / empty-search compact cards ----- */
+#premiumDiscoveryResults .premium-card-link strong,
+#premiumWizardResults .premium-card-link strong,
+[data-people-also-viewed] .premium-card-link strong,
+#searchResults .premium-empty-books .premium-card-link strong{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  line-height:1.75;
+  min-height:calc(1.75em * 2);
+  padding-block:0.08em 0.14em;
+  box-sizing:content-box;
+  overflow-wrap:anywhere;
+}
+#premiumDiscoveryResults .premium-card-link small,
+#premiumWizardResults .premium-card-link small,
+[data-people-also-viewed] .premium-card-link small,
+#searchResults .premium-empty-books .premium-card-link small{
+  min-height:1.5em;
+  line-height:1.5;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#premiumDiscoveryResults .premium-card-price,
+#premiumWizardResults .premium-card-price,
+[data-people-also-viewed] .premium-card-price,
+#searchResults .premium-empty-books .premium-card-price{
+  min-height:1.5em;
+  line-height:1.5;
+}
+#premiumDiscoveryResults .premium-card-cover img,
+#premiumWizardResults .premium-card-cover img,
+[data-people-also-viewed] .premium-card-cover img,
+#searchResults .premium-empty-books .premium-card-cover img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+#premiumDiscoveryResults .premium-card-badges,
+#premiumWizardResults .premium-card-badges,
+[data-people-also-viewed] .premium-card-badges{
+  position:relative;
+  z-index:1;
+}
+#premiumDiscoveryResults .premium-card-favorite,
+#premiumWizardResults .premium-card-favorite,
+[data-people-also-viewed] .premium-card-favorite{
+  z-index:3;
+}
+
+/* ----- Homepage carousel ----- */
+#newBooksCarousel .home-carousel-title{
+  line-height:1.75 !important;
+  min-height:calc(1.75em * 2);
+  padding-block:0.08em 0.14em;
+  box-sizing:content-box;
+  overflow-wrap:anywhere;
+}
+#newBooksCarousel .home-carousel-author{
+  min-height:1.7em !important;
+  max-height:1.7em !important;
+  line-height:1.7;
+  padding-block:0;
+}
+#newBooksCarousel .home-carousel-price{
+  min-height:1.5em;
+  line-height:1.5;
+}
+#newBooksCarousel .home-carousel-cover img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+/* ----- Homepage featured ----- */
+#homeFeaturedBooks .home-feature-title{
+  line-height:1.75 !important;
+  min-height:calc(1.75em * 2) !important;
+  padding-block:0.08em 0.14em;
+  box-sizing:content-box;
+  overflow-wrap:anywhere;
+}
+#homeFeaturedBooks .home-feature-author{
+  min-height:1.7em !important;
+  max-height:1.7em;
+  line-height:1.7;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#homeFeaturedBooks .home-feature-price{
+  min-height:1.5em;
+  line-height:1.5;
+}
+#homeFeaturedBooks .home-feature-cover-frame img,
+#homeFeaturedBooks .home-feature-cover img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+/* ----- Search result rows ----- */
+#searchResults .advanced-search-title{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  line-height:1.75;
+  overflow-wrap:anywhere;
+}
+#searchResults .advanced-search-cover img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+/* ----- Mini cards: homepage selector, My Books, similar, recent ----- */
+#homeShopSections .shop-mini-title,
+#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-title,
+[data-detail-related] .detail-related-grid .shop-mini-title,
+[data-recently-viewed] .shop-mini-title{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  line-height:1.75;
+  min-height:calc(1.75em * 2);
+  padding-block:0.06em 0.12em;
+  box-sizing:content-box;
+  overflow-wrap:anywhere;
+}
+#homeShopSections .shop-mini-meta,
+#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-meta,
+[data-detail-related] .detail-related-grid .shop-mini-meta,
+[data-recently-viewed] .shop-mini-meta{
+  min-height:1.5em;
+  line-height:1.5;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#homeShopSections .shop-mini-card img,
+#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card img,
+[data-detail-related] .detail-related-grid .shop-mini-card img,
+[data-recently-viewed] .shop-mini-card img{
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+/* ----- Favorites ----- */
+#favoritesList .favorite-card-title,
+#myBooksApp .favorites-grid .favorite-card-title{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  line-height:1.75;
+  overflow-wrap:anywhere;
+}
+#favoritesList .favorite-cover img,
+#myBooksApp .favorites-grid .favorite-cover img{
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+}
+
+body.dark-mode .books-grid[data-catalog-source] .book-card .book-title,
+body.dark-mode .books-grid[data-catalog-source] .book-card .book-price,
+body.dark-mode #premiumDiscoveryResults .premium-card-link strong,
+body.dark-mode #homeFeaturedBooks .home-feature-title,
+body.dark-mode #newBooksCarousel .home-carousel-title{
+  color:var(--site-text);
+}
+body.dark-mode .books-grid[data-catalog-source] .book-card .book-author,
+body.dark-mode #premiumDiscoveryResults .premium-card-link small,
+body.dark-mode #homeFeaturedBooks .home-feature-author,
+body.dark-mode #newBooksCarousel .home-carousel-author{
+  color:var(--site-text-soft);
+}
+
+@media (max-width:700px){
+  .books-grid[data-catalog-source] .book-card .book-title,
+  #premiumDiscoveryResults .premium-card-link strong,
+  #newBooksCarousel .home-carousel-title,
+  #homeFeaturedBooks .home-feature-title{
+    line-height:1.75;
+    min-height:calc(1.75em * 2);
+  }
+  #homeFeaturedBooks .home-feature-cart,
+  #homeFeaturedBooks .home-feature-heart{
+    min-width:44px;
+    min-height:44px;
+  }
+}

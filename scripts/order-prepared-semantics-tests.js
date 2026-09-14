@@ -348,7 +348,7 @@ async function run() {
     assert.match(cartHtml, /id="shareOrder"/);
     assert.match(cartHtml, /id="whatsappOrder"/);
     assert.match(cartHtml, /زاكاز تور مۇلازىمېتىرىغا ئەۋەتىلمەيدۇ/);
-    assert.match(cartHtml, /shop\.js\?v=126/);
+    assert.match(cartHtml, /shop\.js\?v=127/);
   });
 
   if (failed) {
