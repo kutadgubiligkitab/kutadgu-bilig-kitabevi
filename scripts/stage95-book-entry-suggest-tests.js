@@ -135,13 +135,14 @@ test("Admin uses Admin db client; Book Staff uses Member client and current book
   assert.match(staffJs, /S\.loadSuggestionRows\(client,\s*\{cacheKey:"staff"\}/);
   assert.doesNotMatch(staffJs, /kutadguAdminAuthOptions|kutadgu-admin-auth-v1|is_kutadgu_admin/);
   assert.doesNotMatch(staffJs, /update_pending_staff_book_submission|approve_staff_book_submission/);
+  assert.doesNotMatch(staffJs, /cacheKey:"admin"/);
   assert.match(staffJs, /rpc\("submit_book_for_approval"/);
   const submitStart = staffJs.indexOf("async function submitBook(");
   const submitEnd = staffJs.indexOf("\nwindow.KutadguBookStaff=");
   const submit = staffJs.slice(submitStart, submitEnd);
   assert.doesNotMatch(submit, /filterTitleMatches|kutadgu-title-warn|similar/);
   assert.match(adminHtml, /kutadgu-book-entry-suggest\.js\?v=1/);
-  assert.match(adminHtml, /admin\.js\?v=76/);
+  assert.match(adminHtml, /admin\.js\?v=77/);
   assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.doesNotMatch(suggestJs, /<datalist|service_role/);
   assert.doesNotMatch(adminJs, /<datalist/);
@@ -158,6 +159,26 @@ test("existing Admin title+author/ISBN duplicate protection remains", () => {
   assert.match(quality, /function shouldWarnCreateDuplicates/);
   assert.match(adminHtml, /id="createDuplicateWarning"/);
   assert.match(adminHtml, /id="bookTitleSimilarWarning"/);
+});
+
+test("Admin suggestion fetch waits for authorized session and clears on logout", () => {
+  const bind = adminJs.slice(adminJs.indexOf("function bindBookEntrySuggestions("), adminJs.indexOf("function bindBookListUx("));
+  assert.doesNotMatch(bind, /loadSuggestionRows/);
+  assert.match(adminJs, /function loadAdminSuggestionRows\(/);
+  assert.match(adminJs, /function clearAdminSuggestionState\(/);
+  const dash = adminJs.slice(adminJs.indexOf("async function openAuthorizedDashboard("), adminJs.indexOf("function columnList("));
+  assert.match(dash, /loadAdminSuggestionRows\(\)/);
+  assert.match(dash, /__kutadguSkipAdminAuth/);
+  const route = adminJs.slice(adminJs.indexOf("async function routeSession("), adminJs.indexOf("async function openAuthorizedDashboard("));
+  assert.match(route, /clearAdminSuggestionState\(\)/);
+  assert.match(route, /inspect\.decision&&inspect\.decision\.gate/);
+  const gate = route.slice(route.indexOf("if(inspect.decision&&inspect.decision.gate)"), route.indexOf("await detectOptionalGalleryColumn"));
+  assert.doesNotMatch(gate, /loadAdminSuggestionRows/);
+  const logout = adminJs.slice(adminJs.indexOf("async function logout("), adminJs.indexOf("function openImport("));
+  assert.match(logout, /clearAdminSuggestionState\(\)/);
+  assert.match(logout, /signOut\(\{scope:"local"\}\)/);
+  assert.match(adminJs, /adminSuggestLoadUid===uid&&adminSuggestLoadPromise/);
+  assert.doesNotMatch(staffJs, /loadAdminSuggestionRows|clearAdminSuggestionState|cacheKey:"admin"/);
 });
 
 test("Pending edit, gallery, isolation, and RLS files stay intact", () => {

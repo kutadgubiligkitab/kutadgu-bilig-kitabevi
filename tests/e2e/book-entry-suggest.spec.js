@@ -266,4 +266,236 @@ test.describe("book entry suggestions", () => {
       await noOverflow(page);
     });
   }
+
+  test("signed-out Admin does not fetch suggestion rows; login loads Admin-visible rows; logout clears; re-login refetches", async ({ page }) => {
+    const ADMIN_KEY = "kutadgu-admin-auth-v1";
+    const MEMBER_KEY = "kutadgu-member-auth-v1";
+    const hiddenAuthor = "يوشۇرۇلغان ئاپتور";
+    await page.addInitScript(({ ADMIN_KEY, MEMBER_KEY, hiddenAuthor }) => {
+      window.__kutadguSuggestBookSelects = 0;
+      window.__kutadguSuggestSelectFields = [];
+      const now = Math.floor(Date.now() / 1000);
+      function blob(user, token) {
+        if (!user) return null;
+        return { access_token: token, refresh_token: token + "-refresh", expires_at: now + 3600, user };
+      }
+      function readAdmin() {
+        try { return JSON.parse(localStorage.getItem(ADMIN_KEY) || "null"); } catch (e) { return null; }
+      }
+      function writeAdmin(session) {
+        if (!session) localStorage.removeItem(ADMIN_KEY);
+        else localStorage.setItem(ADMIN_KEY, JSON.stringify(session));
+      }
+      function chain(result) {
+        const q = {};
+        ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((m) => {
+          q[m] = () => q;
+        });
+        q.update = async () => result;
+        q.insert = async () => result;
+        q.delete = async () => result;
+        q.maybeSingle = async () => result;
+        q.single = async () => result;
+        q.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+        return q;
+      }
+      const suggestRows = [
+        { id: 1, title: "ئوچۇق كىتاب", author: "ئوچۇق ئاپتور", translator: "", publisher: "ئوچۇق نەشرىيات", isbn: "9781111111111" },
+        { id: 2, title: "يوشۇرۇلغان كىتاب", author: hiddenAuthor, translator: "تەرجىمان", publisher: "يوشۇرۇلغان نەشرىيات", isbn: "9782222222222" }
+      ];
+      function makeAdminClient() {
+        return {
+          auth: {
+            getSession: async () => ({ data: { session: readAdmin() }, error: null }),
+            getUser: async () => {
+              const s = readAdmin();
+              return { data: { user: s && s.user || null }, error: s && s.user ? null : { name: "AuthSessionMissingError" } };
+            },
+            onAuthStateChange: (cb) => {
+              setTimeout(() => cb("INITIAL_SESSION", readAdmin()), 0);
+              return { data: { subscription: { unsubscribe() {} } } };
+            },
+            signOut: async (opts) => {
+              if (!opts || opts.scope !== "local") throw new Error("expected local signOut");
+              writeAdmin(null);
+              return { error: null };
+            },
+            signInWithPassword: async ({ email }) => {
+              writeAdmin(blob({ id: "admin-1", email: email || "admin-owner@example.com" }, "admin-access"));
+              return { error: null };
+            },
+            mfa: {
+              async listFactors() { return { data: { all: [], totp: [], phone: [] }, error: null }; },
+              async getAuthenticatorAssuranceLevel() {
+                return { data: { currentLevel: "aal2", nextLevel: "aal2" }, error: null };
+              }
+            }
+          },
+          from(table) {
+            if (table === "admin_users") {
+              const u = readAdmin() && readAdmin().user;
+              const ok = u && u.id === "admin-1";
+              return chain(ok ? { data: { user_id: "admin-1" }, error: null, count: 1 } : { data: null, error: null, count: 0 });
+            }
+            if (table === "books") {
+              const q = chain({ data: [], error: null, count: 0 });
+              q.select = (fields) => {
+                if (String(fields) === "id,title,author,translator,publisher,isbn") {
+                  window.__kutadguSuggestBookSelects += 1;
+                  window.__kutadguSuggestSelectFields.push(String(fields));
+                  const suggest = chain({ data: suggestRows, error: null, count: suggestRows.length });
+                  suggest.range = () => suggest;
+                  return suggest;
+                }
+                return q;
+              };
+              return q;
+            }
+            return chain({ data: [], error: null, count: 0 });
+          },
+          rpc: async () => ({ data: false, error: null })
+        };
+      }
+      let supabaseValue;
+      Object.defineProperty(window, "supabase", {
+        configurable: true,
+        enumerable: true,
+        get() { return supabaseValue; },
+        set(v) {
+          if (v && typeof v.createClient === "function") {
+            v.createClient = function (url, key, options) {
+              const storageKey = options && options.auth && options.auth.storageKey;
+              if (storageKey === ADMIN_KEY) return makeAdminClient();
+              throw new Error("Admin page must not create Member suggestion client");
+            };
+          }
+          supabaseValue = v;
+        }
+      });
+    }, { ADMIN_KEY, MEMBER_KEY, hiddenAuthor });
+
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#loginPanel")).toBeVisible({ timeout: 30_000 });
+    const signedOut = await page.evaluate(() => ({
+      selects: window.__kutadguSuggestBookSelects || 0,
+      rows: window.__kutadguSuggestionRows || []
+    }));
+    expect(signedOut.selects).toBe(0);
+    expect(signedOut.rows).toEqual([]);
+
+    await page.locator("#adminEmail").fill("admin-owner@example.com");
+    await page.locator("#adminPassword").fill("password");
+    await page.locator("#loginForm button[type='submit']").click();
+    await expect(page.locator("#dashboardPanel")).toBeVisible({ timeout: 30_000 });
+    await expect.poll(async () => page.evaluate(() => window.__kutadguSuggestBookSelects || 0)).toBeGreaterThan(0);
+    const authed = await page.evaluate((hiddenAuthor) => {
+      const S = window.KutadguBookEntrySuggest;
+      const rows = window.__kutadguSuggestionRows || [];
+      return {
+        selects: window.__kutadguSuggestBookSelects,
+        authors: S.uniqueValuesFromRows(rows, "author"),
+        hasHidden: S.uniqueValuesFromRows(rows, "author").includes(hiddenAuthor),
+        fields: (window.__kutadguSuggestSelectFields || []).slice()
+      };
+    }, hiddenAuthor);
+    expect(authed.hasHidden).toBe(true);
+    expect(authed.fields.every((f) => f === "id,title,author,translator,publisher,isbn")).toBe(true);
+
+    const afterFirst = authed.selects;
+    await page.locator("#adminLogout").click();
+    await expect(page.locator("#loginPanel")).toBeVisible();
+    const afterLogout = await page.evaluate(() => ({
+      rows: window.__kutadguSuggestionRows || [],
+      selects: window.__kutadguSuggestBookSelects || 0
+    }));
+    expect(afterLogout.rows).toEqual([]);
+
+    await page.locator("#adminEmail").fill("admin-owner@example.com");
+    await page.locator("#adminPassword").fill("password");
+    await page.locator("#loginForm button[type='submit']").click();
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => window.__kutadguSuggestBookSelects || 0)).toBeGreaterThan(afterFirst);
+    const relog = await page.evaluate((hiddenAuthor) => {
+      const S = window.KutadguBookEntrySuggest;
+      return S.uniqueValuesFromRows(window.__kutadguSuggestionRows || [], "author").includes(hiddenAuthor);
+    }, hiddenAuthor);
+    expect(relog).toBe(true);
+  });
+
+  test("Member session on Admin page does not populate Admin suggestion cache", async ({ page }) => {
+    const ADMIN_KEY = "kutadgu-admin-auth-v1";
+    const MEMBER_KEY = "kutadgu-member-auth-v1";
+    await page.addInitScript(({ ADMIN_KEY, MEMBER_KEY }) => {
+      window.__kutadguSuggestBookSelects = 0;
+      const now = Math.floor(Date.now() / 1000);
+      const member = {
+        access_token: "member-access",
+        refresh_token: "member-access-refresh",
+        expires_at: now + 3600,
+        user: { id: "member-1", email: "customer@example.com" }
+      };
+      localStorage.setItem(MEMBER_KEY, JSON.stringify(member));
+      localStorage.removeItem(ADMIN_KEY);
+      function chain(result) {
+        const q = {};
+        ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((m) => {
+          q[m] = () => q;
+        });
+        q.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+        return q;
+      }
+      let supabaseValue;
+      Object.defineProperty(window, "supabase", {
+        configurable: true,
+        enumerable: true,
+        get() { return supabaseValue; },
+        set(v) {
+          if (v && typeof v.createClient === "function") {
+            v.createClient = function (url, key, options) {
+              const storageKey = options && options.auth && options.auth.storageKey;
+              if (storageKey !== ADMIN_KEY) throw new Error("Admin page must use Admin auth storage");
+              return {
+                auth: {
+                  getSession: async () => ({ data: { session: null }, error: null }),
+                  getUser: async () => ({ data: { user: null }, error: { name: "AuthSessionMissingError" } }),
+                  onAuthStateChange: (cb) => {
+                    setTimeout(() => cb("INITIAL_SESSION", null), 0);
+                    return { data: { subscription: { unsubscribe() {} } } };
+                  },
+                  signOut: async () => ({ error: null }),
+                  mfa: { async getAuthenticatorAssuranceLevel() { return { data: { currentLevel: "aal1" }, error: null }; } }
+                },
+                from(table) {
+                  if (table === "books") {
+                    return {
+                      select(fields) {
+                        if (String(fields) === "id,title,author,translator,publisher,isbn") {
+                          window.__kutadguSuggestBookSelects += 1;
+                        }
+                        return chain({ data: [], error: null });
+                      }
+                    };
+                  }
+                  return chain({ data: null, error: null, count: 0 });
+                }
+              };
+            };
+          }
+          supabaseValue = v;
+        }
+      });
+    }, { ADMIN_KEY, MEMBER_KEY });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#loginPanel")).toBeVisible({ timeout: 30_000 });
+    const state = await page.evaluate(() => ({
+      selects: window.__kutadguSuggestBookSelects || 0,
+      rows: window.__kutadguSuggestionRows || [],
+      member: !!localStorage.getItem("kutadgu-member-auth-v1"),
+      admin: localStorage.getItem("kutadgu-admin-auth-v1")
+    }));
+    expect(state.member).toBe(true);
+    expect(state.admin).toBeFalsy();
+    expect(state.selects).toBe(0);
+    expect(state.rows).toEqual([]);
+  });
 });
