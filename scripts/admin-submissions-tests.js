@@ -64,7 +64,7 @@ test("ADMIN_SECTIONS includes submissions and existing sections", () => {
 test("pending loader queries submission_status pending only", () => {
   const fn = sliceFn(adminJs, "loadPendingSubmissions");
   assert.match(fn, /PENDING_SUBMISSION_SELECT/);
-  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,image_url,gallery_images,submitted_by,submitted_at,submission_status"/);
+  assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available"/);
   assert.match(fn, /\.from\("books"\)/);
   assert.match(fn, /\.eq\("submission_status","pending"\)/);
   assert.doesNotMatch(fn, /\.eq\("is_active"/);
@@ -83,7 +83,14 @@ test("approve and reject use staff submission RPCs and never books.update", () =
   assert.match(fn, /reject_staff_book_submission/);
   assert.doesNotMatch(fn, /\.from\("books"\)\.update/);
   assert.doesNotMatch(fn, /submission_status\s*=/);
-  assert.doesNotMatch(render, /data-edit|data-delete|data-hide|data-quick-edit/);
+  assert.doesNotMatch(render, /data-delete|data-hide|data-quick-edit/);
+  assert.doesNotMatch(render, /data-edit="/);
+  assert.match(render, /data-edit-submission=/);
+  assert.match(render, />تەھرىرلەش</);
+  assert.match(render, />تەستىقلاش</);
+  assert.match(render, />رەت قىلىش</);
+  assert.match(render, /تەستىق كۈتۈۋاتىدۇ/);
+  assert.doesNotMatch(render, />Edit<|>Save<|>Pending<|>Approve<|>Reject</);
   assert.match(render, /admin-submission-gallery/);
   assert.match(render, /pendingGalleryUrls\(b\)/);
   assert.doesNotMatch(render, /type="file"/);
@@ -153,7 +160,7 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
     encoding: "utf8"
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
-  const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql");
+  const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql" && file !== "STAGE94_PENDING_BOOK_EDIT.sql");
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
     /^(shop\.css|public-header\.css|catalog\.js)$/.test(file)
@@ -166,6 +173,21 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
   }
   assert.doesNotMatch(adminJs, /submit_book_for_approval/);
   assert.doesNotMatch(adminHtml, /is_kutadgu_book_staff/);
+});
+
+test("pending Full Admin edit reuses the book modal and never publishes on save", () => {
+  assert.match(adminHtml, /id="pendingEditHelp"/);
+  assert.match(adminHtml, /ساقلىغاندىن كېيىن كىتاب يەنىلا تەستىق كۈتۈش ھالىتىدە تۇرىدۇ/);
+  assert.match(adminJs, /rpc\("update_pending_staff_book_submission"/);
+  const save = sliceFn(adminJs, "saveBook");
+  assert.match(save, /persistPendingSubmission/);
+  assert.match(save, /ئۆزگەرتىشلەر ساقلىنىپ بولدى/);
+  assert.doesNotMatch(save, /Save and Approve|ساقلاش ۋە تەستىقلاش/);
+  const pendingPayload = sliceFn(adminJs, "pendingEditPayload");
+  assert.doesNotMatch(pendingPayload, /is_active:|is_available:|submission_status:/);
+  const persistPending = sliceFn(adminJs, "persistPendingSubmission");
+  assert.doesNotMatch(persistPending, /\.from\("books"\)\.(update|insert|upsert)/);
+  assert.match(adminCss, /#bookModal\.is-pending-edit \[data-pending-hide="1"\]/);
 });
 
 if (failed) {

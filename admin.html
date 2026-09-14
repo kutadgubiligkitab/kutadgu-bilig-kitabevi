@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=41">
+  <link rel="stylesheet" href="admin.css?v=43">
 </head>
 <body>
 <div class="admin-shell">
@@ -348,7 +348,7 @@
 
       <section class="admin-card" id="submissionsCard" data-admin-section-panel="submissions" hidden>
         <h2>📥 تەستىق ساقلاۋاتقان كىتابلار</h2>
-        <p class="admin-help">پەقەت Book Staff يوللىغان ۋە تېخى تەستىقلانمىغان كىتابلار. تەستىقلاش ياكى رەت قىلىش Database RPC ئارقىلىق بولىدۇ.</p>
+        <p class="admin-help">پەقەت كىتاب قوشۇش خادىمى يوللىغان ۋە تېخى تەستىقلانمىغان كىتابلار. خاتا يەرلىرىنى تەھرىرلەپ ساقلىغاندىن كېيىن كىتاب يەنىلا تەستىق كۈتۈش ھالىتىدە تۇرىدۇ. تەستىقلاش ياكى رەت قىلىش ئايرىم مەشغۇلات.</p>
         <p id="pendingSubmissionCount" class="admin-help" role="status">تەستىق ساقلاۋاتقان: 0</p>
         <div id="pendingSubmissionStatus" class="admin-status">تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىدۇ.</div>
         <div id="pendingSubmissionList" class="admin-submission-list"></div>
@@ -480,6 +480,7 @@
       <h2 id="bookModalTitle">يېڭى كىتاب</h2>
       <button id="closeBookModal" type="button">✕</button>
     </div>
+    <p id="pendingEditHelp" class="admin-help" hidden>كىتاب ئۇچۇرلىرىنى تەكشۈرۈپ، خاتا يەرلىرىنى تۈزىتىڭ. ساقلىغاندىن كېيىن كىتاب يەنىلا تەستىق كۈتۈش ھالىتىدە تۇرىدۇ.</p>
 
     <form id="bookForm" class="admin-form" data-save-mode="create">
       <input id="bookId" type="hidden">
@@ -489,12 +490,12 @@
       <label data-book-col="isbn"><span>ISBN / باركود <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">بوشلۇق ۋە سىزىقچىلار ئاپتوماتىك تازىلىنىدۇ. ISBN-10 / ISBN-13 ساقلىنىدۇ؛ يوق كىتابلارغا ISBN توختىماڭ.</span></label>
 
       <label><span>باھاسى (₺)</span><input id="bookPrice" type="number" min="0" step="0.01">
-        <span class="admin-original-price-row" data-book-col="original_price">
+        <span class="admin-original-price-row" data-book-col="original_price" data-pending-hide="1">
           <span id="bookOriginalPriceStatus" class="admin-help">ئەسلى باھا تېخى ساقلانمىغان</span>
           <button type="button" class="admin-secondary" id="bookOriginalPriceCorrectBtn" hidden>ئەسلى باھانى بەلگىلەش</button>
           <button type="button" class="admin-secondary" id="bookOriginalPriceResetBtn" hidden>ئەسلى باھاغا قايتۇرۇش</button>
         </span>
-        <span class="admin-original-price-row">
+        <span class="admin-original-price-row" data-pending-hide="1">
           <button type="button" class="admin-secondary" id="bookPriceHistoryBtn" hidden>باھا تارىخى</button>
         </span>
         <span id="bookOriginalPriceNote" class="admin-help" hidden></span>
@@ -504,15 +505,15 @@
         <span class="admin-help">بوش = تېخى تەڭشەلمىگەن (NULL). 0 = تۈگەپ كەتتى. پەقەت 0 ياكى ئۇنىڭدىن چوڭ پۈتۈن سان. ھالەت ئامبار سانىدىن ھېسابلىنىدۇ.</span>
       </label>
       <label data-book-col="stock_status" hidden><span>ئامبار ھالىتى</span><select id="bookStockStatus" disabled tabindex="-1" aria-hidden="true"><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
-      <label><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
+      <label data-pending-hide="1"><span>سېتىلىش سانى</span><input id="bookSalesCount" type="number" min="0" step="1" value="0"><span class="admin-help">Completed sales only. پەقەت تاماملانغان سېتىش. بەت كۆرۈش، سېۋەت، ياقتۇرۇش ياكى WhatsApp چېكىش بۇ ساننى ئاشۇرمايدۇ.</span></label>
 
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label data-book-col="pages"><span>بەت سانى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPages" type="number" min="1" step="1"><span class="admin-help">پۈتۈن سان، ئەڭ ئاز 1. بوش قالدۇرۇشقا بولىدۇ.</span></label>
 
       <label data-book-col="translator"><span>تەرجىمە قىلغۇچى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookTranslator"><span class="admin-help">پەقەت تەرجىمە كىتابلارغا. ئەسلى تىلدىكى كىتابلاردا بوش قالدۇرۇڭ.</span></label>
-      <label data-book-col="language"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
+      <label data-book-col="language" data-pending-hide="1"><span>تىلى</span><input id="bookLanguage" placeholder="ئۇيغۇرچە"></label>
 
-      <label data-book-col="publish_date"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
+      <label data-book-col="publish_date" data-pending-hide="1"><span>نەشر ۋاقتى</span><input id="bookPublishDate" placeholder="2026-يىل 8-ئاي"></label>
       <label data-book-col="publish_year"><span>نەشر يىلى <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublishYear" type="number" min="1000" max="2100" step="1" inputmode="numeric"><span class="admin-help">مىلادىيە يىلى، 1000–2100. بوش قالدۇرۇشقا بولىدۇ.</span></label>
       <label data-book-col="publisher"><span>نەشرىيات <small class="admin-optional">(ئىختىيارىي)</small></span><input id="bookPublisher"></label>
       <label data-book-col="cover_type"><span>مۇقاۋا تۈرى <small class="admin-optional">(ئىختىيارىي)</small></span>
@@ -532,6 +533,9 @@
           <option value="other">باشقا</option>
         </select>
       </label>
+      <label data-pending-only="1"><span>ئەسلى باھا</span><input id="pendingOriginalPrice" type="number" min="0" step="0.01" dir="ltr" inputmode="decimal"></label>
+      <label data-pending-only="1"><span>ئۆلچەم</span><input id="pendingDimensions" dir="ltr" maxlength="120"></label>
+      <label class="admin-check" data-pending-only="1"><input id="pendingColorPrint" type="checkbox"><span>رەڭلىك بېسىش</span></label>
       <label data-book-col="interior_print_type" hidden><span>ئىچكى بېسىلىشى <small class="admin-optional">(ئىختىيارىي)</small></span>
         <select id="bookInteriorPrintType">
           <option value="">تاللانمىغان</option>
@@ -540,7 +544,7 @@
         </select>
       </label>
 
-      <label class="admin-wide"><span>كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
+      <label class="admin-wide"><span id="bookDescriptionLabel">كىتاب ھەققىدە <small class="admin-optional">(ئىختىيارىي)</small></span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">2–3 جۈملەلىك كىتابخانا چۈشەندۈرۈشى. بوش قالدۇرۇشقا بولىدۇ؛ ئاپتوماتىك تېكىست يېزىلمايدۇ.</span></label>
 
       <div class="admin-wide admin-gallery-picker admin-cover-picker">
         <span class="admin-gallery-picker-label" id="bookCoverPickerLabel">مۇقاۋا رەسىمى</span>
@@ -555,7 +559,7 @@
 
       <div class="admin-wide admin-gallery-section" data-book-col="gallery_images" hidden>
         <div class="admin-gallery-head">
-          <strong>قوشۇمچە كىتاب رەسىملىرى</strong>
+          <strong id="bookGalleryHeading">قوشۇمچە كىتاب رەسىملىرى</strong>
           <span class="admin-help">ئىختىيارىي — ئارقا مۇقاۋا، مۇندەرىجە، ئىچكى بەت. ئەڭ كۆپ 4 رەسىم. ئاساسىي مۇقاۋىغا تەگمەيدۇ.</span>
         </div>
         <div class="admin-gallery-picker">
@@ -568,10 +572,10 @@
         <div id="bookGalleryList" class="admin-gallery-list"></div>
       </div>
 
-      <label class="admin-check"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
-      <label class="admin-check admin-flag-check"><input id="bookIsNew" type="checkbox"><span>🆕 يېڭى قوشۇلغان (قولدا)</span></label>
-      <label class="admin-check admin-flag-check"><input id="bookIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
-      <div class="admin-help admin-wide">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
+      <label class="admin-check" data-pending-hide="1"><input id="bookIsActive" type="checkbox" checked><span>تور بەتتە كۆرۈنسۇن</span></label>
+      <label class="admin-check admin-flag-check" data-pending-hide="1"><input id="bookIsNew" type="checkbox"><span>🆕 يېڭى قوشۇلغان (قولدا)</span></label>
+      <label class="admin-check admin-flag-check" data-pending-hide="1"><input id="bookIsRecommended" type="checkbox"><span>⭐ تەۋسىيە قىلىنغان</span></label>
+      <div class="admin-help admin-wide" data-pending-hide="1">🔥 «كۆپ سېتىلغان» بۆلىكى سېتىلىش سانى بويىچە ئاپتوماتىك ھېسابلىنىدۇ؛ قولدا تاللاش يوق.</div>
 
       <div id="createDuplicateWarning" class="admin-status warn admin-wide" hidden>
         <strong id="createDuplicateMessage">بۇ نام ۋە ئاپتور بىلەن ئوخشاش كىتاب بار.</strong>
@@ -580,7 +584,7 @@
       </div>
 
       <div class="admin-wide admin-toolbar-group">
-        <button class="admin-primary" type="submit">💾 ساقلاش</button>
+        <button class="admin-primary" id="bookSaveBtn" type="submit">💾 ساقلاش</button>
         <button class="admin-secondary" id="cancelBookEdit" type="button">بىكار قىلىش</button>
       </div>
       <p id="bookSaveDiag" class="admin-help admin-wide" hidden></p>
@@ -923,6 +927,6 @@
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=4"></script>
 <script defer src="admin-hero.js?v=5"></script>
-  <script defer src="admin.js?v=73"></script>
+  <script defer src="admin.js?v=75"></script>
 </body>
 </html>
