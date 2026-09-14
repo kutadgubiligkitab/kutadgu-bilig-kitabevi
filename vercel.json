@@ -306,6 +306,24 @@
         ]
       },
     {
+      "source": "/admin-hero.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/admin-shop-hours.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/admin-book-write.js",
       "headers": [
         {

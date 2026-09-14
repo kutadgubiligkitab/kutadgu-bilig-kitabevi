@@ -162,7 +162,8 @@ async function installReadSafeNetwork(page, opts = {}) {
         url.includes("/rest/v1/store_hero_settings") ||
         url.includes("/rest/v1/store_hero_store_slides") ||
         url.includes("/rest/v1/store_hero_campaigns") ||
-        url.includes("/rest/v1/store_homepage_about")
+        url.includes("/rest/v1/store_homepage_about") ||
+        url.includes("/rest/v1/store_shop_hours")
       ) {
         return route.fulfill({
           status: 404,
@@ -173,7 +174,7 @@ async function installReadSafeNetwork(page, opts = {}) {
       return route.continue();
     }
     if (url.includes("/auth/v1/")) return route.continue();
-    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings|store_announcements|store_announcement_settings|store_homepage_about|rpc\/create_member_order)/.test(url)) {
+    if (/\/rest\/v1\/(analytics_events|orders|books|profiles|admin_users|store_settings|store_announcements|store_announcement_settings|store_homepage_about|store_shop_hours|rpc\/create_member_order)/.test(url)) {
       return route.fulfill({
         status: 201,
         contentType: "application/json",

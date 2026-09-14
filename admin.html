@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=44">
+  <link rel="stylesheet" href="admin.css?v=45">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -257,6 +257,38 @@
           </label>
           <div class="admin-wide">
             <button class="admin-primary" id="heroSave" type="submit">Hero نى ساقلاش</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-card" id="shopHoursCard">
+        <h2>دۇكان ئىش ۋاقتى</h2>
+        <div id="shopHoursStatus" class="admin-status" hidden></div>
+        <form id="shopHoursForm" class="admin-form admin-shop-hours-form">
+          <fieldset class="admin-shop-hours-block">
+            <legend>دۈشەنبە–شەنبە</legend>
+            <label>
+              <span>ئېچىلىش ۋاقتى</span>
+              <input id="shopHoursWeekdayOpen" type="time" required step="60" dir="ltr" value="08:30">
+            </label>
+            <label>
+              <span>تاقىلىش ۋاقتى</span>
+              <input id="shopHoursWeekdayClose" type="time" required step="60" dir="ltr" value="20:00">
+            </label>
+          </fieldset>
+          <fieldset class="admin-shop-hours-block">
+            <legend>يەكشەنبە</legend>
+            <label>
+              <span>ئېچىلىش ۋاقتى</span>
+              <input id="shopHoursSundayOpen" type="time" required step="60" dir="ltr" value="10:30">
+            </label>
+            <label>
+              <span>تاقىلىش ۋاقتى</span>
+              <input id="shopHoursSundayClose" type="time" required step="60" dir="ltr" value="18:00">
+            </label>
+          </fieldset>
+          <div class="admin-wide">
+            <button class="admin-primary" id="shopHoursSaveBtn" type="submit">ئۆزگەرتىشلەرنى ساقلاش</button>
           </div>
         </form>
       </section>
@@ -952,7 +984,9 @@
 <script defer src="admin-import-intake.js?v=1"></script>
 <script defer src="admin-mfa.js?v=3"></script>
 <script defer src="admin-idle.js?v=4"></script>
-<script defer src="admin-hero.js?v=5"></script>
+<script defer src="kutadgu-shop-hours.js?v=1"></script>
+<script defer src="admin-shop-hours.js?v=1"></script>
+<script defer src="admin-hero.js?v=6"></script>
 <script defer src="kutadgu-book-entry-suggest.js?v=1"></script>
   <script defer src="admin.js?v=77"></script>
 </body>

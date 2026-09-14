@@ -32,10 +32,12 @@ function loadParseAdminSectionHash() {
   return new Function(`${sections[0]};${def[0]};${fn[0]};return parseAdminSectionHash;`)();
 }
 
-test("cache pins are admin.css v=44, admin.js v=77, admin-mfa.js v=3, and admin-idle.js v=4", () => {
-  assert.match(adminHtml, /admin\.css\?v=44/);
+test("cache pins are admin.css v=45, admin.js v=77, admin-mfa.js v=3, and admin-idle.js v=4", () => {
+  assert.match(adminHtml, /admin\.css\?v=45/);
   assert.match(adminHtml, /admin\.js\?v=77/);
-  assert.match(adminHtml, /admin-hero\.js\?v=5/);
+  assert.match(adminHtml, /admin-hero\.js\?v=6/);
+  assert.match(adminHtml, /kutadgu-shop-hours\.js\?v=1/);
+  assert.match(adminHtml, /admin-shop-hours\.js\?v=1/);
   assert.match(adminHtml, /admin-mfa\.js\?v=3/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=32/);
   assert.doesNotMatch(adminHtml, /admin\.js\?v=52/);
@@ -55,6 +57,7 @@ test("section grouping keeps existing Admin cards", () => {
   assert.match(adminHtml, /id="booksCard"[^>]*data-admin-section-panel="books"/);
   assert.match(adminHtml, /id="announcementCard"/);
   assert.match(adminHtml, /id="heroAdminCard"/);
+  assert.match(adminHtml, /id="shopHoursCard"/);
   assert.match(adminHtml, /data-admin-section-panel="storefront"/);
   assert.match(adminHtml, /id="coverRepairCard"/);
   assert.match(adminHtml, /data-admin-section-panel="import-covers"/);
