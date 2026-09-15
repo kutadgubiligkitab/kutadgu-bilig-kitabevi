@@ -180,6 +180,7 @@ async function run() {
       "api/book-public.js",
       "scripts/book-public-status-tests.js",
       "scripts/stage-seo-2a-server-rendered-book-seo-tests.js",
+      "scripts/stage-ai-search-1f-preview-ui-tests.js",
       "package.json"
     ]);
     const unexpected = files.filter((file) => !allowed.has(file));
