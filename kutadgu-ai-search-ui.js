@@ -18,7 +18,7 @@
   var RESULTS_HEADING = "AI ئىزدەش نەتىجىسى";
   var PRODUCTION_HOSTS = {
     "www.kutadgubilik.com": true,
-    "kutadgubilig.com": true,
+    "kutadgubilik.com": true,
     "kutadgu-bilig-kitab.vercel.app": true
   };
 

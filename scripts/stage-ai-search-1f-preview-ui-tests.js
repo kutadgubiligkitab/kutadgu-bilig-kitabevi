@@ -183,7 +183,7 @@ async function run() {
   await test("Production hosts hide AI UI; preview hosts show it", () => {
     const hidden = [
       "www.kutadgubilik.com",
-      "kutadgubilig.com",
+      "kutadgubilik.com",
       "kutadgu-bilig-kitab.vercel.app",
       "example.vercel.app",
       "unrelated-project.vercel.app",
@@ -254,7 +254,7 @@ async function run() {
     prod.searchInput.value = "بالىلار";
     const prodState = Ui.mountAiSearchUi({
       document: prod.document,
-      location: { hostname: "kutadgubilig.com" },
+      location: { hostname: "kutadgubilik.com" },
       fetchImpl
     });
     prod.aiSearchButton.emit("click");
