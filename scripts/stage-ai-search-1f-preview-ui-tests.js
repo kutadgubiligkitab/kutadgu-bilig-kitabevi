@@ -402,7 +402,10 @@ async function run() {
     assert.match(html, /id="aiSearchResults"/);
     assert.match(html, /kutadgu-ai-search-ui\.js/);
     assert.match(html, /ai-search-ui\.css/);
-    assert.ok(html.indexOf('id="searchResults"') < html.indexOf('id="aiSearchResults"'));
+    const aiPos = html.indexOf('id="aiSearchResults"');
+    const normalPos = html.indexOf('id="searchResults"');
+    assert.ok(aiPos > -1 && normalPos > -1);
+    assert.ok(aiPos < normalPos, "#aiSearchResults must appear before #searchResults");
     Object.keys(FROZEN).forEach((rel) => {
       assert.strictEqual(sha256(rel), FROZEN[rel], rel);
     });
