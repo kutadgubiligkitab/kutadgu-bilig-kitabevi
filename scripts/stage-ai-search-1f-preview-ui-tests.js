@@ -141,6 +141,16 @@ function createDom() {
   const searchButton = el("button");
   searchButton.setAttribute("id", "searchButton");
   searchButton.textContent = "ئىزدەش";
+  let searchDisabled = false;
+  searchButton.disabledWrites = 0;
+  Object.defineProperty(searchButton, "disabled", {
+    configurable: true,
+    get() { return searchDisabled; },
+    set(value) {
+      searchButton.disabledWrites += 1;
+      searchDisabled = !!value;
+    }
+  });
   const searchResults = el("div");
   searchResults.setAttribute("id", "searchResults");
   searchResults.textContent = "NORMAL_KEEP";
@@ -171,10 +181,20 @@ function jsonRes(status, body) {
 
 async function run() {
   await test("Production hosts hide AI UI; preview hosts show it", () => {
-    ["www.kutadgubilik.com", "kutadgubilig.com", "kutadgu-bilig-kitab.vercel.app"].forEach((hostname) => {
+    const hidden = [
+      "www.kutadgubilik.com",
+      "kutadgubilig.com",
+      "kutadgu-bilig-kitab.vercel.app",
+      "example.vercel.app",
+      "unrelated-project.vercel.app",
+      "shop.example.com"
+    ];
+    hidden.forEach((hostname) => {
       assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname }), false, hostname);
     });
-    ["localhost", "127.0.0.1", "kutadgu-bilig-kitabevi-git-ai.vercel.app", "example.vercel.app"].forEach((hostname) => {
+    const previewHost = "kutadgu-bilig-kitab-git-ai-search-1f-preview-ui-kutadgu-bilig-kitabhanisi.vercel.app";
+    const previewHashHost = "kutadgu-bilig-kitab-abc123xyz-kutadgu-bilig-kitabhanisi.vercel.app";
+    ["localhost", "127.0.0.1", previewHost, previewHashHost].forEach((hostname) => {
       assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname }), true, hostname);
     });
     const prod = createDom();
@@ -195,6 +215,24 @@ async function run() {
     });
     assert.strictEqual(previewState.visible, true);
     assert.strictEqual(preview.aiSearchButton.hidden, false);
+
+    const unrelated = createDom();
+    const unrelatedState = Ui.mountAiSearchUi({
+      document: unrelated.document,
+      location: { hostname: "example.vercel.app" },
+      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
+    });
+    assert.strictEqual(unrelatedState.visible, false);
+    assert.strictEqual(unrelated.aiSearchButton.hidden, true);
+
+    const projectPreview = createDom();
+    const projectState = Ui.mountAiSearchUi({
+      document: projectPreview.document,
+      location: { hostname: previewHost },
+      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
+    });
+    assert.strictEqual(projectState.visible, true);
+    assert.strictEqual(projectPreview.aiSearchButton.hidden, false);
   });
 
   await test("no API request on page load or when AI UI is hidden", async () => {
@@ -248,6 +286,44 @@ async function run() {
     dom.aiSearchButton.emit("click");
     assert.strictEqual(calls, 0);
     assert.strictEqual(dom.searchButton.disabled, false);
+    assert.strictEqual(dom.searchButton.disabledWrites, 0);
+  });
+
+  await test("AI UI never enables, disables, or restores #searchButton", async () => {
+    const uiSrc = fs.readFileSync(path.join(root, "kutadgu-ai-search-ui.js"), "utf8");
+    assert.doesNotMatch(uiSrc, /getElementById\(\s*["']searchButton["']\s*\)/);
+    assert.doesNotMatch(uiSrc, /normalBtn/);
+    assert.doesNotMatch(uiSrc, /searchButton\.disabled/);
+
+    async function runWithInitialDisabled(startDisabled) {
+      const dom = createDom();
+      dom.searchButton.disabled = startDisabled;
+      const writesAfterSetup = dom.searchButton.disabledWrites;
+      const state = Ui.mountAiSearchUi({
+        document: dom.document,
+        location: { hostname: "localhost" },
+        fetchImpl: async () => jsonRes(200, {
+          ok: true,
+          results: [{ id: 12, title: "بالىلار", author: "A", category: "تۈر", price: 10, stock: 1, similarity: 0.2 }]
+        })
+      });
+      assert.strictEqual(dom.searchButton.disabled, startDisabled);
+      dom.searchInput.value = "با";
+      dom.searchInput.emit("input");
+      assert.strictEqual(dom.searchButton.disabled, startDisabled);
+      dom.searchInput.value = "بالىلار";
+      dom.searchInput.emit("input");
+      dom.aiSearchButton.emit("click");
+      await state.pending;
+      assert.strictEqual(dom.searchButton.disabled, startDisabled);
+      assert.strictEqual(dom.searchButton.disabledWrites, writesAfterSetup);
+      assert.strictEqual(dom.aiSearchButton.disabled, false);
+      return dom;
+    }
+    const stayedDisabled = await runWithInitialDisabled(true);
+    assert.strictEqual(stayedDisabled.searchButton.disabled, true);
+    const stayedEnabled = await runWithInitialDisabled(false);
+    assert.strictEqual(stayedEnabled.searchButton.disabled, false);
   });
 
   await test("AI request happens only on explicit AI-button click to /api/ai-search", async () => {
@@ -273,7 +349,7 @@ async function run() {
     const dom = createDom();
     const state = Ui.mountAiSearchUi({
       document: dom.document,
-      location: { hostname: "example.vercel.app" },
+      location: { hostname: "kutadgu-bilig-kitab-abc123xyz-kutadgu-bilig-kitabhanisi.vercel.app" },
       fetchImpl
     });
     dom.searchInput.value = "  بالىلار  ";
@@ -287,6 +363,7 @@ async function run() {
     assert.deepStrictEqual(JSON.parse(calls[0].init.body), { query: "بالىلار" });
     assert.strictEqual(dom.aiSearchButton.disabled, false);
     assert.strictEqual(dom.searchButton.disabled, false);
+    assert.strictEqual(dom.searchButton.disabledWrites, 0);
     const aiText = collectText(dom.aiSearchResults);
     assert.match(aiText, /بالىلار تەربىيەسى/);
     assert.match(aiText, /AI ئىزدەش نەتىجىسى/);

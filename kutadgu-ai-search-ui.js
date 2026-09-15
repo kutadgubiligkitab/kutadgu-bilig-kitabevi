@@ -29,13 +29,19 @@
       .replace(/\.$/, "");
   }
 
+  var KUTADGU_VERCEL_PREVIEW_RE = /^kutadgu-bilig-kitab-[a-z0-9-]+-kutadgu-bilig-kitabhanisi\.vercel\.app$/;
+
+  function isKutadguVercelPreviewHost(host) {
+    if (!host || host === "kutadgu-bilig-kitab.vercel.app") return false;
+    return KUTADGU_VERCEL_PREVIEW_RE.test(host);
+  }
+
   function isPreviewAiSearchHost(locationLike) {
     var host = hostnameOf(locationLike);
     if (!host) return false;
     if (PRODUCTION_HOSTS[host]) return false;
     if (host === "localhost" || host === "127.0.0.1") return true;
-    if (host.slice(-11) === ".vercel.app") return true;
-    return false;
+    return isKutadguVercelPreviewHost(host);
   }
 
   function trimQuery(value) {
@@ -191,8 +197,6 @@
     }
 
     var input = doc.getElementById("searchInput");
-    var normalBtn = doc.getElementById("searchButton");
-    var normalResults = doc.getElementById("searchResults");
     var aiBtn = doc.getElementById("aiSearchButton");
     var aiBox = doc.getElementById("aiSearchResults");
     var state = { mounted: true, visible: false, fetchCalls: 0, aborted: false };
@@ -218,7 +222,6 @@
       running = false;
       aiBtn.disabled = false;
       aiBtn.removeAttribute("aria-busy");
-      if (normalBtn) normalBtn.disabled = false;
     }
 
     function hideAiBox() {
@@ -321,6 +324,7 @@
     FAIL_MESSAGE: FAIL_MESSAGE,
     PRODUCTION_HOSTS: PRODUCTION_HOSTS,
     isPreviewAiSearchHost: isPreviewAiSearchHost,
+    isKutadguVercelPreviewHost: isKutadguVercelPreviewHost,
     trimQuery: trimQuery,
     publicBookHref: publicBookHref,
     safeCoverSrc: safeCoverSrc,
