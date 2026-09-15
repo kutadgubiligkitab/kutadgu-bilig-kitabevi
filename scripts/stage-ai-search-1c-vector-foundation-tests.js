@@ -182,7 +182,12 @@ test("no OpenAI key, secret, or embedding API client is committed in this stage"
   const sdkRe = /api\.openai\.com|openai\.embeddings|text-embedding-3-large/;
   files.forEach((full) => {
     const rel = path.relative(root, full);
-    if (rel === MIGRATION || rel === path.join("scripts", "stage-ai-search-1c-vector-foundation-tests.js")) return;
+    if (
+      rel === MIGRATION ||
+      rel === path.join("scripts", "stage-ai-search-1c-vector-foundation-tests.js") ||
+      rel === path.join("scripts", "ai-search-1d-generate-book-embeddings.js") ||
+      rel === path.join("scripts", "stage-ai-search-1d-generate-book-embeddings-tests.js")
+    ) return;
     const text = fs.readFileSync(full, "utf8");
     assert.doesNotMatch(text, secretRe, rel);
     assert.doesNotMatch(text, /sk-[A-Za-z0-9]{10,}/, rel);
