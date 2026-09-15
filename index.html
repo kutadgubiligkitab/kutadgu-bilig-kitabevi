@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="index.css?v=20">
 <link rel="stylesheet" href="theme.css?v=11">
 <link rel="stylesheet" href="shop.css?v=54">
+<link rel="stylesheet" href="ai-search-ui.css?v=1" data-kutadgu-ai-search-ui="1">
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 <link rel="stylesheet" href="mobile.css?v=24">
 <link rel="stylesheet" href="home-category-tablet-grid.css?v=1">
@@ -47,6 +48,7 @@
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=1"></script><script defer src="/posthog-config.js?v=1"></script><script defer src="/posthog-analytics.js?v=1"></script><script defer src="analytics.js?v=2"></script>
 <script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=3"></script><script defer src="kutadgu-book-seo.js?v=3"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=2"></script><script defer src="kutadgu-search-rank.js?v=1"></script><script defer src="shop.js?v=128"></script>
+<script defer src="kutadgu-ai-search-ui.js?v=1"></script>
 <script defer src="mobile.js?v=9"></script>
 <script defer src="home-hero-slideshow.js?v=2"></script>
 <script defer src="home-hero-content.js?v=1"></script>
@@ -176,6 +178,7 @@
                 >
             </div>
             <button type="button" id="searchButton"><span aria-hidden="true">🔎</span> <span class="search-button-label">ئىزدەش</span></button>
+            <button type="button" id="aiSearchButton" class="ai-search-button" hidden aria-label="AI ئىزدەش"><span aria-hidden="true">✨</span> <span class="ai-search-button-label">AI ئىزدەش</span></button>
         </div>
 
         <nav class="home-search-quick-links" aria-label="تېز كىتاب تۈرلىرى">
@@ -188,6 +191,7 @@
         </nav>
 
         <div id="searchResults" class="search-results" aria-live="polite"></div>
+        <div id="aiSearchResults" class="ai-search-results" hidden aria-live="polite"></div>
     </div>
 </section>
 

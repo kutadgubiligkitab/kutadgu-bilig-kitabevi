@@ -1,0 +1,134 @@
+/* AI Search 1F — preview-only homepage UI. Isolated from Normal Search. */
+
+.ai-search-button[hidden],
+.ai-search-results[hidden]{
+  display:none !important;
+}
+
+.home-search-card .ai-search-button{
+  min-width:44px;
+  min-height:54px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding-inline:12px;
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:14px;
+  background:var(--site-bg-soft,#fbf8f2);
+  color:var(--site-brown,#70503d);
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+.home-search-card .ai-search-button:hover,
+.home-search-card .ai-search-button:focus-visible{
+  border-color:var(--site-brown,#70503d);
+  background:#fff8ef;
+}
+
+.home-search-card .ai-search-button:disabled{
+  opacity:.7;
+  cursor:wait;
+}
+
+.home-search-card .ai-search-results{
+  width:100%;
+  max-width:1080px;
+  margin:8px auto 0;
+  text-align:right;
+}
+
+.home-search-card .ai-search-heading{
+  margin:0 0 8px;
+  color:var(--site-brown,#70503d);
+  font-size:14px;
+  font-weight:800;
+}
+
+.home-search-card .ai-search-message{
+  margin:0;
+  color:var(--site-text-soft,#806f62);
+  font-size:13px;
+  line-height:1.7;
+}
+
+.home-search-card .ai-search-message.is-error{
+  color:#7a4333;
+}
+
+.home-search-card .ai-search-item{
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  padding:10px 0;
+  border-bottom:1px solid var(--site-border,#e8dccb);
+}
+
+.home-search-card .ai-search-cover{
+  flex:0 0 auto;
+}
+
+.home-search-card .ai-search-cover img{
+  display:block;
+  width:56px;
+  height:80px;
+  object-fit:cover;
+  border-radius:8px;
+  background:#efe6d8;
+}
+
+.home-search-card .ai-search-info{
+  min-width:0;
+  flex:1 1 auto;
+}
+
+.home-search-card .ai-search-title{
+  display:block;
+  color:var(--site-text,#44352d);
+  font-weight:800;
+  text-decoration:none;
+}
+
+.home-search-card .ai-search-title:hover{
+  color:var(--site-brown,#70503d);
+}
+
+.home-search-card .ai-search-author,
+.home-search-card .ai-search-category,
+.home-search-card .ai-search-meta{
+  margin:4px 0 0;
+  color:var(--site-text-soft,#806f62);
+  font-size:12px;
+  line-height:1.6;
+}
+
+.home-search-card .ai-search-meta{
+  font-weight:700;
+  color:var(--site-brown,#70503d);
+}
+
+@media(max-width:700px){
+  .home-search-card .ai-search-button{
+    min-width:44px;
+    min-height:50px;
+    padding-inline:10px;
+  }
+}
+
+@media(max-width:360px){
+  .home-search-card .ai-search-button-label{
+    position:absolute;
+    width:1px;
+    height:1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+  }
+  .home-search-card .ai-search-button{
+    min-width:44px;
+    width:44px;
+    padding:0;
+  }
+}
