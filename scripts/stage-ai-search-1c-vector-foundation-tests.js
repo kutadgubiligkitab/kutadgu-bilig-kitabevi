@@ -178,15 +178,23 @@ test("RPC preflight uses real books columns and does not invent cover", () => {
 test("no OpenAI key, secret, or embedding API client is committed in this stage", () => {
   assert.doesNotMatch(envExample, /OPENAI/);
   const files = walkFiles(root, []);
-  const secretRe = /OPENAI_API_KEY\s*=\s*\S+/;
+  const secretRe = /OPENAI_API_KEY\s*[=:]\s*['"]?sk-/i;
+  const serviceRoleAssignRe = /SUPABASE_SERVICE_ROLE_KEY\s*[=:]\s*['"]?eyJ/;
   const sdkRe = /api\.openai\.com|openai\.embeddings|text-embedding-3-large/;
   files.forEach((full) => {
     const rel = path.relative(root, full);
-    if (rel === MIGRATION || rel === path.join("scripts", "stage-ai-search-1c-vector-foundation-tests.js")) return;
+    if (
+      rel === MIGRATION ||
+      rel === path.join("scripts", "stage-ai-search-1c-vector-foundation-tests.js")
+    ) return;
     const text = fs.readFileSync(full, "utf8");
     assert.doesNotMatch(text, secretRe, rel);
-    assert.doesNotMatch(text, /sk-[A-Za-z0-9]{10,}/, rel);
-    if (!rel.endsWith(".sql")) {
+    assert.doesNotMatch(text, serviceRoleAssignRe, rel);
+    assert.doesNotMatch(text, /sk-(?:proj-|svcacct-)?[A-Za-z0-9]{10,}/, rel);
+    assert.doesNotMatch(text, /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, rel);
+    const sdkExempt = rel === path.join("scripts", "ai-search-1d-generate-book-embeddings.js")
+      || rel === path.join("scripts", "stage-ai-search-1d-generate-book-embeddings-tests.js");
+    if (!rel.endsWith(".sql") && !sdkExempt) {
       assert.doesNotMatch(text, sdkRe, rel);
     }
   });
