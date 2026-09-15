@@ -67,6 +67,15 @@ function bookRow(overrides) {
   }, overrides || {});
 }
 
+function applyEnv(overrides) {
+  return Object.assign({
+    SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+    OPENAI_API_KEY: "test-openai-key",
+    AI_SEARCH_1D_CONFIRM_PROJECT: Embed.EXPECTED_PROJECT_REF,
+    SUPABASE_URL: Embed.DEFAULT_SUPABASE_URL
+  }, overrides || {});
+}
+
 function makeFetchMock(state) {
   state.calls = [];
   state.openaiPosts = 0;
@@ -208,7 +217,7 @@ async function run() {
     const state = { books: [sample], embeddings: [] };
     const result = await Embed.runBackfill({
       argv: ["node", "script.js"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role" },
       fetchImpl: makeFetchMock(state),
       log() {}
     });
@@ -231,7 +240,7 @@ async function run() {
     await assert.rejects(
       () => Embed.runBackfill({
         argv: ["node", "script.js", "--apply"],
-        env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role" },
+        env: applyEnv({ OPENAI_API_KEY: "" }),
         fetchImpl: makeFetchMock(state),
         log() {}
       }),
@@ -239,6 +248,60 @@ async function run() {
     );
     assert.strictEqual(state.openaiPosts, 0);
     assert.strictEqual(state.embeddingWrites, 0);
+  });
+
+  await test("apply requires confirm env and matching Supabase project URL", async () => {
+    assert.strictEqual(Embed.EXPECTED_PROJECT_REF, "fxlojnqwyojqjskfggmh");
+    assert.strictEqual(Embed.APPLY_CONFIRM_ENV, "AI_SEARCH_1D_CONFIRM_PROJECT");
+    assert.strictEqual(
+      Embed.supabaseProjectRefFromUrl("https://fxlojnqwyojqjskfggmh.supabase.co"),
+      "fxlojnqwyojqjskfggmh"
+    );
+
+    const missing = { books: [sample], embeddings: [] };
+    await assert.rejects(
+      () => Embed.runBackfill({
+        argv: ["node", "script.js", "--apply"],
+        env: {
+          SUPABASE_SERVICE_ROLE_KEY: "test-service-role",
+          OPENAI_API_KEY: "test-openai-key"
+        },
+        fetchImpl: makeFetchMock(missing),
+        log() {}
+      }),
+      (err) => err && err.code === "apply_confirm_mismatch"
+    );
+    assert.strictEqual(missing.openaiPosts, 0);
+    assert.strictEqual(missing.embeddingWrites, 0);
+    assert.strictEqual(missing.calls.length, 0);
+
+    const wrongConfirm = { books: [sample], embeddings: [] };
+    await assert.rejects(
+      () => Embed.runBackfill({
+        argv: ["node", "script.js", "--apply"],
+        env: applyEnv({ AI_SEARCH_1D_CONFIRM_PROJECT: "otherprojectref000" }),
+        fetchImpl: makeFetchMock(wrongConfirm),
+        log() {}
+      }),
+      (err) => err && err.code === "apply_confirm_mismatch"
+    );
+    assert.strictEqual(wrongConfirm.openaiPosts, 0);
+    assert.strictEqual(wrongConfirm.embeddingWrites, 0);
+    assert.strictEqual(wrongConfirm.calls.length, 0);
+
+    const wrongUrl = { books: [sample], embeddings: [] };
+    await assert.rejects(
+      () => Embed.runBackfill({
+        argv: ["node", "script.js", "--apply"],
+        env: applyEnv({ SUPABASE_URL: "https://aaaaaaaaaaaaaaaaaaaa.supabase.co" }),
+        fetchImpl: makeFetchMock(wrongUrl),
+        log() {}
+      }),
+      (err) => err && err.code === "apply_url_mismatch"
+    );
+    assert.strictEqual(wrongUrl.openaiPosts, 0);
+    assert.strictEqual(wrongUrl.embeddingWrites, 0);
+    assert.strictEqual(wrongUrl.calls.length, 0);
   });
 
   await test("dry-run does not require OPENAI_API_KEY but does require service role", async () => {
@@ -266,7 +329,7 @@ async function run() {
     const state = { books, embeddings: [] };
     const result = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(state),
       log() {}
     });
@@ -293,7 +356,7 @@ async function run() {
   await test("invalid vector length or non-finite values are rejected without writes", async () => {
     const short = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock({
         books: [sample],
         embeddings: [],
@@ -311,7 +374,7 @@ async function run() {
     nanState.vectors[0][0] = Number.NaN;
     const nan = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(nanState),
       log() {}
     }).then(() => "ok", (err) => err);
@@ -355,7 +418,7 @@ async function run() {
     const sleeps = [];
     const retried = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(retryState),
       sleep: async (ms) => { sleeps.push(ms); },
       log() {}
@@ -372,7 +435,7 @@ async function run() {
     };
     const closed = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(failState),
       sleep: async () => {},
       log() {}
@@ -390,7 +453,7 @@ async function run() {
     const firstState = { books, embeddings: [], failWriteAfter: 1 };
     const first = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(firstState),
       batchSize: 1,
       maxRetries: 0,
@@ -412,7 +475,7 @@ async function run() {
     };
     const second = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-      env: { SUPABASE_SERVICE_ROLE_KEY: "test-service-role", OPENAI_API_KEY: "test-openai-key" },
+        env: applyEnv(),
       fetchImpl: makeFetchMock(secondState),
       batchSize: 1,
       log() {}

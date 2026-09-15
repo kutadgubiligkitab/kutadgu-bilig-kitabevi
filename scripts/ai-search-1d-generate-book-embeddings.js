@@ -5,7 +5,9 @@
  * AI Search 1D — server-only book embedding backfill (code preparation).
  *
  * Default: DRY RUN (read catalog + embedding metadata, report, exit).
- * Real generation requires an explicit --apply flag.
+ * Real generation requires BOTH --apply AND
+ * AI_SEARCH_1D_CONFIRM_PROJECT matching the expected project ref,
+ * plus a Supabase URL whose host is {ref}.supabase.co for that project.
  *
  * Writes (apply only): public.book_embeddings
  * Never writes: public.books
@@ -17,6 +19,7 @@
  *   SUPABASE_URL                 public project URL (optional; repo default exists)
  *   SUPABASE_SERVICE_ROLE_KEY    required to read embedding metadata / upsert
  *   OPENAI_API_KEY               required only with --apply when work remains
+ *   AI_SEARCH_1D_CONFIRM_PROJECT required with --apply; must equal the project ref
  */
 
 const crypto = require("crypto");
@@ -52,6 +55,8 @@ const MAX_PAGES = 50;
 const MAX_RETRIES = 3;
 const RETRY_STATUSES = Object.freeze([429, 500, 502, 503, 504]);
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
+const EXPECTED_PROJECT_REF = "fxlojnqwyojqjskfggmh";
+const APPLY_CONFIRM_ENV = "AI_SEARCH_1D_CONFIRM_PROJECT";
 const DEFAULT_SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const BOOK_SELECT = "id,title,author,category,publisher,translator,description,is_active,submission_status";
 const EMBEDDING_META_SELECT = "book_id,embedding_model,source_text_hash";
@@ -89,6 +94,34 @@ function parseArgs(argv) {
     apply: args.includes("--apply"),
     help: args.includes("--help") || args.includes("-h")
   };
+}
+
+function supabaseProjectRefFromUrl(url) {
+  try {
+    const raw = String(url || "").trim();
+    const href = /:\/\//.test(raw) ? raw : "https://" + raw;
+    const host = new URL(href).hostname.toLowerCase();
+    const match = host.match(/^([a-z0-9]+)\.supabase\.co$/);
+    return match ? match[1] : "";
+  } catch (err) {
+    return "";
+  }
+}
+
+function assertApplyConfirmed(env) {
+  const confirm = String((env && env[APPLY_CONFIRM_ENV]) || "").trim();
+  if (confirm !== EXPECTED_PROJECT_REF) {
+    const err = new Error("apply_confirm_mismatch");
+    err.code = "apply_confirm_mismatch";
+    throw err;
+  }
+  const baseUrl = String((env && env.SUPABASE_URL) || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
+  const ref = supabaseProjectRefFromUrl(baseUrl);
+  if (ref !== EXPECTED_PROJECT_REF) {
+    const err = new Error("apply_url_mismatch");
+    err.code = "apply_url_mismatch";
+    throw err;
+  }
 }
 
 function chunk(items, size) {
@@ -402,8 +435,13 @@ async function runBackfill(options) {
   const extras = { sleep: opts.sleep, maxRetries: opts.maxRetries };
 
   if (flags.help) {
-    log("AI Search 1D embedding backfill. Default is dry-run. Pass --apply to generate.");
+    log("AI Search 1D embedding backfill. Default is dry-run.");
+    log("Apply requires --apply and AI_SEARCH_1D_CONFIRM_PROJECT matching the project ref.");
     return { ok: true, help: true, openaiCalls: 0, wrote: 0 };
+  }
+
+  if (flags.apply) {
+    assertApplyConfirmed(env);
   }
 
   const serviceKey = requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY");
@@ -472,14 +510,18 @@ const api = {
   EMBEDDING_DIMENSIONS,
   BATCH_SIZE,
   OPENAI_EMBEDDINGS_URL,
+  EXPECTED_PROJECT_REF,
+  APPLY_CONFIRM_ENV,
+  DEFAULT_SUPABASE_URL,
   BOOK_SELECT,
   EMBEDDING_META_SELECT,
-  DEFAULT_SUPABASE_URL,
   normalizeField,
   buildSourceText,
   hasEmbeddableText,
   hashSourceText,
   parseArgs,
+  supabaseProjectRefFromUrl,
+  assertApplyConfirmed,
   chunk,
   formatVector,
   redactSecrets,
