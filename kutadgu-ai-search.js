@@ -39,8 +39,48 @@ function isEnabled(env) {
 }
 
 function normalizeQuery(value) {
-  if (value == null) return "";
-  return String(value).normalize("NFC").replace(/\s+/g, " ").trim();
+  if (typeof value !== "string") return "";
+  return value.normalize("NFC").replace(/\s+/g, " ").trim();
+}
+
+function utf8ByteLength(value) {
+  return Buffer.byteLength(String(value == null ? "" : value), "utf8");
+}
+
+function payloadTooLarge() {
+  return Object.assign(new Error("payload_too_large"), { code: "payload_too_large" });
+}
+
+function raceAbort(signal, work) {
+  if (signal && signal.aborted) {
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    return Promise.reject(err);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      reject(err);
+    };
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    Promise.resolve(work).then(
+      (value) => {
+        if (signal && typeof signal.removeEventListener === "function") {
+          signal.removeEventListener("abort", onAbort);
+        }
+        resolve(value);
+      },
+      (err) => {
+        if (signal && typeof signal.removeEventListener === "function") {
+          signal.removeEventListener("abort", onAbort);
+        }
+        reject(err);
+      }
+    );
+  });
 }
 
 function queryError(normalized) {
@@ -79,32 +119,61 @@ function redact(value, env) {
 }
 
 async function readJsonBody(req) {
-  if (req && req.body != null && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+  if (req && Buffer.isBuffer(req.body)) {
+    if (req.body.length > MAX_BODY_BYTES) throw payloadTooLarge();
+    const raw = req.body.toString("utf8");
+    if (!raw.trim()) return { ok: false, code: "invalid_query" };
+    try {
+      return { ok: true, value: JSON.parse(raw) };
+    } catch (err) {
+      return { ok: false, code: "invalid_query" };
+    }
+  }
+  if (req && typeof req.body === "string") {
+    if (utf8ByteLength(req.body) > MAX_BODY_BYTES) throw payloadTooLarge();
+    if (!req.body.trim()) return { ok: false, code: "invalid_query" };
+    try {
+      return { ok: true, value: JSON.parse(req.body) };
+    } catch (err) {
+      return { ok: false, code: "invalid_query" };
+    }
+  }
+  if (req && req.body != null && typeof req.body === "object") {
+    let serialized;
+    try {
+      serialized = JSON.stringify(req.body);
+    } catch (err) {
+      return { ok: false, code: "invalid_query" };
+    }
+    if (utf8ByteLength(serialized) > MAX_BODY_BYTES) throw payloadTooLarge();
     return { ok: true, value: req.body };
   }
-  let raw = "";
-  if (req && Buffer.isBuffer(req.body)) raw = req.body.toString("utf8");
-  else if (req && typeof req.body === "string") raw = req.body;
-  else {
-    raw = await new Promise((resolve, reject) => {
-      if (!req || typeof req.on !== "function") {
-        resolve("");
+  const raw = await new Promise((resolve, reject) => {
+    if (!req || typeof req.on !== "function") {
+      resolve("");
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    let overflow = false;
+    req.on("data", (chunk) => {
+      if (overflow) return;
+      const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += piece.length;
+      if (size > MAX_BODY_BYTES) {
+        overflow = true;
+        reject(payloadTooLarge());
         return;
       }
-      const chunks = [];
-      let size = 0;
-      req.on("data", (chunk) => {
-        size += chunk.length;
-        if (size > MAX_BODY_BYTES) {
-          reject(Object.assign(new Error("payload_too_large"), { code: "payload_too_large" }));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      req.on("error", reject);
+      chunks.push(piece);
     });
-  }
+    req.on("end", () => {
+      if (overflow) return;
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    req.on("error", reject);
+  });
+  if (utf8ByteLength(raw) > MAX_BODY_BYTES) throw payloadTooLarge();
   if (!String(raw).trim()) return { ok: false, code: "invalid_query" };
   try {
     return { ok: true, value: JSON.parse(raw) };
@@ -113,30 +182,34 @@ async function readJsonBody(req) {
   }
 }
 
+function embeddingInvalid(message) {
+  const err = new Error(message);
+  err.code = "embedding_invalid";
+  return err;
+}
+
 function validateQueryEmbedding(payload) {
-  const data = payload && Array.isArray(payload.data) ? payload.data.slice() : null;
+  if (!payload || typeof payload !== "object") {
+    throw embeddingInvalid("embedding_payload_invalid");
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "model") && payload.model !== EMBEDDING_MODEL) {
+    throw embeddingInvalid("embedding_model_mismatch");
+  }
+  const data = Array.isArray(payload.data) ? payload.data : null;
   if (!data || data.length !== 1) {
-    const err = new Error("embedding_count_mismatch");
-    err.code = "embedding_invalid";
-    throw err;
+    throw embeddingInvalid("embedding_count_mismatch");
   }
   const row = data[0];
-  if (!row || Number(row.index || 0) !== 0) {
-    const err = new Error("embedding_index_mismatch");
-    err.code = "embedding_invalid";
-    throw err;
+  if (!row || typeof row !== "object" || row.index !== 0) {
+    throw embeddingInvalid("embedding_index_mismatch");
   }
   const vector = row.embedding;
   if (!Array.isArray(vector) || vector.length !== EMBEDDING_DIMENSIONS) {
-    const err = new Error("embedding_dimension_mismatch");
-    err.code = "embedding_invalid";
-    throw err;
+    throw embeddingInvalid("embedding_dimension_mismatch");
   }
   for (let i = 0; i < vector.length; i += 1) {
     if (typeof vector[i] !== "number" || !Number.isFinite(vector[i])) {
-      const err = new Error("embedding_non_finite");
-      err.code = "embedding_invalid";
-      throw err;
+      throw embeddingInvalid("embedding_non_finite");
     }
   }
   return vector;
@@ -170,12 +243,40 @@ function sanitizeResults(rows) {
   return rows.map(publicResult).filter(Boolean);
 }
 
-async function fetchWithTimeout(fetchImpl, url, init, timeoutMs) {
+async function fetchJsonThen(fetchImpl, url, init, timeoutMs, mapPayload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, Object.assign({}, init, { signal: controller.signal }));
+    const response = await raceAbort(
+      controller.signal,
+      Promise.resolve().then(() => fetchImpl(url, Object.assign({}, init, { signal: controller.signal })))
+    );
+    if (!response || !response.ok) {
+      const err = new Error("upstream_http");
+      err.code = "http";
+      err.status = response && response.status;
+      throw err;
+    }
+    let payload;
+    try {
+      if (!response || typeof response.json !== "function") {
+        throw new Error("missing_json");
+      }
+      payload = await raceAbort(
+        controller.signal,
+        Promise.resolve().then(() => response.json())
+      );
+    } catch (err) {
+      if (err && err.name === "AbortError") throw err;
+      const error = new Error("upstream_json");
+      error.code = "invalid_json";
+      throw error;
+    }
+    return mapPayload(payload);
   } catch (err) {
+    if (err && (err.code === "http" || err.code === "invalid_json" || err.code === "embedding_invalid" || err.code === "rpc_invalid")) {
+      throw err;
+    }
     const error = new Error("upstream_timeout");
     error.code = err && err.name === "AbortError" ? "timeout" : "network";
     throw error;
@@ -185,71 +286,74 @@ async function fetchWithTimeout(fetchImpl, url, init, timeoutMs) {
 }
 
 async function embedQuery(fetchImpl, apiKey, query, timeoutMs) {
-  const response = await fetchWithTimeout(fetchImpl, OPENAI_EMBEDDINGS_URL, {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + apiKey,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      dimensions: EMBEDDING_DIMENSIONS,
-      encoding_format: "float",
-      input: query
-    })
-  }, timeoutMs || OPENAI_TIMEOUT_MS);
-  if (!response || !response.ok) {
-    const err = new Error("openai_http");
-    err.code = "openai_http";
-    err.status = response && response.status;
+  try {
+    return await fetchJsonThen(fetchImpl, OPENAI_EMBEDDINGS_URL, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        dimensions: EMBEDDING_DIMENSIONS,
+        encoding_format: "float",
+        input: query
+      })
+    }, timeoutMs || OPENAI_TIMEOUT_MS, validateQueryEmbedding);
+  } catch (err) {
+    if (err && err.code === "http") {
+      const error = new Error("openai_http");
+      error.code = "openai_http";
+      error.status = err.status;
+      throw error;
+    }
+    if (err && err.code === "invalid_json") {
+      const error = new Error("openai_json");
+      error.code = "embedding_invalid";
+      throw error;
+    }
     throw err;
   }
-  let payload;
-  try {
-    payload = await response.json();
-  } catch (err) {
-    const error = new Error("openai_json");
-    error.code = "embedding_invalid";
-    throw error;
-  }
-  return validateQueryEmbedding(payload);
 }
 
 async function matchBooks(fetchImpl, vector, timeoutMs) {
   const url = SUPABASE_URL + "/rest/v1/rpc/" + MATCH_RPC;
-  const response = await fetchWithTimeout(fetchImpl, url, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: "Bearer " + SUPABASE_ANON_KEY,
-      Accept: "application/json",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      query_embedding: vector,
-      match_count: MATCH_COUNT
-    })
-  }, timeoutMs || RPC_TIMEOUT_MS);
-  if (!response || !response.ok) {
-    const err = new Error("rpc_http");
-    err.code = "rpc_http";
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query_embedding: vector,
+        match_count: MATCH_COUNT
+      })
+    }, timeoutMs || RPC_TIMEOUT_MS, sanitizeResults);
+  } catch (err) {
+    if (err && err.code === "http") {
+      const error = new Error("rpc_http");
+      error.code = "rpc_http";
+      throw error;
+    }
+    if (err && err.code === "invalid_json") {
+      const error = new Error("rpc_json");
+      error.code = "rpc_invalid";
+      throw error;
+    }
     throw err;
   }
-  let payload;
-  try {
-    payload = await response.json();
-  } catch (err) {
-    const error = new Error("rpc_json");
-    error.code = "rpc_invalid";
-    throw error;
-  }
-  return sanitizeResults(payload);
 }
 
 async function runSearch(options) {
   const opts = options || {};
   const env = opts.env || {};
   const fetchImpl = opts.fetchImpl;
+  if (typeof opts.query !== "string") {
+    return { status: 400, body: { ok: false, error: "invalid_query" }, openaiCalls: 0, supabaseCalls: 0 };
+  }
   const query = normalizeQuery(opts.query);
   const invalid = queryError(query);
   if (invalid) {
@@ -337,6 +441,7 @@ module.exports = {
   ENABLED_ENV,
   MIN_QUERY_CHARS,
   MAX_QUERY_CHARS,
+  MAX_BODY_BYTES,
   RESULT_FIELDS,
   isEnabled,
   normalizeQuery,

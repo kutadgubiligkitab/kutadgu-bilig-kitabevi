@@ -2,6 +2,7 @@
 "use strict";
 const assert = require("assert");
 const crypto = require("crypto");
+const { EventEmitter } = require("events");
 const fs = require("fs");
 const path = require("path");
 
@@ -53,6 +54,32 @@ function jsonRes(status, body) {
   };
 }
 
+function stalledBodyRes(status, signal) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return new Promise(() => {
+        /* headers returned; body never resolves */
+      });
+    }
+  };
+}
+
+function streamReq(chunks, method) {
+  const req = new EventEmitter();
+  req.method = method || "POST";
+  process.nextTick(() => {
+    (chunks || []).forEach((chunk) => req.emit("data", Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.emit("end");
+  });
+  return req;
+}
+
+function paddedBody(query, extraBytes) {
+  return { query: query, padding: "x".repeat(extraBytes) };
+}
+
 function makeFetch(state) {
   state.calls = [];
   return async function fetchImpl(url, init) {
@@ -71,15 +98,27 @@ function makeFetch(state) {
         }
       });
     }
+    if (state.hangOpenAiBody && /api\.openai\.com/.test(href)) {
+      return stalledBodyRes(200, init && init.signal);
+    }
+    if (state.hangRpcBody && /\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
+      return stalledBodyRes(200, init && init.signal);
+    }
     if (method === "POST" && href === Ai.OPENAI_EMBEDDINGS_URL) {
       if (state.openaiStatus && state.openaiStatus !== 200) {
         return jsonRes(state.openaiStatus, { error: { message: state.openaiMessage || "fail" } });
       }
-      const payload = JSON.parse(init.body);
       const vector = state.vector || fakeVector(3);
-      return jsonRes(200, {
-        data: [{ index: state.openaiIndex == null ? 0 : state.openaiIndex, embedding: vector }]
-      });
+      const row = { embedding: vector };
+      if (!state.omitIndex) {
+        row.index = state.openaiIndex === undefined ? 0 : state.openaiIndex;
+      }
+      const payload = { data: [row] };
+      if (state.extraEmbedding) payload.data.push(state.extraEmbedding);
+      if (!state.omitModel) {
+        payload.model = state.openaiModel === undefined ? Ai.EMBEDDING_MODEL : state.openaiModel;
+      }
+      return jsonRes(200, payload);
     }
     if (method === "POST" && /\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
       if (state.rpcStatus && state.rpcStatus !== 200) return jsonRes(state.rpcStatus, { message: "rpc fail" });
@@ -272,6 +311,144 @@ async function run() {
     assert.ok(fs.existsSync(path.join(root, "api/ai-search.js")));
     const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
     assert.doesNotMatch(html, /\/api\/ai-search/);
+  });
+
+  await test("non-string queries are rejected before normalization with zero upstream calls", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" };
+    const state = {};
+    const fetchImpl = makeFetch(state);
+    const cases = [{}, 123, true, ["books"]];
+    for (const query of cases) {
+      const out = await invoke({ method: "POST", body: { query } }, env, fetchImpl);
+      assert.strictEqual(out.status, 400, "query=" + JSON.stringify(query));
+      assert.strictEqual(out.json.error, "invalid_query");
+    }
+    assert.strictEqual(state.calls.length, 0);
+    assert.strictEqual(Ai.normalizeQuery({}), "");
+    assert.strictEqual(Ai.normalizeQuery(123), "");
+  });
+
+  await test("4KB body limit applies to object, string, Buffer, and streamed bodies", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" };
+    const oversized = paddedBody("books", 5000);
+    const objectState = {};
+    const objectOut = await invoke({ method: "POST", body: oversized }, env, makeFetch(objectState));
+    assert.strictEqual(objectOut.status, 400);
+    assert.strictEqual(objectState.calls.length, 0);
+
+    const json = JSON.stringify(oversized);
+    assert.ok(Buffer.byteLength(json, "utf8") > Ai.MAX_BODY_BYTES);
+
+    const stringState = {};
+    const stringOut = await invoke({ method: "POST", body: json }, env, makeFetch(stringState));
+    assert.strictEqual(stringOut.status, 400);
+    assert.strictEqual(stringState.calls.length, 0);
+
+    const bufferState = {};
+    const bufferOut = await invoke({ method: "POST", body: Buffer.from(json, "utf8") }, env, makeFetch(bufferState));
+    assert.strictEqual(bufferOut.status, 400);
+    assert.strictEqual(bufferState.calls.length, 0);
+
+    const streamState = {};
+    const streamOut = await invoke(streamReq([json]), env, makeFetch(streamState));
+    assert.strictEqual(streamOut.status, 400);
+    assert.strictEqual(streamState.calls.length, 0);
+  });
+
+  await test("short query plus >4KB padding is rejected with zero upstream calls", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" };
+    const state = {};
+    const out = await invoke(
+      { method: "POST", body: paddedBody("بالىلار", Ai.MAX_BODY_BYTES) },
+      env,
+      makeFetch(state)
+    );
+    assert.strictEqual(out.status, 400);
+    assert.strictEqual(out.json.error, "invalid_query");
+    assert.strictEqual(state.calls.length, 0);
+    assert.strictEqual(out.stats.openaiCalls, 0);
+    assert.strictEqual(out.stats.supabaseCalls, 0);
+  });
+
+  await test("OpenAI headers with a stalled body abort inside the deadline", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "super-secret-openai-value" };
+    const state = { hangOpenAiBody: true };
+    const started = Date.now();
+    const out = await invoke(
+      { method: "POST", body: { query: "بالىلار تەربىيەسى" } },
+      env,
+      makeFetch(state),
+      { openaiTimeoutMs: 40 }
+    );
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 1000, "elapsed=" + elapsed);
+    assert.strictEqual(out.status, 503);
+    assert.strictEqual(out.json.error, "unavailable");
+    assert.doesNotMatch(out.body, /super-secret-openai-value|embedding|data/);
+    assert.ok(!state.calls.some((call) => /rpc\//.test(call.url)));
+  });
+
+  await test("Supabase headers with a stalled body abort inside the deadline", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" };
+    const state = { hangRpcBody: true };
+    const started = Date.now();
+    const out = await invoke(
+      { method: "POST", body: { query: "بالىلار تەربىيەسى" } },
+      env,
+      makeFetch(state),
+      { rpcTimeoutMs: 40 }
+    );
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 1000, "elapsed=" + elapsed);
+    assert.strictEqual(out.status, 503);
+    assert.strictEqual(out.json.error, "unavailable");
+    assert.doesNotMatch(out.body, /match_active_books_ai|embedding/);
+    assert.strictEqual(state.calls.filter((call) => /rpc\//.test(call.url)).length, 1);
+  });
+
+  await test("OpenAI index, model, and vector mismatches fail closed without RPC", async () => {
+    const env = { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" };
+    const query = { method: "POST", body: { query: "بالىلار تەربىيەسى" } };
+
+    const missing = { omitIndex: true };
+    const missingOut = await invoke(query, env, makeFetch(missing));
+    assert.strictEqual(missingOut.status, 503);
+    assert.ok(!missing.calls.some((call) => /rpc\//.test(call.url)));
+
+    const coerced = { openaiIndex: "0" };
+    const coercedOut = await invoke(query, env, makeFetch(coerced));
+    assert.strictEqual(coercedOut.status, 503);
+    assert.ok(!coerced.calls.some((call) => /rpc\//.test(call.url)));
+
+    const wrongIndex = { openaiIndex: 1 };
+    const wrongIndexOut = await invoke(query, env, makeFetch(wrongIndex));
+    assert.strictEqual(wrongIndexOut.status, 503);
+    assert.ok(!wrongIndex.calls.some((call) => /rpc\//.test(call.url)));
+
+    const wrongModel = { openaiModel: "text-embedding-ada-002" };
+    const wrongModelOut = await invoke(query, env, makeFetch(wrongModel));
+    assert.strictEqual(wrongModelOut.status, 503);
+    assert.ok(!wrongModel.calls.some((call) => /rpc\//.test(call.url)));
+
+    const twoRows = { extraEmbedding: { index: 1, embedding: fakeVector(4) } };
+    const twoOut = await invoke(query, env, makeFetch(twoRows));
+    assert.strictEqual(twoOut.status, 503);
+    assert.ok(!twoRows.calls.some((call) => /rpc\//.test(call.url)));
+
+    const infVec = fakeVector(5);
+    infVec[3] = Number.POSITIVE_INFINITY;
+    const infState = { vector: infVec };
+    const infOut = await invoke(query, env, makeFetch(infState));
+    assert.strictEqual(infOut.status, 503);
+    assert.ok(!infState.calls.some((call) => /rpc\//.test(call.url)));
+
+    const strVec = fakeVector(6);
+    strVec[7] = "0.1";
+    const strState = { vector: strVec };
+    const strOut = await invoke(query, env, makeFetch(strState));
+    assert.strictEqual(strOut.status, 503);
+    assert.ok(!strState.calls.some((call) => /rpc\//.test(call.url)));
+    assert.doesNotMatch(JSON.stringify(strOut.json), /embedding|text-embedding-ada-002/);
   });
 
   await test("handler module is the isolated Vercel entry", async () => {
