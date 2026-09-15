@@ -242,7 +242,8 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "STAGE91_ADMIN_IMPORT_SCALE.sql",
     "STAGE92_BOOK_STAFF_SECURITY.sql","STAGE93_BOOK_STAFF_GALLERY.sql","STAGE94_PENDING_BOOK_EDIT.sql","SITE_SHOP_HOURS.sql",
     "SUPABASE_SETUP.sql",
-    "DATABASE_UPGRADE_V10.sql"
+    "DATABASE_UPGRADE_V10.sql",
+    "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql"
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||
