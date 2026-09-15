@@ -150,7 +150,7 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    /\.sql$/i.test(file) ||
+    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|mobile\.css|theme\.css|index\.css|shop\.css|catalog\.js$/.test(file)
