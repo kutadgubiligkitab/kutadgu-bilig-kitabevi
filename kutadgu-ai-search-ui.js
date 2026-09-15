@@ -2,7 +2,7 @@
   "use strict";
 
   /**
-   * AI Search 1F — preview-only homepage UI.
+   * AI Search 1I-2 — approved-host homepage UI (Production + Preview + localhost).
    * Isolated from Normal Search. Never intercepts Enter or #searchResults.
    */
 
@@ -36,11 +36,28 @@
     return KUTADGU_VERCEL_PREVIEW_RE.test(host);
   }
 
+  function isProductionAiSearchHost(locationLike) {
+    var host = hostnameOf(locationLike);
+    return !!(host && PRODUCTION_HOSTS[host]);
+  }
+
+  function isLocalAiSearchHost(host) {
+    return host === "localhost" || host === "127.0.0.1";
+  }
+
+  function isAllowedAiSearchHost(locationLike) {
+    var host = hostnameOf(locationLike);
+    if (!host) return false;
+    if (isProductionAiSearchHost({ hostname: host })) return true;
+    if (isLocalAiSearchHost(host)) return true;
+    return isKutadguVercelPreviewHost(host);
+  }
+
   function isPreviewAiSearchHost(locationLike) {
     var host = hostnameOf(locationLike);
     if (!host) return false;
-    if (PRODUCTION_HOSTS[host]) return false;
-    if (host === "localhost" || host === "127.0.0.1") return true;
+    if (isProductionAiSearchHost({ hostname: host })) return false;
+    if (isLocalAiSearchHost(host)) return true;
     return isKutadguVercelPreviewHost(host);
   }
 
@@ -203,9 +220,9 @@
 
     if (!aiBtn || !aiBox || !input) return state;
 
-    var preview = isPreviewAiSearchHost(loc);
-    state.visible = preview;
-    if (!preview) {
+    var allowed = isAllowedAiSearchHost(loc);
+    state.visible = allowed;
+    if (!allowed) {
       aiBtn.hidden = true;
       aiBox.hidden = true;
       return state;
@@ -239,7 +256,7 @@
 
     aiBtn.addEventListener("click", function onAiClick(event) {
       if (event && typeof event.preventDefault === "function") event.preventDefault();
-      if (!isPreviewAiSearchHost(loc)) return;
+      if (!isAllowedAiSearchHost(loc)) return;
       if (running) return;
       var trimmed = trimQuery(input.value);
       if (queryTooShort(trimmed) || queryTooLong(trimmed)) {
@@ -323,8 +340,10 @@
     COVER_FALLBACK: COVER_FALLBACK,
     FAIL_MESSAGE: FAIL_MESSAGE,
     PRODUCTION_HOSTS: PRODUCTION_HOSTS,
-    isPreviewAiSearchHost: isPreviewAiSearchHost,
+    isProductionAiSearchHost: isProductionAiSearchHost,
     isKutadguVercelPreviewHost: isKutadguVercelPreviewHost,
+    isAllowedAiSearchHost: isAllowedAiSearchHost,
+    isPreviewAiSearchHost: isPreviewAiSearchHost,
     trimQuery: trimQuery,
     publicBookHref: publicBookHref,
     safeCoverSrc: safeCoverSrc,

@@ -4,6 +4,7 @@ const assert = require("assert");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const root = path.join(__dirname, "..");
 const Ui = require("../kutadgu-ai-search-ui.js");
@@ -180,59 +181,71 @@ function jsonRes(status, body) {
 }
 
 async function run() {
-  await test("Production hosts hide AI UI; preview hosts show it", () => {
-    const hidden = [
+  await test("A-G: approved hosts show AI UI; unrelated hosts hide it", () => {
+    const previewHost = "kutadgu-bilig-kitab-git-ai-search-1f-preview-ui-kutadgu-bilig-kitabhanisi.vercel.app";
+    const previewHashHost = "kutadgu-bilig-kitab-abc123xyz-kutadgu-bilig-kitabhanisi.vercel.app";
+    const visible = [
       "www.kutadgubilik.com",
       "kutadgubilik.com",
       "kutadgu-bilig-kitab.vercel.app",
+      previewHost,
+      previewHashHost,
+      "localhost",
+      "127.0.0.1"
+    ];
+    const hidden = [
       "example.vercel.app",
       "unrelated-project.vercel.app",
       "shop.example.com"
     ];
+    visible.forEach((hostname) => {
+      assert.strictEqual(Ui.isAllowedAiSearchHost({ hostname }), true, hostname);
+    });
     hidden.forEach((hostname) => {
+      assert.strictEqual(Ui.isAllowedAiSearchHost({ hostname }), false, hostname);
       assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname }), false, hostname);
     });
-    const previewHost = "kutadgu-bilig-kitab-git-ai-search-1f-preview-ui-kutadgu-bilig-kitabhanisi.vercel.app";
-    const previewHashHost = "kutadgu-bilig-kitab-abc123xyz-kutadgu-bilig-kitabhanisi.vercel.app";
-    ["localhost", "127.0.0.1", previewHost, previewHashHost].forEach((hostname) => {
-      assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname }), true, hostname);
-    });
-    const prod = createDom();
-    const prodState = Ui.mountAiSearchUi({
-      document: prod.document,
-      location: { hostname: "www.kutadgubilik.com" },
-      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
-    });
-    assert.strictEqual(prodState.visible, false);
-    assert.strictEqual(prod.aiSearchButton.hidden, true);
-    assert.strictEqual(prod.aiSearchResults.hidden, true);
+    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "www.kutadgubilik.com" }), true);
+    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "kutadgubilik.com" }), true);
+    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "kutadgu-bilig-kitab.vercel.app" }), true);
+    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "localhost" }), false);
+    assert.strictEqual(Ui.isKutadguVercelPreviewHost(previewHost), true);
+    assert.strictEqual(Ui.isKutadguVercelPreviewHost("kutadgu-bilig-kitab.vercel.app"), false);
+    assert.strictEqual(Ui.isKutadguVercelPreviewHost("example.vercel.app"), false);
+    assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname: "www.kutadgubilik.com" }), false);
+    assert.strictEqual(Ui.isPreviewAiSearchHost({ hostname: "localhost" }), true);
 
-    const preview = createDom();
-    const previewState = Ui.mountAiSearchUi({
-      document: preview.document,
-      location: { hostname: "localhost" },
-      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
-    });
-    assert.strictEqual(previewState.visible, true);
-    assert.strictEqual(preview.aiSearchButton.hidden, false);
+    function mountOn(hostname) {
+      const dom = createDom();
+      const state = Ui.mountAiSearchUi({
+        document: dom.document,
+        location: { hostname },
+        fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
+      });
+      return { dom, state };
+    }
 
-    const unrelated = createDom();
-    const unrelatedState = Ui.mountAiSearchUi({
-      document: unrelated.document,
-      location: { hostname: "example.vercel.app" },
-      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
+    [
+      "www.kutadgubilik.com",
+      "kutadgubilik.com",
+      "kutadgu-bilig-kitab.vercel.app",
+      previewHost,
+      "localhost",
+      "127.0.0.1"
+    ].forEach((hostname) => {
+      const out = mountOn(hostname);
+      assert.strictEqual(out.state.visible, true, hostname);
+      assert.strictEqual(out.dom.aiSearchButton.hidden, false, hostname);
     });
-    assert.strictEqual(unrelatedState.visible, false);
-    assert.strictEqual(unrelated.aiSearchButton.hidden, true);
 
-    const projectPreview = createDom();
-    const projectState = Ui.mountAiSearchUi({
-      document: projectPreview.document,
-      location: { hostname: previewHost },
-      fetchImpl: async () => jsonRes(200, { ok: true, results: [] })
-    });
-    assert.strictEqual(projectState.visible, true);
-    assert.strictEqual(projectPreview.aiSearchButton.hidden, false);
+    const unrelatedVercel = mountOn("example.vercel.app");
+    assert.strictEqual(unrelatedVercel.state.visible, false);
+    assert.strictEqual(unrelatedVercel.dom.aiSearchButton.hidden, true);
+    assert.strictEqual(unrelatedVercel.dom.aiSearchResults.hidden, true);
+
+    const unrelatedDomain = mountOn("shop.example.com");
+    assert.strictEqual(unrelatedDomain.state.visible, false);
+    assert.strictEqual(unrelatedDomain.dom.aiSearchButton.hidden, true);
   });
 
   await test("no API request on page load or when AI UI is hidden", async () => {
@@ -250,17 +263,30 @@ async function run() {
     });
     assert.strictEqual(calls, 0);
 
+    const hidden = createDom();
+    hidden.searchInput.value = "بالىلار";
+    const hiddenState = Ui.mountAiSearchUi({
+      document: hidden.document,
+      location: { hostname: "example.vercel.app" },
+      fetchImpl
+    });
+    hidden.aiSearchButton.emit("click");
+    if (hiddenState.pending) await hiddenState.pending;
+    assert.strictEqual(calls, 0);
+    assert.strictEqual(hiddenState.fetchCalls, 0);
+
     const prod = createDom();
     prod.searchInput.value = "بالىلار";
     const prodState = Ui.mountAiSearchUi({
       document: prod.document,
-      location: { hostname: "kutadgubilik.com" },
+      location: { hostname: "www.kutadgubilik.com" },
       fetchImpl
     });
+    assert.strictEqual(prodState.visible, true);
     prod.aiSearchButton.emit("click");
     if (prodState.pending) await prodState.pending;
-    assert.strictEqual(calls, 0);
-    assert.strictEqual(prodState.fetchCalls, 0);
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(prodState.fetchCalls, 1);
   });
 
   await test("empty or invalid query makes zero API calls", async () => {
@@ -527,6 +553,33 @@ async function run() {
     assert.doesNotMatch(envExample, /AI_SEARCH_ENABLED\s*=\s*true/);
     const vercel = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
     assert.ok(!(vercel.env && vercel.env.AI_SEARCH_ENABLED === "true"));
+  });
+
+  await test("I: backend, SQL, embeddings, and env files are not part of this UI launch", () => {
+    const out = execSync("git diff --name-only origin/main HEAD; git diff --name-only; git diff --cached --name-only", {
+      cwd: root,
+      encoding: "utf8"
+    });
+    const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
+    const allowed = new Set([
+      "kutadgu-ai-search-ui.js",
+      "scripts/stage-ai-search-1f-preview-ui-tests.js"
+    ]);
+    const unexpected = files.filter((file) => !allowed.has(file));
+    assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
+    assert.ok(!files.includes("api/ai-search.js"));
+    assert.ok(!files.includes("kutadgu-ai-search.js"));
+    assert.ok(!files.includes("shop.js"));
+    assert.ok(!files.includes("kutadgu-search-rank.js"));
+    assert.ok(!files.some((file) => /\.sql$/i.test(file)));
+    assert.ok(!files.some((file) => /^\.env/.test(file)));
+    assert.ok(!files.includes("vercel.json"));
+    const ui = fs.readFileSync(path.join(root, "kutadgu-ai-search-ui.js"), "utf8");
+    assert.match(ui, /isAllowedAiSearchHost/);
+    assert.match(ui, /isProductionAiSearchHost/);
+    assert.doesNotMatch(ui, /getElementById\(\s*["']searchButton["']\s*\)/);
+    assert.doesNotMatch(ui, /keydown|keypress|keyup/);
+    assert.doesNotMatch(ui, /getElementById\(\s*["']searchResults["']\s*\)/);
   });
 }
 
