@@ -138,7 +138,7 @@ async function run() {
     });
   });
 
-  await test("A: strong category intent returns only children/parenting even when unrelated cosine would survive 0.72", async () => {
+  await test("A: clear same-family child/parenting intent recovers both categories", async () => {
     const rows = [
       book(106, { title: "يۈزمىڭلىغان نېمە ئۈچۈن", category: "بالىلار كىتابلىرى", similarity: 0.33 }),
       book(107, { title: "قىزىقارلىق فىزىكا", category: "بالىلار كىتابلىرى", similarity: 0.32 }),
@@ -149,6 +149,9 @@ async function run() {
       book(150, { title: "ئوغلۇم ئالدىڭغا قارا", category: "پەرزەنت تەربىيەسى" }),
       book(237, { title: "ئائىلە ۋە پەرزەنتلىرىمىز", category: "پەرزەنت تەربىيەسى" })
     ];
+    const intent = Ai.resolveCategoryIntent("بالىلار تەربىيەسىگە مۇناسىۋەتلىك كىتاب");
+    assert.strictEqual(intent.mode, "clear");
+    assert.deepStrictEqual(intent.families, ["child_parenting"]);
     const out = await search("بالىلار تەربىيەسىگە مۇناسىۋەتلىك كىتاب", rows, { categoryRows });
     const cats = [...new Set(out.json.results.map((row) => row.category))].sort();
     assert.ok(out.json.results.length >= 2);
@@ -166,25 +169,29 @@ async function run() {
     assert.ok(catBody.categories.includes("پەرزەنت تەربىيەسى"));
   });
 
-  await test("B: historical novels near 0.30-0.36 stay; unrelated high-cosine books are gated out", async () => {
+  await test("B: clear historical intent keeps novels near 0.30-0.36", async () => {
     const rows = [
       book(11, { title: "تارىخىي رومان 1", category: "تارىخىي رومانلار", similarity: 0.36 }),
       book(12, { title: "تارىخىي رومان 2", category: "تارىخىي رومانلار", similarity: 0.33 }),
       book(13, { title: "تارىخىي رومان 3", category: "تارىخىي رومانلار", similarity: 0.30 }),
       book(90, { title: "رومان", category: "رومانلار", similarity: 0.45 })
     ];
+    const intent = Ai.resolveCategoryIntent("تارىخىي رومان");
+    assert.strictEqual(intent.mode, "clear");
+    assert.deepStrictEqual(intent.families, ["historical_novel"]);
     const out = await search("تارىخىي رومان", rows);
     const ids = out.json.results.map((row) => row.id);
     assert.deepStrictEqual(ids.sort(), [11, 12, 13]);
     assert.ok(out.json.results.every((row) => row.category === "تارىخىي رومانلار"));
     assert.strictEqual(out.state.openai, 1);
+    assert.strictEqual(out.state.categoryRpc, 1);
     out.json.results.forEach((row) => {
       assert.ok(row.similarity >= 0.30 && row.similarity <= 0.36);
       assert.ok(row.similarity < 0.5);
     });
   });
 
-  await test("C: religious intent returns only دىنىي كىتابلار when those candidates exist", async () => {
+  await test("clear religious intent returns only دىنىي كىتابلار when those candidates exist", async () => {
     const rows = [
       book(40, { title: "يىراق رومان", category: "رومانلار", similarity: 0.45 })
     ];
@@ -200,7 +207,7 @@ async function run() {
     assert.strictEqual(out.state.categoryRpc, 1);
   });
 
-  await test("D: author-shaped query boosts Aitmatov and does not pad to 12", async () => {
+  await test("author-shaped query boosts Aitmatov and does not pad to 12", async () => {
     const rows = [
       book(122, { title: "يەر ئانا", author: "چىڭغىز ئايتماتوۋ", category: "رومانلار", similarity: 0.33 }),
       book(125, { title: "تاغلار غۇلىغاندا", author: "چىڭغىز ئايتماتوۋ (قىرغىزىستان)", category: "رومانلار", similarity: 0.32 })
@@ -218,7 +225,7 @@ async function run() {
     assert.strictEqual(out.state.categoryRpc, 0);
   });
 
-  await test("E: grammar intent returns only گرامماتىكا when matches exist", async () => {
+  await test("clear grammar intent returns only گرامماتىكا when matches exist", async () => {
     const rows = [
       book(151, { title: "ئوكسىگىن قوللىنىشچان ئىنگىلىز تىلى گىرامماتىكىسى", category: "گرامماتىكا", similarity: 0.31 }),
       book(169, { title: "ئىنگىلىزتىلى گىرامماتىكىسى", category: "گرامماتىكا", similarity: 0.30 }),
@@ -261,6 +268,87 @@ async function run() {
     assert.ok(Ai.scoreAiCandidate(rows[3], Ai.normalizeQuery(q)) < Ai.scoreAiCandidate(rows[0], Ai.normalizeQuery(q)));
     assert.strictEqual(out.state.openai, 1);
     assert.strictEqual(out.state.categoryRpc, 0);
+    assert.strictEqual(Ai.resolveCategoryIntent(q).mode, "none");
+  });
+
+  await test("C: mixed child + history does not hard-gate or call category RPC", async () => {
+    const q = "بالىلار ئۈچۈن تارىخىي رومان";
+    const intent = Ai.resolveCategoryIntent(q);
+    assert.strictEqual(intent.mode, "mixed");
+    assert.ok(intent.families.indexOf("child_parenting") !== -1);
+    assert.ok(intent.families.indexOf("historical_novel") !== -1);
+    const categoryRows = [
+      book(150, { title: "ئوغلۇم ئالدىڭغا قارا", category: "پەرزەنت تەربىيەسى" }),
+      book(888, { title: "تارىخىي رومان RPC", category: "تارىخىي رومانلار" })
+    ];
+    const rows = [
+      book(501, { title: "بالىلار ئۈچۈن تارىخىي رومان", category: "ئۇنىۋېرسال", similarity: 0.55 }),
+      book(11, { title: "تارىخىي رومان 1", category: "تارىخىي رومانلار", similarity: 0.40 }),
+      book(106, { title: "يۈزمىڭلىغان نېمە ئۈچۈن", category: "بالىلار كىتابلىرى", similarity: 0.39 }),
+      book(90, { title: "رومان", category: "رومانلار", similarity: 0.38 }),
+      book(3, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.18 })
+    ];
+    const out = await search(q, rows, { categoryRows });
+    const ids = out.json.results.map((row) => row.id);
+    assert.strictEqual(out.state.categoryRpc, 0);
+    assert.strictEqual(out.state.openai, 1);
+    assert.ok(ids.includes(501), "no hard gate: best semantic non-family row stays");
+    assert.ok(!ids.includes(150) && !ids.includes(888), "category catalog is not unioned in");
+    assert.ok(!ids.includes(3));
+    assert.ok(out.json.results[0].id === 501 || out.json.results[0].similarity >= 0.38);
+  });
+
+  await test("D: mixed religious + history does not force a category union", async () => {
+    const q = "دىنىي تارىخىي رومان";
+    const intent = Ai.resolveCategoryIntent(q);
+    assert.strictEqual(intent.mode, "mixed");
+    assert.ok(intent.families.indexOf("religious") !== -1);
+    assert.ok(intent.families.indexOf("historical_novel") !== -1);
+    const categoryRows = [
+      book(16, { title: "دىنىي كىتاب 1", category: "دىنىي كىتابلار" }),
+      book(11, { title: "تارىخىي رومان RPC", category: "تارىخىي رومانلار" })
+    ];
+    const rows = [
+      book(502, { title: "دىنىي تارىخىي رومان", category: "رومانلار", similarity: 0.54 }),
+      book(17, { title: "دىنىي كىتاب 2", category: "دىنىي كىتابلار", similarity: 0.36 }),
+      book(12, { title: "تارىخىي رومان 2", category: "تارىخىي رومانلار", similarity: 0.35 }),
+      book(4, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.17 })
+    ];
+    const out = await search(q, rows, { categoryRows });
+    const ids = out.json.results.map((row) => row.id);
+    const cats = [...new Set(out.json.results.map((row) => row.category))];
+    assert.strictEqual(out.state.categoryRpc, 0);
+    assert.strictEqual(out.state.openai, 1);
+    assert.ok(ids.includes(502));
+    assert.ok(!ids.includes(16));
+    assert.ok(cats.indexOf("رومانلار") !== -1);
+    assert.ok(!ids.includes(4));
+  });
+
+  await test("E: mixed child + religious keeps semantic ranking without category RPC", async () => {
+    const q = "بالىلارغا ماس دىنىي كىتاب";
+    const intent = Ai.resolveCategoryIntent(q);
+    assert.strictEqual(intent.mode, "mixed");
+    assert.ok(intent.families.indexOf("child_parenting") !== -1);
+    assert.ok(intent.families.indexOf("religious") !== -1);
+    const categoryRows = [
+      book(16, { title: "دىنىي كىتاب RPC", category: "دىنىي كىتابلار" }),
+      book(106, { title: "بالىلار RPC", category: "بالىلار كىتابلىرى" })
+    ];
+    const rows = [
+      book(503, { title: "بالىلارغا ماس دىنىي كىتاب", category: "ئۇنىۋېرسال", similarity: 0.53 }),
+      book(17, { title: "دىنىي كىتاب 2", category: "دىنىي كىتابلار", similarity: 0.37 }),
+      book(107, { title: "قىزىقارلىق فىزىكا", category: "بالىلار كىتابلىرى", similarity: 0.36 }),
+      book(5, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.16 })
+    ];
+    const out = await search(q, rows, { categoryRows });
+    const ids = out.json.results.map((row) => row.id);
+    assert.strictEqual(out.state.categoryRpc, 0);
+    assert.strictEqual(out.state.openai, 1);
+    assert.ok(ids.includes(503));
+    assert.ok(!ids.includes(16) && !ids.includes(106));
+    assert.ok(!ids.includes(5));
+    assert.ok(out.json.results.length <= 12);
   });
 
   await test("category RPC failure falls back to vector-only gating without a second OpenAI call", async () => {

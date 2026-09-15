@@ -260,13 +260,13 @@ const MIN_AUTHOR_CHARS = 4;
 const RELATIVE_KEEP_RATIO = 0.72;
 const SCORE_CLIFF = 0.10;
 const CATEGORY_INTENT_RULES = Object.freeze([
-  { needles: Object.freeze(["بالىلار"]), category: "بالىلار كىتابلىرى" },
-  { needles: Object.freeze(["تەربىيە", "پەرزەنت تەربىيەسى"]), category: "پەرزەنت تەربىيەسى" },
-  { needles: Object.freeze(["تارىخىي رومان"]), category: "تارىخىي رومانلار" },
-  { needles: Object.freeze(["دىنىي"]), category: "دىنىي كىتابلار" },
-  { needles: Object.freeze(["گرامماتىكا", "گىرامماتىكا"]), category: "گرامماتىكا" },
-  { needles: Object.freeze(["لۇغەت"]), category: "لۇغەت" },
-  { needles: Object.freeze(["دەرسلىك"]), category: "دەرسلىك" }
+  { family: "child_parenting", needles: Object.freeze(["بالىلار"]), category: "بالىلار كىتابلىرى" },
+  { family: "child_parenting", needles: Object.freeze(["تەربىيە", "پەرزەنت تەربىيەسى"]), category: "پەرزەنت تەربىيەسى" },
+  { family: "historical_novel", needles: Object.freeze(["تارىخىي رومان"]), category: "تارىخىي رومانلار" },
+  { family: "religious", needles: Object.freeze(["دىنىي"]), category: "دىنىي كىتابلار" },
+  { family: "grammar", needles: Object.freeze(["گرامماتىكا", "گىرامماتىكا"]), category: "گرامماتىكا" },
+  { family: "dictionary", needles: Object.freeze(["لۇغەت"]), category: "لۇغەت" },
+  { family: "textbook", needles: Object.freeze(["دەرسلىك"]), category: "دەرسلىك" }
 ]);
 
 function fieldMatchBonus(fieldValue, query, weights) {
@@ -278,12 +278,31 @@ function fieldMatchBonus(fieldValue, query, weights) {
   return 0;
 }
 
-function intendedCategories(query) {
-  const out = [];
+function resolveCategoryIntent(query) {
+  const q = normalizeQuery(query);
+  const families = [];
+  const categories = [];
+  const seenFamily = Object.create(null);
+  const seenCategory = Object.create(null);
   CATEGORY_INTENT_RULES.forEach((rule) => {
-    if (rule.needles.some((needle) => query.indexOf(needle) !== -1)) out.push(rule.category);
+    if (!rule.needles.some((needle) => q.indexOf(needle) !== -1)) return;
+    if (!seenFamily[rule.family]) {
+      seenFamily[rule.family] = true;
+      families.push(rule.family);
+    }
+    if (!seenCategory[rule.category]) {
+      seenCategory[rule.category] = true;
+      categories.push(rule.category);
+    }
   });
-  return out;
+  let mode = "none";
+  if (families.length === 1) mode = "clear";
+  else if (families.length > 1) mode = "mixed";
+  return { mode, families, categories };
+}
+
+function intendedCategories(query) {
+  return resolveCategoryIntent(query).categories;
 }
 
 function authorCoreName(author) {
@@ -358,11 +377,11 @@ function selectRelevantResults(query, candidates) {
   const authorMatches = ranked.filter((item) => authorInQueryBonus(item.row.author, q) > 0);
   if (authorMatches.length) return capRanked(authorMatches);
 
-  const intents = intendedCategories(q);
-  if (intents.length) {
+  const resolved = resolveCategoryIntent(q);
+  if (resolved.mode === "clear" && resolved.categories.length) {
     const intentMatches = ranked.filter((item) => {
       const cat = normalizeQuery(item.row.category);
-      return intents.some((target) => cat === target);
+      return resolved.categories.some((target) => cat === target);
     });
     if (intentMatches.length) return capRanked(intentMatches);
   }
@@ -518,10 +537,10 @@ async function runSearch(options) {
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
   const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
   let candidates = vectorRows;
-  const intents = intendedCategories(query);
-  if (intents.length) {
+  const resolved = resolveCategoryIntent(query);
+  if (resolved.mode === "clear" && resolved.categories.length) {
     try {
-      const categoryRows = await listBooksByCategories(fetchImpl, intents, opts.rpcTimeoutMs);
+      const categoryRows = await listBooksByCategories(fetchImpl, resolved.categories, opts.rpcTimeoutMs);
       if (categoryRows && categoryRows.length) {
         candidates = mergeAiCandidates(vectorRows, categoryRows);
       }
@@ -621,6 +640,7 @@ module.exports = {
   selectRelevantResults,
   mergeAiCandidates,
   intendedCategories,
+  resolveCategoryIntent,
   handleAiSearch,
   runSearch
 };
