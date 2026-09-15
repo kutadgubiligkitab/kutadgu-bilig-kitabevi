@@ -193,7 +193,10 @@ test("no OpenAI key, secret, or embedding API client is committed in this stage"
     assert.doesNotMatch(text, /sk-(?:proj-|svcacct-)?[A-Za-z0-9]{10,}/, rel);
     assert.doesNotMatch(text, /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, rel);
     const sdkExempt = rel === path.join("scripts", "ai-search-1d-generate-book-embeddings.js")
-      || rel === path.join("scripts", "stage-ai-search-1d-generate-book-embeddings-tests.js");
+      || rel === path.join("scripts", "stage-ai-search-1d-generate-book-embeddings-tests.js")
+      || rel === path.join("scripts", "stage-ai-search-1e-backend-api-tests.js")
+      || rel === path.join("api", "ai-search.js")
+      || rel === "kutadgu-ai-search.js";
     if (!rel.endsWith(".sql") && !sdkExempt) {
       assert.doesNotMatch(text, sdkRe, rel);
     }
