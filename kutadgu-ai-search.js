@@ -14,6 +14,7 @@ const EMBEDDING_DIMENSIONS = 1536;
 const MATCH_COUNT = 12;
 const CANDIDATE_COUNT = 24;
 const MATCH_RPC = "match_active_books_ai";
+const CATEGORY_RPC = "list_active_books_by_categories_ai";
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
 const MIN_QUERY_CHARS = 2;
 const MAX_QUERY_CHARS = 300;
@@ -324,6 +325,20 @@ function dropWeakTail(ranked) {
   return kept;
 }
 
+function mergeAiCandidates(vectorRows, categoryRows) {
+  const byId = Object.create(null);
+  const out = [];
+  function add(row) {
+    if (!row || !Number.isFinite(row.id) || row.id <= 0) return;
+    if (byId[row.id]) return;
+    byId[row.id] = true;
+    out.push(row);
+  }
+  (vectorRows || []).forEach(add);
+  (categoryRows || []).forEach(add);
+  return out;
+}
+
 function capRanked(ranked) {
   return ranked.slice(0, MATCH_COUNT).map((item) => item.row);
 }
@@ -459,6 +474,31 @@ async function matchBooks(fetchImpl, vector, timeoutMs) {
   }
 }
 
+async function listBooksByCategories(fetchImpl, categories, timeoutMs) {
+  const names = (categories || []).filter((name) => typeof name === "string" && name);
+  if (!names.length) return [];
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + CATEGORY_RPC;
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        categories: names,
+        match_count: CANDIDATE_COUNT
+      })
+    }, timeoutMs || RPC_TIMEOUT_MS, sanitizeResults);
+  } catch (err) {
+    const error = new Error("category_rpc");
+    error.code = "category_rpc";
+    throw error;
+  }
+}
+
 async function runSearch(options) {
   const opts = options || {};
   const env = opts.env || {};
@@ -476,7 +516,19 @@ async function runSearch(options) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 0 };
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
-  const candidates = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
+  const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
+  let candidates = vectorRows;
+  const intents = intendedCategories(query);
+  if (intents.length) {
+    try {
+      const categoryRows = await listBooksByCategories(fetchImpl, intents, opts.rpcTimeoutMs);
+      if (categoryRows && categoryRows.length) {
+        candidates = mergeAiCandidates(vectorRows, categoryRows);
+      }
+    } catch (err) {
+      candidates = vectorRows;
+    }
+  }
   const results = selectRelevantResults(query, candidates);
   return {
     status: 200,
@@ -552,6 +604,7 @@ module.exports = {
   MATCH_COUNT,
   CANDIDATE_COUNT,
   MATCH_RPC,
+  CATEGORY_RPC,
   ENABLED_ENV,
   MIN_QUERY_CHARS,
   MAX_QUERY_CHARS,
@@ -566,6 +619,8 @@ module.exports = {
   publicResult,
   scoreAiCandidate,
   selectRelevantResults,
+  mergeAiCandidates,
+  intendedCategories,
   handleAiSearch,
   runSearch
 };

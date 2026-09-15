@@ -120,6 +120,9 @@ function makeFetch(state) {
       }
       return jsonRes(200, payload);
     }
+    if (method === "POST" && /\/rest\/v1\/rpc\/list_active_books_by_categories_ai$/.test(href)) {
+      return jsonRes(200, state.categoryRows || []);
+    }
     if (method === "POST" && /\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
       if (state.rpcStatus && state.rpcStatus !== 200) return jsonRes(state.rpcStatus, { message: "rpc fail" });
       return jsonRes(200, state.rpcRows || [{
