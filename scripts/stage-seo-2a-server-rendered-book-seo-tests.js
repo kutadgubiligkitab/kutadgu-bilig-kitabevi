@@ -187,7 +187,8 @@ async function run() {
       "scripts/book-public-status-tests.js",
       "scripts/stage-seo-2a-server-rendered-book-seo-tests.js",
       "scripts/stage-ai-search-1f-preview-ui-tests.js",
-      "package.json"
+      "package.json",
+      "tests/e2e/book-clean-urls.spec.js"
     ]);
     const unexpected = files.filter((file) => !allowed.has(file));
     assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

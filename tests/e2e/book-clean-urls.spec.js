@@ -107,7 +107,15 @@ test.describe("book clean URLs", () => {
     expect(html).toMatch(/<meta\s+name=["']robots["']\s+content=["']index,\s*follow["']/i);
     expect((html.match(/rel=["']canonical["']/gi) || []).length).toBe(1);
     expect((html.match(/name=["']robots["']/gi) || []).length).toBe(1);
-    expect(html).not.toMatch(/kutadguBookSchema/);
+    expect((html.match(/id=["']kutadguBookSchema["']/gi) || []).length).toBe(1);
+    const schemaMatch = html.match(/<script id="kutadguBookSchema" type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    expect(schemaMatch).toBeTruthy();
+    const payload = JSON.parse(schemaMatch[1]);
+    const bookNode = (payload["@graph"] || []).find((node) => node["@type"] === "Book");
+    expect(bookNode).toBeTruthy();
+    expect(bookNode.url).toBe(canonical);
+    expect(String(bookNode.name || "").trim().length).toBeGreaterThan(0);
+    expect(bookNode.inLanguage).toBeUndefined();
   });
 
   test("C invalid /book/not-a-number stays safe and noindex", async ({ page, request, baseURL }) => {
