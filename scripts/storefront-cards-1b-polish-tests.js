@@ -125,7 +125,7 @@ test("no Search Discovery SQL RLS auth admin or protected geometry changes", () 
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql") ||
+    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
     /kutadgu-search-rank\.js$|app-config\.js$/.test(file) ||

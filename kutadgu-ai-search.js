@@ -12,7 +12,9 @@ const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL = "text-embedding-3-large";
 const EMBEDDING_DIMENSIONS = 1536;
 const MATCH_COUNT = 12;
+const CANDIDATE_COUNT = 24;
 const MATCH_RPC = "match_active_books_ai";
+const CATEGORY_RPC = "list_active_books_by_categories_ai";
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
 const MIN_QUERY_CHARS = 2;
 const MAX_QUERY_CHARS = 300;
@@ -243,6 +245,150 @@ function sanitizeResults(rows) {
   return rows.map(publicResult).filter(Boolean);
 }
 
+/*
+ * AI-local relevance (1G-2). Cosine similarity stays the base signal.
+ * Lexical bonuses are bounded so they cannot replace semantics.
+ * No absolute 0.5 similarity floor — historical novels can sit near 0.30–0.36.
+ */
+const LEXICAL_TITLE = Object.freeze({ exact: 0.16, prefix: 0.10, contains: 0.06 });
+const LEXICAL_AUTHOR = Object.freeze({ exact: 0.18, prefix: 0.12, contains: 0.08 });
+const LEXICAL_CATEGORY = Object.freeze({ exact: 0.14, prefix: 0.10, contains: 0.07 });
+const MAX_LEXICAL_BONUS = 0.28;
+const CATEGORY_INTENT_BONUS = 0.12;
+const AUTHOR_IN_QUERY_BONUS = 0.16;
+const MIN_AUTHOR_CHARS = 4;
+const RELATIVE_KEEP_RATIO = 0.72;
+const SCORE_CLIFF = 0.10;
+const CATEGORY_INTENT_RULES = Object.freeze([
+  { family: "child_parenting", needles: Object.freeze(["بالىلار"]), category: "بالىلار كىتابلىرى" },
+  { family: "child_parenting", needles: Object.freeze(["تەربىيە", "پەرزەنت تەربىيەسى"]), category: "پەرزەنت تەربىيەسى" },
+  { family: "historical_novel", needles: Object.freeze(["تارىخىي رومان"]), category: "تارىخىي رومانلار" },
+  { family: "religious", needles: Object.freeze(["دىنىي"]), category: "دىنىي كىتابلار" },
+  { family: "grammar", needles: Object.freeze(["گرامماتىكا", "گىرامماتىكا"]), category: "گرامماتىكا" },
+  { family: "dictionary", needles: Object.freeze(["لۇغەت"]), category: "لۇغەت" },
+  { family: "textbook", needles: Object.freeze(["دەرسلىك"]), category: "دەرسلىك" }
+]);
+
+function fieldMatchBonus(fieldValue, query, weights) {
+  const field = normalizeQuery(fieldValue);
+  if (!field || !query) return 0;
+  if (field === query) return weights.exact;
+  if (field.indexOf(query) === 0) return weights.prefix;
+  if (field.indexOf(query) !== -1 || query.indexOf(field) !== -1) return weights.contains;
+  return 0;
+}
+
+function resolveCategoryIntent(query) {
+  const q = normalizeQuery(query);
+  const families = [];
+  const categories = [];
+  const seenFamily = Object.create(null);
+  const seenCategory = Object.create(null);
+  CATEGORY_INTENT_RULES.forEach((rule) => {
+    if (!rule.needles.some((needle) => q.indexOf(needle) !== -1)) return;
+    if (!seenFamily[rule.family]) {
+      seenFamily[rule.family] = true;
+      families.push(rule.family);
+    }
+    if (!seenCategory[rule.category]) {
+      seenCategory[rule.category] = true;
+      categories.push(rule.category);
+    }
+  });
+  let mode = "none";
+  if (families.length === 1) mode = "clear";
+  else if (families.length > 1) mode = "mixed";
+  return { mode, families, categories };
+}
+
+function intendedCategories(query) {
+  return resolveCategoryIntent(query).categories;
+}
+
+function authorCoreName(author) {
+  const raw = normalizeQuery(author);
+  return raw.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function authorInQueryBonus(author, query) {
+  const name = authorCoreName(author);
+  if (!name || name.length < MIN_AUTHOR_CHARS) return 0;
+  return query.indexOf(name) !== -1 ? AUTHOR_IN_QUERY_BONUS : 0;
+}
+
+function scoreAiCandidate(row, query) {
+  const similarity = Number(row && row.similarity);
+  const semantic = Number.isFinite(similarity) ? similarity : 0;
+  let lexical = 0;
+  lexical += fieldMatchBonus(row && row.title, query, LEXICAL_TITLE);
+  lexical += fieldMatchBonus(row && row.author, query, LEXICAL_AUTHOR);
+  lexical += fieldMatchBonus(row && row.category, query, LEXICAL_CATEGORY);
+  if (lexical > MAX_LEXICAL_BONUS) lexical = MAX_LEXICAL_BONUS;
+  const cat = normalizeQuery(row && row.category);
+  const intent = intendedCategories(query).some((target) => cat === target) ? CATEGORY_INTENT_BONUS : 0;
+  const authorBoost = authorInQueryBonus(row && row.author, query);
+  return semantic + lexical + intent + authorBoost;
+}
+
+function dropWeakTail(ranked) {
+  if (!ranked.length) return [];
+  const best = ranked[0].score;
+  const kept = [ranked[0]];
+  for (let i = 1; i < ranked.length && kept.length < MATCH_COUNT; i += 1) {
+    const row = ranked[i];
+    const prev = kept[kept.length - 1];
+    if (row.score < best * RELATIVE_KEEP_RATIO) break;
+    if (prev.score - row.score >= SCORE_CLIFF) break;
+    kept.push(row);
+  }
+  return kept;
+}
+
+function mergeAiCandidates(vectorRows, categoryRows) {
+  const byId = Object.create(null);
+  const out = [];
+  function add(row) {
+    if (!row || !Number.isFinite(row.id) || row.id <= 0) return;
+    if (byId[row.id]) return;
+    byId[row.id] = true;
+    out.push(row);
+  }
+  (vectorRows || []).forEach(add);
+  (categoryRows || []).forEach(add);
+  return out;
+}
+
+function capRanked(ranked) {
+  return ranked.slice(0, MATCH_COUNT).map((item) => item.row);
+}
+
+function selectRelevantResults(query, candidates) {
+  const q = normalizeQuery(query);
+  const ranked = (candidates || []).map((row, index) => ({
+    row,
+    index,
+    score: scoreAiCandidate(row, q)
+  })).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.row.similarity !== a.row.similarity) return b.row.similarity - a.row.similarity;
+    return a.index - b.index;
+  });
+
+  const authorMatches = ranked.filter((item) => authorInQueryBonus(item.row.author, q) > 0);
+  if (authorMatches.length) return capRanked(authorMatches);
+
+  const resolved = resolveCategoryIntent(q);
+  if (resolved.mode === "clear" && resolved.categories.length) {
+    const intentMatches = ranked.filter((item) => {
+      const cat = normalizeQuery(item.row.category);
+      return resolved.categories.some((target) => cat === target);
+    });
+    if (intentMatches.length) return capRanked(intentMatches);
+  }
+
+  return dropWeakTail(ranked).map((item) => item.row);
+}
+
 async function fetchJsonThen(fetchImpl, url, init, timeoutMs, mapPayload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -329,7 +475,7 @@ async function matchBooks(fetchImpl, vector, timeoutMs) {
       },
       body: JSON.stringify({
         query_embedding: vector,
-        match_count: MATCH_COUNT
+        match_count: CANDIDATE_COUNT
       })
     }, timeoutMs || RPC_TIMEOUT_MS, sanitizeResults);
   } catch (err) {
@@ -344,6 +490,31 @@ async function matchBooks(fetchImpl, vector, timeoutMs) {
       throw error;
     }
     throw err;
+  }
+}
+
+async function listBooksByCategories(fetchImpl, categories, timeoutMs) {
+  const names = (categories || []).filter((name) => typeof name === "string" && name);
+  if (!names.length) return [];
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + CATEGORY_RPC;
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        categories: names,
+        match_count: CANDIDATE_COUNT
+      })
+    }, timeoutMs || RPC_TIMEOUT_MS, sanitizeResults);
+  } catch (err) {
+    const error = new Error("category_rpc");
+    error.code = "category_rpc";
+    throw error;
   }
 }
 
@@ -364,10 +535,23 @@ async function runSearch(options) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 0 };
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
-  const results = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
+  const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
+  let candidates = vectorRows;
+  const resolved = resolveCategoryIntent(query);
+  if (resolved.mode === "clear" && resolved.categories.length) {
+    try {
+      const categoryRows = await listBooksByCategories(fetchImpl, resolved.categories, opts.rpcTimeoutMs);
+      if (categoryRows && categoryRows.length) {
+        candidates = mergeAiCandidates(vectorRows, categoryRows);
+      }
+    } catch (err) {
+      candidates = vectorRows;
+    }
+  }
+  const results = selectRelevantResults(query, candidates);
   return {
     status: 200,
-    body: { ok: true, results },
+    body: { ok: true, results, count: results.length },
     openaiCalls: 1,
     supabaseCalls: 1
   };
@@ -437,7 +621,9 @@ module.exports = {
   EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
   MATCH_COUNT,
+  CANDIDATE_COUNT,
   MATCH_RPC,
+  CATEGORY_RPC,
   ENABLED_ENV,
   MIN_QUERY_CHARS,
   MAX_QUERY_CHARS,
@@ -450,6 +636,11 @@ module.exports = {
   validateQueryEmbedding,
   sanitizeResults,
   publicResult,
+  scoreAiCandidate,
+  selectRelevantResults,
+  mergeAiCandidates,
+  intendedCategories,
+  resolveCategoryIntent,
   handleAiSearch,
   runSearch
 };

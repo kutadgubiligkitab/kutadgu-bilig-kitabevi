@@ -195,6 +195,7 @@ test("no OpenAI key, secret, or embedding API client is committed in this stage"
     const sdkExempt = rel === path.join("scripts", "ai-search-1d-generate-book-embeddings.js")
       || rel === path.join("scripts", "stage-ai-search-1d-generate-book-embeddings-tests.js")
       || rel === path.join("scripts", "stage-ai-search-1e-backend-api-tests.js")
+      || rel === path.join("scripts", "stage-ai-search-1g2-relevance-rerank-tests.js")
       || rel === path.join("api", "ai-search.js")
       || rel === "kutadgu-ai-search.js";
     if (!rel.endsWith(".sql") && !sdkExempt) {
