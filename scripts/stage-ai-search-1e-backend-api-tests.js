@@ -204,7 +204,7 @@ async function run() {
     assert.strictEqual(Ai.normalizeQuery("\u0065\u0301"), "é");
   });
 
-  await test("enabled search uses text-embedding-3-large at 1536 and match_active_books_ai count 12", async () => {
+  await test("enabled search uses text-embedding-3-large at 1536 and match_active_books_ai candidate window 24", async () => {
     const state = {};
     const out = await invoke(
       { method: "POST", body: { query: "  بالىلار   تەربىيەسى  ", match_count: 99, model: "other" } },
@@ -227,8 +227,11 @@ async function run() {
     assert.strictEqual(openaiBody.dimensions, 1536);
     assert.strictEqual(openaiBody.input, "بالىلار تەربىيەسى");
     const rpcBody = JSON.parse(rpc.body);
-    assert.strictEqual(rpcBody.match_count, 12);
+    assert.strictEqual(rpcBody.match_count, 24);
     assert.strictEqual(rpcBody.query_embedding.length, 1536);
+    assert.strictEqual(out.json.count, 1);
+    assert.ok(!("score" in out.json.results[0]));
+    assert.ok(!("rerank" in out.json));
     assert.ok(state.calls.every((call) => !/book_embeddings/.test(call.url)));
     assert.ok(state.calls.every((call) => call.method === "POST"));
     assert.ok(state.calls.every((call) => !/service_role/i.test(JSON.stringify(call.headers))));
@@ -288,7 +291,7 @@ async function run() {
     const src = fs.readFileSync(path.join(root, "kutadgu-ai-search.js"), "utf8");
     const apiSrc = fs.readFileSync(path.join(root, "api/ai-search.js"), "utf8");
     assert.match(src, /match_active_books_ai/);
-    assert.match(src, /match_count: MATCH_COUNT/);
+    assert.match(src, /match_count: CANDIDATE_COUNT/);
     assert.doesNotMatch(src, /book_embeddings/);
     assert.doesNotMatch(src, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.doesNotMatch(apiSrc, /SUPABASE_SERVICE_ROLE_KEY/);
