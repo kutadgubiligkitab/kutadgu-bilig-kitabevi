@@ -78,6 +78,9 @@ async function run() {
     assert.ok(url.includes("is_active=eq.true"));
     assert.ok(url.includes("title"));
     assert.ok(url.includes("image_url"));
+    assert.ok(url.includes("publish_year"));
+    assert.ok(!url.includes("language"));
+    assert.ok(!url.includes("publish_date"));
     assert.ok(!/service_role/i.test(url));
     assert.ok(!/select=\*/.test(url));
     const src = fs.readFileSync(path.join(root, "kutadgu-public-book.js"), "utf8")

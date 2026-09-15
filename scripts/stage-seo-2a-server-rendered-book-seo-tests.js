@@ -70,9 +70,7 @@ function sampleBook(extra) {
     price: 232,
     stock: 15,
     source: "tarikhiy-romanlar.html",
-    language: "ug",
-    publish_year: "2020",
-    publish_date: ""
+    publish_year: "2020"
   }, extra || {});
 }
 
@@ -152,6 +150,14 @@ async function run() {
     assert.ok(url.includes("is_active=eq.true"));
     assert.doesNotMatch(url, /select=\*/);
     assert.doesNotMatch(url, /submission_status|sales_count|legacy_id|is_kutadgu_admin/);
+    const cols = publicBook.PUBLIC_SEO_SELECT.split(",");
+    assert.ok(cols.includes("publish_year"));
+    assert.ok(!cols.includes("language"));
+    assert.ok(!cols.includes("publish_date"));
+    const mapped = publicBook.publicSeoBook(sampleBook(), "217");
+    assert.strictEqual(mapped.publishYear, "2020");
+    assert.ok(!Object.prototype.hasOwnProperty.call(mapped, "language"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(mapped, "publishDate"));
     const src = fs.readFileSync(path.join(root, "kutadgu-public-book.js"), "utf8")
       + fs.readFileSync(path.join(root, "api/book-public.js"), "utf8");
     assert.doesNotMatch(src, /service_role/i);

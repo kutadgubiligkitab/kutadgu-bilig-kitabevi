@@ -40,9 +40,7 @@ const PUBLIC_SEO_SELECT = [
   "price",
   "stock",
   "source",
-  "language",
-  "publish_year",
-  "publish_date"
+  "publish_year"
 ].join(",");
 
 function publicBookLookupUrl(id) {
@@ -68,9 +66,7 @@ function publicSeoBook(row, id) {
     price: Number.isFinite(priceNum) ? priceNum : null,
     stock: Number.isFinite(stockNum) ? stockNum : null,
     source: String(row.source == null ? "" : row.source).trim(),
-    language: String(row.language == null ? "" : row.language).trim(),
-    publishYear: String(row.publish_year == null ? "" : row.publish_year).trim(),
-    publishDate: String(row.publish_date == null ? "" : row.publish_date).trim()
+    publishYear: String(row.publish_year == null ? "" : row.publish_year).trim()
   };
 }
 
