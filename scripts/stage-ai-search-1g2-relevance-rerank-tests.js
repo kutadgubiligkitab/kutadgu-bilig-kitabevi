@@ -129,60 +129,54 @@ async function run() {
     });
   });
 
-  await test("A: parenting/children query keeps strong set and drops History/World Lit filler", async () => {
+  await test("A: strong category intent returns only children/parenting even when unrelated cosine would survive 0.72", async () => {
     const rows = [
       book(150, { title: "ئوغلۇم ئالدىڭغا قارا", category: "پەرزەنت تەربىيەسى", similarity: 0.36 }),
       book(237, { title: "ئائىلە ۋە پەرزەنتلىرىمىز", category: "پەرزەنت تەربىيەسى", similarity: 0.34 }),
       book(106, { title: "يۈزمىڭلىغان نېمە ئۈچۈن", category: "بالىلار كىتابلىرى", similarity: 0.33 }),
       book(107, { title: "قىزىقارلىق فىزىكا", category: "بالىلار كىتابلىرى", similarity: 0.32 }),
-      book(201, { title: "تارىخىي رومان A", category: "تارىخىي رومانلار", similarity: 0.31 }),
-      book(202, { title: "تارىخىي رومان B", category: "تارىخىي رومانلار", similarity: 0.30 }),
-      book(301, { title: "دۇنيا ئەدەبىياتى A", category: "دۇنيا ئەدەبىياتى", similarity: 0.29 }),
-      book(302, { title: "دۇنيا ئەدەبىياتى B", category: "دۇنيا ئەدەبىياتى", similarity: 0.28 }),
-      book(303, { title: "دۇنيا ئەدەبىياتى C", category: "دۇنيا ئەدەبىياتى", similarity: 0.27 }),
-      book(203, { title: "تارىخىي رومان C", category: "تارىخىي رومانلار", similarity: 0.26 }),
-      book(204, { title: "تارىخىي رومان D", category: "تارىخىي رومانلار", similarity: 0.25 }),
-      book(205, { title: "تارىخىي رومان E", category: "تارىخىي رومانلار", similarity: 0.24 })
+      book(201, { title: "تارىخىي رومان A", category: "تارىخىي رومانلار", similarity: 0.45 }),
+      book(16, { title: "دىنىي كىتاب", category: "دىنىي كىتابلار", similarity: 0.44 }),
+      book(90, { title: "رومان", category: "رومانلار", similarity: 0.43 }),
+      book(301, { title: "دۇنيا ئەدەبىياتى A", category: "دۇنيا ئەدەبىياتى", similarity: 0.42 })
     ];
     const out = await search("بالىلار تەربىيەسىگە مۇناسىۋەتلىك كىتاب", rows);
-    const ids = out.json.results.map((row) => row.id);
-    assert.ok(ids.length < 12);
-    assert.ok(ids.length >= 2);
-    assert.ok(ids.includes(150) && ids.includes(237));
-    assert.ok(ids.includes(106) || ids.includes(107));
-    assert.ok(ids.indexOf(150) < ids.indexOf(201) || !ids.includes(201));
-    assert.ok(!ids.includes(201));
-    assert.ok(!ids.includes(301));
-    assert.strictEqual(out.json.count, ids.length);
+    const cats = [...new Set(out.json.results.map((row) => row.category))].sort();
+    assert.ok(out.json.results.length >= 2);
+    assert.ok(out.json.results.every((row) => row.category === "پەرزەنت تەربىيەسى" || row.category === "بالىلار كىتابلىرى"));
+    assert.deepStrictEqual(cats, ["بالىلار كىتابلىرى", "پەرزەنت تەربىيەسى"]);
+    assert.ok(!out.json.results.some((row) => row.id === 201 || row.id === 16 || row.id === 90 || row.id === 301));
+    assert.strictEqual(out.json.count, out.json.results.length);
     assert.strictEqual(out.state.openai, 1);
   });
 
-  await test("B: historical novels near 0.30-0.36 are not dropped by an absolute 0.5 floor", async () => {
+  await test("B: historical novels near 0.30-0.36 stay; unrelated high-cosine books are gated out", async () => {
     const rows = [
       book(11, { title: "تارىخىي رومان 1", category: "تارىخىي رومانلار", similarity: 0.36 }),
       book(12, { title: "تارىخىي رومان 2", category: "تارىخىي رومانلار", similarity: 0.33 }),
-      book(13, { title: "تارىخىي رومان 3", category: "تارىخىي رومانلار", similarity: 0.30 })
+      book(13, { title: "تارىخىي رومان 3", category: "تارىخىي رومانلار", similarity: 0.30 }),
+      book(90, { title: "رومان", category: "رومانلار", similarity: 0.45 })
     ];
     const out = await search("تارىخىي رومان", rows);
     const ids = out.json.results.map((row) => row.id);
     assert.deepStrictEqual(ids.sort(), [11, 12, 13]);
+    assert.ok(out.json.results.every((row) => row.category === "تارىخىي رومانلار"));
     out.json.results.forEach((row) => {
       assert.ok(row.similarity >= 0.30 && row.similarity <= 0.36);
       assert.ok(row.similarity < 0.5);
     });
   });
 
-  await test("C: religious category matches outrank semantically nearer unrelated books", async () => {
+  await test("C: religious intent returns only دىنىي كىتابلار when those candidates exist", async () => {
     const rows = [
-      book(40, { title: "يىراق رومان", category: "رومانلار", similarity: 0.40 }),
+      book(40, { title: "يىراق رومان", category: "رومانلار", similarity: 0.45 }),
       book(16, { title: "دىنىي كىتاب 1", category: "دىنىي كىتابلار", similarity: 0.31 }),
       book(17, { title: "دىنىي كىتاب 2", category: "دىنىي كىتابلار", similarity: 0.30 })
     ];
     const out = await search("دىنىي كىتاب", rows);
     const ids = out.json.results.map((row) => row.id);
-    assert.ok(ids.indexOf(16) < ids.indexOf(40) || !ids.includes(40));
-    assert.strictEqual(ids[0], 16);
-    assert.ok(ids.includes(17));
+    assert.deepStrictEqual(ids.sort(), [16, 17]);
+    assert.ok(out.json.results.every((row) => row.category === "دىنىي كىتابلار"));
   });
 
   await test("D: author-shaped query boosts Aitmatov and does not pad to 12", async () => {
@@ -191,31 +185,42 @@ async function run() {
       book(125, { title: "تاغلار غۇلىغاندا", author: "چىڭغىز ئايتماتوۋ (قىرغىزىستان)", category: "رومانلار", similarity: 0.32 })
     ];
     for (let i = 0; i < 14; i += 1) {
-      rows.push(book(400 + i, { title: "باشقا رومان " + i, author: "باشقا ئاپتور", category: "رومانلار", similarity: 0.28 - i * 0.002 }));
+      rows.push(book(400 + i, { title: "باشقا رومان " + i, author: "باشقا ئاپتور", category: "رومانلار", similarity: 0.41 - i * 0.001 }));
     }
     const out = await search("چىڭغىز ئايتماتوۋنىڭ كىتابلىرى", rows);
     const ids = out.json.results.map((row) => row.id);
-    assert.ok(ids.length < 12);
+    assert.ok(ids.length <= 2);
     assert.ok(ids.includes(122));
-    assert.strictEqual(ids[0], 122);
+    assert.ok(ids.includes(125));
     assert.ok(!ids.some((id) => id >= 400));
-    assert.strictEqual(out.state.openai, 1);
+    assert.ok(out.json.results.every((row) => /چىڭغىز ئايتماتوۋ/.test(row.author)));
   });
 
-  await test("E: grammar spelling/category variants rank above unrelated tail", async () => {
+  await test("E: grammar intent returns only گرامماتىكا when matches exist", async () => {
     const rows = [
       book(151, { title: "ئوكسىگىن قوللىنىشچان ئىنگىلىز تىلى گىرامماتىكىسى", category: "گرامماتىكا", similarity: 0.31 }),
       book(169, { title: "ئىنگىلىزتىلى گىرامماتىكىسى", category: "گرامماتىكا", similarity: 0.30 }),
-      book(80, { title: "ئۇنىۋېرسال كىتاب", category: "ئۇنىۋېرسال", similarity: 0.29 }),
-      book(81, { title: "رومان", category: "رومانلار", similarity: 0.28 }),
-      book(82, { title: "تارىخ", category: "تارىخىي رومانلار", similarity: 0.27 })
+      book(80, { title: "ئۇنىۋېرسال كىتاب", category: "ئۇنىۋېرسال", similarity: 0.44 }),
+      book(81, { title: "رومان", category: "رومانلار", similarity: 0.43 }),
+      book(82, { title: "تارىخ", category: "تارىخىي رومانلار", similarity: 0.42 })
     ];
     const out = await search("گرامماتىكا كىتابى", rows);
     const ids = out.json.results.map((row) => row.id);
-    assert.ok(ids[0] === 151 || ids[0] === 169);
-    assert.ok(ids.includes(151) && ids.includes(169));
-    assert.ok(!ids.includes(80));
-    assert.ok(ids.length < 5);
+    assert.deepStrictEqual(ids.sort(), [151, 169]);
+    assert.ok(out.json.results.every((row) => row.category === "گرامماتىكا"));
+  });
+
+  await test("recognized intent with zero matching candidates falls back to hybrid + weak-tail", async () => {
+    const rows = [
+      book(1, { title: "يىراق رومان", category: "رومانلار", similarity: 0.44 }),
+      book(2, { title: "باشقا رومان", category: "رومانلار", similarity: 0.41 }),
+      book(3, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.20 })
+    ];
+    const out = await search("دىنىي كىتاب", rows);
+    assert.ok(out.json.results.length >= 1);
+    assert.ok(out.json.results.length < 3);
+    assert.strictEqual(out.json.results[0].id, 1);
+    assert.ok(!out.json.results.some((row) => row.id === 3));
   });
 
   await test("F: generic semantic query still ranks by cosine without category mappings", async () => {

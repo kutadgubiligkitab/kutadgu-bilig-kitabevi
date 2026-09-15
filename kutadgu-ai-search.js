@@ -285,9 +285,13 @@ function intendedCategories(query) {
   return out;
 }
 
-function authorInQueryBonus(author, query) {
+function authorCoreName(author) {
   const raw = normalizeQuery(author);
-  const name = raw.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  return raw.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function authorInQueryBonus(author, query) {
+  const name = authorCoreName(author);
   if (!name || name.length < MIN_AUTHOR_CHARS) return 0;
   return query.indexOf(name) !== -1 ? AUTHOR_IN_QUERY_BONUS : 0;
 }
@@ -320,6 +324,10 @@ function dropWeakTail(ranked) {
   return kept;
 }
 
+function capRanked(ranked) {
+  return ranked.slice(0, MATCH_COUNT).map((item) => item.row);
+}
+
 function selectRelevantResults(query, candidates) {
   const q = normalizeQuery(query);
   const ranked = (candidates || []).map((row, index) => ({
@@ -331,6 +339,19 @@ function selectRelevantResults(query, candidates) {
     if (b.row.similarity !== a.row.similarity) return b.row.similarity - a.row.similarity;
     return a.index - b.index;
   });
+
+  const authorMatches = ranked.filter((item) => authorInQueryBonus(item.row.author, q) > 0);
+  if (authorMatches.length) return capRanked(authorMatches);
+
+  const intents = intendedCategories(q);
+  if (intents.length) {
+    const intentMatches = ranked.filter((item) => {
+      const cat = normalizeQuery(item.row.category);
+      return intents.some((target) => cat === target);
+    });
+    if (intentMatches.length) return capRanked(intentMatches);
+  }
+
   return dropWeakTail(ranked).map((item) => item.row);
 }
 
