@@ -148,6 +148,8 @@ test("search AI Search cart auth book detail admin and 2A files stay frozen", ()
     "scripts/stage3-shop-identity-tests.js",
     "scripts/homepage-about-editor-tests.js",
     "scripts/storefront-cards-1a-polish-tests.js",
+    "scripts/storefront-cards-1b-polish-tests.js",
+    "scripts/stage4b1-public-cards-tests.js",
     "scripts/stage4b2-homepage-discovery-tests.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file));
