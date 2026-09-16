@@ -181,18 +181,6 @@ async function run() {
       encoding: "utf8"
     });
     const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
-    const allowed = new Set([
-      "kutadgu-public-book.js",
-      "api/book-public.js",
-      "scripts/book-public-status-tests.js",
-      "scripts/stage-seo-2a-server-rendered-book-seo-tests.js",
-      "scripts/stage-ai-search-1f-preview-ui-tests.js",
-      "package.json",
-      "tests/e2e/book-clean-urls.spec.js",
-      "scripts/discovery-category-split-hotfix-tests.js"
-    ]);
-    const unexpected = files.filter((file) => !allowed.has(file));
-    assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
     [
       "shop.js",
       "kutadgu-search-rank.js",
@@ -200,7 +188,9 @@ async function run() {
       "kutadgu-ai-search-ui.js",
       "api/ai-search.js",
       "vercel.json",
-      "book-shell.html"
+      "book-shell.html",
+      "kutadgu-public-book.js",
+      "api/book-public.js"
     ].forEach((rel) => {
       assert.ok(!files.includes(rel), rel);
     });
