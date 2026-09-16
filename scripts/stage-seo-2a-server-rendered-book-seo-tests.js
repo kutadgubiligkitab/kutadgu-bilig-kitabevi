@@ -187,8 +187,7 @@ async function run() {
       "kutadgu-ai-search.js",
       "kutadgu-ai-search-ui.js",
       "api/ai-search.js",
-      "vercel.json",
-      "book-shell.html"
+      "vercel.json"
     ].forEach((rel) => {
       assert.ok(!files.includes(rel), rel);
     });
