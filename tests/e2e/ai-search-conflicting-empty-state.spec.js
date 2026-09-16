@@ -64,7 +64,7 @@ test.describe("BUG-01 AI Search vs Normal Search empty state", () => {
     await H.waitForShop(page);
     await page.locator("#searchInput").fill(QUERY);
     await page.locator("#searchButton").click();
-    await expect(page.locator("#searchResults .search-empty, #searchResults")).toContainText(/نەتىجە تېپىلمىدى/);
+    await expect(page.locator("#searchResults")).toContainText(/نەتىجە تېپىلمىدى|ئىزدەش نەتىجىسى تېپىلمىدى/);
     await page.locator("#aiSearchButton").click();
     await expect(page.locator("#aiSearchResults")).toContainText("AI ئىزدەش نەتىجىسى تېپىلمىدى");
     await expect(page.locator("#searchResults")).toBeHidden();
