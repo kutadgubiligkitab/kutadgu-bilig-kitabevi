@@ -3,6 +3,7 @@
 const visibility = require("./catalog-visibility.js");
 const seo = require("./kutadgu-book-seo.js");
 const safeUrl = require("./kutadgu-safe-url.js");
+const bib = require("./catalog-bibliography.js");
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
@@ -40,7 +41,13 @@ const PUBLIC_SEO_SELECT = [
   "price",
   "stock",
   "source",
-  "publish_year"
+  "publish_year",
+  "translator",
+  "pages",
+  "cover_type",
+  "book_size",
+  "interior_print_type",
+  "is_color_print"
 ].join(",");
 
 function publicBookLookupUrl(id) {
@@ -66,7 +73,13 @@ function publicSeoBook(row, id) {
     price: Number.isFinite(priceNum) ? priceNum : null,
     stock: Number.isFinite(stockNum) ? stockNum : null,
     source: String(row.source == null ? "" : row.source).trim(),
-    publishYear: String(row.publish_year == null ? "" : row.publish_year).trim()
+    publishYear: String(row.publish_year == null ? "" : row.publish_year).trim(),
+    translator: String(row.translator == null ? "" : row.translator).trim(),
+    pages: row.pages == null || row.pages === "" ? "" : String(row.pages).trim(),
+    coverType: bib.normalizeCoverType(row.cover_type) || "",
+    bookSize: bib.normalizeBookSize(row.book_size) || "",
+    interiorPrintType: bib.normalizeInteriorPrintType(row.interior_print_type) || "",
+    isColorPrint: row.is_color_print === true || row.is_color_print === "true"
   };
 }
 
@@ -92,6 +105,32 @@ function escapeAttr(value) {
 
 function escapeHtml(value) {
   return safeUrl.escapeHtml(value);
+}
+
+function publishYearForMeta(book) {
+  const published = seo.datePublishedIfTrustworthy(book);
+  return published ? published.slice(0, 4) : "";
+}
+
+function renderBookMetaRow(label, value) {
+  if (!bib.detailMetaVisible(value)) return "";
+  const shown = String(value).trim();
+  return `<div class="book-meta-row"><div class="book-meta-label">${escapeHtml(label)}</div><div class="book-meta-value">${escapeHtml(shown)}</div></div>`;
+}
+
+function renderBookMeta(book) {
+  return [
+    renderBookMetaRow("ئاپتورى", seo.storefrontAuthor(book)),
+    renderBookMetaRow("تەرجىمە قىلغۇچى", book && book.translator),
+    renderBookMetaRow("نەشرىيات", book && book.publisher),
+    renderBookMetaRow("نەشر يىلى", publishYearForMeta(book)),
+    renderBookMetaRow("ISBN", seo.storefrontIsbn(book)),
+    renderBookMetaRow("بەت سانى", book && book.pages),
+    renderBookMetaRow("مۇقاۋا تۈرى", bib.coverTypeLabel(book && book.coverType)),
+    renderBookMetaRow("كىتاب ئۆلچىمى", bib.bookSizeLabel(book && book.bookSize)),
+    renderBookMetaRow("ئىچكى بېسىلىشى", bib.interiorPrintDetailValue(book)),
+    renderBookMetaRow("كىتاب تۈرى", book && book.category)
+  ].join("");
 }
 
 function replaceFirst(html, findRe, replacement) {
@@ -290,6 +329,9 @@ function applyBookSpecificBody(html, book) {
       `<section class="dynamic-book-description">\n          <h2>كىتاب ھەققىدە</h2>\n          <p>${escapeHtml(description)}</p>\n        </section>`
     );
   }
+
+  const metaHtml = renderBookMeta(book);
+  out = replaceFirst(out, /<div class="book-meta"><\/div>/, `<div class="book-meta">${metaHtml}</div>`);
   return out;
 }
 

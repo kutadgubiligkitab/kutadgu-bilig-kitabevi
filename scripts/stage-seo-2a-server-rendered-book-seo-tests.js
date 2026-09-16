@@ -152,6 +152,12 @@ async function run() {
     assert.doesNotMatch(url, /submission_status|sales_count|legacy_id|is_kutadgu_admin/);
     const cols = publicBook.PUBLIC_SEO_SELECT.split(",");
     assert.ok(cols.includes("publish_year"));
+    assert.ok(cols.includes("translator"));
+    assert.ok(cols.includes("pages"));
+    assert.ok(cols.includes("cover_type"));
+    assert.ok(cols.includes("book_size"));
+    assert.ok(cols.includes("interior_print_type"));
+    assert.ok(cols.includes("is_color_print"));
     assert.ok(!cols.includes("language"));
     assert.ok(!cols.includes("publish_date"));
     const mapped = publicBook.publicSeoBook(sampleBook(), "217");

@@ -24,7 +24,6 @@ const FROZEN = {
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "kutadgu-ai-search-ui.js": "af97de6463fb2f58da83f1415061e7ae853e4f71a7155689a0e64693716aaffb",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "kutadgu-public-book.js": "4b2b33bb28f4d2d6aac6a9a5fd4ceba41c0273f3b0e36759a67a3edf0c5c6ec9",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "5cd4cda341684186f6904e8b3a8e2d209dfc430ea51548158154eef35d94f66d"
@@ -172,7 +171,6 @@ async function run() {
       "kutadgu-ai-search.js",
       "kutadgu-ai-search-ui.js",
       "api/ai-search.js",
-      "kutadgu-public-book.js",
       "api/book-public.js",
       "vercel.json",
       "home-hero-content.js",
