@@ -166,11 +166,49 @@
     return `${match[1]}-${match[2]}-${match[3]}`;
   }
 
+  const STOREFRONT_NAME = "قۇتادغۇبىلىك كىتابخانىسى";
+
+  function factualMetaValue(value) {
+    const text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    if (text === "—" || text === "-" || text === "–" || text === "−") return "";
+    if (/^(undefined|null)$/i.test(text)) return "";
+    return text;
+  }
+
+  function fallbackMetaDescription(book) {
+    const title = factualMetaValue(book && book.title);
+    if (!title) return "";
+    const author = storefrontAuthor(book);
+    const category = factualMetaValue(book && book.category);
+    const publisher = factualMetaValue(book && book.publisher);
+    const published = datePublishedIfTrustworthy({
+      publishYear: book && (book.publishYear || book.publish_year),
+      publishDate: book && book.publishDate
+    });
+    const year = published ? published.slice(0, 4) : "";
+    const optionals = [];
+    if (author) optionals.push(`ئاپتور: ${author}`);
+    if (category) optionals.push(`تۈرى: ${category}`);
+    if (publisher) optionals.push(`نەشرىيات: ${publisher}`);
+    if (year) optionals.push(`نەشر يىلى: ${year}`);
+    function assemble(parts) {
+      if (!parts.length) return `${title} — ${STOREFRONT_NAME}`;
+      return `${title} — ${parts.join(". ")}. ${STOREFRONT_NAME}.`;
+    }
+    let parts = optionals.slice();
+    let out = assemble(parts);
+    while (out.length > 170 && parts.length) {
+      parts = parts.slice(0, -1);
+      out = assemble(parts);
+    }
+    return out;
+  }
+
   function metaDescription(book) {
     const real = String(book && book.description || "").trim();
     if (real) return real;
-    const title = String(book && book.title || "").trim();
-    return title ? `${title} — قۇتادغۇبىلىك كىتابخانىسى` : "";
+    return fallbackMetaDescription(book);
   }
 
   function absoluteUrl(value, origin) {
