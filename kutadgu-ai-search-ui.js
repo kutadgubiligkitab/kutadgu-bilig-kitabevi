@@ -3,7 +3,9 @@
 
   /**
    * AI Search 1I-2 — approved-host homepage UI (Production + Preview + localhost).
-   * Isolated from Normal Search. Never intercepts Enter or #searchResults.
+   * Isolated from Normal Search ranking/Enter handling.
+   * When AI output is shown, hide stale #searchResults so zero-result
+   * Normal Search copy cannot contradict AI results. Never preventDefault Enter.
    */
 
   var API_PATH = "/api/ai-search";
@@ -216,6 +218,8 @@
     var input = doc.getElementById("searchInput");
     var aiBtn = doc.getElementById("aiSearchButton");
     var aiBox = doc.getElementById("aiSearchResults");
+    var normalBox = doc.getElementById("searchResults");
+    var searchActionBtn = doc.getElementById("searchButton");
     var state = { mounted: true, visible: false, fetchCalls: 0, aborted: false };
 
     if (!aiBtn || !aiBox || !input) return state;
@@ -241,6 +245,24 @@
       aiBtn.removeAttribute("aria-busy");
     }
 
+    function concealNormalSearch() {
+      if (normalBox) normalBox.hidden = true;
+    }
+
+    function revealNormalSearch() {
+      if (normalBox) normalBox.hidden = false;
+    }
+
+    function presentAiMessage(message, kind) {
+      showMessage(doc, aiBox, message, kind);
+      concealNormalSearch();
+    }
+
+    function presentAiResults(rows) {
+      renderResults(aiBox, rows, doc);
+      concealNormalSearch();
+    }
+
     function hideAiBox() {
       generation += 1;
       if (controller) {
@@ -249,10 +271,18 @@
       }
       clearNode(aiBox);
       aiBox.hidden = true;
+      revealNormalSearch();
       restoreButton();
     }
 
     input.addEventListener("input", hideAiBox);
+    input.addEventListener("keydown", function onNormalSearchEnter(event) {
+      if (!event || event.key !== "Enter") return;
+      hideAiBox();
+    });
+    if (searchActionBtn && typeof searchActionBtn.addEventListener === "function") {
+      searchActionBtn.addEventListener("click", hideAiBox);
+    }
 
     aiBtn.addEventListener("click", function onAiClick(event) {
       if (event && typeof event.preventDefault === "function") event.preventDefault();
@@ -260,11 +290,11 @@
       if (running) return;
       var trimmed = trimQuery(input.value);
       if (queryTooShort(trimmed) || queryTooLong(trimmed)) {
-        showMessage(doc, aiBox, EMPTY_QUERY_MESSAGE, "hint");
+        presentAiMessage(EMPTY_QUERY_MESSAGE, "hint");
         return;
       }
       if (typeof fetchImpl !== "function") {
-        showMessage(doc, aiBox, FAIL_MESSAGE, "error");
+        presentAiMessage(FAIL_MESSAGE, "error");
         return;
       }
 
@@ -276,7 +306,7 @@
       var timer = setTimeout(function () {
         if (controller) controller.abort();
       }, timeoutMs);
-      showMessage(doc, aiBox, LOADING_MESSAGE, "loading");
+      presentAiMessage(LOADING_MESSAGE, "loading");
       state.fetchCalls += 1;
       state.pending = Promise.resolve(fetchImpl(API_PATH, {
         method: "POST",
@@ -300,17 +330,17 @@
       }).then(function (parsed) {
         if (gen !== generation || parsed == null) return;
         if (parsed.fail) {
-          showMessage(doc, aiBox, FAIL_MESSAGE, "error");
+          presentAiMessage(FAIL_MESSAGE, "error");
           return;
         }
-        renderResults(aiBox, parsed.results, doc);
+        presentAiResults(parsed.results);
       }).then(function () {
         clearTimeout(timer);
         if (gen === generation) restoreButton();
       }, function () {
         clearTimeout(timer);
         if (gen === generation) {
-          showMessage(doc, aiBox, FAIL_MESSAGE, "error");
+          presentAiMessage(FAIL_MESSAGE, "error");
           restoreButton();
         }
       });

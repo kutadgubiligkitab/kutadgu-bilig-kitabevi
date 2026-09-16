@@ -24,7 +24,6 @@ const FROZEN = {
   "shop.js": "3976a603d3057cb7872252048f40b3772ab63cd28216938924ba16a6c9e8a519",
   "kutadgu-search-rank.js": "87f083b9bfd62ce6ea0ce0df6bd796ca21a201a580b5ffb6dc3258326321831b",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
-  "kutadgu-ai-search-ui.js": "af97de6463fb2f58da83f1415061e7ae853e4f71a7155689a0e64693716aaffb",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "bd97183c340ee91b02162e72c59b2e73a7a675319a89285a5037ed6ddacba8d1",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
@@ -298,7 +297,6 @@ test("protected product files stay frozen and out of this diff", () => {
     "shop.js",
     "kutadgu-search-rank.js",
     "kutadgu-ai-search.js",
-    "kutadgu-ai-search-ui.js",
     "api/ai-search.js",
     "kutadgu-book-seo.js",
     "kutadgu-public-book.js",
@@ -319,7 +317,19 @@ test("protected product files stay frozen and out of this diff", () => {
     ...PUBLIC_LISTINGS.map((slug) => `${slug}.html`),
     "category-hub-seo.css",
     "scripts/stage-seo-2h-category-listing-seo-tests.js",
-    "package.json"
+    "package.json",
+    "kutadgu-ai-search-ui.js",
+    "ai-search-ui.css",
+    "scripts/stage-ai-search-1f-preview-ui-tests.js",
+    "scripts/stage-ai-search-conflicting-empty-state-tests.js",
+    "tests/e2e/ai-search-conflicting-empty-state.spec.js",
+    "scripts/stage-seo-2a-server-rendered-book-seo-tests.js",
+    "scripts/stage-seo-2b-homepage-h1-tests.js",
+    "scripts/stage-seo-2b2-visible-homepage-h1-tests.js",
+    "scripts/stage-seo-2c-book-first-byte-content-tests.js",
+    "scripts/stage-seo-2d-favicon-tests.js",
+    "scripts/stage-seo-2e-book-meta-descriptions-tests.js",
+    "scripts/stage-seo-2f-first-byte-book-details-tests.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
