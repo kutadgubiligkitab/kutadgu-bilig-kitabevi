@@ -393,7 +393,7 @@
     font-size: 10.5px !important;
   }
 
-  .home-bookstore-hero h1 {
+  .home-hero-campaign-title {
     margin: 0 0 3px !important;
     font-size: clamp(25px, 8vw, 31px) !important;
     line-height: 1.4 !important;

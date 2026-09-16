@@ -36,7 +36,6 @@
   letter-spacing:0.02em;
 }
 
-.home-bookstore-hero h1,
 .home-hero-campaign-title{
   margin:0 0 var(--space-3,12px);
   color:var(--site-text,var(--text));

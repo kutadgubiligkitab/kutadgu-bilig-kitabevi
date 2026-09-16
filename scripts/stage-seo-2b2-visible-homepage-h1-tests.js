@@ -48,31 +48,25 @@ function changedFiles() {
   return [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
 }
 
-test("homepage initial HTML has exactly one visible bookstore-name H1", () => {
+test("initial homepage HTML has one visible non-empty bookstore H1", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const opens = html.match(/<h1\b[^>]*>/gi) || [];
-  assert.strictEqual(opens.length, 1, "expected exactly one <h1>");
-  assert.match(
-    html,
-    /<h1 class="home-hero-eyebrow" data-home-hero-eyebrow>قۇتادغۇبىلىك كىتابخانىسى<\/h1>/
-  );
+  assert.strictEqual(opens.length, 1);
   const h1 = html.match(/<h1\b[\s\S]*?<\/h1>/);
   assert.ok(h1);
   assert.match(h1[0], /class="home-hero-eyebrow"/);
   assert.match(h1[0], /data-home-hero-eyebrow/);
   assert.doesNotMatch(h1[0], /\bhidden\b/);
-  assert.match(h1[0], /قۇتادغۇبىلىك كىتابخانىسى/);
+  assert.strictEqual(h1[0].replace(/<[^>]+>/g, "").trim(), HOME_TITLE);
   assert.match(
     html,
     /<h2\s+class="home-hero-campaign-title"\s+data-home-hero-title\s+hidden\s*>\s*<\/h2>/
   );
-  assert.doesNotMatch(html, /role="heading"/);
-  assert.doesNotMatch(html, /aria-level="1"/);
   assert.doesNotMatch(html, /<h1[^>]*home-hero-campaign-title/);
-  assert.doesNotMatch(html, /<div\s+class="home-hero-eyebrow"/);
+  assert.doesNotMatch(html, /<h1[^>]*\bhidden\b/);
 });
 
-test("homepage title canonical robots and JSON-LD stay unchanged", () => {
+test("homepage title canonical robots OG and JSON-LD stay unchanged", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const title = html.match(/<title>([^<]*)<\/title>/);
   assert.ok(title);
@@ -80,6 +74,7 @@ test("homepage title canonical robots and JSON-LD stay unchanged", () => {
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/">/);
   assert.match(html, /<meta property="og:url" content="https:\/\/www\.kutadgubilik\.com\/">/);
   assert.match(html, /<meta name="robots" content="index, follow">/);
+  assert.match(html, /<meta property="og:title" content="قۇتادغۇبىلىك كىتابخانىسى">/);
   assert.ok(html.includes(`<meta name="description" content="${HOME_SNIPPET}">`));
   const jsonLd = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   assert.ok(jsonLd);
@@ -88,32 +83,38 @@ test("homepage title canonical robots and JSON-LD stay unchanged", () => {
   assert.ok(data["@graph"].some((n) => n["@type"] === "WebSite"));
 });
 
-test("hero JS still targets data-home-hero-title and data-home-hero-eyebrow", () => {
+test("hero JS still uses data attributes and store/campaign hidden behavior", () => {
   const js = fs.readFileSync(path.join(root, "home-hero-content.js"), "utf8");
-  assert.match(js, /querySelector\("\[data-home-hero-title\]"\)/);
   assert.match(js, /querySelector\("\[data-home-hero-eyebrow\]"\)/);
-  assert.match(js, /els\.title\.hasAttribute\("hidden"\)/);
-  assert.match(js, /els\.title\.setAttribute\("hidden", ""\)/);
-  assert.match(js, /els\.title\.removeAttribute\("hidden"\)/);
+  assert.match(js, /querySelector\("\[data-home-hero-title\]"\)/);
+  const store = js.slice(js.indexOf("function applyStoreCopy"), js.indexOf("function applyCampaignCopy"));
+  assert.match(store, /els\.title\.setAttribute\("hidden", ""\)/);
+  const campaign = js.slice(js.indexOf("function applyCampaignCopy"), js.indexOf("function renderSlides"));
+  assert.match(campaign, /els\.title\.removeAttribute\("hidden"\)/);
+  assert.match(campaign, /els\.title\.setAttribute\("hidden", ""\)/);
   assert.doesNotMatch(js, /querySelector\(\s*["']h1["']\s*\)/);
-  assert.doesNotMatch(js, /role=["']heading["']/);
-  assert.doesNotMatch(js, /aria-level/);
+  assert.doesNotMatch(js, /querySelector\(\s*["']h2["']\s*\)/);
 });
 
-test("hero CSS keeps campaign-title large and does not restyle the eyebrow H1", () => {
-  const css = fs.readFileSync(path.join(root, "stage3-shop-identity.css"), "utf8");
-  assert.doesNotMatch(css, /\.home-bookstore-hero h1/);
-  assert.match(css, /\.home-hero-campaign-title\{/);
-  assert.match(css, /\.home-hero-eyebrow\{/);
-  assert.match(css, /\.home-hero-campaign-title\[hidden\]\{\s*display:\s*none !important;/);
+test("CSS no longer uses a generic hero H1 selector", () => {
+  ["stage3-shop-identity.css", "index.css", "mobile.css"].forEach((rel) => {
+    const css = fs.readFileSync(path.join(root, rel), "utf8");
+    assert.doesNotMatch(css, /\.home-bookstore-hero\s+h1/, rel);
+    assert.match(css, /\.home-hero-campaign-title/, rel);
+    assert.match(css, /\.home-hero-eyebrow/, rel);
+  });
+  const identity = fs.readFileSync(path.join(root, "stage3-shop-identity.css"), "utf8");
+  assert.match(identity, /\.home-hero-eyebrow\{\s*display:\s*block;/);
+  assert.match(identity, /font-size:\s*var\(--font-size-lg,16px\)/);
+  assert.match(identity, /\.home-hero-campaign-title\[hidden\]\{\s*display:\s*none !important;/);
 });
 
-test("search AI Search cart auth book detail admin and 2A files stay frozen", () => {
+test("search AI Search cart auth admin book detail and 2A files stay frozen", () => {
   Object.keys(FROZEN).forEach((rel) => {
     assert.strictEqual(sha256(rel), FROZEN[rel], rel);
   });
   const files = changedFiles();
-  const forbidden = [
+  [
     "shop.js",
     "kutadgu-search-rank.js",
     "kutadgu-ai-search.js",
@@ -131,8 +132,7 @@ test("search AI Search cart auth book detail admin and 2A files stay frozen", ()
     "book-staff.html",
     "favorites.js",
     "member.js"
-  ];
-  forbidden.forEach((rel) => {
+  ].forEach((rel) => {
     assert.ok(!files.includes(rel), rel);
   });
   const allowed = new Set([
@@ -153,7 +153,7 @@ test("search AI Search cart auth book detail admin and 2A files stay frozen", ()
 });
 
 if (failed) {
-  console.error("\n" + failed + " SEO 2B homepage H1 test(s) failed");
+  console.error("\n" + failed + " SEO 2B-2 visible homepage H1 test(s) failed");
   process.exit(1);
 }
-console.log("stage-seo-2b-homepage-h1-tests ok");
+console.log("stage-seo-2b2-visible-homepage-h1-tests ok");

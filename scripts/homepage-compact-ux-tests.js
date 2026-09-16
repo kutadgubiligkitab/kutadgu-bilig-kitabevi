@@ -52,14 +52,14 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; real shop hero photos replace the CSS scene", () => {
-  assert.match(html, /index\.css\?v=20/);
+  assert.match(html, /index\.css\?v=21/);
   assert.match(html, /shop\.css\?v=54/);
-  assert.match(html, /mobile\.css\?v=24/);
+  assert.match(html, /mobile\.css\?v=25/);
   assert.match(html, /shop\.js\?v=128/);
   assert.match(html, /kutadgu-search-rank\.js\?v=1/);
   assert.match(html, /mobile\.js\?v=9/);
   assert.match(html, /public-header\.js\?v=2/);
-  assert.match(html, /stage3-shop-identity\.css\?v=5/);
+  assert.match(html, /stage3-shop-identity\.css\?v=6/);
   assert.match(html, /home-hero-slideshow\.js\?v=2/);
   assert.match(html, /assets\/store\/shop-interior-main\.webp/);
   assert.match(html, /assets\/store\/shop-interior-library\.webp/);
