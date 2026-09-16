@@ -116,6 +116,10 @@ test.describe("book clean URLs", () => {
     expect(bookNode.url).toBe(canonical);
     expect(String(bookNode.name || "").trim().length).toBeGreaterThan(0);
     expect(bookNode.inLanguage).toBeUndefined();
+    const detailH1 = html.match(/<div class="book-detail-info">\s*<h1>([\s\S]*?)<\/h1>/);
+    expect(detailH1).toBeTruthy();
+    expect(String(detailH1[1] || "").trim().length).toBeGreaterThan(0);
+    expect(detailH1[1]).not.toBe("كىتاب");
   });
 
   test("C invalid /book/not-a-number stays safe and noindex", async ({ page, request, baseURL }) => {

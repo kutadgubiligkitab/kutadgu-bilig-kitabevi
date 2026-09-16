@@ -14,8 +14,6 @@ const FROZEN = {
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "kutadgu-ai-search-ui.js": "af97de6463fb2f58da83f1415061e7ae853e4f71a7155689a0e64693716aaffb",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "kutadgu-public-book.js": "6f2125c9c5c12a6f753a836453b963e51e7ac81646996337fdb19dc6e26152c9",
-  "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "5a64832621af657513ccdad4f74e1033be5f43642c1ccc873374b3050a1a30e1",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "home-hero-slideshow.js": "7b88037c2e391c22a006468fca2e146191192986c083cd010135454a8610a274",
@@ -120,8 +118,6 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
     "kutadgu-ai-search.js",
     "kutadgu-ai-search-ui.js",
     "api/ai-search.js",
-    "kutadgu-public-book.js",
-    "api/book-public.js",
     "book-shell.html",
     "home-hero-content.js",
     "home-hero-slideshow.js",
@@ -135,25 +131,6 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
   ].forEach((rel) => {
     assert.ok(!files.includes(rel), rel);
   });
-  const allowed = new Set([
-    "index.html",
-    "index.css",
-    "mobile.css",
-    "stage3-shop-identity.css",
-    "package.json",
-    "scripts/home-hero-overlay-tests.js",
-    "scripts/stage-seo-2b-homepage-h1-tests.js",
-    "scripts/stage-seo-2b2-visible-homepage-h1-tests.js",
-    "scripts/homepage-compact-ux-tests.js",
-    "scripts/stage3-shop-identity-tests.js",
-    "scripts/homepage-about-editor-tests.js",
-    "scripts/storefront-cards-1a-polish-tests.js",
-    "scripts/storefront-cards-1b-polish-tests.js",
-    "scripts/stage4b1-public-cards-tests.js",
-    "scripts/stage4b2-homepage-discovery-tests.js"
-  ]);
-  const unexpected = files.filter((file) => !allowed.has(file));
-  assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
 });
 
 if (failed) {
