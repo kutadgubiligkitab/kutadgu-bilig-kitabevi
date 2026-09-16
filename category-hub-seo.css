@@ -1,0 +1,70 @@
+/* Stage 2H — first-byte category intro and visible hub navigation. */
+.category-hub-intro{
+  max-width:40rem;
+  margin:8px auto 10px;
+  padding:0 12px;
+  color:#44352d;
+  font-size:15px;
+  line-height:1.85;
+  text-align:center;
+}
+.category-hub-nav{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+  max-width:44rem;
+  margin:0 auto 6px;
+  padding:0 12px 4px;
+}
+.category-hub-nav a{
+  display:inline-block;
+  padding:5px 12px;
+  border:1px solid #e8dccb;
+  border-radius:999px;
+  background:#fffdf9;
+  color:#4b3327;
+  font-size:13px;
+  line-height:1.5;
+}
+.category-hub-nav a[aria-current="page"]{
+  background:#4b3327;
+  color:#fffdf9;
+  border-color:#4b3327;
+}
+.adabiyat-hub-page .category-hub-intro{
+  max-width:none;
+  margin:8px 0 10px;
+  padding:0;
+  text-align:right;
+  font-size:14px;
+}
+.adabiyat-hub-page .category-hub-nav{
+  justify-content:flex-start;
+  max-width:none;
+  margin:0 0 4px;
+  padding:0;
+}
+@media (max-width:640px){
+  .category-hub-intro{
+    font-size:14px;
+    margin-bottom:8px;
+  }
+  .category-hub-nav a{
+    font-size:12px;
+    padding:5px 10px;
+  }
+}
+body.dark-mode .category-hub-intro{
+  color:var(--site-text,#f3ece3);
+}
+body.dark-mode .category-hub-nav a{
+  background:var(--site-card,#2a211c);
+  border-color:var(--site-border,#4a3b33);
+  color:var(--site-text,#f3ece3);
+}
+body.dark-mode .category-hub-nav a[aria-current="page"]{
+  background:#e2c98d;
+  color:#4b3327;
+  border-color:#e2c98d;
+}
