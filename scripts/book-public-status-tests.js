@@ -70,12 +70,17 @@ async function run() {
     assert.ok(fs.existsSync(path.join(root, "book-shell.html")));
   });
 
-  await test("existence lookup uses anon public select=id and is_active=eq.true", () => {
+  await test("existence lookup uses anon public SEO columns and is_active=eq.true", () => {
     const url = publicBook.publicBookLookupUrl("106");
     assert.ok(url.includes("/rest/v1/books?"));
-    assert.ok(url.includes("select=id"));
+    assert.ok(url.includes("select=" + publicBook.PUBLIC_SEO_SELECT));
     assert.ok(url.includes("id=eq.106"));
     assert.ok(url.includes("is_active=eq.true"));
+    assert.ok(url.includes("title"));
+    assert.ok(url.includes("image_url"));
+    assert.ok(url.includes("publish_year"));
+    assert.ok(!url.includes("language"));
+    assert.ok(!url.includes("publish_date"));
     assert.ok(!/service_role/i.test(url));
     assert.ok(!/select=\*/.test(url));
     const src = fs.readFileSync(path.join(root, "kutadgu-public-book.js"), "utf8")

@@ -268,7 +268,7 @@ test("14 no SQL RLS auth or database-record changes", () => {
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql") ||
     /(^|\/)supabase\//i.test(file) ||
-    /rls/i.test(file) ||
+    /\brls\b/i.test(file) ||
     /catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));

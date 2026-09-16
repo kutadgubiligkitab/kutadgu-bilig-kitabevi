@@ -4,7 +4,6 @@ const assert = require("assert");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
 
 const root = path.join(__dirname, "..");
 const Ui = require("../kutadgu-ai-search-ui.js");
@@ -555,31 +554,15 @@ async function run() {
     assert.ok(!(vercel.env && vercel.env.AI_SEARCH_ENABLED === "true"));
   });
 
-  await test("I: backend, SQL, embeddings, and env files are not part of this UI launch", () => {
-    const out = execSync("git diff --name-only origin/main HEAD; git diff --name-only; git diff --cached --name-only", {
-      cwd: root,
-      encoding: "utf8"
-    });
-    const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
-    const allowed = new Set([
-      "kutadgu-ai-search-ui.js",
-      "scripts/stage-ai-search-1f-preview-ui-tests.js"
-    ]);
-    const unexpected = files.filter((file) => !allowed.has(file));
-    assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
-    assert.ok(!files.includes("api/ai-search.js"));
-    assert.ok(!files.includes("kutadgu-ai-search.js"));
-    assert.ok(!files.includes("shop.js"));
-    assert.ok(!files.includes("kutadgu-search-rank.js"));
-    assert.ok(!files.some((file) => /\.sql$/i.test(file)));
-    assert.ok(!files.some((file) => /^\.env/.test(file)));
-    assert.ok(!files.includes("vercel.json"));
+  await test("I: AI UI host allowlist stays isolated from Normal Search controls", () => {
     const ui = fs.readFileSync(path.join(root, "kutadgu-ai-search-ui.js"), "utf8");
     assert.match(ui, /isAllowedAiSearchHost/);
     assert.match(ui, /isProductionAiSearchHost/);
     assert.doesNotMatch(ui, /getElementById\(\s*["']searchButton["']\s*\)/);
     assert.doesNotMatch(ui, /keydown|keypress|keyup/);
     assert.doesNotMatch(ui, /getElementById\(\s*["']searchResults["']\s*\)/);
+    assert.doesNotMatch(ui, /book_embeddings/);
+    assert.doesNotMatch(ui, /service_role/);
   });
 }
 

@@ -1,7 +1,9 @@
 "use strict";
 
 const visibility = require("./catalog-visibility.js");
-const { bookCanonicalUrl } = require("./kutadgu-book-seo.js");
+const seo = require("./kutadgu-book-seo.js");
+const safeUrl = require("./kutadgu-safe-url.js");
+const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
@@ -26,9 +28,72 @@ function parseNumericBookId(req) {
   return pathMatch ? pathMatch[1] : "";
 }
 
+const PUBLIC_SEO_SELECT = [
+  "id",
+  "title",
+  "author",
+  "description",
+  "image_url",
+  "category",
+  "publisher",
+  "isbn",
+  "price",
+  "stock",
+  "source",
+  "publish_year"
+].join(",");
+
 function publicBookLookupUrl(id) {
   const canonical = String(id == null ? "" : id).trim();
-  return `${SUPABASE_URL}/rest/v1/books?select=id&id=eq.${encodeURIComponent(canonical)}&is_active=eq.true`;
+  return `${SUPABASE_URL}/rest/v1/books?select=${PUBLIC_SEO_SELECT}&id=eq.${encodeURIComponent(canonical)}&is_active=eq.true`;
+}
+
+function publicSeoBook(row, id) {
+  const canonical = String(id == null ? "" : id).trim();
+  if (!row || String(row.id) !== canonical) return null;
+  const priceNum = row.price == null || row.price === "" ? NaN : Number(row.price);
+  const stockNum = row.stock == null || row.stock === "" ? NaN : Number(row.stock);
+  return {
+    id: canonical,
+    title: String(row.title == null ? "" : row.title).trim(),
+    author: String(row.author == null ? "" : row.author).trim(),
+    description: String(row.description == null ? "" : row.description).trim(),
+    image: String(row.image_url == null ? "" : row.image_url).trim(),
+    image_url: String(row.image_url == null ? "" : row.image_url).trim(),
+    category: String(row.category == null ? "" : row.category).trim(),
+    publisher: String(row.publisher == null ? "" : row.publisher).trim(),
+    isbn: String(row.isbn == null ? "" : row.isbn).trim(),
+    price: Number.isFinite(priceNum) ? priceNum : null,
+    stock: Number.isFinite(stockNum) ? stockNum : null,
+    source: String(row.source == null ? "" : row.source).trim(),
+    publishYear: String(row.publish_year == null ? "" : row.publish_year).trim()
+  };
+}
+
+function seoStockKey(book) {
+  const text = book && book.stock != null && book.stock !== "" ? String(book.stock).trim() : "";
+  if (!/^(0|[1-9]\d*)$/.test(text)) return "";
+  const qty = Number(text);
+  if (qty <= 0) return "out";
+  if (qty <= 3) return "low";
+  return "in";
+}
+
+function publicCoverAbsoluteUrl(book) {
+  const raw = String((book && (book.image || book.image_url)) || "").trim();
+  if (!raw) return "";
+  if (!safeUrl.isSafeCoverUrl(raw)) return "";
+  return seo.absoluteUrl(raw) || "";
+}
+
+function escapeAttr(value) {
+  return safeUrl.escapeAttr(value);
+}
+
+function bookDocumentTitle(book) {
+  const title = String((book && book.title) || "").trim();
+  if (!title) return "";
+  return `${title} - قۇتادغۇبىلىك كىتابخانىسى`;
 }
 
 async function lookupPublicNumericBook(id, options) {
@@ -58,8 +123,10 @@ async function lookupPublicNumericBook(id, options) {
       return { outcome: "error", reason: "bad-json" };
     }
     if (!Array.isArray(rows)) return { outcome: "error", reason: "bad-json" };
-    const found = rows.some((row) => String(row && row.id) === canonical);
-    return found ? { outcome: "found" } : { outcome: "missing" };
+    const row = rows.find((item) => String(item && item.id) === canonical);
+    if (!row) return { outcome: "missing" };
+    const book = publicSeoBook(row, canonical);
+    return book ? { outcome: "found", book } : { outcome: "missing" };
   } catch (err) {
     const name = err && err.name;
     return { outcome: "error", reason: name === "AbortError" ? "timeout" : "network" };
@@ -89,18 +156,98 @@ function keepFirstTag(html, findRe) {
   });
 }
 
+function upsertNamedMeta(html, attrName, attrValue, tag) {
+  const findRe = new RegExp(
+    `<meta\\s+[^>]*${attrName}=["']${attrValue}["'][^>]*>`,
+    "i"
+  );
+  return upsertFirstTag(html, findRe, tag);
+}
+
+function safeJsonLd(payload) {
+  return JSON.stringify(payload).replace(/</g, "\\u003c");
+}
+
+function applyBookSpecificSeo(html, book, canonicalHref) {
+  const title = String(book.title || "").trim();
+  if (!title) return html;
+  const documentTitle = bookDocumentTitle(book);
+  const description = seo.metaDescription(book);
+  const authorName = seo.storefrontAuthor(book);
+  const image = publicCoverAbsoluteUrl(book);
+  const jsonLd = seo.buildBookJsonLd(book, {
+    canonical: canonicalHref,
+    authorName,
+    image,
+    visible: true,
+    stockKey: seoStockKey(book)
+  });
+
+  let out = html;
+  out = upsertFirstTag(out, /<title>[\s\S]*?<\/title>/i, `<title>${escapeAttr(documentTitle)}</title>`);
+  if (description) {
+    out = upsertNamedMeta(out, "name", "description", `<meta name="description" content="${escapeAttr(description)}">`);
+  }
+  out = upsertNamedMeta(out, "property", "og:locale", '<meta property="og:locale" content="ug">');
+  out = upsertNamedMeta(out, "property", "og:title", `<meta property="og:title" content="${escapeAttr(title)}">`);
+  if (description) {
+    out = upsertNamedMeta(out, "property", "og:description", `<meta property="og:description" content="${escapeAttr(description)}">`);
+  }
+  out = upsertNamedMeta(out, "property", "og:url", `<meta property="og:url" content="${escapeAttr(canonicalHref)}">`);
+  if (image) {
+    out = upsertNamedMeta(out, "property", "og:image", `<meta property="og:image" content="${escapeAttr(image)}">`);
+    out = upsertNamedMeta(
+      out,
+      "property",
+      "og:image:alt",
+      `<meta property="og:image:alt" content="${escapeAttr(`${title} كىتاب مۇقاۋىسى`)}">`
+    );
+  }
+  out = upsertNamedMeta(
+    out,
+    "name",
+    "twitter:card",
+    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}">`
+  );
+  out = upsertNamedMeta(out, "name", "twitter:title", `<meta name="twitter:title" content="${escapeAttr(title)}">`);
+  if (description) {
+    out = upsertNamedMeta(out, "name", "twitter:description", `<meta name="twitter:description" content="${escapeAttr(description)}">`);
+  }
+  if (image) {
+    out = upsertNamedMeta(out, "name", "twitter:image", `<meta name="twitter:image" content="${escapeAttr(image)}">`);
+  }
+
+  const schemaTag = `<script id="kutadguBookSchema" type="application/ld+json">${safeJsonLd(jsonLd)}</script>`;
+  if (/<script\s+id=["']kutadguBookSchema["'][\s\S]*?<\/script>/i.test(out)) {
+    out = out.replace(/<script\s+id=["']kutadguBookSchema["'][\s\S]*?<\/script>/i, schemaTag);
+  } else {
+    out = injectBeforeHeadClose(out, schemaTag);
+  }
+
+  out = keepFirstTag(out, /<title>[\s\S]*?<\/title>/gi);
+  out = keepFirstTag(out, /<meta\s+name=["']description["'][^>]*>/gi);
+  out = keepFirstTag(out, /<meta\s+property=["']og:title["'][^>]*>/gi);
+  out = keepFirstTag(out, /<meta\s+property=["']og:description["'][^>]*>/gi);
+  out = keepFirstTag(out, /<meta\s+property=["']og:url["'][^>]*>/gi);
+  out = keepFirstTag(out, /<script\s+id=["']kutadguBookSchema["'][\s\S]*?<\/script>/gi);
+  return out;
+}
+
 /* First-byte head for FOUND public numeric books. Fail-closed: invalid ids leave HTML unchanged. */
-function applyFoundPublicBookHead(html, id) {
+function applyFoundPublicBookHead(html, id, book) {
   const canonical = String(id == null ? "" : id).trim();
   if (!isCanonicalBookId(canonical)) return String(html || "");
   const href = bookCanonicalUrl(canonical);
   let out = String(html || "");
   const robotsMeta = '<meta name="robots" content="index, follow">';
-  const canonicalLink = `<link rel="canonical" href="${href}">`;
+  const canonicalLink = `<link rel="canonical" href="${escapeAttr(href)}">`;
   out = upsertFirstTag(out, /<meta\s+name=["']robots["'][^>]*>/i, robotsMeta);
   out = upsertFirstTag(out, /<link\s+rel=["']canonical["'][^>]*>/i, canonicalLink);
   out = keepFirstTag(out, /<meta\s+name=["']robots["'][^>]*>/gi);
   out = keepFirstTag(out, /<link\s+rel=["']canonical["'][^>]*>/gi);
+  if (book && String(book.id) === canonical) {
+    out = applyBookSpecificSeo(out, book, href);
+  }
   return out;
 }
 
@@ -157,6 +304,8 @@ module.exports = {
   publicBookLookupUrl,
   lookupPublicNumericBook,
   applyFoundPublicBookHead,
+  publicSeoBook,
+  PUBLIC_SEO_SELECT,
   missingBookHtml,
   lookupFailureHtml
 };
