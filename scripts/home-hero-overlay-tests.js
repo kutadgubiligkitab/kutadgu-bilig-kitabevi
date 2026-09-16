@@ -37,14 +37,16 @@ test("hard-coded fallback identity is still in index.html", () => {
   assert.match(html, /fetchpriority="high"/);
   assert.match(html, /data-home-hero-eyebrow/);
   assert.match(html, /data-home-hero-title/);
-  assert.match(html, /role="heading"/);
-  assert.match(html, /aria-level="1"/);
+  assert.doesNotMatch(html, /role="heading"/);
+  assert.doesNotMatch(html, /aria-level="1"/);
   assert.match(html, /home-hero-slideshow\.js\?v=2/);
   assert.match(html, /home-hero-content\.js\?v=1/);
   const slideAt = html.indexOf("home-hero-slideshow.js");
   const contentAt = html.indexOf("home-hero-content.js");
   assert.ok(slideAt >= 0 && contentAt > slideAt);
-  assert.doesNotMatch(html, /<h1[\s>]/);
+  const h1s = html.match(/<h1\b[^>]*>/gi) || [];
+  assert.strictEqual(h1s.length, 1);
+  assert.match(html, /<h1\s+class="home-hero-campaign-title"\s+data-home-hero-title\s+hidden\s*>\s*<\/h1>/);
 });
 
 test("slideshow keeps 7000 default and exposes a safe refresh API", () => {
