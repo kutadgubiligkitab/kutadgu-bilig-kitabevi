@@ -93,11 +93,14 @@ function catalogAttrs(html) {
 }
 
 const HUBS = [...sitemap.CATEGORY_HUB_SLUGS];
+const PUBLIC_LISTINGS = ["books"];
 const pages = Object.fromEntries(HUBS.map((slug) => [slug, read(`${slug}.html`)]));
 const baseline = Object.fromEntries(HUBS.map((slug) => [slug, gitShow(`${slug}.html`)]));
+const listingPages = Object.fromEntries(PUBLIC_LISTINGS.map((slug) => [slug, read(`${slug}.html`)]));
+const listingBaseline = Object.fromEntries(PUBLIC_LISTINGS.map((slug) => [slug, gitShow(`${slug}.html`)]));
 const css = read("category-hub-seo.css");
 
-test("trusted public hubs match sitemap and SEO helper", () => {
+test("trusted public hubs match sitemap and SEO helper, and /books is a separate public listing", () => {
   assert.deepStrictEqual([...seo.CATEGORY_HUB_SLUGS], HUBS);
   assert.deepStrictEqual(HUBS, [
     "adabiyat",
@@ -118,7 +121,9 @@ test("trusted public hubs match sitemap and SEO helper", () => {
     "dictionary",
     "grammar"
   ]);
-  assert.ok(!HUBS.includes("books"));
+  assert.ok(!HUBS.includes("books"), "books stays a global listing, not a category hub slug");
+  assert.ok(sitemap.PUBLIC_PAGE_PATHS.includes("/books"));
+  assert.ok(fs.existsSync(path.join(root, "books.html")));
 });
 
 HUBS.forEach((slug) => {
@@ -179,10 +184,55 @@ HUBS.forEach((slug) => {
   });
 });
 
+test("/books public global listing gets first-byte favicon and intro without becoming a category hub", () => {
+  const html = listingPages.books;
+  const old = listingBaseline.books;
+  assert.match(html, /lang="ug"/);
+  assert.match(html, /dir="rtl"/);
+  assert.strictEqual(count(html, /<h1\b/gi), 1);
+  assert.strictEqual(count(html, /rel=["']canonical["']/gi), 1);
+  assert.strictEqual(
+    attr(html, /<link rel="canonical" href="([^"]+)"/),
+    "https://www.kutadgubilik.com/books"
+  );
+  assert.match(html, /<meta name="robots" content="index, follow"/);
+  assert.strictEqual(count(html, /rel=["']icon["']/gi), 1);
+  assert.ok(html.includes(ICON), "exact favicon tag");
+  assert.strictEqual(attr(html, /<title>([\s\S]*?)<\/title>/), attr(old, /<title>([\s\S]*?)<\/title>/));
+  assert.strictEqual(
+    attr(html, /<meta name="description" content="([^"]*)"/),
+    attr(old, /<meta name="description" content="([^"]*)"/)
+  );
+  assert.strictEqual(jsonLd(html), jsonLd(old));
+  assert.match(html, /"@type":"CollectionPage"/);
+  assert.strictEqual(count(html, /class="category-hub-intro"/g), 1);
+  assert.strictEqual(count(html, /class="category-hub-nav"/g), 0);
+  const intro = introText(html);
+  assert.ok(intro.length >= 24, "intro too thin");
+  assert.match(intro, /بارلىق كىتابلار/);
+  assert.match(intro, /WhatsApp/);
+  assert.doesNotMatch(intro, FAKE_CLAIM);
+  assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
+  assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
+  assert.match(html, /shop\.js\?v=128/);
+  assert.match(html, /class="books-grid" data-catalog-source=""/);
+  assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
+  assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
+  assert.ok(!attr(html, /data-catalog-sources="([^"]*)"/));
+  assert.match(html, /href="\/"/);
+  assert.match(html, /href="\/books"/);
+  const grid = html.slice(html.indexOf('class="books-grid"'), html.indexOf("</section>", html.indexOf('class="books-grid"')));
+  assert.match(grid, /book-card is-skeleton/);
+  assert.doesNotMatch(grid, /<img\b/i);
+});
+
 test("visible intros are page-specific and not duplicated", () => {
-  const texts = HUBS.map((slug) => introText(pages[slug]));
+  const texts = [
+    ...HUBS.map((slug) => introText(pages[slug])),
+    ...PUBLIC_LISTINGS.map((slug) => introText(listingPages[slug]))
+  ];
   const unique = new Set(texts);
-  assert.strictEqual(unique.size, HUBS.length, "duplicate category intros");
+  assert.strictEqual(unique.size, HUBS.length + PUBLIC_LISTINGS.length, "duplicate listing intros");
 });
 
 test("/adabiyat first-byte nav lists literature children", () => {
@@ -266,6 +316,7 @@ test("protected product files stay frozen and out of this diff", () => {
   });
   const allowed = new Set([
     ...HUBS.map((slug) => `${slug}.html`),
+    ...PUBLIC_LISTINGS.map((slug) => `${slug}.html`),
     "category-hub-seo.css",
     "scripts/stage-seo-2h-category-listing-seo-tests.js",
     "package.json"
