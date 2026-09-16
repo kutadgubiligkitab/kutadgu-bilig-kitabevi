@@ -322,13 +322,16 @@ test("protected product files stay frozen and out of this diff", () => {
     "ai-search-ui.css",
     "scripts/stage-ai-search-1f-preview-ui-tests.js",
     "scripts/stage-ai-search-conflicting-empty-state-tests.js",
-    "tests/e2e/ai-search-conflicting-empty-state.spec.js"
+    "tests/e2e/ai-search-conflicting-empty-state.spec.js",
+    "scripts/stage-seo-2a-server-rendered-book-seo-tests.js",
+    "scripts/stage-seo-2b-homepage-h1-tests.js",
+    "scripts/stage-seo-2b2-visible-homepage-h1-tests.js",
+    "scripts/stage-seo-2c-book-first-byte-content-tests.js",
+    "scripts/stage-seo-2d-favicon-tests.js",
+    "scripts/stage-seo-2e-book-meta-descriptions-tests.js",
+    "scripts/stage-seo-2f-first-byte-book-details-tests.js"
   ]);
-  const unexpected = files.filter((file) =>
-    !allowed.has(file)
-    && !file.startsWith(".vercel/")
-    && !file.startsWith("scripts/stage-seo-2")
-  );
+  const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
 });
 
