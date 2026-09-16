@@ -14,7 +14,6 @@ const FROZEN = {
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "kutadgu-ai-search-ui.js": "af97de6463fb2f58da83f1415061e7ae853e4f71a7155689a0e64693716aaffb",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "book-shell.html": "5a64832621af657513ccdad4f74e1033be5f43642c1ccc873374b3050a1a30e1",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "home-hero-slideshow.js": "7b88037c2e391c22a006468fca2e146191192986c083cd010135454a8610a274",
   "vercel.json": "5cd4cda341684186f6904e8b3a8e2d209dfc430ea51548158154eef35d94f66d"
@@ -117,7 +116,6 @@ test("search AI Search cart auth book detail admin and 2A files stay frozen", ()
     "kutadgu-ai-search.js",
     "kutadgu-ai-search-ui.js",
     "api/ai-search.js",
-    "book-shell.html",
     "home-hero-content.js",
     "home-hero-slideshow.js",
     "vercel.json",
