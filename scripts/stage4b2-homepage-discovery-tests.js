@@ -180,9 +180,20 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     (/\.sql$/i.test(file) && !["SITE_HOMEPAGE_ABOUT.sql","SITE_ANNOUNCEMENT_BAR.sql","SITE_HERO_MANAGEMENT.sql","STAGE9_ANALYTICS_INSERT_RLS.sql","STAGE4_ANALYTICS_RPC_FIX.sql","STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql","STAGE2C_AAL2_ADMIN_SELECT_RLS.sql","STAGE8_STORE_ANALYTICS.sql","STAGE46_ANALYTICS_LEGACY_ID.sql","STAGE91_ADMIN_IMPORT_SCALE.sql","STAGE92_BOOK_STAFF_SECURITY.sql","STAGE93_BOOK_STAFF_GALLERY.sql","STAGE94_PENDING_BOOK_EDIT.sql","SITE_SHOP_HOURS.sql","SUPABASE_SETUP.sql","DATABASE_UPGRADE_V10.sql","STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql","STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|mobile\.css|theme\.css|index\.css|shop\.css|stage4b-public-cards\.css/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|theme\.css|shop\.css|stage4b-public-cards\.css/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  ["index.css", "mobile.css"].forEach((rel) => {
+    if (!files.includes(rel)) return;
+    const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) =>
+      (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
+    );
+    assert.ok(lines.length, rel);
+    lines.forEach((line) => {
+      assert.match(line, /^[+-]\s*\.home-(bookstore-hero h1|hero-campaign-title)\s*\{?\s*$/, rel + " " + line);
+    });
+  });
 });
 
 if (failed) {

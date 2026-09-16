@@ -146,7 +146,9 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
     "scripts/stage-seo-2b2-visible-homepage-h1-tests.js",
     "scripts/homepage-compact-ux-tests.js",
     "scripts/stage3-shop-identity-tests.js",
-    "scripts/homepage-about-editor-tests.js"
+    "scripts/homepage-about-editor-tests.js",
+    "scripts/storefront-cards-1a-polish-tests.js",
+    "scripts/stage4b2-homepage-discovery-tests.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
