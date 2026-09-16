@@ -191,7 +191,6 @@ async function run() {
       "shop.js",
       "kutadgu-search-rank.js",
       "kutadgu-ai-search.js",
-      "kutadgu-ai-search-ui.js",
       "api/ai-search.js",
       "vercel.json"
     ].forEach((rel) => {

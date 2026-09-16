@@ -1,7 +1,8 @@
 /* AI Search 1F — preview-only homepage UI. Isolated from Normal Search. */
 
 .ai-search-button[hidden],
-.ai-search-results[hidden]{
+.ai-search-results[hidden],
+#searchResults[hidden]{
   display:none !important;
 }
 

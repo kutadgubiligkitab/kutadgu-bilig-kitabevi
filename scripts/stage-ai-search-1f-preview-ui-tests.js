@@ -316,9 +316,10 @@ async function run() {
 
   await test("AI UI never enables, disables, or restores #searchButton", async () => {
     const uiSrc = fs.readFileSync(path.join(root, "kutadgu-ai-search-ui.js"), "utf8");
-    assert.doesNotMatch(uiSrc, /getElementById\(\s*["']searchButton["']\s*\)/);
     assert.doesNotMatch(uiSrc, /normalBtn/);
     assert.doesNotMatch(uiSrc, /searchButton\.disabled/);
+    assert.doesNotMatch(uiSrc, /searchActionBtn\.disabled/);
+    assert.doesNotMatch(uiSrc, /searchResults\.(innerHTML|textContent)\s*=/);
 
     async function runWithInitialDisabled(startDisabled) {
       const dom = createDom();
@@ -396,6 +397,7 @@ async function run() {
     assert.ok(collectHrefs(dom.aiSearchResults).every((href) => href === "/book/12"));
     assert.strictEqual(dom.searchResults.textContent, "NORMAL_KEEP");
     assert.strictEqual(dom.aiSearchResults.hidden, false);
+    assert.strictEqual(dom.searchResults.hidden, true);
   });
 
   await test("Enter key is not hijacked by AI Search", async () => {
@@ -410,12 +412,12 @@ async function run() {
       }
     });
     dom.searchInput.value = "بالىلار";
-    assert.ok(!dom.searchInput._listeners.keydown);
-    assert.ok(!dom.searchInput._listeners.keypress);
-    assert.ok(!dom.searchInput._listeners.keyup);
-    dom.searchInput.emit("keydown", { key: "Enter" });
-    assert.strictEqual(calls, 0);
     assert.ok(dom.searchInput._listeners.input);
+    assert.ok(dom.searchInput._listeners.keydown);
+    const prevent = { called: false };
+    dom.searchInput.emit("keydown", { key: "Enter", preventDefault() { prevent.called = true; } });
+    assert.strictEqual(prevent.called, false);
+    assert.strictEqual(calls, 0);
   });
 
   await test("Normal Search IDs remain unchanged in index.html and shop files stay frozen", () => {
@@ -491,6 +493,7 @@ async function run() {
     assert.match(collectText(disabled.dom.aiSearchResults), /AI ئىزدەش ھازىرچە ئىشلىمەيدۇ/);
     assert.doesNotMatch(collectText(disabled.dom.aiSearchResults), /disabled|503|OpenAI|Supabase/);
     assert.strictEqual(disabled.dom.searchResults.textContent, "NORMAL_KEEP");
+    assert.strictEqual(disabled.dom.searchResults.hidden, true);
     assert.strictEqual(disabled.dom.searchButton.disabled, false);
 
     const malformed = await runCase(async () => ({
@@ -533,6 +536,7 @@ async function run() {
     assert.strictEqual(dom.searchButton.disabled, false);
     assert.strictEqual(dom.aiSearchButton.disabled, false);
     assert.strictEqual(dom.searchResults.textContent, "NORMAL_KEEP");
+    assert.strictEqual(dom.searchResults.hidden, true);
   });
 
   await test("frontend AI UI contains no secrets and does not change production config", () => {
@@ -558,9 +562,11 @@ async function run() {
     const ui = fs.readFileSync(path.join(root, "kutadgu-ai-search-ui.js"), "utf8");
     assert.match(ui, /isAllowedAiSearchHost/);
     assert.match(ui, /isProductionAiSearchHost/);
-    assert.doesNotMatch(ui, /getElementById\(\s*["']searchButton["']\s*\)/);
-    assert.doesNotMatch(ui, /keydown|keypress|keyup/);
-    assert.doesNotMatch(ui, /getElementById\(\s*["']searchResults["']\s*\)/);
+    assert.doesNotMatch(ui, /getElementById\(\s*["']searchButton["']\s*\)[\s\S]{0,80}disabled/);
+    assert.match(ui, /onNormalSearchEnter/);
+    assert.doesNotMatch(ui, /onNormalSearchEnter[\s\S]{0,200}preventDefault/);
+    assert.match(ui, /getElementById\(\s*["']searchResults["']\s*\)/);
+    assert.doesNotMatch(ui, /searchResults\.(innerHTML|textContent)\s*=/);
     assert.doesNotMatch(ui, /book_embeddings/);
     assert.doesNotMatch(ui, /service_role/);
   });

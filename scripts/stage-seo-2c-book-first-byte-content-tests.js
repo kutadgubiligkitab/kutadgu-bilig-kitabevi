@@ -15,7 +15,6 @@ const FROZEN = {
   "shop.js": "3976a603d3057cb7872252048f40b3772ab63cd28216938924ba16a6c9e8a519",
   "kutadgu-search-rank.js": "87f083b9bfd62ce6ea0ce0df6bd796ca21a201a580b5ffb6dc3258326321831b",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
-  "kutadgu-ai-search-ui.js": "af97de6463fb2f58da83f1415061e7ae853e4f71a7155689a0e64693716aaffb",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "5cd4cda341684186f6904e8b3a8e2d209dfc430ea51548158154eef35d94f66d"
@@ -191,7 +190,6 @@ async function run() {
       "shop.js",
       "kutadgu-search-rank.js",
       "kutadgu-ai-search.js",
-      "kutadgu-ai-search-ui.js",
       "api/ai-search.js",
       "vercel.json",
       "home-hero-content.js",
