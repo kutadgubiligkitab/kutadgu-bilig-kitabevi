@@ -90,6 +90,19 @@ function escapeAttr(value) {
   return safeUrl.escapeAttr(value);
 }
 
+function escapeHtml(value) {
+  return safeUrl.escapeHtml(value);
+}
+
+function replaceFirst(html, findRe, replacement) {
+  let seen = false;
+  return String(html || "").replace(findRe, (match) => {
+    if (seen) return match;
+    seen = true;
+    return replacement;
+  });
+}
+
 function bookDocumentTitle(book) {
   const title = String((book && book.title) || "").trim();
   if (!title) return "";
@@ -233,6 +246,53 @@ function applyBookSpecificSeo(html, book, canonicalHref) {
   return out;
 }
 
+function applyBookSpecificBody(html, book) {
+  const title = String((book && book.title) || "").trim();
+  if (!title) return String(html || "");
+  let out = String(html || "");
+  const safeTitle = escapeHtml(title);
+  out = replaceFirst(
+    out,
+    /<div class="book-detail-info">\s*<h1>[\s\S]*?<\/h1>/,
+    `<div class="book-detail-info">\n        <h1>${safeTitle}</h1>`
+  );
+
+  const authorName = seo.storefrontAuthor(book);
+  if (authorName) {
+    out = replaceFirst(
+      out,
+      /<div class="book-author">[\s\S]*?<\/div>/,
+      `<div class="book-author">ئاپتورى: ${escapeHtml(authorName)}</div>`
+    );
+  } else {
+    out = replaceFirst(
+      out,
+      /<div class="book-author">[\s\S]*?<\/div>/,
+      '<div class="book-author" hidden></div>'
+    );
+  }
+
+  const image = publicCoverAbsoluteUrl(book);
+  if (image) {
+    const alt = escapeAttr(`${title} كىتاب مۇقاۋىسى`);
+    out = replaceFirst(
+      out,
+      /<div class="book-cover-box">\s*<img\b[^>]*>\s*<\/div>/,
+      `<div class="book-cover-box"><img src="${escapeAttr(image)}" alt="${alt}"></div>`
+    );
+  }
+
+  const description = String(book.description || "").trim();
+  if (description) {
+    out = replaceFirst(
+      out,
+      /<section class="dynamic-book-description"[^>]*>\s*<h2>كىتاب ھەققىدە<\/h2>\s*<p><\/p>\s*<\/section>/,
+      `<section class="dynamic-book-description">\n          <h2>كىتاب ھەققىدە</h2>\n          <p>${escapeHtml(description)}</p>\n        </section>`
+    );
+  }
+  return out;
+}
+
 /* First-byte head for FOUND public numeric books. Fail-closed: invalid ids leave HTML unchanged. */
 function applyFoundPublicBookHead(html, id, book) {
   const canonical = String(id == null ? "" : id).trim();
@@ -247,6 +307,7 @@ function applyFoundPublicBookHead(html, id, book) {
   out = keepFirstTag(out, /<link\s+rel=["']canonical["'][^>]*>/gi);
   if (book && String(book.id) === canonical) {
     out = applyBookSpecificSeo(out, book, href);
+    out = applyBookSpecificBody(out, book);
   }
   return out;
 }
