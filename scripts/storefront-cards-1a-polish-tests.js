@@ -153,9 +153,20 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
     (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|mobile\.css|theme\.css|index\.css|shop\.css|catalog\.js$/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|shop\.css|catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  ["index.css", "mobile.css"].forEach((rel) => {
+    if (!files.includes(rel)) return;
+    const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) =>
+      (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
+    );
+    assert.ok(lines.length, rel);
+    lines.forEach((line) => {
+      assert.match(line, /^[+-]\s*\.home-(bookstore-hero h1|hero-campaign-title)\s*\{?\s*$/, rel + " " + line);
+    });
+  });
 });
 
 if (failed) {

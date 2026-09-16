@@ -46,7 +46,9 @@ test("hard-coded fallback identity is still in index.html", () => {
   assert.ok(slideAt >= 0 && contentAt > slideAt);
   const h1s = html.match(/<h1\b[^>]*>/gi) || [];
   assert.strictEqual(h1s.length, 1);
-  assert.match(html, /<h1\s+class="home-hero-campaign-title"\s+data-home-hero-title\s+hidden\s*>\s*<\/h1>/);
+  assert.match(html, /<h1 class="home-hero-eyebrow" data-home-hero-eyebrow>قۇتادغۇبىلىك كىتابخانىسى<\/h1>/);
+  assert.match(html, /<h2\s+class="home-hero-campaign-title"\s+data-home-hero-title\s+hidden\s*>\s*<\/h2>/);
+  assert.doesNotMatch(html, /<h1[^>]*\bhidden\b/);
 });
 
 test("slideshow keeps 7000 default and exposes a safe refresh API", () => {
@@ -178,6 +180,7 @@ test("DB text is never assigned with innerHTML", () => {
 test("campaign CSS is scoped and store cover geometry stays cover", () => {
   assert.match(css, /\[data-hero-kind="campaign"\]/);
   assert.match(css, /\.home-hero-campaign-title/);
+  assert.doesNotMatch(css, /\.home-bookstore-hero h1/);
   const campaign = css.slice(css.indexOf('[data-hero-kind="campaign"]'));
   assert.match(campaign, /object-fit:\s*contain/);
   assert.match(css, /\.shop-hero-frame \[data-shop-hero-slide\]\{[\s\S]*object-fit:\s*cover/);

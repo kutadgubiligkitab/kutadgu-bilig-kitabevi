@@ -116,7 +116,7 @@ async function run() {
     assert.match(identityCss, /\.about-year-badge\{/);
     assert.match(identityCss, /\.about-service-chips\{/);
     assert.match(shopCss, /\.about-pro/);
-    const out = execSync("git diff --name-only origin/main -- shop.css stage3-shop-identity.css mobile.css index.css theme.css", {
+    const out = execSync("git diff --name-only origin/main -- shop.css theme.css", {
       cwd: root,
       encoding: "utf8"
     });

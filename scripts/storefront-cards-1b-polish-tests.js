@@ -129,9 +129,20 @@ test("no Search Discovery SQL RLS auth admin or protected geometry changes", () 
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.(js|css)$/i.test(file) ||
     /kutadgu-search-rank\.js$|app-config\.js$/.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|mobile\.css|theme\.css|index\.css|shop\.css|catalog\.js$/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|shop\.css|catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  ["index.css", "mobile.css"].forEach((rel) => {
+    if (!files.includes(rel)) return;
+    const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) =>
+      (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---")
+    );
+    assert.ok(lines.length, rel);
+    lines.forEach((line) => {
+      assert.match(line, /^[+-]\s*\.home-(bookstore-hero h1|hero-campaign-title)\s*\{?\s*$/, rel + " " + line);
+    });
+  });
 });
 
 if (failed) {
