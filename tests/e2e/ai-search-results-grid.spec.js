@@ -151,7 +151,7 @@ test.describe("AI Search results grid and show more", () => {
     await runAiSearch(page);
     await expect(page.locator("#aiSearchResults a.ai-search-title[href='/book/207']")).toBeVisible();
     await expect(page.locator("#aiSearchResults .ai-search-cover img[src*='kutadgu-logo.png']")).toBeVisible();
-    await expect(page.locator("#aiSearchResults .ai-search-cover-placeholder")).toHaveText("مۇقاۋا يوق");
+    await expect(page.locator("#aiSearchResults .ai-search-cover-placeholder:not([hidden])")).toHaveText("مۇقاۋا يوق");
     const html = await page.locator("#aiSearchResults").innerHTML();
     expect(html).not.toMatch(/sample-book-cover\.png/i);
     expect(sampleHits).toEqual([]);
