@@ -12,7 +12,8 @@
   var TIMEOUT_MS = 20000;
   var MIN_QUERY_CHARS = 2;
   var MAX_QUERY_CHARS = 300;
-  var COVER_FALLBACK = "/sample-book-cover.png";
+  var COVER_FALLBACK = "";
+  var COVER_MISSING_LABEL = "مۇقاۋا يوق";
   var FAIL_MESSAGE = "AI ئىزدەش ھازىرچە ئىشلىمەيدۇ. ئادەتتىكى ئىزدەشنى ئىشلىتىپ كۆرۈڭ.";
   var EMPTY_QUERY_MESSAGE = "ئىزدەش سۆزىنى كىرگۈزۈڭ.";
   var NO_RESULTS_MESSAGE = "AI ئىزدەش نەتىجىسى تېپىلمىدى.";
@@ -81,18 +82,60 @@
     return "/book/" + String(num);
   }
 
+  function isSampleDemoCover(src) {
+    return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src == null ? "" : src).trim());
+  }
+
   function safeCoverSrc(raw) {
     var api = root && root.KutadguSafeUrl;
+    var src = "";
     if (api && typeof api.safeCoverUrl === "function") {
-      return api.safeCoverUrl(raw, { fallback: COVER_FALLBACK });
+      src = api.safeCoverUrl(raw, { fallback: "" });
+    } else {
+      var t = String(raw == null ? "" : raw).trim();
+      if (!t) src = "";
+      else if (/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(t)) src = "";
+      else if (/[<>"'\s]/.test(t) || t.indexOf("//") === 0) src = "";
+      else if (/^https?:\/\//i.test(t) || (t.charAt(0) === "/" && t.charAt(1) !== "/")) src = t;
+      else if (/^[a-z][a-z0-9+.-]*:/i.test(t)) src = "";
+      else src = t;
     }
-    var t = String(raw == null ? "" : raw).trim();
-    if (!t) return COVER_FALLBACK;
-    if (/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(t)) return COVER_FALLBACK;
-    if (/[<>"'\s]/.test(t) || t.indexOf("//") === 0) return COVER_FALLBACK;
-    if (/^https?:\/\//i.test(t) || (t.charAt(0) === "/" && t.charAt(1) !== "/")) return t;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return COVER_FALLBACK;
-    return t;
+    if (!src || isSampleDemoCover(src)) return "";
+    return src;
+  }
+
+  function createCoverPlaceholder(doc, hidden) {
+    var ph = doc.createElement("span");
+    ph.className = "ai-search-cover-placeholder";
+    ph.setAttribute("role", "img");
+    ph.setAttribute("aria-label", COVER_MISSING_LABEL);
+    ph.textContent = COVER_MISSING_LABEL;
+    if (hidden) ph.setAttribute("hidden", "");
+    return ph;
+  }
+
+  function findCoverPlaceholder(coverWrap) {
+    var kids = (coverWrap && coverWrap.children) || [];
+    for (var i = 0; i < kids.length; i += 1) {
+      if (kids[i] && kids[i].className === "ai-search-cover-placeholder") return kids[i];
+    }
+    return null;
+  }
+
+  function revealCoverPlaceholder(coverWrap, img) {
+    if (img) {
+      img.hidden = true;
+      img.setAttribute("hidden", "");
+      img.setAttribute("aria-hidden", "true");
+      if (img.parentNode && typeof img.parentNode.removeChild === "function") {
+        img.parentNode.removeChild(img);
+      }
+    }
+    var ph = findCoverPlaceholder(coverWrap);
+    if (ph) {
+      ph.hidden = false;
+      if (typeof ph.removeAttribute === "function") ph.removeAttribute("hidden");
+    }
   }
 
   function stockStatus(stock) {
@@ -154,22 +197,23 @@
       var coverWrap = doc.createElement("a");
       coverWrap.className = "ai-search-cover";
       coverWrap.setAttribute("href", href);
-      var img = doc.createElement("img");
       var src = safeCoverSrc(row.image_url);
-      img.setAttribute("src", src);
-      img.setAttribute("data-cover-src", src);
-      img.setAttribute("alt", String(row.title == null ? "كىتاب" : row.title) + " مۇقاۋىسى");
-      img.setAttribute("width", "56");
-      img.setAttribute("height", "80");
-      img.setAttribute("loading", "lazy");
-      img.addEventListener("error", function onCoverError() {
-        img.removeEventListener("error", onCoverError);
-        if (img.getAttribute("src") !== COVER_FALLBACK) {
-          img.setAttribute("src", COVER_FALLBACK);
-          img.setAttribute("data-cover-src", COVER_FALLBACK);
-        }
-      });
-      coverWrap.appendChild(img);
+      var placeholder = createCoverPlaceholder(doc, !!src);
+      if (src) {
+        var img = doc.createElement("img");
+        img.setAttribute("src", src);
+        img.setAttribute("data-cover-src", src);
+        img.setAttribute("alt", String(row.title == null ? "كىتاب" : row.title) + " مۇقاۋىسى");
+        img.setAttribute("width", "56");
+        img.setAttribute("height", "80");
+        img.setAttribute("loading", "lazy");
+        img.addEventListener("error", function onCoverError() {
+          img.removeEventListener("error", onCoverError);
+          revealCoverPlaceholder(coverWrap, img);
+        });
+        coverWrap.appendChild(img);
+      }
+      coverWrap.appendChild(placeholder);
       item.appendChild(coverWrap);
 
       var info = doc.createElement("div");
@@ -368,6 +412,7 @@
     MIN_QUERY_CHARS: MIN_QUERY_CHARS,
     MAX_QUERY_CHARS: MAX_QUERY_CHARS,
     COVER_FALLBACK: COVER_FALLBACK,
+    COVER_MISSING_LABEL: COVER_MISSING_LABEL,
     FAIL_MESSAGE: FAIL_MESSAGE,
     PRODUCTION_HOSTS: PRODUCTION_HOSTS,
     isProductionAiSearchHost: isProductionAiSearchHost,
