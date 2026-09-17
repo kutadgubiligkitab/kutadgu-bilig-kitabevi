@@ -19,6 +19,9 @@
   var NO_RESULTS_MESSAGE = "AI ئىزدەش نەتىجىسى تېپىلمىدى.";
   var LOADING_MESSAGE = "AI ئىزدەۋاتىدۇ…";
   var RESULTS_HEADING = "AI ئىزدەش نەتىجىسى";
+  var SHOW_MORE_LABEL = "تېخىمۇ كۆپ كۆرسەت";
+  var INITIAL_VISIBLE_COUNT = 6;
+  var REVEAL_BATCH_SIZE = 6;
   var PRODUCTION_HOSTS = {
     "www.kutadgubilik.com": true,
     "kutadgubilik.com": true,
@@ -175,72 +178,133 @@
     box.appendChild(text(doc, "p", message, "ai-search-message" + (kind ? " is-" + kind : "")));
   }
 
+  function usableRows(rows) {
+    var out = [];
+    (rows || []).forEach(function (row) {
+      if (publicBookHref(row && row.id)) out.push(row);
+    });
+    return out;
+  }
+
+  function findShowMoreButton(box) {
+    var kids = (box && box.children) || [];
+    for (var i = 0; i < kids.length; i += 1) {
+      if (kids[i] && kids[i].className === "ai-search-show-more") return kids[i];
+    }
+    return null;
+  }
+
+  function appendResultCard(doc, list, row) {
+    var href = publicBookHref(row && row.id);
+    if (!href || !doc || !list) return;
+    var item = doc.createElement("article");
+    item.className = "ai-search-item";
+
+    var coverWrap = doc.createElement("a");
+    coverWrap.className = "ai-search-cover";
+    coverWrap.setAttribute("href", href);
+    var src = safeCoverSrc(row.image_url);
+    var placeholder = createCoverPlaceholder(doc, !!src);
+    if (src) {
+      var img = doc.createElement("img");
+      img.setAttribute("src", src);
+      img.setAttribute("data-cover-src", src);
+      img.setAttribute("alt", String(row.title == null ? "كىتاب" : row.title) + " مۇقاۋىسى");
+      img.setAttribute("width", "72");
+      img.setAttribute("height", "104");
+      img.setAttribute("loading", "lazy");
+      img.addEventListener("error", function onCoverError() {
+        img.removeEventListener("error", onCoverError);
+        revealCoverPlaceholder(coverWrap, img);
+      });
+      coverWrap.appendChild(img);
+    }
+    coverWrap.appendChild(placeholder);
+    item.appendChild(coverWrap);
+
+    var info = doc.createElement("div");
+    info.className = "ai-search-info";
+    var titleLink = doc.createElement("a");
+    titleLink.className = "ai-search-title";
+    titleLink.setAttribute("href", href);
+    titleLink.textContent = String(row.title == null ? "" : row.title);
+    info.appendChild(titleLink);
+    if (row.author) info.appendChild(text(doc, "p", String(row.author), "ai-search-author"));
+    if (row.category) info.appendChild(text(doc, "p", String(row.category), "ai-search-category"));
+    var meta = doc.createElement("p");
+    meta.className = "ai-search-meta";
+    var bits = [];
+    var price = priceLabel(row.price);
+    var stock = stockStatus(row.stock);
+    if (price) bits.push(price);
+    if (stock) bits.push(stock);
+    meta.textContent = bits.join(" · ");
+    if (bits.length) info.appendChild(meta);
+    item.appendChild(info);
+    list.appendChild(item);
+  }
+
+  function syncShowMore(box, doc) {
+    if (!box || !doc) return;
+    var all = box._aiAllRows || [];
+    var visible = Number(box._aiVisibleCount) || 0;
+    var btn = findShowMoreButton(box);
+    if (visible >= all.length) {
+      if (btn && btn.parentNode && typeof btn.parentNode.removeChild === "function") {
+        btn.parentNode.removeChild(btn);
+      }
+      return;
+    }
+    if (!btn) {
+      btn = doc.createElement("button");
+      btn.className = "ai-search-show-more";
+      btn.setAttribute("type", "button");
+      btn.textContent = SHOW_MORE_LABEL;
+      btn.addEventListener("click", function onShowMore(event) {
+        if (event && typeof event.preventDefault === "function") event.preventDefault();
+        revealMore(box, doc, REVEAL_BATCH_SIZE);
+      });
+      box.appendChild(btn);
+    }
+  }
+
+  function revealMore(box, doc, batch) {
+    if (!box) return;
+    var all = box._aiAllRows || [];
+    var list = box._aiList;
+    if (!list) return;
+    var start = Number(box._aiVisibleCount) || 0;
+    var size = Number(batch) > 0 ? Number(batch) : REVEAL_BATCH_SIZE;
+    var end = Math.min(start + size, all.length);
+    var i;
+    for (i = start; i < end; i += 1) {
+      appendResultCard(doc, list, all[i]);
+    }
+    box._aiVisibleCount = end;
+    syncShowMore(box, doc);
+  }
+
   function renderResults(box, rows, documentRef) {
     var doc = documentRef || (box && box.ownerDocument) || root.document;
     clearNode(box);
     box.hidden = false;
+    box._aiAllRows = [];
+    box._aiVisibleCount = 0;
+    box._aiList = null;
     var heading = text(doc, "p", RESULTS_HEADING, "ai-search-heading");
     heading.setAttribute("role", "status");
     box.appendChild(heading);
-    if (!rows.length) {
+    var all = usableRows(rows);
+    box._aiAllRows = all;
+    if (!all.length) {
       box.appendChild(text(doc, "p", NO_RESULTS_MESSAGE, "ai-search-message"));
       return;
     }
     var list = doc.createElement("div");
     list.className = "ai-search-list";
-    rows.forEach(function (row) {
-      var href = publicBookHref(row && row.id);
-      if (!href) return;
-      var item = doc.createElement("article");
-      item.className = "ai-search-item";
-
-      var coverWrap = doc.createElement("a");
-      coverWrap.className = "ai-search-cover";
-      coverWrap.setAttribute("href", href);
-      var src = safeCoverSrc(row.image_url);
-      var placeholder = createCoverPlaceholder(doc, !!src);
-      if (src) {
-        var img = doc.createElement("img");
-        img.setAttribute("src", src);
-        img.setAttribute("data-cover-src", src);
-        img.setAttribute("alt", String(row.title == null ? "كىتاب" : row.title) + " مۇقاۋىسى");
-        img.setAttribute("width", "56");
-        img.setAttribute("height", "80");
-        img.setAttribute("loading", "lazy");
-        img.addEventListener("error", function onCoverError() {
-          img.removeEventListener("error", onCoverError);
-          revealCoverPlaceholder(coverWrap, img);
-        });
-        coverWrap.appendChild(img);
-      }
-      coverWrap.appendChild(placeholder);
-      item.appendChild(coverWrap);
-
-      var info = doc.createElement("div");
-      info.className = "ai-search-info";
-      var titleLink = doc.createElement("a");
-      titleLink.className = "ai-search-title";
-      titleLink.setAttribute("href", href);
-      titleLink.textContent = String(row.title == null ? "" : row.title);
-      info.appendChild(titleLink);
-      if (row.author) info.appendChild(text(doc, "p", String(row.author), "ai-search-author"));
-      if (row.category) info.appendChild(text(doc, "p", String(row.category), "ai-search-category"));
-      var meta = doc.createElement("p");
-      meta.className = "ai-search-meta";
-      var bits = [];
-      var price = priceLabel(row.price);
-      var stock = stockStatus(row.stock);
-      if (price) bits.push(price);
-      if (stock) bits.push(stock);
-      meta.textContent = bits.join(" · ");
-      if (bits.length) info.appendChild(meta);
-      item.appendChild(info);
-      list.appendChild(item);
-    });
+    box._aiList = list;
     box.appendChild(list);
-    if (!(list.children && list.children.length)) {
-      box.appendChild(text(doc, "p", NO_RESULTS_MESSAGE, "ai-search-message"));
-    }
+    revealMore(box, doc, INITIAL_VISIBLE_COUNT);
   }
 
   function parsePayload(payload) {
@@ -413,6 +477,9 @@
     MAX_QUERY_CHARS: MAX_QUERY_CHARS,
     COVER_FALLBACK: COVER_FALLBACK,
     COVER_MISSING_LABEL: COVER_MISSING_LABEL,
+    SHOW_MORE_LABEL: SHOW_MORE_LABEL,
+    INITIAL_VISIBLE_COUNT: INITIAL_VISIBLE_COUNT,
+    REVEAL_BATCH_SIZE: REVEAL_BATCH_SIZE,
     FAIL_MESSAGE: FAIL_MESSAGE,
     PRODUCTION_HOSTS: PRODUCTION_HOSTS,
     isProductionAiSearchHost: isProductionAiSearchHost,
