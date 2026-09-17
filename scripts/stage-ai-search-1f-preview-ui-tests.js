@@ -460,18 +460,11 @@ async function run() {
     }], dom.document);
     const tags = collectTags(dom.aiSearchResults);
     assert.ok(!tags.includes("script"));
-    assert.ok(tags.includes("img"));
-    const img = (function findImg(node) {
-      if (node.tagName === "IMG") return node;
-      for (let i = 0; i < node.children.length; i += 1) {
-        const found = findImg(node.children[i]);
-        if (found) return found;
-      }
-      return null;
-    }(dom.aiSearchResults));
-    assert.ok(img);
-    assert.strictEqual(img.getAttribute("src"), "/sample-book-cover.png");
+    assert.ok(!tags.includes("img"));
     const blob = collectText(dom.aiSearchResults);
+    assert.match(blob, /مۇقاۋا يوق/);
+    assert.doesNotMatch(blob, /sample-book-cover/);
+    assert.doesNotMatch(blob, /javascript:alert/);
     assert.match(blob, /<img src=x onerror=alert\(1\)>/);
     assert.doesNotMatch(blob, /0\.42/);
   });
