@@ -60,27 +60,41 @@
   color:#7a4333;
 }
 
+.home-search-card .ai-search-list{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+
 .home-search-card .ai-search-item{
   display:flex;
   gap:12px;
   align-items:flex-start;
-  padding:10px 0;
-  border-bottom:1px solid var(--site-border,#e8dccb);
+  box-sizing:border-box;
+  min-width:0;
+  padding:12px;
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:12px;
+  background:var(--site-bg-soft,#fbf8f2);
 }
 
 .home-search-card .ai-search-cover{
   flex:0 0 auto;
-  display:block;
-  width:56px;
-  height:80px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:72px;
+  height:104px;
   text-decoration:none;
 }
 
 .home-search-card .ai-search-cover img{
   display:block;
-  width:56px;
-  height:80px;
-  object-fit:cover;
+  max-width:72px;
+  max-height:104px;
+  width:auto;
+  height:auto;
+  object-fit:contain;
   border-radius:8px;
   background:#efe6d8;
 }
@@ -94,8 +108,8 @@
   align-items:center;
   justify-content:center;
   box-sizing:border-box;
-  width:56px;
-  height:80px;
+  width:72px;
+  height:104px;
   padding:6px;
   border:1px solid var(--site-border,#e8dccb);
   border-radius:8px;
@@ -121,6 +135,29 @@
   color:var(--site-text,#44352d);
   font-weight:800;
   text-decoration:none;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.home-search-card .ai-search-show-more{
+  display:block;
+  width:100%;
+  margin:12px 0 0;
+  min-height:44px;
+  padding:10px 14px;
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:14px;
+  background:var(--site-bg-soft,#fbf8f2);
+  color:var(--site-brown,#70503d);
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.home-search-card .ai-search-show-more:hover,
+.home-search-card .ai-search-show-more:focus-visible{
+  border-color:var(--site-brown,#70503d);
+  background:#fff8ef;
 }
 
 .home-search-card .ai-search-title:hover{
@@ -146,6 +183,9 @@
     min-width:44px;
     min-height:50px;
     padding-inline:10px;
+  }
+  .home-search-card .ai-search-list{
+    grid-template-columns:minmax(0, 1fr);
   }
 }
 
