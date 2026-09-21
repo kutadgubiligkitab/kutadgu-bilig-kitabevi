@@ -3,26 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>مەخپىيەتلىك — قۇتادغۇبىلىك كىتابخانىسى</title>
-  <meta name="description" content="قۇتادغۇبىلىك كىتابخانىسىنىڭ ھېساب، سېۋەت ۋە ئانالىتىكا مەخپىيەتلىك چۈشەندۈرۈشى.">
+  <title>مەخپىيەتلىك / Gizlilik Politikası — قۇتادغۇبىلىك كىتابخانىسى</title>
+  <meta name="description" content="Kutadgubilik web sitesi ve Android uygulaması için gizlilik politikası: hesap, kimlik doğrulama, katalog, sepet ve WhatsApp siparişi.">
   <link rel="canonical" href="https://www.kutadgubilik.com/privacy">
   <meta name="robots" content="index, follow">
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="shop.css?v=54">
   <link rel="stylesheet" href="mobile.css?v=24">
+  <style>
+    .trust-policy{direction:ltr;text-align:left;unicode-bidi:isolate}
+    .trust-policy h2{margin-top:1.35rem}
+    .trust-policy a{word-break:break-word}
+  </style>
 </head>
 <body>
   <main class="trust-page">
     <a class="back-link" href="index.html">← باش بەت</a>
     <h1>مەخپىيەتلىك</h1>
-    <p>بۇ تور بەتتە توردا پۇل تۆلەش يوق؛ كارت نومۇرى ياكى بانكا ئۇچۇرى يىغىلمايدۇ.</p>
-    <h2>ھېساب</h2>
-    <p>ھېساب ئاچسىڭىز ئېلېكتىرونلۇق خەت ئادرېسىڭىز ساقلىنىشى مۇمكىن. ئارخىپقا يازغان ئىسىم، تېلېفون ۋە ئادرېس زاكازنى ئاسانلاشتۇرۇش ئۈچۈن ئىشلىتىلىدۇ.</p>
-    <h2>سېۋەت ۋە ياقتۇرغانلار</h2>
-    <p>مېھمان ھالەتتە سېۋەت ۋە ياقتۇرغانلار شۇ تور كۆرگۈچىدە ساقلىنىدۇ. ھېسابقا كىرسىڭىز بۇ تىزىملىكلەر ھېسابىڭىزغا ماسلىشىدۇ.</p>
-    <h2>ئانالىتىكا</h2>
-    <p>كىتاب كۆرۈش، ئىزدەش، سېۋەتكە قوشۇش ۋە WhatsApp زاكاز چېكىش قاتارلىق سانلىق مەلۇمات دۇكاننى ياخشىلاش ئۈچۈن ئىشلىتىلىدۇ. ئىسىم، تېلېفون، ئادرېس ياكى ئۇچۇر مەزمۇنى بۇ ئانالىتىكىغا يېزىلمايدۇ.</p>
-    <p>سوئال بولسا WhatsApp ئارقىلىق بىز بىلەن ئالاقىلىشىڭ.</p>
+    <article class="trust-policy" lang="tr" dir="ltr">
+      <p><strong>Gizlilik Politikası</strong></p>
+      <p>Son güncelleme: 22 Eylül 2026</p>
+      <p>
+        Bu metin, Kutadgubilik Kitabevi’nin web sitesi
+        (<a href="https://www.kutadgubilik.com">https://www.kutadgubilik.com</a>)
+        ve Android uygulaması için geçerlidir. Aşağıdaki açıklamalar, mevcut uygulamada gerçekten kullanılan veri akışlarına dayanır.
+      </p>
+
+      <h2>1. Kimiz</h2>
+      <p>
+        Kutadgubilik, Uygurca kitap satışı yapan bir kitabevidir. Siparişler sitede veya uygulamada kartla tahsil edilmez; sipariş yazışması WhatsApp üzerinden tamamlanır.
+      </p>
+      <p>
+        İletişim: <a href="mailto:info@kutadgubilik.com">info@kutadgubilik.com</a><br>
+        Web: <a href="https://www.kutadgubilik.com">https://www.kutadgubilik.com</a>
+      </p>
+
+      <h2>2. Hangi veriler işlenir</h2>
+      <p>Hesap açmazsanız bile katalogdaki kitaplar görüntülenebilir. Hesap, sipariş veya WhatsApp kullanırsanız aşağıdaki veriler oluşabilir.</p>
+
+      <h2>3. Hesap ve kimlik doğrulama</h2>
+      <p>
+        Web sitesinde ve Android uygulamasında hesap; e-posta ve parola ile veya Google ile giriş yoluyla açılabilir. Kimlik doğrulama <strong>Supabase Auth</strong> üzerinden yapılır.
+      </p>
+      <ul>
+        <li>E-posta adresi hesabı oluşturmak, giriş yapmak ve parola sıfırlama bağlantısı göndermek için kullanılır.</li>
+        <li>Kutadgubilik, kullanıcı parolasını kendi veritabanında düz metin olarak saklamaz. Parola, kimlik doğrulama sağlayıcısı (Supabase Auth) tarafından işlenir.</li>
+        <li>Google ile girişte Google, hesabınızı doğrulamak için e-posta gibi temel hesap bilgilerini bize iletebilir. Google’ın kendi gizlilik kuralları ayrıca geçerlidir: <a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a></li>
+        <li>Oturum bilgisi (erişim / yenileme jetonları) giriş yaptıktan sonra cihazınızda saklanır: web’de tarayıcı depolaması, Android uygulamasında uygulamanın yerel depolaması. Bu jetonlar oturumu açık tutmak içindir; parola değildir.</li>
+      </ul>
+      <p>
+        Web sitesinde üye profiline isteğe bağlı olarak ad-soyad, telefon, ülke, şehir ve teslimat adresi yazılabilir. Bu bilgiler siparişi kolaylaştırmak için Supabase üzerindeki üye kaydında tutulur. Android uygulamasının hesap ekranı şu an e-posta ile girişi gösterir; uygulama içinde ayrı bir teslimat-adresi formu yoktur.
+      </p>
+
+      <h2>4. Kitap kataloğu, arama ve gezinme</h2>
+      <p>
+        Kitap listesi, kapak, fiyat ve stok gibi vitrin bilgileri Supabase veritabanından okunur. Arama ve kategori süzgeçleri bu kataloğa uygulanır. Bu işlem vitrini göstermek içindir; kitap içeriğini okumak için ayrı bir “okuma hesabı” oluşturulmaz.
+      </p>
+
+      <h2>5. Sepet ve favoriler / istek listesi</h2>
+      <ul>
+        <li><strong>Android uygulaması:</strong> Sepet ve istek listesi yalnızca cihazınızdaki yerel depolamada tutulur. Hesabınıza sunucuya senkron edilmez.</li>
+        <li><strong>Web sitesi:</strong> Misafirken sepet, favoriler, son bakılan kitaplar ve sipariş formuna yazdığınız iletişim bilgileri tarayıcının yerel depolamasında kalabilir. Üye girişi yaparsanız sepet ve favoriler hesabınıza bağlanabilir.</li>
+      </ul>
+      <p>Android uygulamasında ayrıca görünüm (açık/koyu tema) tercihi cihazda saklanır.</p>
+
+      <h2>6. WhatsApp siparişi</h2>
+      <p>
+        Sitede ve uygulamada çevrimiçi ödeme yoktur. Kart numarası, banka hesabı veya ödeme şifresi toplanmaz ve saklanmaz.
+      </p>
+      <p>
+        Sipariş vermek için sepet içeriği (kitap adı, adet, fiyat) bir mesaj metnine dönüştürülür ve WhatsApp’a iletilir. Web sitesinde sipariş formuna yazılan ad, telefon, şehir, adres ve not da bu mesaja eklenebilir. Üye olarak web’den sipariş gönderirseniz aynı müşteri ve sepet özeti sipariş geçmişi için Supabase’de de kaydedilebilir.
+      </p>
+      <p>
+        WhatsApp’ı açtığınızda yazışma, Meta/WhatsApp altyapısına geçer. Bundan sonra mesajın iletilmesi, saklanması ve yedeklenmesi WhatsApp’ın kendi koşullarına tabidir:
+        <a href="https://www.whatsapp.com/legal/privacy-policy">https://www.whatsapp.com/legal/privacy-policy</a>
+      </p>
+
+      <h2>7. Analitik (yalnızca web sitesi)</h2>
+      <p>
+        Kitap vitrini sayfalarında dükkânı iyileştirmek için olay kayıtları tutulabilir: sayfa görüntüleme, arama metni, kategori, sepete ekleme, WhatsApp sipariş tıklaması, ürün kimliği, sonuç/adet sayısı ve tarayıcı oturum kimliği. Bu kendi kayıtlarımızda isim, telefon, adres veya WhatsApp mesajının tam metni tutulmaz.
+      </p>
+      <p>
+        Aynı vitrin sayfalarında, kullanımın anlaşılması için bir ürün analitiği hizmeti de yüklenebilir. Bu hizmet sayfa kullanımı ve tarayıcıya ilişkin teknik bilgiler toplayabilir. Android uygulamasına ve bu gizlilik sayfasına bu betikler eklenmemiştir.
+      </p>
+
+      <h2>8. Verilerin satışı</h2>
+      <p>Kutadgubilik kişisel verilerinizi satmaz.</p>
+
+      <h2>9. Hizmet sağlayıcılar</h2>
+      <ul>
+        <li><strong>Supabase:</strong> kimlik doğrulama, katalog, üye profili, web sipariş kaydı ve (web’de) analitik olayları.</li>
+        <li><strong>Google:</strong> Google ile giriş seçilirse kimlik doğrulama.</li>
+        <li><strong>WhatsApp / Meta:</strong> sipariş yazışmasının iletilmesi.</li>
+      </ul>
+      <p>Bu sağlayıcıların kendi gizlilik politikaları da geçerlidir.</p>
+
+      <h2>10. Güvenlik</h2>
+      <p>
+        Bağlantılar HTTPS üzerinden kurulur. Parolalar Kutadgubilik tarafından saklanmaz; kimlik doğrulama sağlayıcısı işler. Oturum jetonları cihazınızda tutulur. Yine de hiçbir internet hizmeti %100 riskten ari değildir.
+      </p>
+
+      <h2>11. Haklarınız ve talepleriniz</h2>
+      <p>
+        Hesabınızdaki bilgilere erişmek, düzeltmek veya hesabın silinmesini istemek için
+        <a href="mailto:info@kutadgubilik.com">info@kutadgubilik.com</a>
+        adresine yazabilirsiniz. Web’de profil alanlarını hesabınızdan da güncelleyebilirsiniz. Çıkış yaptığınızda oturum kapatılır.
+      </p>
+
+      <h2>12. Çocuklar</h2>
+      <p>
+        Vitrin genel okura açıktır; uygulamada veya sitede yaş sormuyoruz. Çocuklara özel bir hesap türü yoktur. Bir velinin çocuğuna ait hesap veya veri hakkında talebi varsa aynı iletişim adresinden bize ulaşabilir.
+      </p>
+
+      <h2>13. Politika değişiklikleri</h2>
+      <p>
+        Hizmet değişirse bu metin güncellenir. Güncel sürüm her zaman
+        <a href="https://www.kutadgubilik.com/privacy">https://www.kutadgubilik.com/privacy</a>
+        adresinde yayımlanır. `/privacy.html` aynı sayfaya yönlendirilir.
+      </p>
+    </article>
   </main>
   <footer class="site-footer"></footer>
   <script defer src="theme.js?v=5"></script>
