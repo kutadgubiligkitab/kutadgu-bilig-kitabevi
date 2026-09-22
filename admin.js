@@ -312,9 +312,6 @@ function applyBooksSchema(){
     const col=el.getAttribute("data-book-col");
     el.hidden=!presentBookCols.has(col);
   });
-  document.querySelectorAll("[data-book-col='stock_status']").forEach(el=>{
-    el.hidden=true;
-  });
   const search=$("#adminSearch");
   if(search){
     search.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى";
@@ -341,7 +338,6 @@ function disableStockColumn(){
   const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
   spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.stock=false;
-  spec.optionalColumns.stock_status=false;
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
   renderUnconfiguredStock(null);
@@ -350,7 +346,25 @@ function enableStockColumn(){
   const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
   spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.stock=true;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function isMissingStockStatusColumnError(error){
+  const msg=String(error&&error.message||"");
+  const code=String(error&&error.code||"");
+  return /\bstock_status\b/i.test(msg)&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
+}
+function disableStockStatusColumn(){
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.stock_status=false;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function enableStockStatusColumn(){
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.stock_status=true;
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
 }
@@ -375,9 +389,11 @@ function adminStockMetaHtml(book){
   if(!presentBookCols.has("stock"))return "";
   const lib=stockLib();
   const derived=lib.deriveStockStatus?lib.deriveStockStatus(book&&book.stock):null;
+  const effective=lib.storefrontStockInfo?lib.storefrontStockInfo(book,{stockEnforcement:true}):null;
   const qty=derived&&derived.ok&&derived.qty!=null?String(derived.qty):"—";
-  const label=derived&&derived.ok?derived.label:"تەڭشەلمىگەن";
-  return ` · ئامبار ${esc(qty)} · ${esc(label)}`;
+  const label=effective&&effective.label?effective.label:(derived&&derived.ok?derived.label:"تەڭشەلمىگەن");
+  const manual=presentBookCols.has("stock_status")&&lib.normalizeStockOverride&&lib.normalizeStockOverride(book&&book.stock_status)?" · قولدا":"";
+  return ` · ئامبار ${esc(qty)} · ${esc(label)}${manual}`;
 }
 function renderUnconfiguredStock(count){
   const el=$("#adminUnconfiguredStock");
@@ -426,10 +442,8 @@ function writeBookRow(row,opts={}){
     if(opts.mode==="update"&&(key==="id"||key==="created_at"||key==="legacy_id"||key==="updated_at"))return;
     out[key]=row[key];
   });
-  delete out.stock_status;
   if(opts.mode==="update"&&Write.stripIdentityFields){
     const stripped=Write.stripIdentityFields(out);
-    delete stripped.stock_status;
     return stripped;
   }
   return out;
@@ -2336,6 +2350,7 @@ function clearForm(){
   $("#bookIsRecommended").checked=false;
   $("#bookIsbn").value="";
   setStockInputValue($("#bookStock"),null);
+  if($("#bookStockStatus"))$("#bookStockStatus").value="";
   syncDerivedStockStatus();
   $("#bookSalesCount").value=0;
   $("#bookCoverPreview").src="";
@@ -2387,6 +2402,7 @@ async function openEdit(id){
   renderOriginalPriceStatus(b.original_price,{create:false});
   setOriginalPriceNote("");
   setStockInputValue($("#bookStock"),b.stock);
+  if($("#bookStockStatus"))$("#bookStockStatus").value=String(b.stock_status||"");
   syncDerivedStockStatus();
   $("#bookSalesCount").value=b.sales_count??0;
   $("#bookSource").value=b.source||"";
@@ -3112,6 +3128,7 @@ async function openQuickEdit(id,trigger){
   $("#quickPrice").value=b.price??"";
   $("#quickSource").value=b.source||"";
   if($("#quickStock"))setStockInputValue($("#quickStock"),b.stock);
+  if($("#quickStockStatus"))$("#quickStockStatus").value=String(b.stock_status||"");
   syncDerivedStockStatus();
   $("#quickCoverUrl").value=b.image_url||"";
   $("#quickIsActive").checked=b.is_active!==false;
@@ -3131,6 +3148,7 @@ function collectQuickEditInput(){
     source:$("#quickSource")?$("#quickSource").value:"",
     category:sourceCategory($("#quickSource")?$("#quickSource").value:""),
     stock:$("#quickStock")?$("#quickStock").value:"",
+    stock_status:$("#quickStockStatus")?$("#quickStockStatus").value:"",
     image_url:$("#quickCoverUrl")?$("#quickCoverUrl").value:"",
     is_active:$("#quickIsActive")?$("#quickIsActive").checked:true,
     is_recommended:$("#quickIsRecommended")?$("#quickIsRecommended").checked:false,
@@ -3262,11 +3280,12 @@ async function detectOptionalStockColumn(){
   if(!db)return;
   try{
     const {error}=await db.from("books").select("stock").limit(1);
-    if(error&&isMissingStockColumnError(error)){
-      disableStockColumn();
-      return;
-    }
-    if(!error)enableStockColumn();
+    if(error&&isMissingStockColumnError(error))disableStockColumn();
+    else if(!error)enableStockColumn();
+
+    const statusProbe=await db.from("books").select("stock_status").limit(1);
+    if(statusProbe.error&&isMissingStockStatusColumnError(statusProbe.error))disableStockStatusColumn();
+    else if(!statusProbe.error)enableStockStatusColumn();
   }catch(err){
     console.warn(err);
   }
@@ -3688,6 +3707,7 @@ async function saveBook(e){
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
     if(isbnColumn)row.isbn=isbn;
     if(presentBookCols.has("stock"))row.stock=stockValue;
+    if(presentBookCols.has("stock_status"))row.stock_status=$("#bookStockStatus")?($("#bookStockStatus").value||null):null;
     if(!pendingSave){
       if(presentBookCols.has("interior_print_type")){
         const printType=Bib.normalizeInteriorPrintType?Bib.normalizeInteriorPrintType($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value):((($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value)||"")||null);
@@ -4523,6 +4543,9 @@ function updateBulkValueUi(){
   if(action==="category"){
     sel.hidden=false;
     sel.innerHTML=categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
+  }else if(action==="stock_status"){
+    sel.hidden=false;
+    sel.innerHTML=`<option value="">ئاپتوماتىك (ئامبار سانى بويىچە)</option><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option>`;
   }else if(action==="stock"){
     inp.hidden=false;inp.type="text";inp.removeAttribute("min");inp.removeAttribute("step");inp.setAttribute("inputmode","numeric");inp.placeholder="ئامبار سانى";
   }else if(action==="publisher"){
