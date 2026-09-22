@@ -1086,6 +1086,20 @@ const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
 const trackEvent=(name,data={})=>{try{window.KutadguAnalytics?.track?.(name,data)}catch(err){}};
 const trackedBookViews=new Set();
+const BOOK_VIEW_SESSION_KEY="kutadgu-book-views-v1";
+function readSessionBookViews(){
+  try{
+    const raw=JSON.parse(sessionStorage.getItem(BOOK_VIEW_SESSION_KEY)||"[]");
+    return new Set(Array.isArray(raw)?raw.map(String).filter(id=>/^\d+$/.test(id)).slice(-500):[]);
+  }catch(err){return new Set()}
+}
+function rememberSessionBookView(id){
+  try{
+    const seen=readSessionBookViews();
+    seen.add(String(id));
+    sessionStorage.setItem(BOOK_VIEW_SESSION_KEY,JSON.stringify(Array.from(seen).slice(-500)));
+  }catch(err){}
+}
 function trackBookViewOnce(book){
   try{
     if(!book)return;
@@ -1094,6 +1108,9 @@ function trackBookViewOnce(book){
     if(!canonical)return;
     if(trackedBookViews.has(canonical))return;
     trackedBookViews.add(canonical);
+    const seen=readSessionBookViews();
+    if(seen.has(canonical))return;
+    rememberSessionBookView(canonical);
     trackEvent("book_view",{bookId:canonical,legacyId:book.legacyId||"",category:book.category||""});
   }catch(err){}
 }
@@ -1112,6 +1129,40 @@ function supabasePublicConfig(){
     url:String(c.url||"").replace(/\/+$/,""),
     key:String(c.anonKey||c.publishableKey||"")
   };
+}
+
+const PUBLIC_BOOK_VIEW_THRESHOLD=50;
+let publicBookViewRequest=0;
+function hidePublicBookViewCount(){
+  const el=document.querySelector(".book-view-count");
+  if(!el)return;
+  el.hidden=true;
+  const value=el.querySelector("[data-book-view-count]");
+  if(value)value.textContent="";
+}
+async function loadPublicBookViewCount(book){
+  const el=document.querySelector(".book-view-count");
+  if(!el){return}
+  hidePublicBookViewCount();
+  const id=String(book&&book.id||"").trim();
+  if(!/^\d+$/.test(id))return;
+  const cfg=supabasePublicConfig();
+  if(!cfg.url||!cfg.key)return;
+  const requestId=++publicBookViewRequest;
+  try{
+    const params=new URLSearchParams({select:"total_views,unique_views",book_id:`eq.${id}`,limit:"1"});
+    const response=await fetch(`${cfg.url}/rest/v1/book_view_stats?${params.toString()}`,{
+      headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`}
+    });
+    if(!response.ok)return;
+    const rows=await response.json();
+    if(requestId!==publicBookViewRequest||!Array.isArray(rows)||!rows.length)return;
+    const views=Number(rows[0]&&rows[0].total_views);
+    if(!Number.isFinite(views)||views<PUBLIC_BOOK_VIEW_THRESHOLD)return;
+    const value=el.querySelector("[data-book-view-count]");
+    if(value)value.textContent=Math.floor(views).toLocaleString("tr-TR");
+    el.hidden=false;
+  }catch(err){}
 }
 
 function normalizeRemoteBook(row,index=0){return normalizeCatalogBook(row,index,true)}
@@ -1552,17 +1603,20 @@ function stockInfo(book){
   const helper=window.KutadguStock;
   if(helper&&typeof helper.storefrontStockInfo==="function")return helper.storefrontStockInfo(book);
   if(!isStockEnforcementEnabled())return {key:"unknown",label:"",canBuy:true,qty:null};
-  const raw=normalizeText(book?.stockStatus||"");
+  const raw=normalizeText(book?.stockStatus||book?.stock_status||"");
   const text=book?.stock===null||book?.stock===undefined||book?.stock===""?"":String(book.stock).trim();
   const qty=/^(0|[1-9]\d*)$/.test(text)?Number(text):null;
+  const out=["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw);
+  const low=["low","low_stock","ئاز قالدى"].includes(raw);
+  const inside=["in","in_stock","available","ئامباردا بار"].includes(raw);
+  if(out)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
+  if(Number.isInteger(qty)&&qty<=0)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
+  if(low)return {key:"low",label:"ئاز قالدى",canBuy:true,qty:Number.isInteger(qty)?qty:null};
+  if(inside)return {key:"in",label:"ئامباردا بار",canBuy:true,qty:Number.isInteger(qty)?qty:null};
   if(Number.isInteger(qty)){
-    if(qty<=0)return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
     if(qty<=3)return {key:"low",label:"ئاز قالدى",canBuy:true,qty};
     return {key:"in",label:"ئامباردا بار",canBuy:true,qty};
   }
-  if(["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw))return {key:"out",label:"تۈگەپ كەتتى",canBuy:false,qty:0};
-  if(["low","low_stock","ئاز قالدى"].includes(raw))return {key:"low",label:"ئاز قالدى",canBuy:true,qty:null};
-  if(["in","in_stock","available","ئامباردا بار"].includes(raw))return {key:"in",label:"ئامباردا بار",canBuy:true,qty:null};
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
 function stockStateClass(book){
@@ -2430,6 +2484,7 @@ function renderDetailExtras(book){
 }
 
 function paintUnauthorizedDetail(){
+  hidePublicBookViewCount();
   const Seo=window.KutadguBookSeo||{};
   const applyUnresolved=Seo.shouldApplyUnresolvedDetailSeo?Seo.shouldApplyUnresolvedDetailSeo(location):!(Seo.numericCleanBookIdFromLocation&&Seo.numericCleanBookIdFromLocation(location));
   if(applyUnresolved){
@@ -2486,6 +2541,7 @@ function decorateDetail(){
   renderBookGallery(b);
   if(isStorefrontVisible(b))recent(b.id);
   trackBookViewOnce(b);
+  loadPublicBookViewCount(b);
 
   const coverBox=document.querySelector(".book-cover-box");
   if(coverBox)applyCoverStockState(coverBox,isStorefrontVisible(b)?b:null);
