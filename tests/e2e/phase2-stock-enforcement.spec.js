@@ -127,6 +127,64 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     expect(state.four).toMatchObject({ canBuy: true, key: "in", qty: 4, label: "ئامباردا بار" });
   });
 
+  test("manual stock status override can mark a positive-quantity book sold out", async ({ page }) => {
+    const manualOutId = "91021";
+    const manualLowId = "91022";
+    const zeroForcedInId = "91023";
+    const rows = [
+      bookRow({ id: Number(manualOutId), title: "قولدا تۈگەپ كەتكەن", stock: 8, stock_status: "out_of_stock" }),
+      bookRow({ id: Number(manualLowId), title: "قولدا ئاز قالغان", stock: 8, stock_status: "low_stock" }),
+      bookRow({ id: Number(zeroForcedInId), title: "نۆلنى بار دېگىلى بولمايدۇ", stock: 0, stock_status: "in_stock" })
+    ];
+    await mockBooks(page, rows);
+
+    await openBook(page, manualOutId, "قولدا تۈگەپ كەتكەن");
+    await expect(page.locator(".detail-main-cart")).toBeDisabled();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-out")).toContainText("تۈگەپ كەتتى");
+
+    await openBook(page, manualLowId, "قولدا ئاز قالغان");
+    await expect(page.locator(".detail-main-cart")).toBeEnabled();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-low")).toContainText("ئاز قالدى");
+
+    await openBook(page, zeroForcedInId, "نۆلنى بار دېگىلى بولمايدۇ");
+    await expect(page.locator(".detail-main-cart")).toBeDisabled();
+    await expect(page.locator(".detail-purchase-panel .stock-badge.stock-out")).toContainText("تۈگەپ كەتتى");
+  });
+
+  test("book view counter appears at 50 and refresh does not post another book_view in the same session", async ({ page }) => {
+    await mockBooks(page);
+    let totalViews = 49;
+    let bookViewPosts = 0;
+
+    await page.route("**/rest/v1/book_view_stats**", async (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([{ total_views: totalViews, unique_views: 45 }])
+      });
+    });
+    await page.route("**/rest/v1/analytics_events", async (route) => {
+      const body = route.request().postData() || "";
+      try {
+        const payload = JSON.parse(body);
+        if (payload && payload.event_name === "book_view") bookViewPosts++;
+      } catch (err) {}
+      return route.fulfill({ status: 201, body: "" });
+    });
+
+    await openBook(page, FOUR_ID, "ئامبار تۆت كىتاب");
+    await expect(page.locator(".book-view-count")).toBeHidden();
+    await expect.poll(() => bookViewPosts).toBe(1);
+
+    totalViews = 50;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForDetailTitle(page, "ئامبار تۆت كىتاب");
+    await expect(page.locator(".book-view-count")).toBeVisible();
+    await expect(page.locator("[data-book-view-count]")).toHaveText("50");
+    await expect.poll(() => bookViewPosts).toBe(1);
+  });
+
   test("stock 0 disables Add to Cart", async ({ page }) => {
     await mockBooks(page);
     await H.clearShopStorage(page);
