@@ -48,6 +48,18 @@ async function enableStockSchema(page) {
   });
 }
 
+async function enableStockStatusSchema(page) {
+  await page.evaluate(() => {
+    const spec = window.KUTADGU_BOOKS_SCHEMA || { optionalColumns: {} };
+    spec.optionalColumns = spec.optionalColumns || {};
+    spec.optionalColumns.stock = true;
+    spec.optionalColumns.stock_status = true;
+    window.KUTADGU_BOOKS_SCHEMA = spec;
+    window.__kutadguAdminTest.applyBooksSchema();
+    window.__kutadguAdminTest.refreshPreviewBooks();
+  });
+}
+
 test.describe("admin stock foundation", () => {
   test("Admin remains usable when stock schema column is absent", async ({ page }) => {
     await openAdminBooks(page);
@@ -132,6 +144,40 @@ test.describe("admin stock foundation", () => {
     const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves.some((s) => s.payload.stock === 7)).toBeTruthy();
     expect(saves.every((s) => !("stock_status" in s.payload))).toBeTruthy();
+  });
+
+  test("Admin can manually override storefront stock status without changing quantity", async ({ page }) => {
+    const rows = BOOKS.map((book) => ({
+      ...book,
+      stock_status: book.id === 4 ? "out_of_stock" : null
+    }));
+    await openAdminBooks(page, null, rows);
+    await enableStockStatusSchema(page);
+
+    await expect(page.locator("#bookStockStatus")).toBeHidden();
+    await page.locator('article[data-book-id="4"] [data-edit]').click();
+    await expect(page.locator("#bookStock")).toHaveValue("4");
+    await expect(page.locator("#bookStockStatus")).toBeVisible();
+    await expect(page.locator("#bookStockStatus")).toHaveValue("out_of_stock");
+    await expect(page.locator("#bookStockDerivedStatus")).toHaveText("تور بەتتە: تۈگەپ كەتتى (قولدا)");
+    await page.locator("#bookStockStatus").selectOption("low_stock");
+    await expect(page.locator("#bookStockDerivedStatus")).toHaveText("تور بەتتە: ئاز قالدى (قولدا)");
+    await page.locator("#bookForm button[type='submit']").click();
+
+    const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
+    const edited = saves.find((entry) => String(entry.id) === "4");
+    expect(edited).toBeTruthy();
+    expect(edited.payload.stock).toBe(4);
+    expect(edited.payload.stock_status).toBe("low_stock");
+
+    await page.locator('article[data-book-id="4"] [data-quick-edit]').click();
+    await expect(page.locator("#quickStockStatus")).toBeVisible();
+    await expect(page.locator("#quickStockStatus")).toHaveValue("out_of_stock");
+    await page.locator("#quickStockStatus").selectOption("");
+    await page.locator("#quickEditSave").click();
+    const patches = await page.evaluate(() => window.__kutadguQuickPatches.slice());
+    expect(patches[patches.length - 1].patch.stock).toBe(4);
+    expect(patches[patches.length - 1].patch.stock_status).toBeNull();
   });
 
   test("new book requires an explicit stock quantity when the column exists", async ({ page }) => {
