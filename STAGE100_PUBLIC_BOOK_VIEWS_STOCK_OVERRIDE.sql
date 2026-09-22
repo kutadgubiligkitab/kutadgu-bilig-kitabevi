@@ -39,6 +39,39 @@ comment on column public.books.stock_status is
 
 create schema if not exists private;
 
+-- Defense in depth: storefront already blocks a manual sold-out book. Also
+-- reject NEW/edited prepared orders at the database boundary so a direct RPC
+-- or stale client cannot create an order for a manually sold-out book.
+create or replace function private.kutadgu_block_manual_sold_out_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if exists (
+    select 1
+    from jsonb_array_elements(coalesce(new.items, '[]'::jsonb)) as elem(value)
+    join public.books b
+      on b.id::text = btrim(elem.value ->> 'book_id')
+    where b.stock_status = 'out_of_stock'
+  ) then
+    raise exception 'book_out_of_stock'
+      using hint = 'manual_stock_status';
+  end if;
+  return new;
+end;
+$;
+
+revoke all on function private.kutadgu_block_manual_sold_out_order() from public, anon, authenticated;
+
+drop trigger if exists orders_block_manual_sold_out on public.orders;
+create trigger orders_block_manual_sold_out
+  before insert or update of items on public.orders
+  for each row
+  execute function private.kutadgu_block_manual_sold_out_order();
+
+
 create table if not exists private.book_view_sessions (
   book_id bigint not null references public.books(id) on delete cascade,
   session_id text not null,
