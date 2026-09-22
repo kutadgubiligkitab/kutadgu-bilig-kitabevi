@@ -4,6 +4,7 @@ const visibility = require("./catalog-visibility.js");
 const seo = require("./kutadgu-book-seo.js");
 const safeUrl = require("./kutadgu-safe-url.js");
 const bib = require("./catalog-bibliography.js");
+const stock = require("./kutadgu-stock.js");
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
@@ -40,6 +41,7 @@ const PUBLIC_SEO_SELECT = [
   "isbn",
   "price",
   "stock",
+  "stock_status",
   "source",
   "publish_year",
   "translator",
@@ -72,6 +74,8 @@ function publicSeoBook(row, id) {
     isbn: String(row.isbn == null ? "" : row.isbn).trim(),
     price: Number.isFinite(priceNum) ? priceNum : null,
     stock: Number.isFinite(stockNum) ? stockNum : null,
+    stockStatus: String(row.stock_status == null ? "" : row.stock_status).trim(),
+    stock_status: String(row.stock_status == null ? "" : row.stock_status).trim(),
     source: String(row.source == null ? "" : row.source).trim(),
     publishYear: String(row.publish_year == null ? "" : row.publish_year).trim(),
     translator: String(row.translator == null ? "" : row.translator).trim(),
@@ -84,6 +88,10 @@ function publicSeoBook(row, id) {
 }
 
 function seoStockKey(book) {
+  if (stock && typeof stock.storefrontStockInfo === "function") {
+    const info = stock.storefrontStockInfo(book, { stockEnforcement: true });
+    if (info && ["in", "low", "out"].includes(info.key)) return info.key;
+  }
   const text = book && book.stock != null && book.stock !== "" ? String(book.stock).trim() : "";
   if (!/^(0|[1-9]\d*)$/.test(text)) return "";
   const qty = Number(text);
@@ -408,6 +416,7 @@ module.exports = {
   lookupPublicNumericBook,
   applyFoundPublicBookHead,
   publicSeoBook,
+  seoStockKey,
   PUBLIC_SEO_SELECT,
   missingBookHtml,
   lookupFailureHtml
