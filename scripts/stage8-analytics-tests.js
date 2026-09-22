@@ -114,6 +114,24 @@ test("A shop.js book_view is deduped per canonical id",()=>{
   assert.ok(shop.includes("if(trackedBookViews.has(canonical))return"));
 });
 
+test("public book views use aggregate stats, threshold 50, and session refresh dedupe",()=>{
+  const shop=fs.readFileSync(path.join(__dirname,"..","shop.js"),"utf8");
+  const shell=fs.readFileSync(path.join(__dirname,"..","book-shell.html"),"utf8");
+  const sql=fs.readFileSync(path.join(__dirname,"..","STAGE100_PUBLIC_BOOK_VIEWS_STOCK_OVERRIDE.sql"),"utf8");
+  assert.ok(shop.includes('const PUBLIC_BOOK_VIEW_THRESHOLD=50'));
+  assert.ok(shop.includes('book_view_stats'));
+  assert.ok(shop.includes('select:"total_views,unique_views"'));
+  assert.ok(shop.includes('BOOK_VIEW_SESSION_KEY'));
+  assert.ok(shop.includes('sessionStorage.getItem(BOOK_VIEW_SESSION_KEY)'));
+  assert.ok(shell.includes('data-book-view-count'));
+  assert.ok(shell.includes('قېتىم كۆرۈلدى'));
+  assert.match(sql,/create table if not exists public\.book_view_stats/i);
+  assert.match(sql,/create table if not exists private\.book_view_sessions/i);
+  assert.match(sql,/after insert on public\.analytics_events/i);
+  assert.match(sql,/count\(distinct nullif\(btrim\(coalesce\(e\.session_id/i);
+  assert.doesNotMatch(sql,/delete from public\.analytics_events/i);
+});
+
 test("D shop.js ignores empty listing/home search and load-more",()=>{
   const shop=fs.readFileSync(path.join(__dirname,"..","shop.js"),"utf8");
   assert.ok(shop.includes("if(!append)trackSearchQuery(state.search,result.total)"));
