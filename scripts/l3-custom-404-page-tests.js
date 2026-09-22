@@ -33,6 +33,7 @@ const EXPECTED_REWRITE_SOURCES = [
   "/order-info",
   "/privacy",
   "/returns",
+  "/delete-account",
   "/book.html",
   "/book",
   "/book/:id(\\d+)",
