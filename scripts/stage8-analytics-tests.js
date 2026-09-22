@@ -129,6 +129,8 @@ test("public book views use aggregate stats, threshold 50, and session refresh d
   assert.match(sql,/create table if not exists private\.book_view_sessions/i);
   assert.match(sql,/after insert on public\.analytics_events/i);
   assert.match(sql,/count\(distinct nullif\(btrim\(coalesce\(e\.session_id/i);
+  assert.match(sql,/orders_block_manual_sold_out/i);
+  assert.match(sql,/book_out_of_stock/i);
   assert.doesNotMatch(sql,/delete from public\.analytics_events/i);
 });
 
