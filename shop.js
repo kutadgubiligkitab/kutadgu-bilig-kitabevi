@@ -1369,7 +1369,8 @@ async function loadSearchRankIndex(state,options={}){
     if(chunk.length<pageSize||(Number.isFinite(total)&&rows.length>=total))break;
     from+=pageSize;
   }
-  const ranked=(Rank.rankHits?Rank.rankHits(rows,state.search):rows).map(row=>String(row&&row.id||"")).filter(Boolean);
+  const matched=Rank.scoreHit?rows.filter(row=>Rank.scoreHit(row,state.search)>0):rows;
+  const ranked=(Rank.rankHits?Rank.rankHits(matched,state.search):matched).map(row=>String(row&&row.id||"")).filter(Boolean);
   searchRankCache={key,ids:ranked,total:ranked.length};
   return searchRankCache;
 }
