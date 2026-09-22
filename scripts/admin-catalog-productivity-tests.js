@@ -48,7 +48,7 @@ test("quick edit patch uses only allowed fields",()=>{
   assert.strictEqual("legacy_id" in built.patch,false);
   assert.strictEqual("sales_count" in built.patch,false);
   assert.strictEqual(built.patch.stock,4);
-  assert.strictEqual("stock_status" in built.patch,false);
+  assert.strictEqual(built.patch.stock_status,"low_stock");
   assert.strictEqual("created_at" in built.patch,false);
 });
 
@@ -80,8 +80,11 @@ test("bulk patch allows only verified fields",()=>{
   const bad=P.buildBulkPatch("title",{title:"x"},{presentBookCols:new Set()});
   assert.strictEqual(bad.ok,false);
   const status=P.buildBulkPatch("stock_status",{stock_status:"out_of_stock"},{presentBookCols:new Set(["stock_status"]),stockStatusSupported:true});
-  assert.strictEqual(status.ok,false);
-  assert.strictEqual("patch" in status,false);
+  assert.strictEqual(status.ok,true);
+  assert.deepStrictEqual(status.patch,{stock_status:"out_of_stock"});
+  const auto=P.buildBulkPatch("stock_status",{stock_status:""},{presentBookCols:new Set(["stock_status"]),stockStatusSupported:true});
+  assert.strictEqual(auto.ok,true);
+  assert.deepStrictEqual(auto.patch,{stock_status:null});
 });
 
 test("bulk confirm text states count field and value",()=>{
@@ -120,7 +123,7 @@ test("problem filters match fixture rows and not price 0",()=>{
   assert.deepStrictEqual(ids("missing_cover"),[7]);
   assert.deepStrictEqual(ids("inactive"),[8]);
   assert.deepStrictEqual(ids("missing_stock"),[9]);
-  assert.deepStrictEqual(ids("missing_stock_status"),[9]);
+  assert.deepStrictEqual(ids("missing_stock_status"),[]);
 });
 
 test("problem filters combine with search without scanning invented columns",()=>{
@@ -140,6 +143,7 @@ test("server-side problem specs are PostgREST filters not client arrays",()=>{
   assert.ok(!price.or.includes("price.eq.0"));
   const inactive=P.problemFilterSpec("inactive");
   assert.deepStrictEqual(inactive.eq,["is_active",false]);
+  assert.strictEqual(P.problemFilterSpec("missing_stock_status"),null);
   const calls=[];
   const query={
     or(v){calls.push(["or",v]);return this},
@@ -188,6 +192,19 @@ test("negative and decimal stock are rejected without rounding",()=>{
   assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"1.5"},{presentBookCols:cols}).ok,false);
   assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"1.0"},{presentBookCols:cols}).ok,false);
   assert.strictEqual(P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"abc"},{presentBookCols:cols}).ok,false);
+});
+
+test("manual stock status override is optional and validated",()=>{
+  const cols=new Set(["stock","stock_status"]);
+  const manual=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"8",stock_status:"out_of_stock"},{presentBookCols:cols});
+  assert.strictEqual(manual.ok,true);
+  assert.strictEqual(manual.patch.stock,8);
+  assert.strictEqual(manual.patch.stock_status,"out_of_stock");
+  const automatic=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"8",stock_status:""},{presentBookCols:cols});
+  assert.strictEqual(automatic.ok,true);
+  assert.strictEqual(automatic.patch.stock_status,null);
+  const bad=P.buildQuickEditPatch({title:"A",source:"universal.html",stock:"8",stock_status:"wrong"},{presentBookCols:cols});
+  assert.strictEqual(bad.ok,false);
 });
 
 test("stock is omitted when the schema column is absent",()=>{
