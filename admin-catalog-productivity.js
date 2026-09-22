@@ -9,7 +9,7 @@ const Stock=root.KutadguStock||(typeof require==="function"?require("./kutadgu-s
 const PROTECTED_FIELDS=["id","legacy_id","sales_count","created_at","updated_at"];
 const QUICK_EDIT_FIELDS=["title","author","price","source","category","stock","stock_status","is_active","is_recommended","is_new","image_url"];
 const ALLOWED_BULK_ACTIONS=["category","stock_status","stock","publisher","recommended_on","recommended_off","new_on","new_off","activate","deactivate"];
-const PROBLEM_FILTERS=["missing_title","missing_author","missing_category","missing_price","missing_cover","inactive","missing_stock","missing_stock_status"];
+const PROBLEM_FILTERS=["missing_title","missing_author","missing_category","missing_price","missing_cover","inactive","missing_stock"];
 
 function normalizeText(value){
   if(Quality.normalizeCatalogText)return Quality.normalizeCatalogText(value);
@@ -70,9 +70,6 @@ function problemFilterSpec(problem){
   if(q==="missing_stock"){
     return {or:"stock.is.null"};
   }
-  if(q==="missing_stock_status"){
-    return {or:'stock_status.is.null,stock_status.eq.""'};
-  }
   return null;
 }
 
@@ -102,10 +99,6 @@ function bookMatchesProblem(book,problem,opts={}){
   if(q==="missing_stock"){
     if(opts.stockSupported===false)return false;
     return isMissingStock(book&&book.stock);
-  }
-  if(q==="missing_stock_status"){
-    if(opts.stockStatusSupported===false)return false;
-    return isMissingStockStatus(book&&book.stock_status);
   }
   return true;
 }
