@@ -149,6 +149,7 @@ test.describe("admin stock foundation", () => {
   test("Admin can manually override storefront stock status without changing quantity", async ({ page }) => {
     const rows = BOOKS.map((book) => ({
       ...book,
+      isbn: book.id === 4 ? "9784444444444" : book.isbn,
       stock_status: book.id === 4 ? "out_of_stock" : null
     }));
     await openAdminBooks(page, null, rows);
