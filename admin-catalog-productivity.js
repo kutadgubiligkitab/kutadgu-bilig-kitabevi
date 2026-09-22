@@ -162,6 +162,14 @@ function parseQuickPrice(raw){
   return {ok:true,value:n};
 }
 
+function parseStockStatusOverride(raw,present){
+  if(!present)return {ok:true,omit:true};
+  const value=String(raw??"").trim().toLowerCase();
+  if(!value)return {ok:true,value:null};
+  if(["in_stock","low_stock","out_of_stock"].includes(value))return {ok:true,value};
+  return {ok:false,error:"ئامبار ھالىتى توغرا ئەمەس."};
+}
+
 function parseQuickStock(raw,present){
   if(!present)return {ok:true,omit:true};
   if(Stock.requireConfiguredStock){
@@ -193,6 +201,8 @@ function buildQuickEditPatch(input,opts={}){
   if(!price.ok)return price;
   const stock=parseQuickStock(input&&input.stock,present.has("stock")||opts.stockSupported===true);
   if(!stock.ok)return stock;
+  const stockStatus=parseStockStatusOverride(input&&input.stock_status,present.has("stock_status")||opts.stockStatusSupported===true);
+  if(!stockStatus.ok)return stockStatus;
   const patch={
     title,
     author:normalizeText(input&&input.author),
@@ -204,6 +214,7 @@ function buildQuickEditPatch(input,opts={}){
     is_new:input&&input.is_new===true
   };
   if(!stock.omit)patch.stock=stock.value;
+  if(!stockStatus.omit)patch.stock_status=stockStatus.value;
   const cover=String(input&&input.image_url||"").trim();
   if(Object.prototype.hasOwnProperty.call(input||{},"image_url")){
     if(cover&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(cover)){
@@ -244,7 +255,11 @@ function buildBulkPatch(action,values,opts={}){
     patch={source,category:String(values.category||source)};
     valueLabel=patch.category;
   }else if(act==="stock_status"){
-    return {ok:false,error:"ئامبار ھالىتى ساقلىمايدۇ؛ پەقەت ئامبار سانىدىن ھاسىل قىلىنىدۇ."};
+    if(!present.has("stock_status")&&opts.stockStatusSupported!==true)return {ok:false,error:"stock_status يوق"};
+    const parsed=parseStockStatusOverride(values&&values.stock_status,true);
+    if(!parsed.ok)return parsed;
+    patch={stock_status:parsed.value};
+    valueLabel=parsed.value==="out_of_stock"?"تۈگەپ كەتتى":parsed.value==="low_stock"?"ئاز قالدى":parsed.value==="in_stock"?"ئامباردا بار":"ئاپتوماتىك";
   }else if(act==="stock"){
     if(!present.has("stock")&&opts.stockSupported!==true)return {ok:false,error:"stock يوق"};
     const parsed=Stock.parseAdminStock?Stock.parseAdminStock(values&&values.stock):null;
@@ -341,6 +356,7 @@ const api={
   bookMatchesProblem,
   filterLoadedBooks,
   stripProtectedFields,
+  parseStockStatusOverride,
   buildQuickEditPatch,
   buildBulkPatch,
   formatBulkConfirm,
