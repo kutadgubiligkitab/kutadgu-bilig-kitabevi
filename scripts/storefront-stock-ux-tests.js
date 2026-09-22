@@ -9,6 +9,7 @@ const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "shop.css"), "utf8");
 const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
 const stockHelper = fs.readFileSync(path.join(root, "kutadgu-stock.js"), "utf8");
+const Stock = require("../kutadgu-stock.js");
 
 let failed = 0;
 function test(name, fn) {
@@ -65,6 +66,24 @@ const api = stockUxApi();
 test("stockInfo still keeps in-stock labels internally", () => {
   assert.match(shop, /return \{key:"in",label:"ئامباردا بار",canBuy:true,qty\}/);
   assert.match(stockHelper, /in_stock:"ئامباردا بار"/);
+});
+
+test("manual stock status override changes display without bypassing real zero stock", () => {
+  const sold = Stock.storefrontStockInfo({ stock: 8, stock_status: "out_of_stock" }, { stockEnforcement: true });
+  assert.strictEqual(sold.key, "out");
+  assert.strictEqual(sold.canBuy, false);
+
+  const low = Stock.storefrontStockInfo({ stock: 8, stock_status: "low_stock" }, { stockEnforcement: true });
+  assert.strictEqual(low.key, "low");
+  assert.strictEqual(low.canBuy, true);
+  assert.strictEqual(low.qty, 8);
+
+  const zeroCannotBeOverridden = Stock.storefrontStockInfo({ stock: 0, stock_status: "in_stock" }, { stockEnforcement: true });
+  assert.strictEqual(zeroCannotBeOverridden.key, "out");
+  assert.strictEqual(zeroCannotBeOverridden.canBuy, false);
+
+  const automatic = Stock.storefrontStockInfo({ stock: 2, stock_status: "" }, { stockEnforcement: true });
+  assert.strictEqual(automatic.key, "low");
 });
 
 test("stockBadge hides in-stock and never prints exact quantity", () => {
