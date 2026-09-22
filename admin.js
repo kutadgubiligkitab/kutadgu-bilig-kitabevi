@@ -368,11 +368,13 @@ function enableStockStatusColumn(){
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
 }
-function derivedStockText(raw){
+function derivedStockText(raw,statusRaw){
   const lib=stockLib();
+  const manual=lib.normalizeStockOverride?lib.normalizeStockOverride(statusRaw):String(statusRaw||"").trim();
+  const effective=lib.storefrontStockInfo?lib.storefrontStockInfo({stock:raw,stock_status:statusRaw},{stockEnforcement:true}):null;
   const derived=lib.deriveStockStatus?lib.deriveStockStatus(raw):null;
-  const label=derived&&derived.ok?derived.label:"تەڭشەلمىگەن";
-  return `ئامبار ھالىتى: ${label}`;
+  const label=effective&&effective.label?effective.label:(derived&&derived.ok?derived.label:"تەڭشەلمىگەن");
+  return `تور بەتتە: ${label}${manual?" (قولدا)":""}`;
 }
 function setStockInputValue(el,raw){
   if(!el)return;
@@ -381,9 +383,9 @@ function setStockInputValue(el,raw){
 }
 function syncDerivedStockStatus(){
   const bookOut=$("#bookStockDerivedStatus");
-  if(bookOut)bookOut.textContent=derivedStockText($("#bookStock")?$("#bookStock").value:"");
+  if(bookOut)bookOut.textContent=derivedStockText($("#bookStock")?$("#bookStock").value:"",$("#bookStockStatus")?$("#bookStockStatus").value:"");
   const quickOut=$("#quickStockDerivedStatus");
-  if(quickOut)quickOut.textContent=derivedStockText($("#quickStock")?$("#quickStock").value:"");
+  if(quickOut)quickOut.textContent=derivedStockText($("#quickStock")?$("#quickStock").value:"",$("#quickStockStatus")?$("#quickStockStatus").value:"");
 }
 function adminStockMetaHtml(book){
   if(!presentBookCols.has("stock"))return "";
@@ -5388,7 +5390,9 @@ function bindBookListUx(){
   $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
   $("#bookForm")&&$("#bookForm").addEventListener("submit",saveBook);
   $("#bookStock")&&$("#bookStock").addEventListener("input",syncDerivedStockStatus);
+  $("#bookStockStatus")&&$("#bookStockStatus").addEventListener("change",syncDerivedStockStatus);
   $("#quickStock")&&$("#quickStock").addEventListener("input",syncDerivedStockStatus);
+  $("#quickStockStatus")&&$("#quickStockStatus").addEventListener("change",syncDerivedStockStatus);
   $("#bookOriginalPriceCorrectBtn")&&($("#bookOriginalPriceCorrectBtn").onclick=openOriginalPriceCorrectModal);
   $("#bookOriginalPriceResetBtn")&&($("#bookOriginalPriceResetBtn").onclick=openSingleOriginalResetModal);
   $("#bookPriceHistoryBtn")&&($("#bookPriceHistoryBtn").onclick=openPriceHistoryModal);
