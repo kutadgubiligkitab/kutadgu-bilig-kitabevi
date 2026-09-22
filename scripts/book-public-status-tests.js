@@ -79,6 +79,7 @@ async function run() {
     assert.ok(url.includes("title"));
     assert.ok(url.includes("image_url"));
     assert.ok(url.includes("publish_year"));
+    assert.ok(url.includes("stock_status"));
     assert.ok(!url.includes("language"));
     assert.ok(!url.includes("publish_date"));
     assert.ok(!/service_role/i.test(url));
@@ -87,6 +88,15 @@ async function run() {
       + fs.readFileSync(path.join(root, "api/book-public.js"), "utf8");
     assert.doesNotMatch(src, /service_role/i);
     assert.doesNotMatch(src, /service-role/i);
+  });
+
+  await test("manual stock override is reflected in public SEO availability", () => {
+    const sold = publicBook.publicSeoBook({ id: 106, stock: 8, stock_status: "out_of_stock" }, "106");
+    assert.strictEqual(publicBook.seoStockKey(sold), "out");
+    const zero = publicBook.publicSeoBook({ id: 106, stock: 0, stock_status: "in_stock" }, "106");
+    assert.strictEqual(publicBook.seoStockKey(zero), "out");
+    const low = publicBook.publicSeoBook({ id: 106, stock: 8, stock_status: "low_stock" }, "106");
+    assert.strictEqual(publicBook.seoStockKey(low), "low");
   });
 
   await test("found public row is found; empty or inactive filter miss is missing", async () => {
