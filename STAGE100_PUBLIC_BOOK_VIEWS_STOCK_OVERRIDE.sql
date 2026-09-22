@@ -47,7 +47,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 begin
   if exists (
     select 1
@@ -61,7 +61,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.kutadgu_block_manual_sold_out_order() from public, anon, authenticated;
 
