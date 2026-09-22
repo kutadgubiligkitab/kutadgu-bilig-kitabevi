@@ -119,6 +119,18 @@ test("remote relevance index does not pre-filter punctuation-normalized search w
   assert.strictEqual(Rank.rankHits(punctuated, "تام ھەققىدە ھېكايىلەر تام ئۆي كۆچتى")[0].id, "361");
 });
 
+test("remote relevance index removes zero-score candidates before ranking", () => {
+  const loader = shop.slice(shop.indexOf("async function loadSearchRankIndex"), shop.indexOf("async function fetchRankedRemotePage"));
+  assert.match(loader, /rows\.filter\(row=>Rank\.scoreHit\(row,state\.search\)>0\)/);
+  const rows = [
+    { id: "1", title: "ئانا", author: "", isbn: "", category: "" },
+    { id: "2", title: "باشقا كىتاب", author: "", isbn: "", category: "" }
+  ];
+  const matched = rows.filter((row) => Rank.scoreHit(row, "ئانا") > 0);
+  assert.deepStrictEqual(matched.map((row) => row.id), ["1"]);
+});
+
+
 test("no SQL/RPC; remote path ranks the full match set then pages by id", () => {
   assert.match(shop, /async function loadSearchRankIndex/);
   assert.match(shop, /async function fetchRankedRemotePage/);
