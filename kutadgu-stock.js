@@ -95,6 +95,14 @@ function normalizeStockStatusText(value){
   return String(value??"").replace(/\s+/g," ").trim().toLowerCase();
 }
 
+function normalizeStockOverride(value){
+  const raw=normalizeStockStatusText(value);
+  if(["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw))return STATUS.OUT_OF_STOCK;
+  if(["low","low_stock","ئاز قالدى"].includes(raw))return STATUS.LOW_STOCK;
+  if(["in","in_stock","available","ئامباردا بار"].includes(raw))return STATUS.IN_STOCK;
+  return "";
+}
+
 const PHASE1_STOREFRONT_STOCK={key:"unknown",label:"",canBuy:true,qty:null};
 
 function readGlobal(name){
@@ -117,25 +125,34 @@ function isStockEnforcementEnabled(opts){
 }
 
 function enforcedStorefrontStockInfo(book){
+  const override=normalizeStockOverride(book&&(book.stockStatus||book.stock_status||""));
   const parsed=parseStockQuantity(book&&book.stock);
-  if(parsed.ok&&parsed.configured){
-    const derived=deriveStockStatus(parsed.value);
+  const derived=parsed.ok&&parsed.configured?deriveStockStatus(parsed.value):null;
+
+  if(override===STATUS.OUT_OF_STOCK){
+    return {key:"out",label:LABELS.out_of_stock,canBuy:false,qty:0};
+  }
+
+  // A manual "in" or "low" label may change storefront presentation, but it
+  // must never bypass a real quantity of 0. Order enforcement remains safe.
+  if(derived&&derived.key===STATUS.OUT_OF_STOCK){
+    return {key:"out",label:LABELS.out_of_stock,canBuy:false,qty:0};
+  }
+
+  if(override===STATUS.LOW_STOCK){
+    return {key:"low",label:LABELS.low_stock,canBuy:true,qty:derived&&derived.qty!=null?derived.qty:null};
+  }
+  if(override===STATUS.IN_STOCK){
+    return {key:"in",label:LABELS.in_stock,canBuy:true,qty:derived&&derived.qty!=null?derived.qty:null};
+  }
+
+  if(derived){
     return {
       key:STOREFRONT_KEYS[derived.key]||"unknown",
       label:derived.label,
       canBuy:derived.key!==STATUS.OUT_OF_STOCK,
       qty:derived.qty
     };
-  }
-  const raw=normalizeStockStatusText(book&&(book.stockStatus||book.stock_status||""));
-  if(["out","out_of_stock","soldout","sold-out","تۈگەپ كەتتى"].includes(raw)){
-    return {key:"out",label:LABELS.out_of_stock,canBuy:false,qty:0};
-  }
-  if(["low","low_stock","ئاز قالدى"].includes(raw)){
-    return {key:"low",label:LABELS.low_stock,canBuy:true,qty:null};
-  }
-  if(["in","in_stock","available","ئامباردا بار"].includes(raw)){
-    return {key:"in",label:LABELS.in_stock,canBuy:true,qty:null};
   }
   return {key:"unknown",label:"",canBuy:true,qty:null};
 }
@@ -160,6 +177,7 @@ const api={
   formatStockInputValue,
   countUnconfiguredActiveBooks,
   unconfiguredStockLabel,
+  normalizeStockOverride,
   isStockEnforcementEnabled,
   storefrontStockInfo
 };
