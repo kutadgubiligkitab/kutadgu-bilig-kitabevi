@@ -1302,7 +1302,11 @@ function remoteBooksUrl(input={},flags={}){
   if(Number.isFinite(state.maxPrice))params.append("price",`lte.${state.maxPrice}`);
   if(state.bestseller&&!state.allowZeroSales)params.set("sales_count","gt.0");
 
-  if(state.search){
+  // Relevance search intentionally loads the filtered candidate set first,
+  // then normalizes/ranks locally. Do not pre-filter rankFields with a raw
+  // PostgREST ilike phrase: punctuation-normalized queries such as
+  // "(تام ...) تام" -> "تام ... تام" would otherwise lose valid matches.
+  if(state.search&&!flags.rankFields){
     const term=`*${state.search}*`;
     const cols=bibliographicLib().storefrontSearchColumns
       ?bibliographicLib().storefrontSearchColumns(window.KUTADGU_BOOKS_SCHEMA)
