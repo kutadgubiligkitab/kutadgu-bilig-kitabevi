@@ -75,8 +75,14 @@ select
 from public.analytics_events e
 join public.books b
   on b.id::text = e.book_id
+  or (
+    nullif(btrim(coalesce(b.legacy_id, '')), '') is not null
+    and (
+      b.legacy_id = e.book_id
+      or b.legacy_id = e.legacy_id
+    )
+  )
 where e.event_name = 'book_view'
-  and e.book_id ~ '^[1-9][0-9]*$'
   and nullif(btrim(coalesce(e.session_id, '')), '') is not null
 group by b.id, btrim(e.session_id)
 on conflict (book_id, session_id) do nothing;
@@ -90,8 +96,14 @@ select
 from public.analytics_events e
 join public.books b
   on b.id::text = e.book_id
+  or (
+    nullif(btrim(coalesce(b.legacy_id, '')), '') is not null
+    and (
+      b.legacy_id = e.book_id
+      or b.legacy_id = e.legacy_id
+    )
+  )
 where e.event_name = 'book_view'
-  and e.book_id ~ '^[1-9][0-9]*$'
 group by b.id
 on conflict (book_id) do update
 set total_views = excluded.total_views,
@@ -109,23 +121,26 @@ declare
   v_session text;
   v_is_unique boolean := false;
 begin
-  if new.event_name is distinct from 'book_view'
-     or new.book_id is null
-     or new.book_id !~ '^[1-9][0-9]*$' then
+  if new.event_name is distinct from 'book_view' then
     return new;
   end if;
 
-  begin
-    v_book_id := new.book_id::bigint;
-  exception when others then
-    return new;
-  end;
+  select b.id
+    into v_book_id
+  from public.books b
+  where b.id::text = nullif(btrim(coalesce(new.book_id, '')), '')
+     or (
+       nullif(btrim(coalesce(b.legacy_id, '')), '') is not null
+       and (
+         b.legacy_id = nullif(btrim(coalesce(new.book_id, '')), '')
+         or b.legacy_id = nullif(btrim(coalesce(new.legacy_id, '')), '')
+       )
+     )
+  order by case when b.id::text = nullif(btrim(coalesce(new.book_id, '')), '') then 0 else 1 end,
+           b.id
+  limit 1;
 
-  if not exists (
-    select 1
-    from public.books b
-    where b.id = v_book_id
-  ) then
+  if v_book_id is null then
     return new;
   end if;
 
