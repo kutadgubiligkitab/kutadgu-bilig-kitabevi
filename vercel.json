@@ -109,6 +109,11 @@
       "source": "/returns.html",
       "destination": "/returns",
       "permanent": true
+    },
+    {
+      "source": "/delete-account.html",
+      "destination": "/delete-account",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -207,6 +212,10 @@
     {
       "source": "/returns",
       "destination": "/returns.html"
+    },
+    {
+      "source": "/delete-account",
+      "destination": "/delete-account.html"
     },
     {
       "source": "/book.html",

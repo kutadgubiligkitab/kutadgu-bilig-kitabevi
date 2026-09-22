@@ -48,7 +48,8 @@ const CATEGORY_HUB_SLUGS = [
 const PUBLIC_INFO_SLUGS = [
   "order-info",
   "privacy",
-  "returns"
+  "returns",
+  "delete-account"
 ];
 
 const PUBLIC_PAGE_PATHS = [
