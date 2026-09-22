@@ -189,11 +189,29 @@
     }
 
     .book-author{
-      margin-bottom:22px;
+      margin-bottom:10px;
       color:var(--site-text-soft,#806f62);
       font-size:17px;
       line-height:1.8;
     }
+
+    .book-view-count{
+      width:max-content;
+      max-width:100%;
+      margin:0 0 18px;
+      padding:5px 10px;
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:999px;
+      background:var(--site-bg-soft,#fbf8f2);
+      color:var(--site-text-soft,#806f62);
+      font-size:13px;
+      font-weight:700;
+      line-height:1.5;
+    }
+    .book-view-count[hidden]{display:none!important}
 
     .detail-service-list{
       margin:0 0 22px;
@@ -416,6 +434,7 @@
       <div class="book-detail-info">
         <h1>كىتاب</h1>
         <div class="book-author">ئاپتورى: —</div>
+        <div class="book-view-count" hidden aria-live="polite"><span aria-hidden="true">👁</span><span data-book-view-count></span><span>قېتىم كۆرۈلدى</span></div>
 
         <div class="detail-service-list" aria-label="يەتكۈزۈش ئۇچۇرى">
           <div class="detail-service-item">
@@ -447,7 +466,7 @@
   <script defer src="/catalog-bibliography.js?v=3"></script>
   <script defer src="/gallery-images.js?v=2"></script>
   <script defer src="/kutadgu-book-seo.js?v=4"></script>
-  <script defer src="/kutadgu-safe-url.js?v=1"></script><script defer src="/public-header.js?v=1"></script><script defer src="/kutadgu-search-rank.js?v=1"></script><script defer src="/shop.js?v=128"></script>
+  <script defer src="/kutadgu-safe-url.js?v=1"></script><script defer src="/public-header.js?v=1"></script><script defer src="/kutadgu-search-rank.js?v=1"></script><script defer src="/kutadgu-stock.js?v=4"></script><script defer src="/shop.js?v=129"></script>
   <script defer src="/mobile.js?v=9"></script>
 </body>
 </html>
