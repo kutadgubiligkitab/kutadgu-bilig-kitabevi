@@ -374,7 +374,7 @@ function derivedStockText(raw,statusRaw){
   const effective=lib.storefrontStockInfo?lib.storefrontStockInfo({stock:raw,stock_status:statusRaw},{stockEnforcement:true}):null;
   const derived=lib.deriveStockStatus?lib.deriveStockStatus(raw):null;
   const label=effective&&effective.label?effective.label:(derived&&derived.ok?derived.label:"تەڭشەلمىگەن");
-  return `تور بەتتە: ${label}${manual?" (قولدا)":""}`;
+  return manual?`تور بەتتە: ${label} (قولدا)`:`ئامبار ھالىتى: ${label}`;
 }
 function setStockInputValue(el,raw){
   if(!el)return;
