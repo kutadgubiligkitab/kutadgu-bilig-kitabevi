@@ -111,6 +111,14 @@ test("K analytics still fire once per real search, not Load More", () => {
   assert.match(analytics, /zero_result_search/);
 });
 
+test("remote relevance index does not pre-filter punctuation-normalized search with raw ilike", () => {
+  const urlFn = shop.slice(shop.indexOf("function remoteBooksUrl"), shop.indexOf("function totalFromContentRange"));
+  assert.match(urlFn, /if\(state\.search&&!flags\.rankFields\)/);
+  assert.doesNotMatch(urlFn, /if\(state\.search\)\{/);
+  const punctuated = [{ id: "361", title: "(تام ھەققىدە ھېكايىلەر) تام ئۆي كۆچتى", author: "", isbn: "", category: "بالىلار" }];
+  assert.strictEqual(Rank.rankHits(punctuated, "تام ھەققىدە ھېكايىلەر تام ئۆي كۆچتى")[0].id, "361");
+});
+
 test("no SQL/RPC; remote path ranks the full match set then pages by id", () => {
   assert.match(shop, /async function loadSearchRankIndex/);
   assert.match(shop, /async function fetchRankedRemotePage/);
