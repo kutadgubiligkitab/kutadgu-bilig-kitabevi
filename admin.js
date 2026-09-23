@@ -3630,6 +3630,41 @@ async function collectGalleryUrls(id){
   return urls;
 }
 
+async function coverSha256(file){
+  if(!file)return "";
+  if(!window.crypto||!window.crypto.subtle||typeof file.arrayBuffer!=="function"){
+    throw new Error("مۇقاۋا fingerprint ھېسابلاشنى بۇ browser قوللىمايدۇ. Browser نى يېڭىلاپ قايتا سىناڭ.");
+  }
+  const bytes=await file.arrayBuffer();
+  const digest=await window.crypto.subtle.digest("SHA-256",bytes);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function findCoverShaConflict(hash,excludeId){
+  const key=String(hash||"").trim().toLowerCase();
+  if(!key||!presentBookCols.has("cover_sha256")||!db)return null;
+  let query=db.from("books").select("id,title").eq("cover_sha256",key).limit(2);
+  const skip=canonicalBookId(excludeId);
+  if(skip)query=query.neq("id",skip);
+  const {data,error}=await query;
+  if(error){
+    if(isMissingCoverSha256ColumnError(error)){
+      disableCoverSha256Column();
+      return null;
+    }
+    throw error;
+  }
+  return Array.isArray(data)&&data.length?data[0]:null;
+}
+function duplicateCoverShaError(error){
+  const code=String(error&&error.code||"");
+  const msg=String(error&&error.message||error||"");
+  return code==="23505"&&/cover_sha256|books_cover_sha256_unique_idx/i.test(msg);
+}
+function duplicateCoverMessage(book){
+  const title=book&&book.title?" «"+book.title+"»":"";
+  const id=book&&book.id!=null?" (ID "+book.id+")":"";
+  return "بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا"+title+id+" باغلانغان. ھەر كىتابقا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.";
+}
 async function optimizeCover(file){
   if(!file||!String(file.type||"").startsWith("image/"))return file;
   try{
@@ -3714,6 +3749,11 @@ async function saveBook(e){
   }
   const isEdit=plan.operation==="UPDATE";
   const editingBookId=plan.editingBookId;
+  const coverFile=$("#bookCover")&&$("#bookCover").files&&$("#bookCover").files[0]||null;
+  if(!isEdit&&!pendingSave&&!coverFile){
+    alert("يېڭى كىتابقا مۇقاۋا رەسىمى تاللاش كېرەك. باشقا كىتابنىڭ ياكى ئۆرنەك مۇقاۋىنىڭ رەسىمى ئىشلىتىلمەيدۇ.");
+    return;
+  }
   const author=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookAuthor").value):$("#bookAuthor").value.trim();
   const submit=$("#bookForm button[type='submit']");
   saveInFlight=true;
@@ -3741,7 +3781,12 @@ async function saveBook(e){
       }
     }
     const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
-    const imageUrl=await uploadCover(storageId,$("#bookCover").files[0]);
+    const coverHash=coverFile&&presentBookCols.has("cover_sha256")?await coverSha256(coverFile):"";
+    if(coverHash){
+      const conflict=await findCoverShaConflict(coverHash,isEdit?editingBookId:"");
+      if(conflict)throw new Error(duplicateCoverMessage(conflict));
+    }
+    const imageUrl=await uploadCover(storageId,coverFile);
     if(imageUrl&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(imageUrl)){
       throw new Error(Safe.COVER_URL_ERROR||"مۇقاۋا URL بىخەتەر ئەمەس.");
     }
@@ -3766,6 +3811,7 @@ async function saveBook(e){
       is_new:$("#bookIsNew").checked,
       is_recommended:$("#bookIsRecommended").checked
     };
+    if(coverHash&&presentBookCols.has("cover_sha256"))row.cover_sha256=coverHash;
     const coverPlan=Bib.canonicalOptionalForSave
       ?Bib.canonicalOptionalForSave($("#bookCoverType")?$("#bookCoverType").value:"",editing&&editing.cover_type,isEdit,Bib.normalizeCoverType)
       :{include:true,value:($("#bookCoverType")&&$("#bookCoverType").value)||null};
@@ -3860,6 +3906,14 @@ async function saveBook(e){
       if(!error){
         alert("stock ستونى تېخى Database دا يوق. STAGE82_STOCK_FOUNDATION.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
+    }
+    if(error&&Object.prototype.hasOwnProperty.call(payload||{},"cover_sha256")&&isMissingCoverSha256ColumnError(error)){
+      disableCoverSha256Column();
+      delete payload.cover_sha256;
+      error=await runPersist(payload,plan.operation,editingBookId);
+    }
+    if(error&&duplicateCoverShaError(error)){
+      throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. ھەر كىتابقا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.");
     }
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"stock_status")&&isMissingStockStatusColumnError(error)){
       disableStockStatusColumn();
