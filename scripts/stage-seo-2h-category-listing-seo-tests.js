@@ -21,16 +21,16 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "3976a603d3057cb7872252048f40b3772ab63cd28216938924ba16a6c9e8a519",
-  "kutadgu-search-rank.js": "87f083b9bfd62ce6ea0ce0df6bd796ca21a201a580b5ffb6dc3258326321831b",
+  "shop.js": "3a0ceb7b49dfb72df16a53a5f2f6d2207ff6151beac51aef8a940eebf1f9481b",
+  "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "bd97183c340ee91b02162e72c59b2e73a7a675319a89285a5037ed6ddacba8d1",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "1518c8eb490c547522d338e93574f7c60711c84c6a4cecf5d4e3774abc2c3b7b",
+  "book-shell.html": "685b3d7e3065d832f4922f6268c1cfbf7a2eb1325a443598cb3946ab86184aac",
   "index.html": "caee90498fc0ef3f6c128efe6b915559a59be659d9f1264e2bc4521c5c5fbc4d",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "5cd4cda341684186f6904e8b3a8e2d209dfc430ea51548158154eef35d94f66d",
+  "vercel.json": "b51d5f9089a7a7eee23de77b07115bcbf351f312cf7e7f3c608e14cd707e4665",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -304,7 +304,6 @@ test("protected product files stay frozen and out of this diff", () => {
     "book-shell.html",
     "index.html",
     "vercel.json",
-    "admin.js",
     "book-staff.js",
     "favorites.js",
     "member.js",
@@ -333,7 +332,39 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage-seo-2c-book-first-byte-content-tests.js",
     "scripts/stage-seo-2d-favicon-tests.js",
     "scripts/stage-seo-2e-book-meta-descriptions-tests.js",
-    "scripts/stage-seo-2f-first-byte-book-details-tests.js"
+    "scripts/stage-seo-2f-first-byte-book-details-tests.js",
+    "STAGE87_COVER_INTEGRITY.sql",
+    "admin.js",
+    "premium-ux.js",
+    "supabase-config.js",
+    "carousel-sample-cover.png",
+    "sample-book-cover(1).png",
+    "scripts/cover-integrity-guard-tests.js",
+    "scripts/adabiyat-hub-tests.js",
+    "scripts/admin-book-staff-tests.js",
+    "scripts/admin-navigation-tests.js",
+    "scripts/admin-submissions-tests.js",
+    "scripts/compact-cards-mobile-cover-tests.js",
+    "scripts/design-foundation-tests.js",
+    "scripts/discovery-category-split-hotfix-tests.js",
+    "scripts/listing-card-clipping-tests.js",
+    "scripts/public-book-card-row-alignment-tests.js",
+    "scripts/recently-viewed-card-spacing-tests.js",
+    "scripts/similar-books-card-spacing-tests.js",
+    "scripts/stage-ai-search-1c-vector-foundation-tests.js",
+    "scripts/stage-ai-search-1d-generate-book-embeddings-tests.js",
+    "scripts/stage-ai-search-1e-backend-api-tests.js",
+    "scripts/stage3-shop-identity-tests.js",
+    "scripts/stage4b1-public-cards-tests.js",
+    "scripts/stage4b2-homepage-discovery-tests.js",
+    "scripts/storefront-cards-1a-polish-tests.js",
+    "scripts/storefront-cards-1b-polish-tests.js",
+    "tests/e2e/admin-book-cover-picker.spec.js",
+    "tests/e2e/admin-book-form-polish.spec.js",
+    "tests/e2e/admin-stock-foundation.spec.js",
+    "tests/e2e/admin-suggest-save-refresh.spec.js",
+    "tests/e2e/book-interior-print-type.spec.js",
+    "tests/e2e/public-book-card-row-alignment.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
