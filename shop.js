@@ -1180,7 +1180,6 @@ function staticQueryPage(input={}){
   if(state.newOnly)rows=rows.filter(book=>book.isNew===true);
   if(state.featured||state.recommended)rows=rows.filter(book=>book.isRecommended===true);
   if(state.bestseller&&!state.allowZeroSales)rows=rows.filter(book=>Number(book.salesCount)>0);
-  const Rank=window.KutadguSearchRank||{};
   if(Rank.usesSearchRelevance&&Rank.usesSearchRelevance(state)&&Rank.rankHits)rows=Rank.rankHits(rows,state.search);
   else rows=sortBooks(rows,state.sort);
   const total=rows.length,items=rows.slice(state.offset,state.offset+state.pageSize);
