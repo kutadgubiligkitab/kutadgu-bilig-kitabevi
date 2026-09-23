@@ -128,7 +128,7 @@ test("save path upserts only after confirmed persistBookRow success", () => {
 
 test("pins and Search 1A files stay out of this hotfix", () => {
   assert.match(adminHtml, /kutadgu-book-entry-suggest\.js\?v=2/);
-  assert.match(adminHtml, /admin\.js\?v=78/);
+  assert.match(adminHtml, /admin\.js\?v=79/);
   assert.match(staffHtml, /kutadgu-book-entry-suggest\.js\?v=2/);
   assert.doesNotMatch(adminJs, /kutadgu-search-rank|loadSearchRankIndex/);
 });

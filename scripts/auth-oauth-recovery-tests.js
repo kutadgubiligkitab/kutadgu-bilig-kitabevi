@@ -208,7 +208,7 @@ test("reset-password.html loads reset-password.js v=10", () => {
   assert.doesNotMatch(account, /supabase-config\.js\?v=16/);
   assert.match(index, /supabase-config\.js\?v=22/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=22/);
-  assert.match(read("admin.html"), /admin\.js\?v=78/);
+  assert.match(read("admin.html"), /admin\.js\?v=79/);
 });
 
 test("account.html no longer pins stale auth assets", () => {

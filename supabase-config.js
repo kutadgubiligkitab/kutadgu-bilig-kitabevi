@@ -170,7 +170,8 @@ window.kutadguForgetLegacySharedAuthStorage = function(){
   dimensions stays unused in Admin create/edit (no width/height UI).
   stock stays false until STAGE82_STOCK_FOUNDATION.sql. Admin live-detects stock
   (read-only select) so a frontend deploy before the manual migration does not
-  crash book CRUD. stock_status is never a writable Admin field; status is derived.
+  crash book CRUD. stock_status stays false until STAGE85_STOCK_STATUS_OVERRIDE.sql.
+  Admin live-detects stock_status the same way; NULL means Automatic.
   is_color_print stays true after STAGE_COLOR_PRINT.sql. Admin still live-detects it
   so an environment without the column can hide the field and omit writes.
   interior_print_type stays false until STAGE_INTERIOR_PRINT_TYPE.sql. Admin
@@ -252,5 +253,22 @@ window.KUTADGU_CONTACT_CONFIG = {
     s.async=true;
     s.dataset.kutadguAnnouncements="1";
     (document.head||document.documentElement).appendChild(s);
+  }catch(e){}
+})();
+
+(function kutadguLoadStockHelper(){
+  try{
+    if(typeof document==="undefined")return;
+    if(window.KutadguStock)return;
+    var file=(location.pathname.split("/").pop()||"").toLowerCase();
+    if(file==="admin.html"||file==="admin-quality-preview.html"||file==="reset-password.html"||file==="book-staff.html")return;
+    if(document.querySelector('script[data-kutadgu-stock="1"]'))return;
+    var s=document.createElement("script");
+    s.src="/kutadgu-stock.js?v=4";
+    s.async=false;
+    s.dataset.kutadguStock="1";
+    var current=document.currentScript;
+    if(current&&current.parentNode)current.parentNode.insertBefore(s, current.nextSibling);
+    else (document.head||document.documentElement).appendChild(s);
   }catch(e){}
 })();

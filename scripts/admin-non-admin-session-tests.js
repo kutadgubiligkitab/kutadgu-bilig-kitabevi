@@ -99,7 +99,7 @@ test("E. No role, RLS, or admin_users weakening", () => {
   assert.doesNotMatch(accountJs, /from\("admin_users"\)/);
   assert.doesNotMatch(adminJs, /CREATE POLICY|ALTER TABLE|DROP POLICY/);
   assert.doesNotMatch(staffJs, /add_kutadgu_book_staff/);
-  assert.match(adminHtml, /admin\.js\?v=78/);
+  assert.match(adminHtml, /admin\.js\?v=79/);
 });
 
 if (failed) {

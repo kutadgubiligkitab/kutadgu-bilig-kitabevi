@@ -312,9 +312,6 @@ function applyBooksSchema(){
     const col=el.getAttribute("data-book-col");
     el.hidden=!presentBookCols.has(col);
   });
-  document.querySelectorAll("[data-book-col='stock_status']").forEach(el=>{
-    el.hidden=true;
-  });
   const search=$("#adminSearch");
   if(search){
     search.placeholder="ئاپتور، تەرجىمە قىلغۇچى، نەشرىيات ياكى كىتاب نامى";
@@ -350,7 +347,26 @@ function enableStockColumn(){
   const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
   spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.stock=true;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function isMissingStockStatusColumnError(error){
+  const msg=String(error&&error.message||"");
+  const code=String(error&&error.code||"");
+  const mentions=/stock_status/i.test(msg);
+  return mentions&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
+}
+function disableStockStatusColumn(){
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.stock_status=false;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function enableStockStatusColumn(){
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.stock_status=true;
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
 }
@@ -365,6 +381,17 @@ function setStockInputValue(el,raw){
   const lib=stockLib();
   el.value=lib.formatStockInputValue?lib.formatStockInputValue(raw):(raw==null||raw===""?"":String(raw));
 }
+function setStockStatusSelect(el,raw){
+  if(!el)return;
+  const lib=stockLib();
+  el.value=lib.formatStockStatusInputValue?lib.formatStockStatusInputValue(raw):"";
+}
+function readStockStatusSelect(el){
+  const lib=stockLib();
+  const parsed=lib.parseManualStockStatus?lib.parseManualStockStatus(el?el.value:""):{ok:true,value:null};
+  if(!parsed.ok)return parsed;
+  return {ok:true,value:parsed.value};
+}
 function syncDerivedStockStatus(){
   const bookOut=$("#bookStockDerivedStatus");
   if(bookOut)bookOut.textContent=derivedStockText($("#bookStock")?$("#bookStock").value:"");
@@ -376,7 +403,11 @@ function adminStockMetaHtml(book){
   const lib=stockLib();
   const derived=lib.deriveStockStatus?lib.deriveStockStatus(book&&book.stock):null;
   const qty=derived&&derived.ok&&derived.qty!=null?String(derived.qty):"—";
-  const label=derived&&derived.ok?derived.label:"تەڭشەلمىگەن";
+  let label=derived&&derived.ok?derived.label:"تەڭشەلمىگەن";
+  if(lib.storefrontStockInfo){
+    const shown=lib.storefrontStockInfo(book,{stockEnforcement:true});
+    if(shown&&shown.label)label=shown.label;
+  }
   return ` · ئامبار ${esc(qty)} · ${esc(label)}`;
 }
 function renderUnconfiguredStock(count){
@@ -426,10 +457,10 @@ function writeBookRow(row,opts={}){
     if(opts.mode==="update"&&(key==="id"||key==="created_at"||key==="legacy_id"||key==="updated_at"))return;
     out[key]=row[key];
   });
-  delete out.stock_status;
+  if(!presentBookCols.has("stock_status"))delete out.stock_status;
   if(opts.mode==="update"&&Write.stripIdentityFields){
     const stripped=Write.stripIdentityFields(out);
-    delete stripped.stock_status;
+    if(!presentBookCols.has("stock_status"))delete stripped.stock_status;
     return stripped;
   }
   return out;
@@ -1158,6 +1189,7 @@ async function routeSession(){
   }
   await detectOptionalGalleryColumn();
   await detectOptionalStockColumn();
+  await detectOptionalStockStatusColumn();
   await detectOptionalColorPrintColumn();
   await detectOptionalInteriorPrintTypeColumn();
   if(gen!==routeGen)return;
@@ -2336,6 +2368,7 @@ function clearForm(){
   $("#bookIsRecommended").checked=false;
   $("#bookIsbn").value="";
   setStockInputValue($("#bookStock"),null);
+  setStockStatusSelect($("#bookStockStatus"),"");
   syncDerivedStockStatus();
   $("#bookSalesCount").value=0;
   $("#bookCoverPreview").src="";
@@ -2387,6 +2420,7 @@ async function openEdit(id){
   renderOriginalPriceStatus(b.original_price,{create:false});
   setOriginalPriceNote("");
   setStockInputValue($("#bookStock"),b.stock);
+  setStockStatusSelect($("#bookStockStatus"),b.stock_status);
   syncDerivedStockStatus();
   $("#bookSalesCount").value=b.sales_count??0;
   $("#bookSource").value=b.source||"";
@@ -3112,6 +3146,7 @@ async function openQuickEdit(id,trigger){
   $("#quickPrice").value=b.price??"";
   $("#quickSource").value=b.source||"";
   if($("#quickStock"))setStockInputValue($("#quickStock"),b.stock);
+  setStockStatusSelect($("#quickStockStatus"),b.stock_status);
   syncDerivedStockStatus();
   $("#quickCoverUrl").value=b.image_url||"";
   $("#quickIsActive").checked=b.is_active!==false;
@@ -3131,6 +3166,7 @@ function collectQuickEditInput(){
     source:$("#quickSource")?$("#quickSource").value:"",
     category:sourceCategory($("#quickSource")?$("#quickSource").value:""),
     stock:$("#quickStock")?$("#quickStock").value:"",
+    stock_status:$("#quickStockStatus")?$("#quickStockStatus").value:"",
     image_url:$("#quickCoverUrl")?$("#quickCoverUrl").value:"",
     is_active:$("#quickIsActive")?$("#quickIsActive").checked:true,
     is_recommended:$("#quickIsRecommended")?$("#quickIsRecommended").checked:false,
@@ -3147,6 +3183,11 @@ async function persistQuickEdit(id,patch){
   if(result&&result.error&&Object.prototype.hasOwnProperty.call(payload,"stock")&&isMissingStockColumnError(result.error)){
     disableStockColumn();
     delete payload.stock;
+    result=await persistBookRow(payload,"UPDATE",id);
+  }
+  if(result&&result.error&&Object.prototype.hasOwnProperty.call(payload,"stock_status")&&isMissingStockStatusColumnError(result.error)){
+    disableStockStatusColumn();
+    delete payload.stock_status;
     result=await persistBookRow(payload,"UPDATE",id);
   }
   return result;
@@ -3267,6 +3308,19 @@ async function detectOptionalStockColumn(){
       return;
     }
     if(!error)enableStockColumn();
+  }catch(err){
+    console.warn(err);
+  }
+}
+async function detectOptionalStockStatusColumn(){
+  if(!db)return;
+  try{
+    const {error}=await db.from("books").select("stock_status").limit(1);
+    if(error&&isMissingStockStatusColumnError(error)){
+      disableStockStatusColumn();
+      return;
+    }
+    if(!error)enableStockStatusColumn();
   }catch(err){
     console.warn(err);
   }
@@ -3688,6 +3742,17 @@ async function saveBook(e){
     if(presentBookCols.has("gallery_images"))row.gallery_images=normalizeGalleryField(galleryUrls,imageUrl);
     if(isbnColumn)row.isbn=isbn;
     if(presentBookCols.has("stock"))row.stock=stockValue;
+    if(presentBookCols.has("stock_status")){
+      const statusParsed=readStockStatusSelect($("#bookStockStatus"));
+      if(!statusParsed.ok){
+        saveInFlight=false;
+        submit.disabled=false;
+        restoreBookSaveBtnLabel();
+        alert(statusParsed.error);
+        return;
+      }
+      row.stock_status=statusParsed.value;
+    }
     if(!pendingSave){
       if(presentBookCols.has("interior_print_type")){
         const printType=Bib.normalizeInteriorPrintType?Bib.normalizeInteriorPrintType($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value):((($("#bookInteriorPrintType")&&$("#bookInteriorPrintType").value)||"")||null);
@@ -3759,6 +3824,14 @@ async function saveBook(e){
       error=await runPersist(payload,plan.operation,editingBookId);
       if(!error){
         alert("stock ستونى تېخى Database دا يوق. STAGE82_STOCK_FOUNDATION.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
+      }
+    }
+    if(error&&Object.prototype.hasOwnProperty.call(payload||{},"stock_status")&&isMissingStockStatusColumnError(error)){
+      disableStockStatusColumn();
+      delete payload.stock_status;
+      error=await runPersist(payload,plan.operation,editingBookId);
+      if(!error){
+        alert("stock_status ستونى تېخى Database دا يوق. STAGE85_STOCK_STATUS_OVERRIDE.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا مەيدانلار ساقلاندى.");
       }
     }
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"is_color_print")&&isMissingColorPrintColumnError(error)){
