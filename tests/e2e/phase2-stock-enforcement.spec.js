@@ -150,7 +150,7 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, "ئامبار بىر كىتاب");
     await expect(page.locator("#cartItems [data-plus]")).toBeDisabled();
-    await page.locator("#cartItems [data-plus]").click({ force: true });
+    await page.locator("#cartItems [data-plus]").evaluate((button) => button.click());
     await expect.poll(async () => Number((await H.readCart(page))[0]?.qty)).toBe(1);
   });
 

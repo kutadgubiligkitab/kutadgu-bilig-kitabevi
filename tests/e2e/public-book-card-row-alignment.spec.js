@@ -418,13 +418,13 @@ test.describe("public book-card same-row cart alignment", () => {
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
         await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
-        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid .shop-mini-card").count()).toBeGreaterThan(1);
+        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card").count()).toBeGreaterThan(1);
         await applyMode(page, mode);
         const newest = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
         expectAlignedRows(newest, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });
         await capture(page, "#myBooksContent", `public_align_mybooks_newest_${width}_${mode}.png`, mode);
         await page.locator('[data-mybooks-tab="recommended"]').click();
-        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid .shop-mini-card").count()).toBeGreaterThan(1);
+        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card").count()).toBeGreaterThan(1);
         await applyMode(page, mode);
         const rec = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
         expectAlignedRows(rec, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });

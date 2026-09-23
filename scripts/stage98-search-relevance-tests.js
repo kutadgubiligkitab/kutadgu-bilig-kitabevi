@@ -34,6 +34,14 @@ test("A exact title ranks before title-contains and title-prefix matches", () =>
   assert.deepStrictEqual(titles(Rank.rankHits(ANA, "ئانا")), ["ئانا", "ئانا دەريانى ئىزدەپ", "يەر ئانا"]);
 });
 
+test("A2 parenthesized titles match punctuation-free search tokens", () => {
+  const row = { id: "371", title: "(بالىلار قامۇسى) ئالەم سارىيى", author: "", isbn: "", category: "بالىلار كىتابلىرى" };
+  const query = "بالىلار قامۇسى ئالەم سارىيى";
+  assert.strictEqual(Rank.normalizeText(row.title), query);
+  assert.strictEqual(Rank.scoreHit(row, query), Rank.SCORE.titleExact);
+  assert.strictEqual(Rank.postgrestPattern(query), "*بالىلار*قامۇسى*ئالەم*سارىيى*");
+});
+
 test("B exact ISBN ranks first", () => {
   const rows = [
     { id: "9", title: "9782222222222", author: "ئانا", isbn: "111", category: "رومان" },
@@ -100,6 +108,7 @@ test("I cold-load q-param still waits for catalog-ready", () => {
 
 test("L static fallback ranks with the same helper", () => {
   const staticFn = shop.slice(shop.indexOf("function staticQueryPage"), shop.indexOf("function remoteOrder"));
+  assert.match(staticFn, /searchNormalize=Rank\.normalizeText\|\|normalizeText/);
   assert.match(staticFn, /Rank\.usesSearchRelevance\(state\)&&Rank\.rankHits\)rows=Rank\.rankHits\(rows,state\.search\)/);
   assert.match(staticFn, /else rows=sortBooks\(rows,state\.sort\)/);
 });
@@ -114,6 +123,7 @@ test("K analytics still fire once per real search, not Load More", () => {
 test("no SQL/RPC; remote path ranks the full match set then pages by id", () => {
   assert.match(shop, /async function loadSearchRankIndex/);
   assert.match(shop, /async function fetchRankedRemotePage/);
+  assert.match(shop, /Rank\.postgrestPattern\?Rank\.postgrestPattern\(state\.search\)/);
   assert.match(shop, /rankFields:true/);
   assert.match(shop, /usesSearchRelevance\(state\)&&!options\._rankedPage/);
   assert.doesNotMatch(shop, /CREATE FUNCTION|rpc\("search/);

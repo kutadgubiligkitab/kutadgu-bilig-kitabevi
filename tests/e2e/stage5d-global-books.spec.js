@@ -72,6 +72,31 @@ function bookRow(overrides) {
   };
 }
 
+function matchesMockSearch(row, searchBlob) {
+  const patterns = [...String(searchBlob || "").matchAll(/(?:^|[,(])(?:title|author|category|translator|publisher|isbn)\.ilike\.([^,)]+)/gi)]
+    .map((m) => String(m[1] || "").trim())
+    .filter(Boolean);
+  if (!patterns.length) return true;
+  const hay = [row.title, row.author, row.category, row.translator, row.publisher, row.isbn]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase("ug");
+  return patterns.some((pattern) => {
+    const tokens = pattern
+      .split("*")
+      .map((part) => part.trim().toLocaleLowerCase("ug"))
+      .filter(Boolean);
+    if (!tokens.length) return true;
+    let from = 0;
+    return tokens.every((token) => {
+      const at = hay.indexOf(token, from);
+      if (at < 0) return false;
+      from = at + token.length;
+      return true;
+    });
+  });
+}
+
 async function mockBooks(page, { delayMs = 0, fail = false, hang = false, books = MIXED, onRequest } = {}) {
   await page.route("**/rest/v1/books**", async (route) => {
     const req = route.request();
@@ -108,7 +133,7 @@ async function mockBooks(page, { delayMs = 0, fail = false, hang = false, books 
     }
     const searchBlob = `${parsed.searchParams.get("or") || ""} ${parsed.searchParams.get("and") || ""}`;
     if (/ilike\./i.test(searchBlob)) {
-      filtered = filtered.filter((row) => searchBlob.includes(row.title));
+      filtered = filtered.filter((row) => matchesMockSearch(row, searchBlob));
     }
     const collectionRec = parsed.searchParams.get("is_recommended");
     if (collectionRec === "eq.true") filtered = filtered.filter((row) => row.is_recommended);
