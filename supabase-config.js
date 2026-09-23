@@ -187,6 +187,8 @@ window.KUTADGU_BOOKS_SCHEMA = {
     /* true after STAGE82_STOCK_FOUNDATION.sql. Admin also live-detects the column. */
     stock: false,
     stock_status: false,
+    /* true after STAGE87_COVER_INTEGRITY.sql. Admin live-detects the column. */
+    cover_sha256: false,
     pages: true,
     translator: true,
     language: false,
