@@ -1,4 +1,6 @@
 const { test, expect } = require("./playwright-test");
+const path = require("path");
+const STUB = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 
 const EXISTING = [
   {
@@ -41,6 +43,7 @@ async function fillAndSaveNew(page, fields) {
   if (fields.publisher) await page.locator("#bookPublisher").fill(fields.publisher);
   await page.locator("#bookPrice").fill("20");
   await page.locator("#bookSource").selectOption("universal.html");
+  await page.locator("#bookCover").setInputFiles(STUB);
   await page.locator("#bookSaveBtn").click();
   await expect(page.locator("#bookModal")).toBeHidden();
 }
@@ -105,6 +108,7 @@ test.describe("Stage Admin 1K suggestion refresh after save", () => {
     await page.locator("#bookAuthor").fill("مەغلۇپ ئاپتور");
     await page.locator("#bookPrice").fill("20");
     await page.locator("#bookSource").selectOption("universal.html");
+    await page.locator("#bookCover").setInputFiles(STUB);
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookModal")).toBeVisible();
     const authors = await page.evaluate(() => {
