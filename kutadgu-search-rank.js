@@ -19,7 +19,17 @@
   };
 
   function normalizeText(value) {
-    return String(value == null ? "" : value).toLocaleLowerCase("ug").replace(/\s+/g, " ").trim();
+    return String(value == null ? "" : value)
+      .toLocaleLowerCase("ug")
+      .replace(/[%_*,()]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function postgrestPattern(value) {
+    var text = normalizeText(value);
+    if (!text) return "";
+    return "*" + text.split(" ").filter(Boolean).join("*") + "*";
   }
 
   function isbnDigits(value) {
@@ -77,6 +87,7 @@
   var api = {
     SCORE: SCORE,
     normalizeText: normalizeText,
+    postgrestPattern: postgrestPattern,
     isbnDigits: isbnDigits,
     scoreHit: scoreHit,
     rankHits: rankHits,
