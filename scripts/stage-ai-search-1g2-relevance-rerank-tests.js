@@ -9,8 +9,8 @@ const root = path.join(__dirname, "..");
 const Ai = require("../kutadgu-ai-search.js");
 
 const FROZEN = {
-  "kutadgu-search-rank.js": "87f083b9bfd62ce6ea0ce0df6bd796ca21a201a580b5ffb6dc3258326321831b",
-  "shop.js": "3976a603d3057cb7872252048f40b3772ab63cd28216938924ba16a6c9e8a519",
+  "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
+  "shop.js": "aeaa10168b912194d701047e603f1df3b925f15531f659e0efbefe20df16a1c4",
   "kutadgu-ai-search-ui.js": shaOf("kutadgu-ai-search-ui.js"),
   "index.html": shaOf("index.html"),
   "ai-search-ui.css": shaOf("ai-search-ui.css")
