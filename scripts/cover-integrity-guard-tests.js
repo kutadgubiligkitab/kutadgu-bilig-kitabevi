@@ -76,13 +76,31 @@ assert.doesNotMatch(upload, /sample-book-cover/);
 const repair = sliceFn(admin, "async function confirmCoverRepair(){", "function refreshImportPreviewFromInputs(){");
 assert.match(repair, /payload\.cover_sha256=hash/);
 assert.match(repair, /payload\.cover_dhash=visualHash/);
-assert.match(repair, /findCoverFingerprintConflict\(hash,visualHash,book\.id\)/);
+assert.match(repair, /fingerprintSelectedCover\(file,book\.id\)/);
+assert.match(repair, /repairQuery\.eq\("image_url",book\.image_url\)/);
 
-const bulk = admin.slice(admin.indexOf("const coverResults=await ImportCovers.mapPool"));
-assert.ok(bulk.indexOf("const coverResults=await ImportCovers.mapPool") === 0);
-assert.match(bulk.slice(0, 2500), /patch\.cover_sha256=hash/);
-assert.match(bulk.slice(0, 2500), /patch\.cover_dhash=visualHash/);
-assert.match(bulk.slice(0, 2500), /findCoverFingerprintConflict\(hash,visualHash,job\.id\)/);
+const bulk = admin.slice(admin.indexOf("const acceptedCoverJobs=[]"));
+assert.ok(bulk.indexOf("const acceptedCoverJobs=[]") === 0);
+assert.match(bulk.slice(0, 3500), /patch\.cover_sha256=hash/);
+assert.match(bulk.slice(0, 3500), /patch\.cover_dhash=visualHash/);
+assert.match(bulk.slice(0, 3500), /fingerprintSelectedCover\(job\.file,job\.id\)/);
+assert.match(admin, /function releaseCoverSelection\(\)/);
+assert.match(admin, /coverFormEpoch!==coverEpochAtSave/);
+assert.match(admin, /KNOWN_SAMPLE_COVER_SHA256/);
+assert.match(admin, /image_url:""/);
+assert.doesNotMatch(sliceFn(admin, "function rowToUpdate(row){", "function queueRepairButtonHtml"), /rec\.image_url=row\.image_url/);
+
+const shop = read("shop.js");
+const ai = read("kutadgu-ai-search-ui.js");
+assert.ok(shop.includes("carousel-sample-cover"));
+assert.ok(shop.includes("sample-book-cover(?:\\(\\d+\\))?"));
+assert.match(shop, /data-cover-book/);
+assert.match(shop, /bound&&bound!==state\.bookId/);
+assert.match(ai, /carousel-sample-cover/);
+assert.match(ai, /data-ai-cover-book/);
+assert.match(ai, /img\.isConnected/);
+assert.match(read("book-staff.js"), /rejectUnsafeStaffCover/);
+assert.match(read("admin-catalog-productivity.js"), /تېز تەھرىردە مۇقاۋا ئالماشتۇرۇلمايدۇ/);
 
 assert.match(premium, /function isSampleDemoCover/);
 assert.match(premium, /if\(!value\|\|isSampleDemoCover\(value\)\)return ""/);
@@ -103,6 +121,57 @@ assert.doesNotMatch(premium, /src=["']\/carousel-sample-cover\.png["']/);
   assert.strictEqual(digest, expected);
   assert.match(digest, /^[0-9a-f]{64}$/);
   assert.strictEqual(await coverSha256(null), "");
+
+  const audit = require("./audit-book-covers.js");
+  audit.verifyKnownSamples();
+  assert.strictEqual(audit.mutationAllowed(), false);
+  const classified = audit.classifyRecords([
+    { id: 1, title: "A", image_url: "https://cdn.example/a.webp", sha256: "a".repeat(64), dhash: "0123456789abcdef" },
+    { id: 2, title: "B", image_url: "https://cdn.example/a.webp", sha256: "a".repeat(64), dhash: "0123456789abcdef" },
+    { id: 3, title: "C", image_url: "", sha256: "", dhash: "" },
+    { id: 4, title: "D", image_url: "https://cdn.example/missing.webp", broken: true },
+    { id: 5, title: "E", image_url: "/sample-book-cover.png", sha256: audit.SAMPLE_SHA["sample-book-cover.png"], dhash: audit.SAMPLE_DHASH["sample-book-cover.png"] },
+    { id: 6, title: "F", image_url: "https://cdn.example/book-covers/99/cover.webp".replace("book-covers/", "storage/v1/object/public/book-covers/"), sha256: "b".repeat(64), dhash: "fedcba9876543210" }
+  ]);
+  const byId = Object.fromEntries(classified.map((row) => [row.id, row.state]));
+  assert.strictEqual(byId[1], "EXACT_DUPLICATE");
+  assert.strictEqual(byId[2], "EXACT_DUPLICATE");
+  assert.strictEqual(byId[3], "NO_COVER");
+  assert.strictEqual(byId[4], "BROKEN_URL");
+  assert.strictEqual(byId[5], "KNOWN_SAMPLE");
+  assert.strictEqual(byId[6], "WRONG_OWNERSHIP");
+  const visual = audit.classifyRecords([
+    { id: 7, title: "G", image_url: "https://cdn.example/g.webp", sha256: "c".repeat(64), dhash: "aaaaaaaaaaaaaaaa" },
+    { id: 8, title: "H", image_url: "https://cdn.example/h.webp", sha256: "d".repeat(64), dhash: "aaaaaaaaaaaaaaaa" }
+  ]);
+  assert.deepStrictEqual(visual.map((row) => row.state), ["VISUAL_DUPLICATE", "VISUAL_DUPLICATE"]);
+
+  const calls = [];
+  global.presentBookCols = new Set(["cover_sha256", "cover_dhash"]);
+  global.canonicalBookId = (id) => id ? String(id) : "";
+  global.isMissingCoverSha256ColumnError = () => false;
+  global.disableCoverSha256Column = () => {};
+  global.db = {
+    from() {
+      return {
+        select() { return this; },
+        or(value) { calls.push(value); return this; },
+        limit() { return this; },
+        neq() { return Promise.resolve({ data: [{ id: 9, title: "Other" }], error: null }); }
+      };
+    }
+  };
+  const findCoverFingerprintConflict = new Function(lookup + "\nreturn findCoverFingerprintConflict;")();
+  const conflict = await findCoverFingerprintConflict("ab".repeat(32), "cd".repeat(8), "1");
+  assert.strictEqual(conflict.id, 9);
+  assert.match(calls[0], /cover_sha256\.eq\./);
+  assert.match(calls[0], /cover_dhash\.eq\./);
+
+  const { spawnSync } = require("child_process");
+  const refused = spawnSync(process.execPath, [path.join(root, "scripts/audit-book-covers.js"), "--apply-safe"], { encoding: "utf8" });
+  assert.notStrictEqual(refused.status, 0);
+  assert.match(refused.stderr + refused.stdout, /REFUSING MUTATION/);
+  assert.doesNotMatch(refused.stderr + refused.stdout, /UPDATE public\.books/i);
   console.log("cover integrity guard tests passed");
 })().catch((err) => {
   console.error(err);

@@ -12,7 +12,7 @@ const seo = require("../kutadgu-book-seo.js");
 const handler = require("../api/book-public.js");
 
 const FROZEN = {
-  "shop.js": "3a0ceb7b49dfb72df16a53a5f2f6d2207ff6151beac51aef8a940eebf1f9481b",
+  "shop.js": "f4f040bb8d1e0cfa0cb881a7411e9cf1b7db043ab61e98f1322a55208b7cd8ab",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5"
 };
 
@@ -188,7 +188,7 @@ async function run() {
     });
     const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
     [
-      "shop.js",
+
       "kutadgu-search-rank.js",
       "kutadgu-ai-search.js",
       "api/ai-search.js",

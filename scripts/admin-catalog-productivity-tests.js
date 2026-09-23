@@ -39,7 +39,7 @@ test("quick edit patch uses only allowed fields",()=>{
     id:99,
     legacy_id:"nope",
     sales_count:999
-  },{presentBookCols:new Set(["stock","stock_status"])});
+  },{presentBookCols:new Set(["stock","stock_status"]),currentImageUrl:"https://cdn.example/x.webp"});
   assert.strictEqual(built.ok,true);
   assert.strictEqual(built.patch.title,"يېڭى نام");
   assert.strictEqual(built.patch.price,12.5);
@@ -158,10 +158,14 @@ test("quick edit rejects javascript cover URL",()=>{
   assert.strictEqual(built.ok,false);
 });
 
-test("quick edit keeps https cover URL",()=>{
-  const built=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"https://cdn.example/x.webp"},{presentBookCols:new Set()});
-  assert.strictEqual(built.ok,true);
-  assert.strictEqual(built.patch.image_url,"https://cdn.example/x.webp");
+test("quick edit does not write a new cover URL",()=>{
+  const same=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"https://cdn.example/x.webp"},{presentBookCols:new Set(),currentImageUrl:"https://cdn.example/x.webp"});
+  assert.strictEqual(same.ok,true);
+  assert.strictEqual("image_url" in same.patch,false);
+  const changed=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"https://cdn.example/other.webp"},{presentBookCols:new Set(),currentImageUrl:"https://cdn.example/x.webp"});
+  assert.strictEqual(changed.ok,false);
+  const sample=P.buildQuickEditPatch({title:"Alpha",source:"universal.html",image_url:"/sample-book-cover.png"},{presentBookCols:new Set(),currentImageUrl:"https://cdn.example/x.webp"});
+  assert.strictEqual(sample.ok,false);
 });
 
 test("blank admin stock is rejected when the stock column is present",()=>{

@@ -38,7 +38,7 @@ test("one shared cover retry mechanism exists with bounded delays", () => {
 
 test("retry jobs are assignment-generation scoped and skip stale work", () => {
   assert.match(shop, /let coverRetryGenerationSeq=0/);
-  assert.match(shop, /function beginCoverAssignment\(img,src\)/);
+  assert.match(shop, /function beginCoverAssignment\(img,src,bookId\)/);
   assert.match(shop, /function isCoverJobCurrent\(img,generation,src\)/);
   assert.match(shop, /coverRetryQueue\.push\(\{img,generation,src\}\)/);
   assert.match(shop, /if\(!isCoverJobCurrent\(job\.img,job\.generation,job\.src\)\)continue/);
@@ -46,7 +46,7 @@ test("retry jobs are assignment-generation scoped and skip stale work", () => {
   assert.match(shop, /function getCoverRetryDebug\(\)/);
   assert.match(shop, /getCoverRetryDebug,/);
   const assign = sliceBetween(shop, "function assignCoverImage(img,src,opts={}){", "function getCoverRetryDebug(){");
-  assert.match(assign, /beginCoverAssignment\(img,approved\)/);
+  assert.match(assign, /beginCoverAssignment\(img,approved,bookId\)/);
   assert.match(assign, /if\(!isCoverJobCurrent\(img,generation,approved\)\)return/);
 });
 
@@ -56,7 +56,7 @@ test("in-flight retry slots release exactly once even after reassignment", () =>
   assert.match(replay, /if\(released\)return/);
   assert.match(replay, /coverRetryInFlight=Math\.max\(0,coverRetryInFlight-1\)/);
   assert.match(replay, /state\.release=release/);
-  const begin = sliceBetween(shop, "function beginCoverAssignment(img,src){", "function clearCoverRetry(img){");
+  const begin = sliceBetween(shop, "function beginCoverAssignment(img,src,bookId){", "function clearCoverRetry(img){");
   assert.match(begin, /releaseCoverRetrySlot\(prev\)/);
   assert.match(begin, /img\.onload=null/);
   assert.match(begin, /img\.onerror=null/);
@@ -83,7 +83,7 @@ test("missing unsafe and sample covers are not retryable", () => {
 
 test("JS cover assignment paths share assignCoverImage", () => {
   assert.match(shop, /function assignCoverImage\(img,src,opts=\{\}\)/);
-  assert.match(shop, /assignCoverImage\(img,src\)/);
+  assert.match(shop, /assignCoverImage\(img,src,/);
   assert.match(shop, /assignCoverImage\(picture,url\)/);
   assert.match(shop, /assignCoverImage\(img,src,\{loading:"eager"/);
   const fallbacks = sliceBetween(shop, "function applyStaticCoverFallbacks(scope=document){", "function applyDetailCoverFallback(){");

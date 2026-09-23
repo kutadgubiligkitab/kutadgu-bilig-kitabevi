@@ -53,13 +53,13 @@ test("quick edit rejects dangerous cover without rewriting other fields",()=>{
   assert.match(String(built.error||""),/مۇقاۋا|URL/);
 });
 
-test("quick edit accepts https and relative covers",()=>{
-  const https=P.buildQuickEditPatch({title:"A",source:"universal.html",image_url:"https://cdn.example/a.webp"},{presentBookCols:new Set()});
+test("quick edit keeps the current cover and rejects sample or replacement URLs",()=>{
+  const https=P.buildQuickEditPatch({title:"A",source:"universal.html",image_url:"https://cdn.example/a.webp"},{presentBookCols:new Set(),currentImageUrl:"https://cdn.example/a.webp"});
   assert.strictEqual(https.ok,true);
-  assert.strictEqual(https.patch.image_url,"https://cdn.example/a.webp");
-  const rel=P.buildQuickEditPatch({title:"A",source:"universal.html",image_url:"sample-book-cover.png"},{presentBookCols:new Set()});
-  assert.strictEqual(rel.ok,true);
-  assert.strictEqual(rel.patch.image_url,"sample-book-cover.png");
+  assert.strictEqual("image_url" in https.patch,false);
+  const rel=P.buildQuickEditPatch({title:"A",source:"universal.html",image_url:"sample-book-cover.png"},{presentBookCols:new Set(),currentImageUrl:"https://cdn.example/a.webp"});
+  assert.strictEqual(rel.ok,false);
+  assert.match(String(rel.error||""),/ئۆرنەك|مۇقاۋا/);
 });
 
 const SUPABASE_HTTPS_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";

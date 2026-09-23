@@ -86,7 +86,7 @@
   }
 
   function isSampleDemoCover(src) {
-    return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src == null ? "" : src).trim());
+    return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src == null ? "" : src).trim());
   }
 
   function safeCoverSrc(raw) {
@@ -209,11 +209,14 @@
       var img = doc.createElement("img");
       img.setAttribute("src", src);
       img.setAttribute("data-cover-src", src);
+      img.setAttribute("data-ai-cover-book", String(row.id));
       img.setAttribute("alt", String(row.title == null ? "كىتاب" : row.title) + " مۇقاۋىسى");
       img.setAttribute("width", "72");
       img.setAttribute("height", "104");
       img.setAttribute("loading", "lazy");
       img.addEventListener("error", function onCoverError() {
+        if (!img.isConnected) return;
+        if (img.getAttribute("data-ai-cover-book") !== String(row.id)) return;
         img.removeEventListener("error", onCoverError);
         revealCoverPlaceholder(coverWrap, img);
       });

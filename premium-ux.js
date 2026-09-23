@@ -74,8 +74,12 @@
 
   function bindCards(scope){
     scope.querySelectorAll(".premium-card-cover img").forEach(img=>{
+      const card=img.closest&&img.closest("[data-premium-book-id]");
+      const bookId=card?String(card.getAttribute("data-premium-book-id")||""):"";
+      if(bookId)img.setAttribute("data-cover-book",bookId);
       const markMissing=()=>{
-        if(!img.parentNode)return;
+        if(!img.isConnected||!img.parentNode)return;
+        if(bookId&&img.getAttribute("data-cover-book")!==bookId)return;
         img.onerror=null;
         const span=document.createElement("span");
         span.className="book-cover-unavailable";
