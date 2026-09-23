@@ -26,10 +26,7 @@ ALTER TABLE public.books
   ADD CONSTRAINT books_cover_dhash_format_chk
   CHECK (
     cover_dhash IS NULL
-    OR cover_dhash ~ '^[0-9a-f]{16}
-
-COMMIT;
-
+    OR cover_dhash ~ '^[0-9a-f]{16}$'
   );
 
 CREATE UNIQUE INDEX IF NOT EXISTS books_cover_sha256_unique_idx
