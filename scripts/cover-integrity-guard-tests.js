@@ -131,7 +131,8 @@ assert.doesNotMatch(premium, /src=["']\/carousel-sample-cover\.png["']/);
     { id: 3, title: "C", image_url: "", sha256: "", dhash: "" },
     { id: 4, title: "D", image_url: "https://cdn.example/missing.webp", broken: true },
     { id: 5, title: "E", image_url: "/sample-book-cover.png", sha256: audit.SAMPLE_SHA["sample-book-cover.png"], dhash: audit.SAMPLE_DHASH["sample-book-cover.png"] },
-    { id: 6, title: "F", image_url: "https://cdn.example/book-covers/99/cover.webp".replace("book-covers/", "storage/v1/object/public/book-covers/"), sha256: "b".repeat(64), dhash: "fedcba9876543210" }
+    { id: 6, title: "F", image_url: "https://cdn.example/book-covers/99/cover.webp".replace("book-covers/", "storage/v1/object/public/book-covers/"), sha256: "b".repeat(64), dhash: "fedcba9876543210" },
+    { id: 10, title: "Shared prefix", image_url: "https://cdn.example/storage/v1/object/public/book-covers/book/1.webp", sha256: "e".repeat(64), dhash: "1111111111111111" }
   ]);
   const byId = Object.fromEntries(classified.map((row) => [row.id, row.state]));
   assert.strictEqual(byId[1], "EXACT_DUPLICATE");
@@ -140,6 +141,7 @@ assert.doesNotMatch(premium, /src=["']\/carousel-sample-cover\.png["']/);
   assert.strictEqual(byId[4], "BROKEN_URL");
   assert.strictEqual(byId[5], "KNOWN_SAMPLE");
   assert.strictEqual(byId[6], "WRONG_OWNERSHIP");
+  assert.strictEqual(byId[10], "HEALTHY_UNIQUE");
   const visual = audit.classifyRecords([
     { id: 7, title: "G", image_url: "https://cdn.example/g.webp", sha256: "c".repeat(64), dhash: "aaaaaaaaaaaaaaaa" },
     { id: 8, title: "H", image_url: "https://cdn.example/h.webp", sha256: "d".repeat(64), dhash: "aaaaaaaaaaaaaaaa" }

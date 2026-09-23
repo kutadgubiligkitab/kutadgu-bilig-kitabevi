@@ -46,11 +46,14 @@ function bookStorageToken(id) {
   return String(id || "book").replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80) || "book";
 }
 
-function wrongOwnership(book, owner) {
-  if (!owner || owner === "staff") return false;
+function wrongOwnership(book, owner, ids) {
+  if (!owner || owner === "book" || owner === "staff" || owner === "gallery") return false;
   const id = String(book.id);
   const token = bookStorageToken(id);
-  return owner !== id && owner !== token;
+  if (owner === id || owner === token) return false;
+  const known = ids || new Set();
+  if (known.has(owner) && owner !== id) return true;
+  return /^\d+$/.test(owner) && owner !== id;
 }
 
 function suspiciousUrl(url) {
@@ -79,6 +82,7 @@ function dhashFromGray(raw) {
 }
 
 function classifyRecords(records) {
+  const ids = new Set(records.map((row) => String(row.id)));
   const bySha = new Map();
   const byVisual = new Map();
   records.forEach((row) => {
@@ -102,8 +106,8 @@ function classifyRecords(records) {
     const known = !!(row.sha256 && KNOWN_SAMPLE_SHA.has(row.sha256)) || !!(row.dhash && KNOWN_SAMPLE_DHASH.has(row.dhash));
     const broken = !!url && !!row.broken;
     const noCover = !url;
-    const wrong = !!url && wrongOwnership(row, owner);
-    const needs = !noCover && !broken && !known && !wrong && !exact && !visual && !!suspicion;
+    const wrong = !!url && wrongOwnership(row, owner, ids);
+    const needs = !noCover && !broken && !known && !wrong && !exact && !visual && (!!suspicion || !!row.rateLimited);
     let state = "HEALTHY_UNIQUE";
     if (row.conflict) state = "CONFLICT";
     else if (noCover) state = "NO_COVER";
@@ -229,12 +233,33 @@ async function fetchBooks(cfg) {
   return rows;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function inspectImage(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
+  let res = null;
+  let lastError = "fetch";
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      res = await fetch(url, { signal: controller.signal, redirect: "follow" });
+      if (res.status !== 429 && res.status !== 503) break;
+      lastError = "http-" + res.status;
+      await sleep(400 * (2 ** attempt));
+    } catch (error) {
+      lastError = error.name === "AbortError" ? "timeout" : "fetch";
+      await sleep(400 * (2 ** attempt));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (!res || !res.ok) {
+    if (lastError === "http-429" || lastError === "http-503") return { broken: false, rateLimited: true, error: lastError };
+    return { broken: true, error: res ? "http-" + res.status : lastError };
+  }
   try {
-    const res = await fetch(url, { signal: controller.signal, redirect: "follow" });
-    if (!res.ok) return { broken: true, error: "http-" + res.status };
     const buf = Buffer.from(await res.arrayBuffer());
     if (!buf.length) return { broken: true, error: "empty" };
     const tmp = path.join(os.tmpdir(), "kutadgu-cover-" + crypto.randomBytes(8).toString("hex"));
@@ -255,9 +280,7 @@ async function inspectImage(url) {
       fs.rmSync(tmp, { force: true });
     }
   } catch (error) {
-    return { broken: true, error: error.name === "AbortError" ? "timeout" : "fetch" };
-  } finally {
-    clearTimeout(timer);
+    return { broken: true, error: "decode" };
   }
 }
 
@@ -279,7 +302,8 @@ async function main() {
     process.exit(2);
   }
   const books = await fetchBooks(cfg);
-  const inspected = await mapPool(books, 4, async (book) => {
+  const inspected = await mapPool(books, 2, async (book) => {
+    await sleep(120);
     const url = String(book.image_url || "").trim();
     if (!url || /^(?:blob|data|javascript|file):/i.test(url)) {
       return { ...book, image_url: url, broken: !!url, evidence: suspiciousUrl(url) };
@@ -290,8 +314,9 @@ async function main() {
       image_url: url,
       sha256: image.sha256 || "",
       dhash: image.dhash || "",
-      broken: image.broken,
-      evidence: image.error || "",
+        broken: image.broken && !image.rateLimited,
+        rateLimited: !!image.rateLimited,
+        evidence: image.error || "",
       width: image.width,
       height: image.height,
       mime: image.mime,

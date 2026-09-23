@@ -3888,7 +3888,7 @@ async function saveBook(e){
         return;
       }
     }
-    const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
+    const storageId=isEdit?editingBookId:(String($("#bookId").value||"").trim()||"book");
     if(!coverSelectionCurrent())throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
     let coverHash="",coverVisualHash="";
     if(coverFile){
