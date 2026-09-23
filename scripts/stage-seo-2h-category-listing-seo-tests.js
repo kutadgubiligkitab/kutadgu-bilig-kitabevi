@@ -364,6 +364,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage-ai-search-1d-generate-book-embeddings-tests.js",
     "scripts/stage-ai-search-1e-backend-api-tests.js",
     "scripts/stage-ai-search-1g2-relevance-rerank-tests.js",
+    "kutadgu-announcements.js",
     "scripts/stage3-shop-identity-tests.js",
     "scripts/stage4b1-public-cards-tests.js",
     "scripts/stage4b2-homepage-discovery-tests.js",
