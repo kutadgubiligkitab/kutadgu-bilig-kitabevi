@@ -216,7 +216,7 @@ function approvedCoverSrc(img){
   return String(img&&(img.getAttribute("data-cover-src")||img.getAttribute("src"))||"").trim();
 }
 function isCoverJobCurrent(img,generation,src){
-  if(!img||!img.isConnected)return false;
+  if(!img||img.isConnected===false)return false;
   const state=coverRetryStates.get(img);
   if(!state)return false;
   if(state.generation!==generation)return false;
@@ -342,7 +342,7 @@ function replayApprovedCover(job){
   const generation=job&&job.generation;
   const src=job&&job.src;
   if(!isCoverJobCurrent(img,generation,src)||!isRetryableCoverUrl(src)){
-    if(img&&img.isConnected&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
+    if(img&&img.isConnected!==false&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
     return;
   }
   const state=coverRetryState(img);

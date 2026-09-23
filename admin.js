@@ -1534,6 +1534,12 @@ async function fingerprintRemoteCover(imageUrl,excludeId){
   const fp=await fingerprintSelectedCover(file,excludeId);
   return {imageUrl:url,hash:fp.hash,visual:fp.visual};
 }
+async function stampApprovedCoverFingerprint(id,approvalFp){
+  if(!approvalFp||!presentBookCols.has("cover_sha256")||!presentBookCols.has("cover_dhash"))return;
+  const printed=await db.from("books").update({cover_sha256:approvalFp.hash,cover_dhash:approvalFp.visual}).eq("id",id).eq("image_url",approvalFp.imageUrl).select("id");
+  if(printed&&printed.error)throw printed.error;
+  if(!printed||!printed.data||!printed.data.length)throw new Error("بۇ كىتابنىڭ مۇقاۋىسى ئارىدا ئۆزگەرگەن. قايتا تەكشۈرۈڭ.");
+}
 async function reviewStaffSubmission(bookId,action){
   const id=String(bookId||"").trim();
   if(!id||pendingSubmissionBusy)return;
@@ -1553,13 +1559,12 @@ async function reviewStaffSubmission(bookId,action){
       status($("#pendingSubmissionStatus"),"Database تېخى ئۇلانمىدى.","error");
       return;
     }else{
-      let approvalFp=null;
-      if(approve)approvalFp=await fingerprintRemoteCover((pendingSubmissions.find(b=>String(b.id)===id)||{}).image_url,id);
-      ({error}=await db.rpc(rpcName,{p_book_id:Number(id)}));
-      if(!error&&approve&&approvalFp&&presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash")){
-        const printed=await db.from("books").update({cover_sha256:approvalFp.hash,cover_dhash:approvalFp.visual}).eq("id",id).eq("image_url",approvalFp.imageUrl);
-        if(printed&&printed.error)throw printed.error;
+      if(approve){
+        const approvalFp=await fingerprintRemoteCover((pendingSubmissions.find(b=>String(b.id)===id)||{}).image_url,id);
+        if(!approvalFp)throw new Error("مۇقاۋىسى يوق كىتابنى تەستىقلىغىلى بولمايدۇ.");
+        await stampApprovedCoverFingerprint(id,approvalFp);
       }
+      ({error}=await db.rpc(rpcName,{p_book_id:Number(id)}));
     }
     if(error){
       status($("#pendingSubmissionStatus"),formatStaffSubmissionError(error),"error");

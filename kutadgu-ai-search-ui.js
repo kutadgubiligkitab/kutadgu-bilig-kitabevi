@@ -215,7 +215,7 @@
       img.setAttribute("height", "104");
       img.setAttribute("loading", "lazy");
       img.addEventListener("error", function onCoverError() {
-        if (!img.isConnected) return;
+        if (img.isConnected === false) return;
         if (img.getAttribute("data-ai-cover-book") !== String(row.id)) return;
         img.removeEventListener("error", onCoverError);
         revealCoverPlaceholder(coverWrap, img);

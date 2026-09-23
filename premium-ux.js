@@ -78,7 +78,7 @@
       const bookId=card?String(card.getAttribute("data-premium-book-id")||""):"";
       if(bookId)img.setAttribute("data-cover-book",bookId);
       const markMissing=()=>{
-        if(!img.isConnected||!img.parentNode)return;
+        if(img.isConnected===false||!img.parentNode)return;
         if(bookId&&img.getAttribute("data-cover-book")!==bookId)return;
         img.onerror=null;
         const span=document.createElement("span");
