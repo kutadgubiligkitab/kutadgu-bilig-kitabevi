@@ -1160,7 +1160,7 @@ function normalizeQueryState(input={}){
 }
 
 function staticQueryPage(input={}){
-  const state=normalizeQueryState(input),q=normalizeText(state.search);
+  const state=normalizeQueryState(input),Rank=window.KutadguSearchRank||{},searchNormalize=Rank.normalizeText||normalizeText,q=searchNormalize(state.search);
   let rows=STATIC_CATALOG.filter(isStorefrontVisible);
   if(state.ids?.length){const ids=new Set(state.ids.map(String));rows=rows.filter(book=>ids.has(book.id)||(book.legacyId&&ids.has(book.legacyId)))}
   if(state.source)rows=rows.filter(book=>book.source===state.source);
@@ -1173,7 +1173,7 @@ function staticQueryPage(input={}){
     const hay=bibliographicLib().staticSearchHaystack
       ?bibliographicLib().staticSearchHaystack(book)
       :[book.title,book.author,book.category,book.translator,book.publisher,book.isbn].filter(Boolean).join(" ");
-    return normalizeText(hay).includes(q)||normalizeText(String(book.isbn||"").replace(/[\s-]+/g,"")).includes(q);
+    return searchNormalize(hay).includes(q)||searchNormalize(String(book.isbn||"").replace(/[\s-]+/g,"")).includes(q);
   });
   if(Number.isFinite(state.minPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)>=state.minPrice);
   if(Number.isFinite(state.maxPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)<=state.maxPrice);
@@ -1252,7 +1252,8 @@ function remoteBooksUrl(input={},flags={}){
   if(state.bestseller&&!state.allowZeroSales)params.set("sales_count","gt.0");
 
   if(state.search){
-    const term=`*${state.search}*`;
+    const Rank=searchRankApi();
+    const term=Rank.postgrestPattern?Rank.postgrestPattern(state.search):`*${state.search.replace(/\s+/g,"*")}*`;
     const cols=bibliographicLib().storefrontSearchColumns
       ?bibliographicLib().storefrontSearchColumns(window.KUTADGU_BOOKS_SCHEMA)
       :["title","author","category"];
