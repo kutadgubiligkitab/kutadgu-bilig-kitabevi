@@ -8,6 +8,17 @@ function sampleRows() {
   ];
 }
 
+// Announcement tests do not need the remote book catalog. Waiting for
+// H.openFresh() makes them depend on live Supabase catalog readiness and can
+// turn an unrelated network delay into repeated 60s timeouts.
+async function openAnnouncementPage(page, path = "/") {
+  await page.goto(path, { waitUntil: "domcontentloaded" });
+  await expect.poll(
+    async () => page.evaluate(() => !!window.kutadguAnnouncements),
+    { timeout: 15_000 }
+  ).toBe(true);
+}
+
 test.describe("announcement bar", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
@@ -16,7 +27,7 @@ test.describe("announcement bar", () => {
   test("0 announcements leaves no bar and no gap", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [] });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     const bar = page.locator("#kutadguAnnounceBar");
     await expect.poll(async () => page.evaluate(() => {
       const el = document.getElementById("kutadguAnnounceBar");
@@ -40,7 +51,7 @@ test.describe("announcement bar", () => {
       announcements: [sampleRows()[0]]
     });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     await expect(page.locator("#kutadguAnnounceText")).toHaveText("بىرىنچى ئېلان");
     await page.waitForTimeout(2200);
@@ -53,7 +64,7 @@ test.describe("announcement bar", () => {
   test("multiple announcements rotate at configured interval and pause on hover", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { interval: 2, announcements: sampleRows() });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceText")).toHaveText("بىرىنچى ئېلان");
     await expect.poll(async () => page.locator("#kutadguAnnounceText").innerText(), { timeout: 5000 }).toBe("ئىككىنچى ئېلان");
     await page.locator("#kutadguAnnounceBar").hover();
@@ -68,7 +79,7 @@ test.describe("announcement bar", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await H.installAnnouncementFixtures(page, { interval: 2, announcements: sampleRows() });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceText")).toHaveText("بىرىنچى ئېلان");
     await page.waitForTimeout(2200);
     await expect(page.locator("#kutadguAnnounceText")).toHaveText("بىرىنچى ئېلان");
@@ -84,7 +95,7 @@ test.describe("announcement bar", () => {
         { id: "now", message: "ھازىرقى", enabled: true, sort_order: 3, starts_at: null, ends_at: null }
       ]
     });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     await expect(page.locator("#kutadguAnnounceText")).toHaveText("ھازىرقى");
   });
@@ -92,7 +103,7 @@ test.describe("announcement bar", () => {
   test("missing announcement tables fail open", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { missing: true });
     const errors = H.collectPageErrors(page);
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#searchInput")).toBeVisible();
     const hidden = await page.evaluate(() => {
       const el = document.getElementById("kutadguAnnounceBar");
@@ -105,7 +116,7 @@ test.describe("announcement bar", () => {
   test("homepage and category headers stay sticky", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [sampleRows()[0]] });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     const homePos = await page.locator("header").evaluate((el) => getComputedStyle(el).position);
     expect(["sticky", "fixed"]).toContain(homePos);
     await page.evaluate(() => window.scrollTo(0, 500));
@@ -124,7 +135,7 @@ test.describe("announcement bar", () => {
   test("mobile header plus bar does not cover hero content", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [sampleRows()[0]] });
     await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     const gap = await page.evaluate(() => {
       const header = document.querySelector("header");
@@ -259,7 +270,7 @@ test.describe("announcement expandable text", () => {
   test("A short text stays static, centered, and untruncated", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(SHORT_MSG)] });
     await page.setViewportSize({ width: 1280, height: 800 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     await expect.poll(async () => (await announceMetrics(page)).text).toBe(SHORT_MSG);
     const m = await announceMetrics(page);
@@ -276,7 +287,7 @@ test.describe("announcement expandable text", () => {
   test("B long text clamps to two lines and expands in place", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 1280, height: 800 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await waitForLongCollapsed(page);
     const m = await announceMetrics(page);
     expect(m.ticker).toBe(false);
@@ -304,7 +315,7 @@ test.describe("announcement expandable text", () => {
     test(`${vp.name} long announcement expands without page overflow`, async ({ page }) => {
       await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      await H.openFresh(page, "/");
+      await openAnnouncementPage(page, "/");
       await waitForLongCollapsed(page);
       const m = await announceMetrics(page);
       expect(m.text).toBe(DESKTOP_OVERFLOW_MSG);
@@ -330,7 +341,7 @@ test.describe("announcement expandable text", () => {
   test("F desktop 1280 stays compact and expands only when needed", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 1280, height: 800 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await waitForLongCollapsed(page);
     const collapsed = await announceMetrics(page);
     expect(collapsed.barH).toBeLessThan(80);
@@ -346,7 +357,7 @@ test.describe("announcement expandable text", () => {
   test("G resize shows the control only when rendered text overflows two lines", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(MOBILE_OVERFLOW_MSG, "mid")] });
     await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await expect(page.locator("#kutadguAnnounceBar.is-visible")).toBeVisible();
     await expect.poll(async () => {
       const m = await announceMetrics(page);
@@ -372,7 +383,7 @@ test.describe("announcement expandable text", () => {
   test("H RTL wrapping stays readable without clipping or ticker motion", async ({ page }) => {
     await H.installAnnouncementFixtures(page, { announcements: [row(DESKTOP_OVERFLOW_MSG, "long")] });
     await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
+    await openAnnouncementPage(page, "/");
     await waitForLongCollapsed(page);
     const m = await announceMetrics(page);
     expect(m.dir).toBe("rtl");
