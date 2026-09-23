@@ -5093,9 +5093,16 @@ async function confirmCoverRepair(){
   if(btn)btn.disabled=true;
   status($("#coverRepairStatus"),"مۇقاۋا يۈكلىنىۋاتىدۇ...");
   try{
+    const hash=presentBookCols.has("cover_sha256")?await coverSha256(file):"";
+    if(hash){
+      const conflict=await findCoverShaConflict(hash,book.id);
+      if(conflict)throw new Error(duplicateCoverMessage(conflict));
+    }
     const url=await uploadCover(book.id,file);
     const payload=CoverRepair.coverOnlyPayload(url);
+    if(hash&&presentBookCols.has("cover_sha256"))payload.cover_sha256=hash;
     const {error,data}=await db.from("books").update(payload).eq("id",book.id).select(COVER_REPAIR_SELECT);
+    if(error&&duplicateCoverShaError(error))throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. باشقا مۇقاۋا تاللاڭ.");
     if(error)throw error;
     const updated=Array.isArray(data)?data[0]:data;
     status($("#coverRepairStatus"),`مۇقاۋا باغلاش تاماملاندى (ID ${book.id}). پەقەت image_url يېڭىلاندى.`,"ok");
@@ -5408,9 +5415,19 @@ async function confirmImport(){
     if(coverJobs.length){
       progress.textContent+=` · مۇقاۋا يۈكلىنىۋاتىدۇ (${coverJobs.length})`;
       const coverResults=await ImportCovers.mapPool(coverJobs,ImportCovers.COVER_UPLOAD_CONCURRENCY,async job=>{
+        const hash=presentBookCols.has("cover_sha256")?await coverSha256(job.file):"";
+        if(hash){
+          const conflict=await findCoverShaConflict(hash,job.id);
+          if(conflict)throw new Error(duplicateCoverMessage(conflict));
+        }
         const url=await uploadCover(job.id,job.file);
-        const {error}=await db.from("books").update({image_url:url}).eq("id",job.id);
-        if(error)throw error;
+        const patch={image_url:url};
+        if(hash&&presentBookCols.has("cover_sha256"))patch.cover_sha256=hash;
+        const {error}=await db.from("books").update(patch).eq("id",job.id);
+        if(error){
+          if(duplicateCoverShaError(error))throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. باشقا مۇقاۋا تاللاڭ.");
+          throw error;
+        }
         return url;
       });
       coverResults.forEach((res,idx)=>{
