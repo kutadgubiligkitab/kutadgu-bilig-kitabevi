@@ -1,4 +1,6 @@
 const { test, expect } = require("./playwright-test");
+const path = require("path");
+const STUB = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 
 const BOOKS = [
   {
@@ -98,6 +100,7 @@ async function fillRequired(page, title) {
   await page.locator("#bookAuthor").fill("Author");
   await page.locator("#bookPrice").fill("33");
   await page.locator("#bookSource").selectOption("universal.html");
+  await page.locator("#bookCover").setInputFiles(STUB);
 }
 
 test.describe("optional 3-state interior print type", () => {
