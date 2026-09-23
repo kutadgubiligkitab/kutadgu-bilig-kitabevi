@@ -39,12 +39,19 @@ ALTER TABLE public.books
 COMMENT ON COLUMN public.books.stock_status IS
   'Optional public stock-status override. NULL/blank = Automatic from books.stock. in_stock / low_stock / out_of_stock. stock = 0 always sold out in application and new-order checks.';
 
-CREATE OR REPLACE FUNCTION public.kutadgu_orders_reject_manual_sold_out()
+CREATE SCHEMA IF NOT EXISTS private;
+
+-- Internal trigger function: keep SECURITY DEFINER code out of the API-exposed
+-- public schema, use an empty search_path, and fully qualify table references.
+DROP TRIGGER IF EXISTS orders_reject_manual_sold_out ON public.orders;
+DROP FUNCTION IF EXISTS public.kutadgu_orders_reject_manual_sold_out();
+
+CREATE OR REPLACE FUNCTION private.kutadgu_orders_reject_manual_sold_out()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
-AS $$
+SET search_path = ''
+AS $stage85$
 DECLARE
   v_elem jsonb;
   v_i integer;
@@ -85,17 +92,16 @@ BEGIN
   END LOOP;
   RETURN NEW;
 END;
-$$;
+$stage85$;
 
-REVOKE ALL ON FUNCTION public.kutadgu_orders_reject_manual_sold_out() FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.kutadgu_orders_reject_manual_sold_out() FROM anon;
-REVOKE ALL ON FUNCTION public.kutadgu_orders_reject_manual_sold_out() FROM authenticated;
+REVOKE ALL ON FUNCTION private.kutadgu_orders_reject_manual_sold_out() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.kutadgu_orders_reject_manual_sold_out() FROM anon;
+REVOKE ALL ON FUNCTION private.kutadgu_orders_reject_manual_sold_out() FROM authenticated;
 
-DROP TRIGGER IF EXISTS orders_reject_manual_sold_out ON public.orders;
 CREATE TRIGGER orders_reject_manual_sold_out
   BEFORE INSERT ON public.orders
   FOR EACH ROW
-  EXECUTE FUNCTION public.kutadgu_orders_reject_manual_sold_out();
+  EXECUTE FUNCTION private.kutadgu_orders_reject_manual_sold_out();
 
 COMMIT;
 
@@ -115,7 +121,12 @@ COMMIT;
 -- FROM pg_constraint
 -- WHERE conrelid = 'public.books'::regclass AND conname = 'books_stock_status_allowed_chk';
 --
--- SELECT tgname FROM pg_trigger
+-- SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger
 -- WHERE tgrelid = 'public.orders'::regclass AND NOT tgisinternal
 --   AND tgname = 'orders_reject_manual_sold_out';
+--
+-- SELECT n.nspname AS schema_name, p.proname, p.prosecdef, p.proconfig
+-- FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+-- WHERE p.proname = 'kutadgu_orders_reject_manual_sold_out';
+-- -- expect schema_name = private and search_path = ""
 -- ============================================================================

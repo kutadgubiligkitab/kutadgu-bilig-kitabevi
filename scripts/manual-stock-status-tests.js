@@ -80,6 +80,10 @@ test("migration is additive, nullable, and does not rewrite stock", () => {
   assert.match(apply, /ALTER COLUMN stock_status DROP NOT NULL/);
   assert.match(apply, /ALTER COLUMN stock_status DROP DEFAULT/);
   assert.match(apply, /in_stock', 'low_stock', 'out_of_stock'/);
+  assert.match(apply, /CREATE SCHEMA IF NOT EXISTS private/);
+  assert.match(apply, /CREATE OR REPLACE FUNCTION private\.kutadgu_orders_reject_manual_sold_out/);
+  assert.match(apply, /SET search_path = ''/);
+  assert.doesNotMatch(apply, /CREATE OR REPLACE FUNCTION public\.kutadgu_orders_reject_manual_sold_out/);
   assert.match(apply, /kutadgu_orders_reject_manual_sold_out/);
   assert.match(apply, /HINT = 'manual_sold_out'/);
   assert.doesNotMatch(apply, /\bUPDATE\s+public\.books\b/i);
