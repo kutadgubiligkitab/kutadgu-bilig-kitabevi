@@ -95,12 +95,17 @@ async function enableInterior(page) {
   await page.evaluate(() => window.__kutadguAdminTest.enableInteriorPrintTypeColumn());
 }
 
-async function fillRequired(page, title) {
+async function fillRequiredCreate(page, title) {
   await page.locator("#bookTitle").fill(title);
   await page.locator("#bookAuthor").fill("Author");
   await page.locator("#bookPrice").fill("33");
   await page.locator("#bookSource").selectOption("universal.html");
   await page.locator("#bookCover").setInputFiles(STUB);
+  await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
+}
+
+async function waitForSaveCount(page, count) {
+  await expect.poll(async () => page.evaluate(() => (window.__kutadguBookSaves || []).length)).toBe(count);
 }
 
 test.describe("optional 3-state interior print type", () => {
@@ -111,8 +116,9 @@ test.describe("optional 3-state interior print type", () => {
     await page.locator("#newBookBtn").click();
     await expect(page.locator("#bookModal")).toBeVisible();
     await expect(page.locator("#bookInteriorPrintType")).toBeHidden();
-    await fillRequired(page, "No Interior Column");
+    await fillRequiredCreate(page, "No Interior Column");
     await page.locator("#bookForm button[type='submit']").click();
+    await waitForSaveCount(page, 1);
     const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves).toHaveLength(1);
     expect(saves[0].payload).not.toHaveProperty("interior_print_type");
@@ -139,9 +145,10 @@ test.describe("optional 3-state interior print type", () => {
       path: "/opt/cursor/artifacts/admin-interior-print-type-select.png"
     });
 
-    await fillRequired(page, "Color Edition");
+    await fillRequiredCreate(page, "Color Edition");
     await page.locator("#bookInteriorPrintType").selectOption("color");
     await page.locator("#bookForm button[type='submit']").click();
+    await waitForSaveCount(page, 1);
     let saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves[0].payload.interior_print_type).toBe("color");
     expect(saves[0].payload.is_color_print).toBe(true);
@@ -149,19 +156,23 @@ test.describe("optional 3-state interior print type", () => {
 
     await page.locator("#newBookBtn").click();
     await expect(page.locator("#bookInteriorPrintType")).toHaveValue("");
-    await fillRequired(page, "BW Edition");
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللانمىدى");
+    await fillRequiredCreate(page, "BW Edition");
     await page.locator("#bookInteriorPrintType").selectOption("bw");
     await page.locator("#bookForm button[type='submit']").click();
+    await waitForSaveCount(page, 2);
     saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves[1].payload.interior_print_type).toBe("bw");
     expect(saves[1].payload.is_color_print).toBe(false);
 
     await page.locator("#newBookBtn").click();
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللانمىدى");
     await page.locator("#bookInteriorPrintType").selectOption("bw");
     await page.locator("#bookInteriorPrintType").selectOption("");
     await expect(page.locator("#bookInteriorPrintType")).toHaveValue("");
-    await fillRequired(page, "Unmarked Edition");
+    await fillRequiredCreate(page, "Unmarked Edition");
     await page.locator("#bookForm button[type='submit']").click();
+    await waitForSaveCount(page, 3);
     saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves[2].payload.interior_print_type).toBeNull();
     expect(saves[2].payload.is_color_print).toBe(false);

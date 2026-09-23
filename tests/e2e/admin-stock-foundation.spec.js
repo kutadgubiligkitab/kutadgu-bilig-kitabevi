@@ -66,7 +66,9 @@ test.describe("admin stock foundation", () => {
     await page.locator("#bookPrice").fill("15");
     await page.locator("#bookSource").selectOption("universal.html");
     await page.locator("#bookCover").setInputFiles(STUB);
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
     await page.locator("#bookForm button[type='submit']").click();
+    await expect.poll(async () => page.evaluate(() => (window.__kutadguBookSaves || []).length)).toBe(1);
     const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves).toHaveLength(1);
     expect(saves[0].payload).not.toHaveProperty("stock");
@@ -149,6 +151,7 @@ test.describe("admin stock foundation", () => {
     await page.locator("#bookPrice").fill("15");
     await page.locator("#bookSource").selectOption("universal.html");
     await page.locator("#bookCover").setInputFiles(STUB);
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
     await page.locator("#bookForm button[type='submit']").click();
     await expect.poll(async () => page.evaluate(() => window.__kutadguBookSaves.filter((s) => s.payload.title === "Needs Stock").length)).toBe(0);
     await page.locator("#bookStock").fill("5");

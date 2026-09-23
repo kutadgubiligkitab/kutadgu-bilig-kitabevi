@@ -141,6 +141,7 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     await page.locator("#bookPrice").fill("12");
     await page.locator("#bookSource").selectOption("universal.html");
     await page.locator("#bookCover").setInputFiles(STUB);
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
     await expect(page.locator("#createDuplicateWarning")).toBeHidden();
     await expect(page.locator("#createDuplicateConfirm")).toHaveCount(1);
     await page.locator("#bookTitle").fill("پۈتۈنلەي يېڭى نام");

@@ -3709,8 +3709,15 @@ async function optimizeCover(file){
   }catch(error){console.warn("Cover optimization skipped",error)}
   return file;
 }
+function skipAuthPreviewCoverUrl(id,file){
+  const token=storageToken(id);
+  const raw=String(file&&file.name||"cover");
+  const ext=(raw.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")||"png";
+  return "https://cdn.example/admin-preview-covers/"+token+"/"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)+"."+ext;
+}
 async function uploadCover(id,file){
   if(!file)return editing?.image_url||"";
+  if(!db&&window.__kutadguSkipAdminAuth)return skipAuthPreviewCoverUrl(id,file);
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const bucket=cfg.bucket||"book-covers";
   const optimized=await optimizeCover(file);

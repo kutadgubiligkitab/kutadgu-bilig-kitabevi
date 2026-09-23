@@ -44,6 +44,7 @@ async function fillAndSaveNew(page, fields) {
   await page.locator("#bookPrice").fill("20");
   await page.locator("#bookSource").selectOption("universal.html");
   await page.locator("#bookCover").setInputFiles(STUB);
+  await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
   await page.locator("#bookSaveBtn").click();
   await expect(page.locator("#bookModal")).toBeHidden();
 }
@@ -109,6 +110,7 @@ test.describe("Stage Admin 1K suggestion refresh after save", () => {
     await page.locator("#bookPrice").fill("20");
     await page.locator("#bookSource").selectOption("universal.html");
     await page.locator("#bookCover").setInputFiles(STUB);
+    await expect(page.locator("#bookCoverPickStatus")).toHaveText("مۇقاۋا رەسىمى تاللاندى");
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookModal")).toBeVisible();
     const authors = await page.evaluate(() => {
