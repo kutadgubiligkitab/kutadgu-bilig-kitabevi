@@ -1,4 +1,6 @@
 const { test, expect } = require("./playwright-test");
+const path = require("path");
+const STUB = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 
 const BOOKS = [
   {id:1,title:"Alpha Book",author:"Author A",price:10,source:"universal.html",category:"ئۇنىۋېرسال",image_url:"https://cdn.example/a.webp",is_active:true,is_recommended:false,is_new:false,stock:null,sales_count:5,isbn:"9781111111111",description:"desc"},
@@ -63,6 +65,7 @@ test.describe("admin stock foundation", () => {
     await page.locator("#bookAuthor").fill("Author");
     await page.locator("#bookPrice").fill("15");
     await page.locator("#bookSource").selectOption("universal.html");
+    await page.locator("#bookCover").setInputFiles(STUB);
     await page.locator("#bookForm button[type='submit']").click();
     const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
     expect(saves).toHaveLength(1);
@@ -145,6 +148,7 @@ test.describe("admin stock foundation", () => {
     await page.locator("#bookAuthor").fill("Author");
     await page.locator("#bookPrice").fill("15");
     await page.locator("#bookSource").selectOption("universal.html");
+    await page.locator("#bookCover").setInputFiles(STUB);
     await page.locator("#bookForm button[type='submit']").click();
     await expect.poll(async () => page.evaluate(() => window.__kutadguBookSaves.filter((s) => s.payload.title === "Needs Stock").length)).toBe(0);
     await page.locator("#bookStock").fill("5");
