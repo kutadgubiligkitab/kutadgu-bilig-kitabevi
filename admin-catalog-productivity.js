@@ -204,6 +204,11 @@ function buildQuickEditPatch(input,opts={}){
     is_new:input&&input.is_new===true
   };
   if(!stock.omit)patch.stock=stock.value;
+  if(present.has("stock_status")){
+    const parsed=Stock.parseManualStockStatus?Stock.parseManualStockStatus(input&&input.stock_status):{ok:true,value:null};
+    if(!parsed.ok)return parsed;
+    patch.stock_status=parsed.value;
+  }
   const cover=String(input&&input.image_url||"").trim();
   if(Object.prototype.hasOwnProperty.call(input||{},"image_url")){
     if(cover&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(cover)){

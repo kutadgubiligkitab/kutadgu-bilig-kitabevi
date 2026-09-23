@@ -48,7 +48,7 @@ test("quick edit patch uses only allowed fields",()=>{
   assert.strictEqual("legacy_id" in built.patch,false);
   assert.strictEqual("sales_count" in built.patch,false);
   assert.strictEqual(built.patch.stock,4);
-  assert.strictEqual("stock_status" in built.patch,false);
+  assert.strictEqual(built.patch.stock_status,"low_stock");
   assert.strictEqual("created_at" in built.patch,false);
 });
 

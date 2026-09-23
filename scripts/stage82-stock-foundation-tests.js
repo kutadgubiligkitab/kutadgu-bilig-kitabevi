@@ -146,7 +146,7 @@ test("Admin exposes stock controls only through presentBookCols / live detect",(
   assert.doesNotMatch(adminHtml,/id="bookStock"[^>]*pattern=/);
   assert.match(adminHtml,/id="bookStockDerivedStatus"/);
   assert.match(adminHtml,/id="adminUnconfiguredStock"/);
-  assert.match(adminHtml,/kutadgu-stock\.js\?v=3/);
+  assert.match(adminHtml,/kutadgu-stock\.js\?v=4/);
   assert.match(adminJs,/if\(presentBookCols\.has\("stock"\)\)row\.stock=stockValue/);
   assert.match(adminJs,/setStockInputValue\(\$\("#bookStock"\),b\.stock\)/);
   assert.doesNotMatch(adminJs,/\$\("#bookStock"\)\.value=b\.stock\?\?0/);
@@ -232,19 +232,19 @@ test("post-check SQL is documented and read-only",()=>{
   assert.doesNotMatch(checks,/^\s*(INSERT|UPDATE|DELETE|ALTER|DROP|GRANT|REVOKE)\b/im);
 });
 
-test("derived status is the source of truth; stock_status is not persisted",()=>{
+test("Stage 82 SQL still does not persist stock_status; Admin override lives in Stage 85",()=>{
   assert.match(helper,/LOW_STOCK_THRESHOLD=3/);
   assert.match(prodJs,/parseAdminStock/);
   assert.doesNotMatch(prodJs,/patch\.stock_status=String\(input&&input\.stock_status\|\|"in_stock"\)/);
-  assert.match(prodJs,/ئامبار ھالىتى ساقلىمايدۇ/);
   const bulkStatus=Prod.buildBulkPatch("stock_status",{stock_status:"out_of_stock"},{presentBookCols:new Set(["stock_status"]),stockStatusSupported:true});
   assert.strictEqual(bulkStatus.ok,false);
   assert.strictEqual("patch" in bulkStatus,false);
-  assert.match(adminJs,/document\.querySelectorAll\("\[data-book-col='stock_status'\]"\)/);
   assert.match(adminJs,/delete out\.stock_status/);
   assert.match(adminJs,/stock_status ئىمپورت قىلىنمايدۇ/);
   assert.doesNotMatch(adminJs,/is_active:act\.empty\?true:act\.value,\s*stock_status,/);
-  assert.match(adminHtml,/id="bookStockStatus"[^>]*disabled/);
+  assert.match(adminHtml,/id="bookStockStatus"/);
+  assert.match(adminHtml,/>ئاپتوماتىك</);
+  assert.match(adminHtml,/kutadgu-stock\.js\?v=4/);
   assert.match(adminHtml,/ئامبار سانى تەڭشەلمىگەن/);
 });
 
