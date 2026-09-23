@@ -51,7 +51,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $stage85$
 DECLARE
   v_elem jsonb;
   v_i integer;
@@ -73,35 +73,7 @@ BEGIN
       CONTINUE;
     END IF;
     v_id_text := btrim(v_elem ->> 'book_id');
-    IF v_id_text IS NULL OR v_id_text !~ '^[1-9][0-9]*
-COMMIT;
-
--- RLS: unchanged.
--- No UPDATE of public.books rows. No stock quantity rewrite. No DELETE.
-
--- ============================================================================
--- READ-ONLY POST-CHECK (manual). Do NOT run as part of apply.
--- ============================================================================
---
--- SELECT column_name, is_nullable, column_default, data_type
--- FROM information_schema.columns
--- WHERE table_schema = 'public' AND table_name = 'books' AND column_name = 'stock_status';
--- -- expect: text, YES, NULL default
---
--- SELECT conname, pg_get_constraintdef(oid)
--- FROM pg_constraint
--- WHERE conrelid = 'public.books'::regclass AND conname = 'books_stock_status_allowed_chk';
---
--- SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger
--- WHERE tgrelid = 'public.orders'::regclass AND NOT tgisinternal
---   AND tgname = 'orders_reject_manual_sold_out';
---
--- SELECT n.nspname AS schema_name, p.proname, p.prosecdef, p.proconfig
--- FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
--- WHERE p.proname = 'kutadgu_orders_reject_manual_sold_out';
--- -- expect schema_name = private and search_path = ""
--- ============================================================================
- THEN
+    IF v_id_text IS NULL OR v_id_text !~ '^[1-9][0-9]*$' THEN
       CONTINUE;
     END IF;
     BEGIN
@@ -120,7 +92,7 @@ COMMIT;
   END LOOP;
   RETURN NEW;
 END;
-$;
+$stage85$;
 
 REVOKE ALL ON FUNCTION private.kutadgu_orders_reject_manual_sold_out() FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.kutadgu_orders_reject_manual_sold_out() FROM anon;
@@ -149,7 +121,12 @@ COMMIT;
 -- FROM pg_constraint
 -- WHERE conrelid = 'public.books'::regclass AND conname = 'books_stock_status_allowed_chk';
 --
--- SELECT tgname FROM pg_trigger
+-- SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger
 -- WHERE tgrelid = 'public.orders'::regclass AND NOT tgisinternal
 --   AND tgname = 'orders_reject_manual_sold_out';
+--
+-- SELECT n.nspname AS schema_name, p.proname, p.prosecdef, p.proconfig
+-- FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+-- WHERE p.proname = 'kutadgu_orders_reject_manual_sold_out';
+-- -- expect schema_name = private and search_path = ""
 -- ============================================================================
