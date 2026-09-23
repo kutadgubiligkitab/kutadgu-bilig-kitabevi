@@ -19,7 +19,7 @@ const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
-const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
+const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","cover_sha256","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -37,7 +37,7 @@ const OPTIONAL_COL_ALIASES={
   legacy_id:["legacy_id","legacyid","static_id"],
   gallery_images:["gallery_images","gallery"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true,is_color_print:false,interior_print_type:false};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,cover_sha256:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true,is_color_print:false,interior_print_type:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let profileById=new Map();
@@ -1190,6 +1190,7 @@ async function routeSession(){
   await detectOptionalGalleryColumn();
   await detectOptionalStockColumn();
   await detectOptionalStockStatusColumn();
+  await detectOptionalCoverSha256Column();
   await detectOptionalColorPrintColumn();
   await detectOptionalInteriorPrintTypeColumn();
   if(gen!==routeGen)return;
@@ -3321,6 +3322,40 @@ async function detectOptionalStockStatusColumn(){
       return;
     }
     if(!error)enableStockStatusColumn();
+  }catch(err){
+    console.warn(err);
+  }
+}
+function isMissingCoverSha256ColumnError(error){
+  const msg=String(error&&error.message||"");
+  const code=String(error&&error.code||"");
+  return /cover_sha256/i.test(msg)&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
+}
+function disableCoverSha256Column(){
+  LIVE_OPTIONAL_BOOK_COLS.cover_sha256=false;
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.cover_sha256=false;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+function enableCoverSha256Column(){
+  LIVE_OPTIONAL_BOOK_COLS.cover_sha256=true;
+  const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
+  spec.optionalColumns=spec.optionalColumns||{};
+  spec.optionalColumns.cover_sha256=true;
+  window.KUTADGU_BOOKS_SCHEMA=spec;
+  applyBooksSchema();
+}
+async function detectOptionalCoverSha256Column(){
+  if(!db)return;
+  try{
+    const {error}=await db.from("books").select("cover_sha256").limit(1);
+    if(error&&isMissingCoverSha256ColumnError(error)){
+      disableCoverSha256Column();
+      return;
+    }
+    if(!error)enableCoverSha256Column();
   }catch(err){
     console.warn(err);
   }
