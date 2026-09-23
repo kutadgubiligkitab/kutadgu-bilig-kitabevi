@@ -19,7 +19,7 @@ const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
-const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","cover_sha256","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
+const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","cover_sha256","cover_dhash","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -37,7 +37,7 @@ const OPTIONAL_COL_ALIASES={
   legacy_id:["legacy_id","legacyid","static_id"],
   gallery_images:["gallery_images","gallery"]
 };
-const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,cover_sha256:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true,is_color_print:false,interior_print_type:false};
+const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,stock_status:false,cover_sha256:false,cover_dhash:false,pages:true,translator:true,language:false,publish_date:false,publish_year:true,cover_type:true,book_size:true,dimensions:false,legacy_id:false,gallery_images:false,original_price:true,is_color_print:false,interior_print_type:false};
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let profileById=new Map();
@@ -3329,28 +3329,32 @@ async function detectOptionalStockStatusColumn(){
 function isMissingCoverSha256ColumnError(error){
   const msg=String(error&&error.message||"");
   const code=String(error&&error.code||"");
-  return /cover_sha256/i.test(msg)&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
+  return /cover_sha256|cover_dhash/i.test(msg)&&(code==="42703"||code==="PGRST204"||/does not exist/i.test(msg)||/schema cache/i.test(msg));
 }
 function disableCoverSha256Column(){
   LIVE_OPTIONAL_BOOK_COLS.cover_sha256=false;
+  LIVE_OPTIONAL_BOOK_COLS.cover_dhash=false;
   const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
   spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.cover_sha256=false;
+  spec.optionalColumns.cover_dhash=false;
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
 }
 function enableCoverSha256Column(){
   LIVE_OPTIONAL_BOOK_COLS.cover_sha256=true;
+  LIVE_OPTIONAL_BOOK_COLS.cover_dhash=true;
   const spec=window.KUTADGU_BOOKS_SCHEMA||{optionalColumns:{}};
   spec.optionalColumns=spec.optionalColumns||{};
   spec.optionalColumns.cover_sha256=true;
+  spec.optionalColumns.cover_dhash=true;
   window.KUTADGU_BOOKS_SCHEMA=spec;
   applyBooksSchema();
 }
 async function detectOptionalCoverSha256Column(){
   if(!db)return;
   try{
-    const {error}=await db.from("books").select("cover_sha256").limit(1);
+    const {error}=await db.from("books").select("cover_sha256,cover_dhash").limit(1);
     if(error&&isMissingCoverSha256ColumnError(error)){
       disableCoverSha256Column();
       return;
@@ -3639,10 +3643,37 @@ async function coverSha256(file){
   const digest=await window.crypto.subtle.digest("SHA-256",bytes);
   return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
-async function findCoverShaConflict(hash,excludeId){
-  const key=String(hash||"").trim().toLowerCase();
-  if(!key||!presentBookCols.has("cover_sha256")||!db)return null;
-  let query=db.from("books").select("id,title").eq("cover_sha256",key).limit(2);
+async function coverDhash(file){
+  if(!file)return "";
+  if(typeof createImageBitmap!=="function")throw new Error("مۇقاۋا كۆرۈنۈش fingerprint ھېسابلاشنى بۇ browser قوللىمايدۇ. Browser نى يېڭىلاڭ.");
+  const bitmap=await createImageBitmap(file);
+  try{
+    const canvas=document.createElement("canvas");
+    canvas.width=9;canvas.height=8;
+    const ctx=canvas.getContext("2d",{alpha:false});
+    ctx.drawImage(bitmap,0,0,9,8);
+    const data=ctx.getImageData(0,0,9,8).data;
+    let bits="";
+    const gray=(x,y)=>{
+      const i=(y*9+x)*4;
+      return data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
+    };
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++)bits+=gray(x,y)>gray(x+1,y)?"1":"0";
+    let hex="";
+    for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
+    return hex;
+  }finally{
+    bitmap.close?.();
+  }
+}
+async function findCoverFingerprintConflict(hash,dhash,excludeId){
+  const sha=String(hash||"").trim().toLowerCase();
+  const visual=String(dhash||"").trim().toLowerCase();
+  if((!sha&&!visual)||!presentBookCols.has("cover_sha256")||!presentBookCols.has("cover_dhash")||!db)return null;
+  const filters=[];
+  if(sha)filters.push("cover_sha256.eq."+sha);
+  if(visual)filters.push("cover_dhash.eq."+visual);
+  let query=db.from("books").select("id,title").or(filters.join(",")).limit(2);
   const skip=canonicalBookId(excludeId);
   if(skip)query=query.neq("id",skip);
   const {data,error}=await query;
@@ -3658,7 +3689,7 @@ async function findCoverShaConflict(hash,excludeId){
 function duplicateCoverShaError(error){
   const code=String(error&&error.code||"");
   const msg=String(error&&error.message||error||"");
-  return code==="23505"&&/cover_sha256|books_cover_sha256_unique_idx/i.test(msg);
+  return code==="23505"&&/cover_sha256|cover_dhash|books_cover_(?:sha256|dhash)_unique_idx/i.test(msg);
 }
 function duplicateCoverMessage(book){
   const title=book&&book.title?" «"+book.title+"»":"";
@@ -3781,9 +3812,11 @@ async function saveBook(e){
       }
     }
     const storageId=isEdit?editingBookId:(canonicalBookId($("#bookId").value)||"book");
-    const coverHash=coverFile&&presentBookCols.has("cover_sha256")?await coverSha256(coverFile):"";
-    if(coverHash){
-      const conflict=await findCoverShaConflict(coverHash,isEdit?editingBookId:"");
+    const coverGuard=coverFile&&presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash");
+    const coverHash=coverGuard?await coverSha256(coverFile):"";
+    const coverVisualHash=coverGuard?await coverDhash(coverFile):"";
+    if(coverHash||coverVisualHash){
+      const conflict=await findCoverFingerprintConflict(coverHash,coverVisualHash,isEdit?editingBookId:"");
       if(conflict)throw new Error(duplicateCoverMessage(conflict));
     }
     const imageUrl=await uploadCover(storageId,coverFile);
@@ -3811,7 +3844,7 @@ async function saveBook(e){
       is_new:$("#bookIsNew").checked,
       is_recommended:$("#bookIsRecommended").checked
     };
-    if(coverHash&&presentBookCols.has("cover_sha256"))row.cover_sha256=coverHash;
+    if(coverHash&&coverVisualHash&&presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash")){row.cover_sha256=coverHash;row.cover_dhash=coverVisualHash;}
     const coverPlan=Bib.canonicalOptionalForSave
       ?Bib.canonicalOptionalForSave($("#bookCoverType")?$("#bookCoverType").value:"",editing&&editing.cover_type,isEdit,Bib.normalizeCoverType)
       :{include:true,value:($("#bookCoverType")&&$("#bookCoverType").value)||null};
@@ -3910,6 +3943,7 @@ async function saveBook(e){
     if(error&&Object.prototype.hasOwnProperty.call(payload||{},"cover_sha256")&&isMissingCoverSha256ColumnError(error)){
       disableCoverSha256Column();
       delete payload.cover_sha256;
+      delete payload.cover_dhash;
       error=await runPersist(payload,plan.operation,editingBookId);
     }
     if(error&&duplicateCoverShaError(error)){
@@ -5093,14 +5127,16 @@ async function confirmCoverRepair(){
   if(btn)btn.disabled=true;
   status($("#coverRepairStatus"),"مۇقاۋا يۈكلىنىۋاتىدۇ...");
   try{
-    const hash=presentBookCols.has("cover_sha256")?await coverSha256(file):"";
-    if(hash){
-      const conflict=await findCoverShaConflict(hash,book.id);
+    const guard=presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash");
+    const hash=guard?await coverSha256(file):"";
+    const visualHash=guard?await coverDhash(file):"";
+    if(hash||visualHash){
+      const conflict=await findCoverFingerprintConflict(hash,visualHash,book.id);
       if(conflict)throw new Error(duplicateCoverMessage(conflict));
     }
     const url=await uploadCover(book.id,file);
     const payload=CoverRepair.coverOnlyPayload(url);
-    if(hash&&presentBookCols.has("cover_sha256"))payload.cover_sha256=hash;
+    if(hash&&visualHash&&guard){payload.cover_sha256=hash;payload.cover_dhash=visualHash;}
     const {error,data}=await db.from("books").update(payload).eq("id",book.id).select(COVER_REPAIR_SELECT);
     if(error&&duplicateCoverShaError(error))throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. باشقا مۇقاۋا تاللاڭ.");
     if(error)throw error;
@@ -5415,14 +5451,16 @@ async function confirmImport(){
     if(coverJobs.length){
       progress.textContent+=` · مۇقاۋا يۈكلىنىۋاتىدۇ (${coverJobs.length})`;
       const coverResults=await ImportCovers.mapPool(coverJobs,ImportCovers.COVER_UPLOAD_CONCURRENCY,async job=>{
-        const hash=presentBookCols.has("cover_sha256")?await coverSha256(job.file):"";
-        if(hash){
-          const conflict=await findCoverShaConflict(hash,job.id);
+        const guard=presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash");
+        const hash=guard?await coverSha256(job.file):"";
+        const visualHash=guard?await coverDhash(job.file):"";
+        if(hash||visualHash){
+          const conflict=await findCoverFingerprintConflict(hash,visualHash,job.id);
           if(conflict)throw new Error(duplicateCoverMessage(conflict));
         }
         const url=await uploadCover(job.id,job.file);
         const patch={image_url:url};
-        if(hash&&presentBookCols.has("cover_sha256"))patch.cover_sha256=hash;
+        if(hash&&visualHash&&guard){patch.cover_sha256=hash;patch.cover_dhash=visualHash;}
         const {error}=await db.from("books").update(patch).eq("id",job.id);
         if(error){
           if(duplicateCoverShaError(error))throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. باشقا مۇقاۋا تاللاڭ.");
