@@ -231,6 +231,31 @@ async function seedLocalLists(page, { favIds = [], recentIds = [] } = {}) {
   }, { favIds, recentIds });
 }
 
+async function installCatalogReadyFlag(page) {
+  await page.addInitScript(() => {
+    window.__kutadguCatalogReadySeen = false;
+    document.addEventListener("kutadgu:catalog-ready", () => {
+      window.__kutadguCatalogReadySeen = true;
+    });
+  });
+}
+
+async function waitForMyBooksGrid(page, tab, cardSelector) {
+  await expect.poll(async () => page.evaluate(({ tab, cardSelector }) => {
+    const host = document.querySelector("#myBooksApp");
+    const content = document.querySelector("#myBooksContent");
+    if (!host || !content) return 0;
+    const member = window.KutadguMember;
+    if (!member || typeof member.sessionBootDone !== "function" || !member.sessionBootDone()) return 0;
+    if (!window.__kutadguCatalogReadySeen) return 0;
+    if (host.dataset.activeTab !== tab) return 0;
+    const btn = host.querySelector(`[data-mybooks-tab="${tab}"]`);
+    if (!btn || btn.getAttribute("aria-selected") !== "true") return 0;
+    if (content.querySelector(".catalog-loading-state")) return 0;
+    return document.querySelectorAll(cardSelector).length;
+  }, { tab, cardSelector }), { timeout: 20000 }).toBeGreaterThan(1);
+}
+
 async function capture(page, sel, name, mode) {
   await assertDocumentMode(page, mode);
   const dirs = ["/opt/cursor/artifacts", "/tmp/public-card-row-screens"];
@@ -413,26 +438,31 @@ test.describe("public book-card same-row cart alignment", () => {
 
   test("K L M My Books newest recommended recent", async ({ page }) => {
     test.setTimeout(360000);
+    const newestSelector = "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card";
+    const recentSelector = "#myBooksApp [data-recently-viewed] .shop-mini-card";
     await seedLocalLists(page, { recentIds: ["91001", "91002", "91004", "91006"] });
+    await installCatalogReadyFlag(page);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
         await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
-        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card").count()).toBeGreaterThan(1);
         await applyMode(page, mode);
-        const newest = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
+        await waitForMyBooksGrid(page, "newest", newestSelector);
+        const newest = await measure(page, newestSelector, ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
         expectAlignedRows(newest, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });
         await capture(page, "#myBooksContent", `public_align_mybooks_newest_${width}_${mode}.png`, mode);
         await page.locator('[data-mybooks-tab="recommended"]').click();
-        await expect.poll(async () => page.locator("#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card").count()).toBeGreaterThan(1);
+        await expect(page.locator('[data-mybooks-tab="recommended"]')).toHaveAttribute("aria-selected", "true");
         await applyMode(page, mode);
-        const rec = await measure(page, "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
+        await waitForMyBooksGrid(page, "recommended", newestSelector);
+        const rec = await measure(page, newestSelector, ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
         expectAlignedRows(rec, { tile: true, clamp: false, requireComparableRow: requireRow(width, 390) });
         await capture(page, "#myBooksContent", `public_align_mybooks_recommended_${width}_${mode}.png`, mode);
         await page.locator('[data-mybooks-tab="recent"]').click();
-        await expect.poll(async () => page.locator("#myBooksApp [data-recently-viewed] .shop-mini-card").count()).toBeGreaterThan(1);
+        await expect(page.locator('[data-mybooks-tab="recent"]')).toHaveAttribute("aria-selected", "true");
         await applyMode(page, mode);
-        const recent = await measure(page, "#myBooksApp [data-recently-viewed] .shop-mini-card", ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
+        await waitForMyBooksGrid(page, "recent", recentSelector);
+        const recent = await measure(page, recentSelector, ".mini-actions .add-to-cart", { titleSelector: ".shop-mini-title" });
         expectAlignedRows(recent, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
       });
     }
@@ -441,6 +471,7 @@ test.describe("public book-card same-row cart alignment", () => {
   test("N O favorites page and My Books favorites", async ({ page }) => {
     test.setTimeout(360000);
     await seedLocalLists(page, { favIds: ["91001", "91002", "91004", "91006"] });
+    await installCatalogReadyFlag(page);
     await mockCatalog(page);
     for (const width of WIDTHS) {
       await withModes(page, width, async (mode) => {
@@ -451,9 +482,11 @@ test.describe("public book-card same-row cart alignment", () => {
         expectAlignedRows(favs, { tile: false, clamp: false, requireComparableRow: requireRow(width, 768) });
         await capture(page, "#favoritesList", `public_align_favorites_${width}_${mode}.png`, mode);
         await page.goto("/my-books.html", { waitUntil: "domcontentloaded" });
+        await waitForMyBooksGrid(page, "newest", "#myBooksApp .mybooks-grid:not([data-recently-viewed]) .shop-mini-card");
         await page.locator('[data-mybooks-tab="favorites"]').click();
-        await expect.poll(async () => page.locator("#myBooksApp .favorites-grid .favorite-card").count()).toBeGreaterThan(1);
+        await expect(page.locator('[data-mybooks-tab="favorites"]')).toHaveAttribute("aria-selected", "true");
         await applyMode(page, mode);
+        await waitForMyBooksGrid(page, "favorites", "#myBooksApp .favorites-grid .favorite-card");
         const mine = await measure(page, "#myBooksApp .favorites-grid .favorite-card", ".favorite-card-actions .add-to-cart", { titleSelector: ".favorite-card-title" });
         expectAlignedRows(mine, { tile: false, clamp: false, requireComparableRow: requireRow(width, 768) });
       });

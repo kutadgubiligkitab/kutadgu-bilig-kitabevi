@@ -15,7 +15,9 @@
     ...(config.featureFlags||{})
   };
   const REC_KEY=config.storageKeys?.recentlyViewed||"kutadgu-recent-v1";
-  const fallbackCover="/sample-book-cover.png";
+  function isSampleDemoCover(src){
+    return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src||"").trim());
+  }
 
   const catalog=()=>{
     const rows=window.kutadguShop?.getCatalog?.()||window.KUTADGU_LIVE_CATALOG||window.KITAP_CATALOG||[];
@@ -26,11 +28,14 @@
   const money=value=>value!==null&&value!==undefined&&value!==""?`${Number(value).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن";
   const assetPath=src=>{
     const value=String(src||"").trim();
-    if(!value)return fallbackCover;
+    if(!value||isSampleDemoCover(value))return "";
     if(/^(https?:)?\/\//i.test(value)||value.startsWith("/")||value.startsWith("data:"))return value;
     return "/"+value.replace(/^\.\//,"");
   };
-  const cover=book=>escapeHtml(assetPath(book?.image||fallbackCover));
+  const cover=book=>{
+    const src=assetPath((book&&(book.image||book.image_url))||"");
+    return src?escapeHtml(src):"";
+  };
   const bookHref=book=>{
     const id=String(book&&book.id||"").trim();
     if(/^\d+$/.test(id))return `/book/${id}`;
@@ -68,7 +73,19 @@
   }
 
   function bindCards(scope){
-    scope.querySelectorAll(".premium-card-cover img").forEach(img=>img.onerror=()=>{img.onerror=null;img.src=fallbackCover});
+    scope.querySelectorAll(".premium-card-cover img").forEach(img=>{
+      const markMissing=()=>{
+        if(!img.parentNode)return;
+        img.onerror=null;
+        const span=document.createElement("span");
+        span.className="book-cover-unavailable";
+        span.setAttribute("aria-hidden","true");
+        img.replaceWith(span);
+      };
+      const src=String(img.getAttribute("src")||"").trim();
+      if(!src||isSampleDemoCover(src)){markMissing();return;}
+      img.onerror=()=>markMissing();
+    });
     scope.querySelectorAll("[data-premium-favorite]").forEach(button=>{
       const active=!!window.kutadguShop?.favHas?.(button.dataset.premiumFavorite);
       button.classList.toggle("is-favorite",active);button.textContent=active?"♥":"♡";button.setAttribute("aria-pressed",active?"true":"false");

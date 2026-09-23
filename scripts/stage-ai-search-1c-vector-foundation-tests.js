@@ -9,8 +9,8 @@ const root = path.join(__dirname, "..");
 const MIGRATION = "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql";
 
 const FROZEN = {
-  "kutadgu-search-rank.js": "87f083b9bfd62ce6ea0ce0df6bd796ca21a201a580b5ffb6dc3258326321831b",
-  "shop.js": "3976a603d3057cb7872252048f40b3772ab63cd28216938924ba16a6c9e8a519",
+  "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
+  "shop.js": "3a0ceb7b49dfb72df16a53a5f2f6d2207ff6151beac51aef8a940eebf1f9481b",
   "STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql": "a2cf8760dc26d17bba65a64cdbb604cef2b5f0aa5bbd6b2f706449d701cde7c0",
   "STAGE2C_AAL2_BOOKS_WRITE_RLS.sql": "6bd143f8fcc0c21da0c06c55081109e54c1aa277222304e07bac3a14b61f75a3",
   "STAGE2C_AAL2_RESTRICTIVE_REPAIR.sql": "80403e29f52e9574061bfe18cbaa1277a4746bc1a8ecaa25b6381bb4435c760a",

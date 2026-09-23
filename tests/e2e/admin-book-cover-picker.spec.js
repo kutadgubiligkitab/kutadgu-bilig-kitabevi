@@ -79,6 +79,20 @@ test.describe("admin Uyghur main cover picker", () => {
     await expect(page.locator("#bookCoverPreview")).toHaveCSS("visibility", "hidden");
   });
 
+  test("new book without a cover is blocked before INSERT", async ({ page }) => {
+    await openAdminBooks(page);
+    await page.locator("#newBookBtn").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookTitle").fill("No Cover Create");
+    await page.locator("#bookAuthor").fill("Author");
+    await page.locator("#bookPrice").fill("15");
+    await page.locator("#bookSource").selectOption("universal.html");
+    await page.locator("#bookForm button[type='submit']").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    const saves = await page.evaluate(() => window.__kutadguBookSaves.slice());
+    expect(saves).toHaveLength(0);
+  });
+
   test("edit keeps image_url when no new cover is chosen", async ({ page }) => {
     await openAdminBooks(page);
     await page.locator('article[data-book-id="1"] [data-edit]').click();
