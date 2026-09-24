@@ -21,7 +21,7 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "5493ac5e5a922e42c133e6b1ca17003b3724b90709879d2360c429aeaf1c726c",
+  "shop.js": "69b2b28337fa805d135594d02dc074780f3f0863c982b0d65db5cfd9366a688c",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
@@ -334,6 +334,11 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage-seo-2e-book-meta-descriptions-tests.js",
     "scripts/stage-seo-2f-first-byte-book-details-tests.js",
     "STAGE87_COVER_INTEGRITY.sql",
+    "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql",
+    "kutadgu-book-views.js",
+    "kutadgu-analytics-core.js",
+    "scripts/book-view-counts-tests.js",
+    "scripts/stage99-admin-suggest-save-refresh-tests.js",
     "admin.js",
     "shop.js",
     "book-staff.js",

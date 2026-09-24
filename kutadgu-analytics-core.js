@@ -13,6 +13,8 @@
   const ALLOWED_EVENTS={
     page_view:1,
     book_view:1,
+    book_engagement_detail:1,
+    book_engagement_cart:1,
     add_to_cart:1,
     whatsapp_order_click:1,
     search:1,

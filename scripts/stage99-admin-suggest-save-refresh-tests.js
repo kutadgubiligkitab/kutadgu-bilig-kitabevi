@@ -109,7 +109,7 @@ test("14 Book Staff visibility/security behavior is unchanged", () => {
 });
 
 test("15 no SQL/RLS/auth changes", () => {
-  const newSql = sqlFiles.filter((name) => /STAGE99|SUGGEST_SAVE|SUGGESTION_REFRESH/i.test(name));
+  const newSql = sqlFiles.filter((name) => /SUGGEST_SAVE|SUGGESTION_REFRESH|STAGE99_ADMIN/i.test(name));
   assert.deepStrictEqual(newSql, []);
   assert.doesNotMatch(read("kutadgu-book-entry-suggest.js"), /CREATE POLICY|DROP POLICY|ALTER TABLE|service_role/);
   assert.doesNotMatch(saveFn, /CREATE POLICY|service_role/);

@@ -1096,6 +1096,23 @@ function applyHomepageDocumentTitle(){
 const appConfig=()=>window.KUTADGU_APP_CONFIG||{};
 const featureEnabled=name=>appConfig().featureFlags?.[name]!==false;
 const trackEvent=(name,data={})=>{try{window.KutadguAnalytics?.track?.(name,data)}catch(err){}};
+function noteStorefrontEngagement(action,bookId){
+  try{
+    const id=String(bookId||"").trim();
+    if(action!=="cart"&&action!=="detail")return;
+    if(!/^[1-9][0-9]*$/.test(id))return;
+    const api=window.KutadguBookViews;
+    if(api&&typeof api.recordEngagement==="function"){api.recordEngagement(action,id);return}
+    const q=window.__kutadguEngagementQueue||(window.__kutadguEngagementQueue=[]);
+    q.push({action,bookId:id,at:Date.now()});
+  }catch(err){}
+}
+function ensureBookViewCounts(){
+  try{
+    if(document.querySelector('script[src*="kutadgu-book-views.js"]'))return;
+    loadAssetScript("/kutadgu-book-views.js?v=2","kutadguBookViewsScript").catch(()=>{});
+  }catch(err){}
+}
 const trackedBookViews=new Set();
 function trackBookViewOnce(book){
   try{
@@ -1724,6 +1741,7 @@ function add(id,qty=1){
     updateBadge();
     toast("كىتاب سېۋەتكە قوشۇلدى 🛒");
     trackEvent("add_to_cart",{bookId:storeId,legacyId:b.legacyId||"",qty:Math.max(1,Number(qty)||1)});
+    noteStorefrontEngagement("cart",storeId);
   }
 }
 function remove(id){
@@ -4451,6 +4469,7 @@ let bootStarted=false;
 async function boot(){
   if(bootStarted)return;
   bootStarted=true;
+  ensureBookViewCounts();
   if(maybeRedirectLegacyBookUrl())return;
   const publicHeaderReady=loadPublicHeader();
   try{await loadAssetScript("/app-config.js?v=5","kutadguAppConfigScript")}catch(error){console.warn(error)}

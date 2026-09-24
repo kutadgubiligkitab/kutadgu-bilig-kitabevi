@@ -10,7 +10,7 @@ const Ui = require("../kutadgu-ai-search-ui.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "5493ac5e5a922e42c133e6b1ca17003b3724b90709879d2360c429aeaf1c726c"
+  "shop.js": "69b2b28337fa805d135594d02dc074780f3f0863c982b0d65db5cfd9366a688c"
 };
 
 let failed = 0;
@@ -127,14 +127,20 @@ function createDom() {
           preventDefault() {},
           stopPropagation() {}
         }, extra || {});
+        if (typeof this.onclick === "function") this.onclick(ev);
         (this._listeners[type] || []).forEach((fn) => fn(ev));
+        (document._listeners[type] || []).forEach((fn) => fn(ev));
       }
     };
     return node;
   }
   document.createElement = el;
   document.getElementById = (id) => byId[id] || null;
-  document.addEventListener = function () {};
+  document._listeners = Object.create(null);
+  document.addEventListener = function (type, fn) {
+    document._listeners[type] = document._listeners[type] || [];
+    document._listeners[type].push(fn);
+  };
 
   const searchInput = el("input");
   searchInput.setAttribute("id", "searchInput");
@@ -549,6 +555,175 @@ async function run() {
     assert.doesNotMatch(envExample, /AI_SEARCH_ENABLED\s*=\s*true/);
     const vercel = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
     assert.ok(!(vercel.env && vercel.env.AI_SEARCH_ENABLED === "true"));
+  });
+
+  function countClass(node, className) {
+    if (!node) return 0;
+    const own = String(node.className || "").split(/\s+/).includes(className) ? 1 : 0;
+    return own + (node.children || []).reduce((sum, child) => sum + countClass(child, className), 0);
+  }
+
+  function findClass(node, className) {
+    if (!node) return null;
+    if (String(node.className || "").split(/\s+/).includes(className)) return node;
+    for (const child of node.children || []) {
+      const found = findClass(child, className);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function pressReset(dom) {
+    const reset = dom.document.createElement("button");
+    reset.setAttribute("id", "searchReset");
+    reset.textContent = "↺ تازىلاش";
+    reset.onclick = function () { dom.searchInput.value = ""; };
+    reset.emit("click");
+    return reset;
+  }
+
+  await test("تازىلاش clears AI results immediately and keeps Normal Search visible", async () => {
+    const dom = createDom();
+    const state = Ui.mountAiSearchUi({
+      document: dom.document,
+      location: { hostname: "localhost" },
+      fetchImpl: async () => jsonRes(200, {
+        ok: true,
+        results: [{ id: 4, title: "AI كىتاب", author: "ئاپتور", price: 12, stock: 2 }]
+      })
+    });
+    dom.searchInput.value = "رومان";
+    dom.aiSearchButton.emit("click");
+    await state.pending;
+    assert.ok(countClass(dom.aiSearchResults, "ai-search-item") > 0);
+    assert.strictEqual(dom.searchResults.hidden, true);
+    pressReset(dom);
+    assert.strictEqual(dom.searchInput.value, "");
+    assert.strictEqual(countClass(dom.aiSearchResults, "ai-search-item"), 0);
+    assert.strictEqual(countClass(dom.aiSearchResults, "ai-search-heading"), 0);
+    assert.strictEqual(dom.aiSearchResults.hidden, true);
+    assert.strictEqual(collectText(dom.aiSearchResults), "");
+    assert.deepStrictEqual(dom.aiSearchResults._aiAllRows, []);
+    assert.strictEqual(dom.searchResults.hidden, false);
+    assert.strictEqual(dom.searchResults.textContent, "NORMAL_KEEP");
+    assert.strictEqual(dom.searchButton.disabled, false);
+    const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
+    assert.match(shop, /if\(reset\)reset\.onclick=\(\)=>\{input\.value="";/);
+    assert.match(shop, /run\(false\)/);
+  });
+
+  await test("a stale AI response after تازىلاش cannot restore old results", async () => {
+    let releaseFirst;
+    let releaseSecond;
+    const dom = createDom();
+    const state = Ui.mountAiSearchUi({
+      document: dom.document,
+      location: { hostname: "localhost" },
+      fetchImpl: (url, init) => new Promise((resolve) => {
+        const query = JSON.parse(init.body).query;
+        const finish = () => resolve(jsonRes(200, {
+          ok: true,
+          results: [{
+            id: query.indexOf("يېڭى") >= 0 ? 8 : 7,
+            title: query.indexOf("يېڭى") >= 0 ? "يېڭى كىتاب" : "كونا كىتاب",
+            author: "ئاپتور",
+            price: 9,
+            stock: 1
+          }]
+        }));
+        if (query.indexOf("يېڭى") >= 0) releaseSecond = finish;
+        else releaseFirst = finish;
+      })
+    });
+    dom.searchInput.value = "كونا";
+    dom.aiSearchButton.emit("click");
+    const first = state.pending;
+    assert.match(collectText(dom.aiSearchResults), /AI ئىزدەۋاتىدۇ/);
+    pressReset(dom);
+    assert.strictEqual(dom.searchInput.value, "");
+    assert.strictEqual(dom.aiSearchResults.hidden, true);
+    assert.strictEqual(collectText(dom.aiSearchResults), "");
+    releaseFirst();
+    await first;
+    assert.doesNotMatch(collectText(dom.aiSearchResults), /كونا كىتاب/);
+    assert.strictEqual(dom.aiSearchResults.hidden, true);
+    assert.strictEqual(dom.searchResults.hidden, false);
+    dom.searchInput.value = "يېڭى سوئال";
+    dom.aiSearchButton.emit("click");
+    const second = state.pending;
+    releaseSecond();
+    await second;
+    assert.match(collectText(dom.aiSearchResults), /يېڭى كىتاب/);
+    assert.strictEqual(dom.searchResults.hidden, true);
+    assert.strictEqual(dom.aiSearchButton.disabled, false);
+  });
+
+  await test("تازىلاش clears an AI error, a loading state, and show-more results", async () => {
+    const errorDom = createDom();
+    const errorState = Ui.mountAiSearchUi({
+      document: errorDom.document,
+      location: { hostname: "localhost" },
+      fetchImpl: async () => jsonRes(500, { ok: false, error: "secret-debug" })
+    });
+    errorDom.searchInput.value = "خاتالىق";
+    errorDom.aiSearchButton.emit("click");
+    await errorState.pending;
+    assert.match(collectText(errorDom.aiSearchResults), /AI ئىزدەش ھازىرچە ئىشلىمەيدۇ/);
+    pressReset(errorDom);
+    assert.strictEqual(errorDom.searchInput.value, "");
+    assert.strictEqual(errorDom.aiSearchResults.hidden, true);
+    assert.strictEqual(collectText(errorDom.aiSearchResults), "");
+    assert.strictEqual(errorDom.searchResults.hidden, false);
+    assert.doesNotMatch(collectText(errorDom.aiSearchResults), /secret-debug/);
+
+    let releaseLoading;
+    const loadingDom = createDom();
+    const loadingState = Ui.mountAiSearchUi({
+      document: loadingDom.document,
+      location: { hostname: "localhost" },
+      fetchImpl: () => new Promise((resolve) => { releaseLoading = resolve; })
+    });
+    loadingDom.searchInput.value = "يۈك";
+    loadingDom.aiSearchButton.emit("click");
+    assert.match(collectText(loadingDom.aiSearchResults), /AI ئىزدەۋاتىدۇ/);
+    pressReset(loadingDom);
+    assert.strictEqual(loadingDom.aiSearchResults.hidden, true);
+    assert.doesNotMatch(collectText(loadingDom.aiSearchResults), /AI ئىزدەۋاتىدۇ/);
+    releaseLoading(jsonRes(200, { ok: true, results: [{ id: 3, title: "كېچىككەن", author: "A", price: 1, stock: 1 }] }));
+    await loadingState.pending;
+    assert.doesNotMatch(collectText(loadingDom.aiSearchResults), /كېچىككەن/);
+    assert.strictEqual(loadingDom.searchResults.hidden, false);
+
+    const moreDom = createDom();
+    const moreState = Ui.mountAiSearchUi({
+      document: moreDom.document,
+      location: { hostname: "localhost" },
+      fetchImpl: async () => jsonRes(200, {
+        ok: true,
+        results: Array.from({ length: 8 }, (_, index) => ({
+          id: index + 1,
+          title: "نەتىجە " + String(index + 1),
+          author: "ئاپتور",
+          price: 5,
+          stock: 1
+        }))
+      })
+    });
+    moreDom.searchInput.value = "كۆپ";
+    moreDom.aiSearchButton.emit("click");
+    await moreState.pending;
+    assert.strictEqual(countClass(moreDom.aiSearchResults, "ai-search-item"), 6);
+    const more = findClass(moreDom.aiSearchResults, "ai-search-show-more");
+    assert.ok(more);
+    more.emit("click");
+    assert.strictEqual(countClass(moreDom.aiSearchResults, "ai-search-item"), 8);
+    pressReset(moreDom);
+    assert.strictEqual(moreDom.searchInput.value, "");
+    assert.strictEqual(countClass(moreDom.aiSearchResults, "ai-search-item"), 0);
+    assert.strictEqual(findClass(moreDom.aiSearchResults, "ai-search-show-more"), null);
+    assert.strictEqual(moreDom.aiSearchResults.hidden, true);
+    assert.strictEqual(moreDom.searchResults.hidden, false);
+    assert.strictEqual(moreDom.aiSearchButton.disabled, false);
   });
 
   await test("I: AI UI host allowlist stays isolated from Normal Search controls", () => {

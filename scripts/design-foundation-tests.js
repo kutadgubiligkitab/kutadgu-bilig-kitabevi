@@ -245,7 +245,8 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "DATABASE_UPGRADE_V10.sql",
     "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql",
     "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql",
-    "STAGE87_COVER_INTEGRITY.sql"
+    "STAGE87_COVER_INTEGRITY.sql",
+    "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql"
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||
