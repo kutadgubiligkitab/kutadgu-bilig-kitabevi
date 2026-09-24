@@ -199,6 +199,7 @@
     if (!href || !doc || !list) return;
     var item = doc.createElement("article");
     item.className = "ai-search-item";
+    item.setAttribute("data-live-book-id", String(row.id));
 
     var coverWrap = doc.createElement("a");
     coverWrap.className = "ai-search-cover";
@@ -285,6 +286,10 @@
     }
     box._aiVisibleCount = end;
     syncShowMore(box, doc);
+    try {
+      var views = root.KutadguBookViews;
+      if (views && typeof views.hydrate === "function") views.hydrate(box);
+    } catch (err) {}
   }
 
   function renderResults(box, rows, documentRef) {
@@ -381,9 +386,28 @@
         controller = null;
       }
       clearNode(aiBox);
+      aiBox._aiAllRows = [];
+      aiBox._aiVisibleCount = 0;
+      aiBox._aiList = null;
       aiBox.hidden = true;
       revealNormalSearch();
       restoreButton();
+    }
+
+    function isSearchResetTarget(node) {
+      var cur = node;
+      while (cur) {
+        if (cur.id === "searchReset") return true;
+        cur = cur.parentNode;
+      }
+      return false;
+    }
+
+    if (typeof doc.addEventListener === "function") {
+      doc.addEventListener("click", function onSearchResetClick(event) {
+        if (isSearchResetTarget(event && event.target)) hideAiBox();
+      });
+      doc.addEventListener("kutadgu:search-reset", hideAiBox);
     }
 
     input.addEventListener("input", hideAiBox);
