@@ -3683,6 +3683,18 @@ const KNOWN_SAMPLE_COVER_DHASH=new Set([
   "6305088ce639c9a0",
   "6305088ce638c9a0"
 ]);
+const COVER_DHASH_REVIEW_DISTANCE=5; // same cutoff as scripts/audit-book-covers.js; distances 1–5 are review-only
+function dhashDistance(hashA,hashB){
+  const a=String(hashA||"").trim().toLowerCase();
+  const b=String(hashB||"").trim().toLowerCase();
+  if(!/^[0-9a-f]{16}$/.test(a)||!/^[0-9a-f]{16}$/.test(b))return null;
+  let dist=0;
+  for(let i=0;i<16;i++){
+    let xor=parseInt(a[i],16)^parseInt(b[i],16);
+    while(xor){dist+=xor&1;xor>>=1;}
+  }
+  return dist;
+}
 function isSampleDemoCoverUrl(src){
   return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src||"").trim());
 }
@@ -3752,6 +3764,10 @@ async function fingerprintSelectedCover(file,excludeId){
   if(presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash")){
     const conflict=await findCoverFingerprintConflict(hash,visual,excludeId);
     if(conflict)throw new Error(duplicateCoverMessage(conflict));
+    const nearMatches=await findCoverNearDhashMatches(visual,excludeId);
+    const exactVisual=nearMatches.filter(match=>match.distance===0);
+    if(exactVisual.length)throw new Error(duplicateCoverMessage(exactVisual[0]));
+    await confirmNearCoverMatch(nearMatches);
   }
   return {hash,visual};
 }
@@ -3764,6 +3780,43 @@ function duplicateCoverMessage(book){
   const title=book&&book.title?" «"+book.title+"»":"";
   const id=book&&book.id!=null?" (ID "+book.id+")":"";
   return "بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا"+title+id+" باغلانغان. ھەر كىتابقا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.";
+}
+async function findCoverNearDhashMatches(dhash,excludeId){
+  const visual=String(dhash||"").trim().toLowerCase();
+  if(!/^[0-9a-f]{16}$/.test(visual)||!presentBookCols.has("cover_dhash")||!db)return [];
+  const skip=canonicalBookId(excludeId);
+  const matches=[];
+  const pageSize=500;
+  for(let from=0;;from+=pageSize){
+    const query=db.from("books").select("id,title,cover_dhash").not("cover_dhash","is",null).order("id",{ascending:true}).range(from,from+pageSize-1);
+    const {data,error}=await query;
+    if(error){
+      if(isMissingCoverSha256ColumnError(error)){disableCoverSha256Column();return [];}
+      throw error;
+    }
+    const rows=Array.isArray(data)?data:[];
+    rows.forEach(row=>{
+      if(skip&&String(row.id)===String(skip))return;
+      const dist=dhashDistance(visual,row.cover_dhash);
+      if(dist==null||dist>COVER_DHASH_REVIEW_DISTANCE)return;
+      matches.push({id:row.id,title:row.title||"",cover_dhash:row.cover_dhash,distance:dist});
+    });
+    if(rows.length<pageSize)break;
+  }
+  matches.sort((a,b)=>a.distance-b.distance||Number(a.id)-Number(b.id));
+  return matches;
+}
+function nearCoverDecisionMessage(match){
+  const title=match&&match.title?" «"+match.title+"»":"";
+  const id=match&&match.id!=null?" (ID "+match.id+")":"";
+  const dist=match&&match.distance!=null?String(match.distance):"?";
+  return "بۇ مۇقاۋا كىتاب"+title+id+" نىڭ مۇقاۋىسىغا بەك ئوخشايدۇ.\nكۆرۈنۈش ئارىلىقى: "+dist+".\nبۇ باشقا كىتابنىڭ مۇقاۋىسى بولسا ساقلىماڭ.\nبۇ كىتابنىڭ ئۆز مۇقاۋىسى ئىكەنلىكىنى جەزملەمسىز؟";
+}
+async function confirmNearCoverMatch(matches){
+  const list=(matches||[]).filter(match=>match&&match.distance>0);
+  if(!list.length)return;
+  const message=nearCoverDecisionMessage(list[0]);
+  if(typeof confirm!=="function"||!confirm(message))throw new Error("ئوخشاش كۆرۈنۈشلۈك مۇقاۋا جەزملەنمىدى. ساقلاش توختىتىلدى.");
 }
 async function optimizeCover(file){
   if(!file||!String(file.type||"").startsWith("image/"))return file;
@@ -5542,8 +5595,12 @@ async function confirmImport(){
           if(seenCoverSha.has(fp.hash)||seenCoverVisual.has(fp.visual)){
             throw new Error("بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا باغلانغان. ھەر كىتابقا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.");
           }
+          for(const [prevVisual,prev] of seenCoverVisual){
+            const dist=dhashDistance(fp.visual,prevVisual);
+            if(dist!=null&&dist>0&&dist<=COVER_DHASH_REVIEW_DISTANCE)await confirmNearCoverMatch([{id:prev.id,title:prev.title,distance:dist}]);
+          }
           seenCoverSha.set(fp.hash,job.id);
-          seenCoverVisual.set(fp.visual,job.id);
+          seenCoverVisual.set(fp.visual,{id:job.id,title:job.title});
           acceptedCoverJobs.push({id:job.id,file:job.file,title:job.title,hash:fp.hash,visual:fp.visual});
         }catch(err){
           coverFailed++;
