@@ -31,6 +31,7 @@
   var measureRaf = 0;
   var expanded = false;
   var lastMessage = "";
+  var fontResyncBound = false;
 
   function pageName() {
     if (typeof location === "undefined") return "";
@@ -330,6 +331,18 @@
     return height;
   }
 
+  function bindFontResync() {
+    if (fontResyncBound || typeof document === "undefined" || !document.fonts) return;
+    fontResyncBound = true;
+    var fonts = document.fonts;
+    if (fonts.ready && typeof fonts.ready.then === "function") {
+      fonts.ready.then(function () { syncHeaderOffset(); }).catch(function () {});
+    }
+    if (typeof fonts.addEventListener === "function") {
+      fonts.addEventListener("loadingdone", function () { syncHeaderOffset(); });
+    }
+  }
+
   function hideBar() {
     stopTimer();
     items = [];
@@ -447,6 +460,8 @@
     expanded = false;
     showIndex(0, false);
     startTimer();
+    bindFontResync();
+    syncHeaderOffset();
     requestAnimationFrame(function () {
       syncHeaderOffset();
       requestAnimationFrame(syncHeaderOffset);

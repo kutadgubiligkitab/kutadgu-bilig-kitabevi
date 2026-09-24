@@ -183,6 +183,9 @@ function parseQuickStock(raw,present){
   return {ok:true,value:n};
 }
 
+function isSampleDemoCoverUrl(src){
+  return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src||"").trim());
+}
 function buildQuickEditPatch(input,opts={}){
   const present=opts.presentBookCols instanceof Set?opts.presentBookCols:new Set(opts.presentBookCols||[]);
   const title=normalizeText(input&&input.title);
@@ -209,12 +212,18 @@ function buildQuickEditPatch(input,opts={}){
     if(!parsed.ok)return parsed;
     patch.stock_status=parsed.value;
   }
-  const cover=String(input&&input.image_url||"").trim();
   if(Object.prototype.hasOwnProperty.call(input||{},"image_url")){
+    const cover=String(input&&input.image_url||"").trim();
+    const current=String(opts.currentImageUrl==null?"":opts.currentImageUrl).trim();
+    if(isSampleDemoCoverUrl(cover)&&cover!==current){
+      return {ok:false,error:"ئۆرنەك ياكى سىناق مۇقاۋىسىنى ساقلىغىلى بولمايدۇ."};
+    }
     if(cover&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(cover)){
       return {ok:false,error:Safe.COVER_URL_ERROR||"مۇقاۋا URL بىخەتەر ئەمەس."};
     }
-    patch.image_url=cover;
+    if(cover!==current){
+      return {ok:false,error:"تېز تەھرىردە مۇقاۋا ئالماشتۇرۇلمايدۇ. مۇقاۋا ئۈچۈن تولۇق تەھرىر ياكى مۇقاۋا رېمونتىنى ئىشلىتىڭ."};
+    }
   }
   const safe=stripProtectedFields(patch);
   const leaked=PROTECTED_FIELDS.filter(k=>Object.prototype.hasOwnProperty.call(safe,k));

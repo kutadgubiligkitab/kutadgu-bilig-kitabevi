@@ -190,7 +190,7 @@ function coverSrc(book){
   return storefrontAssetPath(safe);
 }
 function isSampleDemoCover(src){
-  return /(?:^|\/)sample-book-cover\.png(?:$|\?)/i.test(String(src||"").trim());
+  return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src||"").trim());
 }
 const COVER_RETRY_MAX=2;
 const COVER_RETRY_DELAYS=[300,900];
@@ -216,12 +216,16 @@ function approvedCoverSrc(img){
   return String(img&&(img.getAttribute("data-cover-src")||img.getAttribute("src"))||"").trim();
 }
 function isCoverJobCurrent(img,generation,src){
-  if(!img||!img.isConnected)return false;
+  if(!img||img.isConnected===false)return false;
   const state=coverRetryStates.get(img);
   if(!state)return false;
   if(state.generation!==generation)return false;
   if(src&&state.src!==src)return false;
   if(src&&approvedCoverSrc(img)!==src)return false;
+  if(state.bookId){
+    const bound=img.getAttribute&&img.getAttribute("data-cover-book");
+    if(bound&&bound!==state.bookId)return false;
+  }
   return true;
 }
 function releaseCoverRetrySlot(state){
@@ -230,7 +234,7 @@ function releaseCoverRetrySlot(state){
   state.release=null;
   fn();
 }
-function beginCoverAssignment(img,src){
+function beginCoverAssignment(img,src,bookId){
   const prev=img?coverRetryStates.get(img):null;
   if(prev){
     if(prev.timer){clearTimeout(prev.timer);prev.timer=0}
@@ -242,8 +246,9 @@ function beginCoverAssignment(img,src){
     img.onload=null;
     img.onerror=null;
   }
-  const state={generation:++coverRetryGenerationSeq,failures:0,timer:0,queued:false,src:String(src||""),release:null,replaying:false};
+  const state={generation:++coverRetryGenerationSeq,failures:0,timer:0,queued:false,src:String(src||""),bookId:bookId==null?"":String(bookId),release:null,replaying:false};
   if(img){
+    if(state.bookId&&img.setAttribute)img.setAttribute("data-cover-book",state.bookId);
     coverRetryStates.set(img,state);
     if(img.classList)img.classList.remove("is-cover-retrying");
     if(img.removeAttribute)img.removeAttribute("aria-busy");
@@ -278,6 +283,9 @@ function handleCoverLoad(img){
 }
 function handleCoverError(img){
   if(!img)return;
+  const boundBook=img.getAttribute&&img.getAttribute("data-cover-book");
+  const stateBook=coverRetryStates.get(img);
+  if(boundBook&&stateBook&&stateBook.bookId&&boundBook!==stateBook.bookId)return;
   if(COVER_LAYOUT_TEST_MODE){
     img.onerror=null;
     img.src=FALLBACK_COVER;
@@ -334,7 +342,7 @@ function replayApprovedCover(job){
   const generation=job&&job.generation;
   const src=job&&job.src;
   if(!isCoverJobCurrent(img,generation,src)||!isRetryableCoverUrl(src)){
-    if(img&&img.isConnected&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
+    if(img&&img.isConnected!==false&&coverRetryStates.get(img)&&coverRetryStates.get(img).generation===generation)markCoverUnavailable(img);
     return;
   }
   const state=coverRetryState(img);
@@ -366,8 +374,9 @@ function replayApprovedCover(job){
 }
 function assignCoverImage(img,src,opts={}){
   if(!img)return;
+  const bookId=opts&&opts.bookId!=null?opts.bookId:(img.getAttribute&&img.getAttribute("data-cover-book"));
   const approved=isRetryableCoverUrl(src)?src:"";
-  const state=beginCoverAssignment(img,approved);
+  const state=beginCoverAssignment(img,approved,bookId);
   if(!approved){
     if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}
     markCoverUnavailable(img);
@@ -435,7 +444,9 @@ function coverImgHtml(book,opts={}){
   const loading=opts.loading||"lazy";
   const prio=opts.fetchpriority?` fetchpriority="${escapeAttr(opts.fetchpriority)}"`:"";
   if(!src)return `<span class="book-cover-unavailable" aria-hidden="true"></span>`;
-  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${prio}>`;
+  const bookId=book&&book.id!=null?String(book.id):"";
+  const bookAttr=bookId?` data-cover-book="${escapeAttr(bookId)}"`:"";
+  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${bookAttr}${prio}>`;
 }
 function listingCardSkeletonMarkup(){
   return `<article class="book-card is-skeleton" aria-hidden="true">
@@ -1888,7 +1899,7 @@ function syncStaticCards(){
       const src=coverSrc(book);
       img.alt=`${book.title||"كىتاب"} كىتاب مۇقاۋىسى`;
       if(!src)markCoverUnavailable(img);
-      else assignCoverImage(img,src);
+      else assignCoverImage(img,src,{bookId:book.id});
     }
     const detail=card.querySelector(".detail-button,.book-button");if(detail&&book.href)detail.href=book.href;
     const title=card.querySelector(".book-title");if(title)title.textContent=book.title||"كىتاب";
@@ -1974,10 +1985,10 @@ function applyDetailCoverFallback(){
   const src=coverSrc(book);
   if(!src||isSampleDemoCover(current)||!current||current==="#"){
     if(!src){markCoverUnavailable(img);return}
-    assignCoverImage(img,src,{loading:"eager",fetchpriority:"high"});
+    assignCoverImage(img,src,{loading:"eager",fetchpriority:"high",bookId:book.id});
     return;
   }
-  assignCoverImage(img,src,{loading:"eager"});
+  assignCoverImage(img,src,{loading:"eager",bookId:book.id});
 }
 function decorateCards(){
   document.querySelectorAll(".book-card").forEach(card=>{
@@ -2106,7 +2117,7 @@ function populateDynamicBookPage(b){
     img.parentElement.classList.remove("no-cover");
     const src=coverSrc(b);
     if(!src)markCoverUnavailable(img);
-    else assignCoverImage(img,src,{loading:"eager",fetchpriority:"high"});
+    else assignCoverImage(img,src,{loading:"eager",fetchpriority:"high",bookId:b.id});
   }
 
   const info=document.querySelector(".book-detail-info");
@@ -2199,7 +2210,7 @@ function setDetailHeroImage(src,alt){
   img.hidden=false;
   img.style.visibility="visible";
   if(!safe){if(COVER_LAYOUT_TEST_MODE){img.src=FALLBACK_COVER;return}markCoverUnavailable(img);return}
-  assignCoverImage(img,safe);
+  assignCoverImage(img,safe,{bookId:document.body&&document.body.dataset&&document.body.dataset.bookId});
 }
 
 function openCoverLightbox(slides,startIndex,alt,openerEl){

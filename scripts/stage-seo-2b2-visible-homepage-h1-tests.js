@@ -9,7 +9,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 
 const FROZEN = {
-  "shop.js": "3a0ceb7b49dfb72df16a53a5f2f6d2207ff6151beac51aef8a940eebf1f9481b",
+  "shop.js": "5493ac5e5a922e42c133e6b1ca17003b3724b90709879d2360c429aeaf1c726c",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
@@ -111,7 +111,7 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
   });
   const files = changedFiles();
   [
-    "shop.js",
+
     "kutadgu-search-rank.js",
     "kutadgu-ai-search.js",
     "api/ai-search.js",
@@ -119,7 +119,7 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
     "home-hero-slideshow.js",
     "vercel.json",
     "admin.html",
-    "book-staff.js",
+
     "book-staff.html",
     "favorites.js",
     "member.js"

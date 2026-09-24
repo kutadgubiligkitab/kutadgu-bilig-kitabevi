@@ -188,11 +188,32 @@ function assertStaffGalleryPublicUrl(uid,url){
   if(!isSafeStaffGalleryFilename(rest))throw new Error("ئىچكى رەسىم ئادرېسى توغرا ئەمەس.");
   return parsed.origin+parsed.pathname;
 }
+const KNOWN_SAMPLE_COVER_SHA256={
+  "596d3ed8ffab73b6c5b9059cd97cba5e12e9222da66dd0efe5bf3eaaa4aae183":true,
+  "2e144fd20d419c3360b53dca21ce97df2f105b7f637cc48644b043fddb4bc6b9":true
+};
+function isSampleDemoCoverName(name){
+  return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(name||"").trim());
+}
 function validateCoverFile(file){
   if(!file)return null;
+  if(isSampleDemoCoverName(file.name))throw new Error("ئۆرنەك ياكى سىناق مۇقاۋىسىنى ھەقىقىي كىتاب مۇقاۋىسى قىلىپ ساقلىغىلى بولمايدۇ.");
   if(IMAGE_TYPES.indexOf(file.type)<0)throw new Error("رەسىم ھۆججىتى JPEG، PNG، WebP ياكى GIF بولسۇن.");
   if(file.size>MAX_COVER_BYTES)throw new Error("مۇقاۋا رەسىمى 5MB دىن ئېشىپ كەتمىسۇن.");
   return file;
+}
+async function staffCoverSha256(file){
+  if(!file||typeof file.arrayBuffer!=="function"||typeof crypto==="undefined"||!crypto.subtle){
+    throw new Error("مۇقاۋا fingerprint ھېسابلاشنى بۇ browser قوللىمايدۇ. Browser نى يېڭىلاپ قايتا سىناڭ.");
+  }
+  const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest)).map(function(b){return b.toString(16).padStart(2,"0")}).join("");
+}
+async function rejectUnsafeStaffCover(client,file){
+  validateCoverFile(file);
+  const sha=await staffCoverSha256(file);
+  if(KNOWN_SAMPLE_COVER_SHA256[sha])throw new Error("ئۆرنەك ياكى سىناق مۇقاۋىسىنى ھەقىقىي كىتاب مۇقاۋىسى قىلىپ ساقلىغىلى بولمايدۇ.");
+  return sha;
 }
 function parseNonNegNumber(raw,label){
   const t=String(raw||"").trim();
@@ -268,6 +289,7 @@ function buildPayload(values){
   }
   payload.is_color_print=!!values.is_color_print;
   const imageUrl=String(values.image_url||"").trim();
+  if(isSampleDemoCoverName(imageUrl))throw new Error("ئۆرنەك ياكى سىناق مۇقاۋىسىنى ھەقىقىي كىتاب مۇقاۋىسى قىلىپ ساقلىغىلى بولمايدۇ.");
   if(imageUrl)payload.image_url=imageUrl;
   if(Object.prototype.hasOwnProperty.call(values,"gallery_images")){
     if(!Array.isArray(values.gallery_images))throw new Error("ئىچكى رەسىم تىزىمى توغرا ئەمەس.");
@@ -680,7 +702,12 @@ async function submitBook(e){
     await requireAal2(client);
     let imageUrl="";
     const file=$("#staffCoverFile")&&$("#staffCoverFile").files&&$("#staffCoverFile").files[0];
-    if(file)imageUrl=await uploadStaffCover(client,String(user.id),file);
+    if(file){
+      await rejectUnsafeStaffCover(client,file);
+      const live=$("#staffCoverFile")&&$("#staffCoverFile").files&&$("#staffCoverFile").files[0];
+      if(live!==file)throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
+      imageUrl=await uploadStaffCover(client,String(user.id),file);
+    }
     if(imageUrl)imageUrl=assertStaffCoverPublicUrl(String(user.id),imageUrl);
     const galleryUrls=await uploadStaffGallery(client,String(user.id),galleryDraft.map(item=>item&&item.file));
     const values=formValues();
@@ -724,6 +751,8 @@ window.KutadguBookStaff={
   buildPayload,
   staffSurface,
   validateCoverFile,
+  rejectUnsafeStaffCover,
+  isSampleDemoCoverName,
   beginStaffRoute,
   isCurrentStaffRoute,
   invalidateStaffRoutes,
