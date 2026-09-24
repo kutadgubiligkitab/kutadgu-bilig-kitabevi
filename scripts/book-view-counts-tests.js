@@ -636,6 +636,354 @@ test("detail stats cannot paint after the book id changes", async () => {
   }
 });
 
+test("compact mount reuses the same counter for the same total", async () => {
+  Views.resetStatsCache();
+  const card = listingCard("20", "يىگىرمە");
+  const root = cardGrid([card]);
+  let calls = 0;
+  await Views.hydrate(root, {
+    force: true,
+    now: 1000,
+    config: statsConfig,
+    fetchImpl() {
+      calls += 1;
+      return statsResponse([{ book_id: "20", total_views: 25 }]);
+    }
+  });
+  const el = card.querySelector(".book-view-count-compact");
+  const parent = el.parentNode;
+  const index = parent.children.indexOf(el);
+  let removed = 0;
+  const originalRemove = el.remove.bind(el);
+  el.remove = function () {
+    removed += 1;
+    return originalRemove();
+  };
+  await Views.hydrate(root, {
+    force: true,
+    now: 2000,
+    config: statsConfig,
+    fetchImpl() {
+      calls += 1;
+      throw new Error("cached total must not be requested again");
+    }
+  });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(removed, 0);
+  assert.strictEqual(card.querySelectorAll(".book-view-count-compact").length, 1);
+  assert.strictEqual(card.querySelector(".book-view-count-compact"), el);
+  assert.strictEqual(parent.children[index], el);
+  assert.strictEqual(el.textContent, "👁 25");
+  assert.strictEqual(el.getAttribute("data-view-for"), "20");
+  assert.strictEqual(el.getAttribute("aria-label"), "25 قېتىم كۆرۈلدى");
+});
+
+test("compact mount updates a changed total and rebinds a changed book id", () => {
+  const card = listingCard("20", "يىگىرمە");
+  const el = Views.mountCompactCount(card, 25);
+  const next = Views.mountCompactCount(card, 26);
+  assert.strictEqual(next, el);
+  assert.strictEqual(card.querySelectorAll(".book-view-count-compact").length, 1);
+  assert.strictEqual(el.textContent, "👁 26");
+  assert.strictEqual(el.getAttribute("data-view-for"), "20");
+  assert.strictEqual(el.getAttribute("aria-label"), "26 قېتىم كۆرۈلدى");
+  card.setAttribute("data-live-book-id", "26");
+  const rebound = Views.mountCompactCount(card, 30);
+  assert.strictEqual(rebound, el);
+  assert.strictEqual(card.querySelectorAll(".book-view-count-compact").length, 1);
+  assert.strictEqual(el.getAttribute("data-view-for"), "26");
+  assert.strictEqual(el.textContent, "👁 30");
+});
+
+test("compact mount follows the threshold without redundant replacement", () => {
+  const card = listingCard("20", "بوساغ");
+  assert.strictEqual(Views.mountCompactCount(card, 19), null);
+  assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
+  const el = Views.mountCompactCount(card, 20);
+  assert.strictEqual(el.textContent, "👁 20");
+  assert.strictEqual(Views.mountCompactCount(card, 20), el);
+  assert.strictEqual(card.querySelectorAll(".book-view-count-compact").length, 1);
+  assert.strictEqual(Views.mountCompactCount(card, 19), null);
+  assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
+  assert.strictEqual(card.querySelector(".book-title").textContent, "بوساغ");
+});
+
+test("counter-only mutations are ignored and real card changes are not", () => {
+  const card = listingCard("21", "يېڭى");
+  const counter = Views.mountCompactCount(card, 25);
+  assert.strictEqual(Views.isCounterOnlyMutation({
+    target: counter.parentNode,
+    addedNodes: [counter],
+    removedNodes: []
+  }), true);
+  assert.strictEqual(Views.isCounterOnlyMutation({
+    target: counter,
+    addedNodes: [{ nodeType: 3, parentNode: counter }],
+    removedNodes: [{ nodeType: 3, parentNode: null }]
+  }), true);
+  const grid = cardGrid([card]);
+  const replacement = listingCard("22", "باشقا");
+  assert.strictEqual(Views.isCounterOnlyMutation({
+    target: grid,
+    addedNodes: [replacement],
+    removedNodes: [card]
+  }), false);
+  assert.deepStrictEqual(Views.mutationScopes([{
+    target: counter.parentNode,
+    addedNodes: [counter],
+    removedNodes: []
+  }, {
+    target: grid,
+    addedNodes: [replacement],
+    removedNodes: [card]
+  }]).map((scope) => scope.className), ["books-grid"]);
+});
+
+test("an in-flight stats batch is not requested again and a failure can retry", async () => {
+  Views.resetStatsCache();
+  const card = listingCard("40", "كۈتۈش");
+  const root = cardGrid([card]);
+  let calls = 0;
+  let release;
+  const first = Views.hydrate(root, {
+    force: true,
+    now: 0,
+    config: statsConfig,
+    fetchImpl() {
+      calls += 1;
+      return new Promise((resolve) => { release = resolve; });
+    }
+  });
+  const second = Views.hydrate(root, {
+    force: true,
+    now: 10,
+    config: statsConfig,
+    fetchImpl() {
+      calls += 1;
+      return statsResponse([{ book_id: "40", total_views: 25 }]);
+    }
+  });
+  assert.strictEqual(calls, 1);
+  release(statsResponse([{ book_id: "40", total_views: 25 }]));
+  await first;
+  await second;
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(card.querySelector(".book-view-count-compact").textContent, "👁 25");
+
+  Views.resetStatsCache();
+  const expired = listingCard("41", "مۇددىتى");
+  const expiredRoot = cardGrid([expired]);
+  await Views.hydrate(expiredRoot, {
+    force: true,
+    now: 0,
+    config: statsConfig,
+    fetchImpl() { return statsResponse([{ book_id: "41", total_views: 22 }]); }
+  });
+  let later = 0;
+  let hold;
+  const again = Views.hydrate(expiredRoot, {
+    force: true,
+    now: Views.CACHE_MS + 1,
+    config: statsConfig,
+    fetchImpl() {
+      later += 1;
+      return new Promise((resolve) => { hold = resolve; });
+    }
+  });
+  const duplicate = Views.hydrate(expiredRoot, {
+    force: true,
+    now: Views.CACHE_MS + 2,
+    config: statsConfig,
+    fetchImpl() {
+      later += 1;
+      return statsResponse([{ book_id: "41", total_views: 23 }]);
+    }
+  });
+  assert.strictEqual(later, 1);
+  hold(statsResponse([{ book_id: "41", total_views: 23 }]));
+  await again;
+  await duplicate;
+  assert.strictEqual(later, 1);
+  assert.strictEqual(expired.querySelector(".book-view-count-compact").textContent, "👁 23");
+
+  Views.resetStatsCache();
+  const flaky = listingCard("42", "قايتا");
+  let attempts = 0;
+  await Views.hydrate(cardGrid([flaky]), {
+    force: true,
+    now: 0,
+    config: statsConfig,
+    fetchImpl() {
+      attempts += 1;
+      return statsResponse([], false);
+    }
+  });
+  assert.strictEqual(flaky.querySelector(".book-view-count-compact"), null);
+  await Views.hydrate(cardGrid([flaky]), {
+    force: true,
+    now: 50,
+    config: statsConfig,
+    fetchImpl() {
+      attempts += 1;
+      return statsResponse([{ book_id: "42", total_views: 20 }]);
+    }
+  });
+  assert.strictEqual(attempts, 2);
+  assert.strictEqual(flaky.querySelector(".book-view-count-compact").textContent, "👁 20");
+});
+
+test("replacing book A with book B hydrates B only", async () => {
+  Views.resetStatsCache();
+  const cardA = listingCard("50", "A");
+  const root = cardGrid([cardA]);
+  await Views.hydrate(root, {
+    force: true,
+    now: 0,
+    config: statsConfig,
+    fetchImpl(url) {
+      assert.match(url, /in\.\(50\)/);
+      return statsResponse([{ book_id: "50", total_views: 25 }]);
+    }
+  });
+  const old = cardA.querySelector(".book-view-count-compact");
+  assert.strictEqual(old.getAttribute("data-view-for"), "50");
+  root.children = [];
+  cardA.parentNode = null;
+  const cardB = listingCard("51", "B");
+  root.appendChild(cardB);
+  await Views.hydrate(root, {
+    force: true,
+    now: 10,
+    config: statsConfig,
+    fetchImpl(url) {
+      assert.match(url, /in\.\(51\)/);
+      assert.doesNotMatch(url, /50/);
+      return statsResponse([{ book_id: "51", total_views: 30 }, { book_id: "50", total_views: 99 }]);
+    }
+  });
+  assert.strictEqual(cardB.querySelector(".book-view-count-compact").textContent, "👁 30");
+  assert.strictEqual(cardB.querySelector(".book-view-count-compact").getAttribute("data-view-for"), "51");
+  assert.strictEqual(cardB.textContent.includes("99"), false);
+  assert.strictEqual(old.getAttribute("data-view-for"), "50");
+  assert.strictEqual(cardB.contains ? cardB.contains(old) : cardB.children.includes(old), false);
+});
+
+test("a rejected engagement insert does not keep the 3-hour client lock", async () => {
+  const storage = memoryStorage();
+  const denied = await Views.recordEngagement("detail", "25", {
+    storage: storage,
+    now: 5000,
+    refresh: false,
+    track() { return Promise.reject(new Error("insert failed")); }
+  });
+  assert.strictEqual(denied.sent, false);
+  assert.strictEqual(denied.reason, "rejected");
+  assert.strictEqual(Views.engagementAllowed(storage, "detail", "25", 5001), true);
+  const explicit = await Views.recordEngagement("cart", "25", {
+    storage: storage,
+    now: 6000,
+    refresh: false,
+    track() { return Promise.resolve(false); }
+  });
+  assert.strictEqual(explicit.sent, false);
+  assert.strictEqual(Views.engagementAllowed(storage, "cart", "25", 6001), true);
+  const accepted = await Views.recordEngagement("detail", "33", {
+    storage: storage,
+    now: 7000,
+    refresh: false,
+    track() { return Promise.resolve(); }
+  });
+  assert.strictEqual(accepted.sent, true);
+  assert.strictEqual(Views.engagementAllowed(storage, "detail", "33", 7001), false);
+  assert.match(helper, /function remoteTrack|analytics must never block the shop|forgetEngagement/);
+  assert.match(read("analytics.js"), /analytics must never block the shop/);
+});
+
+test("the view counter observer settles and does not restorm stats", async () => {
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  try {
+    for (let pass = 0; pass < 3; pass += 1) {
+      const page = await browser.newPage();
+      const calls = [];
+      await page.route("**/book_view_stats**", async (route) => {
+        const url = route.request().url();
+        calls.push(url);
+        const ids = (url.match(/book_id=in\.\(([^)]*)\)/) || [, ""])[1].split(",").filter(Boolean);
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(ids.map((id) => ({ book_id: Number(id), total_views: id === "21" ? 30 : 25 })))
+        });
+      });
+      await page.setContent(`<!doctype html><body><div id="grid"><article class="book-card" data-live-book-id="20"><div class="book-info"><div class="book-price">10</div></div></article></div></body>`);
+      await page.evaluate(() => {
+        window.KUTADGU_SUPABASE_CONFIG = { url: "https://example.supabase.co", anonKey: "anon" };
+      });
+      await page.addScriptTag({ path: path.join(root, "kutadgu-book-views.js") });
+      await page.waitForSelector(".book-view-count-compact");
+      await page.evaluate(() => {
+        window.__counterMutations = 0;
+        new MutationObserver((records) => {
+          records.forEach((record) => {
+            const nodes = [...record.addedNodes, ...record.removedNodes];
+            if (nodes.some((node) => node.nodeType === 1 && String(node.className || "").includes("book-view-count"))) {
+              window.__counterMutations += 1;
+            }
+          });
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+      await page.waitForTimeout(450);
+      const settled = await page.evaluate(() => ({
+        mutations: window.__counterMutations,
+        count: document.querySelectorAll(".book-view-count-compact").length,
+        text: document.querySelector(".book-view-count-compact").textContent,
+        book: document.querySelector(".book-view-count-compact").getAttribute("data-view-for")
+      }));
+      assert.strictEqual(settled.mutations, 0, "pass " + pass);
+      assert.strictEqual(settled.count, 1, "pass " + pass);
+      assert.strictEqual(settled.text, "👁 25", "pass " + pass);
+      assert.strictEqual(settled.book, "20", "pass " + pass);
+      const beforeReplace = calls.length;
+      assert.ok(beforeReplace >= 1 && beforeReplace <= 2, "pass " + pass + " calls " + beforeReplace);
+      await page.evaluate(() => {
+        const grid = document.querySelector("#grid");
+        grid.textContent = "";
+        const card = document.createElement("article");
+        card.className = "book-card";
+        card.setAttribute("data-live-book-id", "21");
+        const info = document.createElement("div");
+        info.className = "book-info";
+        const price = document.createElement("div");
+        price.className = "book-price";
+        price.textContent = "8";
+        info.appendChild(price);
+        card.appendChild(info);
+        grid.appendChild(card);
+      });
+      await page.waitForFunction(() => {
+        const el = document.querySelector(".book-view-count-compact");
+        return el && el.getAttribute("data-view-for") === "21" && el.textContent === "👁 30";
+      });
+      const replaced = await page.evaluate(() => ({
+        count: document.querySelectorAll(".book-view-count-compact").length,
+        text: document.querySelector(".book-view-count-compact").textContent,
+        book: document.querySelector(".book-view-count-compact").getAttribute("data-view-for"),
+        title: document.querySelector(".book-card").getAttribute("data-live-book-id")
+      }));
+      assert.strictEqual(replaced.count, 1);
+      assert.strictEqual(replaced.book, "21");
+      assert.strictEqual(replaced.text, "👁 30");
+      assert.strictEqual(replaced.title, "21");
+      await page.waitForTimeout(450);
+      assert.ok(calls.length <= beforeReplace + 2);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
 test("AI result cards bind canonical ids for the shared counter", () => {
   const ui = read("kutadgu-ai-search-ui.js");
   assert.match(ui, /data-live-book-id/);

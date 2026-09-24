@@ -29,6 +29,7 @@
   var statsCache = Object.create(null);
   var refreshTokens = Object.create(null);
   var bookTokens = Object.create(null);
+  var inflight = Object.create(null);
 
   function isCanonicalBookId(value) {
     return /^[1-9][0-9]*$/.test(String(value == null ? "" : value).trim());
@@ -179,17 +180,37 @@
         return { sent: false, reason: "track" };
       }
       rememberEngagement(storage, action, id, now);
-      if (opts.refresh !== false) {
-        Promise.resolve(result).then(function () {
-          refreshDisplayed(id, opts);
+      var accepted = { sent: true, eventName: eventName, bookId: id };
+      var refresh = function () {
+        if (opts.refresh === false) return;
+        refreshDisplayed(id, opts);
+      };
+      if (result && typeof result.then === "function") {
+        return Promise.resolve(result).then(function (value) {
+          if (value === false || (value && value.ok === false)) {
+            forgetEngagement(storage, action, id);
+            return { sent: false, reason: "rejected", bookId: id };
+          }
+          refresh();
+          return accepted;
         }, function () {
-          refreshDisplayed(id, opts);
+          forgetEngagement(storage, action, id);
+          return { sent: false, reason: "rejected", bookId: id };
         });
       }
-      return { sent: true, eventName: eventName, bookId: id };
+      refresh();
+      return accepted;
     } catch (err) {
       return { sent: false, reason: "error" };
     }
+  }
+
+  function forgetEngagement(storage, action, bookId) {
+    try {
+      var map = readCooldownMap(storage);
+      delete map[engagementStorageKey(action, bookId)];
+      writeCooldownMap(storage, map);
+    } catch (err) {}
   }
 
   function wrapTrack(originalTrack, storage, nowFn) {
@@ -272,6 +293,7 @@
     statsCache = Object.create(null);
     refreshTokens = Object.create(null);
     bookTokens = Object.create(null);
+    inflight = Object.create(null);
   }
 
   function cacheGet(id, now) {
@@ -282,7 +304,8 @@
   }
 
   function cacheSet(id, total, now) {
-    statsCache[String(id)] = { total: total, at: Number(now) || Date.now() };
+    var at = Number(now);
+    statsCache[String(id)] = { total: total, at: Number.isFinite(at) ? at : Date.now() };
   }
 
   function cacheDrop(id) {
@@ -307,17 +330,23 @@
     });
   }
 
-  function hideCompact(card) {
-    if (!card || typeof card.querySelectorAll !== "function") return;
-    card.querySelectorAll("." + COMPACT_CLASS).forEach(function (node) {
-      node.remove();
+  function detailCountNodes(info) {
+    if (!info || typeof info.querySelectorAll !== "function") return [];
+    return Array.prototype.filter.call(info.querySelectorAll("." + EL_CLASS), function (node) {
+      return String(node.className || "").indexOf(COMPACT_CLASS) === -1;
     });
   }
 
   function mountViewCount(info, total) {
     if (!info) return null;
-    hideViewCount(info);
-    if (!shouldShowTotalViews(total)) return null;
+    var nodes = detailCountNodes(info);
+    if (!shouldShowTotalViews(total)) {
+      nodes.forEach(function (node) { node.remove(); });
+      return null;
+    }
+    var text = viewCountText(total);
+    if (nodes.length === 1 && nodes[0].textContent === text) return nodes[0];
+    nodes.forEach(function (node) { node.remove(); });
     var el = createCountElement(info.ownerDocument || (typeof document !== "undefined" ? document : null), total);
     if (!el) return null;
     var author = info.querySelector && info.querySelector(".book-author");
@@ -340,11 +369,42 @@
     return el;
   }
 
+  function compactNodes(card) {
+    if (!card || typeof card.querySelectorAll !== "function") return [];
+    return Array.prototype.slice.call(card.querySelectorAll("." + COMPACT_CLASS));
+  }
+
   function mountCompactCount(card, total) {
     if (!card || typeof card.getAttribute !== "function") return null;
     var id = String(card.getAttribute("data-live-book-id") || "").trim();
-    hideCompact(card);
-    if (!isCanonicalBookId(id) || !shouldShowTotalViews(total)) return null;
+    var nodes = compactNodes(card);
+    if (!isCanonicalBookId(id) || !shouldShowTotalViews(total)) {
+      nodes.forEach(function (node) { node.remove(); });
+      return null;
+    }
+    var text = compactViewCountText(total);
+    var aria = viewCountAriaLabel(total);
+    var match = null;
+    nodes.forEach(function (node) {
+      var same = String(node.getAttribute("data-view-for") || "") === id &&
+        node.textContent === text &&
+        String(node.getAttribute("aria-label") || "") === aria;
+      if (same && !match) match = node;
+    });
+    if (match && nodes.length === 1) return match;
+    if (match) {
+      nodes.forEach(function (node) { if (node !== match) node.remove(); });
+      return match;
+    }
+    var reusable = nodes[0] || null;
+    nodes.slice(1).forEach(function (node) { node.remove(); });
+    if (reusable) {
+      if (reusable.getAttribute("data-view-for") !== id) reusable.setAttribute("data-view-for", id);
+      if (reusable.getAttribute("aria-label") !== aria) reusable.setAttribute("aria-label", aria);
+      if (reusable.getAttribute("dir") !== "rtl") reusable.setAttribute("dir", "rtl");
+      if (reusable.textContent !== text) reusable.textContent = text;
+      return reusable;
+    }
     var doc = card.ownerDocument || (typeof document !== "undefined" ? document : null);
     var el = createCompactElement(doc, total, id);
     if (!el) return null;
@@ -362,7 +422,7 @@
     if (!card || typeof card.getAttribute !== "function") return false;
     if (String(card.getAttribute("data-live-book-id") || "") !== String(bookId)) return false;
     if (total == null || !shouldShowTotalViews(total)) {
-      hideCompact(card);
+      mountCompactCount(card, 0);
       return true;
     }
     return !!mountCompactCount(card, total);
@@ -510,6 +570,12 @@
     }).catch(function () {});
   }
 
+  function releaseFlight(ids, promise) {
+    ids.forEach(function (id) {
+      if (inflight[id] === promise) delete inflight[id];
+    });
+  }
+
   function hydrate(scope, options) {
     try {
       var opts = options || {};
@@ -519,6 +585,7 @@
       var now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
       var cards = collectCards(rootEl);
       var missing = [];
+      var joined = [];
       cards.forEach(function (card) {
         var id = stampCard(card);
         if (!id) return;
@@ -527,49 +594,77 @@
           applyStatsToCard(card, id, cached);
           return;
         }
-        missing.push(id);
+        if (inflight[id]) {
+          if (joined.indexOf(inflight[id]) === -1) joined.push(inflight[id]);
+          return;
+        }
+        if (missing.indexOf(id) === -1) missing.push(id);
       });
       var requests = buildBatchStatsRequest(missing, opts.config);
-      if (!requests.length) return Promise.resolve({ requests: 0, cards: cards.length });
       var fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
-      if (typeof fetchImpl !== "function") return Promise.resolve({ requests: 0, cards: cards.length });
-      var tokens = Object.create(null);
-      requests.forEach(function (req) {
-        req.ids.forEach(function (id) {
-          bookTokens[id] = (bookTokens[id] || 0) + 1;
-          tokens[id] = bookTokens[id];
+      var own = null;
+      if (requests.length && typeof fetchImpl === "function") {
+        var tokens = Object.create(null);
+        var flightIds = [];
+        requests.forEach(function (req) {
+          req.ids.forEach(function (id) {
+            bookTokens[id] = (bookTokens[id] || 0) + 1;
+            tokens[id] = bookTokens[id];
+            if (flightIds.indexOf(id) === -1) flightIds.push(id);
+          });
         });
-      });
-      return Promise.all(requests.map(function (req) {
-        return Promise.resolve(fetchImpl(req.url, { headers: req.headers })).then(function (res) {
-          if (!res || !res.ok || typeof res.json !== "function") return [];
-          return Promise.resolve(res.json()).then(function (payload) {
-            return parseStatsRows(payload);
+        var resolveFlight;
+        own = new Promise(function (resolve) { resolveFlight = resolve; });
+        flightIds.forEach(function (id) { inflight[id] = own; });
+        Promise.all(requests.map(function (req) {
+          return Promise.resolve(fetchImpl(req.url, { headers: req.headers })).then(function (res) {
+            if (!res || !res.ok || typeof res.json !== "function") return [];
+            return Promise.resolve(res.json()).then(function (payload) {
+              return parseStatsRows(payload);
+            }, function () {
+              return [];
+            });
           }, function () {
             return [];
           });
-        }, function () {
-          return [];
+        })).then(function (groups) {
+          var byId = Object.create(null);
+          groups.forEach(function (rows) {
+            rows.forEach(function (row) {
+              byId[row.bookId] = row.total;
+            });
+          });
+          var painted = Object.create(null);
+          requests.forEach(function (req) {
+            req.ids.forEach(function (id) {
+              if (tokens[id] !== bookTokens[id]) return;
+              var has = Object.prototype.hasOwnProperty.call(byId, id);
+              var total = has ? byId[id] : null;
+              if (total != null) cacheSet(id, total, now);
+              painted[id] = total;
+              paintId(rootEl, id, total);
+            });
+          });
+          releaseFlight(flightIds, own);
+          resolveFlight({ requests: requests.length, cards: cards.length, failed: false, byId: painted });
+        }).catch(function () {
+          releaseFlight(flightIds, own);
+          resolveFlight({ requests: requests.length, cards: cards.length, failed: true, byId: {} });
         });
-      })).then(function (groups) {
-        var byId = Object.create(null);
-        groups.forEach(function (rows) {
-          rows.forEach(function (row) {
-            byId[row.bookId] = row.total;
+      }
+      var waiters = joined.map(function (promise) {
+        return promise.then(function (result) {
+          if (!result || result.failed) return;
+          var byId = result.byId || {};
+          Object.keys(byId).forEach(function (id) {
+            paintId(rootEl, id, byId[id]);
           });
         });
-        requests.forEach(function (req) {
-          req.ids.forEach(function (id) {
-            if (tokens[id] !== bookTokens[id]) return;
-            var has = Object.prototype.hasOwnProperty.call(byId, id);
-            var total = has ? byId[id] : null;
-            if (total != null) cacheSet(id, total, now);
-            paintId(rootEl, id, total);
-          });
-        });
-        return { requests: requests.length, cards: cards.length };
-      }).catch(function () {
-        return { requests: requests.length, failed: true, cards: cards.length };
+      });
+      if (!own && !waiters.length) return Promise.resolve({ requests: 0, cards: cards.length });
+      return Promise.all([own].concat(waiters)).then(function (parts) {
+        var first = parts[0] || { requests: 0, cards: cards.length };
+        return { requests: first.requests || 0, cards: cards.length, failed: !!first.failed, joined: waiters.length };
       });
     } catch (err) {
       return Promise.resolve({ requests: 0, failed: true });
@@ -669,15 +764,75 @@
     if (current) tryWrapAnalytics();
   }
 
+  function isCounterElement(node) {
+    if (!node || typeof node !== "object") return false;
+    if (node.nodeType != null && node.nodeType !== 1) return false;
+    try {
+      if (node.classList && typeof node.classList.contains === "function" &&
+        (node.classList.contains(EL_CLASS) || node.classList.contains(COMPACT_CLASS))) return true;
+    } catch (err) {}
+    var cls = typeof node.className === "string" ? node.className : "";
+    return cls.indexOf(EL_CLASS) !== -1;
+  }
+
+  function isCounterMutationNode(node, record) {
+    if (!node) return true;
+    var type = node.nodeType;
+    if (type === 3 || type === 8) {
+      return isCounterElement(node.parentNode) || isCounterElement(record && record.target);
+    }
+    return isCounterElement(node);
+  }
+
+  function isCounterOnlyMutation(record) {
+    if (!record || typeof record !== "object") return false;
+    if (record.type === "characterData") {
+      var textParent = record.target && record.target.parentNode;
+      return isCounterElement(record.target) || isCounterElement(textParent);
+    }
+    if (record.type === "attributes") return isCounterElement(record.target);
+    if (isCounterElement(record.target)) return true;
+    var added = record.addedNodes ? Array.prototype.slice.call(record.addedNodes) : [];
+    var removed = record.removedNodes ? Array.prototype.slice.call(record.removedNodes) : [];
+    if (!added.length && !removed.length) return true;
+    var i;
+    for (i = 0; i < added.length; i += 1) {
+      if (!isCounterMutationNode(added[i], record)) return false;
+    }
+    for (i = 0; i < removed.length; i += 1) {
+      if (!isCounterMutationNode(removed[i], record)) return false;
+    }
+    return true;
+  }
+
+  function mutationScopes(records) {
+    var scopes = [];
+    Array.prototype.forEach.call(records || [], function (record) {
+      if (!record || isCounterOnlyMutation(record)) return;
+      var target = record.target;
+      if (target && typeof target.querySelectorAll === "function" && scopes.indexOf(target) === -1) scopes.push(target);
+    });
+    return scopes;
+  }
+
   function watchCards() {
     if (typeof MutationObserver !== "function" || typeof document === "undefined" || !document.body) return;
     var pending = false;
-    var observer = new MutationObserver(function () {
+    var queued = [];
+    var observer = new MutationObserver(function (records) {
+      var scopes = mutationScopes(records);
+      if (!scopes.length) return;
+      scopes.forEach(function (scope) {
+        if (queued.indexOf(scope) === -1) queued.push(scope);
+      });
       if (pending) return;
       pending = true;
       setTimeout(function () {
         pending = false;
-        try { hydrate(document); } catch (err) {}
+        var batch = queued.splice(0, queued.length);
+        batch.forEach(function (scope) {
+          try { hydrate(scope); } catch (err) {}
+        });
       }, 40);
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -753,6 +908,9 @@
     mountViewCount: mountViewCount,
     mountCompactCount: mountCompactCount,
     applyStatsToCard: applyStatsToCard,
+    isCounterOnlyMutation: isCounterOnlyMutation,
+    mutationScopes: mutationScopes,
+    CACHE_MS: CACHE_MS,
     stampCard: stampCard,
     hydrate: hydrate,
     refreshDisplayed: refreshDisplayed,
