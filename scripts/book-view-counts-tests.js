@@ -501,6 +501,7 @@ test("stale stats cannot paint the wrong book and rerendered cards stay bound", 
     }
   });
   assert.strictEqual(searchCard.getAttribute("data-live-book-id"), "44");
+  assert.strictEqual(fav.getAttribute("data-live-book-id"), null);
   assert.strictEqual(searchCard.querySelector(".book-view-count-compact").textContent, "👁 20");
 
   const aiCard = domNode("article", "ai-search-item", { "data-live-book-id": "45" });

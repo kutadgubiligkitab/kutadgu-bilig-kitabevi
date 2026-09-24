@@ -440,7 +440,7 @@
   }
 
   function stampCard(card) {
-    if (!card || typeof card.getAttribute !== "function") return "";
+    if (!looksLikeCard(card) || typeof card.getAttribute !== "function") return "";
     var id = readBoundId(card);
     if (!id && typeof card.querySelector === "function") {
       var node = card.querySelector("[data-cart-id], [data-fav-id], [data-premium-book-id], [data-premium-cart], [data-ai-cover-book], [data-cover-book]");
@@ -468,16 +468,20 @@
     return false;
   }
 
+  function looksLikeCard(node) {
+    if (!node || (node.nodeType != null && node.nodeType !== 1)) return false;
+    var cls = String(node.className || "");
+    return /(?:^|\s)(?:book-card|advanced-search-result|home-feature-card|shop-mini-card|favorite-card|premium-book-card|ai-search-item|home-carousel-card)(?:\s|$)/.test(cls);
+  }
+
   function collectCards(scope) {
     if (!scope || typeof scope.querySelectorAll !== "function") return [];
     var nodes = scope.querySelectorAll(CARD_SELECTOR);
     var list = [];
     Array.prototype.forEach.call(nodes, function (card) {
-      if (!isCartSurface(card)) list.push(card);
+      if (looksLikeCard(card) && !isCartSurface(card)) list.push(card);
     });
-    if (!list.length && scope.getAttribute && (readBoundId(scope) || /(?:book-card|ai-search-item|premium-book-card)/.test(String(scope.className || "")))) {
-      if (!isCartSurface(scope)) list.push(scope);
-    }
+    if (!list.length && looksLikeCard(scope) && !isCartSurface(scope)) list.push(scope);
     return list;
   }
 
@@ -486,7 +490,7 @@
     var selector = '[data-live-book-id="' + String(bookId) + '"]';
     var nodes = scope.querySelectorAll(selector);
     Array.prototype.forEach.call(nodes, function (card) {
-      if (isCartSurface(card)) return;
+      if (!looksLikeCard(card) || isCartSurface(card)) return;
       applyStatsToCard(card, bookId, total);
     });
   }
@@ -805,12 +809,24 @@
     return true;
   }
 
+  function scopeHasCards(node) {
+    if (!node || typeof node.querySelectorAll !== "function") return false;
+    if (looksLikeCard(node)) return true;
+    var found = node.querySelectorAll(CARD_SELECTOR);
+    var i;
+    for (i = 0; i < found.length; i += 1) {
+      if (looksLikeCard(found[i])) return true;
+    }
+    return false;
+  }
+
   function mutationScopes(records) {
     var scopes = [];
     Array.prototype.forEach.call(records || [], function (record) {
       if (!record || isCounterOnlyMutation(record)) return;
       var target = record.target;
-      if (target && typeof target.querySelectorAll === "function" && scopes.indexOf(target) === -1) scopes.push(target);
+      if (!scopeHasCards(target) || scopes.indexOf(target) !== -1) return;
+      scopes.push(target);
     });
     return scopes;
   }
