@@ -596,6 +596,46 @@ test("server engagement cooldown preserves totals and separates actions", () => 
   assert.strictEqual(state.totals.get(9), undefined);
 });
 
+test("detail stats cannot paint after the book id changes", async () => {
+  Views.resetStatsCache();
+  const info = makeInfo();
+  const prevDocument = global.document;
+  const prevLocation = global.location;
+  const prevFetch = global.fetch;
+  const prevConfig = global.KUTADGU_SUPABASE_CONFIG;
+  const body = { dataset: { bookId: "10" } };
+  global.document = {
+    body: body,
+    querySelector(sel) {
+      if (sel === ".book-detail-info" || sel === ".book-detail-page,.book-detail-info") return info;
+      return null;
+    }
+  };
+  global.location = { pathname: "/book/10" };
+  global.KUTADGU_SUPABASE_CONFIG = { url: "https://stats.example.test", anonKey: "anon" };
+  let release;
+  global.fetch = function () {
+    return new Promise((resolve) => { release = resolve; });
+  };
+  try {
+    const pending = Views.fetchAndPaint();
+    body.dataset.bookId = "11";
+    release({
+      ok: true,
+      json() { return Promise.resolve([{ book_id: "10", total_views: 125 }]); }
+    });
+    await pending;
+    assert.strictEqual(info.querySelector(".book-view-count"), null);
+    assert.strictEqual(info.querySelector("h1").textContent, "كىتاب");
+  } finally {
+    global.document = prevDocument;
+    global.location = prevLocation;
+    global.fetch = prevFetch;
+    global.KUTADGU_SUPABASE_CONFIG = prevConfig;
+    Views.resetStatsCache();
+  }
+});
+
 test("AI result cards bind canonical ids for the shared counter", () => {
   const ui = read("kutadgu-ai-search-ui.js");
   assert.match(ui, /data-live-book-id/);

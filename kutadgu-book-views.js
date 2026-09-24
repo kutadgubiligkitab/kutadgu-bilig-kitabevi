@@ -576,7 +576,6 @@
     }
   }
 
-  var lastFetchedId = "";
   function fetchAndPaint() {
     if (!isBookDetailDocument()) return;
     var id = detailBookId();
@@ -595,26 +594,31 @@
       return;
     }
     var req = buildStatsRequest(id, root.KUTADGU_SUPABASE_CONFIG || {});
-    if (!req || typeof fetch !== "function") return;
-    lastFetchedId = id;
-    fetch(req.url, { headers: req.headers }).then(function (res) {
-      if (!res.ok) return null;
+    if (!req || typeof fetch !== "function") return Promise.resolve();
+    var requestedId = id;
+    var token = (refreshTokens[requestedId] = (refreshTokens[requestedId] || 0) + 1);
+    return fetch(req.url, { headers: req.headers }).then(function (res) {
+      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return null;
+      if (!res || !res.ok) return null;
       return res.json();
     }).then(function (payload) {
-      if (detailBookId() !== lastFetchedId) return;
+      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId || payload == null) return;
       var rows = parseStatsRows(payload);
       var total = null;
       rows.forEach(function (row) {
-        if (row.bookId === id) total = row.total;
+        if (row.bookId === requestedId) total = row.total;
       });
+      var currentInfo = document.querySelector(".book-detail-info");
       if (total == null) {
-        hideViewCount(info);
+        if (currentInfo) hideViewCount(currentInfo);
         return;
       }
-      cacheSet(id, total, Date.now());
+      cacheSet(requestedId, total, Date.now());
       paintFromStats(total);
     }).catch(function () {
-      hideViewCount(info);
+      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return;
+      var failedInfo = typeof document !== "undefined" ? document.querySelector(".book-detail-info") : null;
+      if (failedInfo) hideViewCount(failedInfo);
     });
   }
 
@@ -751,7 +755,8 @@
     applyStatsToCard: applyStatsToCard,
     stampCard: stampCard,
     hydrate: hydrate,
-    refreshDisplayed: refreshDisplayed
+    refreshDisplayed: refreshDisplayed,
+    fetchAndPaint: fetchAndPaint
   };
 
   if (typeof module === "object" && module.exports) module.exports = api;
