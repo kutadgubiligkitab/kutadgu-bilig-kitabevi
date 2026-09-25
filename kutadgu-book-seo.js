@@ -109,7 +109,7 @@
 
   function isPlaceholderAuthor(value) {
     const author = String(value || "").replace(/\s+/g, " ").trim();
-    return !author || author === "—" || author === "ئاپتور ئىسمى";
+    return !author || author === "—" || author === "ئاپتور ئىسمى" || author === "نامەلۇم" || author === "يېزىلمىغان";
   }
 
   function storefrontAuthor(book) {
@@ -355,6 +355,8 @@
         const fallback = fallbackMetaDescription(book);
         if (fallback) data.description = fallback;
       }
+      const category = factualMetaValue(book && book.category);
+      if (category) data.category = category;
     }
     const graph = [data];
     if (book && book.category) {

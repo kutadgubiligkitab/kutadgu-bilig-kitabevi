@@ -14,7 +14,7 @@ const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
 const STORE = "قۇتادغۇبىلىك كىتابخانىسى";
 
 const FROZEN = {
-  "shop.js": "69b2b28337fa805d135594d02dc074780f3f0863c982b0d65db5cfd9366a688c",
+  "shop.js": "536334e5b0a5d6ba364fb1326a6a388023a68da1cada1d1d09ba9215ef2d7916",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
@@ -22,7 +22,7 @@ const FROZEN = {
   "book-shell.html": "685b3d7e3065d832f4922f6268c1cfbf7a2eb1325a443598cb3946ab86184aac",
   "index.html": "caee90498fc0ef3f6c128efe6b915559a59be659d9f1264e2bc4521c5c5fbc4d",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "b51d5f9089a7a7eee23de77b07115bcbf351f312cf7e7f3c608e14cd707e4665"
+  "vercel.json": "80ccb08cc43391f2bc7d230fbe785b817fc02446a41097be1a1e7dacc2c4adc6"
 };
 
 let failed = 0;
@@ -261,7 +261,6 @@ async function run() {
       "api/book-public.js",
       "book-shell.html",
       "index.html",
-      "vercel.json",
 
       "favorites.js",
       "member.js"

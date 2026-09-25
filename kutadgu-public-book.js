@@ -414,6 +414,7 @@ module.exports = {
   lookupPublicNumericBook,
   applyFoundPublicBookHead,
   publicSeoBook,
+  publicCoverAbsoluteUrl,
   PUBLIC_SEO_SELECT,
   missingBookHtml,
   lookupFailureHtml

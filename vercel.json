@@ -131,71 +131,71 @@
     },
     {
       "source": "/adabiyat",
-      "destination": "/adabiyat.html"
+      "destination": "/api/category-listing?slug=adabiyat"
     },
     {
       "source": "/romanlar",
-      "destination": "/romanlar.html"
+      "destination": "/api/category-listing?slug=romanlar"
     },
     {
       "source": "/tarikhiy-romanlar",
-      "destination": "/tarikhiy-romanlar.html"
+      "destination": "/api/category-listing?slug=tarikhiy-romanlar"
     },
     {
       "source": "/sheirlar",
-      "destination": "/sheirlar.html"
+      "destination": "/api/category-listing?slug=sheirlar"
     },
     {
       "source": "/hekayiler",
-      "destination": "/hekayiler.html"
+      "destination": "/api/category-listing?slug=hekayiler"
     },
     {
       "source": "/dastanlar",
-      "destination": "/dastanlar.html"
+      "destination": "/api/category-listing?slug=dastanlar"
     },
     {
       "source": "/dunya-edebiyati",
-      "destination": "/dunya-edebiyati.html"
+      "destination": "/api/category-listing?slug=dunya-edebiyati"
     },
     {
       "source": "/adabiyat-roman",
-      "destination": "/adabiyat-roman.html"
+      "destination": "/api/category-listing?slug=adabiyat-roman"
     },
     {
       "source": "/uyghur-adabiyati",
-      "destination": "/uyghur-adabiyati.html"
+      "destination": "/api/category-listing?slug=uyghur-adabiyati"
     },
     {
       "source": "/universal",
-      "destination": "/universal.html"
+      "destination": "/api/category-listing?slug=universal"
     },
     {
       "source": "/tibb",
-      "destination": "/tibb.html"
+      "destination": "/api/category-listing?slug=tibb"
     },
     {
       "source": "/derslik",
-      "destination": "/derslik.html"
+      "destination": "/api/category-listing?slug=derslik"
     },
     {
       "source": "/terbiye",
-      "destination": "/terbiye.html"
+      "destination": "/api/category-listing?slug=terbiye"
     },
     {
       "source": "/dini",
-      "destination": "/dini.html"
+      "destination": "/api/category-listing?slug=dini"
     },
     {
       "source": "/children",
-      "destination": "/children.html"
+      "destination": "/api/category-listing?slug=children"
     },
     {
       "source": "/dictionary",
-      "destination": "/dictionary.html"
+      "destination": "/api/category-listing?slug=dictionary"
     },
     {
       "source": "/grammar",
-      "destination": "/grammar.html"
+      "destination": "/api/category-listing?slug=grammar"
     },
     {
       "source": "/books",
@@ -296,24 +296,24 @@
         }
       ]
     },
-      {
-        "source": "/admin.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/admin-idle.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store, must-revalidate"
-          }
-        ]
-      },
+    {
+      "source": "/admin.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/admin-idle.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
     {
       "source": "/admin-hero.js",
       "headers": [
@@ -429,7 +429,7 @@
         },
         {
           "key": "Content-Security-Policy-Report-Only",
-            "value": "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         }
       ]
     }

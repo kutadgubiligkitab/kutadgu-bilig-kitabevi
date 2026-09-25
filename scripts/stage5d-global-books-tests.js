@@ -77,7 +77,7 @@ test("/books routing follows current category convention only", () => {
     const catRedirect = (vercel.redirects || []).find((r) => r.source === `/${slug}.html`);
     const catRewrite = (vercel.rewrites || []).find((r) => r.source === `/${slug}`);
     assert.strictEqual(catRedirect.destination, `/${slug}`);
-    assert.strictEqual(catRewrite.destination, `/${slug}.html`);
+    assert.strictEqual(catRewrite.destination, `/api/category-listing?slug=${slug}`);
   });
 });
 
