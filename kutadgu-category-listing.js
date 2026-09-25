@@ -78,8 +78,11 @@ function quotePostgrest(value) {
 function categoryBooksQueryUrl(sources, offset, limit) {
   const list = (sources || []).filter(Boolean);
   if (!list.length) return "";
+  /* Single-source eq filters must stay unquoted. PostgREST treats
+     source=eq."romanlar.html" as a non-match and returns []. The in.()
+     form used by the literature hub keeps the same quoting as shop.js. */
   const sourceFilter = list.length === 1
-    ? `source=eq.${quotePostgrest(list[0])}`
+    ? `source=eq.${String(list[0]).replace(/[&?#]/g, "")}`
     : `source=in.(${list.map(quotePostgrest).join(",")})`;
   const start = Math.max(0, Number(offset) || 0);
   const size = Math.max(1, Math.min(PAGE_SIZE, Number(limit) || PAGE_SIZE));

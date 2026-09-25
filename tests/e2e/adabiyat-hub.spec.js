@@ -177,8 +177,9 @@ test.describe("adabiyat books-first hub", () => {
       if (u.includes("/rest/v1/books") && req.method() === "GET" && !u.includes("is_active=eq.false")) seen.push(u);
     });
     await page.goto("/adabiyat", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => seen.some((u) => /source=in\./.test(u) || decodeURIComponent(u).includes("source=in.")), { timeout: 15_000 }).toBeTruthy();
+    await expect.poll(async () => page.locator(".books-grid[data-catalog-client]").count(), { timeout: 15_000 }).toBe(1);
     await expect.poll(async () => page.locator(".book-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
-    expect(seen.some((u) => /source=in\./.test(u) || decodeURIComponent(u).includes("source=in."))).toBeTruthy();
     const firstIds = await page.$$eval(".book-card:not(.is-skeleton)[data-live-book-id]", (els) => els.map((el) => el.getAttribute("data-live-book-id")));
     expect(new Set(firstIds).size).toBe(firstIds.length);
     if (await page.locator(".catalog-load-more").count()) {

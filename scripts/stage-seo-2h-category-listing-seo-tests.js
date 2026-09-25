@@ -342,6 +342,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/category-first-byte-seo-tests.js",
     "scripts/static-preview-server.js",
     "scripts/l3-custom-404-page-tests.js",
+    "tests/e2e/listing-catalog-boot.spec.js",
+    "tests/e2e/adabiyat-hub.spec.js",
     "STAGE87_COVER_INTEGRITY.sql",
     "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql",
     "kutadgu-book-views.js",

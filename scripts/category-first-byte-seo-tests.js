@@ -116,6 +116,11 @@ async function run() {
     assert.ok(!listing.catalogSources("adabiyat").includes("uyghur-adabiyati.html"));
     assert.ok(!listing.catalogSources("adabiyat").includes("adabiyat-roman.html"));
     assert.deepStrictEqual(listing.catalogSources("children"), ["children.html"]);
+    const romanUrl = listing.categoryBooksQueryUrl(listing.catalogSources("romanlar"), 0, 5);
+    assert.match(romanUrl, /source=eq\.romanlar\.html(?:&|$)/);
+    assert.doesNotMatch(romanUrl, /source=eq\."/);
+    const hubUrl = listing.categoryBooksQueryUrl(listing.catalogSources("adabiyat"), 0, 5);
+    assert.match(hubUrl, /source=in\.\("romanlar\.html","tarikhiy-romanlar\.html"/);
     assert.deepStrictEqual(listing.PARENT_SLUG.romanlar, "adabiyat");
     assert.ok(!listing.PARENT_SLUG.children);
     assert.ok(!listing.PARENT_SLUG.adabiyat);
@@ -124,7 +129,8 @@ async function run() {
   await test("1 /romanlar first HTML contains real /book/<id> anchors", async () => {
     const books = [row(122), row(88, { title: "ئىككىنچى" })];
     const res = await invoke("/romanlar", async (url) => {
-      assert.match(url, /source=eq\."romanlar\.html"/);
+      assert.match(url, /source=eq\.romanlar\.html(?:&|$)/);
+      assert.doesNotMatch(url, /source=eq\."/);
       assert.match(url, /is_active=eq\.true/);
       assert.doesNotMatch(url, /select=\*/);
       assert.doesNotMatch(url, /description|submission_status|service_role/);
