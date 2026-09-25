@@ -15,7 +15,7 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "home-hero-slideshow.js": "7b88037c2e391c22a006468fca2e146191192986c083cd010135454a8610a274",
-  "vercel.json": "80ccb08cc43391f2bc7d230fbe785b817fc02446a41097be1a1e7dacc2c4adc6"
+  "vercel.json": "cb1d9b57b27262b61f619f6fdca45dd3113f57b3ac49f88b98dfac3ff65b7c24"
 };
 
 const HOME_TITLE = "قۇتادغۇبىلىك كىتابخانىسى";
