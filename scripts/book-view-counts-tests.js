@@ -740,6 +740,67 @@ test("counter-only mutations are ignored and real card changes are not", () => {
   }]).map((scope) => scope.className), ["books-grid"]);
 });
 
+test("missing stats rows are cached as zero across hydrations and page-style resets", async () => {
+  const previousSession = global.sessionStorage;
+  global.sessionStorage = memoryStorage();
+  Views.resetStatsCache();
+  try {
+    assert.strictEqual(Views.CACHE_MS, 6 * 60 * 60 * 1000);
+    assert.strictEqual(Views.CACHE_STORAGE_KEY, "kutadgu-book-view-stats-cache-v1");
+    const card = listingCard("39", "كۆرۈلمىگەن");
+    const root = cardGrid([card]);
+    let calls = 0;
+    const fetchImpl = function () {
+      calls += 1;
+      return statsResponse([]);
+    };
+    await Views.hydrate(root, {
+      force: true,
+      now: 1000,
+      config: statsConfig,
+      fetchImpl
+    });
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
+
+    await Views.hydrate(root, {
+      force: true,
+      now: 2000,
+      config: statsConfig,
+      fetchImpl() {
+        calls += 1;
+        throw new Error("zero-view cache must suppress a repeat request");
+      }
+    });
+    assert.strictEqual(calls, 1);
+
+    const persisted = JSON.parse(global.sessionStorage.getItem(Views.CACHE_STORAGE_KEY) || "{}");
+    assert.strictEqual(persisted["39"].total, 0);
+
+    Views.resetStatsCache();
+    await Views.hydrate(root, {
+      force: true,
+      now: 3000,
+      config: statsConfig,
+      fetchImpl() {
+        calls += 1;
+        throw new Error("session cache must survive a page-style module cache reset");
+      }
+    });
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
+  } finally {
+    global.sessionStorage = previousSession;
+    Views.resetStatsCache();
+  }
+});
+
+test("accepted engagement updates cached display without a second stats fetch", () => {
+  assert.match(helper, /bumpDisplayed\(id, opts\)/);
+  const record = helper.slice(helper.indexOf("function recordEngagement"), helper.indexOf("function forgetEngagement"));
+  assert.doesNotMatch(record, /refreshDisplayed\(id, opts\)/);
+});
+
 test("an in-flight stats batch is not requested again and a failure can retry", async () => {
   Views.resetStatsCache();
   const card = listingCard("40", "كۈتۈش");
