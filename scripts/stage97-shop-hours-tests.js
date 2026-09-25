@@ -166,7 +166,7 @@ test("Contact and JSON-LD share the formatter; public overlay fail-open", () => 
   assert.deepStrictEqual(json, ["Mo-Sa 09:15-19:45", "Su 12:00-16:30"]);
   assert.ok(PublicHours.applyHours);
   assert.ok(PublicHours.loadHours);
-  assert.match(indexHtml, /store-hours-content\.js\?v=1/);
+  assert.match(indexHtml, /store-hours-content\.js\?v=2/);
   assert.match(indexHtml, /kutadgu-shop-hours\.js\?v=1/);
   assert.match(indexHtml, /id="contactHoursText"/);
   assert.match(read("store-hours-content.js"), /store_shop_hours\?select=id,content/);

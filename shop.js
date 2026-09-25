@@ -1121,7 +1121,7 @@ function noteStorefrontEngagement(action,bookId){
 function ensureBookViewCounts(){
   try{
     if(document.querySelector('script[src*="kutadgu-book-views.js"]'))return;
-    loadAssetScript("/kutadgu-book-views.js?v=3","kutadguBookViewsScript").catch(()=>{});
+    loadAssetScript("/kutadgu-book-views.js?v=4","kutadguBookViewsScript").catch(()=>{});
   }catch(err){}
 }
 const trackedBookViews=new Set();

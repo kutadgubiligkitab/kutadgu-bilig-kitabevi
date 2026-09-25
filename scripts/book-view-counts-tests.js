@@ -231,7 +231,7 @@ test("failed or missing stats hide the counter and book page still renders", () 
 });
 
 test("book detail loads helper before analytics without changing frozen shop.js tracking", () => {
-  const helperPin = 'src="/kutadgu-book-views.js?v=1"';
+  const helperPin = 'src="/kutadgu-book-views.js?v=4"';
   const analyticsPin = 'src="/analytics.js?v=2"';
   assert.ok(shell.includes(helperPin));
   assert.ok(shell.includes(analyticsPin));
