@@ -436,7 +436,7 @@
   ],
   "functions": {
     "api/category-listing.js": {
-      "includeFiles": "{adabiyat.html,romanlar.html,tarikhiy-romanlar.html,sheirlar.html,hekayiler.html,dastanlar.html,dunya-edebiyati.html,adabiyat-roman.html,uyghur-adabiyati.html,universal.html,tibb.html,derslik.html,terbiye.html,dini.html,children.html,dictionary.html,grammar.html}"
+      "includeFiles": "{adabiyat,adabiyat-roman,children,dastanlar,derslik,dictionary,dini,dunya-edebiyati,grammar,hekayiler,romanlar,sheirlar,tarikhiy-romanlar,terbiye,tibb,universal,uyghur-adabiyati}.html"
     }
   }
 }

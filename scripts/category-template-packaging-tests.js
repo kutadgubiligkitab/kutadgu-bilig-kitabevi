@@ -33,10 +33,10 @@ function categoryIncludePattern(config) {
 function expandIncludeFiles(pattern) {
   const raw = String(pattern || "").trim();
   if (!raw) return [];
-  if (raw.startsWith("{") && raw.endsWith("}") && !raw.slice(1, -1).includes("{")) {
-    return raw.slice(1, -1).split(",").map((part) => part.trim()).filter(Boolean);
-  }
-  return [raw];
+  const brace = raw.match(/^\{([^{}]+)\}(.*)$/);
+  if (!brace) return [raw];
+  const suffix = brace[2] || "";
+  return brace[1].split(",").map((part) => `${part.trim()}${suffix}`).filter((name) => name && name !== suffix);
 }
 
 function trustedTemplateRels() {
@@ -109,7 +109,9 @@ function readTemplatesInBundle(destRoot) {
 test("includeFiles is scoped to the category function and lists every trusted template", () => {
   const config = vercelConfig();
   assert.deepStrictEqual(Object.keys(config.functions || {}), ["api/category-listing.js"]);
-  const included = expandIncludeFiles(categoryIncludePattern(config)).sort();
+  const pattern = categoryIncludePattern(config);
+  assert.ok(pattern.length > 0 && pattern.length <= 256, "includeFiles must fit the Vercel schema maxLength");
+  const included = expandIncludeFiles(pattern).sort();
   const trusted = trustedTemplateRels().sort();
   assert.deepStrictEqual(included, trusted);
   assert.strictEqual(trusted.length, 17);
