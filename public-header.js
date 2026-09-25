@@ -6,7 +6,7 @@
 (function (root) {
   "use strict";
 
-  var CSS_HREF = "/public-header.css?v=4";
+  var CSS_HREF = "/public-header.css?v=6";
   var ROOT_APP_PAGES = {
     "account.html": "/account.html",
     "cart.html": "/cart.html",

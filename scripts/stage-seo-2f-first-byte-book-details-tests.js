@@ -35,7 +35,7 @@ const FROZEN = {
   "book-shell.html": "9376b9f374abd8b8670dfd0387832ee9a5cdb6127ee9a1764d22f1dbd7dc3042",
   "index.html": "d23c1cd43dad8df41b9b5ca7bfff11ce7613fd9c7d1eb3ed7427cef26e674d09",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "5f7c347d0b8ac2a40bac10ba0ee0189abaa774e01d83d25af3c15b8f68f75d15"
+  "vercel.json": "8c84d4fd3e8d5dc7d1c84ad307b423d1c4b9ae50ffb3a647614b627cba3a681c"
 };
 
 let failed = 0;

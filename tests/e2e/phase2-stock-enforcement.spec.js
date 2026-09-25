@@ -203,10 +203,10 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await expect(page.locator(".detail-unavailable-panel")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".detail-main-cart")).toHaveCount(0);
 
-    await page.goto("/book/romanlar-2", { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect(page.locator(".detail-unavailable-panel")).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(".detail-main-cart")).toHaveCount(0);
+    const slug = await page.goto("/book/romanlar-2", { waitUntil: "domcontentloaded" });
+    expect(slug && slug.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".detail-main-cart, .add-to-cart")).toHaveCount(0);
   });
 
   test("customer stock UX is silent in-stock, low, and out without exposing qty", async ({ page }) => {

@@ -136,24 +136,38 @@ test.describe("book clean URLs", () => {
     expect(detailH1[1]).not.toBe("كىتاب");
   });
 
-  test("C invalid /book/not-a-number stays safe and noindex", async ({ page, request, baseURL }) => {
+  test("C invalid /book/not-a-number is a real HTTP 404 and noindex", async ({ page, request, baseURL }) => {
     const origin = String(baseURL || "").replace(/\/$/, "");
     const res = await request.get(`${origin}/book/not-a-number`, { maxRedirects: 0 });
-    expect(res.status()).toBe(200);
-    await page.goto("/book/not-a-number", { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
+    expect(res.status()).toBe(404);
+    const html = await res.text();
+    expect(html).toMatch(/noindex/i);
+    expect(html).not.toMatch(/kutadguBookSchema/);
+    expect(html).not.toMatch(/"@type"\s*:\s*"Book"/);
+    expect(html).not.toMatch(/data-dynamic-book/);
+    expect(html).toMatch(/كىتاب تېپىلمىدى/);
+    const landed = await page.goto("/book/not-a-number", { waitUntil: "domcontentloaded" });
+    expect(landed && landed.status()).toBe(404);
     expect(new URL(page.url()).pathname).toBe("/book/not-a-number");
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://www.kutadgubilik.com/book.html");
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
     expect(await page.locator("#kutadguBookSchema").count()).toBe(0);
-    const title = String(await page.locator(".book-detail-info h1").textContent()).trim();
-    expect(
-      title === "كىتاب" ||
-      title.length < 2 ||
-      title.includes("تەمىنلەنمەيدۇ") ||
-      title.includes("تېپىلمىدى")
-    ).toBeTruthy();
-    await expect(page.locator(".add-to-cart,.detail-price")).toHaveCount(0);
+    await expect(page.locator('a[href="/#books"]').first()).toBeVisible();
+  });
+
+  test("D0 numeric /book/415 stays server-rendered and legacy queries still 308", async ({ request, baseURL }) => {
+    const origin = String(baseURL || "").replace(/\/$/, "");
+    const book = await request.get(`${origin}/book/415`, { maxRedirects: 0 });
+    expect(book.status()).toBe(200);
+    const html = await book.text();
+    expect(html).toMatch(/index, follow/);
+    expect(html).toMatch(/data-dynamic-book/);
+    expect(html).toMatch(/rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/book\/415"/);
+    expect(html).not.toMatch(/كىتاب تېپىلمىدى/);
+    for (const path of [`${origin}/book.html?id=415`, `${origin}/book?id=415`]) {
+      const res = await request.get(path, { maxRedirects: 0 });
+      expect(res.status(), path).toBe(308);
+      expect(new URL(res.headers().location, origin).pathname).toBe("/book/415");
+    }
   });
 
   test("D missing book /book/999999999 is a real HTTP 404", async ({ page, request, baseURL }) => {
@@ -236,8 +250,11 @@ test.describe("book clean URLs", () => {
       `${origin}/book?id=children-3`
     ]) {
       const res = await request.get(path, { maxRedirects: 0 });
-      expect(res.status(), path).toBe(200);
+      expect(res.status(), path).toBe(404);
       expect(res.headers().location || "").toBe("");
+      const html = await res.text();
+      expect(html, path).toMatch(/noindex/i);
+      expect(html, path).not.toMatch(/data-dynamic-book/);
       const loc = String(res.headers().location || "");
       expect(loc).not.toMatch(/\/book\/(abc|children-3)\b/i);
     }
@@ -249,7 +266,10 @@ test.describe("book clean URLs", () => {
       for (const raw of ["undefined", "null", "NaN", "", "12.5"]) {
         const path = raw === "" ? prefix : `${prefix}?id=${encodeURIComponent(raw)}`;
         const res = await request.get(path, { maxRedirects: 0 });
-        expect(res.status(), path).toBe(200);
+        expect(res.status(), path).toBe(404);
+        const html = await res.text();
+        expect(html, path).toMatch(/noindex/i);
+        expect(html, path).not.toMatch(/data-dynamic-book/);
         const location = String(res.headers().location || "");
         expect(location).not.toMatch(/\/book\/(undefined|null|NaN)\b/i);
         expect(location).not.toMatch(/\/book\/12\.5\b/);

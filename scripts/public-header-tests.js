@@ -100,7 +100,20 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(css, /flex-wrap:\s*wrap !important/);
   assert.doesNotMatch(css, /admin-topbar/);
   const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
-  assert.match(helperJs, /public-header\.css\?v=4/);
+  assert.match(helperJs, /public-header\.css\?v=6/);
+});
+
+test("header search keeps a visible keyboard focus state", () => {
+  const focus = css.match(/\.kutadgu-header-search:has\(input:focus-visible\)\s*\{[^}]+\}/);
+  assert.ok(focus, "missing :focus-visible rule on the search pill");
+  assert.match(focus[0], /border-color:\s*#fff/);
+  assert.match(focus[0], /box-shadow:\s*inset 0 0 0 2px #fffdf8/);
+  assert.match(focus[0], /outline:\s*3px solid/);
+  const inputRule = css.match(/\.kutadgu-header-search input\s*\{[^}]+\}/);
+  assert.ok(inputRule, "missing unfocused search input rule");
+  assert.match(inputRule[0], /border:\s*0/);
+  assert.match(inputRule[0], /outline:\s*none/);
+  assert.doesNotMatch(inputRule[0], /border-color:\s*#fff/);
 });
 
 test("helper does not touch admin/auth/order/sql surfaces", () => {

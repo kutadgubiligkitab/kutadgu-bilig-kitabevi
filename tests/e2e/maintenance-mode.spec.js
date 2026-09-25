@@ -98,7 +98,7 @@ test.describe("maintenance mode", () => {
     await expect(page.locator("#searchInput")).toBeHidden();
     await expect(page.locator("#kutadgu-maint-admin-note")).toHaveCount(0);
 
-    await page.goto("/book.html", { waitUntil: "domcontentloaded" });
+    await page.goto("/book/415", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
     await expect(page.locator(".book-detail-info h1")).toBeHidden();
 

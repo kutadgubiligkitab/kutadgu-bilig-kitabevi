@@ -30,7 +30,7 @@ const FROZEN = {
   "book-shell.html": "9376b9f374abd8b8670dfd0387832ee9a5cdb6127ee9a1764d22f1dbd7dc3042",
   "index.html": "d23c1cd43dad8df41b9b5ca7bfff11ce7613fd9c7d1eb3ed7427cef26e674d09",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "5f7c347d0b8ac2a40bac10ba0ee0189abaa774e01d83d25af3c15b8f68f75d15",
+  "vercel.json": "8c84d4fd3e8d5dc7d1c84ad307b423d1c4b9ae50ffb3a647614b627cba3a681c",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -140,7 +140,15 @@ HUBS.forEach((slug) => {
     assert.match(html, /<meta name="robots" content="index, follow"/);
     assert.strictEqual(count(html, /rel=["']icon["']/gi), 1);
     assert.ok(html.includes(ICON), "exact favicon tag");
-    assert.strictEqual(attr(html, /<title>([\s\S]*?)<\/title>/), attr(old, /<title>([\s\S]*?)<\/title>/));
+    const title = attr(html, /<title>([\s\S]*?)<\/title>/);
+    const oldTitle = attr(old, /<title>([\s\S]*?)<\/title>/);
+    if (slug === "adabiyat-roman") {
+      assert.strictEqual(title, "ئەدەبىيات رومانلىرى - قۇتادغۇبىلىك كىتابخانىسى");
+      assert.notStrictEqual(title, oldTitle);
+      assert.notStrictEqual(title, attr(pages.romanlar, /<title>([\s\S]*?)<\/title>/));
+    } else {
+      assert.strictEqual(title, oldTitle);
+    }
     assert.strictEqual(
       attr(html, /<meta name="description" content="([^"]*)"/),
       attr(old, /<meta name="description" content="([^"]*)"/)
@@ -514,6 +522,19 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/book-staff-portal-tests.js",
     "scripts/member-premerge-sync-tests.js",
     "scripts/qa-customer-facing-fixes-tests.js",
+    "scripts/qa-audit2-low-fixes-tests.js",
+    "public-header.css",
+    "public-header.js",
+    "scripts/public-header-tests.js",
+    "scripts/admin-submissions-tests.js",
+    "scripts/admin-book-staff-tests.js",
+    "scripts/legacy-book-query-redirect-tests.js",
+    "scripts/book-public-status-tests.js",
+    "scripts/posthog-analytics-tests.js",
+    "tests/e2e/maintenance-mode.spec.js",
+    "tests/e2e/phase1-stock-enforcement-off.spec.js",
+    "tests/e2e/phase2-stock-enforcement.spec.js",
+    "tests/e2e/static-demo-production-safety.spec.js",
     "tests/e2e/account-cross-tab-logout.spec.js",
     "tests/e2e/auth-oauth-recovery.spec.js",
     "tests/e2e/search-relevance.spec.js"

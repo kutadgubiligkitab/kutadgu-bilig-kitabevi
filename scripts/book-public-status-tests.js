@@ -62,7 +62,7 @@ async function run() {
     assert.ok(numeric);
     assert.strictEqual(numeric.destination, "/api/book-public?id=:id");
     assert.ok(shell);
-    assert.strictEqual(shell.destination, "/book-shell.html");
+    assert.strictEqual(shell.destination, "/api/book-public?id=:id");
     const nIdx = (vercel.rewrites || []).findIndex((rule) => rule.source === "/book/:id(\\d+)");
     const sIdx = (vercel.rewrites || []).findIndex((rule) => rule.source === "/book/:id");
     assert.ok(nIdx < sIdx);

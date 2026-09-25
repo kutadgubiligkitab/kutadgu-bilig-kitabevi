@@ -212,9 +212,9 @@ test.describe("Phase 1 storefront stock enforcement stays off", () => {
     expect(visibility.demo).toBe(false);
     expect(visibility.activeRemote).toBe(true);
 
-    await page.goto("/book/romanlar-2", { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect(page.locator(".detail-unavailable-panel")).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(".detail-main-cart")).toHaveCount(0);
+    const slug = await page.goto("/book/romanlar-2", { waitUntil: "domcontentloaded" });
+    expect(slug && slug.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".detail-main-cart, .add-to-cart")).toHaveCount(0);
   });
 });

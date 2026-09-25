@@ -90,7 +90,7 @@ function setup(overrides = {}) {
   const arrayIdx = rewrites.findIndex((rule) => rule.source === "/kbg/array/:path(.*)");
   const ingestIdx = rewrites.findIndex((rule) => rule.source === "/kbg/:path(.*)");
   const lastBookstoreIdx = rewrites.findIndex(
-    (rule) => rule.source === "/book" && rule.destination === "/book-shell.html"
+    (rule) => rule.source === "/book" && rule.destination === "/api/book-public"
   );
   assert.ok(assetIdx > lastBookstoreIdx);
   assert.equal(arrayIdx, assetIdx + 1);
