@@ -26,6 +26,14 @@ function invalidateAccountRenders(){
 function showStatus(el,message,type=""){
   if(!el)return;el.hidden=false;el.textContent=message;el.className=`account-status ${type}`.trim();
 }
+function customerLoginErrorMessage(err){
+  const message=String((err&&(err.message||err))||"").trim();
+  if(/invalid login credentials|invalid_credentials|invalid_grant/i.test(message)){
+    return "ئېلخەت ياكى پارول توغرا ئەمەس. قايتا تەكشۈرۈپ كىرىڭ.";
+  }
+  if(!message)return "كىرىش مەغلۇپ بولدى. قايتا سىناڭ.";
+  return "كىرىش مەغلۇپ بولدى: "+message;
+}
 function clearStatus(el){if(el)el.hidden=true}
 function dateText(value){
   if(!value)return "—";
@@ -194,7 +202,7 @@ async function init(){
     try{
       await api().signIn({email:$("#loginEmail").value.trim(),password:$("#loginPassword").value});
       await renderMember();
-    }catch(err){showStatus($("#authStatus"),"كىرىش مەغلۇپ بولدى: "+(err.message||err),"error")}
+    }catch(err){showStatus($("#authStatus"),customerLoginErrorMessage(err),"error")}
     finally{setBusy(form,false)}
   });
 

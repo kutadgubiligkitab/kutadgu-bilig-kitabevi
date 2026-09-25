@@ -228,6 +228,10 @@ test.describe("Stage 5D global /books page", () => {
     await mockBooks(page, { books: [] });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator(".catalog-filter-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".catalog-filter-empty")).toContainText("بۇ بۆلۈمدە ھازىرچە كىتاب يوق");
+    await expect(page.locator(".catalog-filter-empty")).not.toContainText("سۈزگۈچنى تازىلاڭ");
+    await page.locator("#catalogFilterText").fill("يوقكىتاب");
+    await expect(page.locator(".catalog-filter-empty")).toContainText("سۈزگۈچنى تازىلاڭ", { timeout: 15_000 });
 
     await mockBooks(page, { fail: true });
     await page.reload({ waitUntil: "domcontentloaded" });

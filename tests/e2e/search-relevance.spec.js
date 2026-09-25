@@ -221,6 +221,41 @@ test.describe("Stage Search 1A relevance ranking", () => {
     expect(empty + hits).toBeGreaterThan(0);
   });
 
+  test("numeric text does not become an ISBN fragment filter", async ({ page }) => {
+    const seen = [];
+    await H.installReadSafeNetwork(page);
+    await page.route("**/rest/v1/books**", async (route) => {
+      seen.push(route.request().url());
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "content-range": "*/0" },
+        body: "[]"
+      });
+    });
+    await H.openFresh(page, "/");
+    async function searchFor(query) {
+      const before = seen.length;
+      await page.locator("#searchInput").fill(query);
+      await page.locator("#searchButton").click();
+      await page.waitForSelector(".search-empty, .advanced-search-summary", { timeout: 20000 });
+      const hit = seen.slice(before).map((url) => decodeURIComponent(url)).find((url) => url.includes("title.ilike"));
+      expect(hit, query).toBeTruthy();
+      return hit;
+    }
+    const mixed = await searchFor("zzzznotabook999");
+    expect(mixed).toContain("title.ilike.*zzzznotabook999*");
+    expect(mixed).not.toContain("isbn.ilike.*999*");
+    expect(mixed).not.toContain("isbn.eq.999");
+    const digit = await searchFor("2");
+    expect(digit).toContain("title.ilike.*2*");
+    expect(digit).not.toContain("isbn.ilike.*2*");
+    expect(digit).not.toContain("isbn.eq.2");
+    const isbn = await searchFor("9787228109999");
+    expect(isbn).toContain("isbn.eq.9787228109999");
+    expect(isbn).toContain("title.ilike.*9787228109999*");
+  });
+
   test("M layout still uses the existing search card", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
