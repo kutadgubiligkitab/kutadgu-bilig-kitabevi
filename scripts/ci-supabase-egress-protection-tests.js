@@ -60,11 +60,29 @@ test("installReadSafeNetwork defaults to mock mode with explicit opt-out only", 
   assert.match(helpersSrc, /method === "HEAD"/);
 });
 
+test("local Stage 10 caches repeated public Supabase catalog and view-stat reads", () => {
+  assert.strictEqual(H.isCacheableSupabaseReadUrl("https://abcd.supabase.co/rest/v1/books?select=*"), true);
+  assert.strictEqual(H.isCacheableSupabaseReadUrl("https://abcd.supabase.co/rest/v1/book_view_stats?select=book_id,total_views"), true);
+  assert.strictEqual(H.isCacheableSupabaseReadUrl("https://abcd.supabase.co/rest/v1/orders?select=*"), false);
+  assert.strictEqual(H.isCacheableSupabaseReadUrl("https://example.com/rest/v1/books?select=*"), false);
+  assert.match(helpersSrc, /KUTADGU_USE_LOCAL_STATIC === "1"/);
+  assert.match(helpersSrc, /sharedSupabaseReadCache/);
+  assert.match(helpersSrc, /route\.fetch\(\)/);
+  assert.match(helpersSrc, /headers\.range/);
+  assert.match(helpersSrc, /headers\.authorization/);
+});
+
+test("shared Playwright fixture installs the full read-safe guard", () => {
+  const fixture = fs.readFileSync(path.join(root, "tests/e2e/playwright-test.js"), "utf8");
+  assert.match(fixture, /installReadSafeNetwork/);
+  assert.match(fixture, /logSupabaseReadCacheSummary/);
+});
+
 test("Playwright uses a shared fixture that stubs book-covers Storage", () => {
   const fixture = fs.readFileSync(path.join(root, "tests/e2e/playwright-test.js"), "utf8");
   const spec = fs.readFileSync(path.join(root, "tests/e2e/storefront.spec.js"), "utf8");
   const cover = fs.readFileSync(path.join(root, "tests/e2e/cover-load-resilience.spec.js"), "utf8");
-  assert.match(fixture, /installBookCoverEgressGuard/);
+  assert.match(fixture, /installReadSafeNetwork/);
   assert.match(fixture, /logMockedBookCoverSummary/);
   assert.match(spec, /require\("\.\/playwright-test"\)/);
   assert.match(cover, /require\("\.\/playwright-test"\)/);
