@@ -455,6 +455,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "romanlar-5.html",
     "romanlar-6.html",
     "scripts/auth-oauth-recovery-tests.js",
+    "scripts/auth-production-cache-buster-tests.js",
     "scripts/book-detail-seo-hydration-race-tests.js",
     "scripts/book-interior-print-type-tests.js",
     "scripts/homepage-compact-ux-tests.js",
