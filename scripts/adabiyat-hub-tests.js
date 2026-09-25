@@ -29,6 +29,12 @@ const end = shop.indexOf("const catalogQueryState=");
 assert.ok(start >= 0 && end > start, "adabiyat hub helpers must exist");
 const helpers = new Function(`${shop.slice(start, end)}; return {ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,normalizeSourceList};`)();
 
+test("sheirlar uses the shared woff2 face with ttf only as fallback", () => {
+  const face = /@font-face\s*\{[^}]*font-family:\s*"UKIJ CJK";[^}]*src:\s*url\("UKIJCJK\.woff2"\)\s*format\("woff2"\),\s*url\("UKIJCJK\.ttf"\)\s*format\("truetype"\);[^}]*font-display:\s*swap;[^}]*\}/;
+  assert.match(sheirlar, face);
+  assert.match(romanlar, face);
+});
+
 test("authoritative literature sources match the six dedicated listing files", () => {
   assert.deepStrictEqual([...helpers.ADABIYAT_HUB_SOURCES], [
     "romanlar.html",
