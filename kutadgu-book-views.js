@@ -19,7 +19,8 @@
   var STYLE_ID = "kutadgu-book-view-count-style";
   var STATS_TABLE = "book_view_stats";
   var BATCH_SIZE = 80;
-  var CACHE_MS = 30000;
+  var CACHE_MS = 6 * 60 * 60 * 1000;
+  var CACHE_STORAGE_KEY = "kutadgu-book-view-stats-cache-v1";
   var DETAIL_EVENT = "book_engagement_detail";
   var CART_EVENT = "book_engagement_cart";
   var CARD_SELECTOR = "[data-live-book-id], .book-card, .advanced-search-result, .home-feature-card, .shop-mini-card, .favorite-card, .premium-book-card, .ai-search-item, .home-carousel-card";
@@ -30,6 +31,7 @@
   var refreshTokens = Object.create(null);
   var bookTokens = Object.create(null);
   var inflight = Object.create(null);
+  var persistentCacheLoaded = false;
 
   function isCanonicalBookId(value) {
     return /^[1-9][0-9]*$/.test(String(value == null ? "" : value).trim());
@@ -86,6 +88,55 @@
     } catch (err) {
       return null;
     }
+  }
+
+  function statsStore() {
+    try {
+      return root.sessionStorage;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function loadPersistentStatsCache(now) {
+    if (persistentCacheLoaded) return;
+    persistentCacheLoaded = true;
+    var storage = statsStore();
+    if (!storage || typeof storage.getItem !== "function") return;
+    try {
+      var raw = storage.getItem(CACHE_STORAGE_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      var atNow = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+      Object.keys(parsed).slice(0, 500).forEach(function (id) {
+        if (!isCanonicalBookId(id)) return;
+        var row = parsed[id];
+        if (!row || typeof row !== "object") return;
+        var at = Number(row.at);
+        var total = Number(row.total);
+        if (!Number.isFinite(at) || !Number.isFinite(total) || total < 0) return;
+        if (atNow - at > CACHE_MS) return;
+        statsCache[id] = { total: total, at: at };
+      });
+    } catch (err) {}
+  }
+
+  function persistStatsCache(now) {
+    var storage = statsStore();
+    if (!storage || typeof storage.setItem !== "function") return;
+    try {
+      var atNow = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+      var out = {};
+      Object.keys(statsCache).slice(-500).forEach(function (id) {
+        var row = statsCache[id];
+        if (!row || atNow - Number(row.at) > CACHE_MS) return;
+        var total = Number(row.total);
+        if (!Number.isFinite(total) || total < 0) return;
+        out[id] = { total: total, at: Number(row.at) };
+      });
+      storage.setItem(CACHE_STORAGE_KEY, JSON.stringify(out));
+    } catch (err) {}
   }
 
   function readCooldownMap(storage) {
@@ -183,7 +234,7 @@
       var accepted = { sent: true, eventName: eventName, bookId: id };
       var refresh = function () {
         if (opts.refresh === false) return;
-        refreshDisplayed(id, opts);
+        bumpDisplayed(id, opts);
       };
       if (result && typeof result.then === "function") {
         return Promise.resolve(result).then(function (value) {
@@ -294,22 +345,35 @@
     refreshTokens = Object.create(null);
     bookTokens = Object.create(null);
     inflight = Object.create(null);
+    persistentCacheLoaded = false;
   }
 
   function cacheGet(id, now) {
+    var atNow = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+    loadPersistentStatsCache(atNow);
     var row = statsCache[String(id)];
     if (!row) return null;
-    if (Number(now) - row.at > CACHE_MS) return null;
+    if (atNow - row.at > CACHE_MS) {
+      delete statsCache[String(id)];
+      persistStatsCache(atNow);
+      return null;
+    }
     return row.total;
   }
 
   function cacheSet(id, total, now) {
+    var value = Number(total);
+    if (!isCanonicalBookId(id) || !Number.isFinite(value) || value < 0) return;
     var at = Number(now);
-    statsCache[String(id)] = { total: total, at: Number.isFinite(at) ? at : Date.now() };
+    statsCache[String(id)] = { total: value, at: Number.isFinite(at) ? at : Date.now() };
+    persistentCacheLoaded = true;
+    persistStatsCache(Number.isFinite(at) ? at : Date.now());
   }
 
   function cacheDrop(id) {
+    loadPersistentStatsCache(Date.now());
     delete statsCache[String(id)];
+    persistStatsCache(Date.now());
   }
 
   function createCountElement(doc, total) {
@@ -542,6 +606,19 @@
     mountViewCount(info, total);
   }
 
+  function bumpDisplayed(bookId, options) {
+    var opts = options || {};
+    var id = String(bookId || "").trim();
+    if (!isCanonicalBookId(id)) return;
+    var now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
+    var cached = cacheGet(id, now);
+    if (cached == null) return;
+    var next = Math.max(0, Number(cached) || 0) + 1;
+    cacheSet(id, next, now);
+    if (typeof document !== "undefined") paintId(document, id, next);
+    if (detailBookId() === id) paintFromStats(next);
+  }
+
   function refreshDisplayed(bookId, options) {
     var opts = options || {};
     var id = String(bookId || "").trim();
@@ -563,8 +640,8 @@
       rows.forEach(function (row) {
         if (row.bookId === id) total = row.total;
       });
-      if (total != null) cacheSet(id, total, Date.now());
-      if (typeof document !== "undefined") paintId(document, id, total);
+      cacheSet(id, total == null ? 0 : total, Date.now());
+      if (typeof document !== "undefined") paintId(document, id, total == null ? 0 : total);
       if (detailBookId() === id) {
         if (total == null) {
           var info = document.querySelector(".book-detail-info");
@@ -643,8 +720,8 @@
             req.ids.forEach(function (id) {
               if (tokens[id] !== bookTokens[id]) return;
               var has = Object.prototype.hasOwnProperty.call(byId, id);
-              var total = has ? byId[id] : null;
-              if (total != null) cacheSet(id, total, now);
+              var total = has ? byId[id] : 0;
+              cacheSet(id, total, now);
               painted[id] = total;
               paintId(rootEl, id, total);
             });
@@ -709,6 +786,7 @@
       });
       var currentInfo = document.querySelector(".book-detail-info");
       if (total == null) {
+        cacheSet(requestedId, 0, Date.now());
         if (currentInfo) hideViewCount(currentInfo);
         return;
       }
@@ -900,6 +978,7 @@
     STORAGE_KEY: STORAGE_KEY,
     STATS_TABLE: STATS_TABLE,
     BATCH_SIZE: BATCH_SIZE,
+    CACHE_STORAGE_KEY: CACHE_STORAGE_KEY,
     DETAIL_EVENT: DETAIL_EVENT,
     CART_EVENT: CART_EVENT,
     isCanonicalBookId: isCanonicalBookId,
@@ -929,6 +1008,7 @@
     CACHE_MS: CACHE_MS,
     stampCard: stampCard,
     hydrate: hydrate,
+    bumpDisplayed: bumpDisplayed,
     refreshDisplayed: refreshDisplayed,
     fetchAndPaint: fetchAndPaint
   };
