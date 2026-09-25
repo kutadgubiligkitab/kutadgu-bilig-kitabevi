@@ -19,7 +19,9 @@
   var STYLE_ID = "kutadgu-book-view-count-style";
   var STATS_TABLE = "book_view_stats";
   var BATCH_SIZE = 80;
-  var CACHE_MS = 30000;
+  // Display totals do not need 30s freshness. A long-lived listing was
+  // refetching book_view_stats about twice a minute and dominating edge logs.
+  var CACHE_MS = 10 * 60 * 1000;
   var DETAIL_EVENT = "book_engagement_detail";
   var CART_EVENT = "book_engagement_cart";
   var CARD_SELECTOR = "[data-live-book-id], .book-card, .advanced-search-result, .home-feature-card, .shop-mini-card, .favorite-card, .premium-book-card, .ai-search-item, .home-carousel-card";
@@ -516,6 +518,16 @@
     return file === "admin.html" || file === "admin-quality-preview.html" || file === "reset-password.html" || file === "book-staff.html";
   }
 
+  function isLocalPreviewHost() {
+    try {
+      if (typeof location === "undefined" || !location || !location.hostname) return false;
+      var host = String(location.hostname).toLowerCase().replace(/^\[|\]$/g, "");
+      return host === "localhost" || host === "127.0.0.1" || host === "::1";
+    } catch (err) {
+      return false;
+    }
+  }
+
   function isBookDetailDocument() {
     if (typeof document === "undefined" || typeof location === "undefined") return false;
     var Seo = root.KutadguBookSeo || {};
@@ -546,6 +558,7 @@
     var opts = options || {};
     var id = String(bookId || "").trim();
     if (!isCanonicalBookId(id)) return Promise.resolve();
+    if (isLocalPreviewHost()) return Promise.resolve();
     cacheDrop(id);
     var reqs = buildBatchStatsRequest([id], opts.config);
     var fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
@@ -583,6 +596,7 @@
   function hydrate(scope, options) {
     try {
       var opts = options || {};
+      if (isLocalPreviewHost()) return Promise.resolve({ requests: 0, skipped: "local" });
       if (!opts.force && isSkippedSurface()) return Promise.resolve({ requests: 0 });
       var rootEl = scope;
       if (!rootEl || typeof rootEl.querySelectorAll !== "function") return Promise.resolve({ requests: 0 });
@@ -676,6 +690,7 @@
   }
 
   function fetchAndPaint() {
+    if (isLocalPreviewHost()) return;
     if (!isBookDetailDocument()) return;
     var id = detailBookId();
     var info = typeof document !== "undefined" ? document.querySelector(".book-detail-info") : null;

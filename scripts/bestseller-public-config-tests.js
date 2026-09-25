@@ -36,7 +36,8 @@ function sliceBetween(src, startNeedle, endNeedle) {
 function countApi(opts = {}) {
   const windowObj = {
     KUTADGU_SUPABASE_CONFIG: opts.config || {},
-    __kutadguPositiveSalesCount: opts.cachedCount
+    __kutadguPositiveSalesCount: opts.cachedCount,
+    sessionStorage: opts.sessionStorage
   };
   const C = Array.isArray(opts.catalog) ? opts.catalog : [];
   const cfgSrc = sliceBetween(shop, "function supabasePublicConfig(){", "function normalizeRemoteBook");
@@ -194,6 +195,35 @@ test("missing public key skips remote HEAD and uses local catalog", async () => 
   });
   assert.strictEqual(await api.countPositiveSales(), 1);
   assert.strictEqual(calls.length, 0);
+});
+
+test("positive sales HEAD is reused from sessionStorage", async () => {
+  const data = new Map();
+  const sessionStorage = {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(String(key), String(value)); }
+  };
+  let calls = 0;
+  const first = countApi({
+    config: { url: "https://example.supabase.co", publishableKey: "k" },
+    sessionStorage,
+    fetch: async () => {
+      calls += 1;
+      return rangeResponse(0);
+    }
+  });
+  assert.strictEqual(await first.countPositiveSales(), 0);
+  assert.strictEqual(calls, 1);
+  const second = countApi({
+    config: { url: "https://example.supabase.co", publishableKey: "k" },
+    sessionStorage,
+    fetch: async () => {
+      calls += 1;
+      return rangeResponse(4);
+    }
+  });
+  assert.strictEqual(await second.countPositiveSales(), 0);
+  assert.strictEqual(calls, 1);
 });
 
 test("honesty hides carousel and collection options when count is 0", () => {

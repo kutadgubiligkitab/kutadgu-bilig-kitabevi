@@ -85,6 +85,31 @@
   }
 
   var lastHours = null;
+  var HOURS_CACHE_KEY = "kutadgu-shop-hours-v1";
+  var HOURS_CACHE_MS = 10 * 60 * 1000;
+
+  function readHoursCache() {
+    try {
+      if (typeof sessionStorage === "undefined" || !sessionStorage) return null;
+      var raw = sessionStorage.getItem(HOURS_CACHE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      if (Date.now() - Number(parsed.at) > HOURS_CACHE_MS) return null;
+      var checked = Hours.validateHours ? Hours.validateHours(parsed.hours) : { ok: false };
+      if (!checked.ok) return null;
+      return checked.hours;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function writeHoursCache(hours) {
+    try {
+      if (typeof sessionStorage === "undefined" || !sessionStorage) return;
+      sessionStorage.setItem(HOURS_CACHE_KEY, JSON.stringify({ at: Date.now(), hours: hours }));
+    } catch (err) {}
+  }
 
   function applyHours(hours) {
     lastHours = hours;
@@ -93,11 +118,17 @@
   }
 
   function loadHours() {
+    var cached = readHoursCache();
+    if (cached) {
+      applyHours(cached);
+      return Promise.resolve({ ok: true, hours: cached, cached: true });
+    }
     return restGet().then(function (res) {
       if (res.error) return { ok: false };
       var content = rowContent(res.data);
       var checked = Hours.validateHours ? Hours.validateHours(content) : { ok: false };
       if (!checked.ok) return { ok: false };
+      writeHoursCache(checked.hours);
       applyHours(checked.hours);
       return { ok: true, hours: checked.hours };
     }).catch(function () {

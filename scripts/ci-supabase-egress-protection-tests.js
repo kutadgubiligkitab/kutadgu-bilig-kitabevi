@@ -78,6 +78,41 @@ test("storefront shop.js is not part of this CI intercept", () => {
   assert.doesNotMatch(shop, /mockedBookCoverRequests/);
 });
 
+test("read-safe network fulfills repeated Supabase probes and leaves catalog pages live", () => {
+  assert.strictEqual(
+    H.isBookViewStatsRead("https://abcd.supabase.co/rest/v1/book_view_stats?select=book_id,total_views&book_id=in.(91001)", "GET"),
+    true
+  );
+  assert.strictEqual(H.isBookViewStatsRead("https://abcd.supabase.co/rest/v1/book_view_stats", "POST"), false);
+  assert.strictEqual(
+    H.isCatalogAvailabilityProbe("https://abcd.supabase.co/rest/v1/books?select=id&is_active=eq.true", "HEAD"),
+    true
+  );
+  assert.strictEqual(
+    H.isCatalogAvailabilityProbe("https://abcd.supabase.co/rest/v1/books?select=*&is_active=eq.true&order=title.asc", "GET"),
+    false
+  );
+  assert.strictEqual(
+    H.isPositiveSalesHead("https://abcd.supabase.co/rest/v1/books?select=id&sales_count=gt.0", "HEAD"),
+    true
+  );
+  assert.strictEqual(
+    H.isPositiveSalesHead("https://abcd.supabase.co/rest/v1/books?select=*&sales_count=gt.0", "GET"),
+    false
+  );
+  assert.strictEqual(
+    H.isInactiveIndexRead("https://abcd.supabase.co/rest/v1/books?select=id,legacy_id&is_active=eq.false", "GET"),
+    true
+  );
+  assert.strictEqual(
+    H.isInactiveIndexRead("https://abcd.supabase.co/rest/v1/books?select=*&is_active=eq.false", "GET"),
+    false
+  );
+  assert.match(helpersSrc, /isBookViewStatsRead\(url, method\)/);
+  assert.match(helpersSrc, /content-range": "0-0\/1"/);
+  assert.match(helpersSrc, /content-range": "\*\/0"/);
+});
+
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
   process.exit(1);
