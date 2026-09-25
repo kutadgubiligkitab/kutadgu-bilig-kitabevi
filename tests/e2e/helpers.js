@@ -10,6 +10,8 @@ const BOOK_COVER_STUB = fs.readFileSync(BOOK_COVER_STUB_PATH);
 const BOOK_SHELL_HTML = fs.readFileSync(path.join(__dirname, "..", "..", "book-shell.html"));
 const liveBookCoverPages = new WeakSet();
 const mockedBookCoverCounts = new WeakMap();
+const sharedSupabaseReadCache = new Map();
+const sharedSupabaseReadStats = new WeakMap();
 
 function isSupabaseBookCoverStorageUrl(url) {
   const raw = String(url || "");
@@ -19,6 +21,91 @@ function isSupabaseBookCoverStorageUrl(url) {
     pathname = new URL(raw).pathname || raw;
   } catch (err) {}
   return pathname.includes(BOOK_COVER_STORAGE_PATH);
+}
+
+function isSupabaseRestReadUrl(url) {
+  try {
+    const parsed = new URL(String(url || ""));
+    return /(?:^|\.)supabase\.co$/i.test(parsed.hostname) && parsed.pathname.startsWith("/rest/v1/");
+  } catch (err) {
+    return false;
+  }
+}
+
+function isCacheableSupabaseReadUrl(url) {
+  if (!isSupabaseRestReadUrl(url)) return false;
+  try {
+    const pathname = new URL(String(url || "")).pathname;
+    return pathname === "/rest/v1/books" || pathname === "/rest/v1/book_view_stats";
+  } catch (err) {
+    return false;
+  }
+}
+
+function supabaseReadCacheEnabled() {
+  return process.env.KUTADGU_USE_LOCAL_STATIC === "1" || process.env.KUTADGU_CACHE_SUPABASE_READS === "1";
+}
+
+function supabaseReadCacheKey(request) {
+  const method = String(request && request.method ? request.method() : "GET").toUpperCase();
+  const url = String(request && request.url ? request.url() : "");
+  const headers = request && request.headers ? request.headers() : {};
+  return [
+    method,
+    url,
+    String(headers.range || ""),
+    String(headers.prefer || ""),
+    String(headers.authorization || "")
+  ].join("\n");
+}
+
+function safeResponseHeaders(headers) {
+  const out = { ...(headers || {}) };
+  delete out["content-encoding"];
+  delete out["content-length"];
+  delete out["transfer-encoding"];
+  return out;
+}
+
+function noteSupabaseReadCache(page, field) {
+  if (!page) return;
+  const current = sharedSupabaseReadStats.get(page) || { hits: 0, misses: 0 };
+  current[field] = (current[field] || 0) + 1;
+  sharedSupabaseReadStats.set(page, current);
+}
+
+async function fulfillCachedSupabaseRead(route, request, page) {
+  const method = String(request && request.method ? request.method() : "").toUpperCase();
+  if ((method !== "GET" && method !== "HEAD") || !isCacheableSupabaseReadUrl(request.url())) {
+    return route.fallback();
+  }
+  const key = supabaseReadCacheKey(request);
+  let entry = sharedSupabaseReadCache.get(key);
+  if (!entry) {
+    noteSupabaseReadCache(page, "misses");
+    const response = await route.fetch();
+    entry = {
+      status: response.status(),
+      headers: safeResponseHeaders(response.headers()),
+      body: method === "HEAD" ? Buffer.alloc(0) : await response.body()
+    };
+    sharedSupabaseReadCache.set(key, entry);
+  } else {
+    noteSupabaseReadCache(page, "hits");
+  }
+  return route.fulfill({
+    status: entry.status,
+    headers: entry.headers,
+    body: entry.body
+  });
+}
+
+function logSupabaseReadCacheSummary(testInfo, page) {
+  const stats = sharedSupabaseReadStats.get(page) || { hits: 0, misses: 0 };
+  if (!stats.hits && !stats.misses) return stats;
+  const label = testInfo && Array.isArray(testInfo.titlePath) ? testInfo.titlePath.join(" › ") : "test";
+  console.log(`[e2e] Supabase read cache hits=${stats.hits} misses=${stats.misses} (${label})`);
+  return stats;
 }
 
 function mockedBookCoverRequests(page) {
@@ -133,6 +220,9 @@ async function installReadSafeNetwork(page, opts = {}) {
     const url = req.url();
     const isWrite = method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE";
     if (!isWrite) {
+      if (supabaseReadCacheEnabled() && (method === "GET" || method === "HEAD") && isCacheableSupabaseReadUrl(url)) {
+        return fulfillCachedSupabaseRead(route, req, page);
+      }
       if ((method === "GET" || method === "HEAD") && isSupabaseBookCoverStorageUrl(url)) {
         if (!shouldMockBookCoverStorage(page)) return route.continue();
         return fulfillBookCoverStorageStub(route, req, page);
@@ -580,11 +670,16 @@ module.exports = {
   BOOK_COVER_STUB_PATH,
   BOOK_COVER_STUB,
   isSupabaseBookCoverStorageUrl,
+  isSupabaseRestReadUrl,
+  isCacheableSupabaseReadUrl,
+  supabaseReadCacheEnabled,
+  supabaseReadCacheKey,
   mockedBookCoverRequests,
   allowLiveBookCovers,
   stubNumericBookDocuments,
   installBookCoverEgressGuard,
   logMockedBookCoverSummary,
+  logSupabaseReadCacheSummary,
   installReadSafeNetwork,
   installCarouselCatalogStub,
   installAnnouncementFixtures,
