@@ -82,12 +82,13 @@ async function run() {
     const focus = css.match(/\.kutadgu-header-search:has\(input:focus-visible\)\s*\{[^}]+\}/);
     assert.ok(focus);
     assert.match(focus[0], /border-color:\s*#fff/);
+    assert.match(focus[0], /box-shadow:\s*inset 0 0 0 2px #fffdf8/);
     assert.match(focus[0], /outline:\s*3px solid/);
     const input = css.match(/\.kutadgu-header-search input\s*\{[^}]+\}/);
     assert.ok(input);
     assert.match(input[0], /outline:\s*none/);
     assert.match(input[0], /border:\s*0/);
-    assert.match(read("public-header.js"), /public-header\.css\?v=5/);
+    assert.match(read("public-header.js"), /public-header\.css\?v=6/);
   });
 
   await test("invalid book paths rewrite to the public handler, not the generic shell", () => {
