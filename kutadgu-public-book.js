@@ -4,6 +4,7 @@ const visibility = require("./catalog-visibility.js");
 const seo = require("./kutadgu-book-seo.js");
 const safeUrl = require("./kutadgu-safe-url.js");
 const bib = require("./catalog-bibliography.js");
+const stock = require("./kutadgu-stock.js");
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
@@ -40,6 +41,7 @@ const PUBLIC_SEO_SELECT = [
   "isbn",
   "price",
   "stock",
+  "stock_status",
   "source",
   "publish_year",
   "translator",
@@ -72,6 +74,7 @@ function publicSeoBook(row, id) {
     isbn: String(row.isbn == null ? "" : row.isbn).trim(),
     price: Number.isFinite(priceNum) ? priceNum : null,
     stock: Number.isFinite(stockNum) ? stockNum : null,
+    stockStatus: String(row.stock_status == null ? "" : row.stock_status).trim(),
     source: String(row.source == null ? "" : row.source).trim(),
     publishYear: String(row.publish_year == null ? "" : row.publish_year).trim(),
     translator: String(row.translator == null ? "" : row.translator).trim(),
@@ -84,19 +87,22 @@ function publicSeoBook(row, id) {
 }
 
 function seoStockKey(book) {
-  const text = book && book.stock != null && book.stock !== "" ? String(book.stock).trim() : "";
-  if (!/^(0|[1-9]\d*)$/.test(text)) return "";
-  const qty = Number(text);
-  if (qty <= 0) return "out";
-  if (qty <= 3) return "low";
-  return "in";
+  const info = stock.storefrontStockInfo(book, { stockEnforcement: true });
+  if (info.key === "in" || info.key === "low" || info.key === "out") return info.key;
+  return "";
+}
+
+function isSampleOrPlaceholderCover(value) {
+  return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|[?#])/i.test(String(value || "").trim());
 }
 
 function publicCoverAbsoluteUrl(book) {
   const raw = String((book && (book.image || book.image_url)) || "").trim();
-  if (!raw) return "";
+  if (!raw || isSampleOrPlaceholderCover(raw)) return "";
   if (!safeUrl.isSafeCoverUrl(raw)) return "";
-  return seo.absoluteUrl(raw) || "";
+  const abs = seo.absoluteUrl(raw) || "";
+  if (!abs || isSampleOrPlaceholderCover(abs) || !/^https:\/\//i.test(abs)) return "";
+  return abs;
 }
 
 function escapeAttr(value) {

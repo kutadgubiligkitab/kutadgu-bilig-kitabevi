@@ -80,6 +80,13 @@ function jsonLd(html) {
   return JSON.parse(match[1]);
 }
 
+function bookNodeOf(payload) {
+  return payload["@graph"].find((node) => {
+    const type = node && node["@type"];
+    return type === "Book" || (Array.isArray(type) && type.includes("Book"));
+  });
+}
+
 async function run() {
   await test("valid active book gets unique server-rendered title, description, canonical, robots, and JSON-LD", async () => {
     const row = sampleBook();
@@ -95,7 +102,7 @@ async function run() {
     assert.ok(out.body.includes('property="og:image" content="https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/book/1789316012810.webp"'));
     const payload = jsonLd(out.body);
     assert.strictEqual(payload["@context"], "https://schema.org");
-    const bookNode = payload["@graph"].find((node) => node["@type"] === "Book");
+    const bookNode = bookNodeOf(payload);
     const crumbs = payload["@graph"].find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(bookNode);
     assert.strictEqual(bookNode.name, "تارىخىمىزدىكى خاقانلار");
@@ -131,7 +138,7 @@ async function run() {
     assert.ok(out.body.includes("&lt;img src=x onerror=alert(1)&gt;") || out.body.includes("\\u003c"));
     assert.doesNotMatch(out.body, /property=["']og:image["'][^>]*javascript:/i);
     const payload = jsonLd(out.body);
-    const bookNode = payload["@graph"].find((node) => node["@type"] === "Book");
+    const bookNode = bookNodeOf(payload);
     assert.ok(!bookNode.image);
     assert.ok(!out.body.includes("javascript:alert(1)"));
   });

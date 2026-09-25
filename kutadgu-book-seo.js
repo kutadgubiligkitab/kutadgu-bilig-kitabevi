@@ -152,6 +152,28 @@
     return "";
   }
 
+  function gtin13IfTrustworthy(book) {
+    const isbn = isbnIfTrustworthy(book);
+    return /^[0-9]{13}$/.test(isbn) ? isbn : "";
+  }
+
+  function productSku(book) {
+    const id = String(book && book.id == null ? "" : book.id).trim();
+    return isCanonicalBookId(id) ? "KBG-" + id : "";
+  }
+
+  function isSampleOrPlaceholderCover(value) {
+    return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|[?#])/i.test(String(value || "").trim());
+  }
+
+  function structuredImageUrl(image, origin) {
+    const raw = String(image || "").trim();
+    if (!raw || isSampleOrPlaceholderCover(raw) || /^(?:javascript|data|vbscript|file|blob)\s*:/i.test(raw)) return "";
+    const abs = /^https?:\/\//i.test(raw) ? raw : absoluteUrl(raw, origin);
+    if (!abs || isSampleOrPlaceholderCover(abs) || !/^https:\/\//i.test(abs)) return "";
+    return abs;
+  }
+
   function datePublishedIfTrustworthy(book) {
     const year = String(book && book.publishYear || "").trim();
     if (/^\d{4}$/.test(year)) {
@@ -294,7 +316,7 @@
     const visible = opts.visible !== false;
     const data = { "@type": "Book", name: String(book && book.title || "").trim(), url: canonical };
     if (authorName) data.author = { "@type": "Person", name: authorName };
-    const image = opts.image || "";
+    const image = structuredImageUrl(opts.image || "", origin);
     if (image) data.image = image;
     const description = String(book && book.description || "").trim();
     if (description) data.description = description;
@@ -308,11 +330,30 @@
     if (visible && price !== null && price !== undefined && price !== "") {
       const n = Number(price);
       if (Number.isFinite(n)) {
-        const offer = { "@type": "Offer", price: n, priceCurrency: "TRY", url: canonical };
+        const offer = {
+          "@type": "Offer",
+          url: canonical,
+          price: n,
+          priceCurrency: "TRY",
+          itemCondition: "https://schema.org/NewCondition",
+          seller: { "@id": origin + "/#store" }
+        };
         const stockKey = opts.stockKey || "";
         if (stockKey === "out") offer.availability = "https://schema.org/OutOfStock";
         else if (stockKey === "in" || stockKey === "low") offer.availability = "https://schema.org/InStock";
         data.offers = offer;
+      }
+    }
+    if (visible && data.offers && Number(data.offers.price) > 0) {
+      data["@type"] = ["Product", "Book"];
+      data["@id"] = canonical + "#book";
+      const sku = productSku(book);
+      if (sku) data.sku = sku;
+      const gtin13 = gtin13IfTrustworthy(book);
+      if (gtin13) data.gtin13 = gtin13;
+      if (!data.description) {
+        const fallback = fallbackMetaDescription(book);
+        if (fallback) data.description = fallback;
       }
     }
     const graph = [data];

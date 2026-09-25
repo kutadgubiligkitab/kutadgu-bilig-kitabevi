@@ -88,6 +88,13 @@ function metaName(html, name) {
   return match ? match[1] : "";
 }
 
+function bookNodeOf(payload) {
+  return payload["@graph"].find((node) => {
+    const type = node && node["@type"];
+    return type === "Book" || (Array.isArray(type) && type.includes("Book"));
+  });
+}
+
 function jsonLd(html) {
   const match = html.match(/<script id="kutadguBookSchema" type="application\/ld\+json">([\s\S]*?)<\/script>/);
   assert.ok(match, "missing kutadguBookSchema");
@@ -201,8 +208,16 @@ async function run() {
     assert.ok(meta.includes("&quot;") || meta.includes("&amp;"));
     assert.match(out.body, /<div class="book-detail-info">\s*<h1>/);
     assert.doesNotMatch(out.body, /<section class="dynamic-book-description"[^>]*>\s*<h2>كىتاب ھەققىدە<\/h2>\s*<p>[^<]/);
-    const bookNode = jsonLd(out.body)["@graph"].find((node) => node["@type"] === "Book");
-    assert.ok(!bookNode.description);
+    const bookNode = bookNodeOf(jsonLd(out.body));
+    assert.strictEqual(bookNode.description, seo.metaDescription({
+      title: row.title,
+      author: row.author,
+      description: "",
+      category: row.category,
+      publisher: row.publisher,
+      publishYear: row.publish_year
+    }));
+    assert.doesNotMatch(bookNode.description, /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش/);
   });
 
   await test("G: Stage 2A/2C/2D first-byte behavior stays in place", async () => {
@@ -216,7 +231,7 @@ async function run() {
     assert.strictEqual(metaName(out.body, "description"), "تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش.");
     assert.ok(out.body.includes('property="og:description" content="تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش."'));
     const payload = jsonLd(out.body);
-    const bookNode = payload["@graph"].find((node) => node["@type"] === "Book");
+    const bookNode = bookNodeOf(payload);
     assert.strictEqual(bookNode.description, "تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش.");
     assert.ok(payload["@graph"].some((node) => node["@type"] === "BreadcrumbList"));
     assert.ok(out.body.includes(ICON));
