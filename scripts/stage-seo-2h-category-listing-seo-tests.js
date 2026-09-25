@@ -532,6 +532,9 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/book-public-status-tests.js",
     "scripts/posthog-analytics-tests.js",
     "tests/e2e/maintenance-mode.spec.js",
+    "tests/e2e/phase1-stock-enforcement-off.spec.js",
+    "tests/e2e/phase2-stock-enforcement.spec.js",
+    "tests/e2e/static-demo-production-safety.spec.js",
     "tests/e2e/account-cross-tab-logout.spec.js",
     "tests/e2e/auth-oauth-recovery.spec.js",
     "tests/e2e/search-relevance.spec.js"

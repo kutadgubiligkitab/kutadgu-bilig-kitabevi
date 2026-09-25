@@ -137,17 +137,15 @@ test.describe("static demo production safety", () => {
     expect(state.visible).toBe(false);
   });
 
-  test("/book/romanlar-2 is unavailable, not a fake priced product", async ({ page }) => {
+  test("/book/romanlar-2 is a noindex 404, not a fake priced product", async ({ page }) => {
     await requireProductionAuthority(page);
     await mockBooks(page, { books: [bookRow()] });
-    await page.goto(`/book/${DEMO_ID}`, { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect.poll(async () => (await detailState(page)).unavailable).toBe(true);
-    const state = await detailState(page);
-    expect(state.demoTitle).toBe(false);
-    expect(state.fakePrice).toBe(false);
-    expect(state.add).toBe(false);
-    expect(state.title).toContain("تەمىنلەنمەيدۇ");
+    const res = await page.goto(`/book/${DEMO_ID}`, { waitUntil: "domcontentloaded" });
+    expect(res && res.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".add-to-cart, .detail-main-cart, .detail-price")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(DEMO_TITLE);
+    await expect(page.locator("body")).not.toContainText("200 ₺");
   });
 
   test("/romanlar-2.html raw first paint is not a fake product", async ({ request, baseURL }) => {
@@ -245,54 +243,33 @@ test.describe("static demo production safety", () => {
     expect(state.remote).toBe(true);
   });
 
-  test("future remote legacy mapping resolves old-slug to canonical 123", async ({ page }) => {
+  test("non-numeric /book/old-slug is a noindex 404 instead of a generic shell", async ({ page }) => {
     await requireProductionAuthority(page);
     await mockBooks(page, { books: [bookRow({ legacy_id: OLD_SLUG })] });
-    await page.goto(`/book/${OLD_SLUG}`, { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect(page.locator(".book-detail-info h1")).toContainText(REAL_TITLE);
-    const state = await page.evaluate((slug) => {
-      const book = window.kutadguShop.find(slug);
-      return {
-        id: book && String(book.id),
-        visible: !!(book && window.kutadguShop.isStorefrontVisible(book)),
-        remote: !!(book && book.isRemote)
-      };
-    }, OLD_SLUG);
-    expect(state.id).toBe(REAL_ID);
-    expect(state.visible).toBe(true);
-    expect(state.remote).toBe(true);
+    const res = await page.goto(`/book/${OLD_SLUG}`, { waitUntil: "domcontentloaded" });
+    expect(res && res.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".book-detail-info h1, .add-to-cart, .detail-main-cart")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(REAL_TITLE);
   });
 
   test("inactive remote mapped book is not sellable", async ({ page }) => {
     await requireProductionAuthority(page);
     await mockBooks(page, { books: [bookRow({ is_active: false, legacy_id: OLD_SLUG })] });
-    await page.goto(`/book/${OLD_SLUG}`, { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect.poll(async () => {
-      return page.evaluate(() => {
-        const book = window.kutadguShop.find("old-slug") || window.kutadguShop.find("123");
-        return book ? window.kutadguShop.isStorefrontVisible(book) : false;
-      });
-    }).toBe(false);
-    const add = await page.evaluate(() => !!document.querySelector(".add-to-cart, .detail-main-cart"));
-    expect(add).toBe(false);
+    const res = await page.goto(`/book/${OLD_SLUG}`, { waitUntil: "domcontentloaded" });
+    expect(res && res.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".add-to-cart, .detail-main-cart")).toHaveCount(0);
   });
 
   test("supabase unavailable in production does not sell static demo inventory", async ({ page }) => {
     await requireProductionAuthority(page);
     await mockBooks(page, { fail: true });
-    await page.goto(`/book/${DEMO_ID}`, { waitUntil: "domcontentloaded" });
-    await H.waitForShop(page);
-    await expect.poll(async () => (await detailState(page)).unavailable).toBe(true);
-    const state = await detailState(page);
-    expect(state.fakePrice).toBe(false);
-    expect(state.add).toBe(false);
-    const cart = await page.evaluate((id) => {
-      window.kutadguShop.add(id);
-      return window.kutadguShop.cart().map((row) => String(row.id));
-    }, DEMO_ID);
-    expect(cart).not.toContain(DEMO_ID);
+    const res = await page.goto(`/book/${DEMO_ID}`, { waitUntil: "domcontentloaded" });
+    expect(res && res.status()).toBe(404);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expect(page.locator(".add-to-cart, .detail-main-cart, .detail-price")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(DEMO_TITLE);
   });
 
   test("local fixture static remains available when remote authority is not required", async ({ page }) => {
