@@ -279,7 +279,7 @@ test.describe("Stage 5D global /books page", () => {
     const seen = [];
     await mockBooks(page, { onRequest(url) { seen.push(url); } });
     await page.goto("/dini", { waitUntil: "domcontentloaded" });
-    await expect(page.locator(".book-card:not(.is-skeleton)")).toContainText("دىنىي سىناق كىتابى", { timeout: 20_000 });
+    await expect(page.getByRole("heading", { name: "دىنىي سىناق كىتابى" })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".books-grid")).not.toContainText("ئەدەبىيات سىناق كىتابى");
     expect(seen.some((u) => u.includes("source=eq.dini.html"))).toBeTruthy();
   });

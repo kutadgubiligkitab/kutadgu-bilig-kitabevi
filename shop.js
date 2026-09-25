@@ -2967,8 +2967,8 @@ function searchEnhance(){
       }
     }finally{if(token===requestId)loadingMore=false}
   }
-  if(btn)btn.onclick=()=>run(false);
   let inputTimer;
+  if(btn)btn.onclick=()=>{clearTimeout(inputTimer);run(false)};
   const debouncedRun=()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>run(false),400)};
   input.addEventListener("input",debouncedRun);
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});

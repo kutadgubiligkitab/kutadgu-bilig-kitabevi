@@ -43,7 +43,7 @@ test("queued q-param search waits for kutadgu:catalog-ready once then reuses run
 });
 
 test("manual Enter/click search path is unchanged", () => {
-  assert.match(enhance, /if\(btn\)btn\.onclick=\(\)=>run\(false\)/);
+  assert.match(enhance, /if\(btn\)btn\.onclick=\(\)=>\{clearTimeout\(inputTimer\);run\(false\)\}/);
   assert.match(enhance, /inputTimer=setTimeout\(\(\)=>run\(false\),400\)/);
   assert.match(enhance, /if\(event\.key==="Enter"\)\{event\.preventDefault\(\);clearTimeout\(inputTimer\);run\(false\)\}/);
   assert.match(enhance, /await queryCatalog\(state,/);
@@ -119,8 +119,8 @@ test("cold-load harness does not query until catalog-ready, then runs once with 
 });
 
 test("manual run(false) after boot remains a direct click/Enter call, not catalog-ready", () => {
-  assert.match(enhance, /if\(btn\)btn\.onclick=\(\)=>run\(false\)/);
-  const clickAt = enhance.indexOf("if(btn)btn.onclick=()=>run(false)");
+  assert.match(enhance, /if\(btn\)btn\.onclick=\(\)=>\{clearTimeout\(inputTimer\);run\(false\)\}/);
+  const clickAt = enhance.indexOf("if(btn)btn.onclick=()=>{clearTimeout(inputTimer);run(false)}");
   const readyAt = enhance.indexOf("kutadgu:catalog-ready");
   assert.ok(clickAt >= 0 && readyAt > clickAt, "manual click wiring is independent of catalog-ready queue");
 });

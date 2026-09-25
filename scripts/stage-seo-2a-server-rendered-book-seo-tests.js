@@ -12,7 +12,7 @@ const seo = require("../kutadgu-book-seo.js");
 const handler = require("../api/book-public.js");
 
 const FROZEN = {
-  "shop.js": "536334e5b0a5d6ba364fb1326a6a388023a68da1cada1d1d09ba9215ef2d7916",
+  "shop.js": "99cf02a2501d90dc95fedeb21bf623b686fe1429e1dbaa4388275bec46761986",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5"
 };
 
