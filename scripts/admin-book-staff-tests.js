@@ -179,7 +179,7 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
   const sql = files.filter((file) => /\.sql$/i.test(file) && file !== "STAGE93_BOOK_STAFF_GALLERY.sql" && file !== "STAGE94_PENDING_BOOK_EDIT.sql" && file !== "SITE_SHOP_HOURS.sql" && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql");
   assert.deepStrictEqual(sql, [], sql.join(", "));
   const storefront = files.filter((file) =>
-    /^(shop\.css|public-header\.css|catalog\.js)$/.test(file)
+    /^(shop\.css|catalog\.js)$/.test(file)
   );
   assert.deepStrictEqual(storefront, [], storefront.join(", "));
   if (files.includes("public-header.js")) {

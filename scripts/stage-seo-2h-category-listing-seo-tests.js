@@ -526,6 +526,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "public-header.css",
     "public-header.js",
     "scripts/public-header-tests.js",
+    "scripts/admin-submissions-tests.js",
+    "scripts/admin-book-staff-tests.js",
     "scripts/legacy-book-query-redirect-tests.js",
     "scripts/book-public-status-tests.js",
     "scripts/posthog-analytics-tests.js",
