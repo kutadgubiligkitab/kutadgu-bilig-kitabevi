@@ -131,8 +131,9 @@ test("existing known route rewrites remain untouched", () => {
   assert.ok(bySource("/adabiyat", "/api/category-listing?slug=adabiyat"));
   assert.ok(bySource("/books", "/books.html"));
   assert.ok(bySource("/book/:id(\\d+)", "/api/book-public?id=:id"));
-  assert.ok(bySource("/book/:id", "/book-shell.html"));
-  assert.ok(bySource("/book", "/book-shell.html"));
+  assert.ok(bySource("/book/:id", "/api/book-public?id=:id"));
+  assert.ok(bySource("/book.html", "/api/book-public"));
+  assert.ok(bySource("/book", "/api/book-public"));
   assert.ok(
     bySource("/kbg/static/:path(.*)", "https://eu-assets.i.posthog.com/static/:path")
   );

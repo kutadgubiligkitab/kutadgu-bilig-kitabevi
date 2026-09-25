@@ -117,13 +117,19 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
-  if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
   if (
     /^\/book\.html$/i.test(url.pathname)
     || /^\/book\/?$/i.test(url.pathname)
     || /^\/book\/[^/]+\/?$/.test(url.pathname)
-  ) rel = "book-shell.html";
+  ) {
+    const handler = require(path.join(root, "api/book-public.js"));
+    Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
+      send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }, "temporary failure");
+    });
+    return;
+  }
+  let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
+  if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");
   const abs = path.join(root, rel);
   if (!abs.startsWith(root + path.sep) && abs !== root) {

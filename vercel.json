@@ -245,15 +245,15 @@
     },
     {
       "source": "/book/:id",
-      "destination": "/book-shell.html"
+      "destination": "/api/book-public?id=:id"
     },
     {
       "source": "/book.html",
-      "destination": "/book-shell.html"
+      "destination": "/api/book-public"
     },
     {
       "source": "/book",
-      "destination": "/book-shell.html"
+      "destination": "/api/book-public"
     },
     {
       "source": "/kbg/static/:path(.*)",
