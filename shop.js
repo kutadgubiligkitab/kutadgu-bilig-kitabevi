@@ -1209,10 +1209,12 @@ function staticQueryPage(input={}){
   }
   if(state.category)rows=rows.filter(book=>book.category===state.category);
   if(q)rows=rows.filter(book=>{
-    const hay=bibliographicLib().staticSearchHaystack
-      ?bibliographicLib().staticSearchHaystack(book)
-      :[book.title,book.author,book.category,book.translator,book.publisher,book.isbn].filter(Boolean).join(" ");
-    return searchNormalize(hay).includes(q)||searchNormalize(String(book.isbn||"").replace(/[\s-]+/g,"")).includes(q);
+    const shape=searchDigitShape(state.search);
+    const hay=storefrontStaticSearchHaystack(book,state.search);
+    if(searchNormalize(hay).includes(q))return true;
+    if(!shape.isbnLike||!shape.digits)return false;
+    const digitsFn=bibliographicLib().normalizeIsbnDigits||(value=>String(value??"").replace(/[\s-]+/g,"").replace(/[^0-9Xx]/g,""));
+    return searchNormalize(digitsFn(book&&book.isbn)).includes(searchNormalize(shape.digits));
   });
   if(Number.isFinite(state.minPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)>=state.minPrice);
   if(Number.isFinite(state.maxPrice))rows=rows.filter(book=>Number.isFinite(Number(book.price))&&Number(book.price)<=state.maxPrice);
@@ -1268,6 +1270,34 @@ function rankSelectList(){
 
 let searchRankCache={key:"",ids:[],total:0};
 
+function searchDigitShape(search){
+  const digitsFn=bibliographicLib().normalizeIsbnDigits||(value=>String(value??"").trim().replace(/[\s-]+/g,"").replace(/[^0-9Xx]/g,"").toUpperCase());
+  const digits=digitsFn(search);
+  const raw=String(search??"").trim();
+  const digitShaped=!!raw&&!/[^0-9Xx\s-]/.test(raw);
+  return {
+    digits,
+    isbnLike:digitShaped&&(digits.length===10||digits.length===13),
+    shortDigit:digitShaped&&digits.length>0&&digits.length<10
+  };
+}
+function storefrontSearchMatchParts(columns, term, search){
+  const shape=searchDigitShape(search);
+  const cols=(columns||[]).filter(col=>col!=="isbn"||shape.isbnLike);
+  const parts=cols.map(col=>`${col}.ilike.${term}`);
+  if(shape.isbnLike&&shape.digits){
+    parts.push(`isbn.ilike.*${shape.digits}*`);
+    if(/^[0-9X]+$/i.test(shape.digits))parts.push(`isbn.eq.${shape.digits}`);
+  }
+  return parts;
+}
+function storefrontStaticSearchHaystack(book, search){
+  const shape=searchDigitShape(search);
+  if(shape.isbnLike&&bibliographicLib().staticSearchHaystack)return bibliographicLib().staticSearchHaystack(book);
+  const fields=[book&&book.title,book&&book.author,book&&book.category,book&&book.translator,book&&book.publisher];
+  if(shape.isbnLike)fields.push(book&&book.isbn);
+  return fields.filter(Boolean).join(" ");
+}
 function remoteBooksUrl(input={},flags={}){
   const cfg=supabasePublicConfig(),state=normalizeQueryState(input),params=new URLSearchParams({select:flags.rankFields?rankSelectList():"*"});
   if(!state.includeInactive)params.set("is_active","eq.true");
@@ -1295,10 +1325,7 @@ function remoteBooksUrl(input={},flags={}){
     const cols=bibliographicLib().storefrontSearchColumns
       ?bibliographicLib().storefrontSearchColumns(window.KUTADGU_BOOKS_SCHEMA)
       :["title","author","category"];
-    const parts=cols.map(col=>`${col}.ilike.${term}`);
-    const digits=(bibliographicLib().normalizeIsbnDigits||(v=>String(v||"").replace(/[\s-]+/g,"")))(state.search);
-    if(cols.includes("isbn")&&digits&&digits!==state.search)parts.push(`isbn.ilike.*${digits}*`);
-    if(cols.includes("isbn")&&/^[0-9X]+$/i.test(digits))parts.push(`isbn.eq.${digits}`);
+    const parts=storefrontSearchMatchParts(cols,term,state.search);
     logic.push(`or(${parts.join(",")})`);
   }
   if(state.newOnly)params.set("is_new","eq.true");
@@ -3069,8 +3096,9 @@ function setupCatalogFilters(){
   }
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
-  const emptyMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
-  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptyMarkup;controls.insertAdjacentElement("afterend",empty);
+  const emptyFilterMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
+  const emptySectionMarkup='<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق.</strong><br><span>باشقا تۈرلەردىن كىتاب كۆرەلەيسىز.</span><br><a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
+  let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptySectionMarkup;controls.insertAdjacentElement("afterend",empty);
   if(catalogStatus.error&&!remoteCatalog.configured){
     const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
   }
@@ -3148,7 +3176,7 @@ function setupCatalogFilters(){
     count.textContent=`${items.length} / ${result.total} كىتاب كۆرسىتىلدى`;
     controls.innerHTML=result.hasMore?`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${result.pageSize} دانە</button>`:"";
     controls.querySelector(".catalog-load-more")?.addEventListener("click",()=>apply(true));
-    empty.innerHTML=emptyMarkup;
+    empty.innerHTML=listingFiltersIdle()?emptySectionMarkup:emptyFilterMarkup;
     empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click();else{text.value="";hubSub="";writeHubUrl("","","replace");syncHubChrome();apply(false)}});
     empty.hidden=result.total!==0;
     grid.hidden=result.total===0;
@@ -4386,7 +4414,7 @@ function loadMemberSystem(){
   if(window.KutadguMember)return;
   if(document.querySelector('script[data-kutadgu-member-script],script[src*="member.js"]'))return;
   const script=document.createElement("script");
-        script.src="/member.js?v=27";script.async=false;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=28";script.async=false;script.dataset.kutadguMemberScript="1";
   (document.body||document.documentElement).appendChild(script);
 }
 function refreshAfterMemberSync(){

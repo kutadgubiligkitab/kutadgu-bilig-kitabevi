@@ -12,7 +12,7 @@ const Ui = require("../kutadgu-ai-search-ui.js");
 const ZERO = "0 دانە كىتاب تېپىلدى";
 const EMPTY = "نەتىجە تېپىلمىدى";
 const FROZEN = {
-  "shop.js": "f2dda1d313ac710f9ed855b7e568756d06015fa8d95f1e1dde6c837746ebd975",
+  "shop.js": "9d92a63b107c2a7fec82d5cb5a6f7fc01760b89207434a1855e7f738d43ae527",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147"
 };
@@ -254,8 +254,7 @@ async function run() {
       "kutadgu-search-rank.js",
       "api/ai-search.js",
       "kutadgu-ai-search.js",
-      "favorites.js",
-      "member.js"
+      "favorites.js"
     ].forEach((rel) => assert.ok(!files.includes(rel), rel));
   });
 }

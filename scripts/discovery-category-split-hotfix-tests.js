@@ -254,7 +254,7 @@ test("13 search category pages cart wishlist and WhatsApp files stay out of this
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const unexpected = files.filter((file) =>
-    /cart\.js|favorites\.js|member\.js|kutadgu-search-rank\.js|whatsapp/i.test(file)
+    /cart\.js|favorites\.js|kutadgu-search-rank\.js|whatsapp/i.test(file)
   );
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
 });

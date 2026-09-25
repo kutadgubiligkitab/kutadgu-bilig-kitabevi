@@ -56,7 +56,7 @@ test("A. Book Staff / member non-admin Admin visit does not call global signOut"
   assert.match(staffHtml, /book-staff\.js\?v=7/);
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
-  assert.match(accountHtml, /account\.js\?v=6/);
+  assert.match(accountHtml, /account\.js\?v=7/);
   assert.match(accountJs, /function onMemberChange\(\)\{/);
 });
 

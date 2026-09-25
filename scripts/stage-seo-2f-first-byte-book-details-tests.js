@@ -26,14 +26,14 @@ const META_LABELS = [
 ];
 
 const FROZEN = {
-  "shop.js": "f2dda1d313ac710f9ed855b7e568756d06015fa8d95f1e1dde6c837746ebd975",
+  "shop.js": "9d92a63b107c2a7fec82d5cb5a6f7fc01760b89207434a1855e7f738d43ae527",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "be6e4e0d5a499f5bb8fddc46aa42df04c856c87ec2276195c51875b336736a80",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "78d67b66abbdc325be036b2510be1bf095dabb1b22a53c3ea86698515c51e167",
-  "index.html": "ed4a88f36975d866baa4707543199c446981a73032a891e5e6c59d709431ea8d",
+  "book-shell.html": "9376b9f374abd8b8670dfd0387832ee9a5cdb6127ee9a1764d22f1dbd7dc3042",
+  "index.html": "d23c1cd43dad8df41b9b5ca7bfff11ce7613fd9c7d1eb3ed7427cef26e674d09",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "5f7c347d0b8ac2a40bac10ba0ee0189abaa774e01d83d25af3c15b8f68f75d15"
 };
@@ -315,8 +315,7 @@ async function run() {
       "api/ai-search.js",
       "api/book-public.js",
 
-      "favorites.js",
-      "member.js"
+      "favorites.js"
     ].forEach((rel) => {
       assert.ok(!files.includes(rel), rel);
     });

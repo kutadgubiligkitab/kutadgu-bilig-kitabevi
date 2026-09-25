@@ -173,11 +173,11 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /signOut\(\{scope:"local"\}\)/);
   assert.doesNotMatch(member, /exchangeCodeForSession/);
   assert.doesNotMatch(read("account.js"), /exchangeCodeForSession/);
-  assert.match(account, /member\.js\?v=27/);
+  assert.match(account, /member\.js\?v=28/);
   assert.doesNotMatch(account, /member\.js\?v=25/);
-  assert.match(read("shop.js"), /member\.js\?v=27/);
+  assert.match(read("shop.js"), /member\.js\?v=28/);
   assert.doesNotMatch(read("shop.js"), /member\.js\?v=25/);
-  assert.match(index, /shop\.js\?v=129/);
+  assert.match(index, /shop\.js\?v=131/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -216,8 +216,8 @@ test("account.html no longer pins stale auth assets", () => {
   const memberPins = account.match(/member\.js\?v=\d+/g) || [];
   const accountPins = account.match(/account\.js\?v=\d+/g) || [];
   assert.deepStrictEqual(configPins, ["supabase-config.js?v=22"]);
-  assert.deepStrictEqual(memberPins, ["member.js?v=27"]);
-  assert.deepStrictEqual(accountPins, ["account.js?v=6"]);
+  assert.deepStrictEqual(memberPins, ["member.js?v=28"]);
+  assert.deepStrictEqual(accountPins, ["account.js?v=7"]);
   assert.match(member, /provenMemberSession/);
   assert.match(member, /recoverProvenMemberSession/);
   assert.match(member, /refreshSession/);
