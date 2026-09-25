@@ -30,7 +30,7 @@ const FROZEN = {
   "book-shell.html": "685b3d7e3065d832f4922f6268c1cfbf7a2eb1325a443598cb3946ab86184aac",
   "index.html": "caee90498fc0ef3f6c128efe6b915559a59be659d9f1264e2bc4521c5c5fbc4d",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "80ccb08cc43391f2bc7d230fbe785b817fc02446a41097be1a1e7dacc2c4adc6",
+  "vercel.json": "5f7c347d0b8ac2a40bac10ba0ee0189abaa774e01d83d25af3c15b8f68f75d15",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -340,6 +340,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "api/category-listing.js",
     "vercel.json",
     "scripts/category-first-byte-seo-tests.js",
+    "scripts/category-template-packaging-tests.js",
     "scripts/static-preview-server.js",
     "scripts/l3-custom-404-page-tests.js",
     "tests/e2e/listing-catalog-boot.spec.js",

@@ -433,5 +433,10 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/category-listing.js": {
+      "includeFiles": "{adabiyat,adabiyat-roman,children,dastanlar,derslik,dictionary,dini,dunya-edebiyati,grammar,hekayiler,romanlar,sheirlar,tarikhiy-romanlar,terbiye,tibb,universal,uyghur-adabiyati}.html"
+    }
+  }
 }
