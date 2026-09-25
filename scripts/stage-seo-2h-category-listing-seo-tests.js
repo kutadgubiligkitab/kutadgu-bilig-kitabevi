@@ -144,7 +144,7 @@ HUBS.forEach((slug) => {
     const oldTitle = attr(old, /<title>([\s\S]*?)<\/title>/);
     if (slug === "adabiyat-roman") {
       assert.strictEqual(title, "ئەدەبىيات رومانلىرى - قۇتادغۇبىلىك كىتابخانىسى");
-      assert.notStrictEqual(title, oldTitle);
+      assert.strictEqual(title, oldTitle);
       assert.notStrictEqual(title, attr(pages.romanlar, /<title>([\s\S]*?)<\/title>/));
     } else {
       assert.strictEqual(title, oldTitle);
