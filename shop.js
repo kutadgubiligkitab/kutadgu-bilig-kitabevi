@@ -1121,7 +1121,7 @@ function noteStorefrontEngagement(action,bookId){
 function ensureBookViewCounts(){
   try{
     if(document.querySelector('script[src*="kutadgu-book-views.js"]'))return;
-    loadAssetScript("/kutadgu-book-views.js?v=2","kutadguBookViewsScript").catch(()=>{});
+    loadAssetScript("/kutadgu-book-views.js?v=3","kutadguBookViewsScript").catch(()=>{});
   }catch(err){}
 }
 const trackedBookViews=new Set();
@@ -1441,9 +1441,36 @@ async function queryCatalog(input={},options={}){
   return staticQueryPage(state);
 }
 
+const CATALOG_PROBE_TTL_MS=10*60*1000;
+
+function readCatalogProbe(key){
+  try{
+    if(typeof sessionStorage==="undefined")return null;
+    const raw=sessionStorage.getItem(key);
+    if(!raw)return null;
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object")return null;
+    const at=Number(parsed.at);
+    if(!Number.isFinite(at)||Date.now()-at>CATALOG_PROBE_TTL_MS)return null;
+    return parsed;
+  }catch(e){return null}
+}
+function writeCatalogProbe(key,value){
+  try{
+    if(typeof sessionStorage==="undefined")return;
+    sessionStorage.setItem(key,JSON.stringify({...value,at:Date.now()}));
+  }catch(e){}
+}
+
 async function loadInactiveRemoteIndex(){
   if(!remoteCatalog.available){
     inactiveRemoteKeys=new Set();
+    rebuildVisibleCatalog();
+    return;
+  }
+  const cachedInactive=readCatalogProbe("kutadgu-inactive-books-v1");
+  if(cachedInactive&&Array.isArray(cachedInactive.keys)){
+    inactiveRemoteKeys=new Set(cachedInactive.keys.map(item=>String(item||"").trim()).filter(Boolean));
     rebuildVisibleCatalog();
     return;
   }
@@ -1480,6 +1507,7 @@ async function loadInactiveRemoteIndex(){
         }
         return next;
       })();
+    writeCatalogProbe("kutadgu-inactive-books-v1",{keys:[...inactiveRemoteKeys]});
   }catch(error){
     console.warn("Inactive catalog index could not be loaded.",error);
   }
@@ -1490,6 +1518,18 @@ async function loadRemoteCatalog(){
   const cfg=supabasePublicConfig();
   remoteCatalog.configured=!!(cfg.url&&cfg.key);
   if(!remoteCatalog.configured){window.KUTADGU_CATALOG_STATUS=catalogStatus;return}
+  const cachedActive=readCatalogProbe("kutadgu-catalog-active-count-v1");
+  const cachedTotal=cachedActive?Number(cachedActive.total):NaN;
+  if(Number.isFinite(cachedTotal)&&cachedTotal>0){
+    remoteCatalog.available=true;
+    remoteCatalog.total=cachedTotal;
+    beginRemoteVisibleCatalog();
+    rebuildVisibleCatalog();
+    await loadInactiveRemoteIndex();
+    catalogStatus={source:"supabase",remoteCount:C.length,total:cachedTotal,migrated:true,error:""};
+    window.KUTADGU_CATALOG_STATUS=catalogStatus;
+    return;
+  }
   const controller=new AbortController();
   const timeoutId=setTimeout(()=>controller.abort(),CATALOG_BOOT_TIMEOUT_MS);
   try{
@@ -1502,6 +1542,7 @@ async function loadRemoteCatalog(){
     const total=totalFromContentRange(response.headers.get("content-range"));
     remoteCatalog.available=true;
     remoteCatalog.total=Number.isFinite(total)?total:null;
+    if(Number.isFinite(total)&&total>0)writeCatalogProbe("kutadgu-catalog-active-count-v1",{total});
     beginRemoteVisibleCatalog();
     rebuildVisibleCatalog();
     if(Number(total)>0)await loadInactiveRemoteIndex();
@@ -3834,6 +3875,18 @@ function applyBestsellerHonesty(hasSales){
 
 async function countPositiveSales(){
   if(Number.isFinite(window.__kutadguPositiveSalesCount))return window.__kutadguPositiveSalesCount;
+  try{
+    const raw=window.sessionStorage&&window.sessionStorage.getItem("kutadgu-positive-sales-v1");
+    if(raw){
+      const parsed=JSON.parse(raw);
+      const total=Number(parsed&&parsed.total);
+      const at=Number(parsed&&parsed.at);
+      if(Number.isFinite(total)&&Number.isFinite(at)&&Date.now()-at<10*60*1000){
+        window.__kutadguPositiveSalesCount=total;
+        return total;
+      }
+    }
+  }catch(e){}
   const cfg=supabasePublicConfig();
   if(cfg&&cfg.url&&cfg.key){
     try{
@@ -3851,6 +3904,9 @@ async function countPositiveSales(){
       const total=Number(String(range).split("/")[1]);
       if(Number.isFinite(total)){
         window.__kutadguPositiveSalesCount=total;
+        try{
+          if(window.sessionStorage)window.sessionStorage.setItem("kutadgu-positive-sales-v1",JSON.stringify({at:Date.now(),total}));
+        }catch(e){}
         return total;
       }
     }catch(err){console.warn("positive sales count skipped",err)}

@@ -21,7 +21,7 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "99cf02a2501d90dc95fedeb21bf623b686fe1429e1dbaa4388275bec46761986",
+  "shop.js": "24e71d6008f74c7dc31a0e8d9961760c0964b35669aa9a1aa04f050f8edd909a",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
@@ -394,7 +394,11 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/admin-stock-foundation.spec.js",
     "tests/e2e/admin-suggest-save-refresh.spec.js",
     "tests/e2e/book-interior-print-type.spec.js",
-    "tests/e2e/public-book-card-row-alignment.spec.js"
+    "tests/e2e/public-book-card-row-alignment.spec.js",
+    "tests/e2e/helpers.js",
+    "scripts/ci-supabase-egress-protection-tests.js",
+    "scripts/bestseller-public-config-tests.js",
+    "store-hours-content.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

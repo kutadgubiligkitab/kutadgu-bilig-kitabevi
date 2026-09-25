@@ -10,6 +10,25 @@ const { bookCanonicalUrl } = seo;
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const LOOKUP_TIMEOUT_MS = 4000;
+const LOOKUP_CACHE_MS = 2 * 60 * 1000;
+const lookupCache = new Map();
+
+function cachedPublicLookup(canonical) {
+  const hit = lookupCache.get(canonical);
+  if (!hit) return null;
+  if (Date.now() - hit.at > LOOKUP_CACHE_MS) {
+    lookupCache.delete(canonical);
+    return null;
+  }
+  return hit.value;
+}
+
+function rememberPublicLookup(canonical, result, cacheable) {
+  if (!cacheable || !result) return result;
+  if (result.outcome !== "found" && result.outcome !== "missing") return result;
+  lookupCache.set(canonical, { at: Date.now(), value: result });
+  return result;
+}
 
 function isCanonicalBookId(value) {
   return visibility.isCanonicalBookId(value);
@@ -157,7 +176,12 @@ function bookDocumentTitle(book) {
 async function lookupPublicNumericBook(id, options) {
   const canonical = String(id == null ? "" : id).trim();
   if (!isCanonicalBookId(canonical)) return { outcome: "invalid" };
-  const fetchFn = (options && options.fetchImpl) || fetch;
+  const customFetch = options && options.fetchImpl;
+  if (!customFetch) {
+    const cached = cachedPublicLookup(canonical);
+    if (cached) return cached;
+  }
+  const fetchFn = customFetch || fetch;
   const timeoutMs = Number((options && options.timeoutMs) || LOOKUP_TIMEOUT_MS);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -182,9 +206,9 @@ async function lookupPublicNumericBook(id, options) {
     }
     if (!Array.isArray(rows)) return { outcome: "error", reason: "bad-json" };
     const row = rows.find((item) => String(item && item.id) === canonical);
-    if (!row) return { outcome: "missing" };
+    if (!row) return rememberPublicLookup(canonical, { outcome: "missing" }, !customFetch);
     const book = publicSeoBook(row, canonical);
-    return book ? { outcome: "found", book } : { outcome: "missing" };
+    return rememberPublicLookup(canonical, book ? { outcome: "found", book } : { outcome: "missing" }, !customFetch);
   } catch (err) {
     const name = err && err.name;
     return { outcome: "error", reason: name === "AbortError" ? "timeout" : "network" };

@@ -993,6 +993,30 @@ test("AI result cards bind canonical ids for the shared counter", () => {
   assert.match(ui, /controller\.abort\(\)/);
 });
 
+test("local preview hosts do not request book_view_stats", async () => {
+  global.location = { hostname: "127.0.0.1", pathname: "/romanlar.html" };
+  try {
+    let calls = 0;
+    const card = listingCard("20", "A");
+    const grid = cardGrid([card]);
+    const result = await Views.hydrate(grid, {
+      force: true,
+      now: 1,
+      config: statsConfig,
+      fetchImpl() {
+        calls += 1;
+        return statsResponse([{ book_id: "20", total_views: 40 }]);
+      }
+    });
+    assert.strictEqual(calls, 0);
+    assert.strictEqual(result.requests, 0);
+    assert.strictEqual(result.skipped, "local");
+    assert.ok(Views.CACHE_MS >= 5 * 60 * 1000);
+  } finally {
+    delete global.location;
+  }
+});
+
 (async function runBookViewTests() {
   for (const item of pending) {
     try {

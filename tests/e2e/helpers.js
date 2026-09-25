@@ -123,7 +123,59 @@ function memberCreds() {
  * Default maintenance_mode to false so the suite does not depend on the live flag.
  * Default also stubs Supabase public book-covers Storage GETs/HEADs with a tiny local PNG
  * so CI does not download real cover bytes. Pass { allowLiveBookCovers: true } to opt out.
+ * Repeated read probes (view totals, catalog availability, inactive index, sales HEAD)
+ * are fulfilled locally. Live select=* catalog queries still continue.
  */
+function isBookViewStatsRead(url, method) {
+  const verb = String(method || "").toUpperCase();
+  if (verb !== "GET" && verb !== "HEAD") return false;
+  return String(url || "").includes("/rest/v1/book_view_stats");
+}
+
+function isCatalogAvailabilityProbe(url, method) {
+  const verb = String(method || "").toUpperCase();
+  if (verb !== "HEAD" && verb !== "GET") return false;
+  let parsed;
+  try {
+    parsed = new URL(String(url || ""), "https://example.supabase.co");
+  } catch (err) {
+    return false;
+  }
+  if (!parsed.pathname.endsWith("/books")) return false;
+  const select = parsed.searchParams.get("select") || "";
+  if (select !== "id") return false;
+  if ((parsed.searchParams.get("is_active") || "") !== "eq.true") return false;
+  if (parsed.searchParams.has("sales_count")) return false;
+  const keys = [...parsed.searchParams.keys()];
+  return keys.every((key) => key === "select" || key === "is_active");
+}
+
+function isPositiveSalesHead(url, method) {
+  if (String(method || "").toUpperCase() !== "HEAD") return false;
+  let parsed;
+  try {
+    parsed = new URL(String(url || ""), "https://example.supabase.co");
+  } catch (err) {
+    return false;
+  }
+  if (!parsed.pathname.endsWith("/books")) return false;
+  return (parsed.searchParams.get("select") || "") === "id" && (parsed.searchParams.get("sales_count") || "") === "gt.0";
+}
+
+function isInactiveIndexRead(url, method) {
+  const verb = String(method || "").toUpperCase();
+  if (verb !== "GET" && verb !== "HEAD") return false;
+  let parsed;
+  try {
+    parsed = new URL(String(url || ""), "https://example.supabase.co");
+  } catch (err) {
+    return false;
+  }
+  if (!parsed.pathname.endsWith("/books")) return false;
+  const select = parsed.searchParams.get("select") || "";
+  return select === "id,legacy_id" && (parsed.searchParams.get("is_active") || "") === "eq.false";
+}
+
 async function installReadSafeNetwork(page, opts = {}) {
   if (opts && opts.allowLiveBookCovers) allowLiveBookCovers(page);
   await installBookCoverEgressGuard(page);
@@ -169,6 +221,37 @@ async function installReadSafeNetwork(page, opts = {}) {
           status: 404,
           contentType: "application/json",
           body: JSON.stringify({ code: "PGRST205", message: "Could not find the table" })
+        });
+      }
+      if (isBookViewStatsRead(url, method)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: "[]"
+        });
+      }
+      if (isCatalogAvailabilityProbe(url, method)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "content-range": "0-0/1" },
+          body: method === "HEAD" ? "" : "[]"
+        });
+      }
+      if (isPositiveSalesHead(url, method)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "content-range": "*/0" },
+          body: ""
+        });
+      }
+      if (isInactiveIndexRead(url, method)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "content-range": "*/0" },
+          body: "[]"
         });
       }
       return route.continue();
@@ -580,6 +663,10 @@ module.exports = {
   BOOK_COVER_STUB_PATH,
   BOOK_COVER_STUB,
   isSupabaseBookCoverStorageUrl,
+  isBookViewStatsRead,
+  isCatalogAvailabilityProbe,
+  isPositiveSalesHead,
+  isInactiveIndexRead,
   mockedBookCoverRequests,
   allowLiveBookCovers,
   stubNumericBookDocuments,
