@@ -2,15 +2,17 @@
 
 const { test: base, expect, devices } = require("@playwright/test");
 const {
-  installBookCoverEgressGuard,
-  logMockedBookCoverSummary
+  installReadSafeNetwork,
+  logMockedBookCoverSummary,
+  logSupabaseReadCacheSummary
 } = require("./helpers");
 
 const test = base.extend({
   page: async ({ page }, use, testInfo) => {
-    await installBookCoverEgressGuard(page);
+    await installReadSafeNetwork(page);
     await use(page);
     logMockedBookCoverSummary(testInfo, page);
+    logSupabaseReadCacheSummary(testInfo, page);
   }
 });
 
