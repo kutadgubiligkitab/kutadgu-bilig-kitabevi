@@ -30,7 +30,7 @@ const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "kutadgu-book-seo.js": "bd97183c340ee91b02162e72c59b2e73a7a675319a89285a5037ed6ddacba8d1",
+  "kutadgu-book-seo.js": "940434b4c1845e7f11748920183ea951e65f34c5848592ef2058422793f7a86e",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "685b3d7e3065d832f4922f6268c1cfbf7a2eb1325a443598cb3946ab86184aac",
   "index.html": "caee90498fc0ef3f6c128efe6b915559a59be659d9f1264e2bc4521c5c5fbc4d",
@@ -122,6 +122,13 @@ function metaValue(html, label) {
 function metaName(html, name) {
   const match = html.match(new RegExp(`<meta\\s+name=["']${name}["']\\s+content="([^"]*)"`, "i"));
   return match ? match[1] : "";
+}
+
+function bookNodeOf(payload) {
+  return payload["@graph"].find((node) => {
+    const type = node && node["@type"];
+    return type === "Book" || (Array.isArray(type) && type.includes("Book"));
+  });
 }
 
 function jsonLd(html) {
@@ -242,7 +249,7 @@ async function run() {
     assert.ok(withDesc.body.includes('property="og:url" content="https://www.kutadgubilik.com/book/217"'));
     assert.strictEqual(metaName(withDesc.body, "description"), "تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش.");
     const payload = jsonLd(withDesc.body);
-    const bookNode = payload["@graph"].find((node) => node["@type"] === "Book");
+    const bookNode = bookNodeOf(payload);
     assert.strictEqual(bookNode.description, "تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش.");
     assert.ok(payload["@graph"].some((node) => node["@type"] === "BreadcrumbList"));
     assert.match(withDesc.body, /<div class="book-detail-info">\s*<h1>تارىخىمىزدىكى خاقانلار<\/h1>/);
@@ -260,8 +267,8 @@ async function run() {
     assert.match(fallback, /تارىخىمىزدىكى خاقانلار/);
     assert.match(fallback, /ئاپتور: نۇرۇللا مۇئمىن يۇلغۇن/);
     assert.match(fallback, /قۇتادغۇبىلىك كىتابخانىسى/);
-    const noDescLd = jsonLd(noDesc.body)["@graph"].find((node) => node["@type"] === "Book");
-    assert.ok(!noDescLd.description);
+    const noDescLd = bookNodeOf(jsonLd(noDesc.body));
+    assert.strictEqual(noDescLd.description, fallback);
   });
 
   await test("L: missing book stays 404 noindex without book-meta leak", async () => {
@@ -306,7 +313,6 @@ async function run() {
       "kutadgu-search-rank.js",
       "kutadgu-ai-search.js",
       "api/ai-search.js",
-      "kutadgu-book-seo.js",
       "api/book-public.js",
       "book-shell.html",
       "index.html",

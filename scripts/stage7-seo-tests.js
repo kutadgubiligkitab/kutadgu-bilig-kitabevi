@@ -191,7 +191,8 @@ jobs.push(test("isbnIfTrustworthy requires a valid ISBN checksum", () => {
   }, { visible: true, stockKey: "in", image: "https://www.kutadgubilik.com/covers/x.jpg" });
   const node = omitted["@graph"][0];
   assert.ok(!Object.prototype.hasOwnProperty.call(node, "isbn"));
-  assert.strictEqual(node["@type"], "Book");
+  assert.ok(!Object.prototype.hasOwnProperty.call(node, "gtin13"));
+  assert.deepStrictEqual(node["@type"], ["Product", "Book"]);
   assert.strictEqual(node.name, "كىتاب");
   assert.strictEqual(node.url, "https://www.kutadgubilik.com/book/129");
   assert.strictEqual(node.author.name, "ئابدۇرېھىم ئۆتكۈر");
@@ -245,7 +246,9 @@ jobs.push(test("Book JSON-LD breadcrumb uses clean public category URLs", () => 
   }, { visible: true, stockKey: "in", image: "https://www.kutadgubilik.com/covers/x.jpg" });
   const book = json["@graph"][0];
   const crumbs = json["@graph"][1].itemListElement;
-  assert.strictEqual(book["@type"], "Book");
+  assert.deepStrictEqual(book["@type"], ["Product", "Book"]);
+  assert.strictEqual(book.gtin13, "9789750802959");
+  assert.strictEqual(book.sku, "KBG-122");
   assert.strictEqual(book.name, "كىتاب");
   assert.strictEqual(book.url, "https://www.kutadgubilik.com/book/122");
   assert.strictEqual(book.author.name, "ئابدۇرېھىم ئۆتكۈر");

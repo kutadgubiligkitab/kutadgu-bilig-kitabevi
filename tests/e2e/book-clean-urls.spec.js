@@ -1,6 +1,13 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
+function bookNodeOf(payload) {
+  return (payload["@graph"] || []).find((node) => {
+    const type = node && node["@type"];
+    return type === "Book" || (Array.isArray(type) && type.includes("Book"));
+  });
+}
+
 test.describe("book clean URLs", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
@@ -23,7 +30,8 @@ test.describe("book clean URLs", () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", canonical);
     await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", canonical);
     const jsonLd = JSON.parse(await page.locator("#kutadguBookSchema").textContent());
-    const bookNode = (jsonLd["@graph"] || []).find((n) => n["@type"] === "Book");
+    const bookNode = bookNodeOf(jsonLd);
+    expect(await page.locator("#kutadguBookSchema").count()).toBe(1);
     expect(bookNode && bookNode.url).toBe(canonical);
     expect(failed, failed.join("\n")).toEqual([]);
   });
@@ -111,7 +119,13 @@ test.describe("book clean URLs", () => {
     const schemaMatch = html.match(/<script id="kutadguBookSchema" type="application\/ld\+json">([\s\S]*?)<\/script>/);
     expect(schemaMatch).toBeTruthy();
     const payload = JSON.parse(schemaMatch[1]);
-    const bookNode = (payload["@graph"] || []).find((node) => node["@type"] === "Book");
+    const bookNode = bookNodeOf(payload);
+    const types = [].concat(bookNode["@type"]);
+    expect(types).toContain("Book");
+    if (bookNode.offers && Number(bookNode.offers.price) > 0) {
+      expect(types).toContain("Product");
+      expect((payload["@graph"] || []).filter((node) => [].concat(node["@type"]).includes("Product")).length).toBe(1);
+    }
     expect(bookNode).toBeTruthy();
     expect(bookNode.url).toBe(canonical);
     expect(String(bookNode.name || "").trim().length).toBeGreaterThan(0);
