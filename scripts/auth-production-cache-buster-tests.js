@@ -7,7 +7,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const REQUIRED = {
   "supabase-config.js": "22",
-  "shop.js": "130",
+  "shop.js": "131",
   "member.js": "28"
 };
 const SCRIPT_SRC = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;

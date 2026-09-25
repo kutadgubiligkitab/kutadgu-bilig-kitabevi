@@ -251,6 +251,15 @@ test.describe("Stage Search 1A relevance ranking", () => {
     expect(digit).toContain("title.ilike.*2*");
     expect(digit).not.toContain("isbn.ilike.*2*");
     expect(digit).not.toContain("isbn.eq.2");
+    for (const query of ["978722810", "97872281099", "978722810999", "97872281099990"]) {
+      const partial = await searchFor(query);
+      expect(partial).toContain(`title.ilike.*${query}*`);
+      expect(partial).not.toContain(`isbn.ilike.*${query}*`);
+      expect(partial).not.toContain(`isbn.eq.${query}`);
+    }
+    const isbn10 = await searchFor("0306406152");
+    expect(isbn10).toContain("isbn.eq.0306406152");
+    expect(isbn10).toContain("title.ilike.*0306406152*");
     const isbn = await searchFor("9787228109999");
     expect(isbn).toContain("isbn.eq.9787228109999");
     expect(isbn).toContain("title.ilike.*9787228109999*");

@@ -36,7 +36,7 @@ function searchApi() {
     "  } };\n" +
     "}\n" +
     src +
-    "\nreturn { searchDigitShape, storefrontSearchMatchParts };"
+    "\nreturn { searchDigitShape, storefrontSearchMatchParts, storefrontStaticSearchHaystack };"
   )();
 }
 
@@ -60,8 +60,12 @@ test("zzzznotabook999 does not match ISBN only because it contains 999", () => {
   const parts = api.storefrontSearchMatchParts(COLS, "*zzzznotabook999*", "zzzznotabook999");
   assert.ok(parts.includes("title.ilike.*zzzznotabook999*"));
   assert.ok(parts.includes("author.ilike.*zzzznotabook999*"));
-  assert.ok(!parts.some((part) => part === "isbn.ilike.*999*" || part === "isbn.eq.999"));
+  assert.ok(parts.includes("category.ilike.*zzzznotabook999*"));
+  assert.ok(!parts.some((part) => part.startsWith("isbn.")));
   assert.ok(parts.every((part) => part.includes("zzzznotabook999")));
+  const hay = api.storefrontStaticSearchHaystack({ title: "باشقا", author: "Y", isbn: "9787228109999" }, "zzzznotabook999");
+  assert.ok(hay.includes("باشقا"));
+  assert.ok(!hay.includes("9787228109999"));
 });
 
 test("short digit query does not search ISBN", () => {
@@ -71,6 +75,39 @@ test("short digit query does not search ISBN", () => {
   assert.ok(!parts.some((part) => part.startsWith("isbn.")));
   assert.strictEqual(api.searchDigitShape("999").shortDigit, true);
   assert.strictEqual(api.searchDigitShape("999").isbnLike, false);
+});
+
+test("digit lengths other than 10 or 13 do not search ISBN", () => {
+  ["978722810", "97872281099", "978722810999", "97872281099990"].forEach((query) => {
+    const parts = api.storefrontSearchMatchParts(COLS, `*${query}*`, query);
+    assert.strictEqual(api.searchDigitShape(query).isbnLike, false, query);
+    assert.ok(parts.includes(`title.ilike.*${query}*`), query);
+    assert.ok(parts.includes(`author.ilike.*${query}*`), query);
+    assert.ok(!parts.some((part) => part.startsWith("isbn.")), query + " " + parts.join("|"));
+    const hay = api.storefrontStaticSearchHaystack({
+      title: "باشقا",
+      author: "Y",
+      category: "رومان",
+      isbn: "9787228109999"
+    }, query);
+    assert.ok(hay.includes("باشقا"), query);
+    assert.ok(!hay.includes("9787228109999"), query);
+  });
+});
+
+test("valid 10-digit and 13-digit queries still search ISBN", () => {
+  const ten = api.storefrontSearchMatchParts(COLS, "*0306406152*", "0306406152");
+  assert.strictEqual(api.searchDigitShape("0306406152").isbnLike, true);
+  assert.ok(ten.includes("title.ilike.*0306406152*"));
+  assert.ok(ten.includes("isbn.ilike.*0306406152*"));
+  assert.ok(ten.includes("isbn.eq.0306406152"));
+  const thirteen = api.storefrontSearchMatchParts(COLS, "*9787228109999*", "9787228109999");
+  assert.strictEqual(api.searchDigitShape("9787228109999").isbnLike, true);
+  assert.ok(thirteen.includes("isbn.eq.9787228109999"));
+  assert.ok(thirteen.includes("title.ilike.*9787228109999*"));
+  const book = { title: "باشقا", author: "Y", isbn: "9787228109999" };
+  assert.ok(api.storefrontStaticSearchHaystack(book, "9787228109999").includes("9787228109999"));
+  assert.ok(api.storefrontStaticSearchHaystack({ title: "باشقا", isbn: "0306406152" }, "0306406152").includes("0306406152"));
 });
 
 test("a real ISBN and a hyphenated ISBN still search ISBN", () => {
@@ -99,8 +136,13 @@ test("title and author searches stay full-query matches", () => {
 
 test("shop no longer ORs an extracted digit fragment into ISBN", () => {
   const remote = sliceBetween(shop, "function remoteBooksUrl(input={},flags={}){", "function totalFromContentRange");
+  const staticFn = sliceBetween(shop, "function staticQueryPage(input={}){", "function remoteOrder");
   assert.match(remote, /Rank\.postgrestPattern\?Rank\.postgrestPattern\(state\.search\)/);
   assert.match(remote, /storefrontSearchMatchParts\(cols,term,state\.search\)/);
+  assert.match(staticFn, /storefrontStaticSearchHaystack\(book,state\.search\)/);
+  assert.match(staticFn, /if\(!shape\.isbnLike\|\|!shape\.digits\)return false/);
+  assert.doesNotMatch(staticFn, /shape\.shortDigit/);
+  assert.match(shop, /filter\(col=>col!=="isbn"\|\|shape\.isbnLike\)/);
   assert.doesNotMatch(remote, /isbn\.ilike\.\*\$\{digits\}\*/);
   assert.doesNotMatch(shop, /digits!==state\.search/);
 });

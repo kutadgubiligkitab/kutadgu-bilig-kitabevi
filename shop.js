@@ -1210,11 +1210,7 @@ function staticQueryPage(input={}){
   if(state.category)rows=rows.filter(book=>book.category===state.category);
   if(q)rows=rows.filter(book=>{
     const shape=searchDigitShape(state.search);
-    const hay=shape.shortDigit
-      ?[book.title,book.author,book.category,book.translator,book.publisher].filter(Boolean).join(" ")
-      :(bibliographicLib().staticSearchHaystack
-        ?bibliographicLib().staticSearchHaystack(book)
-        :[book.title,book.author,book.category,book.translator,book.publisher,book.isbn].filter(Boolean).join(" "));
+    const hay=storefrontStaticSearchHaystack(book,state.search);
     if(searchNormalize(hay).includes(q))return true;
     if(!shape.isbnLike||!shape.digits)return false;
     const digitsFn=bibliographicLib().normalizeIsbnDigits||(value=>String(value??"").replace(/[\s-]+/g,"").replace(/[^0-9Xx]/g,""));
@@ -1287,13 +1283,20 @@ function searchDigitShape(search){
 }
 function storefrontSearchMatchParts(columns, term, search){
   const shape=searchDigitShape(search);
-  const cols=(columns||[]).filter(col=>col!=="isbn"||shape.isbnLike||!shape.shortDigit);
+  const cols=(columns||[]).filter(col=>col!=="isbn"||shape.isbnLike);
   const parts=cols.map(col=>`${col}.ilike.${term}`);
   if(shape.isbnLike&&shape.digits){
     parts.push(`isbn.ilike.*${shape.digits}*`);
     if(/^[0-9X]+$/i.test(shape.digits))parts.push(`isbn.eq.${shape.digits}`);
   }
   return parts;
+}
+function storefrontStaticSearchHaystack(book, search){
+  const shape=searchDigitShape(search);
+  if(shape.isbnLike&&bibliographicLib().staticSearchHaystack)return bibliographicLib().staticSearchHaystack(book);
+  const fields=[book&&book.title,book&&book.author,book&&book.category,book&&book.translator,book&&book.publisher];
+  if(shape.isbnLike)fields.push(book&&book.isbn);
+  return fields.filter(Boolean).join(" ");
 }
 function remoteBooksUrl(input={},flags={}){
   const cfg=supabasePublicConfig(),state=normalizeQueryState(input),params=new URLSearchParams({select:flags.rankFields?rankSelectList():"*"});
