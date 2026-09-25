@@ -128,7 +128,7 @@ test("existing known route rewrites remain untouched", () => {
     (vercel.rewrites || []).find(
       (rule) => rule.source === source && rule.destination === destination
     );
-  assert.ok(bySource("/adabiyat", "/adabiyat.html"));
+  assert.ok(bySource("/adabiyat", "/api/category-listing?slug=adabiyat"));
   assert.ok(bySource("/books", "/books.html"));
   assert.ok(bySource("/book/:id(\\d+)", "/api/book-public?id=:id"));
   assert.ok(bySource("/book/:id", "/book-shell.html"));

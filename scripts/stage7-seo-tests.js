@@ -321,7 +321,7 @@ jobs.push(test("category hub clean URLs are explicit redirects+rewrites without 
     assert.strictEqual(redirect.destination, `/${slug}`);
     assert.strictEqual(redirect.permanent, true);
     assert.ok(rewrite, `missing rewrite for ${slug}`);
-    assert.strictEqual(rewrite.destination, `/${slug}.html`);
+    assert.strictEqual(rewrite.destination, `/api/category-listing?slug=${slug}`);
     assert.ok(!(vercel.redirects || []).some(r => r.source === `/${slug}` && r.destination === `/${slug}.html`));
   });
   assert.ok(!(vercel.redirects || []).some(r => r.source === "/book.html"), "vercel.json must not 308 every /book.html");

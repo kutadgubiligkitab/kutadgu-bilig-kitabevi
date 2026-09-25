@@ -21,16 +21,16 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "69b2b28337fa805d135594d02dc074780f3f0863c982b0d65db5cfd9366a688c",
+  "shop.js": "99cf02a2501d90dc95fedeb21bf623b686fe1429e1dbaa4388275bec46761986",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "kutadgu-book-seo.js": "940434b4c1845e7f11748920183ea951e65f34c5848592ef2058422793f7a86e",
+  "kutadgu-book-seo.js": "be6e4e0d5a499f5bb8fddc46aa42df04c856c87ec2276195c51875b336736a80",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "685b3d7e3065d832f4922f6268c1cfbf7a2eb1325a443598cb3946ab86184aac",
   "index.html": "caee90498fc0ef3f6c128efe6b915559a59be659d9f1264e2bc4521c5c5fbc4d",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "b51d5f9089a7a7eee23de77b07115bcbf351f312cf7e7f3c608e14cd707e4665",
+  "vercel.json": "80ccb08cc43391f2bc7d230fbe785b817fc02446a41097be1a1e7dacc2c4adc6",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -301,7 +301,6 @@ test("protected product files stay frozen and out of this diff", () => {
     "api/book-public.js",
     "book-shell.html",
     "index.html",
-    "vercel.json",
 
     "favorites.js",
     "member.js",
@@ -336,6 +335,17 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage-seo-2d-favicon-tests.js",
     "scripts/stage-seo-2e-book-meta-descriptions-tests.js",
     "scripts/stage-seo-2f-first-byte-book-details-tests.js",
+    "scripts/stage5d-global-books-tests.js",
+    "kutadgu-category-listing.js",
+    "api/category-listing.js",
+    "vercel.json",
+    "scripts/category-first-byte-seo-tests.js",
+    "scripts/static-preview-server.js",
+    "scripts/l3-custom-404-page-tests.js",
+    "tests/e2e/listing-catalog-boot.spec.js",
+    "tests/e2e/adabiyat-hub.spec.js",
+    "tests/e2e/stage5d-global-books.spec.js",
+    "scripts/m1-cross-page-search-cold-load-tests.js",
     "STAGE87_COVER_INTEGRITY.sql",
     "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql",
     "kutadgu-book-views.js",

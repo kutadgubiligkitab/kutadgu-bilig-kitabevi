@@ -92,6 +92,13 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (/^\/api\/category-listing\/?$/i.test(url.pathname) || (hubSlug && (sitemap.CATEGORY_HUB_SLUGS || []).indexOf(hubSlug) >= 0 && !url.pathname.endsWith(".html"))) {
+    const handler = require(path.join(root, "api/category-listing.js"));
+    Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
+      send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex, follow" }, "temporary failure");
+    });
+    return;
+  }
   if (seo.isLegacyBookQueryPath(url.pathname)) {
     const location = seo.legacyNumericIdRedirectPath(url.search);
     if (location) {

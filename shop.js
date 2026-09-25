@@ -468,11 +468,22 @@ function liveListingGrid(){
 function liveListingWaiting(){
   const grid=liveListingGrid();
   if(!grid)return false;
+  if(grid.getAttribute("data-ssr-catalog")==="1"&&!grid.hasAttribute("data-catalog-client"))return true;
   return !grid.hasAttribute("data-catalog-ready");
+}
+function ssrListingPresent(grid){
+  const node=grid||liveListingGrid();
+  if(!node||node.getAttribute("data-ssr-catalog")!=="1")return false;
+  return !!node.querySelector('a[href^="/book/"]');
 }
 function paintListingBootState(){
   const grid=liveListingGrid();
   if(!grid)return;
+  if(ssrListingPresent(grid)){
+    grid.setAttribute("data-catalog-ready","");
+    grid.setAttribute("aria-busy","false");
+    return;
+  }
   grid.setAttribute("aria-busy","true");
   grid.removeAttribute("data-catalog-ready");
   const hasDemo=!!grid.querySelector(".book-card:not(.is-skeleton), img[src*='sample-book-cover']");
@@ -2956,8 +2967,8 @@ function searchEnhance(){
       }
     }finally{if(token===requestId)loadingMore=false}
   }
-  if(btn)btn.onclick=()=>run(false);
   let inputTimer;
+  if(btn)btn.onclick=()=>{clearTimeout(inputTimer);run(false)};
   const debouncedRun=()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>run(false),400)};
   input.addEventListener("input",debouncedRun);
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});
@@ -2987,6 +2998,7 @@ function listingCatalogSource(raw){
 function setupCatalogFilters(){
   let grid=document.querySelector(".books-grid[data-catalog-source]");
   if(!grid||document.querySelector("#catalogFilterBar"))return;
+  if(ssrListingPresent(grid))bindDynamicActions(grid);
   const isAdabiyatHub=grid.hasAttribute("data-adabiyat-hub");
   const defaultSource=listingCatalogSource(grid.dataset.catalogSource);
   const hubSources=isAdabiyatHub
@@ -3073,6 +3085,15 @@ function setupCatalogFilters(){
     };
     return catalogQueryState.listing;
   }
+  function listingFiltersIdle(){
+    if(text&&String(text.value||"").trim())return false;
+    if(collection&&collection.value)return false;
+    if(minEl&&String(minEl.value||"").trim())return false;
+    if(maxEl&&String(maxEl.value||"").trim())return false;
+    if(sortEl&&sortEl.value&&sortEl.value!=="relevance")return false;
+    if(hubSub)return false;
+    return true;
+  }
   function draw(result,append=false){
     if(append){
       const known=new Set(items.map(book=>book.id));
@@ -3080,6 +3101,7 @@ function setupCatalogFilters(){
     }else items=[...result.items];
     grid.innerHTML=items.map((b,i)=>dynamicListingCard(b,i)).join("");
     grid.setAttribute("data-catalog-ready","");
+    grid.setAttribute("data-catalog-client","1");
     grid.setAttribute("aria-busy","false");
     bindDynamicActions(grid);
     count.textContent=`${items.length} / ${result.total} كىتاب كۆرسىتىلدى`;
@@ -3105,10 +3127,14 @@ function setupCatalogFilters(){
     if(append){const button=controls.querySelector(".catalog-load-more");if(button){button.disabled=true;button.textContent="يۈكلىنىۋاتىدۇ…"}}
     else{
       items=[];
-      grid.removeAttribute("data-catalog-ready");
-      grid.setAttribute("aria-busy","true");
-      if(!grid.querySelector(".book-card.is-skeleton"))grid.innerHTML=listingBootSkeletonMarkup(6);
-      controls.innerHTML="";count.textContent="";
+      const preserveSsr=ssrListingPresent(grid)&&!grid.hasAttribute("data-catalog-client")&&listingFiltersIdle();
+      if(!preserveSsr){
+        grid.removeAttribute("data-catalog-ready");
+        grid.setAttribute("aria-busy","true");
+        if(!grid.querySelector(".book-card.is-skeleton"))grid.innerHTML=listingBootSkeletonMarkup(6);
+        count.textContent="";
+      }
+      controls.innerHTML="";
     }
     try{
       const result=await queryCatalog(state,{signal:controller.signal});
@@ -3118,13 +3144,18 @@ function setupCatalogFilters(){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Category catalog query failed.",error);
         empty.hidden=true;controls.hidden=true;grid.hidden=false;
-        grid.removeAttribute("data-catalog-ready");
-        grid.setAttribute("aria-busy","false");
-        grid.innerHTML=listingErrorMarkup();
-        grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{
-          await loadRemoteCatalog();
-          apply(false);
-        });
+        if(ssrListingPresent(grid)&&!grid.hasAttribute("data-catalog-client")){
+          grid.setAttribute("data-catalog-ready","");
+          grid.setAttribute("aria-busy","false");
+        }else{
+          grid.removeAttribute("data-catalog-ready");
+          grid.setAttribute("aria-busy","false");
+          grid.innerHTML=listingErrorMarkup();
+          grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{
+            await loadRemoteCatalog();
+            apply(false);
+          });
+        }
       }
     }finally{if(token===requestId)loadingMore=false}
   }

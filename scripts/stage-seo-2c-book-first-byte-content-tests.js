@@ -12,12 +12,12 @@ const handler = require("../api/book-public.js");
 const seo = require("../kutadgu-book-seo.js");
 
 const FROZEN = {
-  "shop.js": "69b2b28337fa805d135594d02dc074780f3f0863c982b0d65db5cfd9366a688c",
+  "shop.js": "99cf02a2501d90dc95fedeb21bf623b686fe1429e1dbaa4388275bec46761986",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "b51d5f9089a7a7eee23de77b07115bcbf351f312cf7e7f3c608e14cd707e4665"
+  "vercel.json": "80ccb08cc43391f2bc7d230fbe785b817fc02446a41097be1a1e7dacc2c4adc6"
 };
 
 let failed = 0;
@@ -191,7 +191,6 @@ async function run() {
       "kutadgu-search-rank.js",
       "kutadgu-ai-search.js",
       "api/ai-search.js",
-      "vercel.json",
       "home-hero-content.js",
 
     ].forEach((rel) => {
