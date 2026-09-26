@@ -150,8 +150,7 @@ function listingCardMarkup(book) {
   const badge = info.label && info.key !== "in" && info.key !== "unknown"
     ? `<span class="stock-badge stock-${safeUrl.escapeAttr(info.key)}">${safeUrl.escapeHtml(info.label)}</span>`
     : "";
-  const overlay = info.key === "out" ? `<span class="cover-stock-overlay" aria-hidden="true">تۈگەپ كەتتى</span>` : "";
-  const cover = `<span class="cover-stock-wrap${stateClass}">${coverHtml(book)}${overlay}</span>`;
+  const cover = `<span class="cover-stock-wrap${stateClass}">${coverHtml(book)}</span>`;
   return `<article class="book-card${stateClass}" data-live-book-id="${safeUrl.escapeAttr(id)}">
     <a class="book-image${stateClass}" href="${href}">
       ${cover}
