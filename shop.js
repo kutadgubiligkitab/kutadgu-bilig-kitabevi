@@ -4476,6 +4476,17 @@ function ensureStorefrontCards1aPolishCss(){
     el.setAttribute("data-kutadgu-storefront-cards-1a","1");
   }
   document.head.appendChild(el);
+  ensureStorefrontCoverPresentationCss();
+}
+function ensureStorefrontCoverPresentationCss(){
+  let el=document.querySelector("link[data-kutadgu-cover-presentation]");
+  if(!el){
+    el=document.createElement("link");
+    el.rel="stylesheet";
+    el.href="/storefront-cover-presentation.css?v=1";
+    el.setAttribute("data-kutadgu-cover-presentation","1");
+  }
+  document.head.appendChild(el);
 }
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){

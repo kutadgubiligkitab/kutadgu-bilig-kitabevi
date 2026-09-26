@@ -1,0 +1,87 @@
+/* Storefront cover presentation.
+   Existing cover frames keep their size. Images stay fully visible inside
+   that frame: centered, contained, and never drawn past it.
+   Card text, price, stock, and actions are not restyled here. */
+
+:root{
+  --cover-present-mat:#f4efe4;
+  --cover-present-line:rgba(112, 80, 61, 0.18);
+  --cover-present-shadow:0 8px 16px rgba(75, 51, 39, 0.08);
+  --cover-present-radius:8px;
+}
+
+body.dark-mode{
+  --cover-present-mat:#2a241f;
+  --cover-present-line:rgba(232, 220, 203, 0.22);
+  --cover-present-shadow:0 8px 16px rgba(0, 0, 0, 0.28);
+}
+
+.book-card .book-image,
+.book-card .book-cover,
+.books-grid[data-catalog-source] .book-card .book-image,
+.books-grid[data-catalog-source] .book-card .book-cover,
+.home-carousel-cover,
+.home-feature-cover-frame,
+.premium-card-cover,
+.advanced-search-cover,
+.favorite-cover,
+[data-detail-related] .detail-related-grid .shop-mini-card .cover-stock-wrap,
+[data-recently-viewed] .shop-mini-card .cover-stock-wrap,
+#homeShopSections .shop-mini-card .cover-stock-wrap,
+.book-cover-box:not(.no-cover){
+  background:var(--cover-present-mat) !important;
+  border:1px solid var(--cover-present-line) !important;
+  border-radius:var(--cover-present-radius) !important;
+  box-shadow:var(--cover-present-shadow) !important;
+  box-sizing:border-box !important;
+  max-width:100% !important;
+}
+
+.book-cover-box:not(.no-cover){
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:12px !important;
+}
+
+.book-card .book-image img,
+.book-card .book-cover img,
+.books-grid[data-catalog-source] .book-card .book-image img,
+.books-grid[data-catalog-source] .book-card .book-cover img,
+.books-grid[data-catalog-source] .book-card .cover-stock-wrap img,
+.home-carousel-cover img,
+.home-feature-cover img,
+.home-feature-cover-frame img,
+.premium-card-cover img,
+.advanced-search-cover img,
+.favorite-cover img,
+[data-detail-related] .detail-related-grid .shop-mini-card .cover-stock-wrap img,
+[data-recently-viewed] .shop-mini-card .cover-stock-wrap img,
+#homeShopSections .shop-mini-card .cover-stock-wrap img{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  margin:0 auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  background:transparent !important;
+}
+
+.book-cover-box:not(.no-cover) img{
+  display:block !important;
+  width:auto !important;
+  height:auto !important;
+  max-width:100% !important;
+  max-height:min(72vh, 560px) !important;
+  margin-inline:auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  background:transparent !important;
+}
+
+@media (max-width:700px){
+  :root{--cover-present-radius:7px;}
+  .book-cover-box:not(.no-cover){border-radius:10px !important;}
+}

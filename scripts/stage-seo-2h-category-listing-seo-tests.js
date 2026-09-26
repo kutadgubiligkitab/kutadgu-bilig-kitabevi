@@ -21,14 +21,14 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "7d67c2cc49b176af213c4e54c89644d20e9f13b78d1f0bdff0f054ac20b87e4a",
+  "shop.js": "38569909c9aec9c2d0bd79875edc035ebb54c505a6b86409006e43f52c3ad301",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "be6e4e0d5a499f5bb8fddc46aa42df04c856c87ec2276195c51875b336736a80",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "4c23e52efc13a95d17bdd1aee0db5413b5a5dba87a765bfe7d6b781041cda8a8",
-  "index.html": "167b803baeece647cf2c6fe223baa834c7b34bfc7024c5ded65ca5370ad564f2",
+  "book-shell.html": "526933939bc136be9ef39430fcdc9be1ae5f92d02e93894e56e0f772c4f685d1",
+  "index.html": "6a6188b7de8c294ee319a99136d2cf41bca764f0db92b0883795b76184870306",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "6b64b17147a87f6637df7cc0ed492741e3ce20ccbeb5d13c88e0df2615fb9009",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -162,7 +162,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=132/);
+    assert.match(html, /shop\.js\?v=133/);
     assert.strictEqual(
       attr(html, /data-catalog-source="([^"]*)"/),
       attr(old, /data-catalog-source="([^"]*)"/)
@@ -221,7 +221,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=132/);
+  assert.match(html, /shop\.js\?v=133/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
@@ -402,6 +402,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage4b2-homepage-discovery-tests.js",
     "scripts/storefront-cards-1a-polish-tests.js",
     "scripts/storefront-cards-1b-polish-tests.js",
+    "storefront-cover-presentation.css",
+    "scripts/storefront-cover-presentation-tests.js",
     "tests/e2e/admin-book-cover-picker.spec.js",
     "tests/e2e/admin-book-form-polish.spec.js",
     "tests/e2e/admin-stock-foundation.spec.js",
