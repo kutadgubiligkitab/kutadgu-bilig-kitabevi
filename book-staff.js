@@ -538,6 +538,13 @@ async function requireAal2(client){
   if(level!=="aal2")throw new Error("2-باسقۇچلۇق دەلىللەش كېرەك.");
   return inspect;
 }
+function coverImageApi(){
+  const api=window.KutadguCoverImage;
+  if(!api||typeof api.optimizeUploadImage!=="function"||typeof api.prepareStorageUpload!=="function"){
+    throw new Error("رەسىم تەييارلاش تەييار ئەمەس.");
+  }
+  return api;
+}
 async function uploadStaffCover(client,uid,file){
   const valid=validateCoverFile(file);
   if(!valid)return "";
@@ -546,10 +553,12 @@ async function uploadStaffCover(client,uid,file){
   if(!staff.ok||!staff.staff)throw new Error("كىتاب قوشۇش ھوقۇقى يوق.");
   const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
   const bucket=cfg.bucket||"book-covers";
-  const path=staffCoverObjectPath(uid,valid);
-  if(path.indexOf("staff/"+uid+"/")!==0)throw new Error("مۇقاۋا يولى توغرا ئەمەس.");
   if(bucket!==STAFF_COVER_BUCKET)throw new Error("مۇقاۋا ئادرېسى توغرا ئەمەس.");
-  const {error}=await client.storage.from(bucket).upload(path,valid,{upsert:false,contentType:valid.type||undefined});
+  const preparedFile=await coverImageApi().optimizeUploadImage(valid);
+  const path=staffCoverObjectPath(uid,preparedFile);
+  if(path.indexOf("staff/"+uid+"/")!==0)throw new Error("مۇقاۋا يولى توغرا ئەمەس.");
+  const prepared=await coverImageApi().prepareStorageUpload(preparedFile);
+  const {error}=await client.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
   if(error)throw error;
   const canonical=staffCoverPublicUrl(uid,path);
   let fromApi="";
@@ -575,9 +584,11 @@ async function uploadStaffGallery(client,uid,files){
   const urls=[];
   for(let i=0;i<list.length;i++){
     const valid=validateCoverFile(list[i]);
-    const path=staffGalleryObjectPath(uid,valid,i);
+    const preparedFile=await coverImageApi().optimizeUploadImage(valid);
+    const path=staffGalleryObjectPath(uid,preparedFile,i);
     if(path.indexOf("staff/"+uid+"/gallery/")!==0)throw new Error("ئىچكى رەسىم يولى توغرا ئەمەس.");
-    const {error}=await client.storage.from(bucket).upload(path,valid,{upsert:false,contentType:valid.type||undefined});
+    const prepared=await coverImageApi().prepareStorageUpload(preparedFile);
+    const {error}=await client.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
     if(error)throw error;
     const canonical=assertStaffGalleryPublicUrl(uid,staffGalleryPublicUrl(uid,path));
     let publicUrl=canonical;
@@ -751,6 +762,8 @@ window.KutadguBookStaff={
   buildPayload,
   staffSurface,
   validateCoverFile,
+  uploadStaffCover,
+  uploadStaffGallery,
   rejectUnsafeStaffCover,
   isSampleDemoCoverName,
   beginStaffRoute,

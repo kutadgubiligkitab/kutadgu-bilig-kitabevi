@@ -143,7 +143,7 @@ test("Admin uses Admin db client; Book Staff uses Member client and current book
   assert.doesNotMatch(submit, /filterTitleMatches|kutadgu-title-warn|similar/);
   assert.match(adminHtml, /kutadgu-book-entry-suggest\.js\?v=2/);
   assert.match(adminHtml, /admin\.js\?v=79/);
-  assert.match(staffHtml, /book-staff\.js\?v=7/);
+  assert.match(staffHtml, /book-staff\.js\?v=8/);
   assert.doesNotMatch(suggestJs, /<datalist|service_role/);
   assert.doesNotMatch(adminJs, /<datalist/);
   assert.doesNotMatch(staffJs, /<datalist/);

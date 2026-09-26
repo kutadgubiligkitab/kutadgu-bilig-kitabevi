@@ -53,7 +53,7 @@ test("A. Book Staff / member non-admin Admin visit does not call global signOut"
   assert.match(deny, /بۇ ھېسابات Admin ھېسابى ئەمەس/);
   assert.doesNotMatch(deny, /تىزىملىكىدە يوق/);
   assert.match(staffHtml, /href="\/account\.html"/);
-  assert.match(staffHtml, /book-staff\.js\?v=7/);
+  assert.match(staffHtml, /book-staff\.js\?v=8/);
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
   assert.match(accountHtml, /account\.js\?v=7/);

@@ -3622,34 +3622,15 @@ async function addGalleryFiles(fileList){
   }
   renderGalleryDraft();
 }
+function coverImageApi(){
+  const api=window.KutadguCoverImage;
+  if(!api||typeof api.optimizeUploadImage!=="function"||typeof api.prepareStorageUpload!=="function"||typeof api.uniqueStorageStamp!=="function"){
+    throw new Error("رەسىم تەييارلاش تەييار ئەمەس.");
+  }
+  return api;
+}
 async function optimizeGalleryImage(file){
-  if(!file||!String(file.type||"").startsWith("image/"))return file;
-  try{
-    const type=String(file.type||"").toLowerCase();
-    if(type==="image/gif")return file;
-    let bitmap;
-    try{bitmap=await createImageBitmap(file,{imageOrientation:"none"})}
-    catch(e){bitmap=await createImageBitmap(file)}
-    const maxEdge=2400;
-    const scale=Math.min(1,maxEdge/Math.max(bitmap.width,bitmap.height));
-    if(scale>=1&&file.size<=2*1024*1024){
-      bitmap.close?.();
-      return file;
-    }
-    const width=Math.max(1,Math.round(bitmap.width*scale));
-    const height=Math.max(1,Math.round(bitmap.height*scale));
-    const canvas=document.createElement("canvas");
-    canvas.width=width;canvas.height=height;
-    const ctx=canvas.getContext("2d",{alpha:type!=="image/jpeg"});
-    ctx.drawImage(bitmap,0,0,width,height);bitmap.close?.();
-    const outType=type==="image/png"?"image/png":(type==="image/webp"?"image/webp":"image/jpeg");
-    const quality=outType==="image/png"?undefined:0.88;
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,outType,quality));
-    if(!blob)return file;
-    const ext=outType==="image/png"?"png":outType==="image/webp"?"webp":"jpg";
-    return new File([blob],`${(file.name||"page").replace(/\.[^.]+$/,"")}.${ext}`,{type:outType});
-  }catch(error){console.warn("Gallery optimization skipped",error)}
-  return file;
+  return coverImageApi().optimizeUploadImage(file);
 }
 function storageToken(id){
   return String(id||"book").replace(/[^a-zA-Z0-9._-]/g,"-").slice(0,80)||"book";
@@ -3657,10 +3638,11 @@ function storageToken(id){
 async function uploadGalleryFile(id,file){
   const bucket=cfg.bucket||"book-covers";
   const optimized=await optimizeGalleryImage(file);
-  const ext=(optimized.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-  const path=`${storageToken(id)}/gallery/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
+  const path=`${storageToken(id)}/gallery/${coverImageApi().uniqueStorageStamp()}.${ext}`;
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
-  const {error}=await db.storage.from(bucket).upload(path,optimized,{upsert:false,contentType:optimized.type||undefined});
+  const prepared=await coverImageApi().prepareStorageUpload(optimized);
+  const {error}=await db.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
   if(error)throw error;
   const {data}=db.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
@@ -3819,17 +3801,7 @@ async function confirmNearCoverMatch(matches){
   if(typeof confirm!=="function"||!confirm(message))throw new Error("ئوخشاش كۆرۈنۈشلۈك مۇقاۋا جەزملەنمىدى. ساقلاش توختىتىلدى.");
 }
 async function optimizeCover(file){
-  if(!file||!String(file.type||"").startsWith("image/"))return file;
-  try{
-    const bitmap=await createImageBitmap(file);
-    const maxWidth=1000,scale=Math.min(1,maxWidth/bitmap.width);
-    const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
-    const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
-    const ctx=canvas.getContext("2d",{alpha:false});ctx.drawImage(bitmap,0,0,width,height);bitmap.close?.();
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/webp",0.82));
-    if(blob&&blob.size<file.size)return new File([blob],`${file.name.replace(/\.[^.]+$/,'')||'cover'}.webp`,{type:"image/webp"});
-  }catch(error){console.warn("Cover optimization skipped",error)}
-  return file;
+  return coverImageApi().optimizeUploadImage(file);
 }
 function skipAuthPreviewCoverUrl(id,file){
   const token=storageToken(id);
@@ -3843,9 +3815,10 @@ async function uploadCover(id,file){
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const bucket=cfg.bucket||"book-covers";
   const optimized=await optimizeCover(file);
-  const ext=(optimized.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-  const path=`${storageToken(id)}/${Date.now()}.${ext}`;
-  const {error}=await db.storage.from(bucket).upload(path,optimized,{upsert:false,contentType:optimized.type||undefined});
+  const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
+  const path=`${storageToken(id)}/${coverImageApi().uniqueStorageStamp()}.${ext}`;
+  const prepared=await coverImageApi().prepareStorageUpload(optimized);
+  const {error}=await db.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
   if(error)throw error;
   const {data}=db.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
