@@ -9,6 +9,9 @@
   is not the cap. Images already smaller than 1600 are not enlarged.
   WebP quality 0.92 keeps Uyghur, Chinese, and Latin print and fine line art
   readable. GIF is left untouched so animation is not flattened.
+  When the picture is already within 1600px, the WebP is used only if it
+  is smaller than the original file. Oversized pictures keep the resized
+  WebP because the dimension cap is required.
 */
 const MAX_EDGE=1600;
 const WEBP_QUALITY=0.92;
@@ -109,7 +112,6 @@ async function optimizeUploadImage(file){
   try{
     if(!bitmap.width||!bitmap.height)throw new Error("رەسىم ئوقۇلمىدى. بۇزۇلغان ھۆججەت يوللانمايدۇ.");
     const fit=fitDimensions(bitmap.width,bitmap.height,MAX_EDGE);
-    if(mime==="image/webp"&&!fit.capped)return file;
     const canvas=document.createElement("canvas");
     canvas.width=fit.width;
     canvas.height=fit.height;
@@ -127,6 +129,8 @@ async function optimizeUploadImage(file){
       try{kept=await webpKeepsTransparency(blob);}catch(error){kept=false;}
       if(!kept)return fallbackOriginal(file,mime,fit,true);
     }
+    const originalSize=Number(file&&file.size);
+    if(!fit.capped&&Number.isFinite(originalSize)&&blob.size>=originalSize)return file;
     return new File([blob],outputName(file),{type:"image/webp"});
   }finally{
     bitmap.close&&bitmap.close();

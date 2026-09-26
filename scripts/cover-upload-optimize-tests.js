@@ -347,16 +347,69 @@ test("browser converts JPEG and PNG to capped high-quality WebP and rejects brok
       });
       const noiseOut = await api.optimizeUploadImage(noise.file);
       const noiseBmp = await createImageBitmap(noiseOut);
+      async function fileFrom(width, height, mime, quality, draw) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { alpha: mime !== "image/jpeg" });
+        if (mime !== "image/jpeg") ctx.clearRect(0, 0, width, height);
+        draw(ctx, width, height);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+        const name = mime === "image/png" ? "tight.png" : "tight.jpg";
+        return new File([blob], name, { type: mime });
+      }
+      function noiseDraw(ctx, width, height) {
+        const image = ctx.createImageData(width, height);
+        const data = image.data;
+        let seed = 99;
+        for (let i = 0; i < data.length; i += 4) {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          data[i] = seed & 255;
+          data[i + 1] = (seed >>> 8) & 255;
+          data[i + 2] = (seed >>> 16) & 255;
+          data[i + 3] = 255;
+        }
+        ctx.putImageData(image, 0, 0);
+      }
+      const tightJpeg = await fileFrom(480, 360, "image/jpeg", 0.35, noiseDraw);
+      const tightJpegOut = await api.optimizeUploadImage(tightJpeg);
+      const tightPng = await fileFrom(64, 64, "image/png", undefined, (ctx, width, height) => {
+        ctx.fillStyle = "#f4ead8";
+        ctx.fillRect(0, 0, width, height);
+      });
+      const tightPngOut = await api.optimizeUploadImage(tightPng);
+      const smallerPng = await fileFrom(420, 640, "image/png", undefined, coverDraw);
+      const smallerPngOut = await api.optimizeUploadImage(smallerPng);
+      const cappedNoise = await fileFrom(1800, 2000, "image/jpeg", 0.4, noiseDraw);
+      const cappedNoiseOut = await api.optimizeUploadImage(cappedNoise);
+      const cappedNoiseBmp = await createImageBitmap(cappedNoiseOut);
+      const smallAlpha = await fileFrom(48, 48, "image/png", undefined, (ctx, width, height) => {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "rgba(20,20,20,1)";
+        ctx.fillRect(Math.floor(width * 0.3), Math.floor(height * 0.2), Math.max(1, Math.floor(width * 0.4)), Math.max(1, Math.floor(height * 0.5)));
+      });
+      const smallAlphaOut = await api.optimizeUploadImage(smallAlpha);
+      const smallAlphaBmp = await createImageBitmap(smallAlphaOut);
+      const smallAlphaCanvas = document.createElement("canvas");
+      smallAlphaCanvas.width = smallAlphaBmp.width;
+      smallAlphaCanvas.height = smallAlphaBmp.height;
+      const smallAlphaCtx = smallAlphaCanvas.getContext("2d", { alpha: true });
+      smallAlphaCtx.drawImage(smallAlphaBmp, 0, 0);
       const prepared = await api.prepareStorageUpload(jpegOut);
       const header = new Uint8Array(await jpegOut.slice(0, 12).arrayBuffer());
       return {
         jpeg: { before: jpeg.file.size, after: jpegOut.size, type: jpegOut.type, name: jpegOut.name, w: jpegBmp.width, h: jpegBmp.height },
         noise: { before: noise.file.size, after: noiseOut.size, type: noiseOut.type, w: noiseBmp.width, h: noiseBmp.height },
         png: { before: png.file.size, after: pngOut.size, type: pngOut.type, w: pngBmp.width, h: pngBmp.height },
-        small: { w: smallBmp.width, h: smallBmp.height, type: smallOut.type },
+        small: { w: smallBmp.width, h: smallBmp.height, type: smallOut.type, before: small.file.size, after: smallOut.size },
         alpha: { corner: Array.from(corner), ink: Array.from(ink), type: alphaOut.type },
         wide: { w: wideBmp.width, h: wideBmp.height },
-        alreadySame: alreadyOut === already.file,
+        already: { same: alreadyOut === already.file, before: already.file.size, after: alreadyOut.size, type: alreadyOut.type },
+        tightJpeg: { same: tightJpegOut === tightJpeg, type: tightJpegOut.type, before: tightJpeg.size, after: tightJpegOut.size },
+        tightPng: { same: tightPngOut === tightPng, type: tightPngOut.type, before: tightPng.size, after: tightPngOut.size },
+        smallerPng: { type: smallerPngOut.type, before: smallerPng.size, after: smallerPngOut.size },
+        cappedNoise: { type: cappedNoiseOut.type, before: cappedNoise.size, after: cappedNoiseOut.size, w: cappedNoiseBmp.width, h: cappedNoiseBmp.height },
+        smallAlpha: { same: smallAlphaOut === smallAlpha, type: smallAlphaOut.type, corner: Array.from(smallAlphaCtx.getImageData(0, 0, 1, 1).data) },
         low: lowBlob.size,
         high: detailOut.size,
         line: { dark: Array.from(dark), paper: Array.from(paper) },
@@ -381,12 +434,30 @@ test("browser converts JPEG and PNG to capped high-quality WebP and rejects brok
     assert.strictEqual(report.png.w, 1108);
     assert.ok(Math.abs(report.png.w / report.png.h - 1800 / 2600) < 0.01);
     assert.ok(report.png.after < report.png.before, "png " + report.png.before + " -> " + report.png.after);
-    assert.deepStrictEqual(report.small, { w: 420, h: 640, type: "image/webp" });
+    assert.deepStrictEqual({ w: report.small.w, h: report.small.h, type: report.small.type }, { w: 420, h: 640, type: "image/webp" });
+    assert.ok(report.small.after < report.small.before);
+    assert.strictEqual(report.tightJpeg.same, true);
+    assert.strictEqual(report.tightJpeg.type, "image/jpeg");
+    assert.strictEqual(report.tightJpeg.after, report.tightJpeg.before);
+    assert.strictEqual(report.tightPng.same, true);
+    assert.strictEqual(report.tightPng.type, "image/png");
+    assert.strictEqual(report.tightPng.after, report.tightPng.before);
+    assert.strictEqual(report.smallerPng.type, "image/webp");
+    assert.ok(report.smallerPng.after < report.smallerPng.before);
+    assert.strictEqual(report.cappedNoise.type, "image/webp");
+    assert.strictEqual(report.cappedNoise.w, 1440);
+    assert.strictEqual(report.cappedNoise.h, 1600);
+    assert.ok(report.cappedNoise.after > report.cappedNoise.before);
+    assert.strictEqual(report.smallAlpha.same, true);
+    assert.strictEqual(report.smallAlpha.type, "image/png");
+    assert.ok(report.smallAlpha.corner[3] < 10);
     assert.strictEqual(report.alpha.type, "image/webp");
     assert.ok(report.alpha.corner[3] < 10, "corner alpha " + report.alpha.corner.join(","));
     assert.ok(report.alpha.ink[3] > 240, "ink alpha " + report.alpha.ink.join(","));
     assert.deepStrictEqual(report.wide, { w: 1600, h: 900 });
-    assert.strictEqual(report.alreadySame, true);
+    assert.ok(report.already.after <= report.already.before);
+    assert.strictEqual(report.already.type, "image/webp");
+    if (!report.already.same) assert.ok(report.already.after < report.already.before);
     assert.ok(report.high > report.low, "q0.92 " + report.high + " vs q0.5 " + report.low);
     assert.ok(report.line.dark[0] < 40 && report.line.paper[0] > 220);
     assert.match(report.broken, /بۇزۇلغان/);
