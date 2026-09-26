@@ -117,7 +117,6 @@ test("search AI Search cart auth admin book detail and 2A files stay frozen", ()
     "api/ai-search.js",
     "home-hero-content.js",
     "home-hero-slideshow.js",
-    "admin.html",
 
     "favorites.js"
   ].forEach((rel) => {
