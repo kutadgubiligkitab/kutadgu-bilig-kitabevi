@@ -106,7 +106,9 @@ test("other supabasePublicConfig consumers already use cfg.key", () => {
   assert.match(fetchPage, /apikey:cfg\.key/);
   assert.match(fetchPage, /Authorization:`Bearer \$\{cfg\.key\}`/);
   const inactive = sliceBetween(shop, "async function loadInactiveRemoteIndex(){", "async function loadRemoteCatalog");
-  assert.match(inactive, /apikey:cfg\.key/);
+  assert.doesNotMatch(inactive, /fetch\(/);
+  assert.doesNotMatch(inactive, /is_active=eq\.false/);
+  assert.match(inactive, /inactiveRemoteKeys=new Set\(\)/);
   const boot = sliceBetween(shop, "async function loadRemoteCatalog(){", "async function hydrateBooksByIds");
   assert.match(boot, /cfg\.url&&cfg\.key/);
   assert.match(boot, /apikey:cfg\.key/);

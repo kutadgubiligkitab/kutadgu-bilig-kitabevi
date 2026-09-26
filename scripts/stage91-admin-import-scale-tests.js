@@ -255,7 +255,7 @@ jobs.push(test("I Admin list still 40/page", () => {
 jobs.push(test("J no full 20k storefront fetch", () => {
   const shop = fs.readFileSync(path.join(ROOT, "shop.js"), "utf8");
   assert.ok(/function pageSize\(\)\{return window\.innerWidth<=700\?12:24\}/.test(shop));
-  assert.ok(/select=id,legacy_id&is_active=eq\.false/.test(shop));
+  assert.ok(!/select=id,legacy_id&is_active=eq\.false/.test(shop));
   assert.ok(!/while\(from<5000\)/.test(shop));
   assert.ok(!/\.range\(0,\s*9999\)/.test(shop));
   const listing = shop.match(/Range:`\$\{from\}-\$\{to\}`/g) || [];

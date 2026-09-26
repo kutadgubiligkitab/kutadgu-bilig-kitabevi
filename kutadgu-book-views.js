@@ -32,6 +32,7 @@
   var refreshTokens = Object.create(null);
   var bookTokens = Object.create(null);
   var inflight = Object.create(null);
+  var flightByKey = Object.create(null);
 
   function isCanonicalBookId(value) {
     return /^[1-9][0-9]*$/.test(String(value == null ? "" : value).trim());
@@ -296,6 +297,90 @@
     refreshTokens = Object.create(null);
     bookTokens = Object.create(null);
     inflight = Object.create(null);
+    flightByKey = Object.create(null);
+  }
+
+  function flightKeyFor(ids) {
+    return ids.slice().sort(function (a, b) {
+      var na = Number(a);
+      var nb = Number(b);
+      if (na !== nb) return na - nb;
+      return a < b ? -1 : a > b ? 1 : 0;
+    }).join(",");
+  }
+
+  function releaseStatsFlight(ids, promise, storeKey) {
+    ids.forEach(function (id) {
+      if (inflight[id] === promise) delete inflight[id];
+    });
+    if (storeKey && flightByKey[storeKey] === promise) delete flightByKey[storeKey];
+  }
+
+  function readStats(ids, options) {
+    var opts = options || {};
+    var requests = buildBatchStatsRequest(ids, opts.config);
+    var fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
+    if (!requests.length || typeof fetchImpl !== "function") {
+      return Promise.resolve({ requests: 0, failed: false, byId: {} });
+    }
+    var flightIds = [];
+    requests.forEach(function (req) {
+      req.ids.forEach(function (id) {
+        if (flightIds.indexOf(id) === -1) flightIds.push(id);
+      });
+    });
+    var key = flightKeyFor(flightIds);
+    var storeKey = opts.isolated ? ("force:" + key) : key;
+    if (!opts.isolated) {
+      if (flightByKey[key]) return flightByKey[key];
+      if (flightIds.length === 1 && inflight[flightIds[0]]) return inflight[flightIds[0]];
+    }
+    if (flightByKey[storeKey]) return flightByKey[storeKey];
+    var now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
+    var tokens = Object.create(null);
+    flightIds.forEach(function (id) {
+      bookTokens[id] = (bookTokens[id] || 0) + 1;
+      tokens[id] = bookTokens[id];
+    });
+    var resolveFlight;
+    var own = new Promise(function (resolve) { resolveFlight = resolve; });
+    flightByKey[storeKey] = own;
+    if (!opts.isolated) {
+      flightIds.forEach(function (id) {
+        if (!inflight[id]) inflight[id] = own;
+      });
+    }
+    Promise.all(requests.map(function (req) {
+      return Promise.resolve(fetchImpl(req.url, { headers: req.headers })).then(function (res) {
+        if (!res || !res.ok || typeof res.json !== "function") return [];
+        return Promise.resolve(res.json()).then(function (payload) {
+          return parseStatsRows(payload);
+        }, function () {
+          return [];
+        });
+      }, function () {
+        return [];
+      });
+    })).then(function (groups) {
+      var byId = Object.create(null);
+      groups.forEach(function (rows) {
+        rows.forEach(function (row) { byId[row.bookId] = row.total; });
+      });
+      var painted = Object.create(null);
+      flightIds.forEach(function (id) {
+        if (tokens[id] !== bookTokens[id]) return;
+        var has = Object.prototype.hasOwnProperty.call(byId, id);
+        var total = has ? byId[id] : null;
+        if (total != null) cacheSet(id, total, now);
+        painted[id] = total;
+      });
+      releaseStatsFlight(flightIds, own, storeKey);
+      resolveFlight({ requests: requests.length, failed: false, byId: painted });
+    }).catch(function () {
+      releaseStatsFlight(flightIds, own, storeKey);
+      resolveFlight({ requests: requests.length, failed: true, byId: {} });
+    });
+    return own;
   }
 
   function cacheGet(id, now) {
@@ -560,23 +645,15 @@
     if (!isCanonicalBookId(id)) return Promise.resolve();
     if (isLocalPreviewHost()) return Promise.resolve();
     cacheDrop(id);
-    var reqs = buildBatchStatsRequest([id], opts.config);
-    var fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
-    if (!reqs.length || typeof fetchImpl !== "function") return Promise.resolve();
     var token = (refreshTokens[id] = (refreshTokens[id] || 0) + 1);
-    return Promise.resolve(fetchImpl(reqs[0].url, { headers: reqs[0].headers })).then(function (res) {
-      if (refreshTokens[id] !== token || !res || !res.ok || typeof res.json !== "function") return null;
-      return res.json();
-    }, function () {
-      return null;
-    }).then(function (payload) {
-      if (refreshTokens[id] !== token || payload == null) return;
-      var rows = parseStatsRows(payload);
-      var total = null;
-      rows.forEach(function (row) {
-        if (row.bookId === id) total = row.total;
-      });
-      if (total != null) cacheSet(id, total, Date.now());
+    return readStats([id], {
+      config: opts.config,
+      fetchImpl: opts.fetchImpl,
+      now: Date.now(),
+      isolated: true
+    }).then(function (result) {
+      if (refreshTokens[id] !== token) return;
+      var total = result && result.byId && Object.prototype.hasOwnProperty.call(result.byId, id) ? result.byId[id] : null;
       if (typeof document !== "undefined") paintId(document, id, total);
       if (detailBookId() === id) {
         if (total == null) {
@@ -585,12 +662,6 @@
         } else paintFromStats(total);
       }
     }).catch(function () {});
-  }
-
-  function releaseFlight(ids, promise) {
-    ids.forEach(function (id) {
-      if (inflight[id] === promise) delete inflight[id];
-    });
   }
 
   function hydrate(scope, options) {
@@ -622,52 +693,13 @@
       var fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
       var own = null;
       if (requests.length && typeof fetchImpl === "function") {
-        var tokens = Object.create(null);
-        var flightIds = [];
-        requests.forEach(function (req) {
-          req.ids.forEach(function (id) {
-            bookTokens[id] = (bookTokens[id] || 0) + 1;
-            tokens[id] = bookTokens[id];
-            if (flightIds.indexOf(id) === -1) flightIds.push(id);
+        own = readStats(missing, { config: opts.config, fetchImpl: fetchImpl, now: now });
+        own.then(function (result) {
+          if (!result || result.failed) return;
+          var byId = result.byId || {};
+          Object.keys(byId).forEach(function (id) {
+            paintId(rootEl, id, byId[id]);
           });
-        });
-        var resolveFlight;
-        own = new Promise(function (resolve) { resolveFlight = resolve; });
-        flightIds.forEach(function (id) { inflight[id] = own; });
-        Promise.all(requests.map(function (req) {
-          return Promise.resolve(fetchImpl(req.url, { headers: req.headers })).then(function (res) {
-            if (!res || !res.ok || typeof res.json !== "function") return [];
-            return Promise.resolve(res.json()).then(function (payload) {
-              return parseStatsRows(payload);
-            }, function () {
-              return [];
-            });
-          }, function () {
-            return [];
-          });
-        })).then(function (groups) {
-          var byId = Object.create(null);
-          groups.forEach(function (rows) {
-            rows.forEach(function (row) {
-              byId[row.bookId] = row.total;
-            });
-          });
-          var painted = Object.create(null);
-          requests.forEach(function (req) {
-            req.ids.forEach(function (id) {
-              if (tokens[id] !== bookTokens[id]) return;
-              var has = Object.prototype.hasOwnProperty.call(byId, id);
-              var total = has ? byId[id] : null;
-              if (total != null) cacheSet(id, total, now);
-              painted[id] = total;
-              paintId(rootEl, id, total);
-            });
-          });
-          releaseFlight(flightIds, own);
-          resolveFlight({ requests: requests.length, cards: cards.length, failed: false, byId: painted });
-        }).catch(function () {
-          releaseFlight(flightIds, own);
-          resolveFlight({ requests: requests.length, cards: cards.length, failed: true, byId: {} });
         });
       }
       var waiters = joined.map(function (promise) {
@@ -707,27 +739,18 @@
       paintFromStats(cached);
       return;
     }
-    var req = buildStatsRequest(id, root.KUTADGU_SUPABASE_CONFIG || {});
-    if (!req || typeof fetch !== "function") return Promise.resolve();
     var requestedId = id;
     var token = (refreshTokens[requestedId] = (refreshTokens[requestedId] || 0) + 1);
-    return fetch(req.url, { headers: req.headers }).then(function (res) {
-      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return null;
-      if (!res || !res.ok) return null;
-      return res.json();
-    }).then(function (payload) {
-      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId || payload == null) return;
-      var rows = parseStatsRows(payload);
-      var total = null;
-      rows.forEach(function (row) {
-        if (row.bookId === requestedId) total = row.total;
-      });
-      var currentInfo = document.querySelector(".book-detail-info");
+    return readStats([requestedId], { config: root.KUTADGU_SUPABASE_CONFIG || {} }).then(function (result) {
+      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return;
+      var total = result && result.byId && Object.prototype.hasOwnProperty.call(result.byId, requestedId)
+        ? result.byId[requestedId]
+        : null;
+      var currentInfo = typeof document !== "undefined" ? document.querySelector(".book-detail-info") : null;
       if (total == null) {
         if (currentInfo) hideViewCount(currentInfo);
         return;
       }
-      cacheSet(requestedId, total, Date.now());
       paintFromStats(total);
     }).catch(function () {
       if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return;
