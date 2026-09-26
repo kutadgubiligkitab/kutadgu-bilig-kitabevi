@@ -112,6 +112,46 @@ test("vercel.json ships incremental security headers without a full script CSP",
   assert.doesNotMatch(vercelText,/wss:/i);
 });
 
+test("specific no-store script rules win over the general css/js cache",()=>{
+  const vercel=JSON.parse(fs.readFileSync(path.join(__dirname,"..","vercel.json"),"utf8"));
+  const rules=vercel.headers||[];
+  const general=rules.findIndex(rule=>rule.source==="/(.*)\\.(css|js)");
+  assert.ok(general>=0,"general css/js cache rule is required");
+  ["/admin.js","/catalog-bibliography.js","/supabase-config.js"].forEach(exact=>{
+    const index=rules.findIndex(rule=>rule.source===exact);
+    assert.ok(index>general,exact+" must be listed after the general css/js rule");
+    const cache=(rules[index].headers||[]).find(header=>header.key==="Cache-Control");
+    assert.strictEqual(cache&&cache.value,"no-store, must-revalidate");
+  });
+  function matches(source,pathname){
+    if(source==="/(.*)\\.(css|js)")return /\.(?:css|js)$/.test(pathname);
+    if(source==="/(.*)\\.(png|jpg|jpeg|webp|gif|svg|ttf|woff|woff2)")return /\.(?:png|jpg|jpeg|webp|gif|svg|ttf|woff|woff2)$/.test(pathname);
+    if(source==="/(.*)")return true;
+    return source===pathname;
+  }
+  function cacheControl(urlPath){
+    const pathname=String(urlPath||"").split("?")[0];
+    let value="";
+    rules.forEach(rule=>{
+      if(!matches(rule.source,pathname))return;
+      const cache=(rule.headers||[]).find(header=>header.key==="Cache-Control");
+      if(cache)value=cache.value;
+    });
+    return value;
+  }
+  const noStore="no-store, must-revalidate";
+  const storefront="public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
+  assert.strictEqual(cacheControl("/admin.js"),noStore);
+  assert.strictEqual(cacheControl("/admin.js?v=9"),noStore);
+  assert.strictEqual(cacheControl("/catalog-bibliography.js?v=3"),noStore);
+  assert.strictEqual(cacheControl("/supabase-config.js?v=22"),noStore);
+  ["/shop.js?v=131","/member.js?v=28","/account.js?v=7","/public-header.js?v=2","/public-header.css?v=6"].forEach(url=>{
+    assert.strictEqual(cacheControl(url),storefront,url);
+  });
+  assert.strictEqual(cacheControl("/admin-idle.js"),storefront);
+  assert.strictEqual(cacheControl("/UKIJCJK.woff2"),"public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800");
+});
+
 test("static-preview-server mirrors catch-all security headers including CSP Report-Only",()=>{
   const src=fs.readFileSync(path.join(__dirname,"..","scripts","static-preview-server.js"),"utf8");
   assert.match(src,/"X-Content-Type-Options":\s*"nosniff"/);
