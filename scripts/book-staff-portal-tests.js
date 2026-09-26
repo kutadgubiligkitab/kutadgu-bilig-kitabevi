@@ -232,7 +232,7 @@ add("staff JS never writes books directly and never uses admin_users", () => {
   assert.match(staffJs, /inspectAccess/);
   assert.match(staffJs, /ensurePrimarySessionReady/);
   assert.match(staffJs, /attachGate/);
-  assert.match(staffJs, /storage\.from\(bucket\)\.upload\(path,valid,\{upsert:false/);
+  assert.match(staffJs, /storage\.from\(bucket\)\.upload\(path,prepared\.body,\{...prepared\.options,upsert:false\}\)/);
   assert.match(staffJs, /staff\/"\+String\(uid\)\+"\//);
   assert.match(staffJs, /getPublicUrl\(path\)/);
   assert.match(staffJs, /assertStaffCoverPublicUrl/);
