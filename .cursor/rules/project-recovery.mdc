@@ -1,0 +1,27 @@
+---
+description: Keep PROJECT-RECOVERY.md aligned with significant project changes and read it before substantial work.
+alwaysApply: true
+---
+
+# Project recovery handoff
+
+`PROJECT-RECOVERY.md` is the repository handoff for the current stable state. It is for Cursor, ChatGPT, and other developers. It is not a changelog of every edit.
+
+Before substantial work:
+
+- Read `PROJECT-RECOVERY.md`.
+- Check it against the current repository: `git rev-parse origin/main`, recent merged PRs, and the files the task will touch.
+- Do not follow a stale SHA, version pin, or behavior note when the repo disagrees. Update the document if the correction matters.
+
+After every significant completed change — a merged feature, bug fix, or infrastructure change:
+
+- Update `PROJECT-RECOVERY.md`.
+- Record what changed, the relevant PR and commit, and the tests or status.
+- Update the current stable `main` commit.
+- Update remaining or future work when the change closes or opens some.
+
+Do not update `PROJECT-RECOVERY.md` for trivial formatting-only edits.
+
+Never put secrets, tokens, passwords, `.env` contents, service-role keys, or other private credentials in `PROJECT-RECOVERY.md`. Public domains and project refs already visible in the repository may stay.
+
+Incident rollback stays in `STAGE11_RECOVERY.md` and `docs/EMERGENCY.md`. Do not copy secret values out of those procedures.
