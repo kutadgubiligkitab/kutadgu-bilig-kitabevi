@@ -1,0 +1,33 @@
+---
+description: Keep PROJECT-RECOVERY.md aligned inside significant PRs, and reconcile it with origin/main before new work.
+alwaysApply: true
+---
+
+# Project recovery handoff
+
+`PROJECT-RECOVERY.md` is the repository handoff. The runtime baseline SHA there is the last verified application/runtime commit. It is not necessarily the current GitHub `main` tip. Documentation-only commits do not move that baseline.
+
+Before substantial work:
+
+- Read `PROJECT-RECOVERY.md`.
+- `git fetch origin main` and compare `git rev-parse origin/main` with the stored runtime baseline.
+- If a PR recorded in the handoff has merged, reconcile the document against `origin/main`.
+- Never assume the stored SHA is the current `main` tip.
+- Do not follow a stale pin or behavior note when the repo disagrees. Correct the document in the PR you are already making when the correction matters.
+
+Before a significant Cursor-managed PR is considered complete, update `PROJECT-RECOVERY.md` in that same PR:
+
+- Record the feature or fix.
+- Record the PR number if it is available.
+- Record the tested branch and head SHA.
+- Record tests and status.
+- Update pins, behavior, and future work when those changed.
+- Move the runtime baseline only when application or runtime behavior changed.
+
+Do not open a follow-up documentation PR solely to record a merge. The next session verifies the merge and reconciles `origin/main`.
+
+Do not update `PROJECT-RECOVERY.md` for trivial formatting-only edits.
+
+Never put secrets, tokens, passwords, `.env` contents, service-role keys, or other private credentials in `PROJECT-RECOVERY.md`. Public domains and project refs already visible in the repository may stay.
+
+Incident rollback stays in `STAGE11_RECOVERY.md` and `docs/EMERGENCY.md`. Do not copy secret values out of those procedures.
