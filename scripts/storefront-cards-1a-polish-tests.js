@@ -102,7 +102,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=131/);
+  assert.match(indexHtml, /shop\.js\?v=132/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");

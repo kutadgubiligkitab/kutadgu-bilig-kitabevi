@@ -88,7 +88,7 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=131/);
+  assert.match(indexHtml, /shop\.js\?v=132/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
 });
 

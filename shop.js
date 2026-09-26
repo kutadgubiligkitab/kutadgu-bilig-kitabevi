@@ -1121,7 +1121,7 @@ function noteStorefrontEngagement(action,bookId){
 function ensureBookViewCounts(){
   try{
     if(document.querySelector('script[src*="kutadgu-book-views.js"]'))return;
-    loadAssetScript("/kutadgu-book-views.js?v=4","kutadguBookViewsScript").catch(()=>{});
+    loadAssetScript("/kutadgu-book-views.js?v=5","kutadguBookViewsScript").catch(()=>{});
   }catch(err){}
 }
 const trackedBookViews=new Set();
@@ -1490,54 +1490,10 @@ function writeCatalogProbe(key,value){
 }
 
 async function loadInactiveRemoteIndex(){
-  if(!remoteCatalog.available){
-    inactiveRemoteKeys=new Set();
-    rebuildVisibleCatalog();
-    return;
-  }
-  const cachedInactive=readCatalogProbe("kutadgu-inactive-books-v1");
-  if(cachedInactive&&Array.isArray(cachedInactive.keys)){
-    inactiveRemoteKeys=new Set(cachedInactive.keys.map(item=>String(item||"").trim()).filter(Boolean));
-    rebuildVisibleCatalog();
-    return;
-  }
-  const cfg=supabasePublicConfig();
-  const pager=window.KutadguVisibility?.loadInactiveKeysPaged;
-  try{
-    const fetchPage=async(from,to)=>{
-      const response=await fetch(`${cfg.url}/rest/v1/books?select=id,legacy_id&is_active=eq.false`,{
-        headers:{
-          apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Prefer:"count=exact",
-          "Range-Unit":"items",Range:`${from}-${to}`
-        }
-      });
-      if(!response.ok)throw new Error(`Inactive index failed (HTTP ${response.status})`);
-      const rows=await response.json();
-      return Array.isArray(rows)?rows:[];
-    };
-    inactiveRemoteKeys=pager
-      ?await pager(fetchPage,{pageSize:1000})
-      :await (async()=>{
-        const next=new Set();
-        let from=0;
-        for(;;){
-          const rows=await fetchPage(from,from+999);
-          if(!rows.length)break;
-          rows.forEach(row=>{
-            const id=String(row&&row.id||"").trim();
-            const legacy=String(row&&row.legacy_id||"").trim();
-            if(id)next.add(id);
-            if(legacy)next.add(legacy);
-          });
-          if(rows.length<1000)break;
-          from+=1000;
-        }
-        return next;
-      })();
-    writeCatalogProbe("kutadgu-inactive-books-v1",{keys:[...inactiveRemoteKeys]});
-  }catch(error){
-    console.warn("Inactive catalog index could not be loaded.",error);
-  }
+  // The storefront sends the anon/publishable key. RLS "public can read active
+  // books" only returns is_active = true, so this index is always empty here.
+  // Admin hide/show uses admin.js and is not this function.
+  inactiveRemoteKeys=new Set();
   rebuildVisibleCatalog();
 }
 
@@ -3915,33 +3871,39 @@ async function countPositiveSales(){
       }
     }
   }catch(e){}
-  const cfg=supabasePublicConfig();
-  if(cfg&&cfg.url&&cfg.key){
-    try{
-      const url=`${String(cfg.url).replace(/\/+$/,"")}/rest/v1/books?select=id&sales_count=gt.0`;
-      const res=await fetch(url,{
-        method:"HEAD",
-        headers:{
-          apikey:cfg.key,
-          Authorization:`Bearer ${cfg.key}`,
-          Prefer:"count=exact",
-          Range:"0-0"
+  if(window.__kutadguPositiveSalesFlight)return window.__kutadguPositiveSalesFlight;
+  const flight=(async()=>{
+    const cfg=supabasePublicConfig();
+    if(cfg&&cfg.url&&cfg.key){
+      try{
+        const url=`${String(cfg.url).replace(/\/+$/,"")}/rest/v1/books?select=id&sales_count=gt.0`;
+        const res=await fetch(url,{
+          method:"HEAD",
+          headers:{
+            apikey:cfg.key,
+            Authorization:`Bearer ${cfg.key}`,
+            Prefer:"count=exact",
+            Range:"0-0"
+          }
+        });
+        const range=res.headers.get("content-range")||"";
+        const total=Number(String(range).split("/")[1]);
+        if(Number.isFinite(total)){
+          window.__kutadguPositiveSalesCount=total;
+          try{
+            if(window.sessionStorage)window.sessionStorage.setItem("kutadgu-positive-sales-v1",JSON.stringify({at:Date.now(),total}));
+          }catch(e){}
+          return total;
         }
-      });
-      const range=res.headers.get("content-range")||"";
-      const total=Number(String(range).split("/")[1]);
-      if(Number.isFinite(total)){
-        window.__kutadguPositiveSalesCount=total;
-        try{
-          if(window.sessionStorage)window.sessionStorage.setItem("kutadgu-positive-sales-v1",JSON.stringify({at:Date.now(),total}));
-        }catch(e){}
-        return total;
-      }
-    }catch(err){console.warn("positive sales count skipped",err)}
-  }
-  const n=C.filter(book=>Number(book.salesCount)>0).length;
-  window.__kutadguPositiveSalesCount=n;
-  return n;
+      }catch(err){console.warn("positive sales count skipped",err)}
+    }
+    const n=C.filter(book=>Number(book.salesCount)>0).length;
+    window.__kutadguPositiveSalesCount=n;
+    return n;
+  })();
+  window.__kutadguPositiveSalesFlight=flight;
+  try{return await flight}
+  finally{if(window.__kutadguPositiveSalesFlight===flight)window.__kutadguPositiveSalesFlight=null}
 }
 
 function firstPopulatedCarouselMode(enabledModes,itemCounts){
