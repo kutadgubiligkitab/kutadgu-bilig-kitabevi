@@ -145,7 +145,7 @@ test("specific no-store script rules win over the general css/js cache",()=>{
   assert.strictEqual(cacheControl("/admin.js?v=9"),noStore);
   assert.strictEqual(cacheControl("/catalog-bibliography.js?v=3"),noStore);
   assert.strictEqual(cacheControl("/supabase-config.js?v=22"),noStore);
-  ["/shop.js?v=133","/member.js?v=28","/account.js?v=7","/public-header.js?v=2","/public-header.css?v=6"].forEach(url=>{
+  ["/shop.js?v=134","/member.js?v=28","/account.js?v=7","/public-header.js?v=2","/public-header.css?v=6"].forEach(url=>{
     assert.strictEqual(cacheControl(url),storefront,url);
   });
   assert.strictEqual(cacheControl("/admin-idle.js"),storefront);

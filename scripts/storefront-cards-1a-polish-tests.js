@@ -102,7 +102,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=133/);
+  assert.match(indexHtml, /shop\.js\?v=134/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
@@ -153,9 +153,17 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
     (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|shop\.css|catalog\.js$/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  if (files.includes("shop.css")) {
+    const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
+    const body = lines.join("\n");
+    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
+    assert.match(body, /\.cover-stock-overlay/);
+    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+  }
   ["index.css", "mobile.css"].forEach((rel) => {
     if (!files.includes(rel)) return;
     const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });

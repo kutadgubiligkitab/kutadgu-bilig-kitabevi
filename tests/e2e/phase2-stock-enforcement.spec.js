@@ -26,6 +26,30 @@ function bookRow(overrides = {}) {
   };
 }
 
+async function expectCoverBadgeGone(card) {
+  await expect(card.locator(".cover-stock-overlay")).toHaveCount(0);
+  const layout = await card.evaluate((node) => {
+    const box = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { y: r.y, bottom: r.bottom, height: r.height };
+    };
+    return {
+      cover: box(node.querySelector(".book-image, .cover-stock-wrap")),
+      title: box(node.querySelector(".book-title")),
+      badge: box(node.querySelector(".stock-badge.stock-out")),
+      price: box(node.querySelector(".book-price")),
+      actions: box(node.querySelector(".book-actions"))
+    };
+  });
+  expect(layout.cover && layout.title && layout.badge && layout.price && layout.actions).toBeTruthy();
+  expect(layout.cover.bottom).toBeLessThanOrEqual(layout.title.y + 2);
+  expect(layout.badge.y).toBeGreaterThanOrEqual(layout.cover.bottom - 2);
+  expect(layout.badge.bottom).toBeLessThanOrEqual(layout.actions.y + 2);
+  expect(layout.title.y - layout.cover.bottom).toBeLessThan(48);
+  expect(Math.abs(layout.price.y - layout.badge.y)).toBeLessThan(90);
+}
+
 const BOOKS = [
   bookRow({ id: Number(ZERO_ID), title: "ئامبار نۆل كىتاب", stock: 0 }),
   bookRow({ id: Number(ONE_ID), title: "ئامبار بىر كىتاب", stock: 1 }),
@@ -232,22 +256,18 @@ test.describe("Phase 2 storefront stock enforcement", () => {
 
     const zero = page.locator(`[data-live-book-id="${ZERO_ID}"]`);
     await expect(zero).toHaveClass(/is-stock-out/);
-    await expect(zero.locator(".cover-stock-overlay")).toHaveText(/تۈگەپ كەتتى/);
+    await expect(zero.locator(".cover-stock-overlay")).toHaveCount(0);
+    await expect(zero.locator(".stock-badge.stock-out")).toHaveText(/تۈگەپ كەتتى/);
     await expect(zero.locator("[data-cart-id]")).toBeDisabled();
     await expect(zero.locator(".detail-button")).toHaveAttribute("href", new RegExp(`/book/${ZERO_ID}`));
     const coverOpacity = await zero.locator(".cover-stock-wrap img, .book-image img").first().evaluate((el) => Number(getComputedStyle(el).opacity));
     expect(coverOpacity).toBeGreaterThan(0.5);
     expect(coverOpacity).toBeLessThan(0.85);
 
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expectCoverBadgeGone(zero);
     await page.setViewportSize({ width: 390, height: 844 });
-    const overlayBox = await zero.locator(".cover-stock-overlay").boundingBox();
-    const titleBox = await zero.locator(".book-title").boundingBox();
-    const actionsBox = await zero.locator(".book-actions").boundingBox();
-    expect(overlayBox).toBeTruthy();
-    expect(titleBox).toBeTruthy();
-    expect(actionsBox).toBeTruthy();
-    expect(overlayBox.y + overlayBox.height).toBeLessThanOrEqual(titleBox.y + 2);
-    expect(overlayBox.y + overlayBox.height).toBeLessThanOrEqual(actionsBox.y + 2);
+    await expectCoverBadgeGone(zero);
   });
 
   test("detail favorites mini-cards and stale cart share out-of-stock UX", async ({ page }) => {
@@ -255,7 +275,8 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await H.clearShopStorage(page);
     await openBook(page, ZERO_ID, "ئامبار نۆل كىتاب");
     await expect(page.locator(".book-cover-box")).toHaveClass(/is-stock-out/);
-    await expect(page.locator(".book-cover-box .cover-stock-overlay")).toBeVisible();
+    await expect(page.locator(".book-cover-box .cover-stock-overlay")).toHaveCount(0);
+    await expect(page.locator(".detail-price-line .stock-badge.stock-out")).toHaveText(/تۈگەپ كەتتى/);
     await expect(page.locator(".detail-main-cart")).toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("h1")).toContainText("ئامبار نۆل كىتاب");
     await expect(page.locator(".detail-price")).toBeVisible();
@@ -274,6 +295,7 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     });
     expect(cards.favZero).toMatch(/is-stock-out/);
     expect(cards.favZero).toMatch(/تۈگەپ كەتتى/);
+    expect(cards.favZero).not.toMatch(/cover-stock-overlay/);
     expect(cards.miniOne).toMatch(/ئاز قالدى/);
     expect(cards.listingFour).not.toMatch(/ئامباردا بار/);
     expect(cards.badgeFour).toBe("");
@@ -352,7 +374,8 @@ test.describe("Phase 2 storefront stock enforcement", () => {
     await expect(zero).toBeVisible();
     await expect(zero.locator("a.book-image > img")).toHaveCount(1);
     await expect(zero.locator(".cover-stock-wrap")).toHaveCount(0);
-    await expect(zero.locator(".cover-stock-overlay")).toHaveText(/تۈگەپ كەتتى/);
+    await expect(zero.locator(".cover-stock-overlay")).toHaveCount(0);
+    await expect(zero.locator(".stock-badge.stock-out")).toHaveText(/تۈگەپ كەتتى/);
     await expect(zero.locator("button.add-to-cart")).toBeDisabled();
     const zeroStyles = await zero.evaluate((card) => {
       const img = card.querySelector("a.book-image img");

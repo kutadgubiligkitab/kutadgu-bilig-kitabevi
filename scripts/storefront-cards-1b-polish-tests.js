@@ -88,7 +88,7 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=133/);
+  assert.match(indexHtml, /shop\.js\?v=134/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
 });
 
@@ -129,9 +129,17 @@ test("no Search Discovery SQL RLS auth admin or protected geometry changes", () 
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /kutadgu-search-rank\.js$|app-config\.js$/.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|shop\.css|catalog\.js$/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  if (files.includes("shop.css")) {
+    const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
+    const body = lines.join("\n");
+    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
+    assert.match(body, /\.cover-stock-overlay/);
+    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+  }
   ["index.css", "mobile.css"].forEach((rel) => {
     if (!files.includes(rel)) return;
     const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });

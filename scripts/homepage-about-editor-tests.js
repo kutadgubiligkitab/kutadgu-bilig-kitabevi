@@ -116,11 +116,17 @@ async function run() {
     assert.match(identityCss, /\.about-year-badge\{/);
     assert.match(identityCss, /\.about-service-chips\{/);
     assert.match(shopCss, /\.about-pro/);
-    const out = execSync("git diff --name-only origin/main -- shop.css theme.css", {
+    const theme = execSync("git diff --name-only origin/main -- theme.css", {
       cwd: root,
       encoding: "utf8"
     });
-    assert.strictEqual(out.trim(), "");
+    assert.strictEqual(theme.trim(), "");
+    const shopDiff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
+    const lines = shopDiff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
+    const body = lines.join("\n");
+    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
+    assert.match(body, /\.cover-stock-overlay/);
+    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|\.about-pro/);
   });
 
   await test("public overlay uses textContent only and restores fallback on failure", () => {

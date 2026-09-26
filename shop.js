@@ -1639,34 +1639,20 @@ function stockBadge(book){
   if(!s.label||s.key==="in"||s.key==="unknown")return "";
   return `<span class="stock-badge stock-${s.key}">${escapeHtml(s.label)}</span>`;
 }
-function coverStockOverlayHtml(book){
-  if(stockInfo(book).key!=="out")return "";
-  return `<span class="cover-stock-overlay" aria-hidden="true">تۈگەپ كەتتى</span>`;
+function coverStockOverlayHtml(){
+  return "";
 }
 function wrapCoverHtml(book,inner){
   const state=stockStateClass(book);
-  return `<span class="cover-stock-wrap${state?" "+state:""}">${inner}${coverStockOverlayHtml(book)}</span>`;
+  return `<span class="cover-stock-wrap${state?" "+state:""}">${inner}</span>`;
 }
 function applyCoverStockState(coverEl,book){
   if(!coverEl)return;
   coverEl.classList.remove("is-stock-out","is-stock-low");
-  let overlay=null;
-  try{overlay=coverEl.querySelector(":scope > .cover-stock-overlay")}catch(e){overlay=coverEl.querySelector(".cover-stock-overlay")}
-  if(!book){
-    if(overlay)overlay.remove();
-    return;
-  }
+  coverEl.querySelectorAll(".cover-stock-overlay").forEach(node=>node.remove());
+  if(!book)return;
   const state=stockStateClass(book);
   if(state)coverEl.classList.add(state);
-  if(stockInfo(book).key==="out"){
-    if(!overlay){
-      overlay=document.createElement("span");
-      overlay.className="cover-stock-overlay";
-      overlay.setAttribute("aria-hidden","true");
-      overlay.textContent="تۈگەپ كەتتى";
-      coverEl.appendChild(overlay);
-    }
-  }else if(overlay)overlay.remove();
 }
 function clampCartQuantitiesToStock(){
   if(!isStockEnforcementEnabled())return false;

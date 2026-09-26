@@ -102,7 +102,8 @@ test("listing cards use silent in-stock, low badge, and out-of-stock cover state
 
   const zero = api.bookCardMarkup({ id: "0", href: "/book/0", title: "تۈگەپ", author: "A", category: "رومانلار", price: 20, stock: 0 });
   assert.match(zero, /is-stock-out/);
-  assert.match(zero, /cover-stock-overlay/);
+  assert.doesNotMatch(zero, /cover-stock-overlay/);
+  assert.match(zero, /stock-badge stock-out/);
   assert.match(zero, /تۈگەپ كەتتى/);
   assert.match(zero, /disabled aria-disabled="true"/);
   assert.match(zero, /cart-blocked-mark/);
@@ -113,7 +114,8 @@ test("listing cards use silent in-stock, low badge, and out-of-stock cover state
 test("homepage mini favorites search and feature renderers share the same stock UX", () => {
   const search = api.bookCardMarkup({ id: "0", href: "/book/0", title: "تۈگەپ", author: "A", category: "رومانلار", price: 20, stock: 0 }, "search");
   assert.match(search, /advanced-search-result is-stock-out/);
-  assert.match(search, /cover-stock-overlay/);
+  assert.doesNotMatch(search, /cover-stock-overlay/);
+  assert.match(search, /stock-badge stock-out/);
   const mini = api.miniCard({ id: "1", href: "/book/1", title: "ئاز", author: "A", stock: 1, price: 10 });
   assert.match(mini, /ئاز قالدى/);
   assert.match(mini, /is-stock-low/);
@@ -132,7 +134,12 @@ test("out-of-stock cart button is blocked without a giant cover X", () => {
   assert.match(btn, /cart-blocked-mark/);
   assert.match(btn, /✕/);
   assert.doesNotMatch(shop, /giant|huge X|book-cover-x/i);
-  assert.match(css, /cover-stock-overlay/);
+  assert.doesNotMatch(shop, /class="cover-stock-overlay"|className="cover-stock-overlay"/);
+  assert.doesNotMatch(css, /cover-stock-overlay/);
+  const listing = fs.readFileSync(path.join(root, "kutadgu-category-listing.js"), "utf8");
+  assert.doesNotMatch(listing, /cover-stock-overlay/);
+  assert.match(listing, /stock-badge stock-/);
+  assert.match(listing, /is-cart-unavailable/);
   assert.match(css, /opacity:\.68/);
   assert.match(shop, /if\(Number\.isFinite\(stock\.qty\)&&stock\.qty>0\)x\.qty=Math\.min/);
   assert.match(shop, /if\(!stock\.canBuy&&d>0\)return/);

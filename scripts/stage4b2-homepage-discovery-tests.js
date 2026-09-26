@@ -27,7 +27,7 @@ const ALLOWED_PROPS = new Set([
   "outline", "outline-offset", "transition"
 ]);
 const PROTECTED = [
-  "index.css", "shop.css", "premium-ux.css",
+  "index.css", "premium-ux.css",
   "covers.css", "mobile.css", "theme.css", "stage4b-public-cards.css",
   "listing-card-safety.css", "detail-similar-card-safety.css",
   "recently-viewed-card-safety.css", "detail-cover-mobile-safety.css"
@@ -180,9 +180,17 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     (/\.sql$/i.test(file) && !["SITE_HOMEPAGE_ABOUT.sql","SITE_ANNOUNCEMENT_BAR.sql","SITE_HERO_MANAGEMENT.sql","STAGE9_ANALYTICS_INSERT_RLS.sql","STAGE4_ANALYTICS_RPC_FIX.sql","STAGE2B_BOOKS_ACTIVE_SELECT_RLS.sql","STAGE2C_AAL2_ADMIN_SELECT_RLS.sql","STAGE8_STORE_ANALYTICS.sql","STAGE46_ANALYTICS_LEGACY_ID.sql","STAGE91_ADMIN_IMPORT_SCALE.sql","STAGE92_BOOK_STAFF_SECURITY.sql","STAGE93_BOOK_STAFF_GALLERY.sql","STAGE94_PENDING_BOOK_EDIT.sql","SITE_SHOP_HOURS.sql","SUPABASE_SETUP.sql","DATABASE_UPGRADE_V10.sql","STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql","STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql","STAGE87_COVER_INTEGRITY.sql","STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
-    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|theme\.css|shop\.css|stage4b-public-cards\.css/.test(file)
+    /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|theme\.css|stage4b-public-cards\.css/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
+  if (files.includes("shop.css")) {
+    const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
+    const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
+    const body = lines.join("\n");
+    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
+    assert.match(body, /\.cover-stock-overlay/);
+    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+  }
   ["index.css", "mobile.css"].forEach((rel) => {
     if (!files.includes(rel)) return;
     const diff = execSync("git diff origin/main -- " + rel, { cwd: root, encoding: "utf8" });
