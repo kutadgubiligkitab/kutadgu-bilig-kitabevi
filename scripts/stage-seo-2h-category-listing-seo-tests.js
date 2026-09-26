@@ -358,6 +358,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "kutadgu-analytics-core.js",
     "scripts/book-view-counts-tests.js",
     "scripts/stage99-admin-suggest-save-refresh-tests.js",
+    "scripts/stage95-book-entry-suggest-tests.js",
     "admin.js",
     "admin.html",
     "kutadgu-cover-image.js",
