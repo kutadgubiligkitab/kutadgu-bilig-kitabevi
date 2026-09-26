@@ -1,8 +1,8 @@
 # Project recovery
 
-Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial work, then verify it against `origin/main`. Incident rollback is `STAGE11_RECOVERY.md`. The one-page emergency list is `docs/EMERGENCY.md`.
+Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial work, then compare it with `origin/main`. Incident rollback is `STAGE11_RECOVERY.md`. The one-page emergency list is `docs/EMERGENCY.md`.
 
-This file was written against `main` at `70e741bd2bf75734e4c94c2baf974e80e9f0a96e` (2026-09-26). After this document’s own PR merges, replace that SHA with the new `main` tip.
+The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
 ## Project overview
 
@@ -60,15 +60,20 @@ This repository is the website. It does not contain the Android app source.
 
 `privacy.html` documents the Android app as a separate client of the same public catalog and Supabase Auth. The app can sign in with email/password or Google. Its cart, favorites, and theme stay on the device and are not synced to the member cart tables. It has no in-app card payment and no separate delivery-address form. Account deletion for the Play listing is the site page `/delete-account`.
 
-## Current stable main
+## Last verified runtime/application baseline
+
+This SHA is the last verified application and runtime baseline. It is not necessarily the current `origin/main` tip. Compare the two before substantial work. A documentation-only commit does not require changing it.
 
 | | |
 |---|---|
 | Commit | `70e741bd2bf75734e4c94c2baf974e80e9f0a96e` |
 | Subject | Merge pull request #209 from `cursor/cover-presentation-c4dc` |
 | Date | 2026-09-26 |
+| Why it stays | PR #210 is documentation and Cursor rules only. It does not change storefront, admin, schema, RLS, Auth, Storage, or production data. |
 
-Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by the commit above): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
+Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by the baseline above): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
+
+PR #210 (`cursor/project-recovery-c4dc`) records this baseline wording in the same PR. Stage 2H diff-gate is the check for that documentation change. Do not copy PR #210’s head over the runtime baseline.
 
 ## Recent merged PRs
 
@@ -91,7 +96,7 @@ Older recovery and SEO history remains in git log. #202 is not in the merged lis
 
 Query pins are how cached storefront files change. Bump the pin when the file’s behavior changes. Do not put `immutable` on an unhashed `?v=` URL.
 
-| File | Pin on `main` |
+| File | Pin at the runtime baseline |
 |---|---|
 | `shop.js` | `?v=133` (`scripts/auth-production-cache-buster-tests.js`) |
 | `supabase-config.js` | `?v=22` |
@@ -174,16 +179,21 @@ The repo has no separate backlog file. These are cautions, not scheduled tasks:
 ## How to resume work safely
 
 1. Read this file, `README.md`, and, if the task can touch data or deploys, `STAGE11_RECOVERY.md`.
-2. `git fetch origin main` and compare `git rev-parse origin/main` to the SHA above.
-3. Create one branch from current `main`. Recent agent branches look like `cursor/<descriptive-name>-c4dc`. Open one draft PR. Do not merge it unless the task says to merge.
-4. Keep the diff inside the task. Do not mix schema, RLS, Auth, Storage, or production data into a storefront or docs change.
-5. For storefront or admin behavior, run `npm run test:unit`. Run Stage 10 when the change can affect pages Playwright covers. Refresh frozen hashes and the Stage 2H allowlist when those tests require it.
-6. After the change is merged, update this file.
+2. `git fetch origin main`. Compare `git rev-parse origin/main` with the runtime baseline. They may differ. Do not treat the stored SHA as the current `main` tip.
+3. If a PR recorded here has since merged, reconcile this file with `origin/main` before new work. Documentation-only commits on `main` still leave the runtime baseline where it is.
+4. Create one branch from current `main`. Recent agent branches look like `cursor/<descriptive-name>-c4dc`. Open one draft PR. Do not merge it unless the task says to merge.
+5. Keep the diff inside the task. Do not mix schema, RLS, Auth, Storage, or production data into a storefront or docs change.
+6. For storefront or admin behavior, run `npm run test:unit`. Run Stage 10 when the change can affect pages Playwright covers. Refresh frozen hashes and the Stage 2H allowlist when those tests require it.
+7. Before the task is considered complete, update this file in that same PR. A later session confirms the merge. Do not open a second documentation PR just to move a SHA.
 
 ## How to update this document
 
-Update it after a merged feature, bug fix, or infrastructure change. Skip trivial formatting-only edits.
+Update it in the same PR as a significant feature, bug fix, or infrastructure change, before that PR is considered complete. Skip trivial formatting-only edits. Documentation-only commits do not change the runtime baseline.
 
-When you update it, change the stable commit, the relevant PR row, pins that moved, test status, and the future-work notes that the change affected. Delete notes that are no longer true. Do not paste secrets, tokens, passwords, `.env` contents, or service-role keys. Public domains and the public Supabase ref may stay because they are already in the repo.
+Record the feature or fix, the PR number when it exists, the tested branch and head SHA, and the tests or status. Update pins, behavior, and future work when those changed. Move the runtime baseline only when application or runtime behavior changed. Delete notes that are no longer true.
+
+A later session checks whether that PR merged and reconciles this file with `origin/main`. Never assume the stored baseline is the current `main` tip.
+
+Do not paste secrets, tokens, passwords, `.env` contents, or service-role keys. Public domains and the public Supabase ref may stay because they are already in the repo.
 
 If a new file is added, `scripts/stage-seo-2h-category-listing-seo-tests.js` may need that path on its allowlist. This file and `.cursor/rules/project-recovery.mdc` are already listed.

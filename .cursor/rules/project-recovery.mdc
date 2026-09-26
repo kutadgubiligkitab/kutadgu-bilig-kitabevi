@@ -1,24 +1,30 @@
 ---
-description: Keep PROJECT-RECOVERY.md aligned with significant project changes and read it before substantial work.
+description: Keep PROJECT-RECOVERY.md aligned inside significant PRs, and reconcile it with origin/main before new work.
 alwaysApply: true
 ---
 
 # Project recovery handoff
 
-`PROJECT-RECOVERY.md` is the repository handoff for the current stable state. It is for Cursor, ChatGPT, and other developers. It is not a changelog of every edit.
+`PROJECT-RECOVERY.md` is the repository handoff. The runtime baseline SHA there is the last verified application/runtime commit. It is not necessarily the current GitHub `main` tip. Documentation-only commits do not move that baseline.
 
 Before substantial work:
 
 - Read `PROJECT-RECOVERY.md`.
-- Check it against the current repository: `git rev-parse origin/main`, recent merged PRs, and the files the task will touch.
-- Do not follow a stale SHA, version pin, or behavior note when the repo disagrees. Update the document if the correction matters.
+- `git fetch origin main` and compare `git rev-parse origin/main` with the stored runtime baseline.
+- If a PR recorded in the handoff has merged, reconcile the document against `origin/main`.
+- Never assume the stored SHA is the current `main` tip.
+- Do not follow a stale pin or behavior note when the repo disagrees. Correct the document in the PR you are already making when the correction matters.
 
-After every significant completed change — a merged feature, bug fix, or infrastructure change:
+Before a significant Cursor-managed PR is considered complete, update `PROJECT-RECOVERY.md` in that same PR:
 
-- Update `PROJECT-RECOVERY.md`.
-- Record what changed, the relevant PR and commit, and the tests or status.
-- Update the current stable `main` commit.
-- Update remaining or future work when the change closes or opens some.
+- Record the feature or fix.
+- Record the PR number if it is available.
+- Record the tested branch and head SHA.
+- Record tests and status.
+- Update pins, behavior, and future work when those changed.
+- Move the runtime baseline only when application or runtime behavior changed.
+
+Do not open a follow-up documentation PR solely to record a merge. The next session verifies the merge and reconciles `origin/main`.
 
 Do not update `PROJECT-RECOVERY.md` for trivial formatting-only edits.
 
