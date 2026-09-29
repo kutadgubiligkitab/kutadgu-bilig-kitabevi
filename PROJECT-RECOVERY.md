@@ -185,6 +185,10 @@ Do not send live analytics or view-count writes while measuring production traff
 - Category listing HTML is packaged for the Vercel function. `includeFiles` paths must stay within Vercel’s length limit (#201).
 - Guest carts are device-local. They are not in Postgres.
 
+## Promo story recording
+
+`npm run promo:story` runs `scripts/promo-story-walkthrough.mjs`. It drives the public site in a headless 720×1280 viewport, records viewport-only WebM, and encodes `artifacts/promo-story/kutadgu-story.mp4` at 1080×1920. That output is gitignored. The script does not change storefront HTML, CSS, or JavaScript. It aborts Supabase writes and analytics posts, and it must not open WhatsApp or `tel:` links. Guest cart data stays in the recorder’s localStorage.
+
 ## Remaining optional work
 
 The repo has no separate backlog file. These are cautions, not scheduled tasks:

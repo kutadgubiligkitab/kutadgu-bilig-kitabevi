@@ -8,3 +8,6 @@ blob-report/
 !.env.example
 backups/local/
 *.dump
+
+# Instagram story recordings. The MP4, WebM, and frame grabs stay local.
+artifacts/promo-story/
