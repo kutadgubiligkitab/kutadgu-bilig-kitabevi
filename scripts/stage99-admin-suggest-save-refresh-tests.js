@@ -29,7 +29,8 @@ const sqlFiles = fs.readdirSync(root).filter((name) => name.endsWith(".sql"));
 const saveFn = adminJs.slice(adminJs.indexOf("async function saveBook(e){"), adminJs.indexOf("async function toggleActive("));
 const pendingReturn = saveFn.slice(saveFn.indexOf("if(pendingSave){"), saveFn.indexOf("let payload=writeBookRow"));
 const successTail = saveFn.slice(saveFn.indexOf("if(error)throw error;"), saveFn.indexOf("}catch(err){"));
-const catchBlock = saveFn.slice(saveFn.indexOf("}catch(err){"), saveFn.indexOf("}finally{"));
+const catchAt = saveFn.lastIndexOf("}catch(err){");
+const catchBlock = saveFn.slice(catchAt, saveFn.indexOf("}finally{", catchAt));
 
 const seed = [
   { id: 1, title: "كونا نام", author: "كونا ئاپتور", translator: "كونا تەرجىمان", publisher: "كونا نەشرىيات", isbn: "111" }

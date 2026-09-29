@@ -432,7 +432,9 @@ button{cursor:pointer}
   align-items:stretch;
 }
 #bookModal #createDuplicateWarning{margin-bottom:10px}
-#bookModal #bookSaveDiag[hidden]{display:none !important}
+#bookModal #bookSaveDiag[hidden],
+#bookModal #bookSaveStatus[hidden]{display:none !important}
+#bookModal #bookSaveStatus{margin:0 0 8px}
 @media(max-width:767px){
   #bookModal .admin-book-section-grid{grid-template-columns:1fr}
   #bookModal .admin-book-form-actions .admin-primary,

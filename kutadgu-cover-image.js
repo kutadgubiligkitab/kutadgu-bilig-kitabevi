@@ -17,6 +17,14 @@ const MAX_EDGE=1600;
 const WEBP_QUALITY=0.92;
 const CACHE_CONTROL="public, max-age=31536000, immutable";
 const CONVERTIBLE={"image/jpeg":true,"image/png":true,"image/webp":true};
+/*
+  50 MiB. Same ceiling as admin-save-guard.js MAX_COVER_BYTES.
+  Normal phone photos and cover scans stay under it. Larger files stall
+  decode, and the stored image is still capped at 1600px.
+*/
+const MAX_COVER_BYTES=50*1024*1024;
+const ENCODE_TIMEOUT_MS=45000;
+const COVER_TOO_LARGE="مۇقاۋا رەسىمى بەك چوڭ (ئەڭ چوڭ 50MB). تېلېفون رەسىمى ياكى ئادەتتىكى سىكان قوبۇل قىلىنىدۇ؛ بۇ ھۆججەتنى كىچىكلىتىپ قايتا تاللاڭ.";
 
 function fitDimensions(width,height,maxEdge){
   const w=Math.max(0,Math.round(Number(width)||0));
@@ -45,9 +53,25 @@ function outputName(file){
 
 function canvasToBlob(canvas,type,quality){
   return new Promise(function(resolve,reject){
+    let settled=false;
+    const timer=setTimeout(function(){
+      if(settled)return;
+      settled=true;
+      const err=new Error("رەسىم ئايلاندۇرۇش ۋاقتى ئېشىپ كەتتى.");
+      err.code="encode-timeout";
+      reject(err);
+    },ENCODE_TIMEOUT_MS);
     try{
-      canvas.toBlob(function(blob){resolve(blob||null);},type,quality);
+      canvas.toBlob(function(blob){
+        if(settled)return;
+        settled=true;
+        clearTimeout(timer);
+        resolve(blob||null);
+      },type,quality);
     }catch(error){
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
       reject(error);
     }
   });
@@ -93,8 +117,9 @@ function fallbackOriginal(file,mime,fit,transparent){
   return file;
 }
 
-async function optimizeUploadImage(file){
+async function optimizeUploadImage(file,opts){
   if(!file)return file;
+  if(Number(file.size)>MAX_COVER_BYTES)throw new Error(COVER_TOO_LARGE);
   const mime=String(file.type||"").toLowerCase();
   if(!mime.startsWith("image/"))return file;
   if(mime==="image/gif")return file;
@@ -103,11 +128,14 @@ async function optimizeUploadImage(file){
   if(typeof createImageBitmap!=="function"||typeof document==="undefined"){
     throw new Error("بۇ browser رەسىمنى ئايلاندۇرالمايدۇ.");
   }
-  let bitmap;
-  try{
-    bitmap=await createImageBitmap(file);
-  }catch(error){
-    throw new Error("رەسىم ئوقۇلمىدى. بۇزۇلغان ھۆججەت يوللانمايدۇ.");
+  const externalBitmap=opts&&opts.bitmap;
+  let bitmap=externalBitmap||null;
+  if(!bitmap){
+    try{
+      bitmap=await createImageBitmap(file);
+    }catch(error){
+      throw new Error("رەسىم ئوقۇلمىدى. بۇزۇلغان ھۆججەت يوللانمايدۇ.");
+    }
   }
   try{
     if(!bitmap.width||!bitmap.height)throw new Error("رەسىم ئوقۇلمىدى. بۇزۇلغان ھۆججەت يوللانمايدۇ.");
@@ -122,7 +150,10 @@ async function optimizeUploadImage(file){
     ctx.drawImage(bitmap,0,0,fit.width,fit.height);
     const transparent=wantsAlpha&&canvasHasTransparency(ctx,fit.width,fit.height);
     let blob=null;
-    try{blob=await canvasToBlob(canvas,"image/webp",WEBP_QUALITY);}catch(error){blob=null;}
+    try{blob=await canvasToBlob(canvas,"image/webp",WEBP_QUALITY);}catch(error){
+      if(error&&error.code==="encode-timeout")throw error;
+      blob=null;
+    }
     if(!(await isUsableWebpBlob(blob)))return fallbackOriginal(file,mime,fit,transparent);
     if(transparent){
       let kept=false;
@@ -133,7 +164,7 @@ async function optimizeUploadImage(file){
     if(!fit.capped&&Number.isFinite(originalSize)&&blob.size>=originalSize)return file;
     return new File([blob],outputName(file),{type:"image/webp"});
   }finally{
-    bitmap.close&&bitmap.close();
+    if(!externalBitmap&&bitmap&&bitmap.close)bitmap.close();
   }
 }
 
@@ -170,6 +201,9 @@ function cacheControlStoredBySupabase(body,options){
 const api={
   MAX_EDGE:MAX_EDGE,
   WEBP_QUALITY:WEBP_QUALITY,
+  MAX_COVER_BYTES:MAX_COVER_BYTES,
+  ENCODE_TIMEOUT_MS:ENCODE_TIMEOUT_MS,
+  COVER_TOO_LARGE:COVER_TOO_LARGE,
   CACHE_CONTROL:CACHE_CONTROL,
   fitDimensions:fitDimensions,
   uniqueStorageStamp:uniqueStorageStamp,

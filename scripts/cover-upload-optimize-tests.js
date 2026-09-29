@@ -46,6 +46,19 @@ test("longest edge is 1600 and WebP quality stays high", () => {
   assert.strictEqual(api.WEBP_QUALITY, 0.92);
   assert.strictEqual(api.CACHE_CONTROL, "public, max-age=31536000, immutable");
   assert.ok(api.WEBP_QUALITY >= 0.9);
+  assert.strictEqual(api.MAX_COVER_BYTES, 50 * 1024 * 1024);
+  assert.strictEqual(api.ENCODE_TIMEOUT_MS, 45000);
+  assert.match(api.COVER_TOO_LARGE, /50MB/);
+});
+
+test("extremely large covers are rejected before decode", async () => {
+  await assert.rejects(() => api.optimizeUploadImage({
+    name: "huge.jpg",
+    type: "image/jpeg",
+    size: api.MAX_COVER_BYTES + 1
+  }), /50MB/);
+  const gif = { name: "ok.gif", type: "image/gif", size: api.MAX_COVER_BYTES };
+  assert.strictEqual(await api.optimizeUploadImage(gif), gif);
 });
 
 test("dimensions cap the long edge, keep aspect ratio, and do not enlarge", () => {
@@ -97,7 +110,7 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
   assert.notStrictEqual(a, b);
   assert.match(a, /^[a-z0-9]+-[a-z0-9]+$/);
   assert.doesNotMatch(helperJs, /\.remove\(|\.update\(|\.list\(|upsert\s*:\s*true/);
-  const upload = slice(adminJs, "async function uploadCover(id,file){", "async function persistBookRow");
+  const upload = slice(adminJs, "async function uploadCover(id,file", "async function persistBookRow");
   const gallery = slice(adminJs, "async function uploadGalleryFile(id,file){", "async function collectGalleryUrls");
   const collect = slice(adminJs, "async function collectGalleryUrls(id){", "const KNOWN_SAMPLE_COVER_SHA256");
   assert.match(upload, /if\(!file\)return editing\?\.image_url\|\|""/);
@@ -108,12 +121,16 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
   assert.doesNotMatch(upload, /\.remove\(|\.update\(|\.list\(/);
   assert.match(gallery, /uniqueStorageStamp\(\)/);
   assert.match(gallery, /upsert:false/);
-  assert.match(collect, /if\(item\.file\)urls\.push\(await uploadGalleryFile/);
+  assert.match(collect, /for\(const item of galleryDraft\)/);
+  assert.match(collect, /uploadGalleryFile\(id,item\.file\)/);
+  assert.match(collect, /await SaveGuard\.withTimeout\(uploadOne,SaveGuard\.STORAGE_UPLOAD_MS,"gallery"\)/);
+  assert.match(collect, /urls\.push\(url\)/);
+  assert.doesNotMatch(collect, /Promise\.all\(/);
   assert.match(collect, /else if\(item\.url\)urls\.push\(item\.url\)/);
   assert.doesNotMatch(collect, /uploadGalleryFile\([^)]*item\.url/);
   const save = slice(adminJs, "async function saveBook(e){", "async function toggleActive(id){");
   const fpAt = save.indexOf("fingerprintSelectedCover(coverFile");
-  const upAt = save.indexOf("uploadCover(storageId,coverFile)");
+  const upAt = save.indexOf("uploadCover(storageId,");
   assert.ok(fpAt >= 0 && upAt > fpAt);
   assert.match(adminJs, /async function optimizeCover\(file\)\{/);
   assert.doesNotMatch(read("admin-hero.js"), /KutadguCoverImage|31536000/);
@@ -121,8 +138,9 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
 });
 
 test("admin and staff pages load the shared helper before upload code", () => {
-  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=1') < adminHtml.indexOf('admin.js?v=79'));
-  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=1') < staffHtml.indexOf('book-staff.js?v=8'));
+  assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=2'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=79'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=8'));
   assert.match(adminJs, /optimizeCover\(file\)/);
   assert.match(staffJs, /await requireAal2\(client\)/);
   assert.match(staffJs, /rpcIsBookStaff\(client\)/);
@@ -395,6 +413,19 @@ test("browser converts JPEG and PNG to capped high-quality WebP and rejects brok
       smallAlphaCanvas.height = smallAlphaBmp.height;
       const smallAlphaCtx = smallAlphaCanvas.getContext("2d", { alpha: true });
       smallAlphaCtx.drawImage(smallAlphaBmp, 0, 0);
+      const origDecode = createImageBitmap.bind(window);
+      let decodes = 0;
+      createImageBitmap = function(src) {
+        decodes += 1;
+        return origDecode(src);
+      };
+      const shared = await origDecode(jpeg.file);
+      const beforeReuse = decodes;
+      const reused = await api.optimizeUploadImage(jpeg.file, { bitmap: shared });
+      const reuseDecodes = decodes - beforeReuse;
+      const reusedBmp = await origDecode(reused);
+      shared.close();
+      createImageBitmap = origDecode;
       const prepared = await api.prepareStorageUpload(jpegOut);
       const header = new Uint8Array(await jpegOut.slice(0, 12).arrayBuffer());
       return {
@@ -417,9 +448,14 @@ test("browser converts JPEG and PNG to capped high-quality WebP and rejects brok
         cache: prepared.options.headers["cache-control"],
         upsert: prepared.options.upsert,
         bodyBytes: prepared.body.byteLength,
-        header: Array.from(header)
+        header: Array.from(header),
+        reuse: { decodes: reuseDecodes, type: reused.type, w: reusedBmp.width, h: reusedBmp.height }
       };
     });
+    assert.strictEqual(report.reuse.decodes, 0);
+    assert.strictEqual(report.reuse.type, "image/webp");
+    assert.strictEqual(report.reuse.w, report.jpeg.w);
+    assert.strictEqual(report.reuse.h, report.jpeg.h);
     assert.strictEqual(report.jpeg.type, "image/webp");
     assert.match(report.jpeg.name, /\.webp$/);
     assert.strictEqual(report.jpeg.h, 1600);

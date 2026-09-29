@@ -51,7 +51,10 @@ Repository: `kutadgubiligkitab/kutadgu-bilig-kitabevi`. Default branch: `main`.
 ## Admin and catalog behavior
 
 - `admin.html` / `admin.js` is the admin catalog, orders, hero, and announcements UI. Admin book reads that see inactive rows require `is_kutadgu_admin()` and AAL2.
-- `book-staff.html` is the staff portal. New cover and gallery uploads go through `kutadgu-cover-image.js`: WebP quality `0.92`, longest edge `1600` px, no upscale. An in-cap image stays in its original format when the WebP is not smaller. Oversized images keep the resized WebP. Uploads use a unique path (`upsert: false`) and `Cache-Control: public, max-age=31536000, immutable`.
+- Admin book save shows a status line in the book-modal footer (`#bookSaveStatus`). Deadlines live in `admin-save-guard.js`. Duplicate lookup 25s, exact cover fingerprint 25s, each near-dHash page 45s, cover or gallery Storage upload 180s, books INSERT/UPDATE 45s, catalog refresh 45s, cover decode 60s, WebP encode 45s. A timed-out INSERT or UPDATE is not retried; the alert tells the admin to check the book list first. After the write succeeds, the modal closes and the Save button is restored before `loadBooks()` / `loadStats()`. A failed refresh is a catalog warning, not “Save failed”.
+- A new cover is decoded once. That bitmap is reused for dHash and WebP. SHA-256 still hashes the original file. Files over 50 MiB are rejected before decode. Phone photos and ordinary cover scans stay under that ceiling.
+- The full near-dHash scan and distance `5` review rule stay. Gallery uploads stay serial, with “image N of M” status. `saveInFlight` and `coverFormEpoch` still block a second write and a stale cover choice.
+- `book-staff.html` is the staff portal. New cover and gallery uploads go through `kutadgu-cover-image.js`: WebP quality `0.92`, longest edge `1600` px, no upscale. An in-cap image stays in its original format when the WebP is not smaller. Oversized images keep the resized WebP. Uploads use a unique path (`upsert: false`) and `Cache-Control: public, max-age=31536000, immutable`. The same 50 MiB ceiling and 45s encode timeout apply there.
 - Hide and show of inactive books stays in admin. The public storefront does not fetch `is_active=eq.false`.
 
 ## Mobile app relationship
@@ -66,19 +69,25 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `70e741bd2bf75734e4c94c2baf974e80e9f0a96e` |
-| Subject | Merge pull request #209 from `cursor/cover-presentation-c4dc` |
-| Date | 2026-09-26 |
-| Why it stays | PR #210 is documentation and Cursor rules only. It does not change storefront, admin, schema, RLS, Auth, Storage, or production data. |
+| Commit | `0edcca0be6e92d8feb19a6723816aa129a227878` |
+| Subject | Keep the admin book save from hanging without feedback. |
+| Date | 2026-09-29 |
+| Branch | `cursor/admin-save-timeout-d5c3` |
+| PR | #212 (draft, not merged) |
+| Why it stays | Admin book save reports each step, bounds stalled requests, and treats a successful books write as saved before the catalog refresh. Schema, RLS, Storage policies, duplicate checks, the near-dHash distance rule, and cover quality (1600px, WebP 0.92, in-cap original kept when WebP is not smaller) are unchanged. |
 
-Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by the baseline above): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
+`npm run test:unit` passed on that commit before this handoff note. `node --check` passed for `admin.js`, `admin-save-guard.js`, and `kutadgu-cover-image.js`. `git diff --check` was clean. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
 
-PR #210 (`cursor/project-recovery-c4dc`) records this baseline wording in the same PR. Stage 2H diff-gate is the check for that documentation change. Do not copy PR #210’s head over the runtime baseline.
+Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
+
+A later documentation-only commit in PR #212 does not replace the runtime baseline above. Do not copy that docs commit over `0edcca0be6e92d8feb19a6723816aa129a227878`.
 
 ## Recent merged PRs
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #211 | `f4dc454` | Remove the repeated out-of-stock badge from book covers. |
+| #210 | `12f3551` | Project recovery handoff and Cursor rule. Documentation only. |
 | #209 | `70e741b` | Cream mat, hairline, and soft shadow around existing storefront covers. No image-file changes. |
 | #208 | `81d2ed4` | Share in-flight `book_view_stats` reads, one homepage `sales_count > 0` count, and stop the public inactive-book read. |
 | #207 | `5c463cf` | New cover and gallery uploads become high-quality WebP, with the in-cap size guard. |
@@ -101,7 +110,10 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | `shop.js` | `?v=133` (`scripts/auth-production-cache-buster-tests.js`) |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
-| `admin.js` | `?v=79` |
+| `admin.js` | `?v=79` (`no-store`; the save-flow behavior changed without a pin bump) |
+| `admin.css` | `?v=46` |
+| `admin-save-guard.js` | `?v=1` |
+| `kutadgu-cover-image.js` | `?v=2` on `admin.html` and `book-staff.html` |
 | `book-staff.js` | `?v=8` |
 | `kutadgu-book-views.js` | `?v=5` on `book-shell.html` |
 | `covers.css` | `?v=2` |
@@ -165,6 +177,8 @@ Do not send live analytics or view-count writes while measuring production traff
 - The detail page may read a book’s view stats once for display and once more after a successful engagement so the visible total can move.
 - Cover presentation does not crop or replace image files. Odd proportions stay letterboxed inside the frame.
 - An in-cap JPEG, PNG, or WebP is not replaced by a WebP that is the same size or larger.
+- Admin cover files above 50 MiB are rejected before decode. The stored image is still capped at 1600px.
+- This supabase-js 2.45.4 build does not forward `abortSignal` on Storage `upload`. The admin UI stops waiting at 180s. The HTTP upload may still finish later as an unused object because the path is unique and `upsert` is false.
 - Category listing HTML is packaged for the Vercel function. `includeFiles` paths must stay within Vercel’s length limit (#201).
 - Guest carts are device-local. They are not in Postgres.
 

@@ -14,6 +14,7 @@ const ImportIntake=window.KutadguAdminImportIntake||{};
 const Mfa=window.KutadguAdminMfa||{};
 const Idle=window.KutadguAdminIdle||{};
 const Stock=window.KutadguStock||{};
+const SaveGuard=window.KutadguAdminSaveGuard||{};
 const cfg=window.KUTADGU_SUPABASE_CONFIG||{};
 const STATIC=[...(window.KITAP_CATALOG||[])];
 const $=s=>document.querySelector(s);
@@ -66,6 +67,7 @@ let lastImportMissingQueue=[];
 let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
+let saveAttempt=0;
 let coverFormEpoch=0;
 let coverPreviewObjectUrl="";
 let quickSaveInFlight=false;
@@ -283,6 +285,7 @@ function modal(open){
     closePriceRollbackModal();
     closePriceHistoryModal();
     releaseCoverSelection();
+    setSaveStatus("");
   }
   $("#bookModal").hidden=!open;
 }
@@ -1253,13 +1256,19 @@ function warnMigrationOnce(){
   status($("#adminStatus"),"ISBN ستونى تېخى Database دا يوق. STAGE4_ADMIN_SCALABILITY.sql نى Supabase SQL Editor دا Run قىلىڭ. باشقا Admin ئىقتىدارلىرى داۋاملىشىدۇ.","warn");
 }
 
-async function loadStats(){
-  if(!db)return;
+function applySaveAbort(query,signal){
+  if(SaveGuard.applyAbort)return SaveGuard.applyAbort(query,signal);
+  if(signal&&query&&typeof query.abortSignal==="function")return query.abortSignal(signal);
+  return query;
+}
+async function loadStats(opts){
+  if(!db)return {ok:false};
+  const signal=opts&&opts.signal;
   try{
     const [all,active,rec]=await Promise.all([
-      db.from("books").select("id",{count:"exact",head:true}),
-      db.from("books").select("id",{count:"exact",head:true}).eq("is_active",true),
-      db.from("books").select("id",{count:"exact",head:true}).eq("is_recommended",true)
+      applySaveAbort(db.from("books").select("id",{count:"exact",head:true}),signal),
+      applySaveAbort(db.from("books").select("id",{count:"exact",head:true}).eq("is_active",true),signal),
+      applySaveAbort(db.from("books").select("id",{count:"exact",head:true}).eq("is_recommended",true),signal)
     ]);
     if(!all.error)$("#statAll").textContent=all.count??0;
     if(!active.error)$("#statActive").textContent=active.count??0;
@@ -1272,7 +1281,7 @@ async function loadStats(){
       }else{
         $("#statStock").textContent="—";
       }
-      const unconf=await db.from("books").select("id",{count:"exact",head:true}).eq("is_active",true).is("stock",null);
+      const unconf=await applySaveAbort(db.from("books").select("id",{count:"exact",head:true}).eq("is_active",true).is("stock",null),signal);
       if(unconf.error&&isMissingStockColumnError(unconf.error)){
         disableStockColumn();
       }else if(!unconf.error){
@@ -1293,37 +1302,40 @@ async function loadStats(){
     }
   }catch(error){
     console.warn(error);
+    if(opts&&opts.reportFailure)return {ok:false};
   }
+  return {ok:true};
 }
 
-async function loadBooks(){
-  if(!db)return;
+async function loadBooks(opts){
+  if(!db)return {ok:false};
+  const signal=opts&&opts.signal;
   const req=++listRequest;
-  status($("#adminStatus"),"كىتابلار يۈكلىنىۋاتىدۇ...");
+  status($("#adminStatus"),opts&&opts.reportFailure?(saveStatusText("refresh")||"تىزىملىك يېڭىلىنىۋاتىدۇ..."):"كىتابلار يۈكلىنىۋاتىدۇ...");
   const from=listPage*PAGE_SIZE;
   const to=from+PAGE_SIZE-1;
-  let query=db.from("books").select(columnList(),{count:"exact"}).range(from,to);
-  query=applyListFilters(query);
+  let query=applySaveAbort(applyListFilters(db.from("books").select(columnList(),{count:"exact"}).range(from,to)),signal);
   let {data,error,count}=await query;
+  if(signal&&signal.aborted)return {ok:false};
   if(error){
     const missing=Bib.missingColumnsFromError?Bib.missingColumnsFromError(error):[];
     if(missing.length){
       disableBibColumns(Bib.BIB_OPTIONAL_COLS||missing);
-      query=db.from("books").select(columnList(),{count:"exact"}).range(from,to);
-      query=applyListFilters(query);
+      query=applySaveAbort(applyListFilters(db.from("books").select(columnList(),{count:"exact"}).range(from,to)),signal);
       ({data,error,count}=await query);
+      if(signal&&signal.aborted)return {ok:false};
     }
   }
-  if(req!==listRequest)return;
+  if(req!==listRequest)return {ok:true};
   if(error){
     status($("#adminStatus"),"Database دىن كىتاب ئوقۇش مەغلۇپ بولدى: "+error.message,"error");
     $("#adminBookList").innerHTML=`<div class="admin-empty">${esc(error.message)}</div>`;
-    return;
+    return {ok:false};
   }
   books=data||[];
   listTotal=count||0;
   const maxPage=Math.max(0,Math.ceil(listTotal/PAGE_SIZE)-1);
-  if(listPage>maxPage){listPage=maxPage;return loadBooks()}
+  if(listPage>maxPage){listPage=maxPage;return loadBooks(opts)}
   selectedIds=new Set([...selectedIds].map(id=>String(id)).filter(id=>books.some(b=>String(b.id)===id)));
   if(!migrationWarned||isbnColumn){
     status($("#adminStatus"),`Admin كىرىش مۇۋەپپەقىيەتلىك — ${user?.email||""}`,"ok");
@@ -1331,6 +1343,7 @@ async function loadBooks(){
   renderBooks();
   renderPager();
   renderSelection();
+  return {ok:true};
 }
 
 function renderSelection(){
@@ -1633,6 +1646,17 @@ function restoreBookSaveBtnLabel(){
   if(!saveBtn)return;
   saveBtn.textContent=pendingEditMode?"ئۆزگەرتىشلەرنى ساقلاش":"💾 ساقلاش";
 }
+function setSaveStatus(text){
+  const el=$("#bookSaveStatus");
+  if(!el)return;
+  if(!text){el.hidden=true;el.textContent="";return;}
+  el.hidden=false;
+  el.textContent=text;
+}
+function saveStatusText(key){
+  const status=SaveGuard.STATUS||{};
+  return status[key]||"";
+}
 function fillPendingReviewFields(row){
   const orig=$("#pendingOriginalPrice");
   if(orig)orig.value=row&&row.original_price!=null&&row.original_price!==""?row.original_price:"";
@@ -1692,12 +1716,12 @@ function pendingEditPayload(row,imageUrl,galleryUrls){
   ["is_active","is_available","is_new","is_recommended","submission_status","submitted_by","submitted_at","sales_count","id"].forEach(key=>delete payload[key]);
   return payload;
 }
-async function persistPendingSubmission(bookId,payload){
+async function persistPendingSubmission(bookId,payload,signal){
   if(typeof window.__kutadguAdminPersistPending==="function"){
     return window.__kutadguAdminPersistPending(bookId,payload);
   }
   if(!db)return {error:new Error("Database تېخى ئۇلانمىدى.")};
-  return db.rpc("update_pending_staff_book_submission",{p_book_id:Number(bookId),payload});
+  return applySaveAbort(db.rpc("update_pending_staff_book_submission",{p_book_id:Number(bookId),payload}),signal);
 }
 async function openPendingSubmissionEdit(id){
   const row=pendingSubmissions.find(b=>String(b.id)===String(id));
@@ -2356,19 +2380,20 @@ function renderCreateConflict(matches){
   if(ack)ack.checked=false;
   createConflictAck=false;
 }
-async function findCreateConflicts({title,author,isbn,excludeId}){
+async function findCreateConflicts({title,author,isbn,excludeId,signal}){
   if(!db)return [];
   const merged=[];
   const t=Quality.normalizeCatalogText?Quality.normalizeCatalogText(title):String(title||"").trim();
   const a=Quality.normalizeCatalogText?Quality.normalizeCatalogText(author):String(author||"").trim();
   if(t&&a){
-    const {data,error}=await db.from("books").select("id,title,author,price,is_active,isbn").eq("title",t).eq("author",a).limit(8);
+    const {data,error}=await applySaveAbort(db.from("books").select("id,title,author,price,is_active,isbn").eq("title",t).eq("author",a).limit(8),signal);
     if(!error&&Quality.mergeConflictRows)merged.push(...Quality.mergeConflictRows(data,"title_author"));
   }
   const isbnN=normalizeIsbn(isbn);
   if(isbnN&&isbnColumn){
     let query=db.from("books").select("id,title,author,price,is_active,isbn").or(`isbn.eq.${isbnN},isbn.eq."${isbnN}"`).limit(8);
     if(excludeId)query=query.neq("id",excludeId);
+    query=applySaveAbort(query,signal);
     const {data,error}=await query;
     if(!error&&Quality.mergeConflictRows){
       Quality.mergeConflictRows(data,"isbn").forEach(row=>{
@@ -2398,6 +2423,7 @@ function clearForm(){
   syncDerivedStockStatus();
   $("#bookSalesCount").value=0;
   releaseCoverSelection();
+  setSaveStatus("");
   $("#bookCoverPreview").src="";
   $("#bookCoverPreview").style.visibility="hidden";
   $("#bookCoverText").textContent="يېڭى ھۆججەت تاللانمىسا مۇقاۋا قوشۇلمايدۇ";
@@ -3571,6 +3597,12 @@ function bindCoverPicker(){
   input.addEventListener("change",()=>{
     const file=input.files&&input.files[0];
     if(!file)return;
+    const maxBytes=coverByteLimit();
+    if(Number(file.size)>maxBytes){
+      releaseCoverSelection();
+      alert((window.KutadguCoverImage&&window.KutadguCoverImage.COVER_TOO_LARGE)||"مۇقاۋا رەسىمى بەك چوڭ (ئەڭ چوڭ 50MB). تېلېفون رەسىمى ياكى ئادەتتىكى سىكان قوبۇل قىلىنىدۇ؛ بۇ ھۆججەتنى كىچىكلىتىپ قايتا تاللاڭ.");
+      return;
+    }
     coverFormEpoch++;
     if(coverPreviewObjectUrl){
       try{URL.revokeObjectURL(coverPreviewObjectUrl)}catch(e){}
@@ -3637,6 +3669,7 @@ function storageToken(id){
 }
 async function uploadGalleryFile(id,file){
   const bucket=cfg.bucket||"book-covers";
+  assertCoverFileSize(file);
   const optimized=await optimizeGalleryImage(file);
   const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
   const path=`${storageToken(id)}/gallery/${coverImageApi().uniqueStorageStamp()}.${ext}`;
@@ -3649,10 +3682,26 @@ async function uploadGalleryFile(id,file){
 }
 async function collectGalleryUrls(id){
   if(!presentBookCols.has("gallery_images"))return [];
+  const uploads=galleryDraft.filter(item=>item&&item.file);
   const urls=[];
+  let n=0;
   for(const item of galleryDraft){
-    if(item.file)urls.push(await uploadGalleryFile(id,item.file));
-    else if(item.url)urls.push(item.url);
+    if(item.file){
+      n++;
+      setSaveStatus((SaveGuard.STATUS&&SaveGuard.STATUS.gallery?SaveGuard.STATUS.gallery(n,uploads.length):"")||("قوشۇمچە رەسىم يوللىنىۋاتىدۇ: "+n+" / "+uploads.length));
+      try{
+        const uploadOne=()=>uploadGalleryFile(id,item.file);
+        const url=SaveGuard.withTimeout
+          ?await SaveGuard.withTimeout(uploadOne,SaveGuard.STORAGE_UPLOAD_MS,"gallery")
+          :await uploadOne();
+        urls.push(url);
+      }catch(err){
+        const why=SaveGuard.isSaveTimeout&&SaveGuard.isSaveTimeout(err)?"يوللاش ۋاقتى ئېشىپ كەتتى.":(err&&err.message||err);
+        const wrapped=new Error("قوشۇمچە رەسىم "+n+" / "+uploads.length+" يوللانمىدى. ساقلاش توختىتىلدى. "+why);
+        wrapped.step="gallery";
+        throw wrapped;
+      }
+    }else if(item.url)urls.push(item.url);
   }
   return urls;
 }
@@ -3685,6 +3734,16 @@ function isKnownSampleCoverFingerprint(sha,visual){
   const dhash=String(visual||"").trim().toLowerCase();
   return !!(hash&&KNOWN_SAMPLE_COVER_SHA256.has(hash))||!!(dhash&&KNOWN_SAMPLE_COVER_DHASH.has(dhash));
 }
+function coverByteLimit(){
+  const fromImage=window.KutadguCoverImage&&window.KutadguCoverImage.MAX_COVER_BYTES;
+  const fromGuard=SaveGuard.MAX_COVER_BYTES;
+  return Number(fromImage||fromGuard)||50*1024*1024;
+}
+function assertCoverFileSize(file){
+  if(file&&Number(file.size)>coverByteLimit()){
+    throw new Error((window.KutadguCoverImage&&window.KutadguCoverImage.COVER_TOO_LARGE)||"مۇقاۋا رەسىمى بەك چوڭ (ئەڭ چوڭ 50MB). تېلېفون رەسىمى ياكى ئادەتتىكى سىكان قوبۇل قىلىنىدۇ؛ بۇ ھۆججەتنى كىچىكلىتىپ قايتا تاللاڭ.");
+  }
+}
 async function coverSha256(file){
   if(!file)return "";
   if(!window.crypto||!window.crypto.subtle||typeof file.arrayBuffer!=="function"){
@@ -3694,30 +3753,53 @@ async function coverSha256(file){
   const digest=await window.crypto.subtle.digest("SHA-256",bytes);
   return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
+function coverDhashFromBitmap(bitmap){
+  const canvas=document.createElement("canvas");
+  canvas.width=9;canvas.height=8;
+  const ctx=canvas.getContext("2d",{alpha:false});
+  ctx.drawImage(bitmap,0,0,9,8);
+  const data=ctx.getImageData(0,0,9,8).data;
+  let bits="";
+  const gray=(x,y)=>{
+    const i=(y*9+x)*4;
+    return data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
+  };
+  for(let y=0;y<8;y++)for(let x=0;x<8;x++)bits+=gray(x,y)>gray(x+1,y)?"1":"0";
+  let hex="";
+  for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
+  return hex;
+}
 async function coverDhash(file){
   if(!file)return "";
   if(typeof createImageBitmap!=="function")throw new Error("مۇقاۋا كۆرۈنۈش fingerprint ھېسابلاشنى بۇ browser قوللىمايدۇ. Browser نى يېڭىلاڭ.");
+  assertCoverFileSize(file);
   const bitmap=await createImageBitmap(file);
   try{
-    const canvas=document.createElement("canvas");
-    canvas.width=9;canvas.height=8;
-    const ctx=canvas.getContext("2d",{alpha:false});
-    ctx.drawImage(bitmap,0,0,9,8);
-    const data=ctx.getImageData(0,0,9,8).data;
-    let bits="";
-    const gray=(x,y)=>{
-      const i=(y*9+x)*4;
-      return data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;
-    };
-    for(let y=0;y<8;y++)for(let x=0;x<8;x++)bits+=gray(x,y)>gray(x+1,y)?"1":"0";
-    let hex="";
-    for(let i=0;i<bits.length;i+=4)hex+=parseInt(bits.slice(i,i+4),2).toString(16);
-    return hex;
+    return coverDhashFromBitmap(bitmap);
   }finally{
     bitmap.close?.();
   }
 }
-async function findCoverFingerprintConflict(hash,dhash,excludeId){
+function closeCoverBitmap(bitmap){
+  if(!bitmap||bitmap.__kutadguClosed)return;
+  try{bitmap.__kutadguClosed=true;}catch(e){}
+  try{bitmap.close&&bitmap.close();}catch(e){}
+}
+async function decodeCoverBitmap(file){
+  if(typeof createImageBitmap!=="function")throw new Error("مۇقاۋا كۆرۈنۈش fingerprint ھېسابلاشنى بۇ browser قوللىمايدۇ. Browser نى يېڭىلاڭ.");
+  assertCoverFileSize(file);
+  let bitmap=null;
+  const pending=createImageBitmap(file).then(function(bmp){bitmap=bmp;return bmp;});
+  try{
+    if(!SaveGuard.withTimeout)return await pending;
+    return await SaveGuard.withTimeout(function(){return pending;},SaveGuard.IMAGE_DECODE_MS,"decode");
+  }catch(err){
+    if(bitmap)closeCoverBitmap(bitmap);
+    else pending.then(closeCoverBitmap).catch(function(){});
+    throw err;
+  }
+}
+async function findCoverFingerprintConflict(hash,dhash,excludeId,signal){
   const sha=String(hash||"").trim().toLowerCase();
   const visual=String(dhash||"").trim().toLowerCase();
   if((!sha&&!visual)||!presentBookCols.has("cover_sha256")||!presentBookCols.has("cover_dhash")||!db)return null;
@@ -3727,6 +3809,7 @@ async function findCoverFingerprintConflict(hash,dhash,excludeId){
   let query=db.from("books").select("id,title").or(filters.join(",")).limit(2);
   const skip=canonicalBookId(excludeId);
   if(skip)query=query.neq("id",skip);
+  query=applySaveAbort(query,signal);
   const {data,error}=await query;
   if(error){
     if(isMissingCoverSha256ColumnError(error)){
@@ -3737,16 +3820,21 @@ async function findCoverFingerprintConflict(hash,dhash,excludeId){
   }
   return Array.isArray(data)&&data.length?data[0]:null;
 }
-async function fingerprintSelectedCover(file,excludeId){
+async function fingerprintSelectedCover(file,excludeId,opts){
+  const hooks=opts||{};
+  assertCoverFileSize(file);
   const hash=await coverSha256(file);
-  const visual=await coverDhash(file);
+  const visual=hooks.bitmap?coverDhashFromBitmap(hooks.bitmap):await coverDhash(file);
   if(isKnownSampleCoverFingerprint(hash,visual)){
     throw new Error("ئۆرنەك ياكى سىناق مۇقاۋىسىنى ھەقىقىي كىتاب مۇقاۋىسى قىلىپ ساقلىغىلى بولمايدۇ.");
   }
   if(presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash")){
-    const conflict=await findCoverFingerprintConflict(hash,visual,excludeId);
+    const runLookup=SaveGuard.withTimeout
+      ?SaveGuard.withTimeout((signal)=>findCoverFingerprintConflict(hash,visual,excludeId,signal),SaveGuard.FINGERPRINT_MS,"fingerprint")
+      :findCoverFingerprintConflict(hash,visual,excludeId);
+    const conflict=await runLookup;
     if(conflict)throw new Error(duplicateCoverMessage(conflict));
-    const nearMatches=await findCoverNearDhashMatches(visual,excludeId);
+    const nearMatches=await findCoverNearDhashMatches(visual,excludeId,hooks.onScanPage);
     const exactVisual=nearMatches.filter(match=>match.distance===0);
     if(exactVisual.length)throw new Error(duplicateCoverMessage(exactVisual[0]));
     await confirmNearCoverMatch(nearMatches);
@@ -3763,15 +3851,23 @@ function duplicateCoverMessage(book){
   const id=book&&book.id!=null?" (ID "+book.id+")":"";
   return "بۇ مۇقاۋا ئاللىقاچان باشقا كىتابقا"+title+id+" باغلانغان. ھەر كىتابقا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.";
 }
-async function findCoverNearDhashMatches(dhash,excludeId){
+async function findCoverNearDhashMatches(dhash,excludeId,onPage){
   const visual=String(dhash||"").trim().toLowerCase();
   if(!/^[0-9a-f]{16}$/.test(visual)||!presentBookCols.has("cover_dhash")||!db)return [];
   const skip=canonicalBookId(excludeId);
   const matches=[];
   const pageSize=500;
-  for(let from=0;;from+=pageSize){
-    const query=db.from("books").select("id,title,cover_dhash").not("cover_dhash","is",null).order("id",{ascending:true}).range(from,from+pageSize-1);
-    const {data,error}=await query;
+  for(let page=1,from=0;;page++,from+=pageSize){
+    if(typeof onPage==="function")onPage(page);
+    const query=db.from("books").select("id,title,cover_dhash").not("cover_dhash","is",null).order("id",{ascending:true});
+    const runPage=async (signal)=>{
+      const {data,error}=await applySaveAbort(query,signal).range(from,from+pageSize-1);
+      return {data,error};
+    };
+    const pageResult=SaveGuard.withTimeout
+      ?await SaveGuard.withTimeout(runPage,SaveGuard.DHASH_PAGE_MS,"dhash-page")
+      :await runPage();
+    const {data,error}=pageResult;
     if(error){
       if(isMissingCoverSha256ColumnError(error)){disableCoverSha256Column();return [];}
       throw error;
@@ -3798,6 +3894,7 @@ async function confirmNearCoverMatch(matches){
   const list=(matches||[]).filter(match=>match&&match.distance>0);
   if(!list.length)return;
   const message=nearCoverDecisionMessage(list[0]);
+  if(typeof setSaveStatus==="function")setSaveStatus(saveStatusText("confirm")||"ئوخشاش مۇقاۋا جەزملەنمىسى كۈتۈلىۋاتىدۇ...");
   if(typeof confirm!=="function"||!confirm(message))throw new Error("ئوخشاش كۆرۈنۈشلۈك مۇقاۋا جەزملەنمىدى. ساقلاش توختىتىلدى.");
 }
 async function optimizeCover(file){
@@ -3809,12 +3906,15 @@ function skipAuthPreviewCoverUrl(id,file){
   const ext=(raw.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")||"png";
   return "https://cdn.example/admin-preview-covers/"+token+"/"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)+"."+ext;
 }
-async function uploadCover(id,file){
+async function uploadCover(id,file,opts){
   if(!file)return editing?.image_url||"";
   if(!db&&window.__kutadguSkipAdminAuth)return skipAuthPreviewCoverUrl(id,file);
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const bucket=cfg.bucket||"book-covers";
-  const optimized=await optimizeCover(file);
+  // opts.prepared means the save path already decoded once and built the WebP.
+  // This supabase-js build does not forward abortSignal on storage.upload;
+  // the caller bounds the wait with withTimeout instead.
+  const optimized=opts&&opts.prepared?file:await optimizeCover(file);
   const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
   const path=`${storageToken(id)}/${coverImageApi().uniqueStorageStamp()}.${ext}`;
   const prepared=await coverImageApi().prepareStorageUpload(optimized);
@@ -3823,7 +3923,7 @@ async function uploadCover(id,file){
   const {data}=db.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
-async function persistBookRow(payload,operation,editingBookId){
+async function persistBookRow(payload,operation,editingBookId,signal){
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const op=Write.enforcePersistOperation?Write.enforcePersistOperation(operation,editingBookId):(canonicalBookId(editingBookId)?"UPDATE":(operation==="UPDATE"?"STOP":"INSERT"));
   logSavePlan({mode:op==="INSERT"?"create":"edit",editingBookId:canonicalBookId(editingBookId),operation:op});
@@ -3834,7 +3934,7 @@ async function persistBookRow(payload,operation,editingBookId){
     return window.__kutadguAdminPersistBook(payload,op,editingBookId);
   }
   if(op==="UPDATE"){
-    const {data,error}=await db.from("books").update(payload).eq("id",editingBookId).select("id");
+    const {data,error}=await applySaveAbort(db.from("books").update(payload).eq("id",editingBookId).select("id"),signal);
     if(error)return {error};
     if(!Array.isArray(data)||data.length!==1){
       return {error:new Error("بۇ كىتاب يېڭىلانمىدى. يېڭى قۇر قوشۇلمىدى.")};
@@ -3846,7 +3946,32 @@ async function persistBookRow(payload,operation,editingBookId){
   }
   const insertPayload={...payload};
   delete insertPayload.id;
-  return db.from("books").insert(insertPayload).select("id");
+  return applySaveAbort(db.from("books").insert(insertPayload).select("id"),signal);
+}
+async function refreshCatalogAfterSave(attempt){
+  if(attempt!==saveAttempt)return;
+  status($("#adminStatus"),saveStatusText("refresh")||"تىزىملىك يېڭىلىنىۋاتىدۇ...");
+  let bookResult=null;
+  let statsResult=null;
+  try{
+    const run=async (signal)=>Promise.all([
+      loadBooks({signal,reportFailure:true}),
+      loadStats({signal,reportFailure:true})
+    ]);
+    const pair=SaveGuard.withTimeout
+      ?await SaveGuard.withTimeout(run,SaveGuard.CATALOG_REFRESH_MS,"refresh")
+      :await run();
+    bookResult=pair&&pair[0];
+    statsResult=pair&&pair[1];
+  }catch(err){
+    if(attempt!==saveAttempt)return;
+    status($("#adminStatus"),(SaveGuard.STATUS&&SaveGuard.STATUS.refreshFailed)||"كىتاب ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى. ساقلاش تاماملانغان.","warn");
+    return;
+  }
+  if(attempt!==saveAttempt)return;
+  if(!bookResult||bookResult.ok===false||!statsResult||statsResult.ok===false){
+    status($("#adminStatus"),(SaveGuard.STATUS&&SaveGuard.STATUS.refreshFailed)||"كىتاب ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى. ساقلاش تاماملانغان.","warn");
+  }
 }
 async function saveBook(e){
   e.preventDefault();
@@ -3895,41 +4020,82 @@ async function saveBook(e){
   }
   const author=Quality.normalizeCatalogText?Quality.normalizeCatalogText($("#bookAuthor").value):$("#bookAuthor").value.trim();
   const submit=$("#bookForm button[type='submit']");
+  const attempt=++saveAttempt;
   saveInFlight=true;
   submit.disabled=true;
   submit.textContent="ساقلىنىۋاتىدۇ...";
+  function releaseSaveUi(){
+    if(attempt!==saveAttempt)return;
+    saveInFlight=false;
+    if(submit){
+      submit.disabled=false;
+      restoreBookSaveBtnLabel();
+    }
+  }
+  function stopForDuplicate(matches){
+    renderCreateConflict(matches);
+    setSaveStatus("");
+    releaseSaveUi();
+  }
   try{
+    setSaveStatus(saveStatusText("duplicates")||"تەكرارلىق تەكشۈرۈلىۋاتىدۇ...");
     if(!Quality.shouldSkipCreateDuplicateCheck||!Quality.shouldSkipCreateDuplicateCheck(plan.operation)){
-      const matches=await findCreateConflicts({title,author,isbn,excludeId:""});
+      const matches=SaveGuard.withTimeout
+        ?await SaveGuard.withTimeout((signal)=>findCreateConflicts({title,author,isbn,excludeId:"",signal}),SaveGuard.DUPLICATE_MS,"duplicate")
+        :await findCreateConflicts({title,author,isbn,excludeId:""});
+      if(attempt!==saveAttempt)return;
       if(Quality.shouldWarnCreateDuplicates(plan.operation,matches)&&!createConflictAck){
-        renderCreateConflict(matches);
-        saveInFlight=false;
-        submit.disabled=false;
-        restoreBookSaveBtnLabel();
+        stopForDuplicate(matches);
         return;
       }
     }else if(isbn){
-      const isbnHits=await findCreateConflicts({title:"",author:"",isbn,excludeId:editingBookId});
+      const isbnHits=SaveGuard.withTimeout
+        ?await SaveGuard.withTimeout((signal)=>findCreateConflicts({title:"",author:"",isbn,excludeId:editingBookId,signal}),SaveGuard.DUPLICATE_MS,"duplicate")
+        :await findCreateConflicts({title:"",author:"",isbn,excludeId:editingBookId});
+      if(attempt!==saveAttempt)return;
       const isbnOnly=isbnHits.filter(row=>(row.reasons||[]).includes("isbn"));
       if(isbnOnly.length&&!createConflictAck){
-        renderCreateConflict(isbnOnly);
-        saveInFlight=false;
-        submit.disabled=false;
-        restoreBookSaveBtnLabel();
+        stopForDuplicate(isbnOnly);
         return;
       }
     }
     const storageId=isEdit?editingBookId:(String($("#bookId").value||"").trim()||"book");
     if(!coverSelectionCurrent())throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
     let coverHash="",coverVisualHash="";
+    let uploadFile=coverFile;
     if(coverFile){
-      const fp=await fingerprintSelectedCover(coverFile,isEdit?editingBookId:"");
-      if(!coverSelectionCurrent())throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
-      coverHash=fp.hash;
-      coverVisualHash=fp.visual;
+      assertCoverFileSize(coverFile);
+      setSaveStatus(saveStatusText("cover")||"مۇقاۋا تەكشۈرۈلىۋاتىدۇ...");
+      const bitmap=await decodeCoverBitmap(coverFile);
+      try{
+        if(!coverSelectionCurrent()||attempt!==saveAttempt)throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
+        const fp=await fingerprintSelectedCover(coverFile,isEdit?editingBookId:"",{
+          bitmap,
+          onScanPage:function(page){
+            if(attempt!==saveAttempt)return;
+            const label=SaveGuard.STATUS&&SaveGuard.STATUS.coverPage?SaveGuard.STATUS.coverPage(page):"";
+            setSaveStatus(label||("مۇقاۋا سېلىشتۇرۇلىۋاتىدۇ (بەت "+page+")..."));
+          }
+        });
+        if(!coverSelectionCurrent()||attempt!==saveAttempt)throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
+        coverHash=fp.hash;
+        coverVisualHash=fp.visual;
+        setSaveStatus(saveStatusText("prepare")||"مۇقاۋا رەسىمى تەييارلىنىۋاتىدۇ...");
+        uploadFile=SaveGuard.withTimeout
+          ?await SaveGuard.withTimeout(()=>coverImageApi().optimizeUploadImage(coverFile,{bitmap}),SaveGuard.IMAGE_ENCODE_MS,"prepare")
+          :await coverImageApi().optimizeUploadImage(coverFile,{bitmap});
+      }finally{
+        closeCoverBitmap(bitmap);
+      }
     }
-    const imageUrl=await uploadCover(storageId,coverFile);
-    if(!coverSelectionCurrent())throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
+    if(!coverSelectionCurrent()||attempt!==saveAttempt)throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
+    if(coverFile)setSaveStatus(saveStatusText("uploadCover")||"مۇقاۋا يوللىنىۋاتىدۇ...");
+    const imageUrl=coverFile
+      ?(SaveGuard.withTimeout
+        ?await SaveGuard.withTimeout(()=>uploadCover(storageId,uploadFile,{prepared:true}),SaveGuard.STORAGE_UPLOAD_MS,"upload-cover")
+        :await uploadCover(storageId,uploadFile,{prepared:true}))
+      :await uploadCover(storageId,coverFile);
+    if(!coverSelectionCurrent()||attempt!==saveAttempt)throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
     if(imageUrl&&Safe.isSafeCoverUrl&&!Safe.isSafeCoverUrl(imageUrl)){
       throw new Error(Safe.COVER_URL_ERROR||"مۇقاۋا URL بىخەتەر ئەمەس.");
     }
@@ -3969,9 +4135,8 @@ async function saveBook(e){
     if(presentBookCols.has("stock_status")){
       const statusParsed=readStockStatusSelect($("#bookStockStatus"));
       if(!statusParsed.ok){
-        saveInFlight=false;
-        submit.disabled=false;
-        restoreBookSaveBtnLabel();
+        setSaveStatus("");
+        releaseSaveUi();
         alert(statusParsed.error);
         return;
       }
@@ -3990,23 +4155,38 @@ async function saveBook(e){
         if(planned&&planned.include)row.original_price=planned.original_price;
       }
     }
+    setSaveStatus(saveStatusText("saving")||"كىتاب ساقلىنىۋاتىدۇ...");
     if(pendingSave){
       Object.assign(row,pendingReview.values);
       const pendingPayload=pendingEditPayload(row,imageUrl,galleryUrls);
-      const pendingResult=await persistPendingSubmission(editingBookId,pendingPayload);
+      const pendingResult=SaveGuard.withTimeout
+        ?await SaveGuard.withTimeout((signal)=>persistPendingSubmission(editingBookId,pendingPayload,signal),SaveGuard.BOOK_WRITE_MS,"write")
+        :await persistPendingSubmission(editingBookId,pendingPayload);
+      if(attempt!==saveAttempt)return;
       if(pendingResult&&pendingResult.error)throw pendingResult.error;
+      setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
       modal(false);
       showAdminSection("submissions",{skipLoad:true});
-      await loadPendingSubmissions();
-      status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلىنىپ بولدى.","ok");
+      releaseSaveUi();
+      try{
+        if(SaveGuard.withTimeout)await SaveGuard.withTimeout(()=>loadPendingSubmissions(),SaveGuard.CATALOG_REFRESH_MS,"refresh");
+        else await loadPendingSubmissions();
+        if(attempt===saveAttempt)status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلىنىپ بولدى.","ok");
+      }catch(refreshErr){
+        if(attempt===saveAttempt)status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.","warn");
+      }
       return;
     }
     let payload=writeBookRow(row,{mode:isEdit?"update":"insert",omitId:!isEdit});
     if(isEdit&&Write.stripIdentityFields)payload=Write.stripIdentityFields(payload);
     let persistResult=null;
     async function runPersist(nextPayload,op,id){
+      if(attempt!==saveAttempt)throw new Error("ساقلاش ئاللىقاچان ئالماشتى.");
       if(!coverSelectionCurrent())throw new Error("مۇقاۋا تاللىشى ئۆزگەرگەن. قايتا تاللاپ ساقلاڭ.");
-      persistResult=await persistBookRow(nextPayload,op,id);
+      persistResult=SaveGuard.withTimeout
+        ?await SaveGuard.withTimeout((signal)=>persistBookRow(nextPayload,op,id,signal),SaveGuard.BOOK_WRITE_MS,"write")
+        :await persistBookRow(nextPayload,op,id);
+      if(attempt!==saveAttempt)return persistResult&&persistResult.error;
       return persistResult&&persistResult.error;
     }
     let error=await runPersist(payload,plan.operation,editingBookId);
@@ -4093,6 +4273,7 @@ async function saveBook(e){
       }
     }
     if(error)throw error;
+    if(attempt!==saveAttempt)return;
     rememberAdminSuggestionRow({
       title:row.title,
       author:row.author,
@@ -4100,14 +4281,20 @@ async function saveBook(e){
       publisher:row.publisher,
       isbn:isbnColumn?isbn:(row.isbn||"")
     },persistSavedId(persistResult,isEdit?editingBookId:""));
+    setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
     modal(false);
-    await Promise.all([loadBooks(),loadStats()]);
+    releaseSaveUi();
+    await refreshCatalogAfterSave(attempt);
   }catch(err){
-    alert("ساقلاش مەغلۇپ بولدى:\n"+(err.message||err));
+    if(attempt!==saveAttempt)return;
+    setSaveStatus("");
+    if(SaveGuard.isSaveTimeout&&SaveGuard.isSaveTimeout(err)&&err.step==="write"){
+      alert(err.message||SaveGuard.WRITE_TIMEOUT_MESSAGE||"ساقلاش ۋاقتى ئېشىپ كەتتى. كىتاب تىزىملىكىنى تەكشۈرۈپ ئاندىن قايتا ساقلاڭ. مۇلازىمېتىر يېزىشنى تاماملىغان بولۇشى مۇمكىن.");
+    }else{
+      alert("ساقلاش مەغلۇپ بولدى:\n"+(err.message||err));
+    }
   }finally{
-    saveInFlight=false;
-    submit.disabled=false;
-    restoreBookSaveBtnLabel();
+    if(attempt===saveAttempt)releaseSaveUi();
   }
 }
 async function toggleActive(id){

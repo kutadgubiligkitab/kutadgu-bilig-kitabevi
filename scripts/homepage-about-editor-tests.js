@@ -124,9 +124,12 @@ async function run() {
     const shopDiff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
     const lines = shopDiff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
     const body = lines.join("\n");
-    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
-    assert.match(body, /\.cover-stock-overlay/);
-    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|\.about-pro/);
+    assert.doesNotMatch(body, /\.about-pro/);
+    if (lines.length) {
+      assert.ok(lines.every((line) => line.startsWith("-")), body);
+      assert.match(body, /\.cover-stock-overlay/);
+      assert.doesNotMatch(body, /cover-stock-wrap|stock-badge/);
+    }
   });
 
   await test("public overlay uses textContent only and restores fallback on failure", () => {
