@@ -189,6 +189,8 @@ Do not send live analytics or view-count writes while measuring production traff
 
 `npm run promo:story` runs `scripts/promo-story-walkthrough.mjs`. It drives the public site in a headless 720×1280 viewport, records viewport-only WebM, and encodes `artifacts/promo-story/kutadgu-story.mp4` at 1080×1920. That output is gitignored. The script does not change storefront HTML, CSS, or JavaScript. It aborts Supabase writes and analytics posts, and it must not open WhatsApp or `tel:` links. Guest cart data stays in the recorder’s localStorage.
 
+Draft PR #215 on `cursor/promo-story-walkthrough-d5c3`. The recorder commit is `9760c096`. A generated take was 33.0 seconds, 1080×1920, H.264, yuv420p, 30 fps. Stage 2H passed. The runtime baseline stays `1c778c5e` because the storefront did not change.
+
 ## Remaining optional work
 
 The repo has no separate backlog file. These are cautions, not scheduled tasks:
