@@ -45,6 +45,7 @@ Repository: `kutadgubiligkitab/kutadgu-bilig-kitabevi`. Default branch: `main`.
 - Stock enforcement defaults on (`KUTADGU_STOCK_ENFORCEMENT`). Prepared orders do not reserve stock. Admin commit deducts it.
 - Guest cart and favorites stay in browser localStorage (`kutadgu-cart-v1`, `kutadgu-favorites-v1`). Logged-in member cart and favorites use Supabase.
 - Cover images on cards and the detail page use `object-fit: contain` inside a shared cream frame (`storefront-cover-presentation.css`). The image files are not cropped by that stylesheet.
+- The book detail title (`.book-detail-info h1` in `book-shell.html`) is `clamp(24px, 2.9vw, 35px)` with line-height `1.3`. At `760px` and below it is `clamp(23px, 6.8vw, 30px)`. Card titles are unchanged.
 - Non-numeric `/book/...` slugs are a noindex 404. `/adabiyat-roman` keeps its own title.
 - Poetry and other pages load `UKIJCJK.woff2` first, then `UKIJCJK.ttf`.
 
@@ -69,23 +70,24 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `0edcca0be6e92d8feb19a6723816aa129a227878` |
-| Subject | Keep the admin book save from hanging without feedback. |
+| Commit | `b43beea3aa528252d44f6c1fb893651cc9f1112e` |
+| Subject | Reduce the book detail title so the page is less top-heavy. |
 | Date | 2026-09-29 |
-| Branch | `cursor/admin-save-timeout-d5c3` |
-| PR | #212 (draft, not merged) |
-| Why it stays | Admin book save reports each step, bounds stalled requests, and treats a successful books write as saved before the catalog refresh. Schema, RLS, Storage policies, duplicate checks, the near-dHash distance rule, and cover quality (1600px, WebP 0.92, in-cap original kept when WebP is not smaller) are unchanged. |
+| Branch | `cursor/detail-title-size-d5c3` |
+| PR | #213 (draft, not merged) |
+| Why it stays | The book detail page title is smaller on desktop and mobile. Font family, color, RTL, card titles, and the rest of the layout are unchanged. |
 
-`npm run test:unit` passed on that commit before this handoff note. `node --check` passed for `admin.js`, `admin-save-guard.js`, and `kutadgu-cover-image.js`. `git diff --check` was clean. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
+`npm run test:unit` passed on that commit. Stage 2E, 2F, and 2H passed after the `book-shell.html` hash refresh. `git diff --check` was clean. Computed size in Chromium was `35px` / line-height `45.5px` at a `1440px` viewport, and `26.52px` at `390px`. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
 
 Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
 
-A later documentation-only commit in PR #212 does not replace the runtime baseline above. Do not copy that docs commit over `0edcca0be6e92d8feb19a6723816aa129a227878`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `b43beea3aa528252d44f6c1fb893651cc9f1112e`.
 
 ## Recent merged PRs
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #212 | `09f8667` | Admin book save reports each step, bounds stalled requests, and unlocks after a successful write. |
 | #211 | `f4dc454` | Remove the repeated out-of-stock badge from book covers. |
 | #210 | `12f3551` | Project recovery handoff and Cursor rule. Documentation only. |
 | #209 | `70e741b` | Cream mat, hairline, and soft shadow around existing storefront covers. No image-file changes. |
