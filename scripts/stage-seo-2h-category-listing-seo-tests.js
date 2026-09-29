@@ -319,6 +319,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "category-hub-seo.css",
     "scripts/stage-seo-2h-category-listing-seo-tests.js",
     "package.json",
+    ".gitignore",
+    "scripts/promo-commercial.mjs",
     "PROJECT-RECOVERY.md",
     ".cursor/rules/project-recovery.mdc",
     "kutadgu-ai-search-ui.js",

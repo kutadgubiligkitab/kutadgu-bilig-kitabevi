@@ -185,6 +185,12 @@ Do not send live analytics or view-count writes while measuring production traff
 - Category listing HTML is packaged for the Vercel function. `includeFiles` paths must stay within Vercel’s length limit (#201).
 - Guest carts are device-local. They are not in Postgres.
 
+## Promo commercial
+
+`npm run promo:commercial` runs `scripts/promo-commercial.mjs`. It photographs the public mobile site as separate high-DPI stills (414×736 CSS, device scale 4, under the 760px mobile breakpoint) and edits them in post into `artifacts/promo-story/kutadgu-professional-story.mp4` (1080×1920, H.264, 30 fps). Camera moves are scale/crop on those stills, not one Playwright video. That output, plus plates, clips, and audio, is gitignored. The script does not change storefront HTML, CSS, or JavaScript. It aborts Supabase writes and analytics posts, and it must not open WhatsApp or `tel:` links. Guest cart data stays in the recorder’s localStorage. Shots are kept only when `document.fonts.check` reports `UKIJ CJK`, the computed family includes that face, and the page is `lang=ug` / `dir=rtl`.
+
+Tested from `origin/main` `459a3cc0` on branch `cursor/promo-commercial-d5c3`. Featured public book: 147, ئاننا كارېنىنا 1.قىسىم. Runtime baseline stays `1c778c5e`. This handoff does not move it.
+
 ## Remaining optional work
 
 The repo has no separate backlog file. These are cautions, not scheduled tasks:

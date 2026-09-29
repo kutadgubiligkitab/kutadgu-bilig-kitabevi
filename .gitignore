@@ -8,3 +8,6 @@ blob-report/
 !.env.example
 backups/local/
 *.dump
+
+# Promo commercial renders. Video, audio, and frames stay local.
+artifacts/promo-story/
