@@ -8,6 +8,17 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
 
+global.applySaveAbort = (query, signal) => {
+  if (signal && query && typeof query.abortSignal === "function") return query.abortSignal(signal);
+  return query;
+};
+global.SaveGuard = {
+  withTimeout(work) { return Promise.resolve(work(undefined)); },
+  FINGERPRINT_MS: 25000,
+  DHASH_PAGE_MS: 45000,
+  isSaveTimeout() { return false; }
+};
+
 const migration = read("STAGE87_COVER_INTEGRITY.sql");
 const admin = read("admin.js");
 const config = read("supabase-config.js");
@@ -51,7 +62,8 @@ assert.match(admin, /function disableCoverSha256Column/);
 
 const shaFn = sliceFn(admin, "async function coverSha256(file){", "async function coverDhash(file){");
 assert.match(shaFn, /crypto\.subtle\.digest\("SHA-256",bytes\)/);
-const dhashFn = sliceFn(admin, "async function coverDhash(file){", "async function findCoverFingerprintConflict");
+const dhashFn = sliceFn(admin, "function coverDhashFromBitmap(bitmap){", "async function findCoverFingerprintConflict");
+assert.match(dhashFn, /return coverDhashFromBitmap\(bitmap\)/);
 assert.match(dhashFn, /canvas\.width=9;canvas\.height=8/);
 assert.match(dhashFn, /gray\(x,y\)>gray\(x\+1,y\)/);
 
@@ -65,10 +77,10 @@ const save = sliceFn(admin, "async function saveBook(e){", "async function toggl
 assert.match(save, /if\(!isEdit&&!pendingSave&&!coverFile\)/);
 assert.match(save, /يېڭى كىتابقا مۇقاۋا رەسىمى تاللاش كېرەك/);
 assert.match(save, /row\.cover_sha256=coverHash;row\.cover_dhash=coverVisualHash/);
-const preview = sliceFn(admin, "function skipAuthPreviewCoverUrl(id,file){", "async function uploadCover(id,file){");
+const preview = sliceFn(admin, "function skipAuthPreviewCoverUrl(id,file){", "async function uploadCover(id,file");
 assert.match(preview, /admin-preview-covers/);
 assert.doesNotMatch(preview, /sample-book-cover/);
-const upload = sliceFn(admin, "async function uploadCover(id,file){", "async function persistBookRow");
+const upload = sliceFn(admin, "async function uploadCover(id,file", "async function persistBookRow");
 assert.match(upload, /if\(!file\)return editing\?\.image_url\|\|""/);
 assert.match(upload, /if\(!db&&window\.__kutadguSkipAdminAuth\)return skipAuthPreviewCoverUrl/);
 assert.doesNotMatch(upload, /sample-book-cover/);
@@ -255,8 +267,9 @@ assert.doesNotMatch(premium, /src=["']\/carousel-sample-cover\.png["']/);
   const adminDhashDistance = new Function(adminDistance + "\nreturn dhashDistance;")();
   assert.strictEqual(adminDhashDistance("0".repeat(16), "0".repeat(15) + "1"), 1);
   assert.match(admin, /const COVER_DHASH_REVIEW_DISTANCE=5/);
-  const fpFn = sliceFn(admin, "async function fingerprintSelectedCover(file,excludeId){", "function duplicateCoverShaError(error){");
-  assert.match(fpFn, /findCoverFingerprintConflict\(hash,visual,excludeId\)/);
+  const fpFn = sliceFn(admin, "async function fingerprintSelectedCover(file,excludeId", "function duplicateCoverShaError(error){");
+  assert.match(fpFn, /findCoverFingerprintConflict\(hash,visual,excludeId/);
+  assert.match(fpFn, /hooks\.bitmap\?coverDhashFromBitmap\(hooks\.bitmap\):await coverDhash\(file\)/);
   assert.match(fpFn, /exactVisual\.length\)throw new Error\(duplicateCoverMessage\(exactVisual\[0\]\)\)/);
   assert.ok(fpFn.indexOf("confirmNearCoverMatch") > fpFn.indexOf("findCoverFingerprintConflict"));
   const nearFn = sliceFn(admin, "function nearCoverDecisionMessage(match){", "async function optimizeCover(file){");
@@ -269,7 +282,7 @@ assert.doesNotMatch(premium, /src=["']\/carousel-sample-cover\.png["']/);
   assert.match(warning, /2/);
   global.confirm = () => true;
   await confirmNearCoverMatch([{ id: 78, title: "باشقا", distance: 1 }]);
-  const nearLookup = sliceFn(admin, "async function findCoverNearDhashMatches(dhash,excludeId){", "function nearCoverDecisionMessage(match){");
+  const nearLookup = sliceFn(admin, "async function findCoverNearDhashMatches(dhash,excludeId", "function nearCoverDecisionMessage(match){");
   global.presentBookCols = new Set(["cover_sha256", "cover_dhash"]);
   global.canonicalBookId = (id) => id ? String(id) : "";
   global.isMissingCoverSha256ColumnError = () => false;

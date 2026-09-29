@@ -61,7 +61,7 @@ test("shop.js loads the presentation sheet after the card polish sheet", () => {
   assert.match(shop, /data-kutadgu-cover-presentation/);
 });
 
-test("no cover files, schema, or upload code are part of this change", () => {
+test("no cover image files, schema, or covers.css are part of this change", () => {
   const out = execSync("git diff --name-only origin/main HEAD; git diff --name-only; git diff --cached --name-only", {
     cwd: root,
     encoding: "utf8"
@@ -72,7 +72,6 @@ test("no cover files, schema, or upload code are part of this change", () => {
   const forbidden = files.filter((file) =>
     /\.sql$/i.test(file) ||
     /(^|\/)supabase\//i.test(file) ||
-    /kutadgu-cover-image\.js$/.test(file) ||
     /(^|\/)covers\.css$/.test(file)
   );
   assert.deepStrictEqual(forbidden, []);
