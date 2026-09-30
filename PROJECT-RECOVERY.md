@@ -36,7 +36,8 @@ Repository: `kutadgubiligkitab/kutadgu-bilig-kitabevi`. Default branch: `main`.
 
 ## Important storefront behavior
 
-- Search, category, and listing queries go through Supabase REST from `shop.js`. If Supabase is unavailable, `catalog.js` is only a small static fallback, not the live catalog.
+- Search, category, and listing queries go through Supabase REST from `shop.js`. If Supabase is unavailable, `catalog.js` is only a small static fallback, not the live catalog. A configured remote failure stays an error. It does not switch to those demo books.
+- The unfiltered `/books` listing defaults to `بۇ قېتىملىق بايقاش تەرتىپى`. That order is one permutation of the eligible catalog for the current tab visit, stored in `sessionStorage` (`kutadgu-books-visit-v1`). Category pages, the homepage, related books, and favorites do not use it. Search and the named sorts keep their own order. Returning to the default sort in the same visit restores the same order.
 - ISBN search uses the ISBN column only when the whole query is shaped like an ISBN: digits, `X`, spaces, or hyphens, and the digit length is exactly 10 or 13.
 - Book JSON-LD `isbn` is emitted only for a checksum-valid ISBN-10, or an ISBN-13 with prefix 978 or 979 that is not in the 9790 music range. `gtin13` is that same ISBN-13. A failed check omits both fields and does not substitute a SKU. The visible ISBN row still shows the stored number after spaces and hyphens are removed. These checks do not prove the number was assigned to that book.
 - Public pages request active books. Anonymous clients are not given inactive rows. RLS `public can read active books` is `is_active = true`.
@@ -71,25 +72,36 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e` |
-| Subject | Store the first legacy page view after every missing column is omitted. |
+| Commit | `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c` |
+| Subject | Keep listing analytics totals and the public catalog select. |
 | Date | 2026-09-30 |
-| Branch | `feat/admin-daily-visitors` |
-| PR | #218 (draft, not merged) |
-| Why it stays | A fresh page view can omit each missing optional column once, including all five columns the legacy table lacks, and that insert is stored. Those compatibility attempts are separate from a lost-response retry. After `event_id` is omitted, an ambiguous failure is still not sent again. |
+| Branch | `feat/books-visit-rotation` |
+| PR | #219 (draft, not merged) |
+| Why it stays | The unfiltered `/books` listing shows one seeded discovery order for the current tab visit. Search, explicit sorts, category pages, homepage sections, and the public `select *` catalog query stay on their existing paths. |
 
-`npm run test:unit` passed on the tree committed as `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e`. `git diff --check` was clean. The new regression stores the first `page_view` exactly once after five `PGRST204` responses for `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq`. The earlier lost-response cases still pass. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` was not re-run for this retry-budget change. Stage 10 was not re-run.
+`origin/main` when this branch was cut was `8f9bf64e8451064c25bc425a64dad2ae1a126c60`, the merge of #218. The visit order landed in `2a8cbc90dd144b39577db4ba3f1c7c671051d1c7`. `471cf62e` keeps filter and search analytics on the catalog total and leaves the public catalog query starting from `select *`.
 
-`STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. The script applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3, not today plus yesterday. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. The last full local Stage 10 remains the #209 observation below.
+`npm run test:unit` passed on `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c`. `git diff --check` was clean. Focused Playwright `tests/e2e/books-visit-rotation.spec.js` passed 6 tests, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1` and `KUTADGU_PREVIEW_URL` unset. Those tests did not call production `analytics_events` or `get_kutadgu_analytics`. Full Stage 10 was not re-run. This work did not deploy, merge, or change production data.
+
+Visit lifecycle for the unfiltered All books listing:
+
+- A visit is one tab session. `sessionStorage` key `kutadgu-books-visit-v1` stores `{seed, ids, cursor}`. A new tab or a new browser session starts empty and receives a new seed. The seed is not written to `localStorage`. If `sessionStorage` throws, the same visit stays in module memory until that document is discarded.
+- The snapshot is one Fisher-Yates permutation of the canonical active ids collected when the visit first builds it. The same seed and the same id list always produce the same unique order. A different seed moves books across the whole catalog. Books added after the snapshot join the next visit.
+- Pagination walks that frozen list, then fetches full records only for the requested window. A deleted or hidden id is skipped and still consumes a snapshot position, so later ids are not dropped and Load more ends when the cursor reaches the snapshot end. Reloading a loaded span is capped at 5000 rows in one response. Id lookups stay in batches of 100.
+- The id index selects `id,is_active` (or `id` when `is_active` is missing), ordered by `id`, in pages of 1000. A short page is complete when `Content-Range` gives the total, or when the response is HTTP 200. A short HTTP 206 with no total fails the listing. A configured remote error stays on the existing retry message and does not show static demo books.
+- The default label is `بۇ قېتىملىق بايقاش تەرتىپى` (`discover`). Search uses relevance. Newest, title, author, price, bestseller, and recommended stay explicit. Price, collection, category, and hub filters leave rotation. Returning to the default sort in the same visit restores the same snapshot and the cards already loaded. Book detail and Back keep that progress through `sessionStorage` and BFCache.
+
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c`.
+
+The previous application baseline was `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e` on `feat/admin-daily-visitors`, merged by #218. `STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. That run applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. Whether `STAGE100` has been applied to the live project is still unknown.
 
 Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
-
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e`.
 
 ## Recent merged PRs
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #218 | `8f9bf64e` | Admin daily visitors and trustworthy analytics. `STAGE100` stays manual SQL. |
 | #217 | `f35fa6f` | ISBN-13 `isbn` / `gtin13` require prefix 978 or 979 and reject 9790. ISBN-10 and normalization stay. |
 | #214 | `459a3cc` | Smaller book detail title again: desktop cap `32px`, mobile cap `28px`, line-height `1.3`. |
 | #213 | `7bafe49` | Smaller book detail title: desktop cap `35px`, mobile cap `30px`, line-height `1.3`. |
@@ -115,7 +127,8 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 
 | File | Pin at the runtime baseline |
 |---|---|
-| `shop.js` | `?v=135` (`scripts/auth-production-cache-buster-tests.js`) |
+| `shop.js` | `?v=136` (`scripts/auth-production-cache-buster-tests.js`) |
+| `kutadgu-visit-order.js` | `?v=1` on `books.html`, immediately before `kutadgu-search-rank.js` |
 | `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
@@ -166,7 +179,7 @@ Do not send live analytics or view-count writes while measuring production traff
 
 - Anonymous and normal authenticated clients can read active books only (`SUPABASE_SETUP.sql`, policy `public can read active books`).
 - Admin reads of all books, profiles, orders, and analytics require `is_kutadgu_admin()` and AAL2 where that policy says so.
-- `get_kutadgu_analytics` stays granted to `authenticated` only. The live function, read on 2026-09-30, is still the older rolling-window body: it returns page, book, cart, and WhatsApp totals plus `top_books` and `zero_searches`. It does not return visitor counts or the cart, WhatsApp, and search breakdowns. `STAGE100_ADMIN_DAILY_VISITORS.sql` is the manual replacement. Do not apply `STAGE8_STORE_ANALYTICS.sql` over it. This task did not run the migration on the live project. The isolated local run is recorded with the runtime baseline.
+- `get_kutadgu_analytics` stays granted to `authenticated` only. The live function, read on 2026-09-30 before #218 merged, was still the older rolling-window body: it returns page, book, cart, and WhatsApp totals plus `top_books` and `zero_searches`. It does not return visitor counts or the cart, WhatsApp, and search breakdowns. `STAGE100_ADMIN_DAILY_VISITORS.sql` is the manual replacement. Do not apply `STAGE8_STORE_ANALYTICS.sql` over it. Neither #218 nor the visit-order work ran that migration on the live project. The isolated local run is recorded with the previous baseline note above. Merging #218 does not by itself change the live function.
 - `public.match_active_books_ai` is the AI Search matcher. `STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql` says it does not replace that function. It is granted to `anon` and `authenticated`. Do not rewrite it as part of an unrelated change.
 - Admin and storage writes stay on the admin/staff paths. Do not weaken RLS, grants, or Storage policies to make a public page work.
 - Password recovery must use the redirect and `token_hash` flow noted in `supabase-config.js`, not `{{ .ConfirmationURL }}`.
@@ -217,6 +230,7 @@ Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor,
 The repo has no separate backlog file. These are cautions, not scheduled tasks:
 
 - Apply `STAGE100_ADMIN_DAILY_VISITORS.sql` manually before expecting visitor counts in production. The isolated PostgreSQL check does not replace that production apply. Do not run it from an agent task, and do not replace it with `STAGE8_STORE_ANALYTICS.sql`.
+- A visit snapshot does not include books added after it was built. A server that returns a short id page without an exact total fails that `/books` listing instead of showing a partial catalog. Restoring cards already loaded in the visit is capped at 5000 rows. The order belongs to one tab, not to a shared profile.
 - Rows stored before `action_seq` exists stay out of the user-action funnel. Receipt order can still be shown as arrival, and that figure is not user-action order. A client clock outside the server window also drops ordering for that event.
 
 - Public book queries still use broad `select=*` in places. Narrowing columns needs a check that cards and detail pages still receive every field they render.
