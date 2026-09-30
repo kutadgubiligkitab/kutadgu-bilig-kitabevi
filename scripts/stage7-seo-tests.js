@@ -207,6 +207,68 @@ jobs.push(test("isbnIfTrustworthy requires a valid ISBN checksum", () => {
   assert.ok(!JSON.stringify(omitted).includes("7228052258"));
 }));
 
+jobs.push(test("isbnIfTrustworthy requires an ISBN-13 book prefix", () => {
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9789750802959" }), "9789750802959");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "978-975-08-0295-9" }), "9789750802959");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9791234567896" }), "9791234567896");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "979-12-345-6789-6" }), "9791234567896");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9789750802950" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "1234567890128" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "0000000000000" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "9790000000001" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "979-0-000-00000-1" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "0306406152" }), "0306406152");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "080442957X" }), "080442957X");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "080442957x" }), "080442957X");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "   " }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({ isbn: "not-an-isbn" }), "");
+  assert.strictEqual(seo.isbnIfTrustworthy({}), "");
+
+  const base = {
+    id: "129",
+    title: "كىتاب",
+    author: "ئابدۇرېھىم ئۆتكۈر",
+    description: "چۈشەندۈرۈش",
+    publisher: "نەشرىيات",
+    language: "ug",
+    publishYear: "2001",
+    category: "بالىلار",
+    source: "children.html",
+    price: 120
+  };
+  const opts = { visible: true, stockKey: "in", image: "https://www.kutadgubilik.com/covers/x.jpg" };
+  function withoutIdentifiers(isbn) {
+    const graph = seo.buildBookJsonLd(Object.assign({}, base, { isbn }), opts);
+    const node = Object.assign({}, graph["@graph"][0]);
+    delete node.isbn;
+    delete node.gtin13;
+    return { node, rest: graph["@graph"].slice(1), raw: graph["@graph"][0] };
+  }
+  const good = withoutIdentifiers("9789750802959");
+  assert.strictEqual(good.raw.isbn, "9789750802959");
+  assert.strictEqual(good.raw.gtin13, "9789750802959");
+  ["9789750802950", "1234567890128", "0000000000000", "9790000000001", "", "not-an-isbn"].forEach((isbn) => {
+    const other = withoutIdentifiers(isbn);
+    assert.ok(!Object.prototype.hasOwnProperty.call(other.raw, "isbn"), isbn);
+    assert.ok(!Object.prototype.hasOwnProperty.call(other.raw, "gtin13"), isbn);
+    assert.strictEqual(other.raw.sku, "KBG-129", isbn);
+    assert.deepStrictEqual(other.node, good.node, isbn);
+    assert.deepStrictEqual(other.rest, good.rest, isbn);
+    if (isbn) assert.ok(!JSON.stringify(other.raw).includes(isbn.replace(/[\s-]+/g, "")), isbn);
+  });
+  const prefix979 = withoutIdentifiers("9791234567896");
+  assert.strictEqual(prefix979.raw.isbn, "9791234567896");
+  assert.strictEqual(prefix979.raw.gtin13, "9791234567896");
+  assert.deepStrictEqual(prefix979.node, good.node);
+  ["0306406152", "080442957X"].forEach((isbn) => {
+    const ten = withoutIdentifiers(isbn);
+    assert.strictEqual(ten.raw.isbn, isbn);
+    assert.ok(!Object.prototype.hasOwnProperty.call(ten.raw, "gtin13"), isbn);
+    assert.deepStrictEqual(ten.node, good.node, isbn);
+  });
+}));
+
 jobs.push(test("Book JSON-LD breadcrumb uses clean public category URLs", () => {
   const expected = {
     "children.html": "https://www.kutadgubilik.com/children",

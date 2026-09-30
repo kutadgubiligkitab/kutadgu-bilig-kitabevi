@@ -132,6 +132,11 @@
     return check === (isbn.charCodeAt(12) - 48);
   }
 
+  /* 978 and 979 are ISBN-13 prefixes. 979-0 is the ISMN range, not an ISBN. */
+  function isbn13PrefixValid(isbn) {
+    return (isbn.startsWith("978") || isbn.startsWith("979")) && !isbn.startsWith("9790");
+  }
+
   function isbn10ChecksumValid(isbn) {
     const compact = String(isbn || "").toUpperCase();
     if (!/^[0-9]{9}[0-9X]$/.test(compact)) return false;
@@ -146,7 +151,7 @@
 
   function isbnIfTrustworthy(book) {
     const isbn = storefrontIsbn(book);
-    if (/^[0-9]{13}$/.test(isbn) && isbn13ChecksumValid(isbn)) return isbn;
+    if (/^[0-9]{13}$/.test(isbn) && isbn13ChecksumValid(isbn) && isbn13PrefixValid(isbn)) return isbn;
     const ten = isbn.toUpperCase();
     if (/^[0-9]{9}[0-9X]$/.test(ten) && isbn10ChecksumValid(ten)) return ten;
     return "";
