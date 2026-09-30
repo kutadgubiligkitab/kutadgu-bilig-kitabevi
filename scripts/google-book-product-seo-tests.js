@@ -197,6 +197,51 @@ async function run() {
     });
   });
 
+  await test("ISBN-13 requires a 978 or 979 prefix and rejects the 9790 ISMN range", async () => {
+    const accepted = productOf(graphFor(book({ isbn: "979-12-345-6789-6" })));
+    assert.strictEqual(accepted.isbn, "9791234567896");
+    assert.strictEqual(accepted.gtin13, "9791234567896");
+    const reference = graphFor(book({ isbn: "9789750802959" }));
+    function withoutIdentifiers(payload) {
+      const graph = JSON.parse(JSON.stringify(payload));
+      delete graph["@graph"][0].isbn;
+      delete graph["@graph"][0].gtin13;
+      return graph;
+    }
+    const referenceRest = withoutIdentifiers(reference);
+    ["9789750802950", "1234567890128", "0000000000000", "9790000000001", "979-0-000-00000-1", "", "not-an-isbn"].forEach((isbn) => {
+      const payload = graphFor(book({ isbn }));
+      const node = productOf(payload);
+      assert.ok(!Object.prototype.hasOwnProperty.call(node, "isbn"), isbn);
+      assert.ok(!Object.prototype.hasOwnProperty.call(node, "gtin13"), isbn);
+      assert.strictEqual(node.sku, "KBG-122", isbn);
+      assert.deepStrictEqual(withoutIdentifiers(payload), referenceRest, isbn);
+      const compact = isbn.replace(/[\s-]+/g, "");
+      if (compact) assert.ok(!JSON.stringify(node).includes(compact), isbn);
+    });
+    assert.deepStrictEqual(withoutIdentifiers(graphFor(book({ isbn: "9791234567896" }))), referenceRest);
+    assert.deepStrictEqual(withoutIdentifiers(graphFor(book({ isbn: "0306406152" }))), referenceRest);
+    assert.deepStrictEqual(withoutIdentifiers(graphFor(book({ isbn: "080442957X" }))), referenceRest);
+
+    const badRow = rowFrom({ isbn: "1234567890128" });
+    const out = await invoke("/book/122", badRow);
+    assert.strictEqual((out.body.match(/id=["']kutadguBookSchema["']/gi) || []).length, 1);
+    const mapped = publicBook.publicSeoBook(badRow, "122");
+    const hydrated = seo.buildBookJsonLd(mapped, {
+      canonical: ORIGIN + "/book/122",
+      authorName: seo.storefrontAuthor(mapped),
+      image: COVER,
+      visible: true,
+      stockKey: "in"
+    });
+    const serverPayload = jsonLd(out.body);
+    assert.deepStrictEqual(serverPayload, hydrated);
+    assert.ok(!serverPayload["@graph"][0].isbn);
+    assert.ok(!serverPayload["@graph"][0].gtin13);
+    assert.strictEqual(serverPayload["@graph"][0].sku, "KBG-122");
+    assert.notStrictEqual(serverPayload["@graph"][0].sku, "1234567890128");
+  });
+
   await test("7-11 price, condition, and effective stock map onto one TRY Offer", () => {
     const priced = productOf(graphFor(book({ price: 180 }), { stockKey: "in" }));
     assert.strictEqual(priced.offers["@type"], "Offer");
