@@ -75,7 +75,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Require an ISBN-13 book prefix before emitting isbn and gtin13. |
 | Date | 2026-09-30 |
 | Branch | `fix/isbn-schema-validation` |
-| PR | draft, not merged |
+| PR | #217 (draft, not merged) |
 | Why it stays | Book JSON-LD now requires an ISBN-13 prefix of 978 or 979, and rejects the 9790 music range, in addition to the existing 13-digit and checksum checks. Invalid values omit both `isbn` and `gtin13`. ISBN-10, space and hyphen normalization, and the rest of the Product + Book graph stay as they were. |
 
 `npm run test:unit` passed on that commit. `git diff --check` was clean. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
