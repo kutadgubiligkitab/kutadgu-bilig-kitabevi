@@ -38,6 +38,7 @@ Repository: `kutadgubiligkitab/kutadgu-bilig-kitabevi`. Default branch: `main`.
 
 - Search, category, and listing queries go through Supabase REST from `shop.js`. If Supabase is unavailable, `catalog.js` is only a small static fallback, not the live catalog.
 - ISBN search uses the ISBN column only when the whole query is shaped like an ISBN: digits, `X`, spaces, or hyphens, and the digit length is exactly 10 or 13.
+- Book JSON-LD `isbn` is emitted only for a checksum-valid ISBN-10, or an ISBN-13 with prefix 978 or 979 that is not in the 9790 music range. `gtin13` is that same ISBN-13. A failed check omits both fields and does not substitute a SKU. The visible ISBN row still shows the stored number after spaces and hyphens are removed. These checks do not prove the number was assigned to that book.
 - Public pages request active books. Anonymous clients are not given inactive rows. RLS `public can read active books` is `is_active = true`.
 - Bestsellers depend on `sales_count > 0`. The homepage shares one in-flight count and keeps it for about 10 minutes. A WhatsApp click does not increment `sales_count`.
 - `is_recommended` and `is_new` are admin choices, not the bestseller source.
@@ -70,23 +71,24 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `1c778c5e051b9a17724b82bc031b83518dbf4133` |
-| Subject | Make the book detail title a little smaller for long titles. |
-| Date | 2026-09-29 |
-| Branch | `cursor/detail-title-smaller-d5c3` |
-| PR | #214 (draft, not merged) |
-| Why it stays | The book detail title is one step smaller again. Line-height stays `1.3`. Font family, color, RTL, card titles, and the rest of the layout are unchanged. |
+| Commit | `3db8c02fd12a89e1d999fe69928e64b25a63f7f4` |
+| Subject | Require an ISBN-13 book prefix before emitting isbn and gtin13. |
+| Date | 2026-09-30 |
+| Branch | `fix/isbn-schema-validation` |
+| PR | draft, not merged |
+| Why it stays | Book JSON-LD now requires an ISBN-13 prefix of 978 or 979, and rejects the 9790 music range, in addition to the existing 13-digit and checksum checks. Invalid values omit both `isbn` and `gtin13`. ISBN-10, space and hyphen normalization, and the rest of the Product + Book graph stay as they were. |
 
-`npm run test:unit` passed on that commit. Stage 2E, 2F, and 2H passed after the `book-shell.html` hash refresh. `git diff --check` was clean. Computed size in Chromium was `32px` / line-height `41.6px` at a `1440px` viewport, and `24.18px` at `390px`. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
+`npm run test:unit` passed on that commit. `git diff --check` was clean. Stage 10 was not re-run. The last full local Stage 10 remains the #209 observation below.
 
 Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
 
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `1c778c5e051b9a17724b82bc031b83518dbf4133`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `3db8c02fd12a89e1d999fe69928e64b25a63f7f4`.
 
 ## Recent merged PRs
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #214 | `459a3cc` | Smaller book detail title again: desktop cap `32px`, mobile cap `28px`, line-height `1.3`. |
 | #213 | `7bafe49` | Smaller book detail title: desktop cap `35px`, mobile cap `30px`, line-height `1.3`. |
 | #212 | `09f8667` | Admin book save reports each step, bounds stalled requests, and unlocks after a successful write. |
 | #211 | `f4dc454` | Remove the repeated out-of-stock badge from book covers. |
@@ -111,6 +113,7 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | File | Pin at the runtime baseline |
 |---|---|
 | `shop.js` | `?v=133` (`scripts/auth-production-cache-buster-tests.js`) |
+| `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
 | `admin.js` | `?v=79` (`no-store`; the save-flow behavior changed without a pin bump) |
