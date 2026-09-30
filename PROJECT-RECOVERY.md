@@ -71,18 +71,20 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `ac332e5d1fa16f514b79982b1e6e50002f53dff5` |
-| Subject | Show distinct Istanbul-day visitors in admin analytics. |
+| Commit | `12c5292303f1e8e368b194a48e390e5fa57bddb6` |
+| Subject | Keep lost analytics responses from duplicating legacy inserts. |
 | Date | 2026-09-30 |
 | Branch | `feat/admin-daily-visitors` |
 | PR | #218 (draft, not merged) |
-| Why it stays | Admin analytics now shows today’s and yesterday’s distinct recorded visitors and a seven-day Europe/Istanbul chart. A visitor is an anonymous first-party browser id, not a verified person. Period distinct visitors are counted separately from the daily counts. Missing RPC fields stay unavailable instead of becoming zero. |
+| Why it stays | Legacy inserts that omit `event_id` are no longer retried after a lost response or 5xx. The ordered funnel uses a validated client action sequence. Server receipt order is returned separately and is not labeled as user-action order. |
 
-`npm run test:unit` passed on that commit. `git diff --check` was clean. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` passed against `http://127.0.0.1:4173` and did not call production analytics. Stage 10 was not re-run. `STAGE100_ADMIN_DAILY_VISITORS.sql` was not executed. The last full local Stage 10 remains the #209 observation below.
+`npm run test:unit` passed on the tree committed as `12c5292303f1e8e368b194a48e390e5fa57bddb6`. `git diff --check` was clean. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` passed against `http://127.0.0.1:4173` and did not call production analytics. Stage 10 was not re-run.
+
+`STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. The script applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3, not today plus yesterday. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. The last full local Stage 10 remains the #209 observation below.
 
 Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
 
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `ac332e5d1fa16f514b79982b1e6e50002f53dff5`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `12c5292303f1e8e368b194a48e390e5fa57bddb6`.
 
 ## Recent merged PRs
 
@@ -119,8 +121,8 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | `member.js` | `?v=28` |
 | `admin.js` | `?v=79` (`no-store`; analytics rendering changed without a pin bump) |
 | `admin.css` | `?v=47` |
-| `kutadgu-analytics-core.js` | `?v=2` |
-| `analytics.js` | `?v=3` |
+| `kutadgu-analytics-core.js` | `?v=3` |
+| `analytics.js` | `?v=4` |
 | `admin-save-guard.js` | `?v=1` |
 | `kutadgu-cover-image.js` | `?v=2` on `admin.html` and `book-staff.html` |
 | `book-staff.js` | `?v=8` |
@@ -164,7 +166,7 @@ Do not send live analytics or view-count writes while measuring production traff
 
 - Anonymous and normal authenticated clients can read active books only (`SUPABASE_SETUP.sql`, policy `public can read active books`).
 - Admin reads of all books, profiles, orders, and analytics require `is_kutadgu_admin()` and AAL2 where that policy says so.
-- `get_kutadgu_analytics` stays granted to `authenticated` only. The live function, read on 2026-09-30, is still the older rolling-window body: it returns page, book, cart, and WhatsApp totals plus `top_books` and `zero_searches`. It does not return visitor counts or the cart, WhatsApp, and search breakdowns. `STAGE100_ADMIN_DAILY_VISITORS.sql` is the manual replacement. Do not apply `STAGE8_STORE_ANALYTICS.sql` over it. This task did not run the migration.
+- `get_kutadgu_analytics` stays granted to `authenticated` only. The live function, read on 2026-09-30, is still the older rolling-window body: it returns page, book, cart, and WhatsApp totals plus `top_books` and `zero_searches`. It does not return visitor counts or the cart, WhatsApp, and search breakdowns. `STAGE100_ADMIN_DAILY_VISITORS.sql` is the manual replacement. Do not apply `STAGE8_STORE_ANALYTICS.sql` over it. This task did not run the migration on the live project. The isolated local run is recorded with the runtime baseline.
 - `public.match_active_books_ai` is the AI Search matcher. `STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql` says it does not replace that function. It is granted to `anon` and `authenticated`. Do not rewrite it as part of an unrelated change.
 - Admin and storage writes stay on the admin/staff paths. Do not weaken RLS, grants, or Storage policies to make a public page work.
 - Password recovery must use the redirect and `token_hash` flow noted in `supabase-config.js`, not `{{ .ConfirmationURL }}`.
@@ -194,7 +196,7 @@ Do not send live analytics or view-count writes while measuring production traff
 
 ## Admin analytics
 
-The Analytics card in `admin.html` reads `get_kutadgu_analytics`. Until `STAGE100_ADMIN_DAILY_VISITORS.sql` is applied by hand, visitor counts and the new breakdowns show as unavailable (`—`), not zero. After it is applied, deploy the site. The site can ship first: inserts omit `visitor_id`, `event_id`, and `host` if those columns are missing.
+The Analytics card in `admin.html` reads `get_kutadgu_analytics`. Until `STAGE100_ADMIN_DAILY_VISITORS.sql` is applied by hand, visitor counts and the new breakdowns show as unavailable (`—`), not zero. After it is applied, deploy the site. The site can ship first: inserts omit `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq` if those columns are missing. A lost response or HTTP 5xx is retried once only while `event_id` is still on the request, so the unique index can ignore the duplicate. After `event_id` is omitted, that same failure is dropped instead of inserted again.
 
 Definitions once the migration is applied:
 
@@ -202,19 +204,20 @@ Definitions once the migration is applied:
 - A visitor is one anonymous browser id stored in `localStorage` (`kutadgu-analytics-visitor`). The tab session id stays in `sessionStorage`. Several pages or reloads on one Istanbul day count as one visitor. Page views stay page views.
 - Today, yesterday, and the selected period each use their own `count(distinct visitor_id)`. The period total is not the sum of the daily totals.
 - Days with no events are zero. Days with events but no visitor id are unavailable. Days with a mix count only the identified visitors and are marked partial. Historical rows are not rebuilt from page-view totals.
-- The ordered funnel counts sessions that have a `session_id`: a book view, then an add-to-cart at or after that view, then a WhatsApp click at or after that add. WhatsApp is intent, not a sale. The old RPC has no funnel object, so the page labels those figures as aggregate event ratios and does not cap them at 100%.
+- The user-action funnel orders `action_seq`, which the browser assigns once when the person acts and reuses on retry. The server keeps `occurred_at` only from 5 minutes before `now()` through 1 minute after; otherwise it clears both ordering fields and still stores the event. A later step must have a strictly greater sequence, so equal timestamps and equal sequence numbers are not a later step. Sessions without that pair are excluded, not reconstructed from arrival time. `arrival_funnel` uses `created_at` and sets `accurate_user_action_order` false. The old RPC has no funnel object, so the page labels those figures as aggregate event ratios and does not cap them at 100%. WhatsApp is intent, not a sale.
 - A search with an unknown result count is unknown, not a zero-result search. `search` and `zero_result_search` are not added together.
 - Book lists resolve a numeric id first, then the lowest `books.id` for a legacy id. They do not join on both at once. WhatsApp book ids are deduplicated per click.
 - `book_view`, `book_engagement_detail`, and `add_to_cart` stay separate. Analytics does not change `books.sales_count`.
 - Collection skips local, preview, and other non-production hosts, and skips `admin.html` and `book-staff.html`. A logged-in admin on the public storefront can still be counted, because inserts use the public key. Bot filtering is not complete. PostHog stays separate and is not added to these totals.
 
-Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor, then deploy. Rollback is described at the bottom of that file: restore the previous function and insert policy, and leave the new nullable columns in place. Do not delete `analytics_events`.
+Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor, then deploy. Rollback is `STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql`, run by itself. It restores the previous rolling-window function and the Stage 99 insert policy, drops the timing trigger, and leaves `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq` in place. Do not delete `analytics_events`. Do not replace the function with `STAGE8_STORE_ANALYTICS.sql`.
 
 ## Remaining optional work
 
 The repo has no separate backlog file. These are cautions, not scheduled tasks:
 
-- Apply `STAGE100_ADMIN_DAILY_VISITORS.sql` manually before expecting visitor counts in production. Do not run it from an agent task, and do not replace it with `STAGE8_STORE_ANALYTICS.sql`.
+- Apply `STAGE100_ADMIN_DAILY_VISITORS.sql` manually before expecting visitor counts in production. The isolated PostgreSQL check does not replace that production apply. Do not run it from an agent task, and do not replace it with `STAGE8_STORE_ANALYTICS.sql`.
+- Rows stored before `action_seq` exists stay out of the user-action funnel. Receipt order can still be shown as arrival, and that figure is not user-action order. A client clock outside the server window also drops ordering for that event.
 
 - Public book queries still use broad `select=*` in places. Narrowing columns needs a check that cards and detail pages still receive every field they render.
 - `STAGE11_RECOVERY.md` still mentions agent branches as `cursor/<name>-fd87`. Recent merged work used `cursor/<name>-c4dc`. Confirm the live branch suffix before creating a branch.
