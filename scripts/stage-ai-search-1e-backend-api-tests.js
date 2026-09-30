@@ -12,7 +12,7 @@ const handler = require("../api/ai-search.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "14c99c61a63659fdaaf978463b1e5556ed8a39222473c1ee9ff52b3c6a782947"
+  "shop.js": "f55f313005e78cccfeb1bac2e84d9db95fa621aeba71c9414800d749734c77db"
 };
 
 let failed = 0;
