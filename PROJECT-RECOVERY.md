@@ -75,7 +75,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Show distinct Istanbul-day visitors in admin analytics. |
 | Date | 2026-09-30 |
 | Branch | `feat/admin-daily-visitors` |
-| PR | draft, number recorded after this handoff commit |
+| PR | #218 (draft, not merged) |
 | Why it stays | Admin analytics now shows today’s and yesterday’s distinct recorded visitors and a seven-day Europe/Istanbul chart. A visitor is an anonymous first-party browser id, not a verified person. Period distinct visitors are counted separately from the daily counts. Missing RPC fields stay unavailable instead of becoming zero. |
 
 `npm run test:unit` passed on that commit. `git diff --check` was clean. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` passed against `http://127.0.0.1:4173` and did not call production analytics. Stage 10 was not re-run. `STAGE100_ADMIN_DAILY_VISITORS.sql` was not executed. The last full local Stage 10 remains the #209 observation below.
