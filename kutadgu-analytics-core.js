@@ -237,15 +237,27 @@
     return true;
   }
 
+  const OPTIONAL_COLUMN_LIMIT=7;
+
+  function boundedCount(value,fallback){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>=0?n:fallback;
+  }
+
   function retryDecision(status,missingColumn,attempt,opts){
     const n=Number(attempt)||0;
     const idempotent=!(opts&&opts.idempotent===false);
-    if(missingColumn)return n<4?"omit-column":"drop";
+    const schemaAttempts=boundedCount(opts&&opts.schemaAttempts,n);
+    const networkAttempts=boundedCount(opts&&opts.networkAttempts,n);
+    const optionalLimit=boundedCount(opts&&opts.optionalLimit,OPTIONAL_COLUMN_LIMIT)||OPTIONAL_COLUMN_LIMIT;
+    // Each recognized optional column may be omitted once. This budget is not
+    // the lost-response retry.
+    if(missingColumn)return schemaAttempts<optionalLimit?"omit-column":"drop";
     const code=Number(status);
     if(code===409||(code>=200&&code<300))return "stored";
     // A lost response or 5xx can mean the insert already committed.
-    // Retry only while event_id uniqueness can ignore that duplicate.
-    if((code===0||code>=500)&&n<1&&idempotent)return "retry-same-id";
+    // Retry once, and only while event_id uniqueness can ignore that duplicate.
+    if((code===0||code>=500)&&networkAttempts<1&&idempotent)return "retry-same-id";
     return "drop";
   }
 
@@ -604,6 +616,7 @@
     visitorId,
     sessionId,
     shouldRecordRemote,
+    OPTIONAL_COLUMN_LIMIT,
     retryDecision,
     istanbulDate,
     istanbulRange,

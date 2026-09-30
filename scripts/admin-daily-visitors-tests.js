@@ -259,6 +259,12 @@ test("retries reuse the decision and do not invent another visitor", () => {
   assert.strictEqual(A.retryDecision(409, "", 0), "stored");
   assert.strictEqual(A.retryDecision(201, "", 0), "stored");
   assert.strictEqual(A.retryDecision(400, "visitor_id", 0), "omit-column");
+  assert.strictEqual(A.retryDecision(400, "action_seq", 4), "omit-column");
+  assert.strictEqual(A.retryDecision(400, "visitor_id", 0, { schemaAttempts: 7, optionalLimit: 7 }), "drop");
+  assert.strictEqual(A.retryDecision(0, "", 4, { schemaAttempts: 5, networkAttempts: 0 }), "retry-same-id");
+  assert.strictEqual(A.retryDecision(503, "", 0, { schemaAttempts: 5, networkAttempts: 0, idempotent: false }), "drop");
+  assert.strictEqual(A.retryDecision(503, "", 0, { networkAttempts: 1 }), "drop");
+  assert.strictEqual(A.OPTIONAL_COLUMN_LIMIT >= 5, true);
   assert.strictEqual(A.retryDecision(0, "", 0, { idempotent: false }), "drop");
   assert.strictEqual(A.retryDecision(503, "", 0, { idempotent: false }), "drop");
   const now = new Date("2026-09-30T12:00:00Z");
@@ -336,6 +342,8 @@ test("tracking keeps session and visitor apart and retries the same event id", (
   assert.ok(js.includes("kutadgu-analytics-session"));
   assert.ok(js.includes("resolution=ignore-duplicates"));
   assert.ok(js.includes("idempotent:hasEvent"));
+  assert.ok(js.includes("schemaAttempts:state.schema"));
+  assert.ok(js.includes("networkAttempts:state.network"));
   assert.ok(js.includes("occurred_at"));
   assert.ok(js.includes("action_seq"));
   assert.ok(js.includes("analytics must never block the shop"));
@@ -394,12 +402,12 @@ test("cache pins moved for the changed analytics files", () => {
   const home = read("index.html");
   const shell = read("book-shell.html");
   assert.match(html, /admin\.css\?v=47/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=3/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=4/);
   assert.match(html, /admin\.js\?v=79/);
-  assert.match(home, /analytics\.js\?v=4/);
-  assert.match(home, /kutadgu-analytics-core\.js\?v=3/);
+  assert.match(home, /analytics\.js\?v=5/);
+  assert.match(home, /kutadgu-analytics-core\.js\?v=4/);
   assert.match(home, /shop\.js\?v=135/);
-  assert.match(shell, /src="\/analytics\.js\?v=4"/);
+  assert.match(shell, /src="\/analytics\.js\?v=5"/);
 });
 
 function browserStorage() {
@@ -434,6 +442,27 @@ function loadAnalyticsVm(fetchImpl) {
   });
   vm.runInContext(fs.readFileSync(path.join(root, "analytics.js"), "utf8"), context);
   return window;
+}
+
+async function legacySchemaStoresFirstPageViewOnce() {
+  const stored = [];
+  const legacyMissing = ["visitor_id", "event_id", "host", "occurred_at", "action_seq"];
+  let schemaErrors = 0;
+  const window = loadAnalyticsVm(async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const missing = legacyMissing.find((col) => Object.prototype.hasOwnProperty.call(body, col));
+    if (missing) {
+      schemaErrors += 1;
+      return { ok: false, status: 400, text: async () => "PGRST204 Could not find the '" + missing + "' column of 'analytics_events' in the schema cache" };
+    }
+    stored.push(body);
+    return { ok: true, status: 201, text: async () => "" };
+  });
+  await window.KutadguAnalytics.track("page_view", {});
+  assert.strictEqual(stored.length, 1);
+  assert.strictEqual(stored[0].event_name, "page_view");
+  assert.strictEqual(schemaErrors, legacyMissing.length);
+  legacyMissing.forEach((col) => assert.ok(!(col in stored[0]), col));
 }
 
 async function legacyLostResponseDoesNotDuplicate() {
@@ -479,13 +508,15 @@ async function eventIdRetryStaysOneRow() {
   assert.notStrictEqual(stored[0].event_id, stored[1].event_id);
 }
 
-legacyLostResponseDoesNotDuplicate()
+legacySchemaStoresFirstPageViewOnce()
+  .then(() => legacyLostResponseDoesNotDuplicate())
   .then(() => eventIdRetryStaysOneRow())
   .then(() => {
     if (failed) {
       console.error(failed + " failed");
       process.exit(1);
     }
+    console.log("PASS legacy schema first page view is stored once");
     console.log("PASS legacy schema lost response stays one row per event");
     console.log("admin-daily-visitors-tests ok");
   })

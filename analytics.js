@@ -61,10 +61,22 @@
       session_id:clean(ctx.sessionId,100)||null
     };
   }
-  async function postRow(row,attempt){
-    if(!row||!url||!key||attempt>4)return;
+  async function postRow(row,progress){
+    const state=progress&&typeof progress==="object"?progress:{schema:0,network:0};
+    const optionalLimit=Object.keys(omitCols).length;
+    if(!row||!url||!key||state.schema>optionalLimit||state.network>1)return;
     const body=stripOptional(row);
     const hasEvent=!!body.event_id;
+    const decide=(status,missing)=>{
+      const core=Core();
+      if(!core||!core.retryDecision)return status>=200&&status<300?"stored":"drop";
+      return core.retryDecision(status,missing,state.network,{
+        idempotent:hasEvent,
+        schemaAttempts:state.schema,
+        networkAttempts:state.network,
+        optionalLimit
+      });
+    };
     let response;
     try{
       response=await fetch(url+"/rest/v1/analytics_events",{
@@ -79,23 +91,28 @@
         body:JSON.stringify(body)
       });
     }catch(err){
-      const decision=Core()?.retryDecision?Core().retryDecision(0,"",attempt,{idempotent:hasEvent}):"drop";
-      if(decision==="retry-same-id")return postRow(row,attempt+1);
+      const decision=decide(0,"");
+      if(decision==="retry-same-id"){
+        state.network+=1;
+        return postRow(row,state);
+      }
       return;
     }
-    const core=Core();
-    const decisionOf=(status,missing)=>core&&core.retryDecision?core.retryDecision(status,missing,attempt,{idempotent:hasEvent}):(status>=200&&status<300?"stored":"drop");
-    if(decisionOf(response.status,"")==="stored"||response.ok)return;
+    if(decide(response.status,"")==="stored"||response.ok)return;
     let text="";
     try{text=await response.text()}catch(err){text=""}
     const missing=missingOptionalColumn(text);
     const canOmit=missing&&omitCols[missing]!==true;
-    const decision=decisionOf(response.status,canOmit?missing:"");
+    const decision=decide(response.status,canOmit?missing:"");
     if(decision==="omit-column"&&canOmit){
       omitCols[missing]=true;
-      return postRow(row,attempt+1);
+      state.schema+=1;
+      return postRow(row,state);
     }
-    if(decision==="retry-same-id")return postRow(row,attempt+1);
+    if(decision==="retry-same-id"){
+      state.network+=1;
+      return postRow(row,state);
+    }
     if(decision==="stored")return;
   }
   function allowedHere(){
