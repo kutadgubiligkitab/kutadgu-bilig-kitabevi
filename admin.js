@@ -5099,37 +5099,126 @@ async function applyBulk(){
   }
 }
 
-async function loadAnalytics(){
-  const hostTop=$("#analyticsTopBooks"),hostZero=$("#analyticsZeroSearches");
-  const hostCart=$("#analyticsTopCart"),hostWa=$("#analyticsTopWhatsapp"),hostSearch=$("#analyticsTopSearches");
-  if(!db||!hostTop||!hostZero)return;
-  const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  const loading='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-  [hostTop,hostZero,hostCart,hostWa,hostSearch].forEach(el=>{if(el)el.innerHTML=loading});
-  const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
-  if(error){
-    const msg='Analytics نى ئوقۇش مەغلۇپ بولدى: '+esc(error.message)+'<br>STAGE8_STORE_ANALYTICS.sql نى Supabase SQL Editor دا بىر قېتىم Run قىلىڭ (ئالدىن STAGE4_ANALYTICS_RPC_FIX.sql).';
-    [hostTop,hostZero,hostCart,hostWa,hostSearch].forEach(el=>{if(el)el.innerHTML=`<div class="admin-empty">${msg}</div>`});
+let analyticsShownDays=null;
+const analyticsRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
+  ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
+  :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
+
+function analyticsCountText(state){
+  return state&&state.state==="value"?Number(state.value).toLocaleString("tr-TR"):"—";
+}
+function setAnalyticsCount(id,state){
+  const el=$(id);
+  if(el)el.textContent=analyticsCountText(state);
+}
+function setVisitorCount(id,metric){
+  const el=$(id);
+  if(!el)return;
+  if(!metric||metric.status==="unavailable"||metric.visitors==null)el.textContent="—";
+  else if(metric.status==="partial")el.textContent=Number(metric.visitors).toLocaleString("tr-TR")+" (قىسمەن)";
+  else el.textContent=Number(metric.visitors).toLocaleString("tr-TR");
+}
+function renderAnalyticsList(el,state,countKey,emptyText){
+  if(!el)return;
+  if(!state||state.state==="unsupported"){
+    el.innerHTML='<div class="admin-empty">بۇ بۆلەك نۆۋەتتىكى Analytics فۇنكسىيەسىدە يوق. نۆل دەپ قارالمايدۇ.</div>';
     return;
   }
-  const summary=data||{};
+  if(state.state!=="rows"||!state.rows.length){
+    el.innerHTML=`<div class="admin-empty">${emptyText}</div>`;
+    return;
+  }
+  el.innerHTML=state.rows.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.query||row.book_id||"—")}</span><strong>${Number(row[countKey]||row.views||row.adds||row.clicks||row.searches||0).toLocaleString("tr-TR")}</strong></div>`).join("");
+}
+function renderVisitorChart(days){
+  const host=$("#analyticsVisitorChart");
+  if(!host)return;
+  const rows=Array.isArray(days)?days:[];
+  const max=Math.max(1,...rows.map(day=>day&&day.visitors==null?0:Number(day.visitors)||0));
+  host.innerHTML=rows.map(day=>{
+    const status=day&&day.status||"unavailable";
+    const visitors=day&&day.visitors;
+    const label=status==="unavailable"||visitors==null?"—":Number(visitors).toLocaleString("tr-TR");
+    const height=status==="unavailable"||visitors==null?0:Math.round((Number(visitors)||0)/max*100);
+    const cls=status==="partial"?"is-partial":status==="zero"?"is-zero":status==="complete"?"is-complete":"is-unavailable";
+    return `<div class="admin-analytics-chart-col ${cls}"><strong>${esc(label)}</strong><div class="admin-analytics-chart-bar" title="${esc(day&&day.date||"")}"><span style="height:${height}%"></span></div><small>${esc(String(day&&day.date||"").slice(5))}</small></div>`;
+  }).join("");
+}
+function renderAnalytics(described,opts){
+  const pending=!!(opts&&opts.pending);
+  const errorText=opts&&opts.error;
+  const meta=$("#analyticsMeta");
   const Core=window.KutadguAnalyticsCore;
-  const funnel=summary.funnel&&typeof summary.funnel==="object"
-    ?summary.funnel
-    :(Core&&Core.funnelFromCounts?Core.funnelFromCounts(summary):{
-      views:Number(summary.book_views||0),
-      cart_adds:Number(summary.cart_adds||0),
-      whatsapp_clicks:Number(summary.whatsapp_clicks||0)
+  if(errorText){
+    if(meta)meta.textContent=errorText;
+    ["#analyticsTopBooks","#analyticsZeroSearches","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
+      const el=$(sel);
+      if(el)el.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
     });
-  $("#analyticsPageViews").textContent=Number(summary.page_views||0).toLocaleString("tr-TR");
-  $("#analyticsBookViews").textContent=Number(summary.book_views||0).toLocaleString("tr-TR");
-  $("#analyticsCartAdds").textContent=Number(summary.cart_adds||0).toLocaleString("tr-TR");
-  $("#analyticsWhatsapp").textContent=Number(summary.whatsapp_clicks||0).toLocaleString("tr-TR");
-  const zeroEl=$("#analyticsZeroSearchesCount");
-  if(zeroEl)zeroEl.textContent=Number(summary.zero_result_searches||0).toLocaleString("tr-TR");
+    return;
+  }
+  if(pending){
+    if(meta)meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
+    const chart=$("#analyticsVisitorChart");
+    if(chart&&!chart.childElementCount)renderVisitorChart(described&&described.visitors&&described.visitors.daily);
+    ["#analyticsTopBooks","#analyticsZeroSearches","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
+      const el=$(sel);
+      if(el)el.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    });
+    return;
+  }
+  const view=described||{};
+  setVisitorCount("#analyticsVisitorsToday",view.visitors&&view.visitors.today);
+  setVisitorCount("#analyticsVisitorsYesterday",view.visitors&&view.visitors.yesterday);
+  setVisitorCount("#analyticsVisitorsPeriod",view.visitors&&view.visitors.period);
+  renderVisitorChart(view.visitors&&view.visitors.daily);
+  setAnalyticsCount("#analyticsPageViews",view.counts&&view.counts.page_views);
+  setAnalyticsCount("#analyticsBookViews",view.counts&&view.counts.book_views);
+  setAnalyticsCount("#analyticsCartAdds",view.counts&&view.counts.cart_adds);
+  setAnalyticsCount("#analyticsWhatsapp",view.counts&&view.counts.whatsapp_clicks);
+  setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches);
+  const unknown=$("#analyticsUnknownSearches");
+  if(unknown){
+    const state=view.counts&&view.counts.unknown_result_searches;
+    unknown.textContent=state&&state.state==="value"
+      ?`نامەلۇم نەتىجە: ${Number(state.value).toLocaleString("tr-TR")}.`
+      :"نامەلۇم نەتىجە: —.";
+  }
+  const stamp=view.generatedAt&&Core&&Core.formatIstanbulStamp?Core.formatIstanbulStamp(view.generatedAt):"";
+  if(meta){
+    if(view.schema===2&&view.range){
+      meta.textContent=`دائىرە: ${view.range.start} — ${view.range.end} · Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
+    }else{
+      const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
+      meta.textContent=`تاللانغان دائىرە: ئاخىرقى ${days} كۈن (كونا فۇنكسىيە، دومىلىما ئارىلىق). Europe/Istanbul كۈن چېگرىسى ۋە زىيارەتچى سانى بۇ نەشرىدە يوق.${stamp?` يېڭىلانغان: ${stamp}.`:""}`;
+    }
+  }
+  const funnel=view.funnel&&view.funnel.funnel||{};
+  const title=$("#analyticsFunnelTitle");
+  const note=$("#analyticsFunnelNote");
+  const userAction=view.funnel&&view.funnel.kind==="ordered_user_action";
+  if(title)title.textContent=userAction
+    ?"تەرتىپلىك ھەرىكەت يولى (كىتاب كۆرۈش → سېۋەت → WhatsApp مەقسىتى)"
+    :"جەمئىي ۋەقە نىسبىتى (ئايلاندۇرۇش نىسبىتى ئەمەس)";
+  if(note){
+    const engagement=view.counts||{};
+    const detail=analyticsCountText(engagement.book_engagement_detail);
+    const cartEng=analyticsCountText(engagement.book_engagement_cart);
+    if(userAction){
+      const arrival=view.arrival;
+      const arrivalText=arrival
+        ?` يېتىپ كېلىش تەرتىپى ئىشلەتكۈچى ھەرىكىتى ئەمەس: كۆرۈش ${Number(arrival.views||0).toLocaleString("tr-TR")}، سېۋەت ${Number(arrival.cart_adds||0).toLocaleString("tr-TR")}، WhatsApp ${Number(arrival.whatsapp_clicks||0).toLocaleString("tr-TR")}.`
+        :"";
+      note.textContent=`بۇ يول توركۆرگۈچ بەلگىلىگەن ھەرىكەت تەرتىپى. مۇلازىمېتىر ۋاقىتنى 5 مىنۇت ئىچىدە تەكشۈرىدۇ. ئوخشاش تەرتىپ نومۇرى كېيىنكى قەدەم ھېسابلانمايدۇ. تەرتىپى يوق ۋەقە: ${Number(funnel.excluded_without_action_seq||0).toLocaleString("tr-TR")}. session_id يوق ۋەقە: ${Number(funnel.excluded_without_session||0).toLocaleString("tr-TR")}. يېتىپ كېلىش تەرتىپى ئىشلەتكۈچى ھەرىكىتى ئەمەس.${arrivalText} WhatsApp چېكىش مەقسەت، سېتىش ئەمەس. تەپسىلات ھەرىكىتى ${detail}، سېۋەت ھەرىكىتى ${cartEng}؛ كىتاب كۆرۈش ۋە سېۋەتكە قوشۇشقا قوشۇلمايدۇ.`;
+    }else{
+      note.textContent="بۇ نىسبەت ۋەقە ئومۇمىي سانىنى بۆلۈشتۇر. زىيارەتچى يولى ئەمەس ۋە 100% غا قىسقارتىلمايدۇ. WhatsApp چېكىش مەقسەت، سېتىش ئەمەس.";
+    }
+  }
   const fmtPct=value=>{
     if(value===null||value===undefined||value==="")return "";
-    return ` · ${Number(value).toLocaleString("tr-TR")}%`;
+    const n=Number(value);
+    if(!Number.isFinite(n))return "";
+    return ` · ${n.toLocaleString("tr-TR")}%`;
   };
   const funnelHost=$("#analyticsFunnelSteps");
   if(funnelHost){
@@ -5138,14 +5227,39 @@ async function loadAnalytics(){
       <div class="admin-analytics-funnel-step"><span>2. سېۋەتكە قوشۇش${fmtPct(funnel.view_to_cart_pct)}</span><strong>${Number(funnel.cart_adds||0).toLocaleString("tr-TR")}</strong></div>
       <div class="admin-analytics-funnel-step"><span>3. WhatsApp زاكاز چېكىش (مەقسەت)${fmtPct(funnel.view_to_whatsapp_pct)}${funnel.cart_to_whatsapp_pct!=null?` · سېۋەتتىن ${Number(funnel.cart_to_whatsapp_pct).toLocaleString("tr-TR")}%`:""}</span><strong>${Number(funnel.whatsapp_clicks||0).toLocaleString("tr-TR")}</strong></div>`;
   }
-  const list=(rows,countKey,emptyText)=>rows.length?rows.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.query||row.book_id||"—")}</span><strong>${Number(row[countKey]||row.views||row.adds||row.clicks||row.searches||0)}</strong></div>`).join(""):`<div class="admin-empty">${emptyText}</div>`;
-  const top=Array.isArray(summary.top_books)?summary.top_books:[];
-  hostTop.innerHTML=list(top,"views","بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.");
-  if(hostCart)hostCart.innerHTML=list(Array.isArray(summary.top_cart_books)?summary.top_cart_books:[],"adds","سېۋەتكە قوشۇش سانلىق مەلۇماتى يوق.");
-  if(hostWa)hostWa.innerHTML=list(Array.isArray(summary.top_whatsapp_books)?summary.top_whatsapp_books:[],"clicks","WhatsApp چېكىش سانلىق مەلۇماتى يوق.");
-  if(hostSearch)hostSearch.innerHTML=list(Array.isArray(summary.top_searches)?summary.top_searches:[],"searches","ئىزدەش سانلىق مەلۇماتى يوق.");
-  const zeros=Array.isArray(summary.zero_searches)?summary.zero_searches:[];
-  hostZero.innerHTML=list(zeros,"searches","نەتىجىسىز ئىزدەش يوق.");
+  renderAnalyticsList($("#analyticsTopBooks"),view.lists&&view.lists.top_books,"views","بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.");
+  renderAnalyticsList($("#analyticsTopCart"),view.lists&&view.lists.top_cart_books,"adds","سېۋەتكە قوشۇش سانلىق مەلۇماتى يوق.");
+  renderAnalyticsList($("#analyticsTopWhatsapp"),view.lists&&view.lists.top_whatsapp_books,"clicks","WhatsApp چېكىش سانلىق مەلۇماتى يوق.");
+  renderAnalyticsList($("#analyticsTopSearches"),view.lists&&view.lists.top_searches,"searches","ئىزدەش سانلىق مەلۇماتى يوق.");
+  renderAnalyticsList($("#analyticsZeroSearches"),view.lists&&view.lists.zero_searches,"searches","نەتىجىسىز ئىزدەش يوق.");
+}
+function paintAnalyticsPending(){
+  const Core=window.KutadguAnalyticsCore;
+  if(!Core||!Core.describeAnalytics||!$("#analyticsTopBooks"))return;
+  renderAnalytics(Core.describeAnalytics({},new Date()),{pending:true});
+}
+
+async function loadAnalytics(){
+  const hostTop=$("#analyticsTopBooks"),hostZero=$("#analyticsZeroSearches");
+  if(!db||!hostTop||!hostZero)return;
+  const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
+  const token=analyticsRequests.begin();
+  const Core=window.KutadguAnalyticsCore;
+  renderAnalytics(Core&&Core.describeAnalytics?Core.describeAnalytics({},new Date()):null,{pending:true});
+  const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
+  if(!analyticsRequests.isCurrent(token))return;
+  if(error){
+    if(analyticsShownDays!=null){
+      const range=$("#analyticsRange");
+      if(range)range.value=String(analyticsShownDays);
+    }
+    renderAnalytics(null,{error:"Analytics ئوقۇلمىدى: "+(error.message||"")+". كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى."});
+    return;
+  }
+  analyticsShownDays=days;
+  const summary=data&&typeof data==="object"?data:{};
+  const described=Core&&Core.describeAnalytics?Core.describeAnalytics(summary,new Date()):null;
+  renderAnalytics(described);
 }
 
 function bindMfaCard(){
@@ -6112,6 +6226,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 
 $("#reloadAnalytics")?.addEventListener("click",loadAnalytics);
 $("#analyticsRange")?.addEventListener("change",loadAnalytics);
+paintAnalyticsPending();
 
 window.__kutadguAdminTest={
   loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail

@@ -7,69 +7,129 @@
   const key=String(cfg.anonKey||cfg.publishableKey||"");
   const enabled=()=>window.KUTADGU_APP_CONFIG?.featureFlags?.analyticsHooks!==false;
   const Core=()=>window.KutadguAnalyticsCore;
-  const omitCols={legacy_id:false,meta:false};
+  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:false,occurred_at:false,action_seq:false};
+  function safeStorage(kind){
+    try{return kind==="local"?localStorage:sessionStorage}catch(err){return null}
+  }
   function sessionId(){
+    const core=Core();
+    if(core&&core.sessionId)return core.sessionId(safeStorage("session"));
     try{let id=sessionStorage.getItem("kutadgu-analytics-session");if(!id){id=(crypto.randomUUID?.()||("s-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2)));sessionStorage.setItem("kutadgu-analytics-session",id)}return id}catch(e){return ""}
+  }
+  function context(){
+    const core=Core();
+    return {
+      path:location.pathname,
+      sessionId:sessionId(),
+      visitorId:core&&core.visitorId?core.visitorId(safeStorage("local")):"",
+      eventId:core&&core.newUuidV4?core.newUuidV4():"",
+      host:location.hostname,
+      occurredAt:new Date().toISOString(),
+      actionSeq:core&&core.nextActionSeq?core.nextActionSeq(safeStorage("session")):null
+    };
   }
   function stripOptional(row){
     const out={...row};
-    if(omitCols.legacy_id)delete out.legacy_id;
-    if(omitCols.meta)delete out.meta;
+    Object.keys(omitCols).forEach(col=>{if(omitCols[col])delete out[col]});
     return out;
   }
   function missingOptionalColumn(body){
     const text=String(body||"");
-    if(/'legacy_id'|column legacy_id|schema cache/i.test(text)&&/legacy_id/i.test(text))return "legacy_id";
-    if(/'meta'|column meta/i.test(text)&&/meta/i.test(text))return "meta";
-    if(/PGRST204/.test(text)&&/legacy_id/.test(text))return "legacy_id";
-    if(/PGRST204/.test(text)&&/meta/.test(text))return "meta";
+    const cols=["visitor_id","event_id","host","occurred_at","action_seq","legacy_id","meta"];
+    for(let i=0;i<cols.length;i++){
+      const col=cols[i];
+      if((new RegExp("'"+col+"'|column "+col,"i").test(text)||/PGRST204/i.test(text))&&new RegExp(col,"i").test(text))return col;
+    }
     return "";
   }
   function payload(name,data={}){
     const core=Core();
-    if(core&&core.buildRow){
-      return core.buildRow(name,data,{path:location.pathname,sessionId:sessionId()});
-    }
+    const ctx=context();
+    if(core&&core.buildRow)return core.buildRow(name,data,ctx);
     const clean=(v,n=120)=>String(v??"").trim().slice(0,n);
+    const results=data.results;
+    const known=results!==null&&results!==undefined&&results!==""&&Number.isFinite(Number(results));
     return {
       event_name:clean(name,60),
       book_id:clean(data.bookId||data.book_id,32)||null,
       search_query:name==="search"||name==="zero_result_search"?clean(data.query,80)||null:null,
       category:clean(data.category,100)||null,
-      result_count:Number.isFinite(Number(data.results))?Number(data.results):null,
+      result_count:known?Number(results):null,
       item_count:Number.isFinite(Number(data.items||data.qty))?Number(data.items||data.qty):null,
       order_total:Number.isFinite(Number(data.total))?Number(data.total):null,
       path:clean(location.pathname,180),
-      session_id:clean(sessionId(),100)||null
+      session_id:clean(ctx.sessionId,100)||null
     };
   }
-  async function postRow(row){
-    if(!row||!url||!key)return;
+  async function postRow(row,progress){
+    const state=progress&&typeof progress==="object"?progress:{schema:0,network:0};
+    const optionalLimit=Object.keys(omitCols).length;
+    if(!row||!url||!key||state.schema>optionalLimit||state.network>1)return;
     const body=stripOptional(row);
-    const response=await fetch(url+"/rest/v1/analytics_events",{
-      method:"POST",
-      keepalive:true,
-      headers:{apikey:key,Authorization:"Bearer "+key,"Content-Type":"application/json",Prefer:"return=minimal"},
-      body:JSON.stringify(body)
-    });
-    if(response.ok||response.status===201)return;
+    const hasEvent=!!body.event_id;
+    const decide=(status,missing)=>{
+      const core=Core();
+      if(!core||!core.retryDecision)return status>=200&&status<300?"stored":"drop";
+      return core.retryDecision(status,missing,state.network,{
+        idempotent:hasEvent,
+        schemaAttempts:state.schema,
+        networkAttempts:state.network,
+        optionalLimit
+      });
+    };
+    let response;
+    try{
+      response=await fetch(url+"/rest/v1/analytics_events",{
+        method:"POST",
+        keepalive:true,
+        headers:{
+          apikey:key,
+          Authorization:"Bearer "+key,
+          "Content-Type":"application/json",
+          Prefer:hasEvent?"return=minimal,resolution=ignore-duplicates":"return=minimal"
+        },
+        body:JSON.stringify(body)
+      });
+    }catch(err){
+      const decision=decide(0,"");
+      if(decision==="retry-same-id"){
+        state.network+=1;
+        return postRow(row,state);
+      }
+      return;
+    }
+    if(decide(response.status,"")==="stored"||response.ok)return;
     let text="";
     try{text=await response.text()}catch(err){text=""}
     const missing=missingOptionalColumn(text);
-    if(missing&&omitCols[missing]!==true){
+    const canOmit=missing&&omitCols[missing]!==true;
+    const decision=decide(response.status,canOmit?missing:"");
+    if(decision==="omit-column"&&canOmit){
       omitCols[missing]=true;
-      await postRow(row);
+      state.schema+=1;
+      return postRow(row,state);
     }
+    if(decision==="retry-same-id"){
+      state.network+=1;
+      return postRow(row,state);
+    }
+    if(decision==="stored")return;
+  }
+  function allowedHere(){
+    const core=Core();
+    if(core&&core.shouldRecordRemote)return core.shouldRecordRemote(location.hostname,location.pathname);
+    const host=String(location.hostname||"").toLowerCase();
+    return host==="www.kutadgubilik.com"||host==="kutadgubilik.com"||host==="kutadgu-bilig-kitab.vercel.app";
   }
   async function remoteTrack(name,data={}){
     try{
-      if(!enabled())return;
+      if(!enabled()||!allowedHere())return;
       const detail={name,data,at:new Date().toISOString()};
       document.dispatchEvent(new CustomEvent("kutadgu:analytics-event",{detail}));
       if(!url||!key)return;
       const row=payload(name,data);
       if(!row)return;
-      await postRow(row);
+      await postRow(row,0);
     }catch(e){/* analytics must never block the shop */}
   }
   window.KutadguAnalytics={...(window.KutadguAnalytics||{}),__remoteReady:true,track:remoteTrack};

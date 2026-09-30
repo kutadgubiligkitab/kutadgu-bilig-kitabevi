@@ -102,7 +102,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=134/);
+  assert.match(indexHtml, /shop\.js\?v=135/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
@@ -150,7 +150,7 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql") ||
+    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|catalog\.js$/.test(file)

@@ -246,7 +246,14 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql",
     "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql",
     "STAGE87_COVER_INTEGRITY.sql",
-    "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql"
+    "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql",
+    "STAGE100_ADMIN_DAILY_VISITORS.sql",
+    "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql",
+    "scripts/stage100-isolated-fixture.sql",
+    "scripts/stage100-isolated-load.sql",
+    "scripts/stage100-isolated-assertions.sql",
+    "scripts/stage100-isolated-rollback-assertions.sql",
+    "scripts/stage100-isolated-reapply-assertions.sql",
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||

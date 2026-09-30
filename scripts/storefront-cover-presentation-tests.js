@@ -69,8 +69,17 @@ test("no cover image files, schema, or covers.css are part of this change", () =
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const images = files.filter((file) => /\.(png|jpe?g|webp|gif|avif)$/i.test(file));
   assert.deepStrictEqual(images, []);
+  const stage100Sql = new Set([
+    "STAGE100_ADMIN_DAILY_VISITORS.sql",
+    "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql",
+    "scripts/stage100-isolated-fixture.sql",
+    "scripts/stage100-isolated-load.sql",
+    "scripts/stage100-isolated-assertions.sql",
+    "scripts/stage100-isolated-rollback-assertions.sql",
+    "scripts/stage100-isolated-reapply-assertions.sql"
+  ]);
   const forbidden = files.filter((file) =>
-    /\.sql$/i.test(file) ||
+    (/\.sql$/i.test(file) && !stage100Sql.has(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)covers\.css$/.test(file)
   );

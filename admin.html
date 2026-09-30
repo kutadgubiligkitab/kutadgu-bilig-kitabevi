@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=46">
+  <link rel="stylesheet" href="admin.css?v=47">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -432,17 +432,25 @@
           </div>
         </div>
         <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp زاكاز چېكىش (مەقسەت، سېتىش ئەمەس). نەتىجىسىز ئىزدەش كىتاب تېپىلمىغان سۈرۈشتۈرۈشلەرنى كۆرسىتىدۇ. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
-        <div class="admin-stats admin-analytics-stats">
-          <div class="admin-stat"><strong id="analyticsBookViews">0</strong><span>كىتاب كۆرۈش</span></div>
-          <div class="admin-stat"><strong id="analyticsCartAdds">0</strong><span>سېۋەتكە قوشۇش</span></div>
-          <div class="admin-stat"><strong id="analyticsWhatsapp">0</strong><span>WhatsApp زاكاز چېكىش</span></div>
-          <div class="admin-stat"><strong id="analyticsZeroSearchesCount">0</strong><span>نەتىجىسىز ئىزدەش</span></div>
+        <p class="admin-help" id="analyticsMeta">Europe/Istanbul · يۈكلىنىۋاتىدۇ...</p>
+        <div class="admin-stats admin-analytics-stats" id="analyticsVisitors">
+          <div class="admin-stat"><strong id="analyticsVisitorsToday">—</strong><span>بۈگۈنكى خاتىرىلەنگەن زىيارەتچى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitorsYesterday">—</strong><span>تۈنۈگۈنكى خاتىرىلەنگەن زىيارەتچى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitorsPeriod">—</strong><span>تاللانغان دائىرىدىكى ئوخشىمىغان زىيارەتچى</span></div>
         </div>
-        <p class="admin-help admin-analytics-sub">بەت زىيارىتى: <strong id="analyticsPageViews">0</strong> — ھەر بەت ئېچىلىشى؛ سېتىش ئەمەس.</p>
+        <div class="admin-analytics-chart" id="analyticsVisitorChart" aria-label="ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
+        <p class="admin-help" id="analyticsVisitorNote">زىيارەتچى = خاتىرىلەنگەن ئىختىيارىي تور كۆرگۈچ كىملىكى، دەلىللەنگەن ئادەم ئەمەس. بىر كۈندە كۆپ بەت ئاچقان زىيارەتچى بىر قېتىم سانىلىدۇ. كۈنلۈك زىيارەتچىنى قوشۇپ دەۋر سانى قىلىنمايدۇ. كىملىكى يوق كونا قۇرلار «يوق» دەپ كۆرسىتىلىدۇ، بەت كۆرۈشتىن قايتا ھېسابلانمايدۇ. بوت سۈزۈش تولۇق ئەمەس. ئاممىۋى بەتنى ئاچقان باشقۇرغۇچىمۇ سانىلىشى مۇمكىن. PostHog سانلىرى بۇ يەرگە قوشۇلمايدۇ.</p>
+        <div class="admin-stats admin-analytics-stats">
+          <div class="admin-stat"><strong id="analyticsBookViews">—</strong><span>كىتاب كۆرۈش</span></div>
+          <div class="admin-stat"><strong id="analyticsCartAdds">—</strong><span>سېۋەتكە قوشۇش</span></div>
+          <div class="admin-stat"><strong id="analyticsWhatsapp">—</strong><span>WhatsApp زاكاز چېكىش</span></div>
+          <div class="admin-stat"><strong id="analyticsZeroSearchesCount">—</strong><span>نەتىجىسىز ئىزدەش</span></div>
+        </div>
+        <p class="admin-help admin-analytics-sub">بەت زىيارىتى: <strong id="analyticsPageViews">—</strong> — ھەر بەت ئېچىلىشى؛ سېتىش ئەمەس. <span id="analyticsUnknownSearches"></span></p>
         <div class="admin-analytics-funnel" id="analyticsFunnel" aria-label="ئىشلىتىش يولى">
-          <h3>يوسۇن (Views → سېۋەت → WhatsApp چېكىش)</h3>
+          <h3 id="analyticsFunnelTitle">يوسۇن (Views → سېۋەت → WhatsApp چېكىش)</h3>
           <div class="admin-analytics-funnel-steps" id="analyticsFunnelSteps"></div>
-          <p class="admin-help">WhatsApp چېكىش = زاكاز مەقسىتى. تاماملانغان سېتىش ئەمەس.</p>
+          <p class="admin-help" id="analyticsFunnelNote">WhatsApp چېكىش = زاكاز مەقسىتى. تاماملانغان سېتىش ئەمەس.</p>
         </div>
         <div class="admin-analytics-grid">
           <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
@@ -993,7 +1001,7 @@
 <script defer src="admin-original-price.js?v=5"></script>
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=1"></script>
+<script defer src="kutadgu-analytics-core.js?v=4"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>

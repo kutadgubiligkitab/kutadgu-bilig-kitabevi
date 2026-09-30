@@ -1140,7 +1140,7 @@ function trackSearchQuery(query,resultCount){
   try{
     const events=window.KutadguAnalyticsCore?.searchEvents
       ?window.KutadguAnalyticsCore.searchEvents(query,resultCount)
-      :(String(query||"").trim()?[{name:"search",data:{query:String(query).trim().slice(0,80),results:Number(resultCount)||0}}]:[]);
+      :(String(query||"").trim()?[{name:"search",data:{query:String(query).trim().slice(0,80),results:(resultCount===null||resultCount===undefined||resultCount===""||!Number.isFinite(Number(resultCount))?null:Math.max(0,Number(resultCount)))}}]:[]);
     events.forEach(ev=>trackEvent(ev.name,ev.data));
   }catch(err){}
 }
