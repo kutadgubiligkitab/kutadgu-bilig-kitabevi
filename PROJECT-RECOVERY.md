@@ -71,20 +71,20 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `12c5292303f1e8e368b194a48e390e5fa57bddb6` |
-| Subject | Keep lost analytics responses from duplicating legacy inserts. |
+| Commit | `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e` |
+| Subject | Store the first legacy page view after every missing column is omitted. |
 | Date | 2026-09-30 |
 | Branch | `feat/admin-daily-visitors` |
 | PR | #218 (draft, not merged) |
-| Why it stays | Legacy inserts that omit `event_id` are no longer retried after a lost response or 5xx. The ordered funnel uses a validated client action sequence. Server receipt order is returned separately and is not labeled as user-action order. |
+| Why it stays | A fresh page view can omit each missing optional column once, including all five columns the legacy table lacks, and that insert is stored. Those compatibility attempts are separate from a lost-response retry. After `event_id` is omitted, an ambiguous failure is still not sent again. |
 
-`npm run test:unit` passed on the tree committed as `12c5292303f1e8e368b194a48e390e5fa57bddb6`. `git diff --check` was clean. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` passed against `http://127.0.0.1:4173` and did not call production analytics. Stage 10 was not re-run.
+`npm run test:unit` passed on the tree committed as `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e`. `git diff --check` was clean. The new regression stores the first `page_view` exactly once after five `PGRST204` responses for `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq`. The earlier lost-response cases still pass. Focused Playwright `tests/e2e/admin-daily-visitors.spec.js` was not re-run for this retry-budget change. Stage 10 was not re-run.
 
 `STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. The script applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3, not today plus yesterday. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. The last full local Stage 10 remains the #209 observation below.
 
 Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b161af37c706e4fa03b`, merged by `70e741bd2bf75734e4c94c2baf974e80e9f0a96e`): **759 passed, 3 skipped**, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1`. The pass count changes when tests are added. A new failure is the regression signal.
 
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `12c5292303f1e8e368b194a48e390e5fa57bddb6`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e`.
 
 ## Recent merged PRs
 
@@ -121,8 +121,8 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | `member.js` | `?v=28` |
 | `admin.js` | `?v=79` (`no-store`; analytics rendering changed without a pin bump) |
 | `admin.css` | `?v=47` |
-| `kutadgu-analytics-core.js` | `?v=3` |
-| `analytics.js` | `?v=4` |
+| `kutadgu-analytics-core.js` | `?v=4` |
+| `analytics.js` | `?v=5` |
 | `admin-save-guard.js` | `?v=1` |
 | `kutadgu-cover-image.js` | `?v=2` on `admin.html` and `book-staff.html` |
 | `book-staff.js` | `?v=8` |
@@ -196,7 +196,7 @@ Do not send live analytics or view-count writes while measuring production traff
 
 ## Admin analytics
 
-The Analytics card in `admin.html` reads `get_kutadgu_analytics`. Until `STAGE100_ADMIN_DAILY_VISITORS.sql` is applied by hand, visitor counts and the new breakdowns show as unavailable (`—`), not zero. After it is applied, deploy the site. The site can ship first: inserts omit `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq` if those columns are missing. A lost response or HTTP 5xx is retried once only while `event_id` is still on the request, so the unique index can ignore the duplicate. After `event_id` is omitted, that same failure is dropped instead of inserted again.
+The Analytics card in `admin.html` reads `get_kutadgu_analytics`. Until `STAGE100_ADMIN_DAILY_VISITORS.sql` is applied by hand, visitor counts and the new breakdowns show as unavailable (`—`), not zero. After it is applied, deploy the site. The site can ship first: inserts omit `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq` if those columns are missing, and also `legacy_id` and `meta`. Each recognized optional column is omitted once. That budget is separate from the lost-response retry, so five missing columns on the first page view still reach one valid insert. A lost response or HTTP 5xx is retried once only while `event_id` is still on the request, so the unique index can ignore the duplicate. After `event_id` is omitted, that same failure is dropped instead of inserted again.
 
 Definitions once the migration is applied:
 
