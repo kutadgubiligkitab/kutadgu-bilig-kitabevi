@@ -57,11 +57,15 @@ async function mockCatalog(page, options = {}) {
     if (state.delayForOrder && order.startsWith(state.delayForOrder)) {
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
+    // PostgREST exposes Content-Range. A short 206 without that header is a truncated id index.
     if (req.method() === "HEAD") {
       const active = state.books.filter((row) => row.is_active !== false).length;
       return route.fulfill({
         status: 206,
-        headers: { "content-range": `0-0/${active}` },
+        headers: {
+          "content-range": `0-0/${active}`,
+          "access-control-expose-headers": "Content-Range"
+        },
         body: ""
       });
     }
@@ -109,7 +113,10 @@ async function mockCatalog(page, options = {}) {
       return route.fulfill({
         status: 416,
         contentType: "application/json",
-        headers: { "content-range": `*/${rows.length}` },
+        headers: {
+          "content-range": `*/${rows.length}`,
+          "access-control-expose-headers": "Content-Range"
+        },
         body: "[]"
       });
     }
@@ -118,7 +125,10 @@ async function mockCatalog(page, options = {}) {
     return route.fulfill({
       status: 206,
       contentType: "application/json",
-      headers: { "content-range": `${from}-${end}/${rows.length}` },
+      headers: {
+        "content-range": `${from}-${end}/${rows.length}`,
+        "access-control-expose-headers": "Content-Range"
+      },
       body: JSON.stringify(payload)
     });
   });

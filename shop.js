@@ -1301,8 +1301,8 @@ function storefrontStaticSearchHaystack(book, search){
 }
 function remoteBooksUrl(input={},flags={}){
   const cfg=supabasePublicConfig(),state=normalizeQueryState(input);
-  const select=flags.discoveryIndex?(flags.discoveryIdOnly?"id":"id,is_active"):(flags.rankFields?rankSelectList():"*");
-  const params=new URLSearchParams({select});
+  const params=new URLSearchParams({select:flags.rankFields?rankSelectList():"*"});
+  if(flags.discoveryIndex)params.set("select",flags.discoveryIdOnly?"id":"id,is_active");
   if(!state.includeInactive)params.set("is_active","eq.true");
   const logic=[];
   if(state.ids?.length){
@@ -3297,8 +3297,8 @@ function setupCatalogFilters(){
     grid.hidden=showEmpty;
     controls.hidden=showEmpty;
     if(!append){
-      trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:totalShown,rendered:items.length});
-      trackSearchQuery(text.value,totalShown);
+      trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:result.total,rendered:items.length});
+      trackSearchQuery(text.value,result.total);
     }
   }
   async function apply(append=false){
@@ -3358,7 +3358,7 @@ function setupCatalogFilters(){
   [text,minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedApply));
   text&&text.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);if(isAdabiyatHub)writeHubUrl(hubSub,text.value.trim(),"replace");apply(false)}});
   [sortEl,collection].forEach(el=>el&&el.addEventListener("change",()=>apply(false)));
-  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value=defaultListingSort();reset.dispatchEvent(new Event("input",{bubbles:true}));apply(false)};
+  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";if(isGlobalBooks&&sortEl)sortEl.value="discover";reset.dispatchEvent(new Event("input",{bubbles:true}));apply(false)};
   empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click()});
   if(isAdabiyatHub){
     hubSub=readHubSubFromUrl();
