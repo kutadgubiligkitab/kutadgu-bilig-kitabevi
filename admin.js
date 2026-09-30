@@ -5196,16 +5196,23 @@ function renderAnalytics(described,opts){
   const funnel=view.funnel&&view.funnel.funnel||{};
   const title=$("#analyticsFunnelTitle");
   const note=$("#analyticsFunnelNote");
-  if(title)title.textContent=view.funnel&&view.funnel.kind==="ordered_session"
-    ?"تەرتىپلىك سەھىپە يولى (كىتاب كۆرۈش → سېۋەت → WhatsApp مەقسىتى)"
+  const userAction=view.funnel&&view.funnel.kind==="ordered_user_action";
+  if(title)title.textContent=userAction
+    ?"تەرتىپلىك ھەرىكەت يولى (كىتاب كۆرۈش → سېۋەت → WhatsApp مەقسىتى)"
     :"جەمئىي ۋەقە نىسبىتى (ئايلاندۇرۇش نىسبىتى ئەمەس)";
   if(note){
     const engagement=view.counts||{};
     const detail=analyticsCountText(engagement.book_engagement_detail);
     const cartEng=analyticsCountText(engagement.book_engagement_cart);
-    note.textContent=view.funnel&&view.funnel.kind==="ordered_session"
-      ?`ھەر قەدەم ئالدىنقى قەدەمدىن كېيىن كەلگەن سەھىپە. WhatsApp چېكىش مەقسەت، سېتىش ئەمەس. session_id يوق ۋەقە: ${Number(funnel.excluded_without_session||0).toLocaleString("tr-TR")}. تەپسىلات ھەرىكىتى ${detail}، سېۋەت ھەرىكىتى ${cartEng}؛ كىتاب كۆرۈش ۋە سېۋەتكە قوشۇشقا قوشۇلمايدۇ.`
-      :"بۇ نىسبەت ۋەقە ئومۇمىي سانىنى بۆلۈشتۇر. زىيارەتچى يولى ئەمەس ۋە 100% غا قىسقارتىلمايدۇ. WhatsApp چېكىش مەقسەت، سېتىش ئەمەس.";
+    if(userAction){
+      const arrival=view.arrival;
+      const arrivalText=arrival
+        ?` يېتىپ كېلىش تەرتىپى ئىشلەتكۈچى ھەرىكىتى ئەمەس: كۆرۈش ${Number(arrival.views||0).toLocaleString("tr-TR")}، سېۋەت ${Number(arrival.cart_adds||0).toLocaleString("tr-TR")}، WhatsApp ${Number(arrival.whatsapp_clicks||0).toLocaleString("tr-TR")}.`
+        :"";
+      note.textContent=`بۇ يول توركۆرگۈچ بەلگىلىگەن ھەرىكەت تەرتىپى. مۇلازىمېتىر ۋاقىتنى 5 مىنۇت ئىچىدە تەكشۈرىدۇ. ئوخشاش تەرتىپ نومۇرى كېيىنكى قەدەم ھېسابلانمايدۇ. تەرتىپى يوق ۋەقە: ${Number(funnel.excluded_without_action_seq||0).toLocaleString("tr-TR")}. session_id يوق ۋەقە: ${Number(funnel.excluded_without_session||0).toLocaleString("tr-TR")}. يېتىپ كېلىش تەرتىپى ئىشلەتكۈچى ھەرىكىتى ئەمەس.${arrivalText} WhatsApp چېكىش مەقسەت، سېتىش ئەمەس. تەپسىلات ھەرىكىتى ${detail}، سېۋەت ھەرىكىتى ${cartEng}؛ كىتاب كۆرۈش ۋە سېۋەتكە قوشۇشقا قوشۇلمايدۇ.`;
+    }else{
+      note.textContent="بۇ نىسبەت ۋەقە ئومۇمىي سانىنى بۆلۈشتۇر. زىيارەتچى يولى ئەمەس ۋە 100% غا قىسقارتىلمايدۇ. WhatsApp چېكىش مەقسەت، سېتىش ئەمەس.";
+    }
   }
   const fmtPct=value=>{
     if(value===null||value===undefined||value==="")return "";

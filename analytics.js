@@ -7,7 +7,7 @@
   const key=String(cfg.anonKey||cfg.publishableKey||"");
   const enabled=()=>window.KUTADGU_APP_CONFIG?.featureFlags?.analyticsHooks!==false;
   const Core=()=>window.KutadguAnalyticsCore;
-  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:false};
+  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:false,occurred_at:false,action_seq:false};
   function safeStorage(kind){
     try{return kind==="local"?localStorage:sessionStorage}catch(err){return null}
   }
@@ -23,7 +23,9 @@
       sessionId:sessionId(),
       visitorId:core&&core.visitorId?core.visitorId(safeStorage("local")):"",
       eventId:core&&core.newUuidV4?core.newUuidV4():"",
-      host:location.hostname
+      host:location.hostname,
+      occurredAt:new Date().toISOString(),
+      actionSeq:core&&core.nextActionSeq?core.nextActionSeq(safeStorage("session")):null
     };
   }
   function stripOptional(row){
@@ -33,7 +35,7 @@
   }
   function missingOptionalColumn(body){
     const text=String(body||"");
-    const cols=["visitor_id","event_id","host","legacy_id","meta"];
+    const cols=["visitor_id","event_id","host","occurred_at","action_seq","legacy_id","meta"];
     for(let i=0;i<cols.length;i++){
       const col=cols[i];
       if((new RegExp("'"+col+"'|column "+col,"i").test(text)||/PGRST204/i.test(text))&&new RegExp(col,"i").test(text))return col;
@@ -77,12 +79,12 @@
         body:JSON.stringify(body)
       });
     }catch(err){
-      const decision=Core()?.retryDecision?Core().retryDecision(0,"",attempt):"drop";
+      const decision=Core()?.retryDecision?Core().retryDecision(0,"",attempt,{idempotent:hasEvent}):"drop";
       if(decision==="retry-same-id")return postRow(row,attempt+1);
       return;
     }
     const core=Core();
-    const decisionOf=(status,missing)=>core&&core.retryDecision?core.retryDecision(status,missing,attempt):(status>=200&&status<300?"stored":"drop");
+    const decisionOf=(status,missing)=>core&&core.retryDecision?core.retryDecision(status,missing,attempt,{idempotent:hasEvent}):(status>=200&&status<300?"stored":"drop");
     if(decisionOf(response.status,"")==="stored"||response.ok)return;
     let text="";
     try{text=await response.text()}catch(err){text=""}

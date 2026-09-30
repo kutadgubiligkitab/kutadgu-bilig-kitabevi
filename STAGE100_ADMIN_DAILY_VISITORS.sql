@@ -5,16 +5,27 @@
 --   1. Apply this file once in the Supabase SQL editor. It is repeat-safe.
 --   2. Deploy the site after that so admin.js reads schema_version 2.
 -- Compatibility before this file is applied:
---   The site can ship first. Inserts omit visitor_id, event_id, and host when
---   PostgREST reports those columns are missing, and the admin page shows
---   missing visitor fields as unavailable rather than zero.
+--   The site can ship first. Inserts omit visitor_id, event_id, host,
+--   occurred_at, and action_seq when PostgREST reports those columns are
+--   missing, and the admin page shows missing visitor fields as unavailable
+--   rather than zero.
 --   Applying this file before the site deploy is also safe. New columns are
 --   nullable, the function name and argument stay get_kutadgu_analytics(integer),
 --   and the previous admin page ignores JSON keys it does not read.
--- Rollback, run only the commented block at the bottom if you need the previous
--- RPC. Leave the new nullable columns in place. Do not delete analytics_events.
+-- Rollback: run STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql by itself.
+--   It restores the previous rolling-window function and the Stage 99 insert
+--   policy, drops the timing trigger, and leaves the new columns in place.
+--   Do not delete analytics_events. Do not run the rollback in the same batch
+--   as this file.
 -- Do not apply STAGE8_STORE_ANALYTICS.sql over this function. Its legacy-id
 -- OR join can multiply rows, and its funnel is an aggregate ratio.
+--
+-- The user-action funnel orders by action_seq, which the browser assigns once
+-- when the person acts and reuses on retry. occurred_at is accepted only inside
+-- now() - 5 minutes through now() + 1 minute; otherwise both ordering fields
+-- are cleared and the event is still stored. Equal action_seq is not a later
+-- step. arrival_funnel uses server receipt time (created_at) and is not
+-- user-action order.
 --
 -- Visitors are distinct anonymous browser identities (visitor_id), not verified
 -- humans. A person with several page views on one Europe/Istanbul day counts
@@ -36,6 +47,12 @@ ALTER TABLE public.analytics_events
 ALTER TABLE public.analytics_events
   ADD COLUMN IF NOT EXISTS host text;
 
+ALTER TABLE public.analytics_events
+  ADD COLUMN IF NOT EXISTS occurred_at timestamptz;
+
+ALTER TABLE public.analytics_events
+  ADD COLUMN IF NOT EXISTS action_seq integer;
+
 CREATE UNIQUE INDEX IF NOT EXISTS analytics_events_event_id_uidx
   ON public.analytics_events (event_id)
   WHERE event_id IS NOT NULL;
@@ -43,6 +60,46 @@ CREATE UNIQUE INDEX IF NOT EXISTS analytics_events_event_id_uidx
 CREATE INDEX IF NOT EXISTS analytics_events_created_visitor_idx
   ON public.analytics_events (created_at DESC, visitor_id)
   WHERE visitor_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS analytics_events_session_action_idx
+  ON public.analytics_events (session_id, action_seq)
+  WHERE session_id IS NOT NULL AND action_seq IS NOT NULL;
+
+-- Keep a client timestamp only inside the server window. A half-valid pair
+-- cannot order the funnel: if either field fails, both become null. The row
+-- is still inserted so page and book counts continue.
+CREATE OR REPLACE FUNCTION private.kutadgu_validate_analytics_timing()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $timing$
+BEGIN
+  IF NEW.occurred_at IS NOT NULL AND (
+    NEW.occurred_at < now() - interval '5 minutes'
+    OR NEW.occurred_at > now() + interval '1 minute'
+  ) THEN
+    NEW.occurred_at := NULL;
+  END IF;
+  IF NEW.action_seq IS NULL OR NEW.action_seq < 0 OR NEW.action_seq > 1000000 THEN
+    NEW.action_seq := NULL;
+  END IF;
+  IF NEW.occurred_at IS NULL OR NEW.action_seq IS NULL THEN
+    NEW.occurred_at := NULL;
+    NEW.action_seq := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$timing$;
+
+REVOKE ALL ON FUNCTION private.kutadgu_validate_analytics_timing() FROM PUBLIC;
+REVOKE ALL ON FUNCTION private.kutadgu_validate_analytics_timing() FROM anon;
+REVOKE ALL ON FUNCTION private.kutadgu_validate_analytics_timing() FROM authenticated;
+
+DROP TRIGGER IF EXISTS analytics_events_validate_timing ON public.analytics_events;
+CREATE TRIGGER analytics_events_validate_timing
+  BEFORE INSERT ON public.analytics_events
+  FOR EACH ROW
+  EXECUTE FUNCTION private.kutadgu_validate_analytics_timing();
 
 CREATE OR REPLACE FUNCTION private.kutadgu_resolve_book_id(raw text)
 RETURNS text
@@ -101,6 +158,17 @@ CREATE POLICY "public can insert analytics"
       'kutadgubilik.com',
       'kutadgu-bilig-kitab.vercel.app'
     ))
+    and (
+      (occurred_at is null and action_seq is null)
+      or (
+        occurred_at is not null
+        and action_seq is not null
+        and occurred_at >= (now() - interval '5 minutes')
+        and occurred_at <= (now() + interval '1 minute')
+        and action_seq >= 0
+        and action_seq <= 1000000
+      )
+    )
     and (result_count is null or (result_count >= 0 and result_count <= 100000))
     and (item_count is null or (item_count >= 0 and item_count <= 200))
     and (order_total is null or (order_total >= 0 and order_total <= 9999999.99))
@@ -172,7 +240,62 @@ BEGIN
     FROM eligible
     WHERE created_at >= v_range_ts
   ),
-  funnel_views AS (
+  user_funnel_events AS (
+    SELECT session_id, event_name, action_seq
+    FROM eligible
+    WHERE created_at >= v_range_ts
+      AND event_name IN ('book_view', 'add_to_cart', 'whatsapp_order_click')
+      AND nullif(btrim(session_id), '') IS NOT NULL
+      AND occurred_at IS NOT NULL
+      AND action_seq IS NOT NULL
+  ),
+  user_funnel_views AS (
+    SELECT session_id, min(action_seq) AS first_view
+    FROM user_funnel_events
+    WHERE event_name = 'book_view'
+    GROUP BY session_id
+  ),
+  user_funnel_carts AS (
+    SELECT v.session_id, min(e.action_seq) AS first_cart
+    FROM user_funnel_views v
+    JOIN user_funnel_events e
+      ON e.session_id = v.session_id
+     AND e.event_name = 'add_to_cart'
+     AND e.action_seq > v.first_view
+    GROUP BY v.session_id
+  ),
+  user_funnel_counts AS (
+    SELECT
+      (SELECT count(*) FROM user_funnel_views) AS views,
+      (SELECT count(*) FROM user_funnel_carts) AS cart_adds,
+      (
+        SELECT count(*)
+        FROM user_funnel_carts c
+        WHERE EXISTS (
+          SELECT 1
+          FROM user_funnel_events e
+          WHERE e.session_id = c.session_id
+            AND e.event_name = 'whatsapp_order_click'
+            AND e.action_seq > c.first_cart
+        )
+      ) AS whatsapp_clicks,
+      (
+        SELECT count(*)
+        FROM eligible
+        WHERE created_at >= v_range_ts
+          AND event_name IN ('book_view', 'add_to_cart', 'whatsapp_order_click')
+          AND nullif(btrim(session_id), '') IS NULL
+      ) AS excluded_without_session,
+      (
+        SELECT count(*)
+        FROM eligible
+        WHERE created_at >= v_range_ts
+          AND event_name IN ('book_view', 'add_to_cart', 'whatsapp_order_click')
+          AND nullif(btrim(session_id), '') IS NOT NULL
+          AND (occurred_at IS NULL OR action_seq IS NULL)
+      ) AS excluded_without_action_seq
+  ),
+  arrival_funnel_views AS (
     SELECT session_id, min(created_at) AS first_view
     FROM eligible
     WHERE created_at >= v_range_ts
@@ -180,9 +303,9 @@ BEGIN
       AND nullif(btrim(session_id), '') IS NOT NULL
     GROUP BY session_id
   ),
-  funnel_carts AS (
+  arrival_funnel_carts AS (
     SELECT v.session_id, min(e.created_at) AS first_cart
-    FROM funnel_views v
+    FROM arrival_funnel_views v
     JOIN eligible e
       ON e.session_id = v.session_id
      AND e.event_name = 'add_to_cart'
@@ -190,13 +313,13 @@ BEGIN
      AND e.created_at >= v_range_ts
     GROUP BY v.session_id
   ),
-  funnel_counts AS (
+  arrival_funnel_counts AS (
     SELECT
-      (SELECT count(*) FROM funnel_views) AS views,
-      (SELECT count(*) FROM funnel_carts) AS cart_adds,
+      (SELECT count(*) FROM arrival_funnel_views) AS views,
+      (SELECT count(*) FROM arrival_funnel_carts) AS cart_adds,
       (
         SELECT count(*)
-        FROM funnel_carts c
+        FROM arrival_funnel_carts c
         WHERE EXISTS (
           SELECT 1
           FROM eligible e
@@ -477,7 +600,27 @@ BEGIN
     ),
     'funnel', (
       SELECT jsonb_build_object(
-        'kind', 'ordered_session',
+        'kind', 'ordered_user_action',
+        'order', 'validated_client_action_seq',
+        'accurate_user_action_order', true,
+        'scope', 'sessions_with_validated_action_seq',
+        'whatsapp_is', 'intent_not_purchase',
+        'views', views,
+        'cart_adds', cart_adds,
+        'whatsapp_clicks', whatsapp_clicks,
+        'view_to_cart_pct', CASE WHEN views > 0 THEN round((100.0 * cart_adds) / views, 1) ELSE NULL END,
+        'cart_to_whatsapp_pct', CASE WHEN cart_adds > 0 THEN round((100.0 * whatsapp_clicks) / cart_adds, 1) ELSE NULL END,
+        'view_to_whatsapp_pct', CASE WHEN views > 0 THEN round((100.0 * whatsapp_clicks) / views, 1) ELSE NULL END,
+        'excluded_without_session', excluded_without_session,
+        'excluded_without_action_seq', excluded_without_action_seq
+      )
+      FROM user_funnel_counts
+    ),
+    'arrival_funnel', (
+      SELECT jsonb_build_object(
+        'kind', 'recorded_arrival',
+        'order', 'server_receipt_time',
+        'accurate_user_action_order', false,
         'scope', 'sessions_with_session_id',
         'whatsapp_is', 'intent_not_purchase',
         'views', views,
@@ -486,9 +629,10 @@ BEGIN
         'view_to_cart_pct', CASE WHEN views > 0 THEN round((100.0 * cart_adds) / views, 1) ELSE NULL END,
         'cart_to_whatsapp_pct', CASE WHEN cart_adds > 0 THEN round((100.0 * whatsapp_clicks) / cart_adds, 1) ELSE NULL END,
         'view_to_whatsapp_pct', CASE WHEN views > 0 THEN round((100.0 * whatsapp_clicks) / views, 1) ELSE NULL END,
-        'excluded_without_session', excluded_without_session
+        'excluded_without_session', excluded_without_session,
+        'excluded_without_action_seq', 0
       )
-      FROM funnel_counts
+      FROM arrival_funnel_counts
     )
   )
   INTO v_result;
@@ -503,12 +647,5 @@ GRANT EXECUTE ON FUNCTION public.get_kutadgu_analytics(integer) TO authenticated
 
 COMMIT;
 
--- Rollback (do not run with the migration above):
--- 1. CREATE OR REPLACE the previous deployed function: rolling
---    now() - make_interval(days => ...), admin + AAL2, id-only book join,
---    and only page_views, book_views, cart_adds, whatsapp_clicks, top_books,
---    and zero_searches. That body is the live definition recorded before this
---    file. Do not replace it with STAGE8_STORE_ANALYTICS.sql.
--- 2. Recreate "public can insert analytics" from STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql
---    so engagement event names stay allowed and the new visitor/host checks are removed.
--- 3. Leave visitor_id, event_id, and host in place. Do not delete events.
+-- Rollback is STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql.
+-- Run that file alone. Do not append it here.

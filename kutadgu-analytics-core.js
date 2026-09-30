@@ -129,6 +129,12 @@
     if(isUuidV4(visitor))row.visitor_id=visitor.toLowerCase();
     if(isUuidV4(eventId))row.event_id=eventId.toLowerCase();
     if(PRODUCTION_HOSTS[host])row.host=host;
+    const seq=Number(ctx&&ctx.actionSeq);
+    const occurred=ctx&&ctx.occurredAt?new Date(ctx.occurredAt):null;
+    if(Number.isInteger(seq)&&seq>=0&&seq<=1000000&&occurred&&!Number.isNaN(occurred.getTime())){
+      row.action_seq=seq;
+      row.occurred_at=occurred.toISOString();
+    }
     return row;
   }
 
@@ -231,13 +237,37 @@
     return true;
   }
 
-  function retryDecision(status,missingColumn,attempt){
+  function retryDecision(status,missingColumn,attempt,opts){
     const n=Number(attempt)||0;
+    const idempotent=!(opts&&opts.idempotent===false);
     if(missingColumn)return n<4?"omit-column":"drop";
     const code=Number(status);
     if(code===409||(code>=200&&code<300))return "stored";
-    if((code===0||code>=500)&&n<1)return "retry-same-id";
+    // A lost response or 5xx can mean the insert already committed.
+    // Retry only while event_id uniqueness can ignore that duplicate.
+    if((code===0||code>=500)&&n<1&&idempotent)return "retry-same-id";
     return "drop";
+  }
+
+  function nextActionSeq(storage){
+    if(!storage||typeof storage.getItem!=="function"||typeof storage.setItem!=="function")return null;
+    try{
+      const current=Number(storage.getItem("kutadgu-analytics-action-seq")||0);
+      const next=Number.isInteger(current)&&current>=0&&current<1000000?current+1:1;
+      storage.setItem("kutadgu-analytics-action-seq",String(next));
+      const stored=Number(storage.getItem("kutadgu-analytics-action-seq"));
+      return stored===next?next:null;
+    }catch(err){
+      return null;
+    }
+  }
+
+  function acceptClientOccurredAt(occurredAt,serverNow){
+    const at=Date.parse(occurredAt);
+    const now=serverNow instanceof Date?serverNow.getTime():Date.parse(serverNow);
+    if(!Number.isFinite(at)||!Number.isFinite(now))return null;
+    if(at<now-5*60*1000||at>now+60*1000)return null;
+    return new Date(at).toISOString();
   }
 
   function istanbulParts(date){
@@ -330,25 +360,32 @@
     return Number.isFinite(n)?n:null;
   }
 
+  function copyFunnel(funnel,kind,accurate){
+    return {
+      kind,
+      order:funnel&&funnel.order||"",
+      accurate_user_action_order:accurate,
+      views:Number(funnel&&funnel.views||0),
+      cart_adds:Number(funnel&&funnel.cart_adds||0),
+      whatsapp_clicks:Number(funnel&&funnel.whatsapp_clicks||0),
+      view_to_cart_pct:pctOrNull(funnel&&funnel.view_to_cart_pct),
+      cart_to_whatsapp_pct:pctOrNull(funnel&&funnel.cart_to_whatsapp_pct),
+      view_to_whatsapp_pct:pctOrNull(funnel&&funnel.view_to_whatsapp_pct),
+      excluded_without_session:Number(funnel&&funnel.excluded_without_session||0),
+      excluded_without_action_seq:Number(funnel&&funnel.excluded_without_action_seq||0)
+    };
+  }
+
   function describeFunnel(summary){
     const funnel=summary&&summary.funnel&&typeof summary.funnel==="object"?summary.funnel:null;
-    if(funnel&&funnel.kind==="ordered_session"){
-      return {
-        kind:"ordered_session",
-        funnel:{
-          kind:"ordered_session",
-          views:Number(funnel.views||0),
-          cart_adds:Number(funnel.cart_adds||0),
-          whatsapp_clicks:Number(funnel.whatsapp_clicks||0),
-          view_to_cart_pct:pctOrNull(funnel.view_to_cart_pct),
-          cart_to_whatsapp_pct:pctOrNull(funnel.cart_to_whatsapp_pct),
-          view_to_whatsapp_pct:pctOrNull(funnel.view_to_whatsapp_pct),
-          excluded_without_session:Number(funnel.excluded_without_session||0)
-        }
-      };
+    if(funnel&&funnel.kind==="ordered_user_action"){
+      return {kind:"ordered_user_action",funnel:copyFunnel(funnel,"ordered_user_action",true)};
+    }
+    if(funnel&&(funnel.kind==="recorded_arrival"||funnel.kind==="ordered_session")){
+      return {kind:"recorded_arrival",funnel:copyFunnel(funnel,"recorded_arrival",false)};
     }
     const counts=funnelFromCounts(summary||{});
-    return {kind:"aggregate_ratio",funnel:Object.assign({kind:"aggregate_ratio"},counts)};
+    return {kind:"aggregate_ratio",funnel:Object.assign({kind:"aggregate_ratio",accurate_user_action_order:false},counts)};
   }
 
   function describeAnalytics(summary,now){
@@ -386,7 +423,10 @@
         period,
         daily:chartDays(src,now)
       },
-      funnel:describeFunnel(src)
+      funnel:describeFunnel(src),
+      arrival:src.arrival_funnel&&typeof src.arrival_funnel==="object"
+        ?describeFunnel({funnel:src.arrival_funnel}).funnel
+        :null
     };
   }
 
@@ -446,46 +486,70 @@
     };
   }
 
-  function orderedSessionFunnel(events){
+  function sessionFunnel(events,mode){
+    const userAction=mode==="user_action";
     const rows=Array.isArray(events)?events:[];
-    let excluded=0;
+    let excludedSession=0;
+    let excludedSeq=0;
     const bySession=new Map();
     rows.forEach(event=>{
       const name=event&&event.event_name;
       if(name!=="book_view"&&name!=="add_to_cart"&&name!=="whatsapp_order_click")return;
       const sid=String(event.session_id||"").trim();
-      if(!sid){excluded+=1;return;}
-      const at=new Date(event.created_at).getTime();
-      if(!Number.isFinite(at))return;
+      if(!sid){excludedSession+=1;return;}
+      let key=null;
+      if(userAction){
+        const seq=Number(event.action_seq);
+        const occurred=Date.parse(event&&event.occurred_at);
+        if(!Number.isInteger(seq)||seq<0||seq>1000000||!Number.isFinite(occurred)){
+          excludedSeq+=1;
+          return;
+        }
+        key=seq;
+      }else{
+        key=new Date(event.created_at).getTime();
+        if(!Number.isFinite(key))return;
+      }
       if(!bySession.has(sid))bySession.set(sid,{views:[],carts:[],clicks:[]});
       const bag=bySession.get(sid);
-      if(name==="book_view")bag.views.push(at);
-      else if(name==="add_to_cart")bag.carts.push(at);
-      else bag.clicks.push(at);
+      if(name==="book_view")bag.views.push(key);
+      else if(name==="add_to_cart")bag.carts.push(key);
+      else bag.clicks.push(key);
     });
     let views=0,carts=0,clicks=0;
     bySession.forEach(bag=>{
       if(!bag.views.length)return;
       views+=1;
       const firstView=Math.min.apply(null,bag.views);
-      const cartsAfter=bag.carts.filter(at=>at>=firstView);
+      const cartsAfter=bag.carts.filter(key=>userAction?key>firstView:key>=firstView);
       if(!cartsAfter.length)return;
       carts+=1;
       const firstCart=Math.min.apply(null,cartsAfter);
-      if(bag.clicks.some(at=>at>=firstCart))clicks+=1;
+      if(bag.clicks.some(key=>userAction?key>firstCart:key>=firstCart))clicks+=1;
     });
     return {
-      kind:"ordered_session",
-      scope:"sessions_with_session_id",
+      kind:userAction?"ordered_user_action":"recorded_arrival",
+      order:userAction?"validated_client_action_seq":"server_receipt_time",
+      accurate_user_action_order:userAction,
+      scope:userAction?"sessions_with_validated_action_seq":"sessions_with_session_id",
       views,
       cart_adds:carts,
       whatsapp_clicks:clicks,
       view_to_cart_pct:conversionPct(carts,views),
       cart_to_whatsapp_pct:conversionPct(clicks,carts),
       view_to_whatsapp_pct:conversionPct(clicks,views),
-      excluded_without_session:excluded,
+      excluded_without_session:excludedSession,
+      excluded_without_action_seq:excludedSeq,
       whatsapp_is:"intent_not_purchase"
     };
+  }
+
+  function orderedUserActionFunnel(events){
+    return sessionFunnel(events,"user_action");
+  }
+
+  function recordedArrivalFunnel(events){
+    return sessionFunnel(events,"arrival");
   }
 
   function resolveBookId(raw,books){
@@ -553,7 +617,10 @@
     createAnalyticsLoadGate,
     classifyVisitorDay,
     periodVisitorCount,
-    orderedSessionFunnel,
+    orderedUserActionFunnel,
+    recordedArrivalFunnel,
+    nextActionSeq,
+    acceptClientOccurredAt,
     resolveBookId,
     whatsappTokens,
     formatIstanbulStamp

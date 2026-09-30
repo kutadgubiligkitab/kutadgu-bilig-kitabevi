@@ -3,6 +3,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 const A = require("../kutadgu-analytics-core.js");
 
 const root = path.join(__dirname, "..");
@@ -158,28 +159,48 @@ test("canonical id wins and the lowest legacy id is the deterministic fallback",
   assert.deepStrictEqual(resolved, ["1", "2"]);
 });
 
-test("ordered session funnel follows view, then cart, then WhatsApp intent", () => {
-  const funnel = A.orderedSessionFunnel([
-    { event_name: "book_view", session_id: "a", created_at: "2026-09-30T10:00:00Z" },
-    { event_name: "add_to_cart", session_id: "a", created_at: "2026-09-30T10:05:00Z" },
-    { event_name: "whatsapp_order_click", session_id: "a", created_at: "2026-09-30T10:06:00Z" },
-    { event_name: "add_to_cart", session_id: "b", created_at: "2026-09-30T09:00:00Z" },
-    { event_name: "book_view", session_id: "b", created_at: "2026-09-30T11:00:00Z" },
-    { event_name: "book_view", session_id: "c", created_at: "2026-09-30T12:00:00Z" },
-    { event_name: "whatsapp_order_click", session_id: "c", created_at: "2026-09-30T12:01:00Z" },
-    { event_name: "add_to_cart", session_id: "c", created_at: "2026-09-30T12:02:00Z" },
-    { event_name: "book_view", session_id: "", created_at: "2026-09-30T12:03:00Z" },
-    { event_name: "page_view", session_id: "a", created_at: "2026-09-30T12:04:00Z" }
-  ]);
-  assert.strictEqual(funnel.kind, "ordered_session");
-  assert.strictEqual(funnel.views, 3);
-  assert.strictEqual(funnel.cart_adds, 2);
-  assert.strictEqual(funnel.whatsapp_clicks, 1);
-  assert.strictEqual(funnel.excluded_without_session, 1);
-  assert.strictEqual(funnel.view_to_cart_pct, 66.7);
-  assert.strictEqual(funnel.whatsapp_is, "intent_not_purchase");
-  const empty = A.orderedSessionFunnel([]);
-  assert.strictEqual(empty.view_to_cart_pct, null);
+test("user-action order survives delayed delivery and does not treat equal steps as later", () => {
+  const delayed = [
+    { event_name: "add_to_cart", session_id: "delay", action_seq: 2, occurred_at: "2026-09-30T10:00:10Z", created_at: "2026-09-30T10:00:00Z" },
+    { event_name: "book_view", session_id: "delay", action_seq: 1, occurred_at: "2026-09-30T10:00:00Z", created_at: "2026-09-30T10:00:20Z" }
+  ];
+  const user = A.orderedUserActionFunnel(delayed);
+  const arrival = A.recordedArrivalFunnel(delayed);
+  assert.strictEqual(user.kind, "ordered_user_action");
+  assert.strictEqual(user.accurate_user_action_order, true);
+  assert.strictEqual(user.cart_adds, 1);
+  assert.strictEqual(arrival.kind, "recorded_arrival");
+  assert.strictEqual(arrival.order, "server_receipt_time");
+  assert.strictEqual(arrival.accurate_user_action_order, false);
+  assert.notStrictEqual(arrival.kind, "ordered_user_action");
+  assert.strictEqual(arrival.cart_adds, 0);
+
+  const equalSeq = [
+    { event_name: "book_view", session_id: "eq", action_seq: 5, occurred_at: "2026-09-30T10:00:00Z", created_at: "2026-09-30T10:00:00Z" },
+    { event_name: "add_to_cart", session_id: "eq", action_seq: 5, occurred_at: "2026-09-30T10:00:00Z", created_at: "2026-09-30T10:00:00Z" }
+  ];
+  assert.strictEqual(A.orderedUserActionFunnel(equalSeq).views, 1);
+  assert.strictEqual(A.orderedUserActionFunnel(equalSeq).cart_adds, 0);
+
+  const equalTime = [
+    { event_name: "add_to_cart", session_id: "tie", action_seq: 8, occurred_at: "2026-09-30T10:00:00Z", created_at: "2026-09-30T09:00:00Z" },
+    { event_name: "book_view", session_id: "tie", action_seq: 7, occurred_at: "2026-09-30T10:00:00Z", created_at: "2026-09-30T10:00:00Z" }
+  ];
+  assert.strictEqual(A.orderedUserActionFunnel(equalTime).cart_adds, 1);
+  assert.strictEqual(A.recordedArrivalFunnel(equalTime).cart_adds, 0);
+
+  const historical = [
+    { event_name: "book_view", session_id: "old", created_at: "2026-09-30T10:00:00Z" },
+    { event_name: "add_to_cart", session_id: "old", created_at: "2026-09-30T10:05:00Z" }
+  ];
+  const excluded = A.orderedUserActionFunnel(historical);
+  assert.strictEqual(excluded.views, 0);
+  assert.strictEqual(excluded.excluded_without_action_seq, 2);
+  const arrived = A.recordedArrivalFunnel(historical);
+  assert.strictEqual(arrived.views, 1);
+  assert.strictEqual(arrived.cart_adds, 1);
+  assert.strictEqual(arrived.accurate_user_action_order, false);
+  assert.strictEqual(A.orderedUserActionFunnel([]).view_to_cart_pct, null);
 });
 
 test("aggregate ratios stay labelled as ratios and are not clamped", () => {
@@ -189,10 +210,19 @@ test("aggregate ratios stay labelled as ratios and are not clamped", () => {
   assert.strictEqual(described.funnel.funnel.cart_to_whatsapp_pct, 160);
   const ordered = A.describeAnalytics({
     schema_version: 2,
-    funnel: { kind: "ordered_session", views: 4, cart_adds: 2, whatsapp_clicks: 1, view_to_cart_pct: 50, cart_to_whatsapp_pct: 50, view_to_whatsapp_pct: 25, excluded_without_session: 3 }
+    funnel: { kind: "ordered_user_action", views: 4, cart_adds: 2, whatsapp_clicks: 1, view_to_cart_pct: 50, cart_to_whatsapp_pct: 50, view_to_whatsapp_pct: 25, excluded_without_session: 3, excluded_without_action_seq: 1 },
+    arrival_funnel: { kind: "recorded_arrival", views: 5, cart_adds: 1, whatsapp_clicks: 0, accurate_user_action_order: false }
   });
-  assert.strictEqual(ordered.funnel.kind, "ordered_session");
+  assert.strictEqual(ordered.funnel.kind, "ordered_user_action");
+  assert.strictEqual(ordered.funnel.funnel.accurate_user_action_order, true);
   assert.strictEqual(ordered.funnel.funnel.excluded_without_session, 3);
+  assert.strictEqual(ordered.arrival.kind, "recorded_arrival");
+  assert.strictEqual(ordered.arrival.accurate_user_action_order, false);
+  const mislabeled = A.describeAnalytics({
+    funnel: { kind: "ordered_session", views: 4, cart_adds: 2, whatsapp_clicks: 1, accurate_user_action_order: true }
+  });
+  assert.strictEqual(mislabeled.funnel.kind, "recorded_arrival");
+  assert.strictEqual(mislabeled.funnel.funnel.accurate_user_action_order, false);
 });
 
 test("old RPC fields are unsupported while a present zero stays zero", () => {
@@ -229,6 +259,23 @@ test("retries reuse the decision and do not invent another visitor", () => {
   assert.strictEqual(A.retryDecision(409, "", 0), "stored");
   assert.strictEqual(A.retryDecision(201, "", 0), "stored");
   assert.strictEqual(A.retryDecision(400, "visitor_id", 0), "omit-column");
+  assert.strictEqual(A.retryDecision(0, "", 0, { idempotent: false }), "drop");
+  assert.strictEqual(A.retryDecision(503, "", 0, { idempotent: false }), "drop");
+  const now = new Date("2026-09-30T12:00:00Z");
+  assert.strictEqual(A.acceptClientOccurredAt("2026-09-30T11:56:00Z", now), "2026-09-30T11:56:00.000Z");
+  assert.strictEqual(A.acceptClientOccurredAt("2026-09-30T11:54:00Z", now), null);
+  assert.strictEqual(A.acceptClientOccurredAt("2026-09-30T12:02:00Z", now), null);
+  const seq = memoryStorage();
+  assert.strictEqual(A.nextActionSeq(seq), 1);
+  assert.strictEqual(A.nextActionSeq(seq), 2);
+  const paired = A.buildRow("book_view", { bookId: "1" }, {
+    path: "/book/1", sessionId: "s", actionSeq: 4, occurredAt: "2026-09-30T12:00:00.000Z"
+  });
+  assert.strictEqual(paired.action_seq, 4);
+  assert.strictEqual(paired.occurred_at, "2026-09-30T12:00:00.000Z");
+  const half = A.buildRow("book_view", { bookId: "1" }, { path: "/book/1", sessionId: "s", actionSeq: 4 });
+  assert.ok(!("action_seq" in half));
+  assert.ok(!("occurred_at" in half));
   const row = A.buildRow("add_to_cart", { bookId: "8", qty: 1 }, {
     path: "/cart.html",
     sessionId: "s",
@@ -268,6 +315,9 @@ test("admin rendering keeps the RPC, the period count, and the failure copy", ()
   assert.ok(admin.includes("visitors.period"));
   assert.ok(!/daily\.reduce|sumDaily/.test(admin));
   assert.ok(admin.includes("كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى"));
+  assert.ok(admin.includes("ordered_user_action"));
+  assert.ok(admin.includes("يېتىپ كېلىش تەرتىپى ئىشلەتكۈچى ھەرىكىتى ئەمەس"));
+  assert.ok(!admin.includes("ordered_session"));
   assert.ok(!admin.includes("STAGE8_STORE_ANALYTICS.sql"));
   assert.ok(html.includes("analyticsVisitorsToday"));
   assert.ok(html.includes("analyticsVisitorChart"));
@@ -285,6 +335,9 @@ test("tracking keeps session and visitor apart and retries the same event id", (
   assert.ok(js.includes('core.visitorId(safeStorage("local"))'));
   assert.ok(js.includes("kutadgu-analytics-session"));
   assert.ok(js.includes("resolution=ignore-duplicates"));
+  assert.ok(js.includes("idempotent:hasEvent"));
+  assert.ok(js.includes("occurred_at"));
+  assert.ok(js.includes("action_seq"));
   assert.ok(js.includes("analytics must never block the shop"));
   assert.ok(js.includes('{once:true}'));
   assert.ok(!/setTimeout\(/.test(js));
@@ -305,7 +358,22 @@ test("migration is repeat-safe, admin-only, and does not delete or backfill even
   assert.ok(/aal2/.test(sql));
   assert.ok(/revoke all on function public\.get_kutadgu_analytics\(integer\) from anon/i.test(sql));
   assert.ok(/grant execute on function public\.get_kutadgu_analytics\(integer\) to authenticated/i.test(sql));
-  assert.ok(sql.includes("ordered_session"));
+  assert.ok(sql.includes("ordered_user_action"));
+  assert.ok(sql.includes("recorded_arrival"));
+  assert.ok(sql.includes("accurate_user_action_order"));
+  assert.ok(/e\.action_seq > v\.first_view/.test(sql));
+  assert.ok(!sql.includes("ordered_session"));
+  assert.ok(/add column if not exists occurred_at/i.test(sql));
+  assert.ok(/add column if not exists action_seq/i.test(sql));
+  const rollback = read("STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql");
+  assert.ok(/drop trigger if exists analytics_events_validate_timing/i.test(rollback));
+  assert.ok(/create or replace function public\.get_kutadgu_analytics/i.test(rollback));
+  assert.ok(/make_interval/.test(rollback));
+  assert.ok(rollback.includes("book_engagement_detail"));
+  assert.ok(!/delete from public\.analytics_events/i.test(rollback));
+  assert.ok(!/schema_version/.test(rollback));
+  assert.ok(!/\bsales_count\b/i.test(rollback));
+  assert.ok(!/service_role/i.test(rollback));
   assert.ok(sql.includes("Europe/Istanbul"));
   assert.ok(/count\(distinct visitor_id\)/i.test(sql));
   assert.ok(sql.includes("period_distinct_is_not_the_sum_of_daily_counts"));
@@ -326,16 +394,102 @@ test("cache pins moved for the changed analytics files", () => {
   const home = read("index.html");
   const shell = read("book-shell.html");
   assert.match(html, /admin\.css\?v=47/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=2/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=3/);
   assert.match(html, /admin\.js\?v=79/);
-  assert.match(home, /analytics\.js\?v=3/);
-  assert.match(home, /kutadgu-analytics-core\.js\?v=2/);
+  assert.match(home, /analytics\.js\?v=4/);
+  assert.match(home, /kutadgu-analytics-core\.js\?v=3/);
   assert.match(home, /shop\.js\?v=135/);
-  assert.match(shell, /src="\/analytics\.js\?v=3"/);
+  assert.match(shell, /src="\/analytics\.js\?v=4"/);
 });
 
-if (failed) {
-  console.error(failed + " failed");
-  process.exit(1);
+function browserStorage() {
+  const data = {};
+  return {
+    getItem(key) { return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null; },
+    setItem(key, value) { data[key] = String(value); }
+  };
 }
-console.log("admin-daily-visitors-tests ok");
+
+function loadAnalyticsVm(fetchImpl) {
+  const listeners = {};
+  const document = {
+    readyState: "loading",
+    addEventListener(name, fn) { (listeners[name] ||= []).push(fn); },
+    dispatchEvent(event) { (listeners[event.type] || []).forEach((fn) => fn(event)); }
+  };
+  const window = {
+    KutadguAnalyticsCore: A,
+    KUTADGU_SUPABASE_CONFIG: { url: "https://example.invalid", anonKey: "test-key" }
+  };
+  const context = vm.createContext({
+    window,
+    document,
+    location: { hostname: "www.kutadgubilik.com", pathname: "/index.html" },
+    CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init && init.detail; },
+    fetch: fetchImpl,
+    sessionStorage: browserStorage(),
+    localStorage: browserStorage(),
+    crypto: global.crypto,
+    console
+  });
+  vm.runInContext(fs.readFileSync(path.join(root, "analytics.js"), "utf8"), context);
+  return window;
+}
+
+async function legacyLostResponseDoesNotDuplicate() {
+  const stored = [];
+  const window = loadAnalyticsVm(async (_url, init) => {
+    const body = JSON.parse(init.body);
+    if (body.event_id) {
+      return { ok: false, status: 400, text: async () => "PGRST204 Could not find the 'event_id' column" };
+    }
+    stored.push(body);
+    throw new Error("response lost after commit");
+  });
+  await window.KutadguAnalytics.track("add_to_cart", { bookId: "8", qty: 1 });
+  await window.KutadguAnalytics.track("book_view", { bookId: "8" });
+  assert.strictEqual(stored.length, 2);
+  assert.deepStrictEqual(stored.map((row) => row.event_name).sort(), ["add_to_cart", "book_view"]);
+  assert.ok(stored.every((row) => !("event_id" in row)));
+}
+
+async function eventIdRetryStaysOneRow() {
+  const stored = [];
+  const seen = new Set();
+  let calls = 0;
+  const window = loadAnalyticsVm(async (_url, init) => {
+    calls += 1;
+    const body = JSON.parse(init.body);
+    if (!body.event_id) throw new Error("event_id missing");
+    if (seen.has(body.event_id)) {
+      if (!String(init.headers.Prefer || "").includes("resolution=ignore-duplicates")) {
+        throw new Error("retry did not ignore duplicates");
+      }
+      return { ok: true, status: 201, text: async () => "" };
+    }
+    seen.add(body.event_id);
+    stored.push(body);
+    throw new Error("response lost after commit");
+  });
+  await window.KutadguAnalytics.track("add_to_cart", { bookId: "8", qty: 1 });
+  assert.strictEqual(stored.length, 1);
+  assert.strictEqual(calls, 2);
+  await window.KutadguAnalytics.track("book_view", { bookId: "9" });
+  assert.strictEqual(stored.length, 2);
+  assert.notStrictEqual(stored[0].event_id, stored[1].event_id);
+}
+
+legacyLostResponseDoesNotDuplicate()
+  .then(() => eventIdRetryStaysOneRow())
+  .then(() => {
+    if (failed) {
+      console.error(failed + " failed");
+      process.exit(1);
+    }
+    console.log("PASS legacy schema lost response stays one row per event");
+    console.log("admin-daily-visitors-tests ok");
+  })
+  .catch((err) => {
+    console.error("FAIL legacy retry regression", err && err.stack || err);
+    process.exit(1);
+  });
