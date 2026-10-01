@@ -9,5 +9,6 @@ blob-report/
 .dev.vars
 .wrangler/
 .wrangler-dry-run/
+.tmp/
 backups/local/
 *.dump

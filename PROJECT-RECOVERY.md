@@ -245,11 +245,11 @@ Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor,
 
 ## Cloudflare parallel preview
 
-This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. Draft PR #222 is `feat/cloudflare-parallel-preview`, based on `origin/main` at `9acaa1cd`. The remote preview is `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev`. It binds R2 bucket `kutadgu-covers-preview` as `COVERS` and does not switch image URLs. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. `npm run test:unit` after that deploy exited 0 (1499 PASS lines, 105 files). `https://www.kutadgubilik.com` still responds with `server: Vercel`. The runtime baseline stays `445fe488`.
+This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. Draft PR #222 is `feat/cloudflare-parallel-preview`, based on `origin/main` at `9acaa1cd`. The remote preview is `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev`. It binds R2 bucket `kutadgu-covers-preview` as `COVERS` and does not switch image URLs. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. `npm run test:unit` after the R2 copy exited 0 (1500 PASS lines, 105 files). `https://www.kutadgubilik.com` still responds with `server: Vercel`. The runtime baseline stays `445fe488`.
 
 - A Workers preview serves the same static site and calls the existing book, category, sitemap, and AI search modules. It does not replace the Vercel deployment. `npm run preview:cloudflare` runs that preview with Wrangler state outside the repo so the asset watcher does not reload on its own writes.
 - The preview worker refuses `www.kutadgubilik.com`, `kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. `wrangler.jsonc` has no production route.
-- R2 cover copy and the admin upload scaffold stay off. Existing Supabase cover URLs are still the stored URLs. A future public R2 host can be named with `KUTADGU_R2_PUBLIC_BASE_URL` without removing the Supabase host.
+- R2 cover bytes for the 1020 active public Supabase cover and gallery objects were copied into `kutadgu-covers-preview` and checked with SHA-256. The website still reads Supabase URLs. `KUTADGU_R2_PUBLIC_BASE_URL` is empty, r2.dev stays disabled, and the admin upload route stays off. A future public R2 host can be named with `KUTADGU_R2_PUBLIC_BASE_URL` without removing the Supabase host.
 - Storefront pins are unchanged. This branch does not change shop, admin, or book-shell behavior.
 
 ## Remaining optional work

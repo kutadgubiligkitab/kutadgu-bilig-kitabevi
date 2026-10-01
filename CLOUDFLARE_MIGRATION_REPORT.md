@@ -63,7 +63,7 @@ Canonical URLs and JSON-LD stay on `https://www.kutadgubilik.com`. That matches 
 
 ## E. R2 status
 
-The bucket `kutadgu-covers-preview` exists (Eastern Europe, Standard). The preview Worker binds it as `COVERS`. Public image cutover is off: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, `KUTADGU_R2_UPLOAD_ENABLED` is `false`, and the remote upload route returns 404. Book pages on the preview still use `fxlojnqwyojqjskfggmh.supabase.co` image URLs. No cover was copied and no `image_url` row was changed.
+The bucket `kutadgu-covers-preview` exists (Eastern Europe, Standard). The preview Worker binds it as `COVERS`. Public image cutover is off: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, `KUTADGU_R2_UPLOAD_ENABLED` is `false`, and the remote upload route returns 404. Book pages on the preview and on production still use `fxlojnqwyojqjskfggmh.supabase.co` image URLs. No `image_url` or `gallery_images` row was changed. Preview copies are described in R2 COPY VERIFICATION.
 
 Prepared:
 
@@ -84,13 +84,38 @@ Tested:
 
 Not activated:
 
-- the bucket is bound for the preview Worker only; it is not a public image host
-- no production cover was copied
+- the bucket is bound for the preview Worker only; r2.dev public access stays disabled
+- copied objects are not used by the website
 - no `image_url` row was updated
 - no Supabase Storage object was deleted or moved
 - Admin UI still uploads to Supabase Storage
 
-The upload route is not linked from `admin.js`. Wiring that button is a later step. The route does not write `books.image_url`.
+The upload route is not linked from `admin.js`. Wiring that button is a later step. The route does not write `books.image_url`. Admin uploads still target the Supabase `book-covers` bucket.
+
+## R2 COPY VERIFICATION
+
+Date: 2026-10-01. Source: public Supabase Storage at `https://fxlojnqwyojqjskfggmh.supabase.co` (`book-covers` objects referenced by active books). Destination: R2 bucket `kutadgu-covers-preview` only. Copies used the existing Wrangler login and `wrangler r2 object put/get --remote`. No R2 API token was created. No delete command was run.
+
+- book rows inspected: 341
+- image references: 1020
+- unique Supabase objects planned: 1020
+- duplicates removed: 0
+- non-Supabase URLs skipped: 0
+- unsafe/invalid URLs: 0
+- total source bytes: 246920073
+- VERIFIED_COPIED: 1020
+- VERIFIED_EXISTING: 0
+- SKIPPED: 0
+- SOURCE_FAILED: 0
+- CONFLICT: 0
+- VERIFY_FAILED: 0
+- verified destination bytes: 246920073
+
+SHA-256 and byte length were checked for every copied object by reading it back from the remote bucket. Every copied object matched its source hash. Content types sent with the objects were `image/webp`, `image/png`, and `image/jpeg`, with `Cache-Control: public, max-age=31536000, immutable`.
+
+Supabase Storage originals were not deleted, renamed, moved, overwritten, or otherwise altered. Database `image_url` and `gallery_images` values were not updated. R2 image cutover remains disabled: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, r2.dev public access is disabled, and `POST /api/r2-cover-upload` returns 404. After the copy, `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev/book/106` and `/adabiyat`, and `https://www.kutadgubilik.com/book/106`, still render Supabase image URLs. `https://www.kutadgubilik.com` still responds with `server: Vercel`.
+
+The object manifest and downloaded bytes stay in gitignored `.tmp/r2-cover-migration/`. They are not committed.
 
 ## F. Security
 
@@ -102,7 +127,7 @@ The enforced CSP is still `frame-ancestors 'none'`. The report-only policy is un
 
 ## G. Tests
 
-`npm run test:unit` was run again after the remote deploy and exited 0. The log has 1499 `PASS` lines across 105 files and no failing file. That includes `scripts/cloudflare-preview-tests.js` (10 tests).
+`npm run test:unit` after the remote deploy exited 0 with 1499 `PASS` lines. It was run again after the R2 copy and exited 0 with 1500 `PASS` lines across 105 files and no failing file. That includes `scripts/cloudflare-preview-tests.js`.
 
 Remote smoke tests against `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev` (HTTP answered during certificate setup, then HTTPS returned 200):
 

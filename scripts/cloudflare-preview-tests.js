@@ -10,6 +10,7 @@ const headers = require("../cloudflare/security-headers.js");
 const images = require("../kutadgu-image-storage.js");
 const upload = require("../cloudflare/r2-cover-upload.js");
 const inventory = require("./r2-cover-inventory.js");
+const copyVerify = require("./r2-cover-copy-verify.js");
 const r2 = require("./r2-s3-client.js");
 const previewDev = require("./cloudflare-preview-dev.js");
 const publicBook = require("../kutadgu-public-book.js");
@@ -564,6 +565,34 @@ jobs.push(test("R2 inventory dry-run counts and copies nothing unless explicitly
   });
   assert.deepStrictEqual(Object.keys(client).sort(), ["head", "list", "put"]);
   fs.unlinkSync(file);
+}));
+
+jobs.push(test("R2 copy verifier refuses deletes, other buckets, and conflicting bytes", () => {
+  const source = fs.readFileSync(path.join(root, "scripts/r2-cover-copy-verify.js"), "utf8");
+  assert.strictEqual(copyVerify.BUCKET, "kutadgu-covers-preview");
+  assert.doesNotMatch(source, /r2 object delete|object delete|\.delete\(/);
+  assert.match(source, /--remote/);
+  assert.strictEqual(copyVerify.decideExisting("abc", 4, "abc", 4), "VERIFIED_EXISTING");
+  assert.strictEqual(copyVerify.decideExisting("abc", 4, "def", 4), "CONFLICT");
+  assert.strictEqual(copyVerify.interpretGet(1, "The specified key does not exist."), "absent");
+  assert.strictEqual(copyVerify.interpretGet(0, "Download complete."), "present");
+  assert.strictEqual(copyVerify.interpretGet(1, "Authentication error"), "auth");
+  const args = copyVerify.objectArgs("put", "book-covers/book/1.webp", ["--file", "x"]);
+  assert.strictEqual(args[3], "kutadgu-covers-preview/book-covers/book/1.webp");
+  assert.ok(args.includes("--remote"));
+  assert.throws(() => copyVerify.objectArgs("delete", "book-covers/book/1.webp", []), /delete-forbidden/);
+  const records = copyVerify.buildRecords([
+    { id: 1, image_url: "https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/book/1.webp", gallery_images: [] },
+    { id: 2, image_url: "https://example.com/cover.webp", gallery_images: ["https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/book/1.webp"] }
+  ]);
+  assert.strictEqual(records.planned.length, 1);
+  assert.deepStrictEqual(records.planned[0].bookIds, [1, 2]);
+  assert.strictEqual(records.planned[0].duplicateRefs, 1);
+  assert.strictEqual(records.skipped.length, 1);
+  assert.strictEqual(records.skipped[0].status, "SKIPPED_NON_SUPABASE");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.strictEqual(copyVerify.imageMagic(png), "image/png");
+  assert.strictEqual(copyVerify.imageMagic(Buffer.from("not-an-image")), "");
 }));
 
 Promise.all(jobs).then(() => {

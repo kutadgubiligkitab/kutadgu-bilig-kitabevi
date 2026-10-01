@@ -334,6 +334,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "cloudflare/security-headers.js",
     "scripts/r2-s3-client.js",
     "scripts/r2-cover-inventory.js",
+    "scripts/r2-cover-copy-verify.js",
     "scripts/cloudflare-preview-tests.js",
     "scripts/cloudflare-preview-dev.js",
     ".cursor/rules/project-recovery.mdc",
