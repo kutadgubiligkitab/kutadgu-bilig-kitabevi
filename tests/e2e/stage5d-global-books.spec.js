@@ -137,25 +137,51 @@ async function mockBooks(page, { delayMs = 0, fail = false, hang = false, books 
     }
     const collectionRec = parsed.searchParams.get("is_recommended");
     if (collectionRec === "eq.true") filtered = filtered.filter((row) => row.is_recommended);
+    const idFilter = parsed.searchParams.get("id") || "";
+    if (idFilter.startsWith("eq.")) filtered = filtered.filter((row) => String(row.id) === idFilter.slice(3));
+    else if (idFilter.startsWith("in.(") && idFilter.endsWith(")")) {
+      const wanted = new Set(idFilter.slice(4, -1).split(",").map((part) => part.trim()).filter(Boolean));
+      filtered = filtered.filter((row) => wanted.has(String(row.id)));
+    }
     const order = parsed.searchParams.get("order") || "";
-    if (order.startsWith("price.desc")) filtered.sort((a, b) => Number(b.price) - Number(a.price));
-    else if (order.startsWith("price.asc")) filtered.sort((a, b) => Number(a.price) - Number(b.price));
+    if (order.startsWith("id.asc")) filtered.sort((a, b) => Number(a.id) - Number(b.id));
+    else if (order.startsWith("price.desc")) filtered.sort((a, b) => Number(b.price) - Number(a.price) || Number(b.id) - Number(a.id));
+    else if (order.startsWith("price.asc")) filtered.sort((a, b) => Number(a.price) - Number(b.price) || Number(a.id) - Number(b.id));
+    else if (order.startsWith("created_at")) filtered.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || Number(b.id) - Number(a.id));
+    const rangeHeaders = {
+      "access-control-expose-headers": "Content-Range"
+    };
     if (req.method() === "HEAD") {
+      const total = filtered.length;
       return route.fulfill({
-        status: 206,
+        status: total ? 206 : 200,
         contentType: "application/json",
-        headers: { "content-range": `0-0/${filtered.length || books.length}` },
+        headers: { ...rangeHeaders, "content-range": total ? `0-0/${total}` : "*/0" },
         body: ""
       });
     }
     const range = String(req.headers()["range"] || "0-23");
-    const [from, to] = range.split("-").map(Number);
-    const slice = filtered.slice(from || 0, (to || 23) + 1);
+    const [fromRaw, toRaw] = range.split("-").map(Number);
+    const from = Number.isFinite(fromRaw) ? fromRaw : 0;
+    const to = Number.isFinite(toRaw) ? toRaw : from + 23;
+    if (!filtered.length || from >= filtered.length) {
+      return route.fulfill({
+        status: filtered.length ? 416 : 200,
+        contentType: "application/json",
+        headers: { ...rangeHeaders, "content-range": `*/${filtered.length}` },
+        body: "[]"
+      });
+    }
+    const slice = filtered.slice(from, to + 1);
+    const select = parsed.searchParams.get("select") || "";
+    const indexRequest = select === "id" || select === "id,is_active";
+    const payload = indexRequest ? slice.map((row) => ({ id: row.id, is_active: row.is_active !== false })) : slice;
+    const end = from + slice.length - 1;
     return route.fulfill({
       status: 206,
       contentType: "application/json",
-      headers: { "content-range": `${from || 0}-${(from || 0) + Math.max(slice.length - 1, 0)}/${filtered.length}` },
-      body: JSON.stringify(slice)
+      headers: { ...rangeHeaders, "content-range": `${from}-${end}/${filtered.length}` },
+      body: JSON.stringify(payload)
     });
   });
 }

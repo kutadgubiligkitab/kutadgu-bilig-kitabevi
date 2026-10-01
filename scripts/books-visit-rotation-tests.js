@@ -240,10 +240,59 @@ test("a frozen snapshot ignores books added after the visit", async () => {
   assert.strictEqual(page.hasMore, false);
 });
 
+test("a capped full-record page still shows every eligible snapshot id once", async () => {
+  const order = ids(60);
+  const hidden = new Set(["4", "15"]);
+  const missing = new Set(["9"]);
+  async function fetchPage(windowIds, from, pageSize) {
+    const matched = windowIds
+      .filter((id) => !missing.has(id))
+      .map((id) => ({ id, isActive: !hidden.has(id) }));
+    const slice = matched.slice(from, from + Math.min(4, pageSize));
+    if (!slice.length) return { rows: [], count: 0, status: 416, contentRange: `*/${matched.length}` };
+    const end = from + slice.length - 1;
+    return { rows: slice, count: slice.length, status: 206, contentRange: `${from}-${end}/${matched.length}` };
+  }
+  const seen = [];
+  let offset = 0;
+  let guard = 0;
+  while (guard < 40) {
+    guard += 1;
+    const page = await api.collectVisiblePage(order, offset, 12, async (windowIds) => (
+      api.resolveIdWindow(windowIds, (from, pageSize) => fetchPage(windowIds, from, pageSize))
+    ));
+    page.items.forEach((book) => {
+      assert.ok(!seen.includes(book.id), book.id);
+      seen.push(book.id);
+    });
+    if (!page.hasMore) {
+      offset = page.nextOffset;
+      break;
+    }
+    assert.ok(page.nextOffset > offset);
+    offset = page.nextOffset;
+  }
+  assert.ok(guard < 40, "load more terminated");
+  assert.strictEqual(offset, order.length);
+  const expected = order.filter((id) => !hidden.has(id) && !missing.has(id));
+  assert.deepStrictEqual(seen, expected);
+  const restored = await api.collectVisiblePage(order, 0, offset, async (windowIds) => (
+    api.resolveIdWindow(windowIds, (from, pageSize) => fetchPage(windowIds, from, pageSize))
+  ), offset);
+  assert.deepStrictEqual(restored.items.map((book) => book.id), seen);
+  assert.strictEqual(restored.hasMore, false);
+  await assert.rejects(
+    api.resolveIdWindow(ids(10), async () => ({ rows: [{ id: "1", isActive: true }], count: 1, status: 206, contentRange: "" })),
+    (err) => err && err.code === "truncated-page"
+  );
+});
+
 test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage", () => {
   assert.match(shop, /بۇ قېتىملىق بايقاش تەرتىپى/);
   assert.match(shop, /function ensureDiscoveryVisit\(/);
   assert.match(shop, /function fetchDiscoveryRemotePage\(/);
+  assert.match(shop, /resolveIdWindow\(windowIds/);
+  assert.match(shop, /if\(append&&loadingMore\)return/);
   assert.match(shop, /visitSessionStorage\(\)/);
   assert.match(shop, /isGlobalBooks\?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى<\/option>`:""/);
   assert.match(shop, /if\(key==="newest"\)arr=\(await queryCatalog\(\{offset:0,pageSize:8,sort:"new",newOnly:true\}/);
@@ -251,12 +300,12 @@ test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage
   const sortFn = shop.slice(shop.indexOf("function sortBooks("), shop.indexOf("function bindDynamicActions("));
   assert.doesNotMatch(sortFn, /permuteIds|Math\.random|discover/);
   assert.doesNotMatch(shop, /localStorage\.setItem\("kutadgu-books-visit/);
-  assert.match(booksHtml, /kutadgu-visit-order\.js\?v=1/);
-  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=1") < booksHtml.indexOf("shop.js?v=136"));
+  assert.match(booksHtml, /kutadgu-visit-order\.js\?v=2/);
+  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=2") < booksHtml.indexOf("shop.js?v=137"));
   assert.match(booksHtml, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/books"/);
   assert.strictEqual((booksHtml.match(/application\/ld\+json/g) || []).length, 1);
   assert.match(booksHtml, /CollectionPage/);
-  assert.match(booksHtml, /shop\.js\?v=136/);
+  assert.match(booksHtml, /shop\.js\?v=137/);
 });
 
 (async () => {

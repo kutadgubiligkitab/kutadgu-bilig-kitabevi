@@ -9,9 +9,11 @@
 
   The snapshot is one deterministic permutation of the canonical ids that were
   eligible when the visit first built it. Books added later join the next
-  visit. Pagination walks that frozen list. A missing or hidden id is skipped
-  and still consumes a snapshot position, so later ids are not dropped and
-  Load more ends when the cursor reaches the end.
+  visit. Pagination walks that frozen list. A full-record response that is
+  shorter than the requested id slice is paged until Content-Range says the
+  slice is exhausted. Only then is a missing or hidden id skipped. That skip
+  still consumes a snapshot position, so later ids are not dropped and Load
+  more ends when the cursor reaches the end.
 */
 (function (root) {
   "use strict";
@@ -218,7 +220,9 @@
     var cursor = start;
     var fetchSlice = typeof fetchWindow === "function" ? fetchWindow : async function () { return []; };
     while (cursor < list.length && cursor < limit && items.length < size) {
-      var room = Math.min(100, limit - cursor, list.length - cursor);
+      var need = size - items.length;
+      var room = Math.min(100, limit - cursor, list.length - cursor, need);
+      if (room < 1) break;
       var windowIds = list.slice(cursor, cursor + room);
       var books = await fetchSlice(windowIds);
       var byId = new Map();
@@ -249,6 +253,49 @@
       hasMore: cursor < list.length,
       pageSize: size
     };
+  }
+
+  async function resolveIdWindow(ids, fetchPage) {
+    var wanted = [];
+    var wantedSet = new Set();
+    (ids || []).forEach(function (id) {
+      var key = String(id == null ? "" : id).trim();
+      if (!key || wantedSet.has(key)) return;
+      wantedSet.add(key);
+      wanted.push(key);
+    });
+    var byId = new Map();
+    var resolved = new Set();
+    var from = 0;
+    var guard = 0;
+    var ask = Math.min(100, Math.max(1, wanted.length));
+    var fetchSlice = typeof fetchPage === "function" ? fetchPage : async function () { return { rows: [] }; };
+    if (!wanted.length) return [];
+    while (guard < 1000 && resolved.size < wanted.length) {
+      guard += 1;
+      var result = await fetchSlice(from, ask);
+      var chunk = result && Array.isArray(result.rows) ? result.rows : [];
+      var reported = Number.isFinite(Number(result && result.count)) ? Number(result.count) : chunk.length;
+      var progress = 0;
+      chunk.forEach(function (book) {
+        if (!book) return;
+        var id = String(book.id != null ? book.id : "").trim();
+        if (!id || !wantedSet.has(id) || resolved.has(id)) return;
+        resolved.add(id);
+        progress += 1;
+        if (book.isActive === false || book.is_active === false) return;
+        byId.set(id, book);
+      });
+      var step = nextIndexCursor(from, reported, result && result.contentRange, result && result.status, ask);
+      if (step.truncated) throw indexError("Catalog page was truncated", "truncated-page");
+      if (step.done) break;
+      if (!(step.next > from) || (progress === 0 && reported > 0)) {
+        throw indexError("Catalog page was truncated", "truncated-page");
+      }
+      from = step.next;
+    }
+    if (resolved.size < wanted.length && guard >= 1000) throw indexError("Catalog page was truncated", "truncated-page");
+    return wanted.filter(function (id) { return byId.has(id); }).map(function (id) { return byId.get(id); });
   }
 
   function copyVisit(visit) {
@@ -347,6 +394,7 @@
     listingTotal: listingTotal,
     walkSnapshot: walkSnapshot,
     collectVisiblePage: collectVisiblePage,
+    resolveIdWindow: resolveIdWindow,
     visitStore: visitStore,
     resetMemory: resetMemory,
     newSeed: newSeed

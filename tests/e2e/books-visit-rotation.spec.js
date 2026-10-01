@@ -30,7 +30,11 @@ async function mockCatalog(page, options = {}) {
     books: options.books || catalog(30),
     fail: !!options.fail,
     rowCap: options.rowCap || 0,
+    recordCap: options.recordCap || 0,
+    omitIds: new Set((options.omitIds || []).map(String)),
     delayForOrder: options.delayForOrder || null,
+    holdNextRecord: null,
+    heldRecord: false,
     analytics: []
   };
   page.on("request", (req) => {
@@ -76,8 +80,13 @@ async function mockCatalog(page, options = {}) {
     const idFilter = url.searchParams.get("id") || "";
     if (idFilter.startsWith("eq.")) rows = rows.filter((row) => String(row.id) === idFilter.slice(3));
     if (idFilter.startsWith("in.(")) {
+      state.recordStarts = (state.recordStarts || 0) + 1;
       const wanted = new Set(idFilter.slice(4, -1).split(",").filter(Boolean));
-      rows = rows.filter((row) => wanted.has(String(row.id)));
+      rows = rows.filter((row) => wanted.has(String(row.id)) && !state.omitIds.has(String(row.id)));
+      if (state.holdNextRecord && !state.heldRecord) {
+        state.heldRecord = true;
+        await state.holdNextRecord;
+      }
     }
     const sales = url.searchParams.get("sales_count") || "";
     if (sales.startsWith("gt.")) rows = rows.filter((row) => Number(row.sales_count) > Number(sales.slice(3)));
@@ -109,6 +118,7 @@ async function mockCatalog(page, options = {}) {
     const to = Number.isFinite(toRaw) ? toRaw : from + 23;
     let slice = rows.slice(from, to + 1);
     if (indexRequest && state.rowCap > 0) slice = slice.slice(0, state.rowCap);
+    if (!indexRequest && state.recordCap > 0) slice = slice.slice(0, state.recordCap);
     if (!slice.length) {
       return route.fulfill({
         status: 416,
@@ -140,7 +150,8 @@ async function titles(page) {
 }
 
 async function loadAll(page) {
-  for (let i = 0; i < 12; i += 1) {
+  await expect(page.locator(".books-grid[data-catalog-ready]")).toBeVisible();
+  for (let i = 0; i < 20; i += 1) {
     const button = page.locator(".catalog-load-more");
     if (!(await button.count())) return;
     const before = (await titles(page)).length;
@@ -191,6 +202,7 @@ test.describe("visit discovery order on all books", () => {
     await mockCatalog(freshPage, { books: state.books });
     await freshPage.setViewportSize({ width: 1280, height: 900 });
     await freshPage.goto("/books", { waitUntil: "domcontentloaded" });
+    await expect(freshPage.locator(".books-grid[data-catalog-ready]")).toBeVisible();
     await loadAll(freshPage);
     const freshTitles = await titles(freshPage);
     expect(freshTitles).toContain("يېڭى كىتاب");
@@ -295,5 +307,81 @@ test.describe("visit discovery order on all books", () => {
     await page.locator("#catalogSort").selectOption("discover");
     await expect.poll(async () => (await titles(page)).join("|")).toBe(order.join("|"));
     expect(await page.evaluate(() => localStorage.getItem("kutadgu-books-visit-v1"))).toBeNull();
+  });
+
+  test("sort, search, and reset during Load more replace the append", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const state = await mockCatalog(page, { books: catalog(30) });
+    await page.goto("/books", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24);
+    const discovery = await titles(page);
+
+    async function holdLoadMore() {
+      let release;
+      state.heldRecord = false;
+      state.holdNextRecord = new Promise((resolve) => { release = resolve; });
+      const started = state.recordStarts || 0;
+      const pendingClick = page.locator(".catalog-load-more").click();
+      await expect.poll(() => state.recordStarts || 0).toBe(started + 1);
+      return { release, pendingClick, started };
+    }
+
+    const sortHold = await holdLoadMore();
+    await page.locator(".catalog-load-more").evaluate((button) => {
+      button.disabled = false;
+      button.click();
+    });
+    expect(state.recordStarts).toBe(sortHold.started + 1);
+    const titleRequest = page.waitForRequest((req) => req.url().includes("order=title.asc"));
+    await page.locator("#catalogSort").selectOption("title");
+    await titleRequest;
+    sortHold.release();
+    await sortHold.pendingClick;
+    const titled = catalog(30).slice().sort((a, b) => String(a.title).localeCompare(String(b.title), "ug") || a.id - b.id).map((row) => row.title);
+    await expect.poll(async () => (await titles(page)).join("|")).toBe(titled.slice(0, 24).join("|"));
+    await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24);
+
+    await page.locator("#catalogFilterReset").click();
+    await expect.poll(async () => (await titles(page)).join("|")).toBe(discovery.join("|"));
+
+    const searchHold = await holdLoadMore();
+    const searchRequest = page.waitForRequest((req) => /ilike/i.test(req.url()));
+    await page.locator("#catalogFilterText").fill("كىتاب 07");
+    await searchRequest;
+    searchHold.release();
+    await searchHold.pendingClick;
+    await expect.poll(async () => await titles(page)).toEqual(["كىتاب 07"]);
+
+    await page.locator("#catalogFilterReset").click();
+    await expect.poll(async () => (await titles(page)).join("|")).toBe(discovery.join("|"));
+
+    const resetHold = await holdLoadMore();
+    const resetStarted = state.recordStarts || 0;
+    await page.locator("#catalogFilterReset").click();
+    await expect.poll(() => state.recordStarts || 0).toBe(resetStarted + 1);
+    resetHold.release();
+    await resetHold.pendingClick;
+    await expect.poll(async () => (await titles(page)).join("|")).toBe(discovery.join("|"));
+    await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24);
+  });
+
+  test("a capped full-record response lists every eligible snapshot id once", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const books = catalog(60);
+    await mockCatalog(page, { books, recordCap: 4, omitIds: ["7", "19"] });
+    await H.stubNumericBookDocuments(page, books.map((row) => row.id));
+    await page.goto("/books", { waitUntil: "domcontentloaded" });
+    await loadAll(page);
+    const all = await titles(page);
+    const expected = books.filter((row) => row.id !== 7 && row.id !== 19).map((row) => row.title);
+    expect(all).toHaveLength(58);
+    expect(new Set(all).size).toBe(58);
+    expect(all.slice().sort()).toEqual(expected.slice().sort());
+    await expect(page.locator(".catalog-load-more")).toHaveCount(0);
+    await page.locator(".book-card:not(.is-skeleton) .detail-button").first().click();
+    await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/book\/\d+\/?$/);
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await expect.poll(async () => (await titles(page)).length, { timeout: 15000 }).toBe(58);
+    expect(await titles(page)).toEqual(all);
   });
 });

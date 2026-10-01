@@ -1523,14 +1523,22 @@ async function fetchDiscoveryRemotePage(state,options={}){
   const maxCursor=Number(state.discoveryMaxCursor);
   const page=await api.collectVisiblePage(visit.ids,state.offset,state.pageSize,async(windowIds)=>{
     if(!windowIds.length)return [];
-    const fetched=await fetchRemotePage({
-      ids:windowIds,
-      pageSize:windowIds.length,
-      offset:0,
-      sort:"new",
-      includeInactive:false
-    },{...options,_discoveryPage:true});
-    return (fetched.items||[]).filter(isStorefrontVisible);
+    return api.resolveIdWindow(windowIds,async(from,pageSize)=>{
+      if(options.signal?.aborted)throw abortError();
+      const fetched=await fetchRemotePage({
+        ids:windowIds,
+        pageSize,
+        offset:from,
+        sort:"new",
+        includeInactive:false
+      },{...options,_discoveryPage:true});
+      return {
+        rows:(fetched.items||[]).filter(isStorefrontVisible),
+        count:Number.isFinite(fetched.rowCount)?fetched.rowCount:(fetched.items||[]).length,
+        status:fetched.status,
+        contentRange:fetched.contentRange||""
+      };
+    });
   },Number.isFinite(maxCursor)?maxCursor:undefined);
   return discoveryPageResult(page,"supabase");
 }
@@ -1575,7 +1583,11 @@ async function fetchRemotePage(input={},options={}){
   const total=Number.isFinite(exactTotal)?exactTotal:from+items.length+(items.length===state.pageSize?1:0);
   catalogStatus={source:"supabase",remoteCount:C.length,total:exactTotal,migrated:true,error:""};
   window.KUTADGU_CATALOG_STATUS=catalogStatus;
-  return {items,total,hasMore:Number.isFinite(exactTotal)?from+items.length<exactTotal:items.length===state.pageSize,offset:from,pageSize:state.pageSize,source:"supabase"};
+  return {
+    items,total,hasMore:Number.isFinite(exactTotal)?from+items.length<exactTotal:items.length===state.pageSize,
+    offset:from,pageSize:state.pageSize,source:"supabase",
+    status:response.status,contentRange:response.headers.get("content-range")||"",rowCount:rows.length
+  };
 }
 
 async function queryCatalog(input={},options={}){
@@ -3265,16 +3277,18 @@ function setupCatalogFilters(){
     if(!result||!result.discovery||!api)return result?result.total:0;
     return api.listingTotal(result.snapshotTotal,discoveryCursor,items.length,result.hasMore);
   }
-  function rememberDiscoveryCursor(result){
+  function rememberDiscoveryCursor(result,visitAtStart){
     if(!result||!result.discovery)return;
     const next=Number(result.nextOffset);
     if(!Number.isFinite(next)||next<discoveryCursor)return;
-    discoveryCursor=next;
     const api=visitOrderApi();
     if(!api)return;
     const store=api.visitStore(visitSessionStorage());
     const visit=store.load();
-    if(visit)store.save({seed:visit.seed,ids:visit.ids,cursor:discoveryCursor});
+    if(!visit)return;
+    if(visitAtStart&&(visit.seed!==visitAtStart.seed||visit.ids.join("\n")!==visitAtStart.ids.join("\n")))return;
+    discoveryCursor=next;
+    store.save({seed:visit.seed,ids:visit.ids,cursor:discoveryCursor});
   }
   function draw(result,append=false){
     if(append){
@@ -3302,12 +3316,14 @@ function setupCatalogFilters(){
     }
   }
   async function apply(append=false){
-    if(loadingMore)return;
+    if(append&&loadingMore)return;
     const token=++requestId;
     controller?.abort();controller=new AbortController();
+    const signal=controller.signal;
     const savedCursor=append?0:savedDiscoveryCursor();
     const size=append?pageSize():Math.max(pageSize(),savedCursor);
     const state=readState(append?(discoveryRequest()?discoveryCursor:items.length):0,size);
+    const visitAtStart=state.sort==="discover"?visitOrderApi()?.visitStore(visitSessionStorage()).load():null;
     loadingMore=append;
     empty.hidden=true;grid.hidden=false;controls.hidden=false;
     if(append){const button=controls.querySelector(".catalog-load-more");if(button){button.disabled=true;button.textContent="يۈكلىنىۋاتىدۇ…"}}
@@ -3323,14 +3339,16 @@ function setupCatalogFilters(){
       controls.innerHTML="";
     }
     try{
-      let result=await queryCatalog(state,{signal:controller.signal});
-      if(token!==requestId)return;
+      let result=await queryCatalog(state,{signal});
+      if(token!==requestId||signal.aborted)return;
       if(result.discovery&&append&&!(Number(result.nextOffset)>discoveryCursor))result={...result,hasMore:false};
       if(!append)discoveryCursor=0;
-      if(result.discovery)rememberDiscoveryCursor(result);
+      if(result.discovery)rememberDiscoveryCursor(result,visitAtStart);
+      if(token!==requestId||signal.aborted)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
     }catch(error){
-      if(error?.name!=="AbortError"&&token===requestId){
+      if(token!==requestId||signal.aborted||error?.name==="AbortError")return;
+      if(token===requestId){
         console.error("Category catalog query failed.",error);
         empty.hidden=true;controls.hidden=true;grid.hidden=false;
         if(ssrListingPresent(grid)&&!grid.hasAttribute("data-catalog-client")){

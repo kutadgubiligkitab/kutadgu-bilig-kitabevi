@@ -21,14 +21,14 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "39dace875f9a6ecf7e4b57ec50f02735593bae4897044192c2de5a3bf89759ad",
+  "shop.js": "880ed55dce550467f1ec0b113080ceda2175cf87699b5edf455ccbbba7a8be58",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "fff0c80155e3079bb352769fdf9c5d58cf1a526112d0483a1ee7437860901e57",
-  "index.html": "33b119863fd3a998b22c3ccb647598a57ed648e822567a46e4c1982a226e61c9",
+  "book-shell.html": "882382dafc823d1703f581a4d9753d0f37c7d094890a6727c7cab8ea4d307da5",
+  "index.html": "b519e196f510fea52aafe9cb4a0df18259d8af642995686657a1d9451b35534c",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "6b64b17147a87f6637df7cc0ed492741e3ce20ccbeb5d13c88e0df2615fb9009",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -162,7 +162,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=136/);
+    assert.match(html, /shop\.js\?v=137/);
     assert.strictEqual(
       attr(html, /data-catalog-source="([^"]*)"/),
       attr(old, /data-catalog-source="([^"]*)"/)
@@ -221,7 +221,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=136/);
+  assert.match(html, /shop\.js\?v=137/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
