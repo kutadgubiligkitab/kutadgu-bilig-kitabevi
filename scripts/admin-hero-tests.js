@@ -32,7 +32,12 @@ function test(name, fn) {
 }
 
 function fakeFile(type, size, name) {
-  return { type, size, name: name || "x" };
+  return {
+    type,
+    size,
+    name: name || "x",
+    arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer
+  };
 }
 
 const DEFAULT_SLIDES = [
@@ -167,31 +172,38 @@ function createMemoryDb(opts) {
     return api;
   }
 
-  const storage = {
-    from(bucket) {
-      return {
-        async upload(objectPath, file, uploadOpts) {
-          log.push({ op: "upload", bucket, path: objectPath, type: file && file.type, size: file && file.size, opts: uploadOpts });
-          if (uploadThrow) throw new Error("storage network exploded");
-          storageFiles.set(objectPath, file);
-          return { data: { path: objectPath }, error: null };
-        },
-        getPublicUrl(objectPath) {
-          log.push({ op: "getPublicUrl", path: objectPath });
-          return { data: { publicUrl: "https://example.supabase.co/storage/v1/object/public/" + bucket + "/" + objectPath } };
-        },
-        async remove(paths) {
-          log.push({ op: "remove", paths: [].concat(paths) });
-          [].concat(paths).forEach((p) => storageFiles.delete(p));
-          return { data: [], error: null };
-        }
-      };
+  async function fetchImpl(url, init) {
+    const href = String(url || "");
+    const headers = (init && init.headers) || {};
+    const key = headers["x-kutadgu-object-key"];
+    if (href.indexOf("/api/r2-hero-delete") !== -1) {
+      log.push({ op: "remove", paths: [key] });
+      if (opts.deleteThrow) throw new Error("r2 delete exploded");
+      storageFiles.delete(key);
+      return { ok: true, json: async () => ({ ok: true, key }) };
     }
-  };
+    log.push({
+      op: "upload",
+      path: key,
+      type: headers["Content-Type"],
+      size: init && init.body && init.body.byteLength
+    });
+    if (uploadThrow) throw new Error("storage network exploded");
+    storageFiles.set(key, init && init.body);
+    return {
+      ok: true,
+      json: async () => ({ ok: true, key, url: Hero.canonicalHeroUrl(key) })
+    };
+  }
 
   return {
     from,
-    storage,
+    auth: {
+      getSession() {
+        return Promise.resolve({ data: { session: { access_token: opts.token === "" ? "" : (opts.token || "admin-token") } }, error: null });
+      }
+    },
+    fetchImpl,
     log,
     get settings() { return settings; },
     get slides() { return slides; },
@@ -202,7 +214,8 @@ function createMemoryDb(opts) {
     setFailDisableRepo(v) { failDisableRepo = !!v; },
     setZeroRowUpdate(v) { zeroRowUpdate = !!v; },
     setZeroRowDelete(v) { zeroRowDelete = !!v; },
-    setUploadThrow(v) { uploadThrow = !!v; }
+    setUploadThrow(v) { uploadThrow = !!v; },
+    setDeleteThrow(v) { opts.deleteThrow = !!v; }
   };
 }
 
@@ -216,12 +229,13 @@ function controller(db, extra) {
     URL: {
       createObjectURL: () => "blob:hero-preview",
       revokeObjectURL() {}
-    }
+    },
+    fetchImpl: db.fetchImpl
   }, extra || {}));
 }
 
 function managedPath(slot, ext) {
-  return "hero/store-slides/slot-" + slot + "-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee." + ext;
+  return "book-covers/hero/store-slides/slot-" + slot + "-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee." + ext;
 }
 
 function saveFields() {
@@ -346,11 +360,15 @@ test("MIME jpeg/png/webp accepted, SVG and huge files rejected", () => {
 test("generated path includes exact slot and safe UUID", () => {
   const uuid = "11111111-2222-3333-4444-555555555555";
   const pathName = Hero.generateHeroStoreSlideObjectPath(2, "image/jpeg", () => uuid);
-  assert.strictEqual(pathName, "hero/store-slides/slot-2-" + uuid + ".jpg");
+  assert.strictEqual(pathName, "book-covers/hero/store-slides/slot-2-" + uuid + ".jpg");
   assert.ok(Hero.isSafeHeroStoreSlideObjectPath(pathName));
   assert.strictEqual(Hero.managedSlotFromObjectPath(pathName), 2);
   const live = Hero.generateHeroStoreSlideObjectPath(1, "image/png", () => crypto.randomUUID());
-  assert.match(live, /^hero\/store-slides\/slot-1-[0-9a-fA-F-]{36}\.png$/);
+  assert.match(live, /^book-covers\/hero\/store-slides\/slot-1-[0-9a-fA-F-]{36}\.png$/);
+  assert.ok(Hero.isSafeHeroStoreSlideObjectPath("hero/store-slides/slot-1-" + uuid + ".jpg"));
+  assert.ok(Hero.isLegacySupabaseHeroPath("hero/store-slides/slot-1-" + uuid + ".jpg"));
+  assert.ok(!Hero.isLegacySupabaseHeroPath(pathName));
+  assert.strictEqual(Hero.canonicalHeroUrl(pathName), "https://www.kutadgubilik.com/__r2/" + pathName.split("/").map(encodeURIComponent).join("/"));
   assert.ok(!Hero.isSafeHeroStoreSlideObjectPath("covers/x.jpg"));
   assert.ok(!Hero.isSafeHeroStoreSlideObjectPath("/hero/store-slides/slot-1-x.jpg"));
   assert.ok(!Hero.isSafeHeroStoreSlideObjectPath("hero/store-slides/../slot-1-x.jpg"));
@@ -463,6 +481,7 @@ asyncTests.push(test("first custom upload: upload then disabled insert then enab
   const upload = db.slides.find((row) => row.origin === "upload");
   assert.strictEqual(repo.enabled, false);
   assert.strictEqual(upload.enabled, true);
+  assert.match(upload.image_url, /^https:\/\/www\.kutadgubilik\.com\/__r2\/book-covers\/hero\/store-slides\//);
   assert.strictEqual(db.slides.filter((row) => row.origin === "repo").length, 3);
 }));
 
@@ -588,7 +607,7 @@ asyncTests.push(test("disabled managed replacement: repo disable and custom roll
 }));
 
 asyncTests.push(test("replacement uploads new then updates DB then cleans old object", async () => {
-  const oldPath = "hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
+  const oldPath = "book-covers/hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
   const db = createMemoryDb({
     slides: [
       { id: "repo-main", enabled: false, sort_order: 0, origin: "repo", repo_key: "main", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
@@ -653,7 +672,7 @@ asyncTests.push(test("failed replacement keeps old object and cleans the new one
 }));
 
 asyncTests.push(test("restore original: repo enable then custom disable then delete then storage", async () => {
-  const oldPath = "hero/store-slides/slot-3-bbbbbbbb-cccc-dddd-eeee-ffffffffffff.webp";
+  const oldPath = "book-covers/hero/store-slides/slot-3-bbbbbbbb-cccc-dddd-eeee-ffffffffffff.webp";
   const db = createMemoryDb({
     slides: [
       { id: "repo-main", enabled: true, sort_order: 0, origin: "repo", repo_key: "main", created_at: "2020-01-01T00:00:00.000Z" },
@@ -832,6 +851,77 @@ asyncTests.push(test("thrown Storage upload is caught and only the new path is c
   assert.ok(removed.includes(managedPath(1, "jpg")));
   assert.ok(!removed.includes(oldPath));
 }));
+
+asyncTests.push(test("legacy Supabase hero object is kept when a new R2 slide replaces it", async () => {
+  const oldPath = "hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
+  const db = createMemoryDb({
+    slides: [
+      { id: "repo-main", enabled: false, sort_order: 0, origin: "repo", repo_key: "main", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
+      { id: "repo-library", enabled: true, sort_order: 1, origin: "repo", repo_key: "library", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
+      { id: "repo-exterior", enabled: true, sort_order: 2, origin: "repo", repo_key: "exterior", image_url: null, object_path: null, created_at: "2020-01-01T00:00:00.000Z" },
+      {
+        id: "custom-1",
+        enabled: true,
+        sort_order: 0,
+        origin: "upload",
+        repo_key: null,
+        image_url: "https://example.supabase.co/storage/v1/object/public/book-covers/" + oldPath,
+        object_path: oldPath,
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  });
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/webp", 12));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(db.slides.find((row) => row.id === "custom-1").object_path, managedPath(1, "webp"));
+  const removed = db.log.filter((x) => x.op === "remove").flatMap((x) => x.paths);
+  assert.ok(!removed.includes(oldPath));
+}));
+
+asyncTests.push(test("R2 delete failure leaves the new hero row and the previous R2 object", async () => {
+  const oldPath = "book-covers/hero/store-slides/slot-1-00000000-1111-2222-3333-444444444444.jpg";
+  const db = createMemoryDb({ deleteThrow: true });
+  db.slides.push({
+    id: "custom-1",
+    enabled: true,
+    sort_order: 0,
+    origin: "upload",
+    repo_key: null,
+    image_url: Hero.canonicalHeroUrl(oldPath),
+    object_path: oldPath,
+    created_at: "2026-01-01T00:00:00.000Z"
+  });
+  db.slides.find((row) => row.id === "repo-main").enabled = false;
+  db.storageFiles.set(oldPath, fakeFile("image/jpeg", 10));
+  const ctl = controller(db);
+  await ctl.loadSlides();
+  ctl.setPendingFile(1, fakeFile("image/png", 12));
+  const res = await ctl.saveAll(saveFields());
+  assert.strictEqual(res.ok, true);
+  const custom = db.slides.find((row) => row.id === "custom-1");
+  assert.strictEqual(custom.object_path, managedPath(1, "png"));
+  assert.ok(db.storageFiles.has(oldPath));
+  assert.ok(db.storageFiles.has(managedPath(1, "png")));
+}));
+
+asyncTests.push(test("hero upload without a session does not call R2", async () => {
+  const db = createMemoryDb({ token: "" });
+  const ctl = controller(db);
+  const res = await ctl.uploadHeroImage(1, fakeFile("image/jpeg", 11));
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, "no_session");
+  assert.ok(!db.log.some((x) => x.op === "upload" || x.op === "remove"));
+}));
+
+test("hero admin does not write Supabase Storage", () => {
+  assert.doesNotMatch(heroJs, /storage\.from\(/);
+  assert.match(heroJs, /\/api\/r2-cover-upload/);
+  assert.match(heroJs, /\/api\/r2-hero-delete/);
+  assert.match(adminHtml, /admin-hero\.js\?v=7/);
+});
 
 Promise.all(asyncTests.filter(Boolean)).then(() => {
   if (failed) {

@@ -563,6 +563,120 @@ jobs.push(test("R2 admin upload stays disabled and requires Supabase auth plus A
   })), env, { fetchImpl: staffFetch });
   assert.strictEqual(staffOk.status, 201);
   assert.strictEqual(JSON.parse(staffOk.body).url, "https://www.kutadgubilik.com/__r2/book-covers/staff/" + staffId + "/cover.webp");
+  const heroKey = "book-covers/hero/store-slides/slot-1-11111111-1111-4111-8111-111111111111.webp";
+  const heroBody = Buffer.from("webp-hero");
+  const heroHeaders = {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/webp",
+    "x-kutadgu-object-key": heroKey
+  };
+  const hero = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", heroBody, heroHeaders), env, { fetchImpl });
+  assert.strictEqual(hero.status, 201);
+  assert.strictEqual(JSON.parse(hero.body).url, "https://www.kutadgubilik.com/__r2/" + heroKey);
+  const heroStaff = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", heroBody, Object.assign({}, heroHeaders, {
+    "x-kutadgu-object-key": heroKey
+  })), env, { fetchImpl: staffFetch });
+  assert.strictEqual(heroStaff.status, 403);
+  const heroLoose = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", heroBody, Object.assign({}, heroHeaders, {
+    "x-kutadgu-object-key": "book-covers/hero/store-slides/evil.webp"
+  })), env, { fetchImpl });
+  assert.strictEqual(heroLoose.status, 400);
+  const heroHuge = Buffer.alloc(upload.HERO_MAX_BYTES + 1);
+  const heroTooBig = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", heroHuge, Object.assign({}, heroHeaders, {
+    "Content-Length": String(heroHuge.length)
+  })), env, { fetchImpl });
+  assert.strictEqual(heroTooBig.status, 413);
+  assert.strictEqual(bucket.objects.has(heroKey), true);
+}));
+
+jobs.push(test("R2 hero delete is admin-only and cannot remove book covers", async () => {
+  const heroKey = "book-covers/hero/store-slides/slot-2-11111111-1111-4111-8111-111111111111.png";
+  const deleted = [];
+  const bucket = {
+    async delete(key) { deleted.push(key); }
+  };
+  const env = {
+    KUTADGU_HOST_MODE: "production",
+    KUTADGU_R2_UPLOAD_ENABLED: "true",
+    COVERS: bucket
+  };
+  const adminFetch = async (url) => {
+    const href = String(url);
+    if (href.endsWith("/auth/v1/user")) return httpResponse(200, { id: "admin" });
+    if (href.endsWith("/rpc/is_kutadgu_admin")) return httpResponse(200, true);
+    if (href.includes("/rest/v1/store_hero_store_slides")) return httpResponse(200, []);
+    return httpResponse(404, {});
+  };
+  const previewBlocked = await upload.handleR2HeroDelete(request("https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev/api/r2-hero-delete", "POST", "", {
+    "x-kutadgu-object-key": heroKey
+  }), { KUTADGU_HOST_MODE: "preview", KUTADGU_R2_UPLOAD_ENABLED: "true", COVERS: bucket }, { fetchImpl: adminFetch });
+  assert.strictEqual(previewBlocked.status, 404);
+  const anon = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", ""), env, { fetchImpl: adminFetch });
+  assert.strictEqual(anon.status, 401);
+  const low = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal1" }),
+    "x-kutadgu-object-key": heroKey
+  }), env, { fetchImpl: adminFetch });
+  assert.strictEqual(low.status, 403);
+  assert.strictEqual(JSON.parse(low.body).error, "aal2_required");
+  const staffId = "11111111-1111-4111-8111-111111111111";
+  const staff = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": heroKey
+  }), env, {
+    fetchImpl: async (url) => {
+      const href = String(url);
+      if (href.endsWith("/auth/v1/user")) return httpResponse(200, { id: staffId });
+      if (href.endsWith("/rpc/is_kutadgu_admin")) return httpResponse(200, false);
+      return httpResponse(200, true);
+    }
+  });
+  assert.strictEqual(staff.status, 403);
+  const bookKey = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": "book-covers/book/106.webp"
+  }), env, { fetchImpl: adminFetch });
+  assert.strictEqual(bookKey.status, 400);
+  const traversal = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": "book-covers/hero/store-slides/../book/106.webp"
+  }), env, { fetchImpl: adminFetch });
+  assert.strictEqual(traversal.status, 400);
+  const referenced = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": heroKey
+  }), env, {
+    fetchImpl: async (url) => {
+      const href = String(url);
+      if (href.endsWith("/auth/v1/user")) return httpResponse(200, { id: "admin" });
+      if (href.endsWith("/rpc/is_kutadgu_admin")) return httpResponse(200, true);
+      if (href.includes("/rest/v1/store_hero_store_slides")) return httpResponse(200, [{ id: "row" }]);
+      return httpResponse(404, {});
+    }
+  });
+  assert.strictEqual(referenced.status, 409);
+  assert.strictEqual(JSON.parse(referenced.body).error, "still_referenced");
+  const failedCheck = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": heroKey
+  }), env, {
+    fetchImpl: async (url) => {
+      const href = String(url);
+      if (href.endsWith("/auth/v1/user")) return httpResponse(200, { id: "admin" });
+      if (href.endsWith("/rpc/is_kutadgu_admin")) return httpResponse(200, true);
+      return httpResponse(500, {});
+    }
+  });
+  assert.strictEqual(failedCheck.status, 503);
+  assert.deepStrictEqual(deleted, []);
+  const ok = await upload.handleR2HeroDelete(request("https://www.kutadgubilik.com/api/r2-hero-delete", "POST", "", {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "x-kutadgu-object-key": heroKey
+  }), env, { fetchImpl: adminFetch });
+  assert.strictEqual(ok.status, 200);
+  assert.deepStrictEqual(deleted, [heroKey]);
+  const routed = await preview.dispatch(request("http://127.0.0.1:8787/api/r2-hero-delete", "POST", ""), { KUTADGU_R2_UPLOAD_ENABLED: "true" }, { fetchImpl: adminFetch });
+  assert.strictEqual(routed.status, 404);
 }));
 
 jobs.push(test("R2 inventory dry-run counts and copies nothing unless explicitly confirmed", async () => {

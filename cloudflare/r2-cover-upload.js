@@ -3,6 +3,8 @@
 const images = require("../kutadgu-image-storage.js");
 
 const MAX_BYTES = 50 * 1024 * 1024;
+const HERO_MAX_BYTES = 5 * 1024 * 1024;
+const HERO_KEY_RE = /^book-covers\/hero\/store-slides\/slot-[123]-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|jpeg|png|webp)$/i;
 const IMAGE_TYPES = Object.freeze({
   "image/webp": ".webp",
   "image/jpeg": ".jpg",
@@ -68,6 +70,14 @@ function decodeJwtPayload(token) {
   } catch (err) {
     return null;
   }
+}
+
+function isHeroObjectKey(raw) {
+  return HERO_KEY_RE.test(String(raw || ""));
+}
+
+function objectByteLimit(key) {
+  return isHeroObjectKey(key) ? HERO_MAX_BYTES : MAX_BYTES;
 }
 
 function safeObjectKey(raw, contentType) {
@@ -159,15 +169,22 @@ async function handleR2CoverUpload(request, env, deps) {
   const contentType = String(request.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const key = safeObjectKey(request.headers.get("x-kutadgu-object-key"), contentType);
   if (!key) return jsonResponse(400, { ok: false, error: "invalid_object" });
+  if (key.indexOf("book-covers/hero/") === 0 && !isHeroObjectKey(key)) {
+    return jsonResponse(400, { ok: false, error: "invalid_object" });
+  }
   if (!isAdmin && !staffOwnedKey(key, userId)) {
     return jsonResponse(403, { ok: false, error: "admin_required" });
   }
+  if (!isAdmin && isHeroObjectKey(key)) {
+    return jsonResponse(403, { ok: false, error: "admin_required" });
+  }
+  const limit = objectByteLimit(key);
   const declared = Number(request.headers.get("content-length") || "0");
-  if (Number.isFinite(declared) && declared > MAX_BYTES) {
+  if (Number.isFinite(declared) && declared > limit) {
     return jsonResponse(413, { ok: false, error: "too_large" });
   }
   const bytes = await request.arrayBuffer();
-  if (!bytes || bytes.byteLength < 1 || bytes.byteLength > MAX_BYTES) {
+  if (!bytes || bytes.byteLength < 1 || bytes.byteLength > limit) {
     return jsonResponse(413, { ok: false, error: "too_large" });
   }
   const existing = await bucket.head(key);
@@ -185,13 +202,78 @@ async function handleR2CoverUpload(request, env, deps) {
   return jsonResponse(201, { ok: true, key, url });
 }
 
+async function heroReferenced(fetchImpl, token, key) {
+  const url = canonicalCoverUrl(key);
+  const filter = "or=(object_path.eq." + encodeURIComponent(key) + ",image_url.eq." + encodeURIComponent(url) + ")";
+  const response = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/store_hero_store_slides?select=id&" + filter, {
+    method: "GET",
+    headers: {
+      apikey: images.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: "Bearer " + token,
+      Accept: "application/json"
+    }
+  });
+  if (!response || !response.ok) return null;
+  const rows = await readJson(response);
+  if (!Array.isArray(rows)) return null;
+  return rows.length > 0;
+}
+
+async function handleR2HeroDelete(request, env, deps) {
+  const sourceEnv = env || {};
+  if (!productionUpload(request, sourceEnv)) {
+    return {
+      status: 404,
+      headers: new Headers({
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store"
+      }),
+      body: "not found"
+    };
+  }
+  const method = String(request.method || "GET").toUpperCase();
+  if (method !== "POST") return jsonResponse(405, { ok: false, error: "method_not_allowed" });
+  const token = bearerToken(request);
+  if (!token) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const fetchImpl = (deps && deps.fetchImpl) || fetch;
+  const userResponse = await fetchImpl(images.SUPABASE_ORIGIN + "/auth/v1/user", {
+    method: "GET",
+    headers: {
+      apikey: images.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: "Bearer " + token
+    }
+  });
+  if (!userResponse || !userResponse.ok) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const user = await readJson(userResponse);
+  if (!user || !user.id) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const payload = decodeJwtPayload(token);
+  const aal = String((payload && payload.aal) || "").toLowerCase();
+  if (aal !== "aal2") return jsonResponse(403, { ok: false, error: "aal2_required" });
+  const isAdmin = await rpcFlag(fetchImpl, token, "is_kutadgu_admin");
+  if (!isAdmin) return jsonResponse(403, { ok: false, error: "admin_required" });
+  const key = String(request.headers.get("x-kutadgu-object-key") || "").trim().replace(/^\/+/, "");
+  if (!isHeroObjectKey(key)) return jsonResponse(400, { ok: false, error: "invalid_object" });
+  const bucket = sourceEnv.COVERS;
+  if (!bucket || typeof bucket.delete !== "function") {
+    return jsonResponse(503, { ok: false, error: "r2_unbound" });
+  }
+  const referenced = await heroReferenced(fetchImpl, token, key);
+  if (referenced === null) return jsonResponse(503, { ok: false, error: "reference_check_failed" });
+  if (referenced) return jsonResponse(409, { ok: false, error: "still_referenced" });
+  await bucket.delete(key);
+  return jsonResponse(200, { ok: true, key });
+}
+
 module.exports = {
   MAX_BYTES,
+  HERO_MAX_BYTES,
   CANONICAL_COVER_ORIGIN,
   uploadEnabled,
   productionUpload,
   canonicalCoverUrl,
   staffOwnedKey,
   safeObjectKey,
-  handleR2CoverUpload
+  isHeroObjectKey,
+  handleR2CoverUpload,
+  handleR2HeroDelete
 };
