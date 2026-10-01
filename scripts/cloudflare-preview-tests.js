@@ -199,8 +199,9 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(prod.name, "kutadgu-cloudflare-production");
   assert.strictEqual(prod.workers_dev, true);
   assert.strictEqual(prod.preview_urls, false);
-  assert.deepStrictEqual(prod.routes.map((rule) => rule.pattern).sort(), ["kutadgubilik.com/*", "www.kutadgubilik.com/*"]);
-  assert.ok(prod.routes.every((rule) => rule.zone_name === "kutadgubilik.com"));
+  assert.deepStrictEqual(prod.routes.map((rule) => rule.pattern).sort(), ["kutadgubilik.com", "www.kutadgubilik.com"]);
+  assert.ok(prod.routes.every((rule) => rule.custom_domain === true && rule.zone_name === "kutadgubilik.com"));
+  assert.ok(prod.routes.every((rule) => !String(rule.pattern).includes("*")));
   assert.ok(!Object.prototype.hasOwnProperty.call(prod, "route"));
   assert.strictEqual(prod.vars.KUTADGU_HOST_MODE, "production");
   assert.strictEqual(prod.vars.AI_SEARCH_ENABLED, "true");
@@ -213,10 +214,10 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.doesNotMatch(text, /OPENAI_API_KEY/);
   assert.doesNotMatch(text, /production-cutover-routes/);
   const cutover = JSON.parse(fs.readFileSync(path.join(root, "cloudflare/production-cutover-routes.json"), "utf8"));
-  assert.strictEqual(cutover.status, "activated");
+  assert.strictEqual(cutover.status, "custom-domains");
   assert.strictEqual(cutover.worker, "kutadgu-cloudflare-production");
-  assert.ok(cutover.routes.some((rule) => rule.pattern === "www.kutadgubilik.com/*"));
-  assert.ok(cutover.routes.some((rule) => rule.pattern === "kutadgubilik.com/*"));
+  assert.ok(cutover.routes.some((rule) => rule.pattern === "www.kutadgubilik.com" && rule.custom_domain === true));
+  assert.ok(cutover.routes.some((rule) => rule.pattern === "kutadgubilik.com" && rule.custom_domain === true));
   assert.strictEqual(config.assets.run_worker_first, true);
   const dev = previewDev.previewDevConfig();
   assert.strictEqual(path.resolve(dev.config.assets.directory), root);
