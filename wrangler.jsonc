@@ -33,8 +33,8 @@
       "workers_dev": true,
       "preview_urls": false,
       "routes": [
-        { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
-        { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }
+        { "pattern": "kutadgubilik.com", "custom_domain": true, "zone_name": "kutadgubilik.com" },
+        { "pattern": "www.kutadgubilik.com", "custom_domain": true, "zone_name": "kutadgubilik.com" }
       ],
       "vars": {
         "KUTADGU_HOST_MODE": "production",

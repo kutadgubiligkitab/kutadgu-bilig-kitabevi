@@ -296,4 +296,22 @@ AI search: one character returned 400 `invalid_query`. One query, `kitab`, retur
 
 Auth: account page shows login, signup, and Google. Google sign-in reached `accounts.google.com` and the redirect target included `https://www.kutadgubilik.com`. The sign-in was not completed. Admin still shows the password gate and does not load the cover bridge. Admin upload code still uses Supabase Storage. PostHog allows the production hosts, the homepage loads `posthog-analytics.js` once, and `/kbg/static/array.js` returned 200. The cart page has a WhatsApp control and no order was sent.
 
-A second check of `/`, `/books`, `/book/106`, `/adabiyat`, and the apex redirect stayed on the Worker. Vercel was not deleted. Supabase was not modified. Draft PR #222 stays unmerged. `npm run test:unit` before the write, and again after the production route was recorded in `wrangler.jsonc`, exited 0 with 1502 `PASS` lines and 0 failures.
+A second check of `/`, `/books`, `/book/106`, `/adabiyat`, and the apex redirect stayed on the Worker. Vercel was not deleted. Supabase was not modified. PR #222 later merged to `main` at `1bbdd2bd`. `npm run test:unit` before the write, and again after the production route was recorded in `wrangler.jsonc`, exited 0 with 1502 `PASS` lines and 0 failures.
+
+## WORKER CUSTOM DOMAINS
+
+Completed 2026-10-01. Rollback was not needed. The production Worker version stayed `b859be14-dc00-4277-a426-451011f2dfc5`. No new Worker was deployed.
+
+Before the write, the website records were read again. Apex `A` `216.198.79.1`, TTL `1`, proxied `true`, record `b4ae03df35c72088c3cfc41a3966792f`. `www` `CNAME` `691042ca7074d500.vercel-dns-017.com`, TTL `1`, proxied `true`, record `2a773132ea82770dac4e6524d0971a6b`. Routes were `www.kutadgubilik.com/*` (`3432cbcd618a45cb933b5fcb4617c3ee`) and `kutadgubilik.com/*` (`5f99587367a6422e915d14ea626d0334`), both on `kutadgu-cloudflare-production`. Custom domains were empty. Apex mail `MX` and `TXT` records were left in place.
+
+The first custom-domain publish returned 409 because those hostnames still had externally managed `A` and `CNAME` records. Those two website records were deleted, and the same publish was retried immediately. Both exact hostnames attached to `kutadgu-cloudflare-production` with certificates. Cloudflare created proxied `AAAA` `100::` records for `kutadgubilik.com` (`aa570918784bcc31ed0ae0b0b1e9d227`) and `www.kutadgubilik.com` (`94f2330af21f12bb1ad613d6594f404f`). The old `/*` routes were deleted only after HTTPS on both hostnames returned the Worker, with HSTS `max-age=63072000` and one apex 308 to `https://www.kutadgubilik.com/`.
+
+After the route removal, `/`, `/books`, `/adabiyat`, `/romanlar`, `/sheirlar`, `/children`, `/dictionary`, `/book/106`, cart, favorites, account, admin, privacy, returns, delete-account, `robots.txt`, and both sitemaps returned 200. The book sitemap contained 341 locations. `/book.html?id=106` returned 308 to `/book/106`. `/privacy.html` returned 308 to `/privacy`. An unknown path returned 404. Book JSON-LD `image` stayed on Supabase. The canonical URL stayed on `https://www.kutadgubilik.com/book/106`.
+
+R2: 30 of 30 sampled cover requests returned 200 `image/webp`, a non-zero body, and `public, max-age=31536000, immutable`. The homepage rendered 35 private R2 covers and no Supabase image `src`. A missing object returned 404, then the page fell back to the Supabase original once and did not change that `src` again. `POST /api/r2-cover-upload` returned 404. Database image URLs were not changed.
+
+AI search: one character returned 400 `invalid_query`. One query, `kitab`, returned 200 with 12 results. The secret was not printed.
+
+Auth: Google sign-in reached `accounts.google.com` and the redirect target included `https://www.kutadgubilik.com/account.html`. The sign-in was not completed and no user was created. Admin still shows the password gate and does not load the cover bridge. PostHog allows `www.kutadgubilik.com`, the homepage loads `posthog-analytics.js` once, and `/kbg/static/array.js` returned 200. No WhatsApp message and no order were sent.
+
+Security headers on `www` stayed `max-age=63072000`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` with camera, microphone, geolocation, payment, and usb disabled, and the existing content security policy. Neither hostname still contains the Vercel IP or Vercel CNAME. The Vercel project was not deleted. Supabase was not modified. `npm run test:unit` after `wrangler.jsonc` recorded the exact custom domains exited 0 with 1502 `PASS` lines and 0 failures. Runtime baseline stays `445fe488`.

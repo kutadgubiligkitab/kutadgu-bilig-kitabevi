@@ -1,9 +1,9 @@
 {
   "worker": "kutadgu-cloudflare-production",
-  "status": "activated",
-  "note": "Attached to kutadgu-cloudflare-production on 2026-10-01. The Vercel A and CNAME targets were not replaced. Only the proxy status of those two website records changed.",
+  "status": "custom-domains",
+  "note": "On 2026-10-01 both hostnames were attached as exact Worker Custom Domains on kutadgu-cloudflare-production. The previous /* routes were removed after those domains were active. The Vercel apex A and www CNAME are no longer the live DNS targets.",
   "routes": [
-    { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
-    { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }
+    { "pattern": "kutadgubilik.com", "custom_domain": true, "zone_name": "kutadgubilik.com" },
+    { "pattern": "www.kutadgubilik.com", "custom_domain": true, "zone_name": "kutadgubilik.com" }
   ]
 }
