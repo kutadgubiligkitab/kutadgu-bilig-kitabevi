@@ -640,17 +640,46 @@
       seen.add(query);
       queries.push({query,searches,last_searched_at:row&&row.last_searched_at||null});
     });
+    const declaredNext=integerAtLeast(payload.next_offset,0);
+    const nextOffset=declaredNext===null?offset+raw.length:declaredNext;
+    if(nextOffset<offset)return null;
+    const days=integerAtLeast(payload.days,1);
     return {
       queries,
       total_queries:totalQueries,
       total_events:totalEvents,
       offset,
       limit,
-      has_more:offset+queries.length<totalQueries,
+      next_offset:nextOffset,
+      has_more:nextOffset<totalQueries,
+      as_of:payload.as_of==null||payload.as_of===""?"":String(payload.as_of),
+      days,
       range_start:payload.range_start?String(payload.range_start):"",
       range_end:payload.range_end?String(payload.range_end):"",
       timezone:"Europe/Istanbul",
       representation:payload.representation==="zero_result_search"?"zero_result_search":"search"
+    };
+  }
+
+  function continueZeroSearchSession(previous, page){
+    if(!page||!Number.isInteger(page.next_offset)||!Number.isInteger(page.total_queries))return null;
+    const priorRows=previous&&Array.isArray(previous.rows)?previous.rows:[];
+    const priorOffset=previous&&Number.isInteger(previous.nextOffset)?previous.nextOffset:0;
+    if(page.next_offset<priorOffset)return null;
+    const rows=appendZeroSearchRows(priorRows, page.queries);
+    const asOf=previous&&previous.asOf?String(previous.asOf):(page.as_of||"");
+    const advanced=page.next_offset>priorOffset;
+    return {
+      rows,
+      nextOffset:page.next_offset,
+      totalQueries:page.total_queries,
+      totalEvents:page.total_events,
+      hasMore:!!asOf&&advanced&&page.next_offset<page.total_queries,
+      capped:false,
+      asOf,
+      days:previous&&previous.days!=null?previous.days:page.days,
+      rangeStart:previous&&previous.rangeStart?previous.rangeStart:(page.range_start||""),
+      rangeEnd:previous&&previous.rangeEnd?previous.rangeEnd:(page.range_end||"")
     };
   }
 
@@ -720,6 +749,7 @@
     confirmedResultCount,
     normalizeZeroSearchPage,
     appendZeroSearchRows,
+    continueZeroSearchSession,
     missingZeroSearchRpc
   };
 

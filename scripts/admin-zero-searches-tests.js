@@ -71,6 +71,7 @@ test("zero-search pages keep order, duplicates, and a missing function distinct 
   assert.strictEqual(page.queries.length, 2);
   assert.strictEqual(page.queries[0].query, "new once");
   assert.strictEqual(page.queries[1].query, "<b>bold</b>");
+  assert.strictEqual(page.next_offset, 3);
   assert.strictEqual(page.has_more, true);
   assert.strictEqual(page.timezone, "Europe/Istanbul");
   const more = A.appendZeroSearchRows(page.queries, [
@@ -84,6 +85,61 @@ test("zero-search pages keep order, duplicates, and a missing function distinct 
   assert.strictEqual(A.missingZeroSearchRpc({ message: "Could not find the function public.get_kutadgu_zero_searches in the schema cache" }), true);
   assert.strictEqual(A.missingZeroSearchRpc({ code: "500", message: "network down" }), false);
   assert.strictEqual(A.missingZeroSearchRpc(null), false);
+});
+
+test("a browsing snapshot still reaches a group that becomes newest between pages", () => {
+  const asOf = "2026-09-30T20:00:00+00:00";
+  const all = Array.from({ length: 26 }, (_, i) => ({
+    query: `query-${String(i + 1).padStart(2, "0")}`,
+    searches: 1,
+    last_searched_at: new Date(Date.parse("2026-09-30T19:59:00Z") - i * 60000).toISOString()
+  }));
+  function pageAt(offset, limit, rows, total, cursor) {
+    return A.normalizeZeroSearchPage({
+      total_queries: total,
+      total_events: total,
+      offset,
+      limit,
+      next_offset: cursor,
+      as_of: asOf,
+      days: 7,
+      range_start: "2026-09-24",
+      range_end: "2026-09-30",
+      queries: rows
+    });
+  }
+  const first = pageAt(0, 20, all.slice(0, 20), 26, 20);
+  let session = A.continueZeroSearchSession(null, first);
+  assert.strictEqual(session.nextOffset, 20);
+  assert.strictEqual(session.rows.length, 20);
+  assert.strictEqual(session.hasMore, true);
+  assert.strictEqual(session.capped, false);
+  assert.strictEqual(session.asOf, asOf);
+  const second = pageAt(20, 20, all.slice(20), 26, 26);
+  session = A.continueZeroSearchSession(session, second);
+  assert.strictEqual(session.rows.length, 26);
+  assert.strictEqual(session.rows[25].query, "query-26");
+  assert.strictEqual(session.nextOffset, 26);
+  assert.strictEqual(session.hasMore, false);
+  assert.strictEqual(session.capped, false);
+  assert.strictEqual(new Set(session.rows.map((row) => row.query)).size, 26);
+
+  const overlap = pageAt(20, 20, [all[25], all[0], all[1]], 26, 23);
+  const moved = A.continueZeroSearchSession(A.continueZeroSearchSession(null, first), overlap);
+  assert.strictEqual(moved.rows.length, 21);
+  assert.strictEqual(moved.rows[20].query, "query-26");
+  assert.strictEqual(moved.nextOffset, 23);
+  assert.notStrictEqual(moved.nextOffset, moved.rows.length);
+  assert.strictEqual(moved.hasMore, true);
+  assert.strictEqual(moved.capped, false);
+
+  const refreshed = A.continueZeroSearchSession(null, pageAt(0, 20, [
+    { query: "arrived-later", searches: 1, last_searched_at: "2026-09-30T20:02:00Z" },
+    { query: "query-26", searches: 2, last_searched_at: "2026-09-30T20:01:00Z" }
+  ].concat(all.slice(0, 18)), 27, 20));
+  assert.strictEqual(refreshed.rows[0].query, "arrived-later");
+  assert.strictEqual(refreshed.rows[1].searches, 2);
+  assert.strictEqual(refreshed.asOf, asOf);
 });
 
 test("shop records the captured query only after a completed non-append search", () => {
@@ -113,15 +169,20 @@ test("admin zero-search section is paginated and does not paint the summary top 
   const admin = read("admin.js");
   const html = read("admin.html");
   assert.match(admin, /rpc\("get_kutadgu_zero_searches"/);
+  assert.match(admin, /args\.p_as_of=asOf/);
+  assert.match(admin, /nextOffset/);
+  assert.match(admin, /continueZeroSearchSession/);
+  assert.doesNotMatch(admin, /range\.value\s*=/);
+  assert.doesNotMatch(admin, /جاۋاب چەكلىمىسى/);
   assert.match(admin, /missingZeroSearchRpc/);
-  assert.match(admin, /appendZeroSearchRows/);
+  assert.match(read("kutadgu-analytics-core.js"), /function appendZeroSearchRows/);
   assert.match(admin, /normalizeZeroSearchPage/);
   assert.match(admin, /loadZeroSearches\(\{append:true\}\)/);
   assert.ok(!admin.includes('setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches)'));
   assert.ok(!admin.includes('renderAnalyticsList($("#analyticsZeroSearches")'));
   assert.match(html, /id="analyticsZeroSearchesMore"/);
-  assert.match(html, /admin\.js\?v=80/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=5/);
+  assert.match(html, /admin\.js\?v=81/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=6/);
   assert.match(admin, /نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
   assert.match(admin, /كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى/);
 });
@@ -129,7 +190,13 @@ test("admin zero-search section is paginated and does not paint the summary top 
 test("stage 101 SQL is additive and keeps NULL distinct from zero", () => {
   const sql = read("STAGE101_ADMIN_ZERO_SEARCHES.sql");
   const rollback = read("STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql");
+  assert.match(sql, /DROP FUNCTION IF EXISTS public\.get_kutadgu_zero_searches\(integer, integer, integer\)/i);
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.get_kutadgu_zero_searches/i);
+  assert.match(sql, /p_as_of timestamptz DEFAULT NULL/i);
+  assert.match(sql, /created_at <= v_as_of/);
+  assert.match(sql, /'next_offset', v_offset \+ v_page_count/);
+  assert.match(sql, /'as_of', v_as_of/);
+  assert.match(sql, /get_kutadgu_zero_searches\(integer, integer, integer, timestamptz\)/i);
   assert.doesNotMatch(sql, /create or replace function public\.get_kutadgu_analytics/i);
   assert.doesNotMatch(sql, /delete from public\.analytics_events/i);
   assert.match(sql, /result_count = 0/);
@@ -144,7 +211,8 @@ test("stage 101 SQL is additive and keeps NULL distinct from zero", () => {
   assert.match(sql, /aal2/);
   assert.match(sql, /analytics_events_zero_search_recent_idx/);
   assert.match(sql, /ORDER BY last_searched_at DESC, query ASC/i);
-  assert.match(rollback, /DROP FUNCTION IF EXISTS public\.get_kutadgu_zero_searches/i);
+  assert.match(rollback, /DROP FUNCTION IF EXISTS public\.get_kutadgu_zero_searches\(integer, integer, integer, timestamptz\)/i);
+  assert.match(rollback, /DROP FUNCTION IF EXISTS public\.get_kutadgu_zero_searches\(integer, integer, integer\)/i);
   assert.match(rollback, /DROP INDEX IF EXISTS public\.analytics_events_zero_search_recent_idx/i);
   assert.doesNotMatch(rollback, /delete from public\.analytics_events/i);
   assert.doesNotMatch(rollback, /drop function[^;]*get_kutadgu_analytics/i);

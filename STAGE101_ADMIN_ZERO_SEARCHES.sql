@@ -35,10 +35,26 @@
 --   Order is last searched time descending, then the normalized query
 --   ascending.
 --
+-- Pagination is one browsing snapshot. The first call omits p_as_of. The
+-- function stamps as_of at now(), and the Europe/Istanbul day boundaries
+-- are derived from that instant. Later pages pass the same as_of and the
+-- next_offset from the previous page. Grouping, ordering, and totals stay
+-- inside created_at <= as_of. A search that arrives after as_of, including
+-- a repeat that would become the newest row, is outside this snapshot.
+-- Refresh omits p_as_of and opens a new snapshot. The page cursor is
+-- next_offset, not the number of rows left after a client dedupe.
+--
+-- This file drops the older three-argument function before creating the
+-- four-argument one. Postgres would otherwise keep both, and PostgREST
+-- would see an overload. A call that omits p_as_of still starts a snapshot
+-- because that argument defaults to NULL. A future as_of is clamped to
+-- now() so the calendar day cannot move ahead of the database clock.
+--
 -- The partial index analytics_events_zero_search_recent_idx limits the
 -- canonical scan to confirmed zero-result search rows. The legacy event
--- still uses analytics_events_name_created_idx. Rollback drops only this
--- function and this index. It does not delete analytics_events.
+-- still uses analytics_events_name_created_idx. Rollback drops this
+-- function (both signatures, if an older one is still present) and this
+-- index. It does not delete analytics_events.
 --
 -- Rollback: run STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql by itself.
 
@@ -51,10 +67,13 @@ CREATE INDEX IF NOT EXISTS analytics_events_zero_search_recent_idx
     AND search_query IS NOT NULL
     AND btrim(search_query) <> '';
 
+DROP FUNCTION IF EXISTS public.get_kutadgu_zero_searches(integer, integer, integer);
+
 CREATE OR REPLACE FUNCTION public.get_kutadgu_zero_searches(
   p_days integer DEFAULT 30,
   p_offset integer DEFAULT 0,
-  p_limit integer DEFAULT 20
+  p_limit integer DEFAULT 20,
+  p_as_of timestamptz DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -66,7 +85,8 @@ DECLARE
   v_days integer := greatest(1, least(coalesce(p_days, 30), 365));
   v_limit integer := greatest(1, least(coalesce(p_limit, 20), 50));
   v_offset integer := greatest(0, least(coalesce(p_offset, 0), 1000000));
-  v_today date := (timezone('Europe/Istanbul', now()))::date;
+  v_as_of timestamptz := least(coalesce(p_as_of, now()), now());
+  v_today date := (timezone('Europe/Istanbul', v_as_of))::date;
   v_start date := v_today - (v_days - 1);
   v_since timestamptz := v_start::timestamp AT TIME ZONE 'Europe/Istanbul';
   v_until timestamptz := (v_today + 1)::timestamp AT TIME ZONE 'Europe/Istanbul';
@@ -88,6 +108,7 @@ BEGIN
     FROM public.analytics_events
     WHERE created_at >= v_since
       AND created_at < v_until
+      AND created_at <= v_as_of
       AND event_name = 'search'
   ) INTO v_has_search;
 
@@ -98,6 +119,7 @@ BEGIN
     FROM public.analytics_events
     WHERE created_at >= v_since
       AND created_at < v_until
+      AND created_at <= v_as_of
       AND search_query IS NOT NULL
       AND btrim(search_query) <> ''
       AND (
@@ -138,12 +160,14 @@ BEGIN
   v_page_count := coalesce(jsonb_array_length(v_queries), 0);
 
   RETURN jsonb_build_object(
-    'schema_version', 1,
+    'schema_version', 2,
     'timezone', 'Europe/Istanbul',
     'range_start', v_start,
     'range_end', v_today,
     'days', v_days,
+    'as_of', v_as_of,
     'offset', v_offset,
+    'next_offset', v_offset + v_page_count,
     'limit', v_limit,
     'total_events', v_total_events,
     'total_queries', v_total_queries,
@@ -154,8 +178,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer) TO authenticated;
+REVOKE ALL ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer, timestamptz) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_kutadgu_zero_searches(integer, integer, integer, timestamptz) TO authenticated;
 
 COMMIT;

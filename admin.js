@@ -5099,7 +5099,7 @@ async function applyBulk(){
   }
 }
 
-let analyticsShownDays=null;
+let analyticsShown=null;
 const analyticsRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
   ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
   :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
@@ -5150,7 +5150,10 @@ function renderAnalytics(described,opts){
   const meta=$("#analyticsMeta");
   const Core=window.KutadguAnalyticsCore;
   if(errorText){
-    if(meta)meta.textContent=errorText;
+    if(meta){
+      meta.textContent=errorText;
+      delete meta.dataset.shownDays;
+    }
     ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
       const el=$(sel);
       if(el)el.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
@@ -5158,7 +5161,10 @@ function renderAnalytics(described,opts){
     return;
   }
   if(pending){
-    if(meta)meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
+    if(meta){
+      const retained=meta.dataset.shownDays?` كۆرسىتىلگەن سانلار يەنىلا ئاخىرقى ${meta.dataset.shownDays} كۈن.` : "";
+      meta.textContent=`Europe/Istanbul · يۈكلىنىۋاتىدۇ...${retained}`;
+    }
     const chart=$("#analyticsVisitorChart");
     if(chart&&!chart.childElementCount)renderVisitorChart(described&&described.visitors&&described.visitors.daily);
     ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
@@ -5184,13 +5190,19 @@ function renderAnalytics(described,opts){
       :"نامەلۇم نەتىجە: —.";
   }
   const stamp=view.generatedAt&&Core&&Core.formatIstanbulStamp?Core.formatIstanbulStamp(view.generatedAt):"";
+  const shownDays=Number(opts&&opts.shownDays);
+  const shownDayCount=Number.isInteger(shownDays)&&shownDays>0?shownDays:null;
   if(meta){
+    let base;
     if(view.schema===2&&view.range){
-      meta.textContent=`دائىرە: ${view.range.start} — ${view.range.end} · Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
+      base=`دائىرە: ${view.range.start} — ${view.range.end}${shownDayCount?` · ئاخىرقى ${shownDayCount} كۈن`:""} · Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
+    }else if(shownDayCount){
+      base=`كۆرسىتىلگەن سانلار: ئاخىرقى ${shownDayCount} كۈن (كونا فۇنكسىيە، دومىلىما ئارىلىق). Europe/Istanbul كۈن چېگرىسى ۋە زىيارەتچى سانى بۇ نەشرىدە يوق.${stamp?` يېڭىلانغان: ${stamp}.`:""}`;
     }else{
-      const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
-      meta.textContent=`تاللانغان دائىرە: ئاخىرقى ${days} كۈن (كونا فۇنكسىيە، دومىلىما ئارىلىق). Europe/Istanbul كۈن چېگرىسى ۋە زىيارەتچى سانى بۇ نەشرىدە يوق.${stamp?` يېڭىلانغان: ${stamp}.`:""}`;
+      base=`Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
     }
+    meta.textContent=opts&&opts.notice?`${base} ${opts.notice}`:base;
+    if(shownDayCount)meta.dataset.shownDays=String(shownDayCount);
   }
   const funnel=view.funnel&&view.funnel.funnel||{};
   const title=$("#analyticsFunnelTitle");
@@ -5275,9 +5287,12 @@ function paintZeroSearchRows(view){
   if(meta){
     const shown=rows.length.toLocaleString("tr-TR");
     const total=Number(view.totalQueries||0).toLocaleString("tr-TR");
-    meta.textContent=view.capped
-      ?`${shown} / ${total} سۆز. جاۋاب چەكلىمىسى قالغان سۆزلەرنى يەتكۈزمىدى.`
-      :`${shown} / ${total} سۆز · Europe/Istanbul`;
+    const days=view.days?`ئاخىرقى ${Number(view.days)} كۈن` : "";
+    const span=view.rangeStart&&view.rangeEnd?`${view.rangeStart} — ${view.rangeEnd}` : "";
+    const range=[days,span,"Europe/Istanbul"].filter(Boolean).join(" · ");
+    meta.textContent=`${shown} / ${total} سۆز · ${range}`;
+    if(view.days)meta.dataset.shownDays=String(view.days);
+    else delete meta.dataset.shownDays;
   }
   if(more){
     more.hidden=!view.hasMore;
@@ -5291,7 +5306,10 @@ function paintZeroSearchLoading(){
   const meta=zeroSearchMetaEl();
   const more=zeroSearchMoreEl();
   if(host)host.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-  if(meta)meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
+  if(meta){
+    meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
+    delete meta.dataset.shownDays;
+  }
   if(more){more.hidden=true;more.disabled=true}
   paintZeroSearchCount("—");
 }
@@ -5300,18 +5318,25 @@ function paintZeroSearchUnsupported(){
   const meta=zeroSearchMetaEl();
   const more=zeroSearchMoreEl();
   if(host)host.innerHTML='<div class="admin-empty">نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان. بۇ تىزىملىك تولۇق ئەمەس دەپ كۆرسىتىلمەيدۇ. نۆل دەپ قارالمايدۇ.</div>';
-  if(meta)meta.textContent="";
+  if(meta){
+    meta.textContent="";
+    delete meta.dataset.shownDays;
+  }
   if(more){more.hidden=true;more.disabled=true}
   paintZeroSearchCount("—");
 }
-function paintZeroSearchFailure(message){
+function paintZeroSearchFailure(message, requestedDays){
   const host=zeroSearchHost();
   const meta=zeroSearchMetaEl();
   const more=zeroSearchMoreEl();
-  const text="نەتىجىسىز ئىزدەش ئوقۇلمىدى: "+(message||"")+". كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.";
+  const asked=requestedDays?`${requestedDays} كۈنلۈك `:"";
+  const text=`${asked}نەتىجىسىز ئىزدەش ئوقۇلمىدى: ${message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
   if(zeroSearchShown){
     paintZeroSearchRows(zeroSearchShown);
-    if(meta)meta.textContent=text;
+    if(meta){
+      const span=zeroSearchShown.rangeStart&&zeroSearchShown.rangeEnd?` (${zeroSearchShown.rangeStart} — ${zeroSearchShown.rangeEnd})`:"";
+      meta.textContent=`كۆرسىتىلگەن تىزىملىك يەنىلا ئاخىرقى ${zeroSearchShown.days} كۈن${span}. ${text}`;
+    }
     return;
   }
   if(host)host.innerHTML=`<div class="admin-empty">${esc(text)}</div>`;
@@ -5328,26 +5353,25 @@ async function loadZeroSearches(opts){
     if(zeroSearchFlight||!zeroSearchShown||!zeroSearchShown.hasMore)return;
   }
   const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  const offset=append&&zeroSearchShown?zeroSearchShown.rows.length:0;
+  const offset=append&&zeroSearchShown?zeroSearchShown.nextOffset:0;
+  const asOf=append&&zeroSearchShown?zeroSearchShown.asOf:null;
   zeroSearchFlight=true;
   const token=zeroSearchRequests.begin();
   const more=zeroSearchMoreEl();
   if(append){
     if(more){more.disabled=true;more.textContent="يۈكلىنىۋاتىدۇ…"}
   }else paintZeroSearchLoading();
+  const args={p_days:days,p_offset:offset,p_limit:ZERO_SEARCH_PAGE};
+  if(asOf)args.p_as_of=asOf;
   let data=null,error=null;
   try{
-    const response=await db.rpc("get_kutadgu_zero_searches",{p_days:days,p_offset:offset,p_limit:ZERO_SEARCH_PAGE});
+    const response=await db.rpc("get_kutadgu_zero_searches",args);
     data=response&&response.data;
     error=response&&response.error;
   }catch(err){
     if(!zeroSearchRequests.isCurrent(token))return;
     zeroSearchFlight=false;
-    if(!append&&zeroSearchShown&&zeroSearchShown.days!=null){
-      const range=$("#analyticsRange");
-      if(range)range.value=String(zeroSearchShown.days);
-    }
-    paintZeroSearchFailure(err&&err.message||"");
+    paintZeroSearchFailure(err&&err.message||"", days);
     return;
   }
   if(!zeroSearchRequests.isCurrent(token))return;
@@ -5358,37 +5382,25 @@ async function loadZeroSearches(opts){
       paintZeroSearchUnsupported();
       return;
     }
-    if(!append&&zeroSearchShown&&zeroSearchShown.days!=null){
-      const range=$("#analyticsRange");
-      if(range)range.value=String(zeroSearchShown.days);
-    }
-    paintZeroSearchFailure(error.message||"");
+    paintZeroSearchFailure(error.message||"", days);
     return;
   }
   const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
-  if(!page){
-    if(!append&&zeroSearchShown&&zeroSearchShown.days!=null){
-      const range=$("#analyticsRange");
-      if(range)range.value=String(zeroSearchShown.days);
-    }
-    paintZeroSearchFailure("جاۋاب تولۇق ئەمەس");
+  const session=page&&Core&&typeof Core.continueZeroSearchSession==="function"
+    ?Core.continueZeroSearchSession(append?zeroSearchShown:null, page)
+    :null;
+  if(!session){
+    paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", days);
     return;
   }
-  const previous=append&&zeroSearchShown?zeroSearchShown.rows:[];
-  const rows=Core&&typeof Core.appendZeroSearchRows==="function"
-    ?Core.appendZeroSearchRows(previous,page.queries)
-    :page.queries;
-  const added=rows.length-previous.length;
-  const capped=append&&added===0&&previous.length<page.total_queries;
-  const hasMore=!capped&&rows.length<page.total_queries&&page.queries.length>0;
-  zeroSearchShown={
-    days,
-    rows,
-    totalQueries:page.total_queries,
-    totalEvents:page.total_events,
-    hasMore,
-    capped
-  };
+  if(!append){
+    session.days=page.days!=null?page.days:days;
+    session.asOf=page.as_of||"";
+    session.rangeStart=page.range_start||"";
+    session.rangeEnd=page.range_end||"";
+    session.hasMore=!!session.asOf&&session.nextOffset>0&&session.nextOffset<session.totalQueries;
+  }
+  zeroSearchShown=session;
   paintZeroSearchRows(zeroSearchShown);
 }
 
@@ -5402,17 +5414,21 @@ async function loadAnalytics(){
   const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
   if(!analyticsRequests.isCurrent(token))return;
   if(error){
-    if(analyticsShownDays!=null){
-      const range=$("#analyticsRange");
-      if(range)range.value=String(analyticsShownDays);
+    const notice=`${days} كۈنلۈك Analytics ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى.`;
+    if(analyticsShown&&analyticsShown.described){
+      renderAnalytics(analyticsShown.described,{
+        shownDays:analyticsShown.days,
+        notice:`كۆرسىتىلگەن سانلار يەنىلا ئاخىرقى ${analyticsShown.days} كۈن. ${notice}`
+      });
+      return;
     }
-    renderAnalytics(null,{error:"Analytics ئوقۇلمىدى: "+(error.message||"")+". كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى."});
+    renderAnalytics(null,{error:notice});
     return;
   }
-  analyticsShownDays=days;
   const summary=data&&typeof data==="object"?data:{};
   const described=Core&&Core.describeAnalytics?Core.describeAnalytics(summary,new Date()):null;
-  renderAnalytics(described);
+  analyticsShown={days,described};
+  renderAnalytics(described,{shownDays:days});
 }
 
 function bindMfaCard(){
