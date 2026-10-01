@@ -190,6 +190,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "zone_id"));
   assert.strictEqual(config.vars.KUTADGU_R2_UPLOAD_ENABLED, "false");
   assert.strictEqual(config.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
+  assert.strictEqual(config.vars.KUTADGU_R2_READ_ENABLED, "true");
   assert.strictEqual(config.vars.AI_SEARCH_ENABLED, "false");
   assert.strictEqual(config.r2_buckets[0].binding, "COVERS");
   assert.strictEqual(config.r2_buckets[0].bucket_name, "kutadgu-covers-preview");
@@ -593,6 +594,138 @@ jobs.push(test("R2 copy verifier refuses deletes, other buckets, and conflicting
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.strictEqual(copyVerify.imageMagic(png), "image/png");
   assert.strictEqual(copyVerify.imageMagic(Buffer.from("not-an-image")), "");
+}));
+
+jobs.push(test("private preview R2 reads stay same-origin, verified, and off for production", async () => {
+  const payload = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x57, 0x45, 0x42, 0x50]);
+  const calls = [];
+  const bucket = {
+    calls,
+    async get(name) {
+      this.calls.push(["get", name]);
+      if (name !== "book-covers/book/106.webp") return null;
+      return {
+        size: payload.length,
+        httpEtag: '"etag-106"',
+        httpMetadata: { contentType: "image/webp", cacheControl: images.IMMUTABLE_CACHE },
+        body: payload,
+        writeHttpMetadata(out) {
+          out.set("content-type", "image/webp");
+          out.set("cache-control", images.IMMUTABLE_CACHE);
+        }
+      };
+    },
+    async head(name) {
+      this.calls.push(["head", name]);
+      if (name !== "book-covers/book/106.webp") return null;
+      return {
+        size: payload.length,
+        httpEtag: '"etag-106"',
+        httpMetadata: { contentType: "image/webp", cacheControl: images.IMMUTABLE_CACHE },
+        writeHttpMetadata(out) {
+          out.set("content-type", "image/webp");
+          out.set("cache-control", images.IMMUTABLE_CACHE);
+        }
+      };
+    },
+    async list() { this.calls.push(["list"]); throw new Error("list-forbidden"); },
+    async put() { this.calls.push(["put"]); throw new Error("put-forbidden"); },
+    async delete() { this.calls.push(["delete"]); throw new Error("delete-forbidden"); }
+  };
+  const env = {
+    KUTADGU_R2_READ_ENABLED: "true",
+    KUTADGU_R2_UPLOAD_ENABLED: "false",
+    KUTADGU_R2_PUBLIC_BASE_URL: "",
+    COVERS: bucket
+  };
+  const deps = baseDeps(catalogFetch("ok"));
+  const previewOrigin = "https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev";
+  const readUrl = previewOrigin + "/__r2/book-covers/book/106.webp";
+  const got = await preview.dispatch(request(readUrl), env, deps);
+  assert.strictEqual(got.status, 200);
+  assert.deepStrictEqual(Buffer.from(await got.arrayBuffer()), payload);
+  assert.strictEqual(got.headers.get("content-type"), "image/webp");
+  assert.strictEqual(got.headers.get("cache-control"), images.IMMUTABLE_CACHE);
+  assert.strictEqual(got.headers.get("etag"), '"etag-106"');
+  assert.strictEqual(got.headers.get("content-length"), String(payload.length));
+  assert.strictEqual(got.headers.get("location"), null);
+  assert.strictEqual(got.headers.get("Content-Security-Policy"), "frame-ancestors 'none'");
+  assert.deepStrictEqual(calls, [["get", "book-covers/book/106.webp"]]);
+  const head = await preview.dispatch(request(readUrl, "HEAD"), env, deps);
+  assert.strictEqual(head.status, 200);
+  assert.strictEqual(await head.text(), "");
+  assert.strictEqual(head.headers.get("content-type"), "image/webp");
+  assert.strictEqual(head.headers.get("etag"), '"etag-106"');
+  const missing = await preview.dispatch(request(previewOrigin + "/__r2/book-covers/book/missing.webp"), env, deps);
+  assert.strictEqual(missing.status, 404);
+  const traversals = [
+    previewOrigin + "/__r2/book-covers/%2e%2e/secret",
+    previewOrigin + "/__r2/book-covers/%5csecret",
+    previewOrigin + "/__r2/book-covers/%252e%252e/x.webp",
+    previewOrigin + "/__r2/other/a.webp",
+    previewOrigin + "/__r2/",
+    previewOrigin + "/__r2/book-covers/"
+  ];
+  for (const url of traversals) {
+    const rejected = await preview.dispatch(request(url), env, deps);
+    assert.ok(rejected.status === 400 || rejected.status === 404, url);
+  }
+  const deleted = await preview.dispatch(request(readUrl, "DELETE"), env, deps);
+  assert.strictEqual(deleted.status, 405);
+  const put = await preview.dispatch(request(readUrl, "PUT", payload), env, deps);
+  assert.strictEqual(put.status, 405);
+  assert.ok(calls.every((call) => call[0] === "get" || call[0] === "head"));
+  const quiet = { ...bucket, calls: [] };
+  const disabled = await preview.dispatch(request(readUrl), { COVERS: quiet, KUTADGU_R2_READ_ENABLED: "false" }, deps);
+  assert.strictEqual(disabled.status, 404);
+  assert.deepStrictEqual(quiet.calls, []);
+  const production = await preview.dispatch(request("https://www.kutadgubilik.com/__r2/book-covers/book/106.webp"), env, deps);
+  assert.strictEqual(production.status, 421);
+  const previewConfig = {
+    r2ReadEnabled: true,
+    hostname: "kutadgu-cloudflare-preview.kutadgu-preview.workers.dev",
+    origin: previewOrigin
+  };
+  assert.strictEqual(images.previewImageUrl(SUPABASE_IMAGE, previewConfig), readUrl);
+  assert.strictEqual(images.previewImageUrl(SUPABASE_IMAGE, {
+    r2ReadEnabled: true,
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com"
+  }), SUPABASE_IMAGE);
+  assert.strictEqual(images.previewImageUrl("https://example.com/cover.webp", previewConfig), "https://example.com/cover.webp");
+  assert.strictEqual(images.previewImageUrl(SUPABASE_IMAGE, { hostname: "127.0.0.1" }), SUPABASE_IMAGE);
+  const once = images.previewFallbackTarget({ src: readUrl, origin: SUPABASE_IMAGE, fallback: "" });
+  assert.strictEqual(once.action, "fallback");
+  assert.strictEqual(once.src, SUPABASE_IMAGE);
+  assert.strictEqual(images.previewFallbackTarget({ src: once.src, origin: SUPABASE_IMAGE, fallback: once.fallback }).action, "ignore");
+  assert.strictEqual(images.previewFallbackTarget({ src: readUrl, origin: SUPABASE_IMAGE, fallback: "1" }).action, "ignore");
+  assert.strictEqual(images.installPreviewCoverBridge({
+    documentElement: { getAttribute() { return ""; }, setAttribute() {} },
+    location: { pathname: "/" }
+  }, { r2ReadEnabled: true, hostname: "www.kutadgubilik.com", pathname: "/" }), false);
+  const category = await preview.dispatch(request("http://127.0.0.1:8787/adabiyat"), env, deps);
+  const categoryHtml = await category.text();
+  const categoryImgs = categoryHtml.match(/<img\b[^>]*>/gi) || [];
+  assert.ok(categoryImgs.some((tag) => tag.includes('src="http://127.0.0.1:8787/__r2/book-covers/book/106.webp"')));
+  assert.ok(categoryImgs.every((tag) => !/src=["']https:\/\/fxlojnqwyojqjskfggmh\.supabase\.co/.test(tag)));
+  assert.ok(categoryHtml.includes('data-kutadgu-cover-origin="' + SUPABASE_IMAGE + '"'));
+  assert.ok(categoryHtml.includes("https://www.kutadgubilik.com/"));
+  assert.ok(categoryHtml.includes('src="/kutadgu-preview-r2-images.js"'));
+  const book = await preview.dispatch(request("http://127.0.0.1:8787/book/106"), env, deps);
+  const bookHtml = await book.text();
+  assert.ok(bookHtml.includes('rel="canonical" href="https://www.kutadgubilik.com/book/106"'));
+  assert.ok(bookHtml.includes('property="og:image" content="' + SUPABASE_IMAGE + '"'));
+  const schema = bookHtml.match(/<script id="kutadguBookSchema" type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(JSON.parse(schema[1]).image === SUPABASE_IMAGE || JSON.stringify(JSON.parse(schema[1])).includes(SUPABASE_IMAGE));
+  assert.ok((bookHtml.match(/<img\b[^>]*>/gi) || []).some((tag) => tag.includes("/__r2/book-covers/book/106.webp")));
+  const admin = await preview.dispatch(request("http://127.0.0.1:8787/admin.html"), env, deps);
+  const adminHtml = await admin.text();
+  assert.ok(!adminHtml.includes("kutadgu-preview-r2-images.js"));
+  const uploadOff = await preview.dispatch(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", "x"), env, deps);
+  assert.strictEqual(uploadOff.status, 404);
+  const readSource = fs.readFileSync(path.join(root, "cloudflare/r2-cover-read.js"), "utf8");
+  assert.doesNotMatch(readSource, /\.list\(|\.put\(|\.delete\(|r2\.dev|R2_SECRET_ACCESS_KEY/);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "kutadgu-preview-r2-images.js"), "utf8"), /R2_SECRET_ACCESS_KEY|SECRET_ACCESS_KEY/);
 }));
 
 Promise.all(jobs).then(() => {

@@ -2,6 +2,8 @@
 
 const headers = require("./security-headers.js");
 const upload = require("./r2-cover-upload.js");
+const coverRead = require("./r2-cover-read.js");
+const images = require("../kutadgu-image-storage.js");
 const sitemap = require("../kutadgu-sitemap.js");
 
 const PRODUCTION_HOSTS = Object.freeze([
@@ -87,6 +89,7 @@ function classifyPath(pathname, search) {
   if (posthog) return { kind: "posthog", upstream: posthog };
   if (path === "/api/ai-search") return { kind: "ai-search" };
   if (path === "/api/r2-cover-upload") return { kind: "r2-upload" };
+  if (path === "/__r2" || path.startsWith("/__r2/")) return { kind: "r2-read" };
   if (path === "/sitemap.xml" || path === "/api/sitemap-index") return { kind: "sitemap-index" };
   if (path === "/sitemap-books.xml" || path === "/api/sitemap-books") {
     const page = path === "/api/sitemap-books" ? pageFromSearch(query) : "1";
@@ -158,6 +161,21 @@ async function readAsset(request, env, deps, filePath) {
   return env.ASSETS.fetch(new Request(target.toString(), { method: "GET" }));
 }
 
+function previewPageSource(request, env) {
+  const url = new URL(request.url);
+  return {
+    r2ReadEnabled: env && env.KUTADGU_R2_READ_ENABLED,
+    hostname: url.hostname,
+    origin: url.origin,
+    pathname: url.pathname
+  };
+}
+
+function decoratePreviewHtml(body, request, env) {
+  const source = previewPageSource(request, env);
+  return images.injectPreviewBoot(images.rewritePreviewHtmlImages(body, source), source);
+}
+
 async function finishAsset(request, env, deps, filePath, statusOverride) {
   const method = String(request.method || "GET").toUpperCase();
   const asset = await readAsset(request, env, deps, filePath);
@@ -168,6 +186,17 @@ async function finishAsset(request, env, deps, filePath, statusOverride) {
   const outHeaders = applyHeaders(asset.headers, env, headers.cacheControlForPath(filePath));
   if (!outHeaders.get("Content-Type") && /\.html$/i.test(filePath)) {
     outHeaders.set("Content-Type", "text/html; charset=utf-8");
+  }
+  const htmlFile = /\.html$/i.test(filePath);
+  if (method !== "HEAD" && htmlFile) {
+    const decorated = decoratePreviewHtml(await asset.text(), request, env);
+    if (decorated !== undefined) {
+      outHeaders.delete("content-length");
+      return new Response(decorated, {
+        status: status === 404 ? 404 : asset.status,
+        headers: outHeaders
+      });
+    }
   }
   return new Response(method === "HEAD" ? null : asset.body, {
     status: status === 404 ? 404 : asset.status,
@@ -197,7 +226,7 @@ async function handleBook(request, env, deps) {
       });
     }
     const template = await shell.text();
-    const html = publicBook.applyFoundPublicBookHead(template, id, result.book);
+    const html = decoratePreviewHtml(publicBook.applyFoundPublicBookHead(template, id, result.book), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate"
@@ -239,7 +268,7 @@ async function handleCategory(request, env, deps, route) {
   }
   try {
     const books = await listing.loadCategoryBooks(slug, { fetchImpl: deps.fetchImpl });
-    const html = listing.applyCategoryDocument(template, slug, books);
+    const html = decoratePreviewHtml(listing.applyCategoryDocument(template, slug, books), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.SUCCESS_CACHE_CONTROL
@@ -390,6 +419,10 @@ async function dispatch(request, env, deps) {
     const result = await upload.handleR2CoverUpload(request, env, source);
     const out = applyHeaders(result.headers, env);
     return new Response(method === "HEAD" ? null : result.body, { status: result.status, headers: out });
+  }
+  if (route.kind === "r2-read") {
+    const result = await coverRead.handleR2CoverRead(request, env);
+    return new Response(method === "HEAD" ? null : result.body, { status: result.status, headers: result.headers });
   }
   if (route.kind === "sitemap-index" || route.kind === "sitemap-books") {
     return handleSitemap(request, env, source, route);

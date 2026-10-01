@@ -331,6 +331,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "cloudflare/worker.js",
     "cloudflare/preview-dispatch.js",
     "cloudflare/r2-cover-upload.js",
+    "cloudflare/r2-cover-read.js",
+    "kutadgu-preview-r2-images.js",
     "cloudflare/security-headers.js",
     "scripts/r2-s3-client.js",
     "scripts/r2-cover-inventory.js",
