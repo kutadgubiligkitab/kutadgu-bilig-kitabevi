@@ -119,7 +119,7 @@
     const core=Core();
     if(core&&core.shouldRecordRemote)return core.shouldRecordRemote(location.hostname,location.pathname);
     const host=String(location.hostname||"").toLowerCase();
-    return host==="www.kutadgubilik.com"||host==="kutadgubilik.com"||host==="kutadgu-bilig-kitab.vercel.app";
+    return host==="www.kutadgubilik.com"||host==="kutadgubilik.com";
   }
   async function remoteTrack(name,data={}){
     try{

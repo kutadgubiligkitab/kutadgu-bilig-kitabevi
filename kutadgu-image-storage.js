@@ -8,8 +8,7 @@
   const PRIVATE_READ_PREFIX = "/__r2/";
   const BLOCKED_PREVIEW_HOSTS = Object.freeze([
     "kutadgubilik.com",
-    "www.kutadgubilik.com",
-    "kutadgu-bilig-kitab.vercel.app"
+    "www.kutadgubilik.com"
   ]);
   const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 

@@ -24,8 +24,7 @@
   var REVEAL_BATCH_SIZE = 6;
   var PRODUCTION_HOSTS = {
     "www.kutadgubilik.com": true,
-    "kutadgubilik.com": true,
-    "kutadgu-bilig-kitab.vercel.app": true
+    "kutadgubilik.com": true
   };
 
   function hostnameOf(locationLike) {
@@ -38,7 +37,7 @@
   var KUTADGU_VERCEL_PREVIEW_RE = /^kutadgu-bilig-kitab-[a-z0-9-]+-kutadgu-bilig-kitabhanisi\.vercel\.app$/;
 
   function isKutadguVercelPreviewHost(host) {
-    if (!host || host === "kutadgu-bilig-kitab.vercel.app") return false;
+    if (!host) return false;
     return KUTADGU_VERCEL_PREVIEW_RE.test(host);
   }
 

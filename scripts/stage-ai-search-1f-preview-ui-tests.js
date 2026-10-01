@@ -192,13 +192,13 @@ async function run() {
     const visible = [
       "www.kutadgubilik.com",
       "kutadgubilik.com",
-      "kutadgu-bilig-kitab.vercel.app",
       previewHost,
       previewHashHost,
       "localhost",
       "127.0.0.1"
     ];
     const hidden = [
+      "kutadgu-bilig-kitab.vercel.app",
       "example.vercel.app",
       "unrelated-project.vercel.app",
       "shop.example.com"
@@ -212,7 +212,7 @@ async function run() {
     });
     assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "www.kutadgubilik.com" }), true);
     assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "kutadgubilik.com" }), true);
-    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "kutadgu-bilig-kitab.vercel.app" }), true);
+    assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "kutadgu-bilig-kitab.vercel.app" }), false);
     assert.strictEqual(Ui.isProductionAiSearchHost({ hostname: "localhost" }), false);
     assert.strictEqual(Ui.isKutadguVercelPreviewHost(previewHost), true);
     assert.strictEqual(Ui.isKutadguVercelPreviewHost("kutadgu-bilig-kitab.vercel.app"), false);
@@ -233,7 +233,6 @@ async function run() {
     [
       "www.kutadgubilik.com",
       "kutadgubilik.com",
-      "kutadgu-bilig-kitab.vercel.app",
       previewHost,
       "localhost",
       "127.0.0.1"

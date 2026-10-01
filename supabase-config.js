@@ -10,7 +10,7 @@ window.KUTADGU_STOCK_ENFORCEMENT = true;
 
 window.kutadguIsProductionAuthHost = function(host){
   const h=String(host||"").toLowerCase();
-  return h==="www.kutadgubilik.com"||h==="kutadgubilik.com"||h==="kutadgu-bilig-kitab.vercel.app";
+  return h==="www.kutadgubilik.com"||h==="kutadgubilik.com";
 };
 
 window.kutadguAuthCallbackOrigin = function(){

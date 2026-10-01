@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const PRODUCTION = "https://kutadgu-bilig-kitab.vercel.app";
+const PRODUCTION = "https://www.kutadgubilik.com";
 const BOOK_COVER_STORAGE_PATH = "/storage/v1/object/public/book-covers/";
 const BOOK_COVER_STUB_PATH = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 const BOOK_COVER_STUB = fs.readFileSync(BOOK_COVER_STUB_PATH);
