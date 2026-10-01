@@ -3,7 +3,7 @@
 This is the recovery playbook for **قۇتادغۇبىلىك كىتابخانىسى**
 (`kutadgubiligkitab/kutadgu-bilig-kitabevi`).
 
-Production site: `https://kutadgu-bilig-kitab.vercel.app`  
+Production site: `https://www.kutadgubilik.com`  
 Supabase project ref (public): `fxlojnqwyojqjskfggmh`
 
 **Vercel rollback does not roll back Supabase.** A bad SQL import or migration stays broken until the database (or Storage) is restored separately.

@@ -163,8 +163,7 @@
   const SESSION_KEY="kutadgu-analytics-session";
   const PRODUCTION_HOSTS={
     "www.kutadgubilik.com":1,
-    "kutadgubilik.com":1,
-    "kutadgu-bilig-kitab.vercel.app":1
+    "kutadgubilik.com":1
   };
   const UUID_V4=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

@@ -691,7 +691,7 @@ if (LIVE_SEO) {
   }));
 
   jobs.push(test("E live legacy_id children-3 resolves on storefront URL", async () => {
-    const res = await fetch("https://kutadgu-bilig-kitab.vercel.app/book.html?id=children-3");
+    const res = await fetch("https://www.kutadgubilik.com/book.html?id=children-3");
     assert.ok(res.ok);
     const html = await res.text();
     assert.ok(html.includes("book.html"));

@@ -994,7 +994,7 @@ function googleAccountRedirectTo(){
   const wwwAccount="https://www.kutadgubilik.com/account.html";
   const host=String(location.hostname||"");
   const origin=String(location.origin||"").replace(/\/+$/,"");
-  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilik.com"||host==="kutadgubilik.com"||host==="kutadgu-bilig-kitab.vercel.app")){
+  if(window.kutadguIsProductionAuthHost?window.kutadguIsProductionAuthHost(host):(host==="www.kutadgubilik.com"||host==="kutadgubilik.com")){
     return wwwAccount;
   }
   if(origin && origin!=="null")return origin+"/account.html";

@@ -15,7 +15,7 @@ Repository: `kutadgubiligkitab/kutadgu-bilig-kitabevi`. Default branch: `main`.
 - Canonical site: `https://www.kutadgubilik.com` (`KUTADGU_SITE_ORIGIN` in `supabase-config.js`)
 - Live `www` and the apex are Cloudflare Worker Custom Domains on `kutadgu-cloudflare-production`. The apex still returns 308 to `https://www.kutadgubilik.com`.
 - Apex `kutadgubilik.com` auth callbacks are sent to the `www` host
-- Vercel production alias, also treated as a production auth host: `https://kutadgu-bilig-kitab.vercel.app`. That project is retained and is no longer the live DNS origin.
+- `kutadgu-bilig-kitab.vercel.app` is not a production auth, analytics, or PostHog host. Live traffic stays on the Cloudflare custom domains.
 
 ## Main stack
 
@@ -183,7 +183,7 @@ export KUTADGU_USE_LOCAL_STATIC=1
 npx playwright test
 ```
 
-`playwright.config.js` uses `KUTADGU_PREVIEW_URL`, then `KUTADGU_BASE_URL` / `PLAYWRIGHT_BASE_URL`, then `https://kutadgu-bilig-kitab.vercel.app`. Leave the preview URL unset when the local server should be the target. The local server is `scripts/static-preview-server.js` on `127.0.0.1:4173`.
+`playwright.config.js` uses `KUTADGU_PREVIEW_URL`, then `KUTADGU_BASE_URL` / `PLAYWRIGHT_BASE_URL`, then `https://www.kutadgubilik.com`. Leave the preview URL unset when the local server should be the target. The local server is `scripts/static-preview-server.js` on `127.0.0.1:4173`.
 
 Stage 10 CI is Chromium only. Use Firefox and WebKit when a change is visual or browser-specific.
 
@@ -250,11 +250,12 @@ Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor,
 This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. PR #222 merged to `main` at `1bbdd2bd`. The remote preview is `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev`. It binds R2 bucket `kutadgu-covers-preview` as `COVERS`. Live `www` is served by `kutadgu-cloudflare-production` through Worker Custom Domains and reads covers through the private `/__r2/book-covers/` route. Supabase remains the stored image URL and the fallback. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. The runtime baseline stays `445fe488`.
 
 - A Workers preview serves the same static site and calls the existing book, category, sitemap, and AI search modules. It does not replace the Vercel deployment. `npm run preview:cloudflare` runs that preview with Wrangler state outside the repo so the asset watcher does not reload on its own writes.
-- The preview worker refuses `www.kutadgubilik.com`, `kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. The preview top-level Wrangler config has no production hostname. Production custom domains are only under `env.production`.
+- The preview worker refuses `www.kutadgubilik.com` and `kutadgubilik.com`. The preview top-level Wrangler config has no production hostname. Production custom domains are only under `env.production`. The retired Vercel alias is not an allowed production host.
 - R2 cover bytes for the 1020 active public Supabase cover and gallery objects were copied into `kutadgu-covers-preview` and checked with SHA-256. The workers.dev preview now displays those covers through the private Worker route. Production, Vercel, and the database still use Supabase URLs. `KUTADGU_R2_PUBLIC_BASE_URL` is empty, r2.dev stays disabled, and the admin upload route stays off. A future public R2 host can be named with `KUTADGU_R2_PUBLIC_BASE_URL` without removing the Supabase host.
 - Storefront pins are unchanged. This branch does not change shop, admin, or book-shell behavior.
 - Final pre-production QA compared the workers.dev preview with `https://www.kutadgubilik.com` before cutover. The preview still returns 421 for production hosts, serves private R2 only on workers.dev, and leaves AI search disabled. Production `POST /api/ai-search` is enabled on the production Worker. The note is `CLOUDFLARE_MIGRATION_REPORT.md`. Runtime baseline stays `445fe488`.
-- `kutadgu-cloudflare-production` version `b859be14-dc00-4277-a426-451011f2dfc5` serves `https://www.kutadgubilik.com` and the apex as Worker Custom Domains. The old `kutadgubilik.com/*` and `www.kutadgubilik.com/*` routes were removed after those domains were active. The Vercel apex `A` `216.198.79.1` and `www` CNAME `691042ca7074d500.vercel-dns-017.com` are gone. Cloudflare created proxied `AAAA` `100::` records for both hostnames. Private R2 reads and AI search stay live. The Vercel project was not deleted. Supabase was not modified. The preview Worker has no custom domain and no route. Tested on `cursor/worker-custom-domains-575f` at `16ea72aa` with `npm run test:unit`: 1502 PASS, 0 FAIL. Draft PR #223. Runtime baseline stays `445fe488`.
+- `kutadgu-cloudflare-production` version `b859be14-dc00-4277-a426-451011f2dfc5` serves `https://www.kutadgubilik.com` and the apex as Worker Custom Domains. The old `kutadgubilik.com/*` and `www.kutadgubilik.com/*` routes were removed after those domains were active. The Vercel apex `A` `216.198.79.1` and `www` CNAME `691042ca7074d500.vercel-dns-017.com` are gone. Cloudflare created proxied `AAAA` `100::` records for both hostnames. Private R2 reads and AI search stay live. Supabase was not modified. The preview Worker has no custom domain and no route. Custom domains were recorded on `cursor/worker-custom-domains-575f` at `16ea72aa`, merged by PR #223. Runtime baseline stays `445fe488`.
+- `kutadgu-bilig-kitab.vercel.app` is no longer an allowed production host in auth, analytics, PostHog, or AI search. The default Playwright and Stage 10 production origin is `https://www.kutadgubilik.com`. The deployed Workers were not redeployed for this cleanup. `npm run test:unit` on `cursor/retire-vercel-host-575f`: 1502 PASS, 0 FAIL. Runtime baseline stays `445fe488`.
 
 ## Remaining optional work
 

@@ -3,7 +3,7 @@ const { defineConfig, devices } = require("@playwright/test");
 
 const PREVIEW = String(process.env.KUTADGU_PREVIEW_URL || "").trim();
 const EXPLICIT = String(process.env.KUTADGU_BASE_URL || process.env.PLAYWRIGHT_BASE_URL || "").trim();
-const PRODUCTION = "https://kutadgu-bilig-kitab.vercel.app";
+const PRODUCTION = "https://www.kutadgubilik.com";
 const baseURL = PREVIEW || EXPLICIT || PRODUCTION;
 const EVENT = String(process.env.GITHUB_EVENT_NAME || "").trim();
 const BYPASS = String(process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "").trim();
@@ -18,7 +18,7 @@ function hostnameOf(url) {
 
 function isProductionOrigin(url) {
   const host = hostnameOf(url).replace(/^www\./, "");
-  return host === "kutadgu-bilig-kitab.vercel.app" || host === "kutadgubilik.com";
+  return host === "kutadgubilik.com";
 }
 
 if (EVENT === "pull_request" && isProductionOrigin(baseURL)) {

@@ -278,7 +278,7 @@ jobs.push(test("production hosts are refused and R2 can be added beside Supabase
   const production = await preview.dispatch(request("https://www.kutadgubilik.com/"), {}, deps);
   assert.strictEqual(production.status, 421);
   const alias = await preview.dispatch(request("https://kutadgu-bilig-kitab.vercel.app/books"), {}, deps);
-  assert.strictEqual(alias.status, 421);
+  assert.notStrictEqual(alias.status, 421);
   const env = { KUTADGU_R2_PUBLIC_BASE_URL: "https://covers.example.com/unused" };
   const home = await preview.dispatch(request("http://127.0.0.1:8787/"), env, deps);
   const csp = home.headers.get("Content-Security-Policy-Report-Only");
@@ -806,7 +806,7 @@ jobs.push(test("preview and production host policies stay independent", async ()
   const previewAlias = await preview.dispatch(request("https://kutadgu-bilig-kitab.vercel.app/"), previewEnv, deps);
   assert.strictEqual(previewWww.status, 421);
   assert.strictEqual(previewApex.status, 421);
-  assert.strictEqual(previewAlias.status, 421);
+  assert.notStrictEqual(previewAlias.status, 421);
   assert.strictEqual(previewWww.headers.get("Strict-Transport-Security"), null);
   const local = await preview.dispatch(request("http://127.0.0.1:8787/"), productionEnv, deps);
   assert.strictEqual(local.status, 200);

@@ -78,7 +78,7 @@ test("production custom domain is kutadgubilik.com, never kutadgubilig.com", () 
     assert.match(text, /kutadgubilik\.com/, rel + " missing correct custom domain");
     assert.doesNotMatch(text, /kutadgubilig\.com/, rel + " still has the unrelated kutadgubilig.com host");
   });
-  assert.match(cfg, /kutadgu-bilig-kitab\.vercel\.app/);
+  assert.doesNotMatch(cfg, /kutadgu-bilig-kitab\.vercel\.app/);
 });
 
 test("password reset helper uses auth callback origin and dedicated reset page", () => {
@@ -132,7 +132,7 @@ test("Google OAuth redirectTo stays on the start origin except production hosts"
     hostname: "kutadgu-bilig-kitab.vercel.app",
     origin: "https://kutadgu-bilig-kitab.vercel.app"
   });
-  assert.strictEqual(prodVercel.kutadguGoogleAccountRedirectTo(), "https://www.kutadgubilik.com/account.html");
+  assert.strictEqual(prodVercel.kutadguGoogleAccountRedirectTo(), "https://kutadgu-bilig-kitab.vercel.app/account.html");
   const otherPreview = loadConfig({
     hostname: "pr-33-auth.example.com",
     origin: "https://pr-33-auth.example.com"

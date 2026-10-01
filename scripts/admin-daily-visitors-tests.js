@@ -306,7 +306,7 @@ test("retries reuse the decision and do not invent another visitor", () => {
 test("production hosts are recorded and local, preview, admin, and staff paths are not", () => {
   assert.strictEqual(A.shouldRecordRemote("www.kutadgubilik.com", "/index.html"), true);
   assert.strictEqual(A.shouldRecordRemote("kutadgubilik.com", "/book/12"), true);
-  assert.strictEqual(A.shouldRecordRemote("kutadgu-bilig-kitab.vercel.app", "/cart.html"), true);
+  assert.strictEqual(A.shouldRecordRemote("kutadgu-bilig-kitab.vercel.app", "/cart.html"), false);
   assert.strictEqual(A.shouldRecordRemote("localhost", "/index.html"), false);
   assert.strictEqual(A.shouldRecordRemote("kutadgu-bilig-kitab-git-preview.vercel.app", "/index.html"), false);
   assert.strictEqual(A.shouldRecordRemote("www.kutadgubilik.com", "/admin.html"), false);

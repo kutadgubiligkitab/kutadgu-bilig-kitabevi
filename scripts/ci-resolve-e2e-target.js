@@ -7,7 +7,7 @@
  */
 const fs = require("fs");
 
-const PRODUCTION = "https://kutadgu-bilig-kitab.vercel.app";
+const PRODUCTION = "https://www.kutadgubilik.com";
 const LOCAL_ORIGIN = "http://127.0.0.1:4173";
 
 function trimUrl(value) {
@@ -25,14 +25,12 @@ function hostnameOf(url) {
 function isProductionOrigin(url) {
   const host = hostnameOf(url);
   if (!host) return false;
-  return host === "kutadgu-bilig-kitab.vercel.app"
-    || host === "www.kutadgubilik.com"
-    || host === "kutadgubilik.com";
+  return host === "www.kutadgubilik.com" || host === "kutadgubilik.com";
 }
 
 function isPreviewOrigin(url) {
   const host = hostnameOf(url);
-  return host.endsWith(".vercel.app") && !isProductionOrigin(url);
+  return /^kutadgu-bilig-kitab-[a-z0-9-]+-kutadgu-bilig-kitabhanisi\.vercel\.app$/.test(host);
 }
 
 function pickPreviewFromStatuses(statuses) {

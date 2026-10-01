@@ -8,8 +8,7 @@ const sitemap = require("../kutadgu-sitemap.js");
 
 const PRODUCTION_HOSTS = Object.freeze([
   "kutadgubilik.com",
-  "www.kutadgubilik.com",
-  "kutadgu-bilig-kitab.vercel.app"
+  "www.kutadgubilik.com"
 ]);
 
 const HTML_REDIRECTS = Object.freeze({
