@@ -72,26 +72,27 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c` |
-| Subject | Keep listing analytics totals and the public catalog select. |
-| Date | 2026-09-30 |
+| Commit | `d6ba212392f8794f77fffc0fee0167b6050393c3` |
+| Subject | Let a new listing filter cancel Load more, and page capped book rows. |
+| Date | 2026-10-01 |
 | Branch | `feat/books-visit-rotation` |
 | PR | #219 (draft, not merged) |
-| Why it stays | The unfiltered `/books` listing shows one seeded discovery order for the current tab visit. Search, explicit sorts, category pages, homepage sections, and the public `select *` catalog query stay on their existing paths. |
+| Why it stays | The unfiltered `/books` listing still uses one seeded discovery order per tab visit. A sort, search, or reset cancels an in-flight Load more. A short full-record page is read until `Content-Range` is exhausted before a missing id is skipped. |
 
-`origin/main` when this branch was cut was `8f9bf64e8451064c25bc425a64dad2ae1a126c60`, the merge of #218. The visit order landed in `2a8cbc90dd144b39577db4ba3f1c7c671051d1c7`. `471cf62e` keeps filter and search analytics on the catalog total and leaves the public catalog query starting from `select *`.
+`origin/main` when this branch was cut was `8f9bf64e8451064c25bc425a64dad2ae1a126c60`, the merge of #218. The visit order landed in `2a8cbc90dd144b39577db4ba3f1c7c671051d1c7`. `471cf62e` kept filter analytics on the catalog total and the public `select *` query. `d6ba2123` is the listing behavior verified below.
 
-`npm run test:unit` passed on `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c`. `git diff --check` was clean. Focused Playwright `tests/e2e/books-visit-rotation.spec.js` passed 6 tests, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1` and `KUTADGU_PREVIEW_URL` unset. Those tests did not call production `analytics_events` or `get_kutadgu_analytics`. Full Stage 10 was not re-run. This work did not deploy, merge, or change production data.
+`npm run test:unit` passed on `d6ba212392f8794f77fffc0fee0167b6050393c3`. `git diff --check` was clean. Focused Playwright `tests/e2e/books-visit-rotation.spec.js` and `tests/e2e/stage5d-global-books.spec.js` passed, 16 tests, Chromium, `http://127.0.0.1:4173` with `KUTADGU_USE_LOCAL_STATIC=1` and `KUTADGU_PREVIEW_URL` unset. Those tests did not call production `analytics_events` or `get_kutadgu_analytics`. Full local Stage 10 on the same tree was 767 passed and 3 skipped. One run failed while writing a homepage hero screenshot (`EIO` in `tests/e2e/stage3-shop-identity.spec.js`) after the overflow and height checks. That same test passed when run again. This work did not deploy, merge, or change production data.
 
 Visit lifecycle for the unfiltered All books listing:
 
 - A visit is one tab session. `sessionStorage` key `kutadgu-books-visit-v1` stores `{seed, ids, cursor}`. A new tab or a new browser session starts empty and receives a new seed. The seed is not written to `localStorage`. If `sessionStorage` throws, the same visit stays in module memory until that document is discarded.
 - The snapshot is one Fisher-Yates permutation of the canonical active ids collected when the visit first builds it. The same seed and the same id list always produce the same unique order. A different seed moves books across the whole catalog. Books added after the snapshot join the next visit.
-- Pagination walks that frozen list, then fetches full records only for the requested window. A deleted or hidden id is skipped and still consumes a snapshot position, so later ids are not dropped and Load more ends when the cursor reaches the snapshot end. Reloading a loaded span is capped at 5000 rows in one response. Id lookups stay in batches of 100.
+- Pagination walks that frozen list. Each step requests only the full records needed to fill the current page, in batches of at most 100 ids. If that response is shorter than the request and `Content-Range` shows more rows, those later rows are read before any unresolved id is treated as missing. A deleted or hidden id is then skipped and still consumes a snapshot position, so later ids are not dropped and Load more ends when the cursor reaches the snapshot end. A short HTTP 206 with no total fails the listing. Reloading a loaded span is capped at 5000 rows in one response.
+- Sort, search, collection, price, and reset during Load more abort that append and run the new query. A second Load more click while the first append is in flight is ignored. A response from the aborted request does not repaint the grid, move the visit cursor, or clear the newer request’s loading state.
 - The id index selects `id,is_active` (or `id` when `is_active` is missing), ordered by `id`, in pages of 1000. A short page is complete when `Content-Range` gives the total, or when the response is HTTP 200. A short HTTP 206 with no total fails the listing. A configured remote error stays on the existing retry message and does not show static demo books.
 - The default label is `بۇ قېتىملىق بايقاش تەرتىپى` (`discover`). Search uses relevance. Newest, title, author, price, bestseller, and recommended stay explicit. Price, collection, category, and hub filters leave rotation. Returning to the default sort in the same visit restores the same snapshot and the cards already loaded. Book detail and Back keep that progress through `sessionStorage` and BFCache.
 
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `471cf62e1a6134b9c86cbdc9e76b1d755da46d3c`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `d6ba212392f8794f77fffc0fee0167b6050393c3`.
 
 The previous application baseline was `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e` on `feat/admin-daily-visitors`, merged by #218. `STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. That run applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. Whether `STAGE100` has been applied to the live project is still unknown.
 
@@ -127,8 +128,8 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 
 | File | Pin at the runtime baseline |
 |---|---|
-| `shop.js` | `?v=136` (`scripts/auth-production-cache-buster-tests.js`) |
-| `kutadgu-visit-order.js` | `?v=1` on `books.html`, immediately before `kutadgu-search-rank.js` |
+| `shop.js` | `?v=137` (`scripts/auth-production-cache-buster-tests.js`) |
+| `kutadgu-visit-order.js` | `?v=2` on `books.html`, immediately before `kutadgu-search-rank.js` |
 | `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
@@ -230,7 +231,7 @@ Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor,
 The repo has no separate backlog file. These are cautions, not scheduled tasks:
 
 - Apply `STAGE100_ADMIN_DAILY_VISITORS.sql` manually before expecting visitor counts in production. The isolated PostgreSQL check does not replace that production apply. Do not run it from an agent task, and do not replace it with `STAGE8_STORE_ANALYTICS.sql`.
-- A visit snapshot does not include books added after it was built. A server that returns a short id page without an exact total fails that `/books` listing instead of showing a partial catalog. Restoring cards already loaded in the visit is capped at 5000 rows. The order belongs to one tab, not to a shared profile.
+- A visit snapshot does not include books added after it was built. A server that returns a short id page, or a short full-record page, without an exact total fails that `/books` listing instead of showing a partial catalog. Restoring cards already loaded in the visit is capped at 5000 rows. The order belongs to one tab, not to a shared profile.
 - Rows stored before `action_seq` exists stay out of the user-action funnel. Receipt order can still be shown as arrival, and that figure is not user-action order. A client clock outside the server window also drops ordering for that event.
 
 - Public book queries still use broad `select=*` in places. Narrowing columns needs a check that cards and detail pages still receive every field they render.
