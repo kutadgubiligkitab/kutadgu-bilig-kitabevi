@@ -1,0 +1,729 @@
+{
+  "bucket": "book-covers",
+  "note": "PROTECTED. These objects must remain in Supabase Storage. No deletion batch may include them.",
+  "classC": 5,
+  "classE": 85,
+  "bytes": 13161702,
+  "objects": [
+    {
+      "class": "C",
+      "objectPath": "staff/e9e83ad5-0a56-4b7d-9972-177e20ed0791/20260914-fktpx8-cover.png",
+      "bytes": 699735,
+      "sha256": "d4e3e45fbc4e27c1268536173f0bb455dcf946bc2d46b411960ed2701b983f93",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "C",
+      "objectPath": "staff/e9e83ad5-0a56-4b7d-9972-177e20ed0791/20260914-jc40e0-cover.png",
+      "bytes": 1368301,
+      "sha256": "8f260c3e9ce3ec425d1f05a4c9cbf1fda3baa06cad1d894ba5e296fd0ed25e1e",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "C",
+      "objectPath": "staff/e9e83ad5-0a56-4b7d-9972-177e20ed0791/gallery/20260914-fm05fh-1.png",
+      "bytes": 114891,
+      "sha256": "4489d359000a9d7ca4a9720b2028a99f56eb49add2960925401eea8d2f969522",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "C",
+      "objectPath": "staff/e9e83ad5-0a56-4b7d-9972-177e20ed0791/gallery/20260914-iw8doo-0.png",
+      "bytes": 699735,
+      "sha256": "d4e3e45fbc4e27c1268536173f0bb455dcf946bc2d46b411960ed2701b983f93",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "C",
+      "objectPath": "staff/e9e83ad5-0a56-4b7d-9972-177e20ed0791/gallery/20260914-o4ewy6-0.png",
+      "bytes": 331731,
+      "sha256": "3686eca2d89b6373a7acae4e1f9d7cb86c1620d221f5900602497279cb7d4722",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "1/1787959994507.webp",
+      "bytes": 32724,
+      "sha256": "e33c93c0fec3d1e4501e414c25571fee5a476de538d088a7d9ed4e02b8991219",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "1/1787960008095.webp",
+      "bytes": 32724,
+      "sha256": "e33c93c0fec3d1e4501e414c25571fee5a476de538d088a7d9ed4e02b8991219",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "1/1787960146692.webp",
+      "bytes": 32724,
+      "sha256": "e33c93c0fec3d1e4501e414c25571fee5a476de538d088a7d9ed4e02b8991219",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "1/1787960452934.webp",
+      "bytes": 57340,
+      "sha256": "ea65d4865e23bc6a21589627aa4344bba1e15bb53d23797a173bf3e5958159a9",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "1/gallery/1787939372565-fgq1ja.png",
+      "bytes": 433845,
+      "sha256": "87ce0a3607794f3ee1fff9762060dfa12fd07f47db35287bfde1e971daa573fd",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "148/1789077816339.webp",
+      "bytes": 80644,
+      "sha256": "48d685e1cadf22741ac2cecb1faf7902a869602f044d7cfccae63a7b33a7b566",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "165/1789224029443.webp",
+      "bytes": 51410,
+      "sha256": "2264bd4902c733ffe7455aa4c38d56267ba42af8b848dff31a980d0b973c8ea8",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "176/1789238822727.webp",
+      "bytes": 110052,
+      "sha256": "bcc2c9f698e9b7949d23f2cccab8ecae8078c86507d706218ed0e3acce233510",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "177/1789237724129.webp",
+      "bytes": 110052,
+      "sha256": "bcc2c9f698e9b7949d23f2cccab8ecae8078c86507d706218ed0e3acce233510",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "177/1789239944901.webp",
+      "bytes": 92960,
+      "sha256": "ec7ff7b557b4cdb2800ead72897e0e72a40221537175dcf9448aff1f52f36f82",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "178/1789239201148.webp",
+      "bytes": 115218,
+      "sha256": "3baadc7464d8c5c957e4d3d582d2d14bd2103a0d7138d66ffb6ae8f9eb0fc21c",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "178/1789239965697.webp",
+      "bytes": 92960,
+      "sha256": "ec7ff7b557b4cdb2800ead72897e0e72a40221537175dcf9448aff1f52f36f82",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "179/1789239453490.webp",
+      "bytes": 99528,
+      "sha256": "93d459a28172b0f9eeac9ffe409a808ad31bd4008ca2c2036119b0a6482fdaff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "179/1789240139116.webp",
+      "bytes": 92960,
+      "sha256": "ec7ff7b557b4cdb2800ead72897e0e72a40221537175dcf9448aff1f52f36f82",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "180/1789239687144.webp",
+      "bytes": 98822,
+      "sha256": "63e3aeb1a45ee2e07b8f42a1689d4940cbcd79401836d2f91956cae3307c7b4e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "270/1789510653513.webp",
+      "bytes": 207500,
+      "sha256": "33233d8ab9ac18a712b22e4762c1a41747280619099b76dcc1cdc31f1152b380",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "271/1789510729558.webp",
+      "bytes": 122752,
+      "sha256": "0f86d66de746756206728ee7d708bf6634a7ffc6a664141aae8cf39fff280e72",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "296/1789646540420.webp",
+      "bytes": 106156,
+      "sha256": "d064785cf68459cfd41ed1d26ecdc3a591dc34acb4da411cdf37e0a3eeea094e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "318/1789911236514.webp",
+      "bytes": 56828,
+      "sha256": "804b7f014f8fd7dad507c422149ca85cc03d5c3fbfb7778cbd1586f947c5dda5",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "319/1789910731551.webp",
+      "bytes": 33478,
+      "sha256": "0b1909e76d49f7d032f36563573231fe4b6d0e1c466f6b136f76210905b77450",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "319/1789910749421.webp",
+      "bytes": 46834,
+      "sha256": "dbd08a82916b82db375bd38ad029cf8d8bac42e32157f1772a292aa0fd3e80e2",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "320/1789910737070.webp",
+      "bytes": 33478,
+      "sha256": "0b1909e76d49f7d032f36563573231fe4b6d0e1c466f6b136f76210905b77450",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume11tf-ydik7skn.webp",
+      "bytes": 116876,
+      "sha256": "85b9425340973f7b0984bd310932a3681c7424a77fd83b1ac64d3abd1d8520ff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume123k-njlrndla.webp",
+      "bytes": 181894,
+      "sha256": "cfdb31c5ef242b05811a33451b2f25b64678f0f4898c6c0e89053064abaad988",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume15q5-6afrewfe.webp",
+      "bytes": 116876,
+      "sha256": "85b9425340973f7b0984bd310932a3681c7424a77fd83b1ac64d3abd1d8520ff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume160h-q18wbscd.webp",
+      "bytes": 181894,
+      "sha256": "cfdb31c5ef242b05811a33451b2f25b64678f0f4898c6c0e89053064abaad988",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume1rdt-9eeopjox.webp",
+      "bytes": 116876,
+      "sha256": "85b9425340973f7b0984bd310932a3681c7424a77fd83b1ac64d3abd1d8520ff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/gallery/mume1ro0-ild94ggl.webp",
+      "bytes": 181894,
+      "sha256": "cfdb31c5ef242b05811a33451b2f25b64678f0f4898c6c0e89053064abaad988",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/mume11gs-hct2qh0t.webp",
+      "bytes": 262236,
+      "sha256": "d383d2b45fd1437f251d4e3b92fa69fffc5c1e88288572921484c003784a54a5",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/mume15eu-8j8igkp6.webp",
+      "bytes": 262236,
+      "sha256": "d383d2b45fd1437f251d4e3b92fa69fffc5c1e88288572921484c003784a54a5",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mumdx72n/mume1r30-ey5lmdv6.webp",
+      "bytes": 262236,
+      "sha256": "d383d2b45fd1437f251d4e3b92fa69fffc5c1e88288572921484c003784a54a5",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mump56jl/gallery/mump8sv6-a25y0191.webp",
+      "bytes": 198018,
+      "sha256": "b72f918134720fa25966acfda93ae32b2c8df9d99a8bbbd782a1f19d860ec5a2",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mump56jl/gallery/mump9v6e-hc8vhke2.webp",
+      "bytes": 181368,
+      "sha256": "6eed7519e884a3621f90cee6c691239a39c17078034af1747f4c8cde532ce9b9",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book-mump56jl/mump8pt0-c68sp5mw.webp",
+      "bytes": 84620,
+      "sha256": "7d527858a523233559b71f746c5db345ea132f05e82d9626da27be537cf17cb7",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788094166957.webp",
+      "bytes": 161348,
+      "sha256": "7b9e0982d07518bb3a8dfd90fd75bc32b6f4abb7f61aa2e3554f4c4c2c75dfc9",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788094172332.webp",
+      "bytes": 161348,
+      "sha256": "7b9e0982d07518bb3a8dfd90fd75bc32b6f4abb7f61aa2e3554f4c4c2c75dfc9",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788347483200.webp",
+      "bytes": 29046,
+      "sha256": "942544a33c2467c1262bbea252410df18a9b5307cd9f04db7b091faac07a574e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788802842601.webp",
+      "bytes": 141578,
+      "sha256": "1685f8afc3b237500591de82515aa352b40facf75e16cb6e239c7d0b03ce6275",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788897814048.webp",
+      "bytes": 6790,
+      "sha256": "d0f9852c43d34ec75814fd567249690133a4e42c65d2b6ef15c45f8e6ceecc98",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1788901466775.webp",
+      "bytes": 25886,
+      "sha256": "779eb61ecbc13c62f76c0c2ba6115ffeac0a637d741e188f74c459b077770882",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789077401728.webp",
+      "bytes": 120910,
+      "sha256": "00e459649cee4fdef3e706e2043338b37c465cda7d2da49bde0c171d45ceb60f",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789221367245.webp",
+      "bytes": 107280,
+      "sha256": "95a703cb103266b8b03dd010c61fa1c24382134181094539ebc0ba60cec7b194",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789223727400.webp",
+      "bytes": 163674,
+      "sha256": "dbd4d54d0eb7690c97e0ff013642e4f4abebb3f1116a94308bc5ff52cd5a34b7",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789224010922.webp",
+      "bytes": 51410,
+      "sha256": "2264bd4902c733ffe7455aa4c38d56267ba42af8b848dff31a980d0b973c8ea8",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789228958439.webp",
+      "bytes": 75396,
+      "sha256": "a40df65dcbf412ab8cc279cdc9b330574eeb6a2ab9815002554230ed64dbc50e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789237689372.webp",
+      "bytes": 110052,
+      "sha256": "bcc2c9f698e9b7949d23f2cccab8ecae8078c86507d706218ed0e3acce233510",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789239180814.webp",
+      "bytes": 115218,
+      "sha256": "3baadc7464d8c5c957e4d3d582d2d14bd2103a0d7138d66ffb6ae8f9eb0fc21c",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789239435735.webp",
+      "bytes": 99528,
+      "sha256": "93d459a28172b0f9eeac9ffe409a808ad31bd4008ca2c2036119b0a6482fdaff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789239667079.webp",
+      "bytes": 98822,
+      "sha256": "63e3aeb1a45ee2e07b8f42a1689d4940cbcd79401836d2f91956cae3307c7b4e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789239881114.webp",
+      "bytes": 92960,
+      "sha256": "ec7ff7b557b4cdb2800ead72897e0e72a40221537175dcf9448aff1f52f36f82",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789255504488.webp",
+      "bytes": 12116,
+      "sha256": "99fc309a768ffb337cb8554625479cd391138a93f498e9146b600c09742f18ff",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789299271533.webp",
+      "bytes": 67774,
+      "sha256": "e1e54aea3f840020378617c230c4876c366060fc3854137fa4ba68bc8a4809b6",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789299776026.webp",
+      "bytes": 123150,
+      "sha256": "563f4b3dc10a2391b4d0e4edefbd0656c5e5dcd83a560c9eba739117d5eec3b3",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789312908140.webp",
+      "bytes": 23436,
+      "sha256": "2e89f6b6df91344ef44bb91919738e92d3998508b013b82af1f87859ccdf71fc",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789315073380.webp",
+      "bytes": 168478,
+      "sha256": "65275171ce3c3ef9ea680436d472999e1b315790282f2095f4d5e2122baa92f0",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789315800917.webp",
+      "bytes": 106292,
+      "sha256": "b4f5aff3b394b8c819597f92e10df01d9282e39f85cd458f47aa43c02229fe63",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789377659955.webp",
+      "bytes": 43620,
+      "sha256": "59dfea666d572afd374a603fe6d42bcc3b5f5a589fb834542ef0e4ae9a87074f",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789377864206.webp",
+      "bytes": 52958,
+      "sha256": "3e5e093e41363006a3d73957457eab210a500deb2759ca7a6edaac58734eef8e",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789414885391.webp",
+      "bytes": 42036,
+      "sha256": "897bfd58eb6f1fba589f1cb91508616ce46253fc5d79b27ee58f13df47971713",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789431160382.webp",
+      "bytes": 56616,
+      "sha256": "fc821eb8df360a6abdd1df8676a2bbdf3d0ca6e4181d33a2c136a9f1ee7e6a54",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789509944636.webp",
+      "bytes": 122752,
+      "sha256": "0f86d66de746756206728ee7d708bf6634a7ffc6a664141aae8cf39fff280e72",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789510091192.webp",
+      "bytes": 102210,
+      "sha256": "575c9fdcdbda835bd0e6b21126eb6755376ed923641f85143f0cf4da6eb9669a",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789510245774.webp",
+      "bytes": 78822,
+      "sha256": "8b6f6586a70b208f88df9082e68e9e19b3a5187e9c1cfc0712a32d6562c63ccd",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789510365720.webp",
+      "bytes": 118592,
+      "sha256": "5626b80fac7e1b49073c02c113390352051d452f173f69d9e48e0b0301d4abe6",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789511619254.webp",
+      "bytes": 78810,
+      "sha256": "c4b153dc96afaf129b470a5152f7723b0ddeff8b4eb767f18fc341db52317fae",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789596069404.webp",
+      "bytes": 150446,
+      "sha256": "3d0e94882f7ff6dedb3fb47c3e3c53d998e904ef8e776c460ec6dfa8baf507f3",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789596325024.webp",
+      "bytes": 149430,
+      "sha256": "0386ed1201ced9e460043d9ec1f7474b8fb93c298482cba11d0dd5bee4425676",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789645786602.webp",
+      "bytes": 141706,
+      "sha256": "c49601981e3f6fa2f4eb2f3c952c12bc247246f1adb3c165be712f0b88bcf276",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789833029437.webp",
+      "bytes": 96564,
+      "sha256": "0c7db0f8a42695b6349d5a77fe0828b7aba5662cd6de8ae8bb965f0e24e1de41",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789908085096.webp",
+      "bytes": 98712,
+      "sha256": "b3b170ac0cf31b52df2e615791907545f0e161ea21281e79cd550703e74d66da",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789908699180.webp",
+      "bytes": 86462,
+      "sha256": "15d102fecd1cde5878998e37a66a579a6dfc2715e23bfc252f95e0a522527508",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789909342016.webp",
+      "bytes": 57984,
+      "sha256": "d51f0b41c74a874f195f1d6c09595045f6785f12e145adfc917c07d7a1ede061",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789910369667.webp",
+      "bytes": 43972,
+      "sha256": "711b1f9b746e7617734d55533d4317e8dbfa4b521eafb95a20d54a5c1441c62f",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789910499582.webp",
+      "bytes": 46834,
+      "sha256": "dbd08a82916b82db375bd38ad029cf8d8bac42e32157f1772a292aa0fd3e80e2",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789910711445.webp",
+      "bytes": 33478,
+      "sha256": "0b1909e76d49f7d032f36563573231fe4b6d0e1c466f6b136f76210905b77450",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/1789911172407.webp",
+      "bytes": 56828,
+      "sha256": "804b7f014f8fd7dad507c422149ca85cc03d5c3fbfb7778cbd1586f947c5dda5",
+      "mime": "image/webp",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1788096690338-bjk0gi.png",
+      "bytes": 71991,
+      "sha256": "f22cf8afcd428ff6cc3914450d07990d0f55822524ac8002bf99fb7bfc65a6e0",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1788096690642-ifjrnn.png",
+      "bytes": 77093,
+      "sha256": "14bc8f278d78bfc213e2424fc68905e1e0b71be547aa3a4cd534fffae0e6dc3e",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1788096690903-33eq4k.png",
+      "bytes": 79900,
+      "sha256": "5c3c02720bb9a4723c570b7b884a344261f53008ebd7311db548c3e0029e4bf0",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789077782366-8szuim.png",
+      "bytes": 970313,
+      "sha256": "8d5b1a30d24b791e2ad8abe6717067e469c99e61ef6a0ed3ef2eb31d2b0b6d3c",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789315073937-zpp9i6.png",
+      "bytes": 133750,
+      "sha256": "be8042a9db34709300fe8c2c3d3c979cccf9087da4366d76196acaf8018bbbbe",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789315074185-pf5zfl.png",
+      "bytes": 178963,
+      "sha256": "b3c1a3fda949a39d9f9a31d6f2eddbba4c9c74f6df4062b7cead3f09d88b7262",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789315074707-ij5crq.png",
+      "bytes": 193540,
+      "sha256": "121c04de9d1d2548e98040383a2b2a98c713faef694501e13b36973c8f17325e",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789315074992-9bztkq.png",
+      "bytes": 177389,
+      "sha256": "527ef3a28817a945f3c4ee08c91b24c0e902c0858e1f9485f1645500147669fc",
+      "mime": "image/png",
+      "protected": true
+    },
+    {
+      "class": "E",
+      "objectPath": "book/gallery/1789315801514-gge07o.png",
+      "bytes": 55033,
+      "sha256": "6807aed97e9b02528852bd79570e0663b7b21d10f43c33406cc48c9dde0ec174",
+      "mime": "image/png",
+      "protected": true
+    }
+  ]
+}
