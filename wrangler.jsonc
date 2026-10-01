@@ -1,0 +1,55 @@
+{
+  "name": "kutadgu-cloudflare-preview",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "vars": {
+    "KUTADGU_HOST_MODE": "preview",
+    "AI_SEARCH_ENABLED": "false",
+    "KUTADGU_R2_UPLOAD_ENABLED": "false",
+    "KUTADGU_R2_OVERWRITE": "false",
+    "KUTADGU_R2_PUBLIC_BASE_URL": "",
+    "KUTADGU_R2_READ_ENABLED": "true"
+  },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
+  "r2_buckets": [
+    {
+      "binding": "COVERS",
+      "bucket_name": "kutadgu-covers-preview",
+      "preview_bucket_name": "kutadgu-covers-preview"
+    }
+  ],
+  "env": {
+    "production": {
+      "name": "kutadgu-cloudflare-production",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [
+        { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
+        { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }
+      ],
+      "vars": {
+        "KUTADGU_HOST_MODE": "production",
+        "AI_SEARCH_ENABLED": "true",
+        "KUTADGU_R2_READ_ENABLED": "true",
+        "KUTADGU_R2_UPLOAD_ENABLED": "false",
+        "KUTADGU_R2_OVERWRITE": "false",
+        "KUTADGU_R2_PUBLIC_BASE_URL": ""
+      },
+      "r2_buckets": [
+        {
+          "binding": "COVERS",
+          "bucket_name": "kutadgu-covers-preview"
+        }
+      ]
+    }
+  }
+}
