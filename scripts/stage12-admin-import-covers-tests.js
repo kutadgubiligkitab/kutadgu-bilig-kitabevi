@@ -162,7 +162,8 @@ function fakeFile(name) {
     assert.ok(/const IMPORT_BATCH=80;/.test(admin));
     assert.ok(/i\+=IMPORT_BATCH/.test(admin));
     assert.ok(/\.insert\(chunk\)\.select\(/.test(admin));
-    assert.ok(/upsert:false/.test(admin));
+    assert.ok(/uploadPreparedBookImage/.test(admin));
+    assert.ok(!/storage\.from\([^)]*\)\.upload/.test(admin));
     assert.ok(/classifyImportRowAction/.test(admin));
     assert.ok(!/OPTIONAL_BOOK_COLS=\[(?:(?!\]).)*cover_file/.test(admin.replace(/\n/g, "")));
     const html = fs.readFileSync(path.join(ROOT, "admin.html"), "utf8");

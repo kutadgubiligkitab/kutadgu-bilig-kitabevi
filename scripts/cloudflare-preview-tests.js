@@ -206,7 +206,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(prod.vars.KUTADGU_HOST_MODE, "production");
   assert.strictEqual(prod.vars.AI_SEARCH_ENABLED, "true");
   assert.strictEqual(prod.vars.KUTADGU_R2_READ_ENABLED, "true");
-  assert.strictEqual(prod.vars.KUTADGU_R2_UPLOAD_ENABLED, "false");
+  assert.strictEqual(prod.vars.KUTADGU_R2_UPLOAD_ENABLED, "true");
   assert.strictEqual(prod.vars.KUTADGU_R2_OVERWRITE, "false");
   assert.strictEqual(prod.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
   assert.strictEqual(prod.r2_buckets[0].binding, "COVERS");
@@ -426,6 +426,16 @@ jobs.push(test("image storage accepts Supabase and a future R2 host without rewr
   assert.strictEqual(images.isAcceptedImageUrl(R2_IMAGE, config), true);
   assert.strictEqual(images.isAcceptedImageUrl("javascript:alert(1)", config), false);
   assert.strictEqual(images.futurePublicUrl("book-covers/book/106.webp", config), "https://covers.example.com/book-covers/book/106.webp");
+  const canonical = "https://www.kutadgubilik.com/__r2/book-covers/book/106.webp";
+  assert.strictEqual(images.classifyImageUrl(canonical, {}).kind, "r2");
+  assert.strictEqual(images.classifyImageUrl(SUPABASE_IMAGE, {}).kind, "supabase");
+  assert.strictEqual(images.isAcceptedImageUrl(canonical, {}), true);
+  assert.strictEqual(images.isAcceptedImageUrl(SUPABASE_IMAGE, {}), true);
+  assert.strictEqual(images.displayImageUrl(canonical, {}), canonical);
+  assert.strictEqual(images.displayImageUrl(SUPABASE_IMAGE, {}), SUPABASE_IMAGE);
+  const Safe = require(path.join(root, "kutadgu-safe-url.js"));
+  assert.strictEqual(Safe.isSafeCoverUrl(canonical), true);
+  assert.strictEqual(Safe.isSafeCoverUrl(SUPABASE_IMAGE), true);
 }));
 
 jobs.push(test("R2 admin upload stays disabled and requires Supabase auth plus AAL2 admin before any write", async () => {
@@ -447,21 +457,33 @@ jobs.push(test("R2 admin upload stays disabled and requires Supabase auth plus A
     async head(key) { return this.objects.has(key) ? { key } : null; },
     async put(key, bytes) { this.objects.set(key, bytes); }
   };
-  const env = {
+  const previewEnv = {
+    KUTADGU_HOST_MODE: "preview",
     KUTADGU_R2_UPLOAD_ENABLED: "true",
-    KUTADGU_R2_PUBLIC_BASE_URL: "https://covers.example.com",
+    COVERS: bucket
+  };
+  const previewBlocked = await upload.handleR2CoverUpload(request("https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev/api/r2-cover-upload", "POST", "x"), previewEnv, { fetchImpl });
+  assert.strictEqual(previewBlocked.status, 404);
+  assert.strictEqual(bucket.objects.size, 0);
+  const env = {
+    KUTADGU_HOST_MODE: "production",
+    KUTADGU_R2_UPLOAD_ENABLED: "true",
+    KUTADGU_R2_PUBLIC_BASE_URL: "",
+    KUTADGU_R2_OVERWRITE: "false",
     R2_SECRET_ACCESS_KEY: SECRET,
     COVERS: bucket
   };
-  const anon = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", "x"), env, { fetchImpl });
+  const offHost = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", "x"), env, { fetchImpl });
+  assert.strictEqual(offHost.status, 404);
+  const anon = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", "x"), env, { fetchImpl });
   assert.strictEqual(anon.status, 401);
   assert.strictEqual(bucket.objects.size, 0);
-  const low = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", "x", {
+  const low = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", "x", {
     Authorization: "Bearer " + jwt({ aal: "aal1" })
   }), env, { fetchImpl });
   assert.strictEqual(low.status, 403);
   assert.strictEqual((JSON.parse(low.body)).error, "aal2_required");
-  const denied = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", "x", {
+  const denied = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", "x", {
     Authorization: "Bearer " + jwt({ aal: "aal2" })
   }), env, {
     fetchImpl: async (url) => {
@@ -472,22 +494,75 @@ jobs.push(test("R2 admin upload stays disabled and requires Supabase auth plus A
   assert.strictEqual(denied.status, 403);
   assert.strictEqual(JSON.parse(denied.body).error, "admin_required");
   const body = Buffer.from("webp");
-  const ok = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", body, {
+  const unbound = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/webp",
+    "x-kutadgu-object-key": "book-covers/book/new.webp"
+  }), { KUTADGU_HOST_MODE: "production", KUTADGU_R2_UPLOAD_ENABLED: "true" }, { fetchImpl });
+  assert.strictEqual(unbound.status, 503);
+  assert.strictEqual(JSON.parse(unbound.body).error, "r2_unbound");
+  const badType = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/gif",
+    "x-kutadgu-object-key": "book-covers/book/new.gif"
+  }), env, { fetchImpl });
+  assert.strictEqual(badType.status, 400);
+  assert.strictEqual(JSON.parse(badType.body).error, "invalid_object");
+  const traversal = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/webp",
+    "x-kutadgu-object-key": "book-covers/../secret.webp"
+  }), env, { fetchImpl });
+  assert.strictEqual(traversal.status, 400);
+  const huge = Buffer.alloc(upload.MAX_BYTES + 1);
+  const tooBig = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", huge, {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/webp",
+    "Content-Length": String(huge.length),
+    "x-kutadgu-object-key": "book-covers/book/huge.webp"
+  }), env, { fetchImpl });
+  assert.strictEqual(tooBig.status, 413);
+  assert.strictEqual(bucket.objects.size, 0);
+  const ok = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, {
     Authorization: "Bearer " + jwt({ aal: "aal2" }),
     "Content-Type": "image/webp",
     "x-kutadgu-object-key": "book-covers/book/new.webp"
   }), env, { fetchImpl });
   assert.strictEqual(ok.status, 201);
   const stored = JSON.parse(ok.body);
-  assert.strictEqual(stored.publicUrl, "https://covers.example.com/book-covers/book/new.webp");
+  assert.strictEqual(stored.key, "book-covers/book/new.webp");
+  assert.strictEqual(stored.url, "https://www.kutadgubilik.com/__r2/book-covers/book/new.webp");
+  assert.ok(!Object.prototype.hasOwnProperty.call(stored, "publicUrl"));
   assert.ok(!ok.body.includes(SECRET));
+  assert.ok(!ok.body.includes("r2.dev"));
   assert.strictEqual(bucket.objects.has("book-covers/book/new.webp"), true);
-  const again = await upload.handleR2CoverUpload(request("http://127.0.0.1:8787/api/r2-cover-upload", "POST", body, {
+  const again = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, {
     Authorization: "Bearer " + jwt({ aal: "aal2" }),
     "Content-Type": "image/webp",
     "x-kutadgu-object-key": "book-covers/book/new.webp"
   }), env, { fetchImpl });
   assert.strictEqual(again.status, 409);
+  const staffId = "11111111-1111-4111-8111-111111111111";
+  const staffFetch = async (url) => {
+    const href = String(url);
+    if (href.endsWith("/auth/v1/user")) return httpResponse(200, { id: staffId });
+    if (href.endsWith("/rpc/is_kutadgu_admin")) return httpResponse(200, false);
+    if (href.endsWith("/rpc/is_kutadgu_book_staff")) return httpResponse(200, true);
+    return httpResponse(404, {});
+  };
+  const staffHeaders = {
+    Authorization: "Bearer " + jwt({ aal: "aal2" }),
+    "Content-Type": "image/webp"
+  };
+  const staffOutside = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, Object.assign({}, staffHeaders, {
+    "x-kutadgu-object-key": "book-covers/book/staff.webp"
+  })), env, { fetchImpl: staffFetch });
+  assert.strictEqual(staffOutside.status, 403);
+  const staffOk = await upload.handleR2CoverUpload(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", body, Object.assign({}, staffHeaders, {
+    "x-kutadgu-object-key": "book-covers/staff/" + staffId + "/cover.webp"
+  })), env, { fetchImpl: staffFetch });
+  assert.strictEqual(staffOk.status, 201);
+  assert.strictEqual(JSON.parse(staffOk.body).url, "https://www.kutadgubilik.com/__r2/book-covers/staff/" + staffId + "/cover.webp");
 }));
 
 jobs.push(test("R2 inventory dry-run counts and copies nothing unless explicitly confirmed", async () => {

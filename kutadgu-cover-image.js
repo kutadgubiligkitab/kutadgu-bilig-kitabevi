@@ -13,6 +13,9 @@
   is smaller than the original file. Oversized pictures keep the resized
   WebP because the dimension cap is required.
 */
+const R2_UPLOAD_PATH="/api/r2-cover-upload";
+const CANONICAL_COVER_ORIGIN="https://www.kutadgubilik.com";
+const R2_IMAGE_TYPES={"image/webp":true,"image/jpeg":true,"image/png":true};
 const MAX_EDGE=1600;
 const WEBP_QUALITY=0.92;
 const CACHE_CONTROL="public, max-age=31536000, immutable";
@@ -185,6 +188,52 @@ async function prepareStorageUpload(file){
   return {body:body,options:options};
 }
 
+function canonicalPrivateCoverUrl(objectKey){
+  const key=String(objectKey||"").replace(/^\/+/,"");
+  if(!key||key.length>512||key.indexOf("..")!==-1||key.indexOf("\\")!==-1)return "";
+  if(!/^book-covers\/[A-Za-z0-9._/-]+$/.test(key))return "";
+  return CANONICAL_COVER_ORIGIN+"/__r2/"+key.split("/").map(function(part){return encodeURIComponent(part);}).join("/");
+}
+function r2UploadError(code){
+  if(code==="aal2_required")return "2-باسقۇچلۇق دەلىللەش كېرەك.";
+  if(code==="admin_required")return "بۇ ھېساباتنىڭ رەسىم يوللاش ھوقۇقى يوق.";
+  if(code==="auth_required")return "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.";
+  if(code==="exists")return "بۇ رەسىم ئاللىقاچان بار. يېڭى رەسىم تاللاڭ.";
+  if(code==="too_large")return COVER_TOO_LARGE;
+  if(code==="invalid_object")return "بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.";
+  return "رەسىم يوللانمىدى.";
+}
+async function postR2CoverUpload(opts){
+  const options=opts&&typeof opts==="object"?opts:{};
+  const token=String(options.token||"");
+  const objectKey=String(options.objectKey||"");
+  const contentType=String(options.contentType||"").split(";")[0].trim().toLowerCase();
+  const body=options.body;
+  if(!token)throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
+  if(!R2_IMAGE_TYPES[contentType])throw new Error("بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.");
+  const expected=canonicalPrivateCoverUrl(objectKey);
+  if(!expected)throw new Error("رەسىم يولى توغرا ئەمەس.");
+  if(!body||typeof body.byteLength!=="number"||body.byteLength<1)throw new Error("بوش رەسىم يوللانمايدۇ.");
+  const globalFetch=typeof fetch==="function"?fetch:null;
+  const windowFetch=typeof window!=="undefined"&&window&&typeof window.fetch==="function"?window.fetch:null;
+  const fetchImpl=options.fetchImpl||globalFetch||windowFetch;
+  if(typeof fetchImpl!=="function")throw new Error("رەسىم يوللاش تەييار ئەمەس.");
+  const response=await fetchImpl(options.url||R2_UPLOAD_PATH,{
+    method:"POST",
+    headers:{
+      Authorization:"Bearer "+token,
+      "Content-Type":contentType,
+      "x-kutadgu-object-key":objectKey
+    },
+    body:body
+  });
+  let payload=null;
+  try{payload=response&&typeof response.json==="function"?await response.json():null;}catch(error){payload=null;}
+  if(!response||!response.ok||!payload||payload.ok!==true||payload.url!==expected||payload.key!==objectKey){
+    throw new Error(r2UploadError(payload&&payload.error));
+  }
+  return expected;
+}
 function cacheControlStoredBySupabase(body,options){
   const opts=options||{};
   const isBlob=typeof Blob!=="undefined"&&body instanceof Blob;
@@ -205,6 +254,10 @@ const api={
   ENCODE_TIMEOUT_MS:ENCODE_TIMEOUT_MS,
   COVER_TOO_LARGE:COVER_TOO_LARGE,
   CACHE_CONTROL:CACHE_CONTROL,
+  R2_UPLOAD_PATH:R2_UPLOAD_PATH,
+  CANONICAL_COVER_ORIGIN:CANONICAL_COVER_ORIGIN,
+  canonicalPrivateCoverUrl:canonicalPrivateCoverUrl,
+  postR2CoverUpload:postR2CoverUpload,
   fitDimensions:fitDimensions,
   uniqueStorageStamp:uniqueStorageStamp,
   optimizeUploadImage:optimizeUploadImage,

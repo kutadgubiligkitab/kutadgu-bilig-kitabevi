@@ -167,12 +167,13 @@ test("no production SQL auto-execution from CI, package scripts, or browser", ()
   assert.doesNotMatch(pkg, /\bpsql\b/);
 });
 
-test("application Storage usage is still upload plus getPublicUrl", () => {
-  assert.match(adminJs, /storage\.from\(bucket\)\.upload/);
-  assert.match(adminJs, /upsert:false/);
-  assert.match(adminJs, /getPublicUrl\(path\)/);
+test("book image uploads go to private R2 and do not call Storage upload", () => {
+  assert.match(adminJs, /uploadPreparedBookImage/);
+  assert.match(adminJs, /postR2CoverUpload/);
+  assert.doesNotMatch(adminJs, /storage\.from\([^)]*\)\.upload/);
   assert.doesNotMatch(adminJs, /storage\.from\([^)]+\)\.list\s*\(/);
   assert.doesNotMatch(shopJs, /\.storage\.from/);
+  assert.match(read("admin-hero.js"), /storage\.from\(bucketName\(\)\)\.upload/);
 });
 
 test("semantic checks use catalog metadata rather than name-only existence", () => {

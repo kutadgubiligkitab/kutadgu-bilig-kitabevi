@@ -3656,7 +3656,7 @@ async function addGalleryFiles(fileList){
 }
 function coverImageApi(){
   const api=window.KutadguCoverImage;
-  if(!api||typeof api.optimizeUploadImage!=="function"||typeof api.prepareStorageUpload!=="function"||typeof api.uniqueStorageStamp!=="function"){
+  if(!api||typeof api.optimizeUploadImage!=="function"||typeof api.prepareStorageUpload!=="function"||typeof api.uniqueStorageStamp!=="function"||typeof api.postR2CoverUpload!=="function"){
     throw new Error("رەسىم تەييارلاش تەييار ئەمەس.");
   }
   return api;
@@ -3667,18 +3667,31 @@ async function optimizeGalleryImage(file){
 function storageToken(id){
   return String(id||"book").replace(/[^a-zA-Z0-9._-]/g,"-").slice(0,80)||"book";
 }
+async function adminAccessToken(){
+  if(!db||!db.auth||typeof db.auth.getSession!=="function")throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
+  const {data,error}=await db.auth.getSession();
+  if(error)throw error;
+  const token=data&&data.session&&data.session.access_token;
+  if(!token)throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
+  return token;
+}
+async function uploadPreparedBookImage(objectKey,prepared){
+  const token=await adminAccessToken();
+  return coverImageApi().postR2CoverUpload({
+    token,
+    objectKey,
+    contentType:prepared&&prepared.options&&prepared.options.contentType,
+    body:prepared&&prepared.body
+  });
+}
 async function uploadGalleryFile(id,file){
-  const bucket=cfg.bucket||"book-covers";
   assertCoverFileSize(file);
   const optimized=await optimizeGalleryImage(file);
   const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
-  const path=`${storageToken(id)}/gallery/${coverImageApi().uniqueStorageStamp()}.${ext}`;
+  const objectKey=`book-covers/${storageToken(id)}/gallery/${coverImageApi().uniqueStorageStamp()}.${ext}`;
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const prepared=await coverImageApi().prepareStorageUpload(optimized);
-  const {error}=await db.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
-  if(error)throw error;
-  const {data}=db.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return uploadPreparedBookImage(objectKey,prepared);
 }
 async function collectGalleryUrls(id){
   if(!presentBookCols.has("gallery_images"))return [];
@@ -3910,18 +3923,13 @@ async function uploadCover(id,file,opts){
   if(!file)return editing?.image_url||"";
   if(!db&&window.__kutadguSkipAdminAuth)return skipAuthPreviewCoverUrl(id,file);
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
-  const bucket=cfg.bucket||"book-covers";
   // opts.prepared means the save path already decoded once and built the WebP.
-  // This supabase-js build does not forward abortSignal on storage.upload;
-  // the caller bounds the wait with withTimeout instead.
+  // The caller bounds the R2 upload wait with withTimeout.
   const optimized=opts&&opts.prepared?file:await optimizeCover(file);
   const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
-  const path=`${storageToken(id)}/${coverImageApi().uniqueStorageStamp()}.${ext}`;
+  const objectKey=`book-covers/${storageToken(id)}/${coverImageApi().uniqueStorageStamp()}.${ext}`;
   const prepared=await coverImageApi().prepareStorageUpload(optimized);
-  const {error}=await db.storage.from(bucket).upload(path,prepared.body,{...prepared.options,upsert:false});
-  if(error)throw error;
-  const {data}=db.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return uploadPreparedBookImage(objectKey,prepared);
 }
 async function persistBookRow(payload,operation,editingBookId,signal){
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});

@@ -117,7 +117,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
 
 add("staff page is private, separate from admin, and not in public chrome", () => {
   assert.match(staffHtml, /noindex, nofollow/);
-  assert.match(staffHtml, /book-staff\.js\?v=8/);
+  assert.match(staffHtml, /book-staff\.js\?v=9/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
   assert.match(staffHtml, /member\.js\?v=28/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
@@ -146,7 +146,7 @@ add("Book Staff visible copy is Uyghur and cover picker stays native under the h
   assert.match(staffHtml, /id="staffCoverFile"[^>]*type="file"/);
   assert.match(staffHtml, /accept="image\/jpeg,image\/png,image\/webp,image\/gif"/);
   assert.match(staffHtml, /book-staff\.css\?v=7/);
-  assert.match(staffHtml, /book-staff\.js\?v=8/);
+  assert.match(staffHtml, /book-staff\.js\?v=9/);
   assert.match(staffHtml, /kutadgu-book-entry-suggest\.js\?v=2/);
   assert.match(staffHtml, /kutadgu-book-entry-suggest\.css\?v=1/);
   assert.match(staffHtml, /بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ/);
@@ -232,9 +232,9 @@ add("staff JS never writes books directly and never uses admin_users", () => {
   assert.match(staffJs, /inspectAccess/);
   assert.match(staffJs, /ensurePrimarySessionReady/);
   assert.match(staffJs, /attachGate/);
-  assert.match(staffJs, /storage\.from\(bucket\)\.upload\(path,prepared\.body,\{...prepared\.options,upsert:false\}\)/);
+  assert.match(staffJs, /uploadStaffPreparedImage\(client,path,prepared\)/);
+  assert.doesNotMatch(staffJs, /storage\.from/);
   assert.match(staffJs, /staff\/"\+String\(uid\)\+"\//);
-  assert.match(staffJs, /getPublicUrl\(path\)/);
   assert.match(staffJs, /assertStaffCoverPublicUrl/);
   assert.doesNotMatch(staffJs, /type="url"|image_url input|javascript:/);
 });
@@ -291,9 +291,9 @@ add("staff gallery is local-only until submit, max 4, and URLs stay on own galle
   assert.strictEqual(api.galleryDraft().length, 3);
   assert.match(staffJs, /addGalleryFiles\(input\.files\)/);
   assert.match(staffJs, /uploadStaffGallery\(client,String\(user\.id\),galleryDraft/);
-  assert.match(staffJs, /upsert:false/);
+  assert.match(staffJs, /uploadStaffPreparedImage\(client,path,prepared\)/);
   assert.match(staffJs, /galleryFileExtension/);
-  assert.match(staffJs, /if\(fromApi\)publicUrl=assertStaffGalleryPublicUrl\(uid,fromApi\)/);
+  assert.doesNotMatch(staffJs, /storage\.from/);
   assert.doesNotMatch(staffJs, /urls\.push\(assertStaffGalleryPublicUrl\(uid,canonical\)\)/);
   assert.strictEqual(api.galleryFileExtension({ name: "page.exe", type: "image/jpeg", size: 12 }), "jpg");
   const jpegPath = api.staffGalleryObjectPath(uid, { name: "page.exe", type: "image/jpeg", size: 12 }, 0);
@@ -352,7 +352,10 @@ add("cover public URL is browser-usable and scoped to this staff user", () => {
   const url = api.staffCoverPublicUrl(uid, objectPath);
   assert.match(url, /^https:\/\/fxlojnqwyojqjskfggmh\.supabase\.co\/storage\/v1\/object\/public\/book-covers\/staff\/11111111-1111-4111-8111-111111111111\/\d{8}-[a-z0-9]+-cover\.jpg$/);
   assert.strictEqual(api.assertStaffCoverPublicUrl(uid, url), url);
+  const r2 = "https://www.kutadgubilik.com/__r2/book-covers/staff/" + uid + "/" + objectPath.split("/").pop();
+  assert.strictEqual(api.assertStaffCoverPublicUrl(uid, r2), r2);
   const Safe = require(path.join(root, "kutadgu-safe-url.js"));
+  assert.strictEqual(Safe.isSafeCoverUrl(r2), true);
   assert.strictEqual(Safe.isSafeCoverUrl(url), true);
   assert.match(adminJs, /isSafeCoverUrl\(b\.image_url\)\?`<img src="\$\{esc\(b\.image_url\)\}"/);
   assert.throws(() => api.assertStaffCoverPublicUrl(uid, objectPath));
@@ -467,7 +470,7 @@ add("non-admin Admin routing cannot signOut a Book Staff member session", () => 
   assert.doesNotMatch(staffJs, /is_kutadgu_admin/);
   assert.doesNotMatch(staffJs, /admin_users/);
   assert.match(staffHtml, /href="\/account\.html"/);
-  assert.match(read("book-staff.html"), /book-staff\.js\?v=8/);
+  assert.match(read("book-staff.html"), /book-staff\.js\?v=9/);
 });
 
 add("Google OAuth account pins from PR 155 remain on account.html", () => {
