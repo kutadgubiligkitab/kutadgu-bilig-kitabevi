@@ -245,7 +245,7 @@ Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor,
 
 ## Cloudflare parallel preview
 
-This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. The preview branch is `feat/cloudflare-parallel-preview`, based on `origin/main` at `9acaa1cd`. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. `npm run test:unit` on this branch exited 0 (1499 PASS lines, 105 files, including the Cloudflare preview tests). Local Wrangler on `127.0.0.1:8787` served the static pages and the migrated routes. The runtime baseline stays `445fe488`.
+This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. Draft PR #222 is `feat/cloudflare-parallel-preview`, based on `origin/main` at `9acaa1cd`. The preview commit is `7c022792`. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. `npm run test:unit` on this branch exited 0 (1499 PASS lines, 105 files, including the Cloudflare preview tests). Local Wrangler on `127.0.0.1:8787` served the static pages and the migrated routes. The runtime baseline stays `445fe488`.
 
 - A Workers preview serves the same static site and calls the existing book, category, sitemap, and AI search modules. It does not replace the Vercel deployment. `npm run preview:cloudflare` runs that preview with Wrangler state outside the repo so the asset watcher does not reload on its own writes.
 - The preview worker refuses `www.kutadgubilik.com`, `kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. `wrangler.jsonc` has no production route.
