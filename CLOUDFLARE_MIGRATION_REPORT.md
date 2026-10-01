@@ -49,6 +49,12 @@ Local dispatch covers:
 
 The worker returns 421 for `www.kutadgubilik.com`, `kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`, so attaching this Worker to production by mistake does not serve the site.
 
+Remote preview, workers.dev only:
+
+`https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev`
+
+The Worker name is `kutadgu-cloudflare-preview`. `wrangler.jsonc` has `workers_dev: true` and no `routes`, `route`, or `zone_id`. The account workers.dev subdomain registered for this preview is `kutadgu-preview`. That is not `kutadgubilik.com`. A check of `https://www.kutadgubilik.com` still returns `server: Vercel`.
+
 PostHog collection on the preview host is not active. `posthog-config.js` still allows only the existing production hosts, so a `workers.dev` or localhost page does not start PostHog. The `/kbg` proxy itself is implemented and tested. Do not add the preview host to `allowedHosts` until a deliberate preview-analytics decision; that file also controls production.
 
 Canonical URLs and JSON-LD stay on `https://www.kutadgubilik.com`. That matches the current SEO helpers.
@@ -57,7 +63,7 @@ Canonical URLs and JSON-LD stay on `https://www.kutadgubilik.com`. That matches 
 
 ## E. R2 status
 
-Prepared and covered by local tests. Not activated.
+The bucket `kutadgu-covers-preview` exists (Eastern Europe, Standard). The preview Worker binds it as `COVERS`. Public image cutover is off: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, `KUTADGU_R2_UPLOAD_ENABLED` is `false`, and the remote upload route returns 404. Book pages on the preview still use `fxlojnqwyojqjskfggmh.supabase.co` image URLs. No cover was copied and no `image_url` row was changed.
 
 Prepared:
 
@@ -65,7 +71,7 @@ Prepared:
 - report-only CSP can include that R2 host without dropping Supabase
 - dry-run inventory and a copy planner that skips objects unless overwrite is explicitly enabled
 - a Worker upload route that is 404 until `KUTADGU_R2_UPLOAD_ENABLED=true`
-- an R2 binding name, `kutadgu-covers-preview`, with no production bucket attached
+- Worker binding `COVERS` points at the existing bucket `kutadgu-covers-preview`
 
 Tested:
 
@@ -78,7 +84,7 @@ Tested:
 
 Not activated:
 
-- no R2 bucket was created in the Cloudflare account
+- the bucket is bound for the preview Worker only; it is not a public image host
 - no production cover was copied
 - no `image_url` row was updated
 - no Supabase Storage object was deleted or moved
@@ -96,7 +102,22 @@ The enforced CSP is still `frame-ancestors 'none'`. The report-only policy is un
 
 ## G. Tests
 
-`npm run test:unit` exited 0. The log has 1499 `PASS` lines across 105 files and no failing file. That includes `scripts/cloudflare-preview-tests.js` (10 tests).
+`npm run test:unit` was run again after the remote deploy and exited 0. The log has 1499 `PASS` lines across 105 files and no failing file. That includes `scripts/cloudflare-preview-tests.js` (10 tests).
+
+Remote smoke tests against `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev` (HTTP answered during certificate setup, then HTTPS returned 200):
+
+- `/` 200, `/books` 200, `HEAD /books` 200
+- `/adabiyat` 200, canonical `https://www.kutadgubilik.com/adabiyat`, JSON-LD, Supabase cover URLs
+- `/book/106` 200, canonical `https://www.kutadgubilik.com/book/106`, JSON-LD, Supabase image URLs, no `r2.dev`
+- `/book/1` and `/book/not-a-number` 404
+- `/book?id=106` 308 to `/book/106`
+- `/sitemap.xml` and `/sitemap-books.xml` 200 (341 book URLs)
+- `HEAD /book/106` and `HEAD /sitemap.xml` 200
+- `shop.js` cache `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+- `admin.js` cache `no-store, must-revalidate`
+- `GET /api/ai-search` 405, `POST /api/ai-search` 503 disabled
+- `POST /api/r2-cover-upload` 404
+- security headers include `content-security-policy: frame-ancestors 'none'` and the report-only policy still lists only the Supabase image host
 
 `npm run check:cloudflare` (`wrangler deploy --dry-run`) completed earlier and did not deploy.
 
@@ -108,10 +129,10 @@ No production order, Auth user, SQL migration, or Storage delete was run. `--liv
 
 These need a Cloudflare login. Do them only for a preview. Do not point `kutadgubilik.com` at the Worker.
 
-1. Create an R2 bucket named `kutadgu-covers-preview` when a remote preview is wanted. Local `wrangler dev` can simulate the binding before that bucket exists.
-2. Put preview secrets in `.dev.vars` or `wrangler secret put` for a remote preview: `OPENAI_API_KEY` only if AI search should be tried, and leave `KUTADGU_R2_UPLOAD_ENABLED` false.
-3. A later remote preview deploy is `npx wrangler deploy` without a custom domain. That command is not an npm script on purpose.
-4. DNS cutover is a separate, explicit decision. This branch refuses the production hostnames so that step cannot happen accidentally.
+The preview Worker is already deployed. Do not point `kutadgubilik.com` at it.
+
+1. Leave `KUTADGU_R2_UPLOAD_ENABLED` false. Put a provider key in `.dev.vars` or `wrangler secret put` only if a later preview should try AI search.
+2. DNS cutover is a separate, explicit decision. This branch has no custom domain and refuses the production hostnames.
 
 ## I. Rollback
 

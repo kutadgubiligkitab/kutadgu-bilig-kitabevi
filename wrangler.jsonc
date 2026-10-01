@@ -1,5 +1,5 @@
 {
-  "name": "kutadgu-bilig-preview",
+  "name": "kutadgu-cloudflare-preview",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],

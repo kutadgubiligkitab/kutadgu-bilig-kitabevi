@@ -182,11 +182,15 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.doesNotMatch(text, /kutadgubilik\.com/);
   assert.doesNotMatch(text, /vercel\.app/);
   const config = JSON.parse(text);
-  assert.strictEqual(config.name, "kutadgu-bilig-preview");
+  assert.strictEqual(config.name, "kutadgu-cloudflare-preview");
+  assert.strictEqual(config.workers_dev, true);
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "routes"));
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "route"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(config, "zone_id"));
   assert.strictEqual(config.vars.KUTADGU_R2_UPLOAD_ENABLED, "false");
+  assert.strictEqual(config.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
   assert.strictEqual(config.vars.AI_SEARCH_ENABLED, "false");
+  assert.strictEqual(config.r2_buckets[0].binding, "COVERS");
   assert.strictEqual(config.r2_buckets[0].bucket_name, "kutadgu-covers-preview");
   assert.strictEqual(config.assets.run_worker_first, true);
   const dev = previewDev.previewDevConfig();
