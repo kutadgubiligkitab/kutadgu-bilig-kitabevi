@@ -72,18 +72,22 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `e857f99b492d36bdfebe603d3350903637c7f110` |
-| Subject | Record every confirmed zero-result search and page the admin list. |
+| Commit | `3850edf2bc1a23d8254c7ffbd5d05690bb949394` |
+| Subject | Keep each no-result page inside one snapshot. |
 | Date | 2026-10-01 |
 | Branch | `cursor/admin-zero-result-searches-ac0d` |
 | PR | #221 (draft, not merged) |
-| Why it stays | A completed search with a confirmed total of zero is recorded, including a query searched once. Admin lists every distinct no-result query in the selected period, newest first, in pages. |
+| Why it stays | A completed search with a confirmed total of zero is recorded, including a query searched once. Admin pages that list inside one server snapshot, and each analytics section is labeled with the range it is actually showing. |
 
 `origin/main` when this branch was cut was `dcb26d4296df8d28d4af66009207aa8519d487ed`, the merge of #220. #220 is documentation only. It does not replace the visit-order behavior verified on `d6ba212392f8794f77fffc0fee0167b6050393c3`, which #219 merged. This baseline moves because admin analytics behavior changed. The unfiltered `/books` listing still uses one seeded discovery order per tab visit. A sort, search, or reset cancels an in-flight Load more. A short full-record page is read until `Content-Range` is exhausted before a missing id is skipped.
 
-The visit order landed in `2a8cbc90dd144b39577db4ba3f1c7c671051d1c7`. `471cf62e` kept filter analytics on the catalog total and the public `select *` query. `d6ba2123` remains the listing behavior described below. Do not copy the #220 documentation commit over it, and do not treat `e857f99b` as live until `STAGE101_ADMIN_ZERO_SEARCHES.sql` is applied by hand and the deployed admin is checked.
+The visit order landed in `2a8cbc90dd144b39577db4ba3f1c7c671051d1c7`. `471cf62e` kept filter analytics on the catalog total and the public `select *` query. `d6ba2123` remains the listing behavior described below. Do not copy the #220 documentation commit over it, and do not treat `3850edf2` as live until `STAGE101_ADMIN_ZERO_SEARCHES.sql` is applied by hand and the deployed admin is checked.
 
-On `e857f99b492d36bdfebe603d3350903637c7f110`, `npm run test:unit` passed (Node v22.14.0). `git diff --check` was clean. `bash scripts/stage101-isolated-postgres.sh` passed on throwaway PostgreSQL 16.15: legacy schema, then Stage 100, then Stage 101 rollback and reapply. Output: `STAGE101 isolated postgres: PASS legacy_rows=3 final_rows=3`. That script was not applied to the live project. Focused Playwright `tests/e2e/admin-zero-searches.spec.js` and `tests/e2e/zero-result-search.spec.js` passed, 2 tests. Full local Stage 10 was 770 passed and 3 skipped (admin login, member login, and storefront legacy-id). Chromium 151.0.7922.34, Playwright 1.62.1, `http://127.0.0.1:4173`, `KUTADGU_USE_LOCAL_STATIC=1`, `KUTADGU_PREVIEW_URL` unset. The recording spec lets localhost attempt the same insert and the test route swallows it. No production analytics rows were written. This work did not deploy, merge, or change production data.
+No-result pagination is one browsing snapshot. The first call omits `p_as_of`. `get_kutadgu_zero_searches` stamps `as_of` at `now()` and derives the Europe/Istanbul day window from that instant. Load more sends the same `as_of` and `next_offset`. Grouping, order, and totals include only `created_at <= as_of`. A search that arrives after `as_of`, including a repeat that would become the newest row, stays outside the snapshot, so a group that has not been loaded yet remains reachable. Refresh omits `p_as_of` and opens a new snapshot. The cursor is `next_offset`, not the number of rows left after the browser drops a duplicate. The forward file drops the older three-argument function before creating the four-argument one, so Postgres does not keep both. A call that omits `p_as_of` still starts a snapshot because that argument defaults to NULL. A future `as_of` is clamped to `now()`. The payload `schema_version` for this function is 2. That is not the Stage 100 analytics schema.
+
+The shared 7/30/90 control is the admin's selection. Neither loader writes it. If one request fails, that section keeps the data it already showed and the label names that range. The other section can show the newly selected range at the same time. A stale response does not repaint the newer selection.
+
+On `3850edf2bc1a23d8254c7ffbd5d05690bb949394`, `npm run test:unit` passed (Node v22.14.0). `git diff --check` was clean. `bash scripts/stage101-isolated-postgres.sh` passed on throwaway PostgreSQL 16.15: legacy schema, then Stage 100, then Stage 101 rollback and reapply. Output: `STAGE101 isolated postgres: PASS legacy_rows=55 final_rows=55`. The 55 rows are the last isolated fixture, not production data. That script was not applied to the live project. Focused Playwright `tests/e2e/admin-zero-searches.spec.js` and `tests/e2e/zero-result-search.spec.js` passed, 4 tests. Full local Stage 10 was 772 passed and 3 skipped (admin login, member login, and storefront legacy-id). Chromium, Playwright 1.62.1, `http://127.0.0.1:4173`, `KUTADGU_USE_LOCAL_STATIC=1`, `KUTADGU_PREVIEW_URL` unset. The recording spec lets localhost attempt the same insert and the test route swallows it. No production analytics rows were written. This work did not deploy, merge, or change production data.
 
 Earlier, `npm run test:unit` also passed on `d6ba212392f8794f77fffc0fee0167b6050393c3`. Focused Playwright `tests/e2e/books-visit-rotation.spec.js` and `tests/e2e/stage5d-global-books.spec.js` passed, 16 tests, on that same local static server. Full local Stage 10 on that tree was 767 passed and 3 skipped.
 
@@ -96,7 +100,7 @@ Visit lifecycle for the unfiltered All books listing:
 - The id index selects `id,is_active` (or `id` when `is_active` is missing), ordered by `id`, in pages of 1000. A short page is complete when `Content-Range` gives the total, or when the response is HTTP 200. A short HTTP 206 with no total fails the listing. A configured remote error stays on the existing retry message and does not show static demo books.
 - The default label is `بۇ قېتىملىق بايقاش تەرتىپى` (`discover`). Search uses relevance. Newest, title, author, price, bestseller, and recommended stay explicit. Price, collection, category, and hub filters leave rotation. Returning to the default sort in the same visit restores the same snapshot and the cards already loaded. Book detail and Back keep that progress through `sessionStorage` and BFCache.
 
-A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `e857f99b492d36bdfebe603d3350903637c7f110`.
+A later documentation-only commit on this branch does not replace the runtime baseline above. Do not copy that docs commit over `3850edf2bc1a23d8254c7ffbd5d05690bb949394`. The previous application baseline on this branch was `e857f99b492d36bdfebe603d3350903637c7f110`, which recorded confirmed zero-result searches and paged the list without a snapshot.
 
 The previous application baseline was `f7f75b23d0b34194c4cd6fcb7edf70ad3a38007e` on `feat/admin-daily-visitors`, merged by #218. `STAGE100_ADMIN_DAILY_VISITORS.sql` was executed only on a throwaway local PostgreSQL 16.15 database (`scripts/stage100-isolated-postgres.sh`), not on production. That run applied it twice, loaded 24 representative rows, applied it again with the row count unchanged, then checked access, Istanbul boundaries, visitors, duplicates, and joins. Rollback left 24 rows and the new columns, and applying the forward file again restored `schema_version` 2. Measured on that run: Istanbul today `2026-10-01` was partial with 3 visitors, 5 events, and 4 identified events; yesterday was complete with 1 visitor; the 7-day period distinct count was 3. The user-action funnel had 2 carts and the arrival funnel had 2 carts with `accurate_user_action_order` false. Book 15 and book 2 each had 1 view. Whether `STAGE100` has been applied to the live project is still unknown.
 
@@ -139,9 +143,9 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
-| `admin.js` | `?v=80` (`no-store`; the pin still changes with the zero-search list) |
+| `admin.js` | `?v=81` (`no-store`; the pin still changes with the zero-search list) |
 | `admin.css` | `?v=47` |
-| `kutadgu-analytics-core.js` | `?v=5` |
+| `kutadgu-analytics-core.js` | `?v=6` on `admin.html`. Storefront pages still request `?v=5` because search recording did not change. |
 | `analytics.js` | `?v=5` |
 | `admin-save-guard.js` | `?v=1` |
 | `kutadgu-cover-image.js` | `?v=2` on `admin.html` and `book-staff.html` |
