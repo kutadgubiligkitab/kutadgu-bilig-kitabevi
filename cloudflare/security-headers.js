@@ -5,6 +5,7 @@ const SUPABASE_ORIGIN = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const PRODUCTION_CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 const ENFORCED_CSP = "frame-ancestors 'none'";
+const HSTS_VALUE = "max-age=63072000";
 
 const BASE_SECURITY = Object.freeze({
   "X-Content-Type-Options": "nosniff",
@@ -88,9 +89,24 @@ function cacheControlForPath(pathname) {
   return value;
 }
 
-function applySecurity(headers, env) {
+function normalizeHost(hostname) {
+  return String(hostname || "")
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^\[|\]$/g, "");
+}
+
+function shouldSendHsts(env, hostname) {
+  if (String((env && env.KUTADGU_HOST_MODE) || "") !== "production") return false;
+  const host = normalizeHost(hostname);
+  if (!host || host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+  return true;
+}
+
+function applySecurity(headers, env, hostname) {
   const security = securityHeaders(env);
   Object.keys(security).forEach((key) => headers.set(key, security[key]));
+  if (shouldSendHsts(env, hostname)) headers.set("Strict-Transport-Security", HSTS_VALUE);
   return headers;
 }
 
@@ -98,6 +114,7 @@ module.exports = {
   SUPABASE_ORIGIN,
   PRODUCTION_CSP_REPORT_ONLY,
   ENFORCED_CSP,
+  HSTS_VALUE,
   NO_STORE,
   STOREFRONT_CODE,
   LONG_ASSET,
@@ -105,6 +122,7 @@ module.exports = {
   r2PublicOrigin,
   cspReportOnly,
   securityHeaders,
+  shouldSendHsts,
   cacheControlForPath,
   applySecurity
 };

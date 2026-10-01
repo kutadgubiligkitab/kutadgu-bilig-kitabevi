@@ -137,15 +137,23 @@ function isLegacyBookQuery(pathname, search) {
   }
 }
 
-function applyHeaders(headerList, env, cacheControl) {
+function hostOf(request) {
+  try {
+    return new URL(request.url).hostname;
+  } catch (err) {
+    return "";
+  }
+}
+
+function applyHeaders(headerList, env, cacheControl, hostname) {
   const out = new Headers(headerList || {});
   if (cacheControl) out.set("Cache-Control", cacheControl);
-  headers.applySecurity(out, env);
+  headers.applySecurity(out, env, hostname);
   return out;
 }
 
-function textResponse(status, body, env, headerList, cacheControl) {
-  const out = applyHeaders(headerList, env, cacheControl);
+function textResponse(status, body, env, headerList, cacheControl, hostname) {
+  const out = applyHeaders(headerList, env, cacheControl, hostname);
   return new Response(body, { status, headers: out });
 }
 
@@ -165,6 +173,7 @@ function previewPageSource(request, env) {
   const url = new URL(request.url);
   return {
     r2ReadEnabled: env && env.KUTADGU_R2_READ_ENABLED,
+    hostMode: env && env.KUTADGU_HOST_MODE,
     hostname: url.hostname,
     origin: url.origin,
     pathname: url.pathname
@@ -183,7 +192,7 @@ async function finishAsset(request, env, deps, filePath, statusOverride) {
   if (status === 404 && filePath !== "/404.html") {
     return finishAsset(request, env, deps, "/404.html", 404);
   }
-  const outHeaders = applyHeaders(asset.headers, env, headers.cacheControlForPath(filePath));
+  const outHeaders = applyHeaders(asset.headers, env, headers.cacheControlForPath(filePath), hostOf(request));
   if (!outHeaders.get("Content-Type") && /\.html$/i.test(filePath)) {
     outHeaders.set("Content-Type", "text/html; charset=utf-8");
   }
@@ -214,7 +223,7 @@ async function handleBook(request, env, deps) {
     return textResponse(404, method === "HEAD" ? null : publicBook.missingBookHtml(), env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   const result = await publicBook.lookupPublicNumericBook(id, { fetchImpl: deps.fetchImpl });
   if (result.outcome === "found") {
@@ -223,25 +232,25 @@ async function handleBook(request, env, deps) {
       return textResponse(503, method === "HEAD" ? null : publicBook.lookupFailureHtml(), env, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"
-      });
+      }, undefined, hostOf(request));
     }
     const template = await shell.text();
     const html = decoratePreviewHtml(publicBook.applyFoundPublicBookHead(template, id, result.book), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate"
-    });
+    }, undefined, hostOf(request));
   }
   if (result.outcome === "missing" || result.outcome === "invalid") {
     return textResponse(404, method === "HEAD" ? null : publicBook.missingBookHtml(), env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   return textResponse(503, method === "HEAD" ? null : publicBook.lookupFailureHtml(), env, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store"
-  });
+  }, undefined, hostOf(request));
 }
 
 async function handleCategory(request, env, deps, route) {
@@ -255,7 +264,7 @@ async function handleCategory(request, env, deps, route) {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.FAILURE_CACHE_CONTROL,
       "X-Robots-Tag": "noindex, follow"
-    });
+    }, undefined, hostOf(request));
   }
   const templateResponse = await readAsset(request, env, deps, "/" + slug + ".html");
   const template = templateResponse && templateResponse.status === 200 ? await templateResponse.text() : "";
@@ -264,7 +273,7 @@ async function handleCategory(request, env, deps, route) {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.FAILURE_CACHE_CONTROL,
       "X-Robots-Tag": "noindex, follow"
-    });
+    }, undefined, hostOf(request));
   }
   try {
     const books = await listing.loadCategoryBooks(slug, { fetchImpl: deps.fetchImpl });
@@ -272,13 +281,13 @@ async function handleCategory(request, env, deps, route) {
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.SUCCESS_CACHE_CONTROL
-    });
+    }, undefined, hostOf(request));
   } catch (err) {
     return textResponse(503, method === "HEAD" ? null : listing.failureDocument(template), env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.FAILURE_CACHE_CONTROL,
       "X-Robots-Tag": "noindex, follow"
-    });
+    }, undefined, hostOf(request));
   }
 }
 
@@ -291,13 +300,13 @@ async function handleSitemap(request, env, deps, route) {
     return textResponse(200, method === "HEAD" ? null : xml, env, {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400"
-    });
+    }, undefined, hostOf(request));
   } catch (err) {
     const message = route.kind === "sitemap-index" ? "sitemap index unavailable" : "book sitemap unavailable";
     return textResponse(503, method === "HEAD" ? null : message, env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
 }
 
@@ -308,12 +317,12 @@ async function handleLegacy(request, env, deps) {
     return textResponse(404, null, env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   return textResponse(308, null, env, {
     Location: location,
     "Cache-Control": "public, max-age=0, must-revalidate"
-  });
+  }, undefined, hostOf(request));
 }
 
 async function handleAi(request, env, deps) {
@@ -336,7 +345,7 @@ async function handleAi(request, env, deps) {
   });
   const out = new Headers();
   Object.keys(collected.headers).forEach((key) => out.set(key, collected.headers[key]));
-  headers.applySecurity(out, env);
+  headers.applySecurity(out, env, hostOf(request));
   return new Response(method === "HEAD" ? null : collected.body, {
     status: collected.statusCode || 200,
     headers: out
@@ -349,7 +358,7 @@ async function handlePosthog(request, env, deps, route) {
     return textResponse(405, method === "HEAD" ? null : "method not allowed", env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   const fetchImpl = deps.fetchImpl || fetch;
   const init = { method, headers: {} };
@@ -363,12 +372,12 @@ async function handlePosthog(request, env, deps, route) {
     return textResponse(502, method === "HEAD" ? null : "posthog proxy failed", env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   const out = new Headers();
   const type = upstream.headers && upstream.headers.get && upstream.headers.get("content-type");
   if (type) out.set("Content-Type", type);
-  headers.applySecurity(out, env);
+  headers.applySecurity(out, env, hostOf(request));
   return new Response(method === "HEAD" ? null : upstream.body, {
     status: upstream.status,
     headers: out
@@ -387,37 +396,46 @@ async function dispatch(request, env, deps) {
   const source = deps || {};
   const url = new URL(request.url);
   const method = String(request.method || "GET").toUpperCase();
-  if (isProductionHostname(url.hostname)) {
-    return textResponse(421, "preview worker does not serve the production host", env, {
+  if (images.requestRefused(url.hostname, env)) {
+    const message = images.hostMode(env) === "production"
+      ? "production worker does not serve this host"
+      : "preview worker does not serve the production host";
+    return textResponse(421, message, env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
+  }
+  if (images.hostMode(env) === "production" && normalizeHost(url.hostname) === "kutadgubilik.com") {
+    return textResponse(308, null, env, {
+      Location: "https://www.kutadgubilik.com" + url.pathname + url.search,
+      "Cache-Control": "public, max-age=0, must-revalidate"
+    }, undefined, url.hostname);
   }
   const route = classifyPath(url.pathname, url.search);
   if (!methodAllowed(route.kind, method)) {
     return textResponse(405, method === "HEAD" ? null : "method not allowed", env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   if (route.kind === "deny") {
     return textResponse(404, method === "HEAD" ? null : "not found", env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store"
-    });
+    }, undefined, hostOf(request));
   }
   if (route.kind === "redirect") {
     return textResponse(308, null, env, {
       Location: route.location,
       "Cache-Control": "public, max-age=0, must-revalidate"
-    });
+    }, undefined, hostOf(request));
   }
   if (route.kind === "legacy-redirect") return handleLegacy(request, env, source);
   if (route.kind === "posthog") return handlePosthog(request, env, source, route);
   if (route.kind === "ai-search") return handleAi(request, env, source);
   if (route.kind === "r2-upload") {
     const result = await upload.handleR2CoverUpload(request, env, source);
-    const out = applyHeaders(result.headers, env);
+    const out = applyHeaders(result.headers, env, "", hostOf(request));
     return new Response(method === "HEAD" ? null : result.body, { status: result.status, headers: out });
   }
   if (route.kind === "r2-read") {

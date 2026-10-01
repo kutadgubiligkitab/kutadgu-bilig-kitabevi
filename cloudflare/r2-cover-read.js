@@ -33,7 +33,7 @@ async function handleR2CoverRead(request, env) {
   if (method !== "GET" && method !== "HEAD") return textResult(405, "method not allowed");
   if (!readEnabled(sourceEnv)) return textResult(404, "not found");
   const url = new URL(request.url);
-  if (!images.previewHostAllowsRead(url.hostname)) return textResult(404, "not found");
+  if (!images.hostAllowsCoverRead(url.hostname, sourceEnv)) return textResult(404, "not found");
   const key = images.privateObjectKeyFromPath(url.pathname);
   if (!key) return textResult(400, "not found");
   const bucket = sourceEnv.COVERS;
@@ -43,7 +43,7 @@ async function handleR2CoverRead(request, env) {
     : await bucket.get(key);
   if (!object) return textResult(404, "not found");
   const out = storedImageHeaders(object);
-  headers.applySecurity(out, sourceEnv);
+  headers.applySecurity(out, sourceEnv, url.hostname);
   return {
     status: 200,
     headers: out,

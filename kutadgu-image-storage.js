@@ -133,6 +133,34 @@
     return host.endsWith(".workers.dev");
   }
 
+  function hostMode(source) {
+    const src = source && typeof source === "object" ? source : {};
+    return String(src.hostMode || src.KUTADGU_HOST_MODE || "") === "production" ? "production" : "preview";
+  }
+
+  function isLocalHost(hostname) {
+    const host = normalizeHost(hostname);
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  }
+
+  function productionHostAllowed(hostname) {
+    const host = normalizeHost(hostname);
+    if (!host) return false;
+    if (host === "kutadgubilik.com" || host === "www.kutadgubilik.com") return true;
+    if (isLocalHost(host)) return true;
+    return host.endsWith(".workers.dev");
+  }
+
+  function requestRefused(hostname, source) {
+    if (hostMode(source) === "production") return !productionHostAllowed(hostname);
+    return isBlockedPreviewHost(hostname);
+  }
+
+  function hostAllowsCoverRead(hostname, source) {
+    if (hostMode(source) === "production") return productionHostAllowed(hostname);
+    return previewHostAllowsRead(hostname);
+  }
+
   function previewReadEnabled(source) {
     const src = source && typeof source === "object" ? source : browserConfig();
     const flag = src.r2ReadEnabled != null ? src.r2ReadEnabled : src.KUTADGU_R2_READ_ENABLED;
@@ -179,7 +207,7 @@
     return PRIVATE_READ_PREFIX + safe.split("/").map(encodeURIComponent).join("/");
   }
 
-  function safePreviewOrigin(value) {
+  function safePreviewOrigin(value, source) {
     const raw = String(value || "").trim();
     if (!raw) return "";
     let url;
@@ -190,7 +218,7 @@
     }
     if (url.protocol !== "https:" && url.protocol !== "http:") return "";
     if (url.username || url.password) return "";
-    if (!previewHostAllowsRead(url.hostname)) return "";
+    if (!hostAllowsCoverRead(url.hostname, source)) return "";
     return url.origin;
   }
 
@@ -198,11 +226,11 @@
     const found = displayImageUrl(raw, source);
     if (!found) return "";
     const src = source && typeof source === "object" ? source : {};
-    if (!previewReadEnabled(src) || !previewHostAllowsRead(src.hostname)) return found;
+    if (!previewReadEnabled(src) || !hostAllowsCoverRead(src.hostname, src)) return found;
     const key = coverObjectKey(supabaseObjectKey(raw));
     if (!key) return found;
     const path = privateReadPath(key);
-    const origin = safePreviewOrigin(src.origin);
+    const origin = safePreviewOrigin(src.origin, src);
     return origin ? origin + path : path;
   }
 
@@ -230,16 +258,16 @@
   function rewritePreviewHtmlImages(html, source) {
     const src = source && typeof source === "object" ? source : {};
     const text = String(html || "");
-    if (!previewReadEnabled(src) || !previewHostAllowsRead(src.hostname) || isStaffPath(src.pathname)) return text;
+    if (!previewReadEnabled(src) || !hostAllowsCoverRead(src.hostname, src) || isStaffPath(src.pathname)) return text;
     return text.replace(/<img\b[^>]*>/gi, (tag) => rewriteImgTag(tag, src));
   }
 
   function injectPreviewBoot(html, source) {
     const src = source && typeof source === "object" ? source : {};
     const text = String(html || "");
-    if (!previewReadEnabled(src) || !previewHostAllowsRead(src.hostname) || isStaffPath(src.pathname)) return text;
+    if (!previewReadEnabled(src) || !hostAllowsCoverRead(src.hostname, src) || isStaffPath(src.pathname)) return text;
     if (text.indexOf("kutadgu-preview-r2-images.js") !== -1) return text;
-    const boot = '<meta name="kutadgu-r2-read" content="preview"><script src="/kutadgu-image-storage.js"></script><script src="/kutadgu-preview-r2-images.js"></script>';
+    const boot = '<meta name="kutadgu-r2-read" content="' + hostMode(src) + '"><script src="/kutadgu-image-storage.js"></script><script src="/kutadgu-preview-r2-images.js"></script>';
     if (/<head\b[^>]*>/i.test(text)) return text.replace(/<head\b[^>]*>/i, (open) => open + boot);
     return boot + text;
   }
@@ -257,7 +285,7 @@
 
   function installPreviewCoverBridge(doc, source) {
     const src = source && typeof source === "object" ? source : {};
-    if (!doc || !previewReadEnabled(src) || !previewHostAllowsRead(src.hostname)) return false;
+    if (!doc || !previewReadEnabled(src) || !hostAllowsCoverRead(src.hostname, src)) return false;
     const pathName = src.pathname || (doc.location && doc.location.pathname) || "";
     if (isStaffPath(pathName)) return false;
     const rootEl = doc.documentElement;
@@ -400,6 +428,10 @@
     PRIVATE_READ_PREFIX,
     IMMUTABLE_CACHE,
     isBlockedPreviewHost,
+    hostMode,
+    productionHostAllowed,
+    requestRefused,
+    hostAllowsCoverRead,
     previewHostAllowsRead,
     previewReadEnabled,
     isStaffPath,

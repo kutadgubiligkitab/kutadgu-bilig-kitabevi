@@ -205,7 +205,7 @@ On the preview, a browser check loaded the homepage with 35 private R2 covers an
 
 ### Cutover findings
 
-Production `POST /api/ai-search` with a one-character query returns 400 `invalid_query`. That status is only reached when `AI_SEARCH_ENABLED` is exactly `true`. The same request on the preview returns 503 `disabled`. `GET /api/ai-search` is 405 on both. The route reads `OPENAI_API_KEY` and calls `https://api.openai.com/v1/embeddings` with model `text-embedding-3-large` at 1536 dimensions, then the existing Supabase RPCs `match_active_books_ai` and `list_active_books_by_categories_ai`. No secret was copied or printed. A production Worker needs `AI_SEARCH_ENABLED` set to `true` and `OPENAI_API_KEY` added with `wrangler secret put` on that Worker only. Using the current preview vars would turn the live AI search off.
+Production `POST /api/ai-search` with a one-character query returns 400 `invalid_query`. That status is only reached when `AI_SEARCH_ENABLED` is exactly `true`. The same request on the preview returns 503 `disabled`. `GET /api/ai-search` is 405 on both. The route reads the Worker secret `OPENAI_API_KEY`, calls the embeddings provider, then the existing Supabase RPCs `match_active_books_ai` and `list_active_books_by_categories_ai`. No secret was copied or printed. A production Worker needs `AI_SEARCH_ENABLED` set to `true` and `OPENAI_API_KEY` added with `wrangler secret put` on that Worker only. Using the current preview vars would turn the live AI search off.
 
 Private R2 reads and the HTML/client rewrite run only when `KUTADGU_R2_READ_ENABLED` is `true` and the hostname is localhost or `*.workers.dev`. Production hostnames are also rejected by `dispatch` with 421 before that route. A later production Worker must allow `www.kutadgubilik.com` and `kutadgubilik.com` for both the page rewrite and `/__r2/book-covers/*`, bind `COVERS` to the verified bucket, and keep `KUTADGU_R2_UPLOAD_ENABLED` false and `KUTADGU_R2_PUBLIC_BASE_URL` empty. No database URL rewrite is required: the Worker maps Supabase `book-covers` URLs to the private route at response time, and the original URL remains the fallback. Do not make that host change on this preview Worker.
 
@@ -250,3 +250,32 @@ Expected differences: `server` is `cloudflare` on the preview and `Vercel` on pr
 Observations: Cloudflare already hosts DNS while the website still targets Vercel. Admin and fallback image traffic can remain on Supabase. The preview has no HSTS header.
 
 Unverified: the Supabase Auth redirect allow-list was not inspected; a zero-stock product was not clicked, though sold-out text counts matched and `shop.js` is identical; a live `Host` spoof was not sent, and the 421 behavior remains covered by the unit tests; a real AI search query was not sent, so the OpenAI key itself was not exercised.
+
+## PRODUCTION WORKER PREPARATION
+
+A second Worker, `kutadgu-cloudflare-production`, is deployed only at `https://kutadgu-cloudflare-production.kutadgu-preview.workers.dev`. Version `f101be3f-3b15-41d6-a65e-7f467a1b141a`. It has no custom domain and no route. `wrangler.jsonc` keeps the deployable config separate from `cloudflare/production-cutover-routes.json`, which is not activated.
+
+The preview Worker was not redeployed. Its latest version is still `0abce665-b8d4-4f2f-bde4-f11ad4cfea76`. `KUTADGU_HOST_MODE=preview` on the preview config still returns 421 for `kutadgubilik.com`, `www.kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. Production mode is a different flag on the other Worker. It allows `www.kutadgubilik.com`, its own `workers.dev` hostname, and localhost. Apex `kutadgubilik.com` is allowed and answers 308 to `https://www.kutadgubilik.com` with the path and query preserved. The Vercel alias stays refused.
+
+`COVERS` binds the existing bucket `kutadgu-covers-preview`. `KUTADGU_R2_READ_ENABLED` is true. `KUTADGU_R2_UPLOAD_ENABLED` and `KUTADGU_R2_OVERWRITE` are false. `KUTADGU_R2_PUBLIC_BASE_URL` is empty. There is no r2.dev host, no list, put, or delete route. HTML on an allowed production host rewrites Supabase book-cover URLs to the same-origin `/__r2/book-covers/` path. The database value is not written. The Supabase URL stays on `data-kutadgu-cover-origin` for one fallback. Staff pages are not rewritten.
+
+Production responses, except localhost, send `Strict-Transport-Security: max-age=63072000`. Preview and localhost responses do not. The other security headers are unchanged.
+
+`AI_SEARCH_ENABLED` is true on this Worker. `wrangler secret list --env production` returned an empty list, so `OPENAI_API_KEY` is not configured. A one-character `POST /api/ai-search` returned 400 `invalid_query`, which shows the route is enabled and does not call the provider. A real query would fail closed until the secret exists. The secret was not printed. Set it with `npx wrangler secret put OPENAI_API_KEY --env production` and type it only into that prompt.
+
+Validation on the workers.dev URL: `/`, `/books`, `/adabiyat`, `/romanlar`, `/children`, and `/book/106` returned 200 with HSTS and the enforced frame policy. The homepage rendered 35 private R2 covers and no Supabase image `src`. Thirty sampled cover requests returned 200 with an image content type and HSTS. A missing cover requested the private route and then the Supabase original. `/book.html?id=106` returned 308 to `/book/106`. Both sitemaps returned 200, and the book sitemap has 341 URLs. `/account.html` has the login, signup, and Google controls. `/admin.html` shows the admin login gate and does not load the cover bridge. `/kbg/static/array.js` returned 200. `POST /api/r2-cover-upload` returned 404.
+
+`https://www.kutadgubilik.com` still responds with `server: Vercel`. DNS is unchanged: `www` CNAME `691042ca7074d500.vercel-dns-017.com`, apex A `216.198.79.1`. The Vercel project is still the live site.
+
+`npm run test:unit` exited 0 with 1502 `PASS` lines and 0 failures.
+
+### Cutover plan, not executed
+
+1. Confirm `wrangler secret list --env production` includes the name `OPENAI_API_KEY`, the validation URL still returns 200 with HSTS and private covers, `www` still shows `server: Vercel`, and the preview Worker still has no custom route.
+2. Copy the patterns in `cloudflare/production-cutover-routes.json` into `env.production` only, then run `npx wrangler deploy --env production`. Do not add those patterns to the preview Worker.
+3. The zone already uses Cloudflare nameservers, and the website records are DNS-only to Vercel. After the routes exist, proxy `www` and the apex so the Worker can receive them. Replace the `www` CNAME `691042ca7074d500.vercel-dns-017.com` and the apex A `216.198.79.1` only at that moment.
+4. Apex requests are already answered with 308 to `https://www.kutadgubilik.com` plus the original path and query. Confirm that redirect on the live apex immediately after the record change.
+5. Smoke-test `https://www.kutadgubilik.com/`, `/books`, one category, `/book/106`, one private cover, `/sitemap.xml`, `/account.html`, and the admin gate. Confirm HSTS, `server` is no longer only Vercel, and a one-character AI search POST returns 400 rather than 503 `disabled`.
+6. Roll back if the homepage, a book page, or cover reads fail, if the apex no longer redirects to www, if account or admin HTML does not load, or if AI search returns `disabled`.
+7. Remove the production routes, restore the `www` CNAME and apex A above as DNS-only records, and leave the nameservers in place. Confirm `server: Vercel` and Supabase cover URLs on `https://www.kutadgubilik.com`.
+8. Do not delete or pause the Vercel project during the rollback window. The preview Worker and the R2 bucket can stay.

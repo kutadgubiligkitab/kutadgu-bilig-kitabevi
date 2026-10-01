@@ -188,12 +188,34 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "routes"));
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "route"));
   assert.ok(!Object.prototype.hasOwnProperty.call(config, "zone_id"));
+  assert.strictEqual(config.vars.KUTADGU_HOST_MODE, "preview");
   assert.strictEqual(config.vars.KUTADGU_R2_UPLOAD_ENABLED, "false");
   assert.strictEqual(config.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
   assert.strictEqual(config.vars.KUTADGU_R2_READ_ENABLED, "true");
   assert.strictEqual(config.vars.AI_SEARCH_ENABLED, "false");
   assert.strictEqual(config.r2_buckets[0].binding, "COVERS");
   assert.strictEqual(config.r2_buckets[0].bucket_name, "kutadgu-covers-preview");
+  const prod = config.env.production;
+  assert.strictEqual(prod.name, "kutadgu-cloudflare-production");
+  assert.strictEqual(prod.workers_dev, true);
+  assert.strictEqual(prod.preview_urls, false);
+  assert.ok(!Object.prototype.hasOwnProperty.call(prod, "routes"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(prod, "route"));
+  assert.strictEqual(prod.vars.KUTADGU_HOST_MODE, "production");
+  assert.strictEqual(prod.vars.AI_SEARCH_ENABLED, "true");
+  assert.strictEqual(prod.vars.KUTADGU_R2_READ_ENABLED, "true");
+  assert.strictEqual(prod.vars.KUTADGU_R2_UPLOAD_ENABLED, "false");
+  assert.strictEqual(prod.vars.KUTADGU_R2_OVERWRITE, "false");
+  assert.strictEqual(prod.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
+  assert.strictEqual(prod.r2_buckets[0].binding, "COVERS");
+  assert.strictEqual(prod.r2_buckets[0].bucket_name, "kutadgu-covers-preview");
+  assert.doesNotMatch(text, /OPENAI_API_KEY/);
+  assert.doesNotMatch(text, /production-cutover-routes/);
+  const cutover = JSON.parse(fs.readFileSync(path.join(root, "cloudflare/production-cutover-routes.json"), "utf8"));
+  assert.strictEqual(cutover.status, "not-activated");
+  assert.strictEqual(cutover.worker, "kutadgu-cloudflare-production");
+  assert.ok(cutover.routes.some((rule) => rule.pattern === "www.kutadgubilik.com/*"));
+  assert.ok(cutover.routes.some((rule) => rule.pattern === "kutadgubilik.com/*"));
   assert.strictEqual(config.assets.run_worker_first, true);
   const dev = previewDev.previewDevConfig();
   assert.strictEqual(path.resolve(dev.config.assets.directory), root);
@@ -214,6 +236,7 @@ jobs.push(test("static homepage, books rewrite, cache headers, and 404 stay inta
   const homeHtml = await home.text();
   assert.match(homeHtml, /<html/i);
   assert.strictEqual(home.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.strictEqual(home.headers.get("Strict-Transport-Security"), null);
   assert.strictEqual(home.headers.get("Content-Security-Policy"), "frame-ancestors 'none'");
   assert.strictEqual(home.headers.get("Content-Security-Policy-Report-Only"), headers.PRODUCTION_CSP_REPORT_ONLY);
   assert.ok(home.headers.get("Content-Security-Policy-Report-Only").includes("https://fxlojnqwyojqjskfggmh.supabase.co"));
@@ -726,6 +749,118 @@ jobs.push(test("private preview R2 reads stay same-origin, verified, and off for
   const readSource = fs.readFileSync(path.join(root, "cloudflare/r2-cover-read.js"), "utf8");
   assert.doesNotMatch(readSource, /\.list\(|\.put\(|\.delete\(|r2\.dev|R2_SECRET_ACCESS_KEY/);
   assert.doesNotMatch(fs.readFileSync(path.join(root, "kutadgu-preview-r2-images.js"), "utf8"), /R2_SECRET_ACCESS_KEY|SECRET_ACCESS_KEY/);
+}));
+
+jobs.push(test("preview and production host policies stay independent", async () => {
+  const payload = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x57, 0x45, 0x42, 0x50]);
+  const calls = [];
+  const bucket = {
+    calls,
+    async get(name) {
+      this.calls.push(["get", name]);
+      if (name !== "book-covers/book/106.webp") return null;
+      return {
+        size: payload.length,
+        httpEtag: '"etag-106"',
+        httpMetadata: { contentType: "image/webp", cacheControl: images.IMMUTABLE_CACHE },
+        body: payload,
+        writeHttpMetadata(out) {
+          out.set("content-type", "image/webp");
+          out.set("cache-control", images.IMMUTABLE_CACHE);
+        }
+      };
+    },
+    async head(name) {
+      this.calls.push(["head", name]);
+      return this.get(name);
+    },
+    async list() { throw new Error("list-forbidden"); },
+    async put() { throw new Error("put-forbidden"); },
+    async delete() { throw new Error("delete-forbidden"); }
+  };
+  const previewEnv = {
+    KUTADGU_HOST_MODE: "preview",
+    AI_SEARCH_ENABLED: "true",
+    KUTADGU_R2_READ_ENABLED: "true",
+    KUTADGU_R2_UPLOAD_ENABLED: "false",
+    KUTADGU_R2_OVERWRITE: "false",
+    KUTADGU_R2_PUBLIC_BASE_URL: "",
+    COVERS: bucket
+  };
+  const productionEnv = {
+    KUTADGU_HOST_MODE: "production",
+    AI_SEARCH_ENABLED: "true",
+    KUTADGU_R2_READ_ENABLED: "true",
+    KUTADGU_R2_UPLOAD_ENABLED: "false",
+    KUTADGU_R2_OVERWRITE: "false",
+    KUTADGU_R2_PUBLIC_BASE_URL: "",
+    COVERS: bucket
+  };
+  const deps = baseDeps(catalogFetch("ok"));
+  const previewWww = await preview.dispatch(request("https://www.kutadgubilik.com/"), previewEnv, deps);
+  const previewApex = await preview.dispatch(request("https://kutadgubilik.com/books"), previewEnv, deps);
+  const previewAlias = await preview.dispatch(request("https://kutadgu-bilig-kitab.vercel.app/"), previewEnv, deps);
+  assert.strictEqual(previewWww.status, 421);
+  assert.strictEqual(previewApex.status, 421);
+  assert.strictEqual(previewAlias.status, 421);
+  assert.strictEqual(previewWww.headers.get("Strict-Transport-Security"), null);
+  const local = await preview.dispatch(request("http://127.0.0.1:8787/"), productionEnv, deps);
+  assert.strictEqual(local.status, 200);
+  assert.strictEqual(local.headers.get("Strict-Transport-Security"), null);
+  assert.strictEqual(local.headers.get("Content-Security-Policy"), "frame-ancestors 'none'");
+  const www = await preview.dispatch(request("https://www.kutadgubilik.com/"), productionEnv, deps);
+  assert.strictEqual(www.status, 200);
+  assert.strictEqual(www.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
+  assert.strictEqual(www.headers.get("X-Frame-Options"), "DENY");
+  const apex = await preview.dispatch(request("https://kutadgubilik.com/books?x=1"), productionEnv, deps);
+  assert.strictEqual(apex.status, 308);
+  assert.strictEqual(apex.headers.get("Location"), "https://www.kutadgubilik.com/books?x=1");
+  assert.strictEqual(apex.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
+  const validationHost = "https://kutadgu-cloudflare-production.kutadgu-preview.workers.dev/";
+  const validation = await preview.dispatch(request(validationHost), productionEnv, deps);
+  assert.strictEqual(validation.status, 200);
+  assert.strictEqual(validation.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
+  const alias = await preview.dispatch(request("https://kutadgu-bilig-kitab.vercel.app/"), productionEnv, deps);
+  assert.strictEqual(alias.status, 421);
+  const readUrl = "https://www.kutadgubilik.com/__r2/book-covers/book/106.webp";
+  const read = await preview.dispatch(request(readUrl), productionEnv, deps);
+  assert.strictEqual(read.status, 200);
+  assert.deepStrictEqual(Buffer.from(await read.arrayBuffer()), payload);
+  assert.strictEqual(read.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
+  assert.ok(!String(read.headers.get("location") || "").includes("r2.dev"));
+  const bookRow = { image_url: SUPABASE_IMAGE };
+  const rewritten = images.rewritePreviewHtmlImages('<img src="' + bookRow.image_url + '">', {
+    r2ReadEnabled: true,
+    hostMode: "production",
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com",
+    pathname: "/"
+  });
+  assert.strictEqual(bookRow.image_url, SUPABASE_IMAGE);
+  assert.ok(rewritten.includes('src="https://www.kutadgubilik.com/__r2/book-covers/book/106.webp"'));
+  assert.ok(rewritten.includes('data-kutadgu-cover-origin="' + SUPABASE_IMAGE + '"'));
+  assert.ok(!rewritten.includes("r2.dev"));
+  const category = await preview.dispatch(request("https://www.kutadgubilik.com/adabiyat"), productionEnv, deps);
+  const categoryHtml = await category.text();
+  assert.ok(categoryHtml.includes('src="https://www.kutadgubilik.com/__r2/book-covers/book/106.webp"'));
+  assert.ok(categoryHtml.includes('content="production"'));
+  assert.ok(categoryHtml.includes('data-kutadgu-cover-origin="' + SUPABASE_IMAGE + '"'));
+  const book = await preview.dispatch(request("https://www.kutadgubilik.com/book/106"), productionEnv, deps);
+  const bookHtml = await book.text();
+  const schema = bookHtml.match(/<script id="kutadguBookSchema" type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(JSON.stringify(JSON.parse(schema[1])).includes(SUPABASE_IMAGE));
+  const uploadOff = await preview.dispatch(request("https://www.kutadgubilik.com/api/r2-cover-upload", "POST", "x"), productionEnv, deps);
+  assert.strictEqual(uploadOff.status, 404);
+  let openaiCalls = 0;
+  const aiDeps = baseDeps(async (url) => {
+    if (String(url) === aiSearch.OPENAI_EMBEDDINGS_URL) openaiCalls += 1;
+    throw new Error("upstream-should-not-run");
+  });
+  const missingKey = await preview.dispatch(request("https://www.kutadgubilik.com/api/ai-search", "POST", JSON.stringify({ query: "qqqq" }), { "Content-Type": "application/json" }), productionEnv, aiDeps);
+  assert.strictEqual(missingKey.status, 503);
+  assert.strictEqual((await missingKey.json()).error, "unavailable");
+  assert.strictEqual(openaiCalls, 0);
+  assert.strictEqual(missingKey.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
 }));
 
 Promise.all(jobs).then(() => {

@@ -1,0 +1,9 @@
+{
+  "worker": "kutadgu-cloudflare-production",
+  "status": "not-activated",
+  "note": "Do not copy these routes into wrangler.jsonc until an explicit cutover. A deploy that includes them would attach live hostnames.",
+  "routes": [
+    { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
+    { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }
+  ]
+}
