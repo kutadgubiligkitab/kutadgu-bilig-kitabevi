@@ -177,7 +177,7 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.doesNotMatch(account, /member\.js\?v=25/);
   assert.match(read("shop.js"), /member\.js\?v=28/);
   assert.doesNotMatch(read("shop.js"), /member\.js\?v=25/);
-  assert.match(index, /shop\.js\?v=137/);
+  assert.match(index, /shop\.js\?v=138/);
 });
 
 test("reset page does not treat generic SIGNED_IN or hash OAuth as recovery", () => {
@@ -208,7 +208,7 @@ test("reset-password.html loads reset-password.js v=10", () => {
   assert.doesNotMatch(account, /supabase-config\.js\?v=16/);
   assert.match(index, /supabase-config\.js\?v=22/);
   assert.match(read("admin.html"), /supabase-config\.js\?v=22/);
-  assert.match(read("admin.html"), /admin\.js\?v=79/);
+  assert.match(read("admin.html"), /admin\.js\?v=82/);
 });
 
 test("account.html no longer pins stale auth assets", () => {

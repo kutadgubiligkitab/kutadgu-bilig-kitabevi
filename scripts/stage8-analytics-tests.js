@@ -116,8 +116,8 @@ test("A shop.js book_view is deduped per canonical id",()=>{
 
 test("D shop.js ignores empty listing/home search and load-more",()=>{
   const shop=fs.readFileSync(path.join(__dirname,"..","shop.js"),"utf8");
-  assert.ok(shop.includes("if(!append)trackSearchQuery(state.search,result.total)"));
-  assert.ok(shop.includes("trackSearchQuery(text.value,result.total)"));
+  assert.ok(shop.includes("if(!append)trackCompletedSearch(state.search,result)"));
+  assert.ok(!shop.includes("trackSearchQuery(text.value,result.total)"));
 });
 
 test("J admin analytics uses RPC not raw event table",()=>{
