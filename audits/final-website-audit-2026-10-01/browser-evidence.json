@@ -1,0 +1,2062 @@
+{
+  "startedAtUtc": "2026-10-01T01:27:05.601Z",
+  "browser": "151.0.7922.34",
+  "blocked": [
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://wa.me/[shop-whatsapp]?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-config.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.kutadgubilik.com/posthog-analytics.js?[query]",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    }
+  ],
+  "writesAttempted": [
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    },
+    {
+      "method": "POST",
+      "url": "https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/analytics_events",
+      "reason": "blocked-analytics-or-whatsapp"
+    }
+  ],
+  "console": [],
+  "pages": {
+    "home1440": {
+      "title": "قۇتادغۇبىلىك كىتابخانىسى",
+      "h1": "قۇتادغۇبىلىك كىتابخانىسى",
+      "canonical": "https://www.kutadgubilik.com/",
+      "lang": "ug",
+      "dir": "rtl",
+      "nav": [
+        {
+          "text": "قۇتادغۇبىلىك كىتابخانىسى",
+          "href": "/"
+        },
+        {
+          "text": "باش بەت",
+          "href": "#home"
+        },
+        {
+          "text": "كىتابلار",
+          "href": "/books"
+        },
+        {
+          "text": "بىز ھەققىدە",
+          "href": "#about"
+        },
+        {
+          "text": "ئالاقە",
+          "href": "#contact"
+        },
+        {
+          "text": "👤 كىرىش / ئەزا بولۇش",
+          "href": "/account.html"
+        },
+        {
+          "text": "🛒 سېۋەت\n0",
+          "href": "/cart.html"
+        },
+        {
+          "text": "❤️",
+          "href": "/favorites.html"
+        },
+        {
+          "text": "دىنىي",
+          "href": "/dini"
+        },
+        {
+          "text": "تارىخ",
+          "href": "/tarikhiy-romanlar"
+        },
+        {
+          "text": "ئەدەبىيات",
+          "href": "/adabiyat"
+        },
+        {
+          "text": "بالىلار",
+          "href": "/children"
+        },
+        {
+          "text": "يېقىندا قوشۇلغانلار",
+          "href": "#homeFeaturedBooks"
+        },
+        {
+          "text": "WhatsApp",
+          "href": "https://wa.me/[shop-whatsapp]"
+        },
+        {
+          "text": "تېلېفون",
+          "href": "tel:+[shop-whatsapp]"
+        },
+        {
+          "text": "Instagram",
+          "href": "https://www.instagram.com/kutadgu_bilig_kitabhanisi/"
+        },
+        {
+          "text": "خەرىتە",
+          "href": "https://www.google.com/maps/search/?api=1&query=KEMALPA%C5%9EA%20MAH.%201.%20TURNA%20SK.%20AKPINAR%20APT.%20NO%3A%2025%2FC%2C%20KAPI%20NO%3A%20K%2C%20K%C3%9C%C3%87%C3%9CK%C3%87EKMECE%20%2F%20%C4%B0STANBUL"
+        },
+        {
+          "text": "زاكاز قانداق بولىدۇ",
+          "href": "/order-info"
+        },
+        {
+          "text": "مەخپىيەتلىك",
+          "href": "/privacy"
+        },
+        {
+          "text": "قايتۇرۇش / ئالماشتۇرۇش",
+          "href": "/returns"
+        }
+      ],
+      "hero": "قۇتادغۇبىلىك كىتابخانىسى\n2013-يىلدىن ھازىرغىچە .\n\nقۇتادغۇبىلىك كىتابخانىسى — قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ، خەلقىمىزنىڭ بىلىم ۋە مەنىۋى ئېھتىياجىغا خىزمەت قىلىدىغان كىتابخانىدۇر.\n\nكىتابلارنى كۆرۈش\nبىز ھەققىدە",
+      "jsonld": 1,
+      "headerSticky": "sticky",
+      "bottomNav": false,
+      "search": true,
+      "shot": "screenshots/01-home-1440.png",
+      "overflow": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "overflow": 0
+      },
+      "firstFocus": "A"
+    },
+    "home360": {
+      "bottomNavVisible": true,
+      "links": [
+        {
+          "text": "🛒\nسېۋەت\n0",
+          "href": "/cart.html",
+          "w": 112,
+          "h": 50
+        },
+        {
+          "text": "❤️\nياقتۇرغانلىرىم",
+          "href": "/favorites.html",
+          "w": 112,
+          "h": 50
+        },
+        {
+          "text": "👤\nكىرىش / ئەزا",
+          "href": "/account.html",
+          "w": 112,
+          "h": 50
+        }
+      ],
+      "headerPosition": "fixed",
+      "overflow": {
+        "scrollWidth": 360,
+        "clientWidth": 360,
+        "overflow": 0
+      }
+    },
+    "home390": {
+      "bottomNavVisible": true,
+      "links": [
+        {
+          "text": "🛒\nسېۋەت\n0",
+          "href": "/cart.html",
+          "w": 122,
+          "h": 50
+        },
+        {
+          "text": "❤️\nياقتۇرغانلىرىم",
+          "href": "/favorites.html",
+          "w": 122,
+          "h": 50
+        },
+        {
+          "text": "👤\nكىرىش / ئەزا",
+          "href": "/account.html",
+          "w": 122,
+          "h": 50
+        }
+      ],
+      "headerPosition": "fixed",
+      "overflow": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "overflow": 0
+      },
+      "shot": "screenshots/02-home-390.png"
+    },
+    "home430": {
+      "bottomNavVisible": true,
+      "links": [
+        {
+          "text": "🛒\nسېۋەت\n0",
+          "href": "/cart.html",
+          "w": 135,
+          "h": 50
+        },
+        {
+          "text": "❤️\nياقتۇرغانلىرىم",
+          "href": "/favorites.html",
+          "w": 135,
+          "h": 50
+        },
+        {
+          "text": "👤\nكىرىش / ئەزا",
+          "href": "/account.html",
+          "w": 135,
+          "h": 50
+        }
+      ],
+      "headerPosition": "fixed",
+      "overflow": {
+        "scrollWidth": 430,
+        "clientWidth": 430,
+        "overflow": 0
+      }
+    },
+    "home768": {
+      "bottomNavVisible": true,
+      "links": [
+        {
+          "text": "🛒\nسېۋەت\n0",
+          "href": "/cart.html",
+          "w": 248,
+          "h": 50
+        },
+        {
+          "text": "❤️\nياقتۇرغانلىرىم",
+          "href": "/favorites.html",
+          "w": 248,
+          "h": 50
+        },
+        {
+          "text": "👤\nكىرىش / ئەزا",
+          "href": "/account.html",
+          "w": 248,
+          "h": 50
+        }
+      ],
+      "headerPosition": "fixed",
+      "overflow": {
+        "scrollWidth": 768,
+        "clientWidth": 768,
+        "overflow": 0
+      },
+      "shot": "screenshots/03-home-768.png"
+    },
+    "home1280": {
+      "bottomNavVisible": false,
+      "links": [],
+      "headerPosition": "sticky",
+      "overflow": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "overflow": 0
+      }
+    },
+    "discovery": {
+      "visitA": {
+        "sort": "discover",
+        "label": "بۇ قېتىملىق بايقاش تەرتىپى",
+        "ids": [
+          "225",
+          "275",
+          "217",
+          "174",
+          "269",
+          "413",
+          "331",
+          "440",
+          "149",
+          "262",
+          "387",
+          "272",
+          "434",
+          "184",
+          "392",
+          "373",
+          "113",
+          "288",
+          "325",
+          "176",
+          "132",
+          "247",
+          "329",
+          "361"
+        ],
+        "countText": "24 / 341 كىتاب كۆرسىتىلدى",
+        "snapshot": 341,
+        "cursor": 24,
+        "localHasVisit": null
+      },
+      "visitBFirstIds": [
+        "186",
+        "244",
+        "402",
+        "380",
+        "431",
+        "425",
+        "381",
+        "289",
+        "325",
+        "106",
+        "230",
+        "342",
+        "253",
+        "307",
+        "386",
+        "382",
+        "226",
+        "373",
+        "278",
+        "339",
+        "133",
+        "225",
+        "219",
+        "215"
+      ],
+      "differentOrder": true,
+      "reloadSame": true,
+      "detailUrl": "https://www.kutadgubilik.com/book/225",
+      "backSame": true,
+      "href": "/book/225"
+    },
+    "pagination": {
+      "renderedUnique": 341,
+      "duplicateIds": [
+        "396",
+        "253",
+        "374",
+        "142",
+        "235",
+        "124",
+        "211",
+        "406"
+      ],
+      "loadMoreClicks": 14,
+      "moreButtonRemains": false,
+      "snapshotLength": 341
+    },
+    "category": {
+      "title": "ئەدەبىيات - قۇتادغۇبىلىك كىتابخانىسى",
+      "canonical": "https://www.kutadgubilik.com/adabiyat",
+      "firstByteLinks": 48,
+      "h1": "ئەدەبىيات",
+      "discoverOption": false,
+      "ready": true,
+      "cards": 24,
+      "error": false,
+      "shot": "screenshots/06-category-adabiyat-1280.png"
+    },
+    "search": {
+      "uyghurToken": "ئائىلە",
+      "uyghurHits": 1,
+      "zero": {
+        "cards": 0,
+        "empty": true,
+        "text": "0 / 0 كىتاب كۆرسىتىلدى",
+        "shot": "screenshots/07-search-zero-1280.png"
+      },
+      "latinHits": 0
+    },
+    "sorts": {
+      "priceChanged": true,
+      "resetSort": "discover",
+      "resetRestored": true,
+      "priceSnippets": [
+        "بالىلار قامۇسى- مەن ئامراق يېمەكلىكلەر ئاپتورى: يېزىلمىغان 1",
+        "بالىلار قامۇسى- مەن ئامراق ھايۋانلار ئاپتورى: يېزىلمىغان 134",
+        "(تام ھەققىدە ھېكايىلەر) تام دوختۇرخانىدا ئاپتورى: يېزىلمىغان",
+        "(تام ھەققىدە ھېكايىلەر) تام كۆرپىگە سېيىپ قويدى ئاپتورى: يېز",
+        "(تام ھەققىدە ھېكايىلەر) تامنىڭ يېقىن ئادىشى ئاپتورى: يېزىلمى",
+        "بودەك مۈشۈك زاكاڭنى تاشلا ئاپتورى: سارا ئاۋگۇست (ئىتالىيە) 1",
+        "بالىلار قامۇسى- دادام ئاپتورى: يېزىلمىغان 135,91 ₺ تەپسىلات ",
+        "(تام ھەققىدە ھېكايىلەر) تام يەسلىگە باردى ئاپتورى: يېزىلمىغا"
+      ]
+    },
+    "detail": {
+      "title": "ئۇيغۇر خەلق ماقال-تەمسىللرى ئىزاھلىق لۇغىتى - قۇتادغۇبىلىك كىتابخانىسى",
+      "h1": "ئۇيغۇر خەلق ماقال-تەمسىللرى ئىزاھلىق لۇغىتى",
+      "canonical": "https://www.kutadgubilik.com/book/328",
+      "robots": "index, follow",
+      "schemaCount": 1,
+      "types": [
+        [
+          "Product",
+          "Book"
+        ],
+        "BreadcrumbList"
+      ],
+      "hasIsbn": true,
+      "hasGtin": false,
+      "isbnPrefix": "7537",
+      "visibleIsbn": "ISBN",
+      "related": 0,
+      "img": {
+        "w": 38,
+        "h": 38,
+        "fit": "contain",
+        "natural": "512x512",
+        "complete": true,
+        "alt": "قۇتادغۇبىلىك كىتابخانىسى"
+      },
+      "crumb": true,
+      "url": "https://www.kutadgubilik.com/book/328",
+      "shot": "screenshots/08-book-detail-1440.png",
+      "mobileOverflow": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "overflow": 0
+      },
+      "mobileShot": "screenshots/09-book-detail-390.png"
+    },
+    "covers": [
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      },
+      {
+        "fit": "contain",
+        "w": 353,
+        "h": 534,
+        "ratio": 0.66,
+        "complete": true,
+        "broken": false
+      }
+    ],
+    "cart": {
+      "bookId": "112",
+      "previewHasQty": true,
+      "previewHasPrice": true,
+      "previewLength": 333,
+      "previewSample": "ئەسسالامۇ ئەلەيكۇم، تۆۋەندىكى كىتابلارنى زاكاز قىلماقچى ئىدىم:\n\nزاكاز نومۇرى: KB-[digits]-G6LAQYS5\n\n1. قۇرئان كەرىمدىن ئاخىرقى ئۈچ پارىنىڭ تەپسىرى — 3 دانە × 240 ₺ = 720 ₺\n\nجەمئىي كىتاب سانى: 3\nجەمئىي: 720 ₺\n\nخېرىدار ئۇچۇرى:\nئىسمى: سىناق\nتېلېفون: [digits]\nشەھەر / رايون: سىناق\nئادرېس: سىناق ئادرېس\nيەتكۈزۈش: كارگو ئارقىلىق\nئىزاھات: -",
+      "storageBeforeClick": [
+        {
+          "id": "112",
+          "qty": 2
+        }
+      ],
+      "whatsappPopups": 0,
+      "stillOnCart": false,
+      "shotPreview": "screenshots/11-order-preview-1280.png"
+    },
+    "favorites": {
+      "cards": 1,
+      "text": "قۇتادغۇبىلىك كىتابخانىسى\nكىتاب ئىزدەش\n🔎\nباش بەت\nكىتابلار\nبىز ھەققىدە\nئالاقە\n🌙\n❤️\n🛒 سېۋەت\n3\n👤 كىرىش / ئەزا بولۇش\n← باش بەتكە قايتىش\n📚 مېنىڭ كىتابلىرىم\n❤️ ساقلانغان تاللانمىلار\n",
+      "shot": "screenshots/12-favorites-1280.png",
+      "afterReload": 1
+    },
+    "cart390": {
+      "overflow": {
+        "scrollWidth": 390,
+        "clientWidth": 390,
+        "overflow": 0
+      },
+      "shot": "screenshots/13-cart-390.png",
+      "bottom": true
+    },
+    "account": {
+      "title": "ھېسابىم - قۇتادغۇبىلىك كىتابخانىسى",
+      "loginVisible": true,
+      "google": true,
+      "forgot": true,
+      "signupHidden": true,
+      "shot": "screenshots/14-account-login-1280.png",
+      "emailInvalid": true,
+      "emailTypeMismatch": true,
+      "passwordTooShort": true,
+      "shotInvalid": "screenshots/15-account-invalid-1280.png"
+    },
+    "reset": {
+      "title": "پارول يېڭىلاش - قۇتادغۇبىلىك كىتابخانىسى",
+      "shot": "screenshots/16-reset-password-1280.png",
+      "text": "🔐 قۇتادغۇبىلىك — پارول يېڭىلاش\n👤 ئەزالىق كىرىش\nAdmin\n🏠 تور بەت\n🔑 يېڭى پارول بېكىتىش\nبۇ بەتنى «پارولنى ئۇنتۇپ قالدىڭىزمۇ؟» ئارقىلىق Email غا كەلگەن يېڭى ئۇلانمىدىن ئېچىڭ.\nيېڭى پارول\nيېڭى پارولنى قايتا يېزىڭ\n💾 يېڭى پارولنى ساقلاش\n\nپارول "
+    },
+    "deleteAccount": {
+      "title": "ھېسابنى ئۆچۈرۈش / Hesap Silme — قۇتادغۇبىلىك كىتابخانىسى",
+      "h1": "ھېسابنى ئۆچۈرۈش",
+      "shot": "screenshots/17-delete-account-1280.png"
+    },
+    "aboutText": "قۇتادغۇبىلىك كىتابخانىسى كىتاب ئىزدەش 🔎 باش بەت كىتابلار بىز ھەققىدە ئالاقە 🌙 👤 كىرىش / ئەزا بولۇش 🛒 سېۋەت 0 ❤️ قۇتادغۇبىلىك كىتابخانىسى 2013-يىلدىن ھازىرغىچە . قۇتادغۇبىلىك كىتابخانىسى — قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ، خەلقىمىزنىڭ بىلىم ۋە مەنىۋى ئېھتىياجىغا خىزمەت قىلىدىغان كىتابخانىدۇر. كىتابلارنى كۆرۈش بىز ھەققىدە 🔎 قايسى كىت",
+    "orderText": "قۇتادغۇبىلىك كىتابخانىسى كىتاب ئىزدەش 🔎 باش بەت كىتابلار بىز ھەققىدە ئالاقە 🌙 ❤️ 🛒 سېۋەت 0 👤 كىرىش / ئەزا بولۇش ← باش بەت زاكاز قانداق بولىدۇ كىتابنى تاللاڭ. سېۋەتكە قوشۇڭ. ئىسىم ۋە ئالاقە ئۇچۇرىنى تولدۇرۇپ WhatsApp ئارقىلىق زاكاز ئەۋەتىڭ. بار-يوقلۇق، توشۇش ياكى دۇكاندىن ئېلىش تەپسىلاتىنى بىز سۆھبەتتە جەزملەيمىز. باھا سېۋەتتىكى جەمئىي پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈ",
+    "orderShot": "screenshots/18-order-info-1280.png",
+    "orderMeta": {
+      "title": "زاكاز قانداق بولىدۇ — قۇتادغۇبىلىك كىتابخانىسى",
+      "canonical": "https://www.kutadgubilik.com/order-info",
+      "h1": "زاكاز قانداق بولىدۇ"
+    },
+    "privacyText": "قۇتادغۇبىلىك كىتابخانىسى كىتاب ئىزدەش 🔎 باش بەت كىتابلار بىز ھەققىدە ئالاقە 🌙 ❤️ 🛒 سېۋەت 0 👤 كىرىش / ئەزا بولۇش ← باش بەت مەخپىيەتلىك ئۇيغۇرچە مەخپىيەتلىك تۈزۈمى ئاخىرقى يېڭىلانغان ۋاقتى: 2026-يىلى 22-سىنتەبىر بۇ مەخپىيەتلىك تۈزۈمى Kutadgubilik كىتابخانىسىنىڭ تور بېكىتى https://www.kutadgubilik.com ۋە Android ئەپىگە ئائىت. تۆۋەندە، تور بەت ياكى ئەپنى ئىشلەتكەندە قايسى ئۇچۇرلارنىڭ ئىشلىتىلىدىغا",
+    "privacyShot": "screenshots/19-privacy-1280.png",
+    "returnsText": "قۇتادغۇبىلىك كىتابخانىسى كىتاب ئىزدەش 🔎 باش بەت كىتابلار بىز ھەققىدە ئالاقە 🌙 ❤️ 🛒 سېۋەت 0 👤 كىرىش / ئەزا بولۇش ← باش بەت قايتۇرۇش / ئالماشتۇرۇش كىتابتا مەسىلە بولسا ياكى ئالماشتۇرماقچى بولسىڭىز، ئاۋۋال WhatsApp ئارقىلىق بىز بىلەن ئالاقىلىشىڭ. ھەر بىر ئەھۋال زاكازغا قاراپ كۆرۈلىدۇ. بۇ بەتتە قانۇنىي مۇددەت ياكى كاپالەت ۋەدىسى يېزىلمايدۇ؛ تەپسىلات سۆھبەتتە ئېنىقلىنىدۇ. ئالاقە ئۇچۇرلىرى ۋە WhatsA",
+    "contactText": "قۇتادغۇبىلىك كىتابخانىسى كىتاب ئىزدەش 🔎 باش بەت كىتابلار بىز ھەققىدە ئالاقە 🌙 👤 كىرىش / ئەزا بولۇش 🛒 سېۋەت 0 ❤️ قۇتادغۇبىلىك كىتابخانىسى 2013-يىلدىن ھازىرغىچە . قۇتادغۇبىلىك كىتابخانىسى — قەدىمكى تۈرك ئەدەبىياتىدىن زامانىۋى ئىلىم-پەنگىچە بولغان تۈرلۈك كىتابلارنى بىر يەرگە جەم قىلىپ، خەلقىمىزنىڭ بىلىم ۋە مەنىۋى ئېھتىياجىغا خىزمەت قىلىدىغان كىتابخانىدۇر. كىتابلارنى كۆرۈش بىز ھەققىدە 🔎 قايسى كىت",
+    "contact": {
+      "text": "📍\nدۇكان ئادرېسى\nKemalpaşa Mah. 1. Turna Sk. Akpınar Apt. No: 25/C, Kapı No: K, Küçükçekmece / İstanbul\n🕒\nخىزمەت ۋاقتى\nدۈشەنبە–شەنبە\n09:00–19:30\nيەكشەنبە\n10:30–18:00\n💬\nWhatsApp\n[shop-phone]\n☎️\nتېلېفون\n[shop-phone]\n📷\nInstagram\n@kutadgu_bilig_kitabhanisi",
+      "wa": [
+        "https://wa.me/********9888",
+        "https://wa.me/********9888"
+      ]
+    },
+    "admin": {
+      "status": 200,
+      "title": "باشقۇرۇش - قۇتادغۇبىلىك كىتابخانىسى",
+      "text": "🔐 قۇتادغۇبىلىك — باشقۇرۇش تاختىسى 🏠 تور بەت 🔐 Admin كىرىش پەقەت باشقۇرغۇچى ھېساباتى كىرەلەيدۇ. Email پارول كىرىش 🔑 پارولنى ئۇنتۇپ قالدىڭىزمۇ؟",
+      "shot": "screenshots/20-admin-locked-1280.png"
+    },
+    "robots": "User-agent: *\nAllow: /\n\nSitemap: https://www.kutadgubilik.com/sitemap.xml\n",
+    "sitemap": "This XML file does not appear to have any style information associated with it. The document tree is shown below.\n\n<!--  Stage 7 sitemap index. On Vercel, /sitemap.xml is rewritten to /api/sitemap-index so book children can split at 40k URLs. This static file is the same shape used when the catalog has one book sitemap.  -->\n<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<sitem",
+    "badBook": {
+      "status": 404,
+      "robots": "noindex, follow",
+      "title": "كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى"
+    },
+    "headerSearch": {
+      "url": "https://www.kutadgubilik.com/",
+      "ring": {
+        "outline": "none 3px",
+        "shadow": "none"
+      },
+      "shot": "screenshots/21-header-search-1440.png"
+    }
+  },
+  "findings": [
+    {
+      "area": 1,
+      "status": "observed",
+      "detail": "homepage loaded"
+    }
+  ],
+  "blockedCount": 176,
+  "analyticsBlocked": 175,
+  "whatsappBlocked": 1,
+  "writeBlocked": 123,
+  "finishedAtUtc": "2026-10-01T01:28:11.059Z"
+}
