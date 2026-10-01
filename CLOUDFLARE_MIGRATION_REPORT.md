@@ -184,3 +184,69 @@ The preview Worker is already deployed. Do not point `kutadgubilik.com` at it.
 ## I. Rollback
 
 Leave production on Vercel. Do not merge this branch if the preview should stay unused. The live deployment is still whatever Vercel builds from `main`. Deleting the preview Worker or the unused R2 bucket does not affect Supabase or the current site. No data migration has to be undone because none was applied.
+
+## FINAL PRE-PRODUCTION QA
+
+Read-only comparison on 1 October 2026. Preview: `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev`. Production: `https://www.kutadgubilik.com`. No DNS, domain, Supabase, R2, Auth, or Vercel change was made. No account, order, or WhatsApp message was created.
+
+`npm run test:unit` exited 0 with 1501 `PASS` lines and 0 failures.
+
+### Storefront comparison
+
+These paths returned the same status on both hosts: `/`, `/books`, all 17 category routes (`adabiyat`, `romanlar`, `tarikhiy-romanlar`, `sheirlar`, `hekayiler`, `dastanlar`, `dunya-edebiyati`, `adabiyat-roman`, `uyghur-adabiyati`, `universal`, `tibb`, `derslik`, `terbiye`, `dini`, `children`, `dictionary`, `grammar`), `/book/106`, `/book/not-a-number` (404), `/privacy`, `/returns`, `/delete-account`, `/order-info`, `/account.html`, `/admin.html`, `/cart.html`, `/favorites.html`, `/robots.txt`, `/sitemap.xml`, `/sitemap-books.xml`, `/sitemap-pages.xml`, `/shop.js`, `/shop.css`, `/mobile.js`, and an unknown path (404).
+
+Legacy redirects matched: `/index.html`, `/books.html`, and `/privacy.html` are 308 to the clean path; `/book.html?id=106` and `/book?id=122` are 308 to `/book/106` and `/book/122`; `/book.html?id=children-3` is 404 on both. `HEAD` `/`, `/books`, `/book/106`, `/sitemap.xml`, and `/shop.js` returned 200 on both.
+
+Category pages had the same count of `/book/{id}` links. `/sitemap-books.xml` has 341 `<loc>` entries on both. `robots.txt` bytes match and still advertise `https://www.kutadgubilik.com/sitemap.xml`. Canonical URLs and `robots` meta stay on `www.kutadgubilik.com`. Book JSON-LD still cites the Supabase image. Enforced CSP is `frame-ancestors 'none'` on both. `x-content-type-options`, `x-frame-options`, `referrer-policy`, and `permissions-policy` match. The report-only CSP still allows the Supabase image host.
+
+`shop.js`, `mobile.js`, `admin.js`, `supabase-config.js`, `posthog-config.js`, and `posthog-analytics.js` have the same SHA-256 on both hosts. There is no separate login or register document. Login and signup are both on `/account.html`, and both forms plus the Google button are present. Admin HTML is byte-identical and still shows the admin-only login gate. The gate was not submitted.
+
+On the preview, a browser check loaded the homepage with 35 private R2 covers and no Supabase image `src`, opened the mobile menu, searched, changed sort and the new-arrivals filter, and kept result images on `/__r2/`. `/books` sort changed the grid and its covers stayed on R2. `/adabiyat` rendered cart buttons. `/book/106` showed the R2 cover, gallery images, and 4 related book links. Adding that book locally showed one cart line and one favorite, both with R2 images. The WhatsApp button was present and `whatsappOrderUrl` built a `wa.me` link. That handler was not clicked and no message was sent. A missing cover requested `/__r2/` and then fell back to the Supabase URL. The Google button started the provider page and was left before any credential was entered. Preview `kutadguGoogleAccountRedirectTo()` is the workers.dev `/account.html` URL.
+
+### Cutover findings
+
+Production `POST /api/ai-search` with a one-character query returns 400 `invalid_query`. That status is only reached when `AI_SEARCH_ENABLED` is exactly `true`. The same request on the preview returns 503 `disabled`. `GET /api/ai-search` is 405 on both. The route reads `OPENAI_API_KEY` and calls `https://api.openai.com/v1/embeddings` with model `text-embedding-3-large` at 1536 dimensions, then the existing Supabase RPCs `match_active_books_ai` and `list_active_books_by_categories_ai`. No secret was copied or printed. A production Worker needs `AI_SEARCH_ENABLED` set to `true` and `OPENAI_API_KEY` added with `wrangler secret put` on that Worker only. Using the current preview vars would turn the live AI search off.
+
+Private R2 reads and the HTML/client rewrite run only when `KUTADGU_R2_READ_ENABLED` is `true` and the hostname is localhost or `*.workers.dev`. Production hostnames are also rejected by `dispatch` with 421 before that route. A later production Worker must allow `www.kutadgubilik.com` and `kutadgubilik.com` for both the page rewrite and `/__r2/book-covers/*`, bind `COVERS` to the verified bucket, and keep `KUTADGU_R2_UPLOAD_ENABLED` false and `KUTADGU_R2_PUBLIC_BASE_URL` empty. No database URL rewrite is required: the Worker maps Supabase `book-covers` URLs to the private route at response time, and the original URL remains the fallback. Do not make that host change on this preview Worker.
+
+PostHog is ready for a same-hostname cutover. `allowedHosts` already contains `kutadgubilik.com`, `www.kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. The browser loads `/kbg/static/array.js` and posts to `/kbg`. Both hosts return 200 for `/kbg/static/array.js` and 400 for an empty `/kbg/e/`. The workers.dev preview stays outside the allowlist, so analytics do not start there. No analytics file was changed.
+
+Admin uploads stay in browser code that writes to Supabase Storage. Moving HTML hosting to Cloudflare does not switch that path. Admin uploads, JSON-LD images, and cover fallbacks can still create Supabase Storage egress.
+
+Auth for the production hostname is ready without a new redirect URL. `kutadguIsProductionAuthHost` sends Google and password-recovery redirects to `https://www.kutadgubilik.com`. Signup uses the current page origin, which remains that host after cutover. The Supabase dashboard allow-list was not opened. The preview origin is a different callback and is not required for the production hostname.
+
+### Production Worker to prepare later
+
+Do not remove the 421 check from the preview Worker and do not attach `kutadgubilik.com` to `kutadgu-cloudflare-preview`. Prepare a separate Worker, for example `kutadgu-cloudflare-production`, with its own Wrangler environment:
+
+- `workers_dev` false and routes only for `www.kutadgubilik.com/*` and `kutadgubilik.com/*`
+- a new flag, defaulting to the current preview behavior, so this preview script keeps returning 421 for production hosts
+- production-host R2 read and HTML rewrite enabled only in that environment
+- `COVERS` bound to the bucket that holds the 1020 verified objects
+- `AI_SEARCH_ENABLED` true and `OPENAI_API_KEY` as a secret
+- upload disabled, public R2 base empty, r2.dev disabled
+- the same security headers, plus `strict-transport-security: max-age=63072000`, which Vercel sends today and this preview omits
+
+### Rollback, not executed
+
+Nameservers are already `steven.ns.cloudflare.com` and `coco.ns.cloudflare.com`. The site records still point at Vercel:
+
+- `www` CNAME `691042ca7074d500.vercel-dns-017.com`
+- apex A `216.198.79.1`
+- `https://kutadgubilik.com/` returns 308 to `https://www.kutadgubilik.com/` with `server: Vercel`
+
+If a later cutover is reverted: remove the production Worker route, restore that CNAME and apex A as DNS-only records, leave the nameservers alone, and confirm `https://www.kutadgubilik.com` again sends `server: Vercel` and Supabase cover URLs. Leave the preview Worker and R2 bucket in place. Do not delete the Vercel project before or during the attempt.
+
+### Classification
+
+Confirmed cutover blockers, not preview regressions:
+
+- This Worker returns 421 for the production hostnames, so pointing DNS at it would take the site down.
+- R2 rewrite and `/__r2/` reads do not run for `kutadgubilik.com`.
+- Production AI search is enabled. This Worker has `AI_SEARCH_ENABLED` false, so it would answer 503 until the production secret and flag are set.
+
+Expected differences: `server` is `cloudflare` on the preview and `Vercel` on production; visible covers use `/__r2/` only on the preview; JSON-LD images stay on Supabase; preview HTML includes the R2 boot tags; category and sitemap responses expose `s-maxage` directly, while Vercel shows the browser `max-age=0` form; `/sitemap.xml` on Vercel is the static file with a comment and the preview serves the generated index with the same two child URLs; `shop.js` is `text/javascript` on the preview and `application/javascript` on Vercel.
+
+Observations: Cloudflare already hosts DNS while the website still targets Vercel. Admin and fallback image traffic can remain on Supabase. The preview has no HSTS header.
+
+Unverified: the Supabase Auth redirect allow-list was not inspected; a zero-stock product was not clicked, though sold-out text counts matched and `shop.js` is identical; a live `Host` spoof was not sent, and the 421 behavior remains covered by the unit tests; a real AI search query was not sent, so the OpenAI key itself was not exercised.
