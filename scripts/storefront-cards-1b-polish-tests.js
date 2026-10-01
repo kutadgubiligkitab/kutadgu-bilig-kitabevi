@@ -88,7 +88,7 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=137/);
+  assert.match(indexHtml, /shop\.js\?v=138/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
 });
 
@@ -125,7 +125,7 @@ test("no Search Discovery SQL RLS auth admin or protected geometry changes", () 
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql") ||
+    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql" && file !== "scripts/stage101-isolated-assertions.sql" && file !== "scripts/stage101-isolated-rollback-assertions.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /kutadgu-search-rank\.js$|app-config\.js$/.test(file) ||

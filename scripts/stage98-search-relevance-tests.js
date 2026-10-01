@@ -115,7 +115,7 @@ test("L static fallback ranks with the same helper", () => {
 
 test("K analytics still fire once per real search, not Load More", () => {
   const enhance = shop.slice(shop.indexOf("function searchEnhance(){"), shop.indexOf("function dynamicListingCard"));
-  assert.match(enhance, /if\(!append\)trackSearchQuery\(state\.search,result\.total\)/);
+  assert.match(enhance, /if\(!append\)trackCompletedSearch\(state\.search,result\)/);
   assert.doesNotMatch(enhance, /if\(append\)trackSearchQuery/);
   assert.match(analytics, /zero_result_search/);
 });
@@ -143,7 +143,7 @@ test("every shop.js page loads kutadgu-search-rank.js immediately before it", ()
   for (const file of walk(root, [])) {
     const html = fs.readFileSync(file, "utf8");
     if (!html.includes("shop.js?")) continue;
-    assert.match(html, /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=137/, path.relative(root, file));
+    assert.match(html, /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=138/, path.relative(root, file));
   }
 });
 
@@ -151,7 +151,7 @@ test("UI default sort is relevance; layout markup is unchanged", () => {
   assert.match(shop, /<option value="relevance">مۇناسىۋەتلىك تەرتىپ<\/option>/);
   assert.match(shop, /sortEl\?\.value\|\|"relevance"/);
   assert.match(indexHtml, /kutadgu-search-rank\.js\?v=1/);
-  assert.match(indexHtml, /shop\.js\?v=137/);
+  assert.match(indexHtml, /shop\.js\?v=138/);
   assert.match(shop, /id="advancedSearchPanel"/);
   assert.match(shop, /id="searchLoadMore"/);
 });

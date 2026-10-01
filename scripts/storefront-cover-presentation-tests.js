@@ -76,7 +76,11 @@ test("no cover image files, schema, or covers.css are part of this change", () =
     "scripts/stage100-isolated-load.sql",
     "scripts/stage100-isolated-assertions.sql",
     "scripts/stage100-isolated-rollback-assertions.sql",
-    "scripts/stage100-isolated-reapply-assertions.sql"
+    "scripts/stage100-isolated-reapply-assertions.sql",
+    "STAGE101_ADMIN_ZERO_SEARCHES.sql",
+    "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql",
+    "scripts/stage101-isolated-assertions.sql",
+    "scripts/stage101-isolated-rollback-assertions.sql"
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !stage100Sql.has(file)) ||

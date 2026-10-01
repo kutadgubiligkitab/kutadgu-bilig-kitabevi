@@ -254,6 +254,10 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "scripts/stage100-isolated-assertions.sql",
     "scripts/stage100-isolated-rollback-assertions.sql",
     "scripts/stage100-isolated-reapply-assertions.sql",
+    "STAGE101_ADMIN_ZERO_SEARCHES.sql",
+    "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql",
+    "scripts/stage101-isolated-assertions.sql",
+    "scripts/stage101-isolated-rollback-assertions.sql",
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||

@@ -593,6 +593,86 @@
     return parts.date+" "+hh+":"+mm;
   }
 
+  function confirmedResultCount(result){
+    if(!result||typeof result!=="object")return null;
+    if(result.discovery)return null;
+    if(result.source==="static"){
+      const total=Number(result.total);
+      return Number.isFinite(total)&&total>=0?total:null;
+    }
+    const header=result.contentRange!=null?String(result.contentRange):"";
+    const match=header.match(/\/(\d+|\*)$/);
+    if(match&&match[1]!=="*"){
+      const exact=Number(match[1]);
+      if(Number.isFinite(exact)&&exact>=0)return exact;
+    }
+    const status=Number(result.status);
+    const offset=Number(result.offset);
+    const rowCount=Number(result.rowCount);
+    if(status===200&&offset===0&&rowCount===0)return 0;
+    if(result.source==="supabase"&&!Object.prototype.hasOwnProperty.call(result,"status")&&!Object.prototype.hasOwnProperty.call(result,"contentRange")){
+      const ranked=Number(result.total);
+      if(Number.isFinite(ranked)&&ranked>=0)return ranked;
+    }
+    return null;
+  }
+
+  function integerAtLeast(value,min){
+    const n=Number(value);
+    if(!Number.isInteger(n)||n<min)return null;
+    return n;
+  }
+
+  function normalizeZeroSearchPage(payload){
+    if(!payload||typeof payload!=="object"||Array.isArray(payload))return null;
+    const totalQueries=integerAtLeast(payload.total_queries,0);
+    const totalEvents=integerAtLeast(payload.total_events,0);
+    const offset=integerAtLeast(payload.offset,0);
+    const limit=integerAtLeast(payload.limit,1);
+    if(totalQueries===null||totalEvents===null||offset===null||limit===null)return null;
+    const raw=Array.isArray(payload.queries)?payload.queries:[];
+    const queries=[];
+    const seen=new Set();
+    raw.forEach(row=>{
+      const query=normalizeSearchQuery(row&&row.query);
+      const searches=Number(row&&row.searches);
+      if(!query||!Number.isFinite(searches)||searches<0||seen.has(query))return;
+      seen.add(query);
+      queries.push({query,searches,last_searched_at:row&&row.last_searched_at||null});
+    });
+    return {
+      queries,
+      total_queries:totalQueries,
+      total_events:totalEvents,
+      offset,
+      limit,
+      has_more:offset+queries.length<totalQueries,
+      range_start:payload.range_start?String(payload.range_start):"",
+      range_end:payload.range_end?String(payload.range_end):"",
+      timezone:"Europe/Istanbul",
+      representation:payload.representation==="zero_result_search"?"zero_result_search":"search"
+    };
+  }
+
+  function appendZeroSearchRows(existing,incoming){
+    const rows=Array.isArray(existing)?existing.slice():[];
+    const seen=new Set(rows.map(row=>row&&row.query).filter(Boolean));
+    (Array.isArray(incoming)?incoming:[]).forEach(row=>{
+      if(!row||!row.query||seen.has(row.query))return;
+      seen.add(row.query);
+      rows.push(row);
+    });
+    return rows;
+  }
+
+  function missingZeroSearchRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_zero_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
   const api={
     QUERY_MAX,
     ALLOWED_EVENTS,
@@ -636,7 +716,11 @@
     acceptClientOccurredAt,
     resolveBookId,
     whatsappTokens,
-    formatIstanbulStamp
+    formatIstanbulStamp,
+    confirmedResultCount,
+    normalizeZeroSearchPage,
+    appendZeroSearchRows,
+    missingZeroSearchRpc
   };
 
   if(typeof module==="object"&&module.exports)module.exports=api;

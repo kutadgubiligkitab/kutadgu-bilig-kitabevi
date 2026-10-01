@@ -402,11 +402,11 @@ test("cache pins moved for the changed analytics files", () => {
   const home = read("index.html");
   const shell = read("book-shell.html");
   assert.match(html, /admin\.css\?v=47/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=4/);
-  assert.match(html, /admin\.js\?v=79/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=5/);
+  assert.match(html, /admin\.js\?v=80/);
   assert.match(home, /analytics\.js\?v=5/);
-  assert.match(home, /kutadgu-analytics-core\.js\?v=4/);
-  assert.match(home, /shop\.js\?v=137/);
+  assert.match(home, /kutadgu-analytics-core\.js\?v=5/);
+  assert.match(home, /shop\.js\?v=138/);
   assert.match(shell, /src="\/analytics\.js\?v=5"/);
 });
 

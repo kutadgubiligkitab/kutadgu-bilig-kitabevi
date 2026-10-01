@@ -1136,6 +1136,33 @@ function trackBookViewOnce(book){
     trackEvent("book_view",{bookId:canonical,legacyId:book.legacyId||"",category:book.category||""});
   }catch(err){}
 }
+function confirmedCatalogTotal(result){
+  try{
+    const fn=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.confirmedResultCount;
+    if(typeof fn==="function")return fn(result);
+  }catch(err){}
+  if(!result||typeof result!=="object")return null;
+  if(result.discovery)return null;
+  if(result.source==="static"){
+    const total=Number(result.total);
+    return Number.isFinite(total)&&total>=0?total:null;
+  }
+  const header=result.contentRange!=null?String(result.contentRange):"";
+  const match=header.match(/\/(\d+|\*)$/);
+  if(match&&match[1]!=="*"){
+    const exact=Number(match[1]);
+    if(Number.isFinite(exact)&&exact>=0)return exact;
+  }
+  const status=Number(result.status);
+  const offset=Number(result.offset);
+  const rowCount=Number(result.rowCount);
+  if(status===200&&offset===0&&rowCount===0)return 0;
+  if(result.source==="supabase"&&!Object.prototype.hasOwnProperty.call(result,"status")&&!Object.prototype.hasOwnProperty.call(result,"contentRange")){
+    const ranked=Number(result.total);
+    if(Number.isFinite(ranked)&&ranked>=0)return ranked;
+  }
+  return null;
+}
 function trackSearchQuery(query,resultCount){
   try{
     const events=window.KutadguAnalyticsCore?.searchEvents
@@ -1143,6 +1170,9 @@ function trackSearchQuery(query,resultCount){
       :(String(query||"").trim()?[{name:"search",data:{query:String(query).trim().slice(0,80),results:(resultCount===null||resultCount===undefined||resultCount===""||!Number.isFinite(Number(resultCount))?null:Math.max(0,Number(resultCount)))}}]:[]);
     events.forEach(ev=>trackEvent(ev.name,ev.data));
   }catch(err){}
+}
+function trackCompletedSearch(query,result){
+  trackSearchQuery(query,confirmedCatalogTotal(result));
 }
 
 function supabasePublicConfig(){
@@ -3114,7 +3144,7 @@ function searchEnhance(){
       const result=await queryCatalog(state,{signal:controller.signal});
       if(token!==requestId)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
-      if(!append)trackSearchQuery(state.search,result.total);
+      if(!append)trackCompletedSearch(state.search,result);
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Catalog search failed.",error);
@@ -3310,10 +3340,7 @@ function setupCatalogFilters(){
     empty.hidden=!showEmpty;
     grid.hidden=showEmpty;
     controls.hidden=showEmpty;
-    if(!append){
-      trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:result.total,rendered:items.length});
-      trackSearchQuery(text.value,result.total);
-    }
+    if(!append)trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:result.total,rendered:items.length});
   }
   async function apply(append=false){
     if(append&&loadingMore)return;
@@ -3346,6 +3373,7 @@ function setupCatalogFilters(){
       if(result.discovery)rememberDiscoveryCursor(result,visitAtStart);
       if(token!==requestId||signal.aborted)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
+      if(!append)trackCompletedSearch(state.search,result);
     }catch(error){
       if(token!==requestId||signal.aborted||error?.name==="AbortError")return;
       if(token===requestId){
