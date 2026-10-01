@@ -287,6 +287,34 @@
       rewriting = false;
     }
 
+    const elementProto = root.Element && root.Element.prototype;
+    const innerHtml = elementProto && Object.getOwnPropertyDescriptor(elementProto, "innerHTML");
+    if (innerHtml && innerHtml.set && innerHtml.get && !elementProto.kutadguPreviewHtmlHook) {
+      try {
+        Object.defineProperty(elementProto, "innerHTML", {
+          configurable: true,
+          enumerable: innerHtml.enumerable,
+          get() { return innerHtml.get.call(this); },
+          set(value) {
+            const next = rewriting ? value : rewritePreviewHtmlImages(value, src);
+            rewriting = true;
+            innerHtml.set.call(this, next);
+            rewriting = false;
+          }
+        });
+        const insertHtml = elementProto.insertAdjacentHTML;
+        if (typeof insertHtml === "function") {
+          elementProto.insertAdjacentHTML = function (position, html) {
+            const next = rewriting ? html : rewritePreviewHtmlImages(html, src);
+            return insertHtml.call(this, position, next);
+          };
+        }
+        Object.defineProperty(elementProto, "kutadguPreviewHtmlHook", { value: true });
+      } catch (err) {
+        rewriting = false;
+      }
+    }
+
     const imageProto = root.HTMLImageElement && root.HTMLImageElement.prototype;
     const desc = imageProto && Object.getOwnPropertyDescriptor(imageProto, "src");
     if (desc && desc.set && desc.get && !imageProto.kutadguPreviewSrcHook) {

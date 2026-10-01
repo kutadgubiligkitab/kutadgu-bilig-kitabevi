@@ -63,7 +63,7 @@ Canonical URLs and JSON-LD stay on `https://www.kutadgubilik.com`. That matches 
 
 ## E. R2 status
 
-The bucket `kutadgu-covers-preview` exists (Eastern Europe, Standard). The preview Worker binds it as `COVERS`. Public image cutover is off: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, `KUTADGU_R2_UPLOAD_ENABLED` is `false`, and the remote upload route returns 404. Book pages on the preview and on production still use `fxlojnqwyojqjskfggmh.supabase.co` image URLs. No `image_url` or `gallery_images` row was changed. Preview copies are described in R2 COPY VERIFICATION.
+The bucket `kutadgu-covers-preview` exists (Eastern Europe, Standard). The preview Worker binds it as `COVERS`. Public image cutover is off: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, `KUTADGU_R2_UPLOAD_ENABLED` is `false`, r2.dev stays disabled, and the remote upload route returns 404. Production book pages still use `fxlojnqwyojqjskfggmh.supabase.co` image URLs. The workers.dev preview serves those same objects through the private Worker route described in PREVIEW R2 SERVING TEST. No `image_url` or `gallery_images` row was changed. Preview copies are described in R2 COPY VERIFICATION.
 
 Prepared:
 
@@ -113,9 +113,31 @@ Date: 2026-10-01. Source: public Supabase Storage at `https://fxlojnqwyojqjskfgg
 
 SHA-256 and byte length were checked for every copied object by reading it back from the remote bucket. Every copied object matched its source hash. Content types sent with the objects were `image/webp`, `image/png`, and `image/jpeg`, with `Cache-Control: public, max-age=31536000, immutable`.
 
-Supabase Storage originals were not deleted, renamed, moved, overwritten, or otherwise altered. Database `image_url` and `gallery_images` values were not updated. R2 image cutover remains disabled: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, r2.dev public access is disabled, and `POST /api/r2-cover-upload` returns 404. After the copy, `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev/book/106` and `/adabiyat`, and `https://www.kutadgubilik.com/book/106`, still render Supabase image URLs. `https://www.kutadgubilik.com` still responds with `server: Vercel`.
+Supabase Storage originals were not deleted, renamed, moved, overwritten, or otherwise altered. Database `image_url` and `gallery_images` values were not updated. R2 image cutover remains disabled: `KUTADGU_R2_PUBLIC_BASE_URL` is empty, r2.dev public access is disabled, and `POST /api/r2-cover-upload` returns 404. Immediately after the copy, the preview and `https://www.kutadgubilik.com/book/106` still rendered Supabase image URLs. Preview-only serving through the Worker is recorded in PREVIEW R2 SERVING TEST. `https://www.kutadgubilik.com` still responds with `server: Vercel`.
 
-The object manifest and downloaded bytes stay in gitignored `.tmp/r2-cover-migration/`. They are not committed.
+The object manifest and downloaded bytes stay in gitignored `.tmp/r2-cover-migration/`. They are not committed. `.assetsignore` also excludes `.tmp` from the preview asset upload.
+
+## PREVIEW R2 SERVING TEST
+
+Date: 2026-10-01. Private route: `GET` and `HEAD` `/__r2/book-covers/<object-key>` on `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev` only. The Worker reads `env.COVERS.get` / `env.COVERS.head`. It does not list, put, or delete. Traversal, backslashes, bad encodings, and keys outside `book-covers/` are rejected. Missing keys return 404. `PUT` and `DELETE` return 405.
+
+Preview-only flag: `KUTADGU_R2_READ_ENABLED=true` in `wrangler.jsonc`. `.env.example` leaves it `false`. Production hosts (`kutadgubilik.com`, `www.kutadgubilik.com`, `kutadgu-bilig-kitab.vercel.app`) still receive 421 from this Worker and are not rewritten. Admin and book-staff pages are not rewritten. `KUTADGU_R2_UPLOAD_ENABLED` stays `false`. `KUTADGU_R2_PUBLIC_BASE_URL` stays empty. r2.dev public access stays disabled. No custom domain or route was added.
+
+On the preview host, Supabase `book-covers` URLs in book and gallery `<img>` tags become same-origin `/__r2/...` URLs. Other HTTPS images stay unchanged. The original Supabase URL is kept on `data-kutadgu-cover-origin`. If that R2 image fails, the preview requests the original Supabase URL once and does not switch back. Canonical URLs and JSON-LD stay on `https://www.kutadgubilik.com` and still cite the Supabase image. The enforced CSP is still `frame-ancestors 'none'`. Images are same-origin, so `img-src` did not gain a new host.
+
+Remote checks on the deployed preview:
+
+- `/`, `/books`, `/adabiyat`, `/romanlar`, `/sheirlar`, `/book/106`, `/favorites.html`, and `/cart.html` returned 200
+- displayed book images on the homepage (35), `/books` (24), `/book/106` (5, cover plus gallery/related), a guest cart row, and a guest favorites row used `/__r2/` and made no Supabase Storage image request
+- `/adabiyat` server HTML contained 105 `/__r2/` cover images and no Supabase `src`
+- sampled image responses: 10 homepage, 10 category, 10 book detail/gallery. 30 of 30 returned HTTP 200, an image content type, a non-zero body, `Cache-Control: public, max-age=31536000, immutable`, and no redirect
+- one known cover, `book-covers/book/1788094203015.webp`, had the same SHA-256 and 161348 bytes from the Worker route, from `wrangler r2 object get --remote`, and from the Supabase original
+- a missing preview key returned one R2 404 and then one Supabase request. It did not loop
+- `POST /api/ai-search` stayed 503 and `POST /api/r2-cover-upload` stayed 404
+- `https://www.kutadgubilik.com` and `/book/106` still respond with `server: Vercel` and a Supabase cover URL, with no `/__r2/` and no `workers.dev` image
+- book 106 `image_url` is still the Supabase object URL. `gallery_images` was not rewritten. Admin upload code still targets the Supabase `book-covers` bucket
+
+No R2 object was deleted or overwritten in this step. No Supabase object or database row was changed.
 
 ## F. Security
 
@@ -127,13 +149,13 @@ The enforced CSP is still `frame-ancestors 'none'`. The report-only policy is un
 
 ## G. Tests
 
-`npm run test:unit` after the remote deploy exited 0 with 1499 `PASS` lines. It was run again after the R2 copy and exited 0 with 1500 `PASS` lines across 105 files and no failing file. That includes `scripts/cloudflare-preview-tests.js`.
+`npm run test:unit` after the remote deploy exited 0 with 1499 `PASS` lines. It was run again after the R2 copy and exited 0 with 1500 `PASS` lines across 105 files and no failing file. It was run again after private preview reads and exited 0 with 1501 `PASS` lines and no failing file. That includes `scripts/cloudflare-preview-tests.js`.
 
 Remote smoke tests against `https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev` (HTTP answered during certificate setup, then HTTPS returned 200):
 
 - `/` 200, `/books` 200, `HEAD /books` 200
-- `/adabiyat` 200, canonical `https://www.kutadgubilik.com/adabiyat`, JSON-LD, Supabase cover URLs
-- `/book/106` 200, canonical `https://www.kutadgubilik.com/book/106`, JSON-LD, Supabase image URLs, no `r2.dev`
+- `/adabiyat` 200, canonical `https://www.kutadgubilik.com/adabiyat`, JSON-LD. Visible covers on the current preview use the private R2 route.
+- `/book/106` 200, canonical `https://www.kutadgubilik.com/book/106`, JSON-LD still cites the Supabase image, the visible cover uses the private R2 route, no `r2.dev`
 - `/book/1` and `/book/not-a-number` 404
 - `/book?id=106` 308 to `/book/106`
 - `/sitemap.xml` and `/sitemap-books.xml` 200 (341 book URLs)

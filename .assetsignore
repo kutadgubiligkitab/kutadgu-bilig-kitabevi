@@ -3,6 +3,7 @@
 .cursor
 .wrangler
 .wrangler-dry-run
+.tmp
 node_modules
 tests
 scripts
