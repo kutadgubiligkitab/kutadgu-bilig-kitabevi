@@ -273,7 +273,7 @@ The repo has no separate backlog file. These are cautions, not scheduled tasks:
 - Public book queries still use broad `select=*` in places. Narrowing columns needs a check that cards and detail pages still receive every field they render.
 - `STAGE11_RECOVERY.md` still mentions agent branches as `cursor/<name>-fd87`. Recent merged work used `cursor/<name>-c4dc`. Confirm the live branch suffix before creating a branch.
 - Android app source is outside this repo. Website changes that affect auth, catalog shape, or privacy copy can affect that app even though its code is not here.
-- Current book image URLs no longer use Supabase Storage. The old `book-covers` objects are still there for rollback. A later reviewed deletion may consider only class A (1020 R2-verified book objects whose database URLs now use `/__r2/`) and class B (the two old Hero sources already SHA-256 matched). Class C (5 Book Staff objects) and class E (85 unknown objects) must stay until they are classified with evidence. Do not delete them in the URL-rewrite pass.
+- Current book image URLs no longer use Supabase Storage. The old `book-covers` objects remain: 1112 objects, class A 1020, class B 2, class C 5, class E 85. After GitHub access was reported as updated, this agent still received an installation token whose repository list contains only `kutadgubiligkitab/kutadgu-bilig-kitabevi`. `kutadgubiligkitab/kutadgubilig-mobile-app` returned 404, so the mobile cart and wishlist files were not reviewed and no Storage object was deleted. Class A and class B stay until a token that can read that repository is present. Class C and class E stay regardless. Runtime baseline stays `445fe488`.
 
 ## How to resume work safely
 
