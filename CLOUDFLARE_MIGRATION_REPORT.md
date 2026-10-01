@@ -273,9 +273,19 @@ Validation on the workers.dev URL after the secret version: `/`, `/books`, `/ada
 
 1. Confirmed on version `b859be14-dc00-4277-a426-451011f2dfc5`: `wrangler secret list --env production` includes the name `OPENAI_API_KEY`, the validation URL returns 200 with HSTS and private covers, `www` shows `server: Vercel`, and the zone has no Worker route. The secret value was not printed.
 2. Copy the patterns in `cloudflare/production-cutover-routes.json` into `env.production` only, then run `npx wrangler deploy --env production`. Do not add those patterns to the preview Worker.
-3. The zone already uses Cloudflare nameservers, and the website records are DNS-only to Vercel. After the routes exist, proxy `www` and the apex so the Worker can receive them. Replace the `www` CNAME `691042ca7074d500.vercel-dns-017.com` and the apex A `216.198.79.1` only at that moment.
+3. The zone already uses Cloudflare nameservers. Public resolvers return the `www` CNAME `691042ca7074d500.vercel-dns-017.com` and the apex A `216.198.79.1`. Read each record's proxy flag from the DNS API before changing it. Proxy a hostname only when that flag is off, and do not replace those targets unless a later cutover explicitly says to.
 4. Apex requests are already answered with 308 to `https://www.kutadgubilik.com` plus the original path and query. Confirm that redirect on the live apex immediately after the record change.
 5. Smoke-test `https://www.kutadgubilik.com/`, `/books`, one category, `/book/106`, one private cover, `/sitemap.xml`, `/account.html`, and the admin gate. Confirm HSTS, `server` is no longer only Vercel, and a one-character AI search POST returns 400 rather than 503 `disabled`.
 6. Roll back if the homepage, a book page, or cover reads fail, if the apex no longer redirects to www, if account or admin HTML does not load, or if AI search returns `disabled`.
 7. Remove the production routes, restore the `www` CNAME and apex A above as DNS-only records, and leave the nameservers in place. Confirm `server: Vercel` and Supabase cover URLs on `https://www.kutadgubilik.com`.
 8. Do not delete or pause the Vercel project during the rollback window. The preview Worker and the R2 bucket can stay.
+
+## LIVE PRODUCTION CUTOVER
+
+Attempted 2026-10-01T12:52:37Z. Stopped before any write. Rollback was not needed because no Worker route and no DNS record was changed.
+
+The Wrangler token can read the zone and Worker routes. `GET /zones/7476a42df4a2e7ed8debfe10b29216ea/dns_records` returned HTTP 403, error code 10000, authentication error. Proxy state, configured TTL, and record IDs were not returned, so the required rollback snapshot is incomplete. Public resolvers still answer apex `A` `216.198.79.1` and `www` `CNAME` `691042ca7074d500.vercel-dns-017.com`, with nameservers `steven.ns.cloudflare.com` and `coco.ns.cloudflare.com`. That public answer is not a Cloudflare proxy flag.
+
+Before the stop, the zone had zero Worker routes and zero Worker custom domains. Production Worker `kutadgu-cloudflare-production` remained version `b859be14-dc00-4277-a426-451011f2dfc5`. The secret list still contains the name `OPENAI_API_KEY` only. `https://www.kutadgubilik.com/`, `/books`, and `/book/106` returned 200 with `server: Vercel`. A book cover on Supabase returned 200 `image/webp`. Live AI search returned 400 `invalid_query` for one character and 200 with 12 results for `kitab`. `npm run test:unit` exited 0 with 1502 `PASS` lines and 0 failures.
+
+No route was attached. DNS targets and proxy flags were not written. Vercel and Supabase were not modified. The production Worker and the R2 bucket were not deleted. Draft PR #222 stays unmerged.
