@@ -5333,10 +5333,7 @@ function paintZeroSearchFailure(message, requestedDays){
   const text=`${asked}نەتىجىسىز ئىزدەش ئوقۇلمىدى: ${message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
   if(zeroSearchShown){
     paintZeroSearchRows(zeroSearchShown);
-    if(meta){
-      const span=zeroSearchShown.rangeStart&&zeroSearchShown.rangeEnd?` (${zeroSearchShown.rangeStart} — ${zeroSearchShown.rangeEnd})`:"";
-      meta.textContent=`كۆرسىتىلگەن تىزىملىك يەنىلا ئاخىرقى ${zeroSearchShown.days} كۈن${span}. ${text}`;
-    }
+    if(meta)meta.textContent=`${meta.textContent}. ${text}`;
     return;
   }
   if(host)host.innerHTML=`<div class="admin-empty">${esc(text)}</div>`;
@@ -5352,17 +5349,22 @@ async function loadZeroSearches(opts){
   if(append){
     if(zeroSearchFlight||!zeroSearchShown||!zeroSearchShown.hasMore)return;
   }
-  const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  const offset=append&&zeroSearchShown?zeroSearchShown.nextOffset:0;
-  const asOf=append&&zeroSearchShown?zeroSearchShown.asOf:null;
+  const selectedDays=Math.max(1,Number($("#analyticsRange")?.value)||30);
+  const request=Core&&typeof Core.zeroSearchPageRequest==="function"
+    ?Core.zeroSearchPageRequest({append,selectedDays,session:zeroSearchShown,limit:ZERO_SEARCH_PAGE})
+    :null;
+  if(!request){
+    if(!append)paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", selectedDays);
+    return;
+  }
+  const days=request.p_days;
   zeroSearchFlight=true;
   const token=zeroSearchRequests.begin();
   const more=zeroSearchMoreEl();
   if(append){
     if(more){more.disabled=true;more.textContent="يۈكلىنىۋاتىدۇ…"}
   }else paintZeroSearchLoading();
-  const args={p_days:days,p_offset:offset,p_limit:ZERO_SEARCH_PAGE};
-  if(asOf)args.p_as_of=asOf;
+  const args=request;
   let data=null,error=null;
   try{
     const response=await db.rpc("get_kutadgu_zero_searches",args);
@@ -5386,7 +5388,15 @@ async function loadZeroSearches(opts){
     return;
   }
   const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
-  const session=page&&Core&&typeof Core.continueZeroSearchSession==="function"
+  if(!page){
+    paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", days);
+    return;
+  }
+  if(append&&typeof Core.zeroSearchAppendMatches==="function"&&!Core.zeroSearchAppendMatches(zeroSearchShown, page)){
+    paintZeroSearchFailure("جاۋاب ساقلانغان تىزىملىك بىلەن ماس كەلمىدى", days);
+    return;
+  }
+  const session=typeof Core.continueZeroSearchSession==="function"
     ?Core.continueZeroSearchSession(append?zeroSearchShown:null, page)
     :null;
   if(!session){

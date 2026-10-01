@@ -142,6 +142,76 @@ test("a browsing snapshot still reaches a group that becomes newest between page
   assert.strictEqual(refreshed.asOf, asOf);
 });
 
+test("load more stays on the retained snapshot when the selector has moved", () => {
+  const asOf = "2026-09-30T20:00:00+00:00";
+  const first = A.normalizeZeroSearchPage({
+    total_queries: 26,
+    total_events: 40,
+    offset: 0,
+    limit: 20,
+    next_offset: 20,
+    as_of: asOf,
+    days: 30,
+    range_start: "2026-09-02",
+    range_end: "2026-10-01",
+    queries: [{ query: "query-01", searches: 1, last_searched_at: "2026-09-30T19:00:00Z" }]
+  });
+  const session = A.continueZeroSearchSession(null, first);
+  session.hasMore = true;
+  const open = A.zeroSearchPageRequest({ append: false, selectedDays: 7, limit: 20 });
+  assert.deepStrictEqual(open, { p_days: 7, p_offset: 0, p_limit: 20 });
+  const more = A.zeroSearchPageRequest({ append: true, selectedDays: 7, session, limit: 20 });
+  assert.deepStrictEqual(more, { p_days: 30, p_offset: 20, p_limit: 20, p_as_of: asOf });
+  const page = A.normalizeZeroSearchPage({
+    total_queries: 26,
+    total_events: 40,
+    offset: 20,
+    limit: 20,
+    next_offset: 26,
+    as_of: "2026-09-30T20:00:00Z",
+    days: 30,
+    range_start: "2026-09-02",
+    range_end: "2026-10-01",
+    queries: [{ query: "query-26", searches: 1, last_searched_at: "2026-09-30T18:00:00Z" }]
+  });
+  assert.strictEqual(A.zeroSearchAppendMatches(session, page), true);
+  const continued = A.continueZeroSearchSession(session, page);
+  assert.strictEqual(continued.rows.length, 2);
+  assert.strictEqual(continued.totalQueries, 26);
+  assert.strictEqual(continued.totalEvents, 40);
+  assert.strictEqual(continued.days, 30);
+  assert.strictEqual(continued.asOf, asOf);
+  assert.strictEqual(session.rows.length, 1);
+  assert.strictEqual(session.totalQueries, 26);
+
+  function mismatch(patch) {
+    const body = {
+      total_queries: 26,
+      total_events: 40,
+      offset: 20,
+      limit: 20,
+      next_offset: 26,
+      as_of: asOf,
+      days: 30,
+      range_start: "2026-09-02",
+      range_end: "2026-10-01",
+      queries: [{ query: "other", searches: 1, last_searched_at: "2026-09-30T18:00:00Z" }]
+    };
+    Object.assign(body, patch);
+    const bad = A.normalizeZeroSearchPage(body);
+    assert.strictEqual(A.zeroSearchAppendMatches(session, bad), false);
+    assert.strictEqual(A.continueZeroSearchSession(session, bad), null);
+    assert.strictEqual(session.totalQueries, 26);
+    assert.strictEqual(session.rows.length, 1);
+  }
+  mismatch({ days: 7, total_queries: 7, total_events: 7 });
+  mismatch({ as_of: "2026-09-30T21:00:00+00:00" });
+  mismatch({ range_start: "2026-09-25" });
+  mismatch({ range_end: "2026-09-30" });
+  mismatch({ offset: 0, next_offset: 7 });
+  mismatch({ offset: 25, next_offset: 26 });
+});
+
 test("shop records the captured query only after a completed non-append search", () => {
   const shop = read("shop.js");
   const home = shop.slice(shop.indexOf("async function run(append=false)"), shop.indexOf("function dynamicListingCard"));
@@ -169,8 +239,8 @@ test("admin zero-search section is paginated and does not paint the summary top 
   const admin = read("admin.js");
   const html = read("admin.html");
   assert.match(admin, /rpc\("get_kutadgu_zero_searches"/);
-  assert.match(admin, /args\.p_as_of=asOf/);
-  assert.match(admin, /nextOffset/);
+  assert.match(admin, /zeroSearchPageRequest/);
+  assert.match(admin, /zeroSearchAppendMatches/);
   assert.match(admin, /continueZeroSearchSession/);
   assert.doesNotMatch(admin, /range\.value\s*=/);
   assert.doesNotMatch(admin, /جاۋاب چەكلىمىسى/);
@@ -181,8 +251,8 @@ test("admin zero-search section is paginated and does not paint the summary top 
   assert.ok(!admin.includes('setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches)'));
   assert.ok(!admin.includes('renderAnalyticsList($("#analyticsZeroSearches")'));
   assert.match(html, /id="analyticsZeroSearchesMore"/);
-  assert.match(html, /admin\.js\?v=81/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=6/);
+  assert.match(html, /admin\.js\?v=82/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=7/);
   assert.match(admin, /نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
   assert.match(admin, /كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى/);
 });

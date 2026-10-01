@@ -88,6 +88,13 @@ async function waitForQuery(events, query) {
   await expect.poll(() => searchEvents(events).filter((row) => row.search_query === query).length).toBeGreaterThan(0);
 }
 
+async function waitForZeroPair(events, query) {
+  await expect.poll(() => {
+    const names = searchEvents(events).filter((row) => row.search_query === query).map((row) => row.event_name);
+    return names.includes("search") && names.includes("zero_result_search");
+  }).toBeTruthy();
+}
+
 test.describe("zero-result search recording", () => {
   test("records a confirmed empty search once from each entry point and skips unknowns", async ({ page }) => {
     test.setTimeout(120000);
@@ -97,7 +104,7 @@ test.describe("zero-result search recording", () => {
     await page.locator("#searchInput").fill("zzzz-no-such-book");
     await page.locator("#searchButton").click();
     await expect(page.locator("#searchResults")).toContainText(/نەتىجە تېپىلمىدى|ئىزدەش نەتىجىسى تېپىلمىدى/);
-    await waitForQuery(events, "zzzz-no-such-book");
+    await waitForZeroPair(events, "zzzz-no-such-book");
     const zero = searchEvents(events).filter((row) => row.search_query === "zzzz-no-such-book");
     expect(zero.map((row) => row.event_name).sort()).toEqual(["search", "zero_result_search"]);
     expect(zero.every((row) => row.result_count === 0)).toBeTruthy();
@@ -119,7 +126,7 @@ test.describe("zero-result search recording", () => {
 
     await page.locator("#searchInput").fill("9780306406157");
     await page.locator("#searchButton").click();
-    await waitForQuery(events, "9780306406157");
+    await waitForZeroPair(events, "9780306406157");
     expect(searchEvents(events).some((row) => row.search_query === "9780306406157" && row.event_name === "zero_result_search")).toBeTruthy();
 
     await page.locator("#searchInput").fill("ن");
@@ -139,7 +146,7 @@ test.describe("zero-result search recording", () => {
 
     await page.locator("#kutadguHeaderSearch").fill("header-zero-term");
     await page.locator(".kutadgu-header-search button[type='submit']").click();
-    await waitForQuery(events, "header-zero-term");
+    await waitForZeroPair(events, "header-zero-term");
     expect(searchEvents(events).filter((row) => row.search_query === "header-zero-term").map((row) => row.event_name).sort()).toEqual(["search", "zero_result_search"]);
 
     state.delayQuery = "stale-zero-term";
@@ -164,7 +171,7 @@ test.describe("zero-result search recording", () => {
     await page.locator("#catalogFilterText").fill("books-zero-term");
     await page.locator("#catalogFilterText").press("Enter");
     await expect(page.locator(".catalog-filter-empty")).toBeVisible();
-    await waitForQuery(events, "books-zero-term");
+    await waitForZeroPair(events, "books-zero-term");
     expect(searchEvents(events).filter((row) => row.search_query === "books-zero-term" && row.event_name === "zero_result_search").length).toBe(1);
     const beforeMore = searchEvents(events).filter((row) => row.search_query === "books-zero-term").length;
     const more = page.locator(".catalog-load-more");

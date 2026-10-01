@@ -661,20 +661,64 @@
     };
   }
 
+  function sameZeroSearchInstant(left, right){
+    const a=left==null?"":String(left);
+    const b=right==null?"":String(right);
+    if(!a||!b)return false;
+    if(a===b)return true;
+    const aTime=Date.parse(a);
+    const bTime=Date.parse(b);
+    return Number.isFinite(aTime)&&aTime===bTime;
+  }
+
+  function zeroSearchPageRequest(options){
+    const limit=integerAtLeast(options&&options.limit,1);
+    if(limit===null)return null;
+    if(!(options&&options.append)){
+      const selected=integerAtLeast(options&&options.selectedDays,1);
+      if(selected===null)return null;
+      return {p_days:selected,p_offset:0,p_limit:limit};
+    }
+    const session=options.session;
+    if(!session||session.hasMore!==true)return null;
+    const days=integerAtLeast(session.days,1);
+    const offset=integerAtLeast(session.nextOffset,0);
+    const asOf=session.asOf==null?"":String(session.asOf);
+    if(days===null||offset===null||!asOf)return null;
+    return {p_days:days,p_offset:offset,p_limit:limit,p_as_of:asOf};
+  }
+
+  function zeroSearchAppendMatches(session, page){
+    if(!session||!page)return false;
+    const days=integerAtLeast(session.days,1);
+    const offset=integerAtLeast(session.nextOffset,0);
+    const totalQueries=integerAtLeast(session.totalQueries,0);
+    const totalEvents=integerAtLeast(session.totalEvents,0);
+    if(days===null||offset===null||totalQueries===null||totalEvents===null)return false;
+    if(page.days!==days||page.offset!==offset)return false;
+    if(page.total_queries!==totalQueries||page.total_events!==totalEvents)return false;
+    if(!sameZeroSearchInstant(page.as_of, session.asOf))return false;
+    if(String(page.range_start||"")!==String(session.rangeStart||""))return false;
+    if(String(page.range_end||"")!==String(session.rangeEnd||""))return false;
+    return true;
+  }
+
   function continueZeroSearchSession(previous, page){
     if(!page||!Number.isInteger(page.next_offset)||!Number.isInteger(page.total_queries))return null;
+    if(previous&&!zeroSearchAppendMatches(previous, page))return null;
     const priorRows=previous&&Array.isArray(previous.rows)?previous.rows:[];
     const priorOffset=previous&&Number.isInteger(previous.nextOffset)?previous.nextOffset:0;
     if(page.next_offset<priorOffset)return null;
     const rows=appendZeroSearchRows(priorRows, page.queries);
     const asOf=previous&&previous.asOf?String(previous.asOf):(page.as_of||"");
     const advanced=page.next_offset>priorOffset;
+    const totalQueries=previous?previous.totalQueries:page.total_queries;
     return {
       rows,
       nextOffset:page.next_offset,
-      totalQueries:page.total_queries,
-      totalEvents:page.total_events,
-      hasMore:!!asOf&&advanced&&page.next_offset<page.total_queries,
+      totalQueries,
+      totalEvents:previous?previous.totalEvents:page.total_events,
+      hasMore:!!asOf&&advanced&&page.next_offset<totalQueries,
       capped:false,
       asOf,
       days:previous&&previous.days!=null?previous.days:page.days,
@@ -749,6 +793,8 @@
     confirmedResultCount,
     normalizeZeroSearchPage,
     appendZeroSearchRows,
+    zeroSearchPageRequest,
+    zeroSearchAppendMatches,
     continueZeroSearchSession,
     missingZeroSearchRpc
   };

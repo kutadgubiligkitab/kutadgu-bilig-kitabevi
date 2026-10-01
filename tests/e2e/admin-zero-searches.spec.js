@@ -425,4 +425,222 @@ test.describe("admin no-result searches", () => {
     await expect(page.locator("#analyticsBookViews")).toHaveText("7");
     await expect(page.locator("#analyticsRange")).toHaveValue("7");
   });
+
+  test("load more continues the retained snapshot after a failed range change", async ({ page }) => {
+    const rows30 = Array.from({ length: 26 }, (_, i) => ({
+      query: `query-${String(i + 1).padStart(2, "0")}`,
+      searches: 1,
+      last_searched_at: new Date(Date.parse("2026-10-01T09:00:00Z") - i * 60000).toISOString()
+    }));
+    const rows7 = rows30.slice(0, 7).map((row) => ({ ...row, query: `week-${row.query}` }));
+    await page.addInitScript(({ rows30: full, rows7: week }) => {
+      window.__kutadguSkipAdminAuth = true;
+      window.__kutadguAdminPreviewBooks = [];
+      window.__kutadguZeroCalls = [];
+      window.__kutadguZeroMode = "ok";
+      window.__kutadguAppendMismatch = "";
+      window.__kutadguSnapshots = {};
+      window.__kutadguSnapSeq = 0;
+      window.__kutadguAnalyticsDb = {
+        rpc(name, args) {
+          window.__kutadguZeroCalls.push({ name, args: { ...args } });
+          if (name === "get_kutadgu_analytics") {
+            return Promise.resolve({
+              data: { page_views: 1, book_views: args.p_days, cart_adds: 0, whatsapp_clicks: 0, zero_result_searches: 0 },
+              error: null
+            });
+          }
+          if (name !== "get_kutadgu_zero_searches") {
+            return Promise.resolve({ data: null, error: { message: "unknown rpc" } });
+          }
+          if (window.__kutadguZeroMode === "fail") {
+            return Promise.resolve({ data: null, error: { code: "500", message: "network down" } });
+          }
+          const mismatch = window.__kutadguAppendMismatch;
+          if (mismatch && args.p_as_of) {
+            const bad = {
+              total_queries: 26,
+              total_events: 40,
+              offset: args.p_offset || 0,
+              next_offset: (args.p_offset || 0) + 6,
+              limit: args.p_limit || 20,
+              has_more: false,
+              as_of: args.p_as_of,
+              days: 30,
+              range_start: "2026-09-02",
+              range_end: "2026-10-01",
+              representation: "search",
+              queries: [{ query: "should-not-appear", searches: 1, last_searched_at: "2026-10-01T09:00:00Z" }]
+            };
+            if (mismatch === "days") {
+              bad.days = 7;
+              bad.total_queries = 7;
+              bad.total_events = 7;
+            } else if (mismatch === "snapshot") {
+              bad.as_of = "snap-other";
+            } else if (mismatch === "range") {
+              bad.range_start = "2026-09-25";
+              bad.range_end = "2026-10-01";
+            } else if (mismatch === "cursor") {
+              bad.offset = 0;
+              bad.next_offset = 7;
+            }
+            return Promise.resolve({ data: bad, error: null });
+          }
+          let snap = args.p_as_of ? window.__kutadguSnapshots[args.p_as_of] : null;
+          if (!args.p_as_of) {
+            const id = `snap-${args.p_days}-${window.__kutadguSnapSeq += 1}`;
+            snap = {
+              id,
+              days: args.p_days,
+              rows: args.p_days === 7 ? week : full,
+              totalEvents: args.p_days === 7 ? 7 : 40,
+              rangeStart: args.p_days === 7 ? "2026-09-25" : "2026-09-02",
+              rangeEnd: "2026-10-01"
+            };
+            window.__kutadguSnapshots[id] = snap;
+          }
+          if (!snap) {
+            return Promise.resolve({ data: null, error: { message: "unknown snapshot" } });
+          }
+          if (args.p_days !== snap.days) {
+            const otherRows = args.p_days === 7 ? week : full;
+            const offset = args.p_offset || 0;
+            const limit = args.p_limit || 20;
+            const slice = otherRows.slice(offset, offset + limit);
+            return Promise.resolve({
+              data: {
+                total_queries: otherRows.length,
+                total_events: args.p_days === 7 ? 7 : 40,
+                offset,
+                next_offset: offset + slice.length,
+                limit,
+                has_more: offset + slice.length < otherRows.length,
+                as_of: args.p_as_of,
+                days: args.p_days,
+                range_start: args.p_days === 7 ? "2026-09-25" : "2026-09-02",
+                range_end: "2026-10-01",
+                representation: "search",
+                queries: slice
+              },
+              error: null
+            });
+          }
+          const offset = args.p_offset || 0;
+          const limit = args.p_limit || 20;
+          const slice = snap.rows.slice(offset, offset + limit);
+          return Promise.resolve({
+            data: {
+              total_queries: snap.rows.length,
+              total_events: snap.totalEvents,
+              offset,
+              next_offset: offset + slice.length,
+              limit,
+              has_more: offset + slice.length < snap.rows.length,
+              as_of: snap.id,
+              days: snap.days,
+              range_start: snap.rangeStart,
+              range_end: snap.rangeEnd,
+              representation: "search",
+              queries: slice
+            },
+            error: null
+          });
+        }
+      };
+    }, { rows30, rows7 });
+
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await page.locator('[data-admin-section="insights"]').click();
+    await page.locator("#reloadAnalytics").click();
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("20 / 26");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    const openedSnap = await page.evaluate(() => {
+      window.__kutadguMark = window.__kutadguZeroCalls.length;
+      return window.__kutadguZeroCalls.filter((call) => call.name === "get_kutadgu_zero_searches").pop().args;
+    });
+    expect(openedSnap.p_days).toBe(30);
+    expect(openedSnap.p_offset).toBe(0);
+    expect(openedSnap.p_as_of).toBeUndefined();
+
+    await page.evaluate(() => { window.__kutadguZeroMode = "fail"; });
+    await page.locator("#reloadAnalytics").click();
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("ئوقۇلمىدى");
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("20 / 26");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    await expect(page.locator("#analyticsRange")).toHaveValue("30");
+
+    await page.evaluate(() => { window.__kutadguZeroMode = "ok"; });
+    await page.locator("#analyticsZeroSearchesMore").click();
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(26);
+    await expect(page.locator("#analyticsZeroSearches")).toContainText("query-26");
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("26 / 26");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    const afterFailedRefresh = await page.evaluate(() => window.__kutadguZeroCalls.slice(window.__kutadguMark).filter((call) => call.name === "get_kutadgu_zero_searches"));
+    expect(afterFailedRefresh.map((call) => call.args.p_offset)).toEqual([0, 20]);
+    expect(afterFailedRefresh[0].args.p_days).toBe(30);
+    expect(afterFailedRefresh[0].args.p_as_of).toBeUndefined();
+    expect(afterFailedRefresh[1].args.p_days).toBe(30);
+    expect(afterFailedRefresh[1].args.p_as_of).toBeTruthy();
+    expect(afterFailedRefresh[1].args.p_offset).toBe(20);
+
+    await page.locator("#analyticsRange").selectOption("90");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "90");
+    await page.locator("#analyticsRange").selectOption("30");
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    await page.evaluate(() => { window.__kutadguZeroMode = "fail"; });
+    await page.locator("#analyticsRange").selectOption("7");
+    await expect(page.locator("#analyticsRange")).toHaveValue("7");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("ئوقۇلمىدى");
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("20 / 26");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+
+    await page.evaluate(() => { window.__kutadguZeroMode = "ok"; });
+    await page.locator("#analyticsZeroSearchesMore").click();
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(26);
+    await expect(page.locator("#analyticsZeroSearches")).toContainText("query-26");
+    await expect(page.locator("#analyticsZeroSearches")).not.toContainText("week-");
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("26 / 26");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    await expect(page.locator("#analyticsRange")).toHaveValue("7");
+    const retainedAppend = await page.evaluate(() => window.__kutadguZeroCalls.filter((call) => call.name === "get_kutadgu_zero_searches" && call.args.p_offset === 20).pop());
+    expect(retainedAppend.args.p_days).toBe(30);
+    expect(retainedAppend.args.p_as_of).toBeTruthy();
+
+    await page.locator("#reloadAnalytics").click();
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(7);
+    await expect(page.locator("#analyticsZeroSearches")).toContainText("week-query-01");
+    await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("7");
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "7");
+    await expect(page.locator("#analyticsRange")).toHaveValue("7");
+    const opened = await page.evaluate(() => window.__kutadguZeroCalls.filter((call) => call.name === "get_kutadgu_zero_searches").pop());
+    expect(opened.args.p_days).toBe(7);
+    expect(opened.args.p_offset).toBe(0);
+    expect(opened.args.p_as_of).toBeUndefined();
+
+    await page.locator("#analyticsRange").selectOption("30");
+    await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+    await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+    for (const kind of ["days", "snapshot", "range", "cursor"]) {
+      await page.evaluate((value) => { window.__kutadguAppendMismatch = value; }, kind);
+      await page.locator("#analyticsZeroSearchesMore").click();
+      await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("ماس كەلمىدى");
+      await expect(page.locator("#analyticsZeroSearches")).not.toContainText("should-not-appear");
+      await expect(page.locator("#analyticsZeroSearches .admin-analytics-row")).toHaveCount(20);
+      await expect(page.locator("#analyticsZeroSearchesCount")).toHaveText("40");
+      await expect(page.locator("#analyticsZeroSearchesMeta")).toContainText("20 / 26");
+      await expect(page.locator("#analyticsZeroSearchesMeta")).toHaveAttribute("data-shown-days", "30");
+      await expect(page.locator("#analyticsRange")).toHaveValue("30");
+      await expect(page.locator("#analyticsZeroSearchesMore")).toBeVisible();
+    }
+  });
 });
