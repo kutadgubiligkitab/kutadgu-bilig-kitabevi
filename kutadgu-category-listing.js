@@ -8,7 +8,7 @@ const safeUrl = require("./kutadgu-safe-url.js");
 const stock = require("./kutadgu-stock.js");
 const publicBook = require("./kutadgu-public-book.js");
 
-const ROOT = __dirname;
+const ROOT = typeof __dirname === "undefined" ? "" : __dirname;
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const PAGE_SIZE = 1000;

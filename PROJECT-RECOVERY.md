@@ -76,8 +76,8 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Keep Load more on the retained no-result snapshot. |
 | Date | 2026-10-01 |
 | Branch | `cursor/admin-zero-result-searches-ac0d` |
-| PR | #221 (draft, not merged) |
-| Why it stays | A completed search with a confirmed total of zero is recorded, including a query searched once. Admin pages that list inside one server snapshot. Load more repeats that snapshot's days, as-of time, and offset, even when the date control has moved. |
+| PR | #221, merged as `9acaa1cd` |
+| Why it stays | A completed search with a confirmed total of zero is recorded, including a query searched once. Admin pages that list inside one server snapshot. Load more repeats that snapshot's days, as-of time, and offset, even when the date control has moved. The merge commit is not a second behavior change. |
 
 `origin/main` when this branch was cut was `dcb26d4296df8d28d4af66009207aa8519d487ed`, the merge of #220. #220 is documentation only. It does not replace the visit-order behavior verified on `d6ba212392f8794f77fffc0fee0167b6050393c3`, which #219 merged. This baseline moves because admin analytics behavior changed. The unfiltered `/books` listing still uses one seeded discovery order per tab visit. A sort, search, or reset cancels an in-flight Load more. A short full-record page is read until `Content-Range` is exhausted before a missing id is skipped.
 
@@ -110,6 +110,7 @@ Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b1
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #221 | `9acaa1cd` | Admin zero-result search list and snapshot Load more. `STAGE101` stays manual SQL. Runtime baseline remains `445fe488`. |
 | #220 | `dcb26d42` | 2026-10-01 production website audit. Documentation only. Runtime baseline stayed on the visit-order commit until this zero-search change. |
 | #219 | `102f7db1` | Visit discovery order for the unfiltered `/books` listing. |
 | #218 | `8f9bf64e` | Admin daily visitors and trustworthy analytics. `STAGE100` stays manual SQL. |
@@ -241,6 +242,15 @@ Definitions once the migration is applied:
 - Collection skips local, preview, and other non-production hosts, and skips `admin.html` and `book-staff.html`. A logged-in admin on the public storefront can still be counted, because inserts use the public key. Bot filtering is not complete. PostHog stays separate and is not added to these totals.
 
 Apply order: run `STAGE100_ADMIN_DAILY_VISITORS.sql` in the Supabase SQL editor, then deploy. Rollback is `STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql`, run by itself. It restores the previous rolling-window function and the Stage 99 insert policy, drops the timing trigger, and leaves `visitor_id`, `event_id`, `host`, `occurred_at`, and `action_seq` in place. Do not delete `analytics_events`. Do not replace the function with `STAGE8_STORE_ANALYTICS.sql`.
+
+## Cloudflare parallel preview
+
+This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes, Supabase, Auth, RLS, and production image URLs stay as they are. The preview branch is `feat/cloudflare-parallel-preview`, based on `origin/main` at `9acaa1cd`. The implementation note is `CLOUDFLARE_MIGRATION_REPORT.md`. `npm run test:unit` on this branch exited 0 (1499 PASS lines, 105 files, including the Cloudflare preview tests). Local Wrangler on `127.0.0.1:8787` served the static pages and the migrated routes. The runtime baseline stays `445fe488`.
+
+- A Workers preview serves the same static site and calls the existing book, category, sitemap, and AI search modules. It does not replace the Vercel deployment. `npm run preview:cloudflare` runs that preview with Wrangler state outside the repo so the asset watcher does not reload on its own writes.
+- The preview worker refuses `www.kutadgubilik.com`, `kutadgubilik.com`, and `kutadgu-bilig-kitab.vercel.app`. `wrangler.jsonc` has no production route.
+- R2 cover copy and the admin upload scaffold stay off. Existing Supabase cover URLs are still the stored URLs. A future public R2 host can be named with `KUTADGU_R2_PUBLIC_BASE_URL` without removing the Supabase host.
+- Storefront pins are unchanged. This branch does not change shop, admin, or book-shell behavior.
 
 ## Remaining optional work
 
