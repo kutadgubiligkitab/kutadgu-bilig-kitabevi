@@ -360,3 +360,13 @@ Before the statement, production had 341 cover URLs and 679 gallery URLs, all on
 The bucket classification is A 1020, B 2, C 5, D 0, E 85. Class E is unknown and is not proposed for deletion. Class C is unreferenced Book Staff data and stays. Class A and class B are the only later-deletion candidates, and only in a separate reviewed pass. The rollback map is `scripts/r2-book-url-object-manifest.json` plus `scripts/r2-book-url-rollback-manifest.json`. The classification is `scripts/r2-book-url-storage-classification.json`.
 
 Live checks after the rewrite: `/book/106`, `/book/113`, `/book/174`, and `/book/454` serve `/__r2/` `og:image` and Book/Product JSON-LD and contain no Supabase book-covers URL. `/romanlar` contains `/__r2/` cover URLs and no Supabase book-covers URL. The homepage hero is still `/assets/store/shop-interior-main.webp`, `/assets/store/shop-interior-library.webp`, and `/assets/store/shop-exterior.webp`. The apex returns 308. `POST /api/ai-search` with `{}` returns 400 `invalid_query`. Unauthenticated `POST /api/r2-cover-upload` returns 401 `auth_required`. r2.dev stays disabled. `npm run test:unit` at `db7c820d`: 1508 PASS, 0 FAIL. Draft PR #227. Runtime baseline stays `445fe488`.
+
+## LEGACY STORAGE DELETION HELD
+
+A later cleanup was asked to delete only the 1020 class A book objects and the 2 class B Hero sources. It did not delete anything.
+
+Rechecked live state before the stop: `books.image_url` Supabase URLs 0, `books.gallery_images` Supabase URLs 0, `/__r2/` references 341 + 679 = 1020. Public and private text/json/jsonb columns contained no `book-covers` Storage URL. Storage still had 1112 objects and 261653092 bytes, classified A 1020 (246920073 bytes), B 2 (1571317 bytes), C 5 (3214393 bytes), E 85 (9947309 bytes). The three hero rows were still `origin=repo` for `main`, `library`, and `exterior`, with null URLs.
+
+The stop is the Android app. `privacy.html` says the catalog, including covers, is read from Supabase, and that the Android cart and favorites live only in on-device storage and are not synced. The app source is not in this repository or the `kutadgubiligkitab` GitHub org, so AsyncStorage or an equivalent cache could not be inspected. Deleting the old objects would make any indefinitely cached Supabase cover URL fail. The website cart display snapshot is refreshed from the live catalog on boot; that does not prove the same for the installed app.
+
+No restore manifest was written and no Storage API delete was called. `storage.objects` was not deleted by SQL. The bucket, class C, class E, class A, class B, and every R2 object remain. Runtime baseline stays `445fe488`.

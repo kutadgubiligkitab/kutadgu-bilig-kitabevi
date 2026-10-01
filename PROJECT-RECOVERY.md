@@ -273,7 +273,7 @@ The repo has no separate backlog file. These are cautions, not scheduled tasks:
 - Public book queries still use broad `select=*` in places. Narrowing columns needs a check that cards and detail pages still receive every field they render.
 - `STAGE11_RECOVERY.md` still mentions agent branches as `cursor/<name>-fd87`. Recent merged work used `cursor/<name>-c4dc`. Confirm the live branch suffix before creating a branch.
 - Android app source is outside this repo. Website changes that affect auth, catalog shape, or privacy copy can affect that app even though its code is not here.
-- Current book image URLs no longer use Supabase Storage. The old `book-covers` objects are still there for rollback. A later reviewed deletion may consider only class A (1020 R2-verified book objects whose database URLs now use `/__r2/`) and class B (the two old Hero sources already SHA-256 matched). Class C (5 Book Staff objects) and class E (85 unknown objects) must stay until they are classified with evidence. Do not delete them in the URL-rewrite pass.
+- Current book image URLs no longer use Supabase Storage. On 2026-10-01 the bucket still had 1112 objects and 261653092 bytes: class A 1020, class B 2, class C 5, class E 85. A deletion pass was stopped before any object was removed. The privacy policy describes a distributed Android app whose cart and favorites stay in on-device storage and are not synced. That app's source is not in this repository, so its local catalog, cart, or image cache could not be inspected. Do not delete class A or class B until that source shows it refreshes cover URLs from the live catalog and does not keep Supabase `book-covers` URLs indefinitely. Class C and class E stay regardless.
 
 ## How to resume work safely
 
