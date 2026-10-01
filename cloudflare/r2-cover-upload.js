@@ -9,8 +9,39 @@ const IMAGE_TYPES = Object.freeze({
   "image/png": ".png"
 });
 
+const CANONICAL_COVER_ORIGIN = "https://www.kutadgubilik.com";
+
 function uploadEnabled(env) {
   return String((env && env.KUTADGU_R2_UPLOAD_ENABLED) || "") === "true";
+}
+
+function requestHost(request) {
+  try {
+    return String(new URL(request.url).hostname || "")
+      .toLowerCase()
+      .replace(/\.$/, "")
+      .replace(/^\[|\]$/g, "");
+  } catch (err) {
+    return "";
+  }
+}
+
+function productionUpload(request, env) {
+  if (images.hostMode(env) !== "production" || !uploadEnabled(env)) return false;
+  const host = requestHost(request);
+  return host === "www.kutadgubilik.com" || host === "kutadgubilik.com";
+}
+
+function canonicalCoverUrl(key) {
+  const path = images.privateReadPath(key);
+  if (!path) return "";
+  return CANONICAL_COVER_ORIGIN + path;
+}
+
+function staffOwnedKey(key, userId) {
+  const id = String(userId || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) return false;
+  return String(key || "").toLowerCase().indexOf("book-covers/staff/" + id + "/") === 0;
 }
 
 function overwriteEnabled(env) {
@@ -59,9 +90,33 @@ function jsonResponse(status, payload, env, extra) {
   return { status, headers, body: JSON.stringify(payload) };
 }
 
+async function readJson(response) {
+  if (!response || typeof response.json !== "function") return null;
+  try {
+    return await response.json();
+  } catch (err) {
+    return null;
+  }
+}
+
+async function rpcFlag(fetchImpl, token, name) {
+  const response = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/rpc/" + name, {
+    method: "POST",
+    headers: {
+      apikey: images.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: "{}"
+  });
+  if (!response || !response.ok) return false;
+  return (await readJson(response)) === true;
+}
+
 async function handleR2CoverUpload(request, env, deps) {
   const sourceEnv = env || {};
-  if (!uploadEnabled(sourceEnv)) {
+  if (!productionUpload(request, sourceEnv)) {
     return {
       status: 404,
       headers: new Headers({
@@ -88,28 +143,15 @@ async function handleR2CoverUpload(request, env, deps) {
   if (!userResponse || !userResponse.ok) {
     return jsonResponse(401, { ok: false, error: "auth_required" });
   }
+  const user = await readJson(userResponse);
+  const userId = String(user && user.id || "");
+  if (!userId) return jsonResponse(401, { ok: false, error: "auth_required" });
   const payload = decodeJwtPayload(token);
   const aal = String((payload && payload.aal) || "").toLowerCase();
   if (aal !== "aal2") return jsonResponse(403, { ok: false, error: "aal2_required" });
-  const adminResponse = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/rpc/is_kutadgu_admin", {
-    method: "POST",
-    headers: {
-      apikey: images.SUPABASE_PUBLISHABLE_KEY,
-      Authorization: "Bearer " + token,
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: "{}"
-  });
-  let isAdmin = false;
-  if (adminResponse && adminResponse.ok && typeof adminResponse.json === "function") {
-    try {
-      isAdmin = (await adminResponse.json()) === true;
-    } catch (err) {
-      isAdmin = false;
-    }
-  }
-  if (!isAdmin) return jsonResponse(403, { ok: false, error: "admin_required" });
+  const isAdmin = await rpcFlag(fetchImpl, token, "is_kutadgu_admin");
+  const isStaff = isAdmin ? false : await rpcFlag(fetchImpl, token, "is_kutadgu_book_staff");
+  if (!isAdmin && !isStaff) return jsonResponse(403, { ok: false, error: "admin_required" });
   const bucket = sourceEnv.COVERS;
   if (!bucket || typeof bucket.put !== "function" || typeof bucket.head !== "function") {
     return jsonResponse(503, { ok: false, error: "r2_unbound" });
@@ -117,6 +159,9 @@ async function handleR2CoverUpload(request, env, deps) {
   const contentType = String(request.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const key = safeObjectKey(request.headers.get("x-kutadgu-object-key"), contentType);
   if (!key) return jsonResponse(400, { ok: false, error: "invalid_object" });
+  if (!isAdmin && !staffOwnedKey(key, userId)) {
+    return jsonResponse(403, { ok: false, error: "admin_required" });
+  }
   const declared = Number(request.headers.get("content-length") || "0");
   if (Number.isFinite(declared) && declared > MAX_BYTES) {
     return jsonResponse(413, { ok: false, error: "too_large" });
@@ -135,15 +180,18 @@ async function handleR2CoverUpload(request, env, deps) {
       cacheControl: "public, max-age=31536000, immutable"
     }
   });
-  const publicUrl = images.futurePublicUrl(key, {
-    r2PublicBase: sourceEnv.KUTADGU_R2_PUBLIC_BASE_URL || ""
-  });
-  return jsonResponse(201, { ok: true, key, publicUrl });
+  const url = canonicalCoverUrl(key);
+  if (!url) return jsonResponse(400, { ok: false, error: "invalid_object" });
+  return jsonResponse(201, { ok: true, key, url });
 }
 
 module.exports = {
   MAX_BYTES,
+  CANONICAL_COVER_ORIGIN,
   uploadEnabled,
+  productionUpload,
+  canonicalCoverUrl,
+  staffOwnedKey,
   safeObjectKey,
   handleR2CoverUpload
 };

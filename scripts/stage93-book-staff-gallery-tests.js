@@ -130,7 +130,8 @@ test("staff client still cannot write books or use admin privileges", () => {
   assert.match(staffJs, /function galleryFileExtension\(file\)/);
   const galleryPathFn = staffJs.slice(staffJs.indexOf("function galleryFileExtension("), staffJs.indexOf("function staffGalleryPublicUrl("));
   assert.doesNotMatch(galleryPathFn, /file&&file\.name|split\("\."\)\.pop/);
-  assert.match(staffJs, /if\(fromApi\)publicUrl=assertStaffGalleryPublicUrl\(uid,fromApi\)/);
+  assert.match(staffJs, /uploadStaffPreparedImage\(client,path,prepared\)/);
+  assert.doesNotMatch(staffJs, /storage\.from/);
 });
 
 test("Admin pending review shows gallery read-only and approval RPCs stay unchanged", () => {
@@ -152,6 +153,27 @@ test("storefront gallery helper is unchanged and still reads galleryImages array
   assert.match(shopJs, /function detailGallerySlides\(book\)/);
   assert.match(shopJs, /normalizeGalleryImages\(book\?\.galleryImages\|\|\[\],book\?\.image\|\|""\)/);
   assert.doesNotMatch(sql, /kutadgu-logo|hero-brand|sample-book-cover/);
+});
+
+test("new staff and pending image URLs may be private R2 covers without dropping old Supabase URLs", () => {
+  const next = read("STAGE102_R2_BOOK_IMAGE_URLS.sql");
+  const submit = functionBlock(next, "public.submit_book_for_approval");
+  const pending = functionBlock(next, "public.update_pending_staff_book_submission");
+  const r2 = "https://www.kutadgubilik.com/__r2/book-covers/";
+  const supabase = "https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/";
+  assert.match(submit, /www\.kutadgubilik\.com\/__r2\/book-covers\//);
+  assert.match(submit, /fxlojnqwyojqjskfggmh\.supabase\.co\/storage\/v1\/object\/public\/book-covers\//);
+  assert.match(pending, /v_r2_root/);
+  assert.match(pending, /v_cover_root/);
+  assert.match(next, /auth\.jwt\(\)->>'aal'\) IS DISTINCT FROM 'aal2'/);
+  assert.doesNotMatch(next, /CREATE POLICY|DROP POLICY|DELETE FROM storage|storage\.objects/);
+  const uid = "11111111-1111-4111-8111-111111111111";
+  function accepts(url, prefix) {
+    return url.startsWith(prefix + "staff/" + uid + "/") && !url.includes("..") && !/[?#@]/.test(url);
+  }
+  assert.strictEqual(accepts(supabase + "staff/" + uid + "/cover.webp", supabase), true);
+  assert.strictEqual(accepts(r2 + "staff/" + uid + "/cover.webp", r2), true);
+  assert.strictEqual(accepts("https://evil.example/__r2/book-covers/staff/" + uid + "/cover.webp", r2), false);
 });
 
 if (failed) {

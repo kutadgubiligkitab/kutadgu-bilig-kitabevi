@@ -117,10 +117,13 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
   assert.match(upload, /if\(!db&&window\.__kutadguSkipAdminAuth\)return skipAuthPreviewCoverUrl/);
   assert.match(upload, /uniqueStorageStamp\(\)/);
   assert.match(upload, /prepareStorageUpload/);
-  assert.match(upload, /upsert:false/);
+  assert.match(upload, /uploadPreparedBookImage/);
+  assert.match(upload, /book-covers\//);
+  assert.doesNotMatch(upload, /storage\.from|\.upload\(|getPublicUrl/);
   assert.doesNotMatch(upload, /\.remove\(|\.update\(|\.list\(/);
   assert.match(gallery, /uniqueStorageStamp\(\)/);
-  assert.match(gallery, /upsert:false/);
+  assert.match(gallery, /uploadPreparedBookImage/);
+  assert.doesNotMatch(gallery, /storage\.from|\.upload\(|getPublicUrl/);
   assert.match(collect, /for\(const item of galleryDraft\)/);
   assert.match(collect, /uploadGalleryFile\(id,item\.file\)/);
   assert.match(collect, /await SaveGuard\.withTimeout\(uploadOne,SaveGuard\.STORAGE_UPLOAD_MS,"gallery"\)/);
@@ -139,8 +142,8 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
 
 test("admin and staff pages load the shared helper before upload code", () => {
   assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=2'));
-  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=82'));
-  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=8'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=83'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=9'));
   assert.match(adminJs, /optimizeCover\(file\)/);
   assert.match(staffJs, /await requireAal2\(client\)/);
   assert.match(staffJs, /rpcIsBookStaff\(client\)/);
@@ -148,11 +151,12 @@ test("admin and staff pages load the shared helper before upload code", () => {
   const gallery = slice(staffJs, "async function uploadStaffGallery(client,uid,files){", "function staffSurface");
   assert.ok(cover.indexOf("requireAal2") < cover.indexOf("optimizeUploadImage"));
   assert.ok(cover.indexOf("rpcIsBookStaff") < cover.indexOf("optimizeUploadImage"));
-  assert.ok(cover.indexOf("optimizeUploadImage") < cover.indexOf(".upload("));
-  assert.match(cover, /upsert:false/);
-  assert.ok(gallery.indexOf("requireAal2") < gallery.indexOf(".upload("));
+  assert.ok(cover.indexOf("optimizeUploadImage") < cover.indexOf("uploadStaffPreparedImage"));
+  assert.match(cover, /postR2CoverUpload|uploadStaffPreparedImage/);
+  assert.doesNotMatch(cover, /storage\.from/);
+  assert.ok(gallery.indexOf("requireAal2") < gallery.indexOf("uploadStaffPreparedImage"));
   assert.ok(gallery.indexOf("rpcIsBookStaff") < gallery.indexOf("optimizeUploadImage"));
-  assert.match(gallery, /upsert:false/);
+  assert.doesNotMatch(gallery, /storage\.from|upsert:true/);
   assert.doesNotMatch(cover + gallery, /\.remove\(|\.update\(|\.list\(/);
 });
 
@@ -191,19 +195,11 @@ function loadStaff() {
   return sandbox.window;
 }
 
-function staffClient(uploads, staff) {
+function staffClient(uploads, staff, win) {
   return {
-    storage: {
-      from() {
-        return {
-          upload(path, body, options) {
-            uploads.push({ path, body, options });
-            return { error: null };
-          },
-          getPublicUrl(path) {
-            return { data: { publicUrl: "https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/" + path } };
-          }
-        };
+    auth: {
+      getSession() {
+        return Promise.resolve({ data: { session: { access_token: "staff-token" } }, error: null });
       }
     },
     rpc() {
@@ -219,7 +215,23 @@ function allowStaff(win, level) {
   };
 }
 
-test("staff cover and gallery uploads keep authorization and use a new immutable object", async () => {
+function installStaffR2Fetch(win, calls) {
+  win.fetch = async (url, init) => {
+    const headers = init && init.headers || {};
+    const key = headers["x-kutadgu-object-key"];
+    calls.push({ url, init, key, contentType: headers["Content-Type"], body: init && init.body });
+    return {
+      ok: true,
+      json: async () => ({
+        ok: true,
+        key,
+        url: win.KutadguCoverImage.canonicalPrivateCoverUrl(key)
+      })
+    };
+  };
+}
+
+test("staff cover and gallery uploads keep authorization and use a new private R2 object", async () => {
   const win = loadStaff();
   const uid = "11111111-1111-4111-8111-111111111111";
   const gif = { name: "page.gif", type: "image/gif", size: 24, arrayBuffer: async () => new Uint8Array(24).buffer };
@@ -234,31 +246,42 @@ test("staff cover and gallery uploads keep authorization and use a new immutable
   assert.strictEqual(denied.length, 0);
   await assert.rejects(() => win.KutadguBookStaff.uploadStaffCover(staffClient(denied, true), uid, { name: "x.svg", type: "image/svg+xml", size: 10 }), /JPEG/);
   assert.strictEqual(denied.length, 0);
+  const gifCalls = [];
+  installStaffR2Fetch(win, gifCalls);
+  await assert.rejects(() => win.KutadguBookStaff.uploadStaffCover(staffClient([], true), uid, gif), /JPEG، PNG ياكى WebP/);
+  assert.strictEqual(gifCalls.length, 0);
+  const webp = { name: "cover.webp", type: "image/webp", size: 24, arrayBuffer: async () => new Uint8Array(24).buffer };
+  win.KutadguCoverImage.optimizeUploadImage = async () => webp;
   const uploads = [];
+  installStaffR2Fetch(win, uploads);
   const client = staffClient(uploads, true);
-  const first = await win.KutadguBookStaff.uploadStaffCover(client, uid, gif);
-  const second = await win.KutadguBookStaff.uploadStaffCover(client, uid, { name: "other.gif", type: "image/gif", size: 24, arrayBuffer: async () => new Uint8Array(24).buffer });
-  assert.notStrictEqual(uploads[0].path, uploads[1].path);
-  assert.match(uploads[0].path, /^staff\/11111111-1111-4111-8111-111111111111\/\d{8}-[a-z0-9]+-cover\.gif$/);
-  assert.match(first, /\/book-covers\/staff\/11111111-1111-4111-8111-111111111111\//);
+  const first = await win.KutadguBookStaff.uploadStaffCover(client, uid, webp);
+  const second = await win.KutadguBookStaff.uploadStaffCover(client, uid, webp);
+  assert.notStrictEqual(uploads[0].key, uploads[1].key);
+  assert.match(uploads[0].key, /^book-covers\/staff\/11111111-1111-4111-8111-111111111111\/\d{8}-[a-z0-9]+-cover\.webp$/);
+  assert.match(first, /^https:\/\/www\.kutadgubilik\.com\/__r2\/book-covers\/staff\/11111111-1111-4111-8111-111111111111\//);
   assert.notStrictEqual(first, second);
   uploads.forEach((call) => {
-    assert.strictEqual(call.options.upsert, false);
-    assert.strictEqual(call.options.headers["cache-control"], "public, max-age=31536000, immutable");
-    assert.strictEqual(call.options.contentType, "image/gif");
+    assert.strictEqual(call.url, "/api/r2-cover-upload");
+    assert.strictEqual(call.init.method, "POST");
+    assert.strictEqual(call.init.headers.Authorization, "Bearer staff-token");
+    assert.strictEqual(call.contentType, "image/webp");
     assert.ok(call.body instanceof ArrayBuffer);
   });
   const galleryUploads = [];
-  const urls = await win.KutadguBookStaff.uploadStaffGallery(staffClient(galleryUploads, true), uid, [gif, gif]);
+  installStaffR2Fetch(win, galleryUploads);
+  const urls = await win.KutadguBookStaff.uploadStaffGallery(staffClient(galleryUploads, true), uid, [webp, webp]);
   assert.strictEqual(urls.length, 2);
-  assert.notStrictEqual(galleryUploads[0].path, galleryUploads[1].path);
-  assert.match(galleryUploads[0].path, /\/gallery\/\d{8}-[a-z0-9]+-0\.gif$/);
-  assert.match(galleryUploads[1].path, /\/gallery\/\d{8}-[a-z0-9]+-1\.gif$/);
+  assert.notStrictEqual(galleryUploads[0].key, galleryUploads[1].key);
+  assert.match(galleryUploads[0].key, /\/gallery\/\d{8}-[a-z0-9]+-0\.webp$/);
+  assert.match(galleryUploads[1].key, /\/gallery\/\d{8}-[a-z0-9]+-1\.webp$/);
   galleryUploads.forEach((call) => {
-    assert.strictEqual(call.options.upsert, false);
-    assert.strictEqual(call.options.headers["cache-control"], api.CACHE_CONTROL);
+    assert.strictEqual(call.contentType, "image/webp");
+    assert.match(call.key, /^book-covers\/staff\//);
   });
+  win.KutadguCoverImage.optimizeUploadImage = api.optimizeUploadImage;
   const jpegUploads = [];
+  installStaffR2Fetch(win, jpegUploads);
   await assert.rejects(() => win.KutadguBookStaff.uploadStaffCover(staffClient(jpegUploads, true), uid, {
     name: "cover.jpg",
     type: "image/jpeg",

@@ -146,13 +146,13 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 | `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
-| `admin.js` | `?v=82` (`no-store`; the pin still changes with the zero-search list) |
+| `admin.js` | `?v=83` (`no-store`; new book images upload to private R2) |
 | `admin.css` | `?v=47` |
 | `kutadgu-analytics-core.js` | `?v=7` on `admin.html`. Storefront pages still request `?v=5` because search recording did not change. |
 | `analytics.js` | `?v=5` |
 | `admin-save-guard.js` | `?v=1` |
 | `kutadgu-cover-image.js` | `?v=2` on `admin.html` and `book-staff.html` |
-| `book-staff.js` | `?v=8` |
+| `book-staff.js` | `?v=9` |
 | `kutadgu-book-views.js` | `?v=5` on `book-shell.html` |
 | `covers.css` | `?v=2` |
 | `storefront-cover-presentation.css` | `?v=1`, loaded from `shop.js` |
@@ -255,7 +255,8 @@ This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes
 - Storefront pins are unchanged. This branch does not change shop, admin, or book-shell behavior.
 - Final pre-production QA compared the workers.dev preview with `https://www.kutadgubilik.com` before cutover. The preview still returns 421 for production hosts, serves private R2 only on workers.dev, and leaves AI search disabled. Production `POST /api/ai-search` is enabled on the production Worker. The note is `CLOUDFLARE_MIGRATION_REPORT.md`. Runtime baseline stays `445fe488`.
 - `kutadgu-cloudflare-production` version `b859be14-dc00-4277-a426-451011f2dfc5` serves `https://www.kutadgubilik.com` and the apex as Worker Custom Domains. The old `kutadgubilik.com/*` and `www.kutadgubilik.com/*` routes were removed after those domains were active. The Vercel apex `A` `216.198.79.1` and `www` CNAME `691042ca7074d500.vercel-dns-017.com` are gone. Cloudflare created proxied `AAAA` `100::` records for both hostnames. Private R2 reads and AI search stay live. Supabase was not modified. The preview Worker has no custom domain and no route. Custom domains were recorded on `cursor/worker-custom-domains-575f` at `16ea72aa`, merged by PR #223. Runtime baseline stays `445fe488`.
-- `kutadgu-bilig-kitab.vercel.app` is no longer an allowed production host in auth, analytics, PostHog, or AI search. The default Playwright and Stage 10 production origin is `https://www.kutadgubilik.com`. The deployed Workers were not redeployed for this cleanup. `npm run test:unit` on `cursor/retire-vercel-host-575f` at `eea08f4c`: 1502 PASS, 0 FAIL. Draft PR #224. The Vercel project `kutadgu-bilig-kitab` (`prj_gioTogvVRSkPwVBgflcRZWAtJLhX`) was identified and not deleted: the current Vercel token cannot act in team `kutadgu-bilig-kitabhanisi`. Runtime baseline stays `445fe488`.
+- `kutadgu-bilig-kitab.vercel.app` is no longer an allowed production host in auth, analytics, PostHog, or AI search. The default Playwright and Stage 10 production origin is `https://www.kutadgubilik.com`. The deployed Workers were not redeployed for this cleanup. `npm run test:unit` on `cursor/retire-vercel-host-575f` at `eea08f4c`: 1502 PASS, 0 FAIL. Draft PR #224 merged as `a5cfcc16`. Runtime baseline stays `445fe488`.
+- New book cover, gallery, cover-repair, and import uploads from Admin, and new Book Staff cover and gallery uploads, post to `POST /api/r2-cover-upload` and store `https://www.kutadgubilik.com/__r2/book-covers/...`. The route stays AAL2, requires `is_kutadgu_admin()` for catalog keys, and allows `is_kutadgu_book_staff()` only for `book-covers/staff/<that user>/`. Preview and non-production hosts stay 404. `KUTADGU_R2_PUBLIC_BASE_URL` stays empty. Existing Supabase image URLs still render. Homepage hero slides still write to the Supabase `book-covers` bucket; they are not book images. `STAGE102_R2_BOOK_IMAGE_URLS.sql` lets staff submit and pending edit accept both URL forms. It does not delete objects. `npm run test:unit` on `cursor/r2-book-image-uploads-575f`: 1503 PASS, 0 FAIL. Runtime baseline stays `445fe488`.
 
 ## Remaining optional work
 

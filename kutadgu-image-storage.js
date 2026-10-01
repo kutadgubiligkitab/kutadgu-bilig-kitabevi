@@ -74,6 +74,9 @@
     if (url.origin === config.supabaseOrigin) {
       return { kind: "supabase", href: text, host: url.host };
     }
+    if (url.hostname === "www.kutadgubilik.com" && privateObjectKeyFromPath(url.pathname)) {
+      return { kind: "r2", href: text, host: url.host };
+    }
     if (config.r2PublicBase && url.origin === config.r2PublicBase) {
       return { kind: "r2", href: text, host: url.host };
     }
