@@ -173,7 +173,16 @@ test("book image uploads go to private R2 and do not call Storage upload", () =>
   assert.doesNotMatch(adminJs, /storage\.from\([^)]*\)\.upload/);
   assert.doesNotMatch(adminJs, /storage\.from\([^)]+\)\.list\s*\(/);
   assert.doesNotMatch(shopJs, /\.storage\.from/);
-  assert.match(read("admin-hero.js"), /storage\.from\(bucketName\(\)\)\.upload/);
+  assert.doesNotMatch(read("admin-hero.js"), /storage\.from\(/);
+  assert.match(read("admin-hero.js"), /\/api\/r2-cover-upload/);
+  assert.match(read("admin-hero.js"), /\/api\/r2-hero-delete/);
+  const lock = read("STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql");
+  assert.match(lock, /drop policy if exists "admin can upload book covers" on storage\.objects/i);
+  assert.match(lock, /drop policy if exists "admin can update book covers" on storage\.objects/i);
+  assert.match(lock, /drop policy if exists "admin can delete book covers" on storage\.objects/i);
+  assert.match(lock, /drop policy if exists "book staff can upload own covers" on storage\.objects/i);
+  assert.doesNotMatch(lock, /delete from storage\.objects/i);
+  assert.doesNotMatch(lock, /update storage\.buckets/i);
 });
 
 test("semantic checks use catalog metadata rather than name-only existence", () => {

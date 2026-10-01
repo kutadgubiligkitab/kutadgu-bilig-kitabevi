@@ -3,8 +3,12 @@
 
   var HERO_SETTINGS_ID = 1;
   var HERO_INTERVALS = [5, 7, 10, 15];
-  var HERO_BUCKET_FALLBACK = "book-covers";
-  var HERO_OBJECT_PREFIX = "hero/store-slides/";
+  var HERO_LEGACY_PREFIX = "hero/store-slides/";
+  var HERO_R2_PREFIX = "book-covers/hero/store-slides/";
+  var HERO_OBJECT_PREFIX = HERO_R2_PREFIX;
+  var HERO_UPLOAD_PATH = "/api/r2-cover-upload";
+  var HERO_DELETE_PATH = "/api/r2-hero-delete";
+  var HERO_CANONICAL_ORIGIN = "https://www.kutadgubilik.com";
   var HERO_MAX_BYTES = 5 * 1024 * 1024;
   var HERO_MAX_TRUST = 80;
   var HERO_MAX_BODY = 500;
@@ -79,20 +83,41 @@
     if (!makeId) return "";
     var id = String(makeId());
     if (!UUID_RE.test(id)) return "";
-    return HERO_OBJECT_PREFIX + "slot-" + n + "-" + id + "." + ext;
+    return HERO_R2_PREFIX + "slot-" + n + "-" + id + "." + ext;
+  }
+
+  function heroFilename(raw) {
+    var t = trimText(raw);
+    if (!t) return "";
+    if (t.charAt(0) === "/" || t.charAt(0) === "\\") return "";
+    if (t.indexOf("..") !== -1 || t.indexOf("\\") !== -1) return "";
+    var rest = "";
+    if (t.indexOf(HERO_R2_PREFIX) === 0) rest = t.slice(HERO_R2_PREFIX.length);
+    else if (t.indexOf(HERO_LEGACY_PREFIX) === 0) rest = t.slice(HERO_LEGACY_PREFIX.length);
+    else return "";
+    if (!rest || rest.indexOf("/") !== -1) return "";
+    return MANAGED_NAME_RE.test(rest) ? rest : "";
   }
 
   function managedSlotFromObjectPath(raw) {
-    var t = trimText(raw);
-    if (!t) return 0;
-    if (t.charAt(0) === "/" || t.charAt(0) === "\\") return 0;
-    if (t.indexOf("..") !== -1) return 0;
-    if (t.indexOf("\\") !== -1) return 0;
-    if (t.indexOf(HERO_OBJECT_PREFIX) !== 0) return 0;
-    var rest = t.slice(HERO_OBJECT_PREFIX.length);
-    if (!rest || rest.indexOf("/") !== -1) return 0;
-    var m = rest.match(MANAGED_NAME_RE);
+    var name = heroFilename(raw);
+    var m = name && name.match(MANAGED_NAME_RE);
     return m ? Number(m[1]) : 0;
+  }
+
+  function isLegacySupabaseHeroPath(raw) {
+    return trimText(raw).indexOf(HERO_LEGACY_PREFIX) === 0 && managedSlotFromObjectPath(raw) > 0;
+  }
+
+  function isR2HeroKey(raw) {
+    return trimText(raw).indexOf(HERO_R2_PREFIX) === 0 && managedSlotFromObjectPath(raw) > 0;
+  }
+
+  function canonicalHeroUrl(objectKey) {
+    if (!isR2HeroKey(objectKey)) return "";
+    return HERO_CANONICAL_ORIGIN + "/__r2/" + trimText(objectKey).split("/").map(function (part) {
+      return encodeURIComponent(part);
+    }).join("/");
   }
 
   function isSafeHeroStoreSlideObjectPath(raw) {
@@ -266,11 +291,6 @@
       writes: { settings: 0, insert: 0, update: 0, remove: 0, upload: 0, deleteRow: 0 }
     };
 
-    function bucketName() {
-      var cfg = getCfg() || {};
-      return cfg.bucket || HERO_BUCKET_FALLBACK;
-    }
-
     function stamp() {
       var user = getUser();
       return {
@@ -313,19 +333,53 @@
       slot.pendingRestore = false;
     }
 
+    async function accessToken() {
+      var db = getDb();
+      if (!db || !db.auth || typeof db.auth.getSession !== "function") return "";
+      var session = await db.auth.getSession();
+      var token = session && session.data && session.data.session && session.data.session.access_token;
+      return token ? String(token) : "";
+    }
+
+    function heroFetch() {
+      if (typeof opts.fetchImpl === "function") return opts.fetchImpl;
+      if (typeof fetch === "function") return fetch;
+      return null;
+    }
+
+    async function readJson(response) {
+      if (!response || typeof response.json !== "function") return null;
+      try { return await response.json(); } catch (err) { return null; }
+    }
+
     async function safeRemoveObject(objectPath) {
       if (!isSafeHeroStoreSlideObjectPath(objectPath)) {
         return { ok: false, reason: "unsafe_path" };
       }
-      var db = getDb();
-      if (!db || !db.storage) return { ok: false, reason: "no_storage" };
+      if (isLegacySupabaseHeroPath(objectPath)) {
+        return { ok: true, skipped: "legacy_supabase" };
+      }
+      if (!isR2HeroKey(objectPath)) return { ok: false, reason: "unsafe_path" };
+      var token = await accessToken();
+      if (!token) return { ok: false, reason: "no_session" };
+      var fetchImpl = heroFetch();
+      if (!fetchImpl) return { ok: false, reason: "no_storage" };
       state.writes.remove += 1;
       try {
-        var res = await db.storage.from(bucketName()).remove([objectPath]);
-        if (res && res.error) return { ok: false, error: res.error };
+        var response = await fetchImpl(HERO_DELETE_PATH, {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + token,
+            "x-kutadgu-object-key": objectPath
+          }
+        });
+        var payload = await readJson(response);
+        if (!response || !response.ok || !payload || payload.ok !== true || payload.key !== objectPath) {
+          return { ok: false, reason: "delete_failed", error: payload };
+        }
         return { ok: true };
       } catch (err) {
-        return { ok: false, error: err };
+        return { ok: false, reason: "delete_failed", error: err };
       }
     }
 
@@ -333,20 +387,35 @@
       var check = validateHeroUploadFile(file);
       if (!check.ok) return { ok: false, reason: check.reason };
       var path = generateHeroStoreSlideObjectPath(slotNumber, check.mime, uuidFn);
-      if (!isSafeHeroStoreSlideObjectPath(path)) return { ok: false, reason: "path" };
-      var db = getDb();
-      if (!db || !db.storage) return { ok: false, reason: "no_storage" };
+      if (!isR2HeroKey(path)) return { ok: false, reason: "path" };
+      var expected = canonicalHeroUrl(path);
+      if (!expected || !isSafeImageUrl(expected)) return { ok: false, reason: "unsafe_url" };
+      var token = await accessToken();
+      if (!token) return { ok: false, reason: "no_session" };
+      var fetchImpl = heroFetch();
+      if (!fetchImpl) return { ok: false, reason: "no_storage" };
+      var body = file && typeof file.arrayBuffer === "function" ? await file.arrayBuffer() : null;
+      if (!body || typeof body.byteLength !== "number" || body.byteLength < 1) {
+        return { ok: false, reason: "size" };
+      }
       try {
         state.writes.upload += 1;
-        var up = await db.storage.from(bucketName()).upload(path, file, { upsert: false, contentType: check.mime });
-        if (up && up.error) return { ok: false, error: up.error };
-        var pub = db.storage.from(bucketName()).getPublicUrl(path);
-        var url = pub && pub.data && pub.data.publicUrl;
-        if (!isSafeImageUrl(url)) {
-          await safeRemoveObject(path);
-          return { ok: false, reason: "unsafe_url" };
+        var response = await fetchImpl(HERO_UPLOAD_PATH, {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + token,
+            "Content-Type": check.mime,
+            "x-kutadgu-object-key": path
+          },
+          body: body
+        });
+        var payload = await readJson(response);
+        if (!response || !response.ok || !payload || payload.ok !== true || payload.key !== path || payload.url !== expected) {
+          var code = payload && payload.error;
+          if (code !== "exists") await safeRemoveObject(path);
+          return { ok: false, reason: "upload_throw", error: payload || response };
         }
-        return { ok: true, path: path, url: url };
+        return { ok: true, path: path, url: expected };
       } catch (err) {
         await safeRemoveObject(path);
         return { ok: false, reason: "upload_throw", error: err };
@@ -920,6 +989,13 @@
     HERO_SETTINGS_ID: HERO_SETTINGS_ID,
     HERO_INTERVALS: HERO_INTERVALS,
     HERO_OBJECT_PREFIX: HERO_OBJECT_PREFIX,
+    HERO_R2_PREFIX: HERO_R2_PREFIX,
+    HERO_LEGACY_PREFIX: HERO_LEGACY_PREFIX,
+    HERO_UPLOAD_PATH: HERO_UPLOAD_PATH,
+    HERO_DELETE_PATH: HERO_DELETE_PATH,
+    isLegacySupabaseHeroPath: isLegacySupabaseHeroPath,
+    isR2HeroKey: isR2HeroKey,
+    canonicalHeroUrl: canonicalHeroUrl,
     HERO_MAX_BYTES: HERO_MAX_BYTES,
     HERO_SLOTS: HERO_SLOTS,
     DEFAULT_TRUST_LINE: DEFAULT_TRUST_LINE,

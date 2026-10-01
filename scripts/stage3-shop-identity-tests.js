@@ -108,7 +108,8 @@ test("this stage does not change SQL Admin auth or order surfaces", () => {
     "STAGE101_ADMIN_ZERO_SEARCHES.sql",
     "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql",
     "scripts/stage101-isolated-assertions.sql",
-    "scripts/stage101-isolated-rollback-assertions.sql"].includes(file)) ||
+    "scripts/stage101-isolated-rollback-assertions.sql",
+    "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety/.test(file)
   );

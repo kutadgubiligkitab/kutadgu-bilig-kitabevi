@@ -88,6 +88,7 @@ function classifyPath(pathname, search) {
   if (posthog) return { kind: "posthog", upstream: posthog };
   if (path === "/api/ai-search") return { kind: "ai-search" };
   if (path === "/api/r2-cover-upload") return { kind: "r2-upload" };
+  if (path === "/api/r2-hero-delete") return { kind: "r2-hero-delete" };
   if (path === "/__r2" || path.startsWith("/__r2/")) return { kind: "r2-read" };
   if (path === "/sitemap.xml" || path === "/api/sitemap-index") return { kind: "sitemap-index" };
   if (path === "/sitemap-books.xml" || path === "/api/sitemap-books") {
@@ -384,7 +385,7 @@ async function handlePosthog(request, env, deps, route) {
 }
 
 function methodAllowed(kind, method) {
-  if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload") {
+  if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete") {
     return true;
   }
   if (kind === "posthog") return method === "GET" || method === "POST" || method === "HEAD";
@@ -432,8 +433,10 @@ async function dispatch(request, env, deps) {
   if (route.kind === "legacy-redirect") return handleLegacy(request, env, source);
   if (route.kind === "posthog") return handlePosthog(request, env, source, route);
   if (route.kind === "ai-search") return handleAi(request, env, source);
-  if (route.kind === "r2-upload") {
-    const result = await upload.handleR2CoverUpload(request, env, source);
+  if (route.kind === "r2-upload" || route.kind === "r2-hero-delete") {
+    const result = route.kind === "r2-hero-delete"
+      ? await upload.handleR2HeroDelete(request, env, source)
+      : await upload.handleR2CoverUpload(request, env, source);
     const out = applyHeaders(result.headers, env, "", hostOf(request));
     return new Response(method === "HEAD" ? null : result.body, { status: result.status, headers: out });
   }
