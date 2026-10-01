@@ -1,0 +1,32 @@
+{
+  "activeCount": {
+    "status": 206,
+    "rows": 1,
+    "bytes": 12,
+    "cr": "0-0/341"
+  },
+  "inactive": {
+    "status": 200,
+    "rows": 0,
+    "bytes": 2,
+    "cr": "*/0"
+  },
+  "analytics": {
+    "status": 401,
+    "code": "42501",
+    "message": "permission denied for table analytics_events",
+    "cr": null
+  },
+  "orders": {
+    "status": 401,
+    "code": "42501",
+    "message": "permission denied for table orders",
+    "cr": null
+  },
+  "profiles": {
+    "status": 401,
+    "code": "42501",
+    "message": "permission denied for table profiles",
+    "cr": null
+  }
+}
