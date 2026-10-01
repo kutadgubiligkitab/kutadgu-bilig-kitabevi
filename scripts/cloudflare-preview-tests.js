@@ -180,7 +180,7 @@ jobs.push(test("vercel redirect and rewrite paths stay classified the same way",
 
 jobs.push(test("preview config does not bind the production domain", () => {
   const text = fs.readFileSync(path.join(root, "wrangler.jsonc"), "utf8");
-  assert.doesNotMatch(text, /kutadgubilik\.com/);
+  assert.doesNotMatch(text.split('"env"')[0], /kutadgubilik\.com/);
   assert.doesNotMatch(text, /vercel\.app/);
   const config = JSON.parse(text);
   assert.strictEqual(config.name, "kutadgu-cloudflare-preview");
@@ -199,7 +199,8 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(prod.name, "kutadgu-cloudflare-production");
   assert.strictEqual(prod.workers_dev, true);
   assert.strictEqual(prod.preview_urls, false);
-  assert.ok(!Object.prototype.hasOwnProperty.call(prod, "routes"));
+  assert.deepStrictEqual(prod.routes.map((rule) => rule.pattern).sort(), ["kutadgubilik.com/*", "www.kutadgubilik.com/*"]);
+  assert.ok(prod.routes.every((rule) => rule.zone_name === "kutadgubilik.com"));
   assert.ok(!Object.prototype.hasOwnProperty.call(prod, "route"));
   assert.strictEqual(prod.vars.KUTADGU_HOST_MODE, "production");
   assert.strictEqual(prod.vars.AI_SEARCH_ENABLED, "true");
@@ -212,7 +213,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.doesNotMatch(text, /OPENAI_API_KEY/);
   assert.doesNotMatch(text, /production-cutover-routes/);
   const cutover = JSON.parse(fs.readFileSync(path.join(root, "cloudflare/production-cutover-routes.json"), "utf8"));
-  assert.strictEqual(cutover.status, "not-activated");
+  assert.strictEqual(cutover.status, "activated");
   assert.strictEqual(cutover.worker, "kutadgu-cloudflare-production");
   assert.ok(cutover.routes.some((rule) => rule.pattern === "www.kutadgubilik.com/*"));
   assert.ok(cutover.routes.some((rule) => rule.pattern === "kutadgubilik.com/*"));
@@ -222,7 +223,9 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.ok(path.relative(dev.config.assets.directory, dev.configDir).startsWith(".."));
   assert.strictEqual(dev.config.main, path.join(root, "cloudflare", "worker.js"));
   assert.ok(!Object.prototype.hasOwnProperty.call(dev.config, "routes"));
-  assert.doesNotMatch(JSON.stringify(dev.config), /kutadgubilik\.com|vercel\.app/);
+  const devTop = Object.assign({}, dev.config);
+  delete devTop.env;
+  assert.doesNotMatch(JSON.stringify(devTop), /kutadgubilik\.com|vercel\.app/);
   fs.rmSync(dev.configDir, { recursive: true, force: true });
   const worker = fs.readFileSync(path.join(root, "cloudflare/worker.js"), "utf8");
   assert.doesNotMatch(worker, /R2_SECRET_ACCESS_KEY|R2_ACCESS_KEY_ID|OPENAI_API_KEY/);

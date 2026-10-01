@@ -1,7 +1,7 @@
 {
   "worker": "kutadgu-cloudflare-production",
-  "status": "not-activated",
-  "note": "Do not copy these routes into wrangler.jsonc until an explicit cutover. A deploy that includes them would attach live hostnames.",
+  "status": "activated",
+  "note": "Attached to kutadgu-cloudflare-production on 2026-10-01. The Vercel A and CNAME targets were not replaced. Only the proxy status of those two website records changed.",
   "routes": [
     { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
     { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }

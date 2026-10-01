@@ -282,10 +282,18 @@ Validation on the workers.dev URL after the secret version: `/`, `/books`, `/ada
 
 ## LIVE PRODUCTION CUTOVER
 
-Attempted 2026-10-01T12:52:37Z. Stopped before any write. Rollback was not needed because no Worker route and no DNS record was changed.
+Completed 2026-10-01T13:21Z. Rollback was not needed.
 
-The Wrangler token can read the zone and Worker routes. `GET /zones/7476a42df4a2e7ed8debfe10b29216ea/dns_records` returned HTTP 403, error code 10000, authentication error. Proxy state, configured TTL, and record IDs were not returned, so the required rollback snapshot is incomplete. Public resolvers still answer apex `A` `216.198.79.1` and `www` `CNAME` `691042ca7074d500.vercel-dns-017.com`, with nameservers `steven.ns.cloudflare.com` and `coco.ns.cloudflare.com`. That public answer is not a Cloudflare proxy flag.
+Before the write, the website records were read again. Apex `A` `216.198.79.1`, TTL `1`, proxied `false`, record `b4ae03df35c72088c3cfc41a3966792f`. `www` `CNAME` `691042ca7074d500.vercel-dns-017.com`, TTL `1`, proxied `false`, record `2a773132ea82770dac4e6524d0971a6b`. The zone had no Worker routes. Zone SSL was `full`. `https://www.kutadgubilik.com` returned 200 from Vercel. The production Worker was still `kutadgu-cloudflare-production` version `b859be14-dc00-4277-a426-451011f2dfc5`, with the secret name `OPENAI_API_KEY` present and the value unread.
 
-Before the stop, the zone had zero Worker routes and zero Worker custom domains. Production Worker `kutadgu-cloudflare-production` remained version `b859be14-dc00-4277-a426-451011f2dfc5`. The secret list still contains the name `OPENAI_API_KEY` only. `https://www.kutadgubilik.com/`, `/books`, and `/book/106` returned 200 with `server: Vercel`. A book cover on Supabase returned 200 `image/webp`. Live AI search returned 400 `invalid_query` for one character and 200 with 12 results for `kitab`. `npm run test:unit` exited 0 with 1502 `PASS` lines and 0 failures.
+Only the proxy flag on those two website records changed, from `false` to `true`. Type, target, and TTL stayed the same. Before routes were attached, `/`, `/books`, and `/book/106` still returned 200 through Cloudflare with a Vercel origin id, and the apex returned one 308 to www.
 
-No route was attached. DNS targets and proxy flags were not written. Vercel and Supabase were not modified. The production Worker and the R2 bucket were not deleted. Draft PR #222 stays unmerged.
+The live routes are `kutadgubilik.com/*` and `www.kutadgubilik.com/*`, both on `kutadgu-cloudflare-production`. The preview Worker has no route. After the routes, `www` returned 200 from the Worker with HSTS `max-age=63072000`, production cover mode, and no Vercel origin id. The apex returned one 308 to `https://www.kutadgubilik.com/`. Core pages, sitemaps, account, cart, favorites, delete-account, and the admin gate returned 200. `/privacy.html` returns 308 to `/privacy`, which returns 200. CSS and JavaScript referenced by the homepage returned 200. Book JSON-LD `image` stayed on Supabase. The canonical URL stayed on `https://www.kutadgubilik.com/book/106`.
+
+R2: 30 of 30 sampled cover requests returned 200 with an image content type, a non-zero body, `immutable` cache, and no Supabase redirect. The homepage rendered 35 private R2 covers and no Supabase image `src`. One missing cover fell back to the Supabase original once and set the fallback flag. `POST /api/r2-cover-upload` returned 404. Database image URLs were not changed.
+
+AI search: one character returned 400 `invalid_query`. One query, `kitab`, returned 200 with 12 results. The secret was not printed.
+
+Auth: account page shows login, signup, and Google. Google sign-in reached `accounts.google.com` and the redirect target included `https://www.kutadgubilik.com`. The sign-in was not completed. Admin still shows the password gate and does not load the cover bridge. Admin upload code still uses Supabase Storage. PostHog allows the production hosts, the homepage loads `posthog-analytics.js` once, and `/kbg/static/array.js` returned 200. The cart page has a WhatsApp control and no order was sent.
+
+A second check of `/`, `/books`, `/book/106`, `/adabiyat`, and the apex redirect stayed on the Worker. Vercel was not deleted. Supabase was not modified. Draft PR #222 stays unmerged. `npm run test:unit` before the write exited 0 with 1502 `PASS` lines and 0 failures.

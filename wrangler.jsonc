@@ -32,6 +32,10 @@
       "name": "kutadgu-cloudflare-production",
       "workers_dev": true,
       "preview_urls": false,
+      "routes": [
+        { "pattern": "kutadgubilik.com/*", "zone_name": "kutadgubilik.com" },
+        { "pattern": "www.kutadgubilik.com/*", "zone_name": "kutadgubilik.com" }
+      ],
       "vars": {
         "KUTADGU_HOST_MODE": "production",
         "AI_SEARCH_ENABLED": "true",
