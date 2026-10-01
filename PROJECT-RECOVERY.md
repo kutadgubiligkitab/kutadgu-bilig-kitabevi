@@ -76,7 +76,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Record every confirmed zero-result search and page the admin list. |
 | Date | 2026-10-01 |
 | Branch | `cursor/admin-zero-result-searches-ac0d` |
-| PR | Draft against `main`. The PR number is added in the handoff commit when it exists. |
+| PR | #221 (draft, not merged) |
 | Why it stays | A completed search with a confirmed total of zero is recorded, including a query searched once. Admin lists every distinct no-result query in the selected period, newest first, in pages. |
 
 `origin/main` when this branch was cut was `dcb26d4296df8d28d4af66009207aa8519d487ed`, the merge of #220. #220 is documentation only. It does not replace the visit-order behavior verified on `d6ba212392f8794f77fffc0fee0167b6050393c3`, which #219 merged. This baseline moves because admin analytics behavior changed. The unfiltered `/books` listing still uses one seeded discovery order per tab visit. A sort, search, or reset cancels an in-flight Load more. A short full-record page is read until `Content-Range` is exhausted before a missing id is skipped.
