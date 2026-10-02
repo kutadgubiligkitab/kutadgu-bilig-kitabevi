@@ -79,7 +79,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Make public dark-mode links and account text readable. |
 | Date | 2026-10-02 |
 | Branch | `fix/public-dark-mode-readability` |
-| PR | draft, not merged |
+| PR | #234, draft, not merged |
 | Why it stays | Unstyled public links stayed browser blue on dark cards. Account controls that used `--text` or `--brown` became light-on-white or dim brown on the dark card. The homepage AI button used `--site-brown` on a dark surface. The reset page's disabled save button was white on `#f4efe8`. Dark mode now uses `--site-gold` for those links, `--site-text` / `--site-text-soft` for account and AI text, and `#3d2a23` on the white Google button and cream secondary button. The cart `shop.css` block from #233 is unchanged. |
 
 `#233` merged as `1600ed6d2721f1517f107ccbb0b3204efb68ecfc`. Production Worker `cf521bfd-e160-42f8-9795-154e0a2d107b` still serves that `main` tip, including the cart dark-mode text fix. This readability branch is not deployed and not merged. `cart.html` still requests `shop.css?v=55`. Other storefront pages still request `shop.css?v=54`. `public-header.css` is now `?v=7` and `account.css` is now `?v=7`.
