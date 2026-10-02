@@ -88,7 +88,7 @@ async function run() {
     assert.ok(input);
     assert.match(input[0], /outline:\s*none/);
     assert.match(input[0], /border:\s*0/);
-    assert.match(read("public-header.js"), /public-header\.css\?v=6/);
+    assert.match(read("public-header.js"), /public-header\.css\?v=7/);
   });
 
   await test("invalid book paths rewrite to the public handler, not the generic shell", () => {
