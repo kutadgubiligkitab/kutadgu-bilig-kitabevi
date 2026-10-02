@@ -5,6 +5,7 @@ const upload = require("./r2-cover-upload.js");
 const coverRead = require("./r2-cover-read.js");
 const images = require("../kutadgu-image-storage.js");
 const sitemap = require("../kutadgu-sitemap.js");
+const sharedCartLinks = require("../kutadgu-shared-cart-links.js");
 
 const PRODUCTION_HOSTS = Object.freeze([
   "kutadgubilik.com",
@@ -115,6 +116,11 @@ function classifyPath(pathname, search) {
   if (Object.prototype.hasOwnProperty.call(CLEAN_REWRITES, path)) {
     return { kind: "rewrite", file: CLEAN_REWRITES[path] };
   }
+  const shortPage = sharedCartLinks.SHORT_PAGE_RE.exec(path);
+  if (shortPage) return { kind: "shared-cart-page", code: shortPage[1] };
+  if (path === "/api/shared-cart") return { kind: "shared-cart-create" };
+  const shortRead = sharedCartLinks.READ_PATH_RE.exec(path);
+  if (shortRead) return { kind: "shared-cart-read", code: shortRead[1] };
   return { kind: "asset", file: path === "/" ? "/index.html" : path };
 }
 
@@ -352,6 +358,43 @@ async function handleAi(request, env, deps) {
   });
 }
 
+async function handleSharedCartApiRoute(request, env, deps) {
+  const method = String(request.method || "GET").toUpperCase();
+  const result = await sharedCartLinks.handleSharedCartApi({
+    method,
+    pathname: new URL(request.url).pathname,
+    body: method === "POST" ? await request.text() : "",
+    env,
+    fetchImpl: deps && deps.fetchImpl
+  });
+  return textResponse(result.status, method === "HEAD" ? null : JSON.stringify(result.body), env, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store"
+  }, undefined, hostOf(request));
+}
+
+async function handleSharedCartPage(request, env, deps) {
+  const method = String(request.method || "GET").toUpperCase();
+  const asset = await readAsset(request, env, deps, "/cart.html");
+  if (!asset || asset.status !== 200 || typeof asset.text !== "function") {
+    return textResponse(503, method === "HEAD" ? null : "cart unavailable", env, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store"
+    }, undefined, hostOf(request));
+  }
+  let html = await asset.text();
+  if (!/<base\b/i.test(html)) {
+    html = html.replace(/<head\b[^>]*>/i, (open) => open + '<base href="/">');
+  }
+  const decorated = decoratePreviewHtml(html, request, env);
+  if (decorated !== undefined) html = decorated;
+  return textResponse(200, method === "HEAD" ? null : html, env, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex, follow"
+  }, undefined, hostOf(request));
+}
+
 async function handlePosthog(request, env, deps, route) {
   const method = String(request.method || "GET").toUpperCase();
   if (method !== "GET" && method !== "POST" && method !== "HEAD") {
@@ -385,6 +428,8 @@ async function handlePosthog(request, env, deps, route) {
 }
 
 function methodAllowed(kind, method) {
+  if (kind === "shared-cart-create") return method === "POST";
+  if (kind === "shared-cart-read" || kind === "shared-cart-page") return method === "GET" || method === "HEAD";
   if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete") {
     return true;
   }
@@ -447,6 +492,10 @@ async function dispatch(request, env, deps) {
   if (route.kind === "sitemap-index" || route.kind === "sitemap-books") {
     return handleSitemap(request, env, source, route);
   }
+  if (route.kind === "shared-cart-create" || route.kind === "shared-cart-read") {
+    return handleSharedCartApiRoute(request, env, source);
+  }
+  if (route.kind === "shared-cart-page") return handleSharedCartPage(request, env, source);
   if (route.kind === "book") return handleBook(request, env, source);
   if (route.kind === "category") return handleCategory(request, env, source, route);
   if (route.kind === "rewrite") return finishAsset(request, env, source, route.file);

@@ -166,15 +166,53 @@
     return query?"?"+query:"";
   }
 
+  const SHORT_ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const SHORT_CODE=/^[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$/;
+
+  function parseShortCartPath(pathname){
+    const match=/^\/c\/([ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8})$/.exec(String(pathname||""));
+    return match?match[1]:"";
+  }
+
+  function isCanonicalShortCartUrl(value){
+    try{
+      const url=new URL(String(value||""));
+      if(url.origin!=="https://www.kutadgubilik.com")return false;
+      if(url.search||url.hash)return false;
+      return !!parseShortCartPath(url.pathname);
+    }catch(e){return false}
+  }
+
+  function shortImportSeen(store,code){
+    return !!(store&&typeof store==="object"&&store[String(code||"")]===1);
+  }
+
+  function rememberShortImport(store,code){
+    const next={};
+    if(store&&typeof store==="object"){
+      Object.keys(store).forEach(key=>{
+        if(SHORT_CODE.test(key)&&store[key]===1)next[key]=1;
+      });
+    }
+    const id=String(code||"");
+    if(SHORT_CODE.test(id))next[id]=1;
+    return next;
+  }
+
   return {
     VERSION,
     MAX_ITEMS,
     MAX_QTY,
+    SHORT_ALPHABET,
     encodeSharedCart,
     decodeSharedCart,
     mergeSharedLines,
     sharedCartNotice,
     sharedCartUrl,
-    stripShareSearch
+    stripShareSearch,
+    parseShortCartPath,
+    isCanonicalShortCartUrl,
+    shortImportSeen,
+    rememberShortImport
   };
 });
