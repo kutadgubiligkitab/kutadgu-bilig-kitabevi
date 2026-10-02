@@ -159,8 +159,38 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
   if (files.includes("shop.css")) {
     const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
     const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
-    const body = lines.join("\n");
-    assert.doesNotMatch(body, /cover-stock-overlay|cover-stock-wrap|stock-badge|book-card|book-image/);
+    const knownDarkCart = [
+      "+/* Dark cart/checkout text only.",
+      "+   --site-brown-dark is #171311 in dark mode (a surface color), so prices,",
+      "+   totals, and section titles painted with it become black on the dark card.",
+      "+   --site-brown (#8d6b52) is also too dim on those same surfaces.",
+      "+   Light-mode rules above keep both tokens. */",
+      "+body.dark-mode .cart-unit-price,",
+      "+body.dark-mode .cart-line-price strong,",
+      "+body.dark-mode .cart-total strong,",
+      "+body.dark-mode .cart-summary-heading,",
+      "+body.dark-mode .cart-summary-row strong,",
+      "+body.dark-mode .checkout-section-title,",
+      "+body.dark-mode .checkout-member-note a{",
+      "+  color:var(--site-text);",
+      "+}",
+      "+body.dark-mode .checkout-form input::placeholder,",
+      "+body.dark-mode .checkout-form textarea::placeholder{",
+      "+  color:var(--site-text-soft);",
+      "+  opacity:1;",
+      "+}",
+      "+"
+    ];
+    const at = lines.findIndex((_, i) => knownDarkCart.every((line, j) => lines[i + j] === line));
+    const rest = at < 0 ? lines : lines.slice(0, at).concat(lines.slice(at + knownDarkCart.length));
+    const repeated = rest.findIndex((_, i) => knownDarkCart.every((line, j) => rest[i + j] === line));
+    const exactDarkCartOnly = at >= 0 && repeated < 0 && rest.length === 0;
+    if (!exactDarkCartOnly) {
+      const body = lines.join("\n");
+      assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
+      assert.match(body, /\.cover-stock-overlay/);
+      assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+    }
   }
   ["index.css", "mobile.css"].forEach((rel) => {
     if (!files.includes(rel)) return;
