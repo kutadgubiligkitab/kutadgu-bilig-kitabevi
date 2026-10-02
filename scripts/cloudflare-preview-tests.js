@@ -357,7 +357,7 @@ jobs.push(test("AI search route keeps GET, POST, disabled, and enabled contracts
   const vector = new Array(aiSearch.EMBEDDING_DIMENSIONS).fill(0.01);
   const calls = [];
   const fetchImpl = async (url, init) => {
-    calls.push({ url: String(url), method: init && init.method, body: init && init.body });
+    calls.push({ url: String(url), method: init && init.method, body: init && init.body, headers: init && init.headers });
     if (String(url) === aiSearch.OPENAI_EMBEDDINGS_URL) {
       return httpResponse(200, { model: aiSearch.EMBEDDING_MODEL, data: [{ index: 0, embedding: vector }] });
     }
@@ -385,13 +385,19 @@ jobs.push(test("AI search route keeps GET, POST, disabled, and enabled contracts
   assert.strictEqual(disabled.status, 503);
   assert.strictEqual((await disabled.json()).error, "disabled");
   const previewKey = ["sk", "preview", "test"].join("-");
-  const enabled = await preview.dispatch(request("http://127.0.0.1:8787/api/ai-search", "POST", JSON.stringify({ query: "qqqq" }), { "Content-Type": "application/json" }), { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: previewKey }, deps);
+  const rpcKey = "test-supabase-rpc-key";
+  const enabled = await preview.dispatch(request("http://127.0.0.1:8787/api/ai-search", "POST", JSON.stringify({ query: "qqqq" }), { "Content-Type": "application/json" }), { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: previewKey, SUPABASE_SECRET_KEY: rpcKey }, deps);
   assert.strictEqual(enabled.status, 200);
   const payload = await enabled.json();
   assert.strictEqual(payload.ok, true);
   assert.ok(payload.count >= 1);
   assert.strictEqual(payload.results[0].image_url, R2_IMAGE);
   assert.ok(!JSON.stringify(payload).includes(previewKey));
+  assert.ok(!JSON.stringify(payload).includes(rpcKey));
+  const rpcCall = calls.find((call) => String(call.url).includes("match_active_books_ai"));
+  assert.ok(rpcCall);
+  assert.strictEqual(rpcCall.headers.apikey, rpcKey);
+  assert.strictEqual(rpcCall.headers.Authorization, "Bearer " + rpcKey);
   assert.ok(calls.some((call) => call.method === "POST" && call.url === aiSearch.OPENAI_EMBEDDINGS_URL));
 }));
 

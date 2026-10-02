@@ -28,7 +28,7 @@ const META_LABELS = [
 const FROZEN = {
   "shop.js": "f15fe2df60b9ecbe74c84db0866cf8485b8e5438f6cfc4c7da486a59f1b4c094",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
+  "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
@@ -311,7 +311,6 @@ async function run() {
     [
 
       "kutadgu-search-rank.js",
-      "kutadgu-ai-search.js",
       "api/ai-search.js",
       "api/book-public.js",
 

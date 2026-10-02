@@ -4,10 +4,11 @@
  * AI Search 1E — isolated backend query path.
  * Not loaded by the storefront. Independent of Normal Search.
  * Disabled unless AI_SEARCH_ENABLED is exactly "true".
+ * The two AI RPCs use env.SUPABASE_SECRET_KEY only. The public
+ * publishable key stays in the browser catalog clients.
  */
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL = "text-embedding-3-large";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -102,9 +103,13 @@ function genericError() {
   return { ok: false, error: "unavailable" };
 }
 
+function serverSupabaseKey(env) {
+  return String((env && env.SUPABASE_SECRET_KEY) || "").trim();
+}
+
 function secretValues(env) {
   const out = [];
-  ["OPENAI_API_KEY"].forEach((name) => {
+  ["OPENAI_API_KEY", "SUPABASE_SECRET_KEY"].forEach((name) => {
     const value = String((env && env[name]) || "").trim();
     if (value) out.push(value);
   });
@@ -462,14 +467,14 @@ async function embedQuery(fetchImpl, apiKey, query, timeoutMs) {
   }
 }
 
-async function matchBooks(fetchImpl, vector, timeoutMs) {
+async function matchBooks(fetchImpl, vector, timeoutMs, rpcKey) {
   const url = SUPABASE_URL + "/rest/v1/rpc/" + MATCH_RPC;
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        apikey: rpcKey,
+        Authorization: "Bearer " + rpcKey,
         Accept: "application/json",
         "Content-Type": "application/json"
       },
@@ -493,7 +498,7 @@ async function matchBooks(fetchImpl, vector, timeoutMs) {
   }
 }
 
-async function listBooksByCategories(fetchImpl, categories, timeoutMs) {
+async function listBooksByCategories(fetchImpl, categories, timeoutMs, rpcKey) {
   const names = (categories || []).filter((name) => typeof name === "string" && name);
   if (!names.length) return [];
   const url = SUPABASE_URL + "/rest/v1/rpc/" + CATEGORY_RPC;
@@ -501,8 +506,8 @@ async function listBooksByCategories(fetchImpl, categories, timeoutMs) {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        apikey: rpcKey,
+        Authorization: "Bearer " + rpcKey,
         Accept: "application/json",
         "Content-Type": "application/json"
       },
@@ -531,16 +536,17 @@ async function runSearch(options) {
     return { status: 400, body: { ok: false, error: "invalid_query" }, openaiCalls: 0, supabaseCalls: 0 };
   }
   const apiKey = String(env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) {
+  const rpcKey = serverSupabaseKey(env);
+  if (!apiKey || !rpcKey) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 0 };
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
-  const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs);
+  const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs, rpcKey);
   let candidates = vectorRows;
   const resolved = resolveCategoryIntent(query);
   if (resolved.mode === "clear" && resolved.categories.length) {
     try {
-      const categoryRows = await listBooksByCategories(fetchImpl, resolved.categories, opts.rpcTimeoutMs);
+      const categoryRows = await listBooksByCategories(fetchImpl, resolved.categories, opts.rpcTimeoutMs, rpcKey);
       if (categoryRows && categoryRows.length) {
         candidates = mergeAiCandidates(vectorRows, categoryRows);
       }

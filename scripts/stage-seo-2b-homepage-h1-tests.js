@@ -11,7 +11,7 @@ const root = path.join(__dirname, "..");
 const FROZEN = {
   "shop.js": "f15fe2df60b9ecbe74c84db0866cf8485b8e5438f6cfc4c7da486a59f1b4c094",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "kutadgu-ai-search.js": "8a707bef59a78f276d445ed0a472eb531e1ed5f2633f9e5be8401ab5a02e6063",
+  "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "home-hero-slideshow.js": "7b88037c2e391c22a006468fca2e146191192986c083cd010135454a8610a274",
@@ -112,7 +112,6 @@ test("search AI Search cart auth book detail admin and 2A files stay frozen", ()
   const forbidden = [
 
     "kutadgu-search-rank.js",
-    "kutadgu-ai-search.js",
     "api/ai-search.js",
     "home-hero-content.js",
     "home-hero-slideshow.js",
