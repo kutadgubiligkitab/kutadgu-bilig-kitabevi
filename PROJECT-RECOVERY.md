@@ -75,7 +75,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `ba917fba887b6c681d286828a130d06cd35d8e3d` |
+| Commit | `5693cd959fcdfd2f9694919bd2eab7caddc96bbb` |
 | Subject | Make public dark-mode links and account text readable. |
 | Date | 2026-10-02 |
 | Branch | `fix/public-dark-mode-readability` |
