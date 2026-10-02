@@ -70,6 +70,7 @@ ALTER TABLE public.shared_cart_links FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shared_cart_links FROM PUBLIC;
 REVOKE ALL ON TABLE public.shared_cart_links FROM anon;
 REVOKE ALL ON TABLE public.shared_cart_links FROM authenticated;
+REVOKE ALL ON TABLE public.shared_cart_links FROM service_role;
 
 GRANT SELECT, INSERT, DELETE ON TABLE public.shared_cart_links TO service_role;
 
