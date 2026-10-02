@@ -471,3 +471,48 @@ header.kutadgu-public-header > #kutadguAnnounceBar {
     max-width: 100vw;
   }
 }
+
+/* Dark public text. --site-brown is #8d6b52 and --site-brown-dark is #171311
+   on dark cards, and unstyled links stay browser-blue. Light mode is unchanged.
+   Do not restyle .trust-mail-btn, WhatsApp, or cart price rules. */
+body.dark-mode a.back-link,
+body.dark-mode .trust-page a:not(.trust-mail-btn){
+  color:var(--site-gold);
+  text-underline-offset:3px;
+}
+body.dark-mode a.back-link:visited,
+body.dark-mode .trust-page a:not(.trust-mail-btn):visited{
+  color:var(--site-text);
+}
+body.dark-mode a.back-link:hover,
+body.dark-mode a.back-link:focus-visible,
+body.dark-mode .trust-page a:not(.trust-mail-btn):hover,
+body.dark-mode .trust-page a:not(.trust-mail-btn):focus-visible{
+  color:var(--site-text);
+}
+body.dark-mode .shop-mini-card > a{
+  color:var(--site-text);
+  text-decoration:none;
+}
+body.dark-mode .shop-mini-card > a:visited{
+  color:var(--site-text);
+}
+body.dark-mode .shop-mini-card > a .shop-mini-meta{
+  color:var(--site-text-soft);
+}
+body.dark-mode .home-search-card .ai-search-button,
+body.dark-mode .home-search-card .ai-search-show-more,
+body.dark-mode .home-search-card .ai-search-meta{
+  color:var(--site-text);
+}
+body.dark-mode .home-search-card .ai-search-button:hover,
+body.dark-mode .home-search-card .ai-search-button:focus-visible,
+body.dark-mode .home-search-card .ai-search-show-more:hover,
+body.dark-mode .home-search-card .ai-search-show-more:focus-visible{
+  background:var(--site-card);
+  border-color:var(--site-text-soft);
+  color:var(--site-text);
+}
+body.dark-mode .home-search-card .ai-search-title:hover{
+  color:var(--site-text);
+}

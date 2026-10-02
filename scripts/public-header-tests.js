@@ -100,7 +100,7 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(css, /flex-wrap:\s*wrap !important/);
   assert.doesNotMatch(css, /admin-topbar/);
   const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
-  assert.match(helperJs, /public-header\.css\?v=6/);
+  assert.match(helperJs, /public-header\.css\?v=7/);
 });
 
 test("header search keeps a visible keyboard focus state", () => {
