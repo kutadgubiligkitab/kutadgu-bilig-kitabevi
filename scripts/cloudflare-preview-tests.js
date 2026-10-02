@@ -1062,6 +1062,54 @@ jobs.push(test("preview and production host policies stay independent", async ()
   assert.strictEqual(missingKey.headers.get("Strict-Transport-Security"), headers.HSTS_VALUE);
 }));
 
+jobs.push(test("app link files are public and other dot paths stay denied", async () => {
+  const env = { KUTADGU_HOST_MODE: "production" };
+  const deps = baseDeps(async () => { throw new Error("association files do not call upstream"); });
+  const sha = "2C:D7:46:A1:20:BA:11:D7:28:66:26:80:C7:44:C2:84:28:EF:0C:2F:D9:5C:D0:C6:6F:3F:55:E2:9A:28:44:FC";
+  for (const filePath of ["/.well-known/assetlinks.json", "/.well-known/apple-app-site-association"]) {
+    assert.strictEqual(preview.classifyPath(filePath, "").kind, "app-link");
+    assert.strictEqual(preview.methodAllowed("app-link", "GET"), true);
+    assert.strictEqual(preview.methodAllowed("app-link", "HEAD"), true);
+    assert.strictEqual(preview.methodAllowed("app-link", "POST"), false);
+    const get = await preview.dispatch(request("https://www.kutadgubilik.com" + filePath), env, deps);
+    assert.strictEqual(get.status, 200);
+    assert.strictEqual(get.headers.get("content-type"), "application/json");
+    assert.strictEqual(get.headers.get("location"), null);
+    const head = await preview.dispatch(request("https://www.kutadgubilik.com" + filePath, "HEAD"), env, deps);
+    assert.strictEqual(head.status, 200);
+    assert.strictEqual(head.headers.get("content-type"), "application/json");
+    assert.strictEqual(head.headers.get("location"), null);
+    assert.strictEqual(await head.text(), "");
+    const post = await preview.dispatch(request("https://www.kutadgubilik.com" + filePath, "POST", "{}"), env, deps);
+    assert.strictEqual(post.status, 405);
+  }
+  const android = await (await preview.dispatch(request("https://www.kutadgubilik.com/.well-known/assetlinks.json"), env, deps)).json();
+  assert.strictEqual(android[0].target.package_name, "com.kutadgubilig.kitabevi");
+  assert.deepStrictEqual(android[0].target.sha256_cert_fingerprints, [sha]);
+  assert.ok(android[0].relation.includes("delegate_permission/common.handle_all_urls"));
+  const apple = await (await preview.dispatch(request("https://www.kutadgubilik.com/.well-known/apple-app-site-association"), env, deps)).json();
+  assert.strictEqual(apple.applinks.details.length, 1);
+  assert.strictEqual(apple.applinks.details[0].appID, "8QU554PCLF.com.kutadgubilig.kitabevi");
+  assert.deepStrictEqual(apple.applinks.details[0].paths, ["/c/*"]);
+  const denied = ["/.git/config", "/.env", "/.vercel/project.json", "/.well-known/secret", "/.well-known/assetlinks.json.bak"];
+  for (const filePath of denied) {
+    assert.strictEqual(preview.classifyPath(filePath, "").kind, "deny");
+    const response = await preview.dispatch(request("http://127.0.0.1:8787" + filePath), {}, deps);
+    assert.strictEqual(response.status, 404);
+  }
+  for (const filePath of ["/test-results/", "/playwright-report/"]) {
+    const response = await preview.dispatch(request("http://127.0.0.1:8787" + filePath), {}, deps);
+    assert.strictEqual(response.status, 404);
+  }
+  assert.strictEqual(preview.classifyPath("/c/Ab3K7xQ2", "").kind, "shared-cart-page");
+  const cart = await preview.dispatch(request("http://127.0.0.1:8787/c/Ab3K7xQ2"), {}, deps);
+  assert.strictEqual(cart.status, 200);
+  assert.match(cart.headers.get("content-type") || "", /text\/html/);
+  const html = await cart.text();
+  assert.ok(html.includes("shop.js"));
+  assert.ok(!html.includes(sha));
+}));
+
 Promise.all(jobs).then(() => {
   if (failed) {
     console.error("\n" + failed + " cloudflare preview test(s) failed");

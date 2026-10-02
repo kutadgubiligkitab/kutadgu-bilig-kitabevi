@@ -6,6 +6,13 @@ const coverRead = require("./r2-cover-read.js");
 const images = require("../kutadgu-image-storage.js");
 const sitemap = require("../kutadgu-sitemap.js");
 const sharedCartLinks = require("../kutadgu-shared-cart-links.js");
+const assetlinks = require("../.well-known/assetlinks.json");
+const appleAppSiteAssociation = require("../.well-known/apple-app-site-association.json");
+
+const APP_LINK_BODIES = Object.freeze({
+  "/.well-known/assetlinks.json": JSON.stringify(assetlinks),
+  "/.well-known/apple-app-site-association": JSON.stringify(appleAppSiteAssociation)
+});
 
 const PRODUCTION_HOSTS = Object.freeze([
   "kutadgubilik.com",
@@ -84,6 +91,7 @@ function posthogUpstream(pathname, search) {
 function classifyPath(pathname, search) {
   const path = String(pathname || "");
   const query = String(search || "");
+  if (Object.prototype.hasOwnProperty.call(APP_LINK_BODIES, path)) return { kind: "app-link", file: path };
   if (hasDotSegment(path)) return { kind: "deny" };
   const posthog = posthogUpstream(path, query);
   if (posthog) return { kind: "posthog", upstream: posthog };
@@ -439,9 +447,18 @@ async function handlePosthog(request, env, deps, route) {
   });
 }
 
+function appLinkResponse(request, env, route) {
+  const method = String(request.method || "GET").toUpperCase();
+  const body = APP_LINK_BODIES[route.file] || "";
+  return textResponse(200, method === "HEAD" ? null : body, env, {
+    "Content-Type": "application/json",
+    "Cache-Control": "public, max-age=3600"
+  }, undefined, hostOf(request));
+}
+
 function methodAllowed(kind, method) {
   if (kind === "shared-cart-create") return method === "POST";
-  if (kind === "shared-cart-read" || kind === "shared-cart-page") return method === "GET" || method === "HEAD";
+  if (kind === "shared-cart-read" || kind === "shared-cart-page" || kind === "app-link") return method === "GET" || method === "HEAD";
   if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete") {
     return true;
   }
@@ -508,6 +525,7 @@ async function dispatch(request, env, deps) {
     return handleSharedCartApiRoute(request, env, source);
   }
   if (route.kind === "shared-cart-page") return handleSharedCartPage(request, env, source);
+  if (route.kind === "app-link") return appLinkResponse(request, env, route);
   if (route.kind === "book") return handleBook(request, env, source);
   if (route.kind === "category") return handleCategory(request, env, source, route);
   if (route.kind === "rewrite") return finishAsset(request, env, source, route.file);
