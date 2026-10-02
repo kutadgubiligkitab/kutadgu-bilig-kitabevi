@@ -14,6 +14,8 @@ const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const INSERT_ATTEMPTS = 5;
 const CREATE_LIMIT = 300;
 const CREATE_WINDOW_MINUTES = 10;
+const CREATE_DAY_LIMIT = 1000;
+const CREATE_WINDOW_HOURS = 24;
 const JSON_HEADERS = Object.freeze({
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store"
@@ -167,6 +169,67 @@ async function readBody(options) {
   return String(options.body);
 }
 
+function declaredBodyBytes(request) {
+  const headers = request && request.headers;
+  if (!headers || typeof headers.get !== "function") return null;
+  const declared = headers.get("content-length");
+  if (declared == null || declared === "") return null;
+  const size = Number(declared);
+  if (!Number.isFinite(size)) return null;
+  return size;
+}
+
+async function cancelBody(body) {
+  if (body && typeof body.cancel === "function") {
+    try {
+      await body.cancel();
+    } catch (err) {
+      /* The caller already has a size decision. */
+    }
+  }
+}
+
+async function readBoundedCreateBody(request) {
+  const declared = declaredBodyBytes(request);
+  const stream = request && request.body;
+  if (declared != null && declared > MAX_BODY_BYTES) {
+    await cancelBody(stream);
+    return { ok: false, status: 413 };
+  }
+  if (!stream || typeof stream.getReader !== "function") {
+    return { ok: true, body: "" };
+  }
+  const reader = stream.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const step = await reader.read();
+      if (step.done) break;
+      const value = step.value;
+      const size = value && value.byteLength ? value.byteLength : 0;
+      if (total + size > MAX_BODY_BYTES) {
+        await cancelBody(reader);
+        return { ok: false, status: 413 };
+      }
+      if (size) {
+        chunks.push(value);
+        total += size;
+      }
+    }
+  } catch (err) {
+    await cancelBody(reader);
+    return { ok: false, status: 413 };
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { ok: true, body: new TextDecoder("utf-8").decode(merged) };
+}
+
 async function createLink(env, fetchImpl, row) {
   const key = serverKey(env);
   const response = await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/create_shared_cart_link", {
@@ -307,6 +370,9 @@ module.exports = {
   RETENTION_MS,
   CREATE_LIMIT,
   CREATE_WINDOW_MINUTES,
+  CREATE_DAY_LIMIT,
+  CREATE_WINDOW_HOURS,
+  readBoundedCreateBody,
   generateShortCode,
   canonicalShortUrl,
   normalizeCreateItems,

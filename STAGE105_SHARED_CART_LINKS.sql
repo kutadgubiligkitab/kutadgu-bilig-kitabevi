@@ -4,7 +4,9 @@
 -- in the same transaction as a successful insert, so the table does not keep them.
 -- Stores an 8-character code and normalized book id/qty pairs only.
 -- No customer name, phone, address, email, account id, price, title, or image.
--- No IP address or account identifier is stored for the creation limit.
+-- No IP address, account id, user id, fingerprint, or cookie is stored.
+-- At most 300 creates in any 10 minutes, and 1000 creates in any 24 hours.
+-- Both counts use created_at. Expired rows are deleted only on a successful insert.
 -- The Cloudflare Worker calls create_shared_cart_link with SUPABASE_SECRET_KEY.
 -- Repeat-safe. Does not change books, auth, orders, storage, or other grants.
 
@@ -56,6 +58,12 @@ ALTER TABLE public.shared_cart_links
   ADD CONSTRAINT shared_cart_links_items_shape
   CHECK (public.shared_cart_items_valid(items));
 
+CREATE INDEX IF NOT EXISTS shared_cart_links_created_at_idx
+ON public.shared_cart_links (created_at);
+
+CREATE INDEX IF NOT EXISTS shared_cart_links_expires_at_idx
+ON public.shared_cart_links (expires_at);
+
 ALTER TABLE public.shared_cart_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shared_cart_links FORCE ROW LEVEL SECURITY;
 
@@ -75,6 +83,7 @@ SET search_path = pg_catalog, public
 AS $shared_cart_create$
 DECLARE
   recent_count integer;
+  day_count integer;
 BEGIN
   PERFORM pg_advisory_xact_lock(841050105);
 
@@ -91,6 +100,14 @@ BEGIN
    WHERE created_at > now() - interval '10 minutes';
 
   IF recent_count >= 300 THEN
+    RETURN 'rate_limited';
+  END IF;
+
+  SELECT count(*)::integer INTO day_count
+    FROM public.shared_cart_links
+   WHERE created_at > now() - interval '24 hours';
+
+  IF day_count >= 1000 THEN
     RETURN 'rate_limited';
   END IF;
 

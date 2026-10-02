@@ -360,10 +360,22 @@ async function handleAi(request, env, deps) {
 
 async function handleSharedCartApiRoute(request, env, deps) {
   const method = String(request.method || "GET").toUpperCase();
+  const pathname = new URL(request.url).pathname;
+  let body = "";
+  if (method === "POST" && pathname === "/api/shared-cart") {
+    const limited = await sharedCartLinks.readBoundedCreateBody(request);
+    if (!limited.ok) {
+      return textResponse(limited.status || 413, JSON.stringify({ ok: false, error: "invalid" }), env, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+      }, undefined, hostOf(request));
+    }
+    body = limited.body;
+  }
   const result = await sharedCartLinks.handleSharedCartApi({
     method,
-    pathname: new URL(request.url).pathname,
-    body: method === "POST" ? await request.text() : "",
+    pathname,
+    body,
     env,
     fetchImpl: deps && deps.fetchImpl
   });

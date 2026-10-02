@@ -416,11 +416,15 @@ test("validator accepts valid items and rejects bad shape", () => {
 test("rate limit allows a count below the threshold and rejects the overflow", async () => {
   assert.strictEqual(links.CREATE_LIMIT, 300);
   assert.strictEqual(links.CREATE_WINDOW_MINUTES, 10);
+  assert.strictEqual(links.CREATE_DAY_LIMIT, 1000);
+  assert.strictEqual(links.CREATE_WINDOW_HOURS, 24);
   const creator = sliceBetween(sql, "FUNCTION public.create_shared_cart_link", "$shared_cart_create$;");
   assert.match(creator, /pg_advisory_xact_lock\(841050105\)/);
   assert.match(creator, /interval '10 minutes'/);
   assert.match(creator, /recent_count >= 300/);
-  assert.ok(creator.indexOf("DELETE FROM public.shared_cart_links") > creator.indexOf("RETURN 'rate_limited'"));
+  assert.match(creator, /created_at > now\(\) - interval '24 hours'/);
+  assert.match(creator, /day_count >= 1000/);
+  assert.ok(creator.indexOf("DELETE FROM public.shared_cart_links") > creator.lastIndexOf("RETURN 'rate_limited'"));
   assert.match(creator, /DELETE FROM public\.shared_cart_links\s+WHERE expires_at <= now\(\)/);
   const allowed = await links.handleSharedCartApi({
     method: "POST",
@@ -457,6 +461,85 @@ test("creation RPC is service_role only", () => {
   assert.doesNotMatch(sql, /security definer/i);
   const creator = sliceBetween(sql, "FUNCTION public.create_shared_cart_link", "$shared_cart_create$;");
   assert.doesNotMatch(creator, /inet|ip_address|user_id|auth\.uid/i);
+});
+
+test("created_at and expires_at indexes support both creation caps", () => {
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS shared_cart_links_created_at_idx\s+ON public\.shared_cart_links \(created_at\)/);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS shared_cart_links_expires_at_idx\s+ON public\.shared_cart_links \(expires_at\)/);
+  const creator = sliceBetween(sql, "FUNCTION public.create_shared_cart_link", "$shared_cart_create$;");
+  assert.match(creator, /WHERE created_at > now\(\) - interval '10 minutes'/);
+  assert.match(creator, /WHERE created_at > now\(\) - interval '24 hours'/);
+  assert.doesNotMatch(creator, /inet|ip_address|user_id|auth\.uid|fingerprint|cookie/i);
+  const table = sliceBetween(sql, "CREATE TABLE IF NOT EXISTS public.shared_cart_links", "CREATE OR REPLACE FUNCTION public.shared_cart_items_valid");
+  assert.doesNotMatch(table, /inet|ip_address|user_id|fingerprint|cookie/i);
+});
+
+test("Content-Length above 8192 is rejected before the body is read", async () => {
+  let read = false;
+  const response = await preview.dispatch({
+    url: "http://127.0.0.1:8787/api/shared-cart",
+    method: "POST",
+    headers: {
+      get(name) {
+        return String(name).toLowerCase() === "content-length" ? "8193" : null;
+      }
+    },
+    body: {
+      getReader() {
+        read = true;
+        throw new Error("body was read");
+      },
+      cancel() {
+        return Promise.resolve();
+      }
+    },
+    text() {
+      read = true;
+      return Promise.reject(new Error("text was read"));
+    }
+  }, { SUPABASE_SECRET_KEY: secret }, {
+    fetchImpl: async () => { throw new Error("upstream must not run"); }
+  });
+  assert.strictEqual(read, false);
+  assert.strictEqual(response.status, 413);
+  const payload = await response.json();
+  assert.deepStrictEqual(payload, { ok: false, error: "invalid" });
+  assert.ok(!JSON.stringify(payload).includes(secret));
+  assert.ok(!JSON.stringify(payload).includes("8193"));
+});
+
+test("a streamed body is cancelled once it crosses 8192 bytes", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  const chunk = new Uint8Array(3000);
+  chunk.fill(65);
+  const response = await preview.dispatch({
+    url: "http://127.0.0.1:8787/api/shared-cart",
+    method: "POST",
+    headers: { get() { return null; } },
+    body: new ReadableStream({
+      pull(controller) {
+        pulls += 1;
+        if (pulls > 20) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      }
+    })
+  }, { SUPABASE_SECRET_KEY: secret }, {
+    fetchImpl: async () => { throw new Error("upstream must not run"); }
+  });
+  assert.strictEqual(cancelled, true);
+  assert.ok(pulls <= 3);
+  assert.strictEqual(response.status, 413);
+  const payload = await response.json();
+  assert.deepStrictEqual(payload, { ok: false, error: "invalid" });
+  assert.ok(!JSON.stringify(payload).includes("AAAA"));
+  assert.ok(!JSON.stringify(payload).includes(secret));
 });
 
 test("dark light and mobile cart layout stay unchanged", () => {
