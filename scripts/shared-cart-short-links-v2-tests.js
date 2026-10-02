@@ -133,8 +133,9 @@ test("PII is not persisted", async () => {
     generateCode: () => "Ab3K7xQ2",
     fetchImpl: async (url, init) => {
       stored = JSON.parse(init.body);
+      assert.match(url, /\/rpc\/create_shared_cart_link$/);
       assert.strictEqual(init.headers.Authorization, "Bearer " + secret);
-      return { status: 201 };
+      return { status: 200, text: async () => "\"ok\"" };
     }
   });
   assert.strictEqual(result.status, 200);
@@ -143,9 +144,10 @@ test("PII is not persisted", async () => {
     code: "Ab3K7xQ2",
     url: "https://www.kutadgubilik.com/c/Ab3K7xQ2"
   });
-  assert.deepStrictEqual(Object.keys(stored).sort(), ["code", "expires_at", "items"]);
-  assert.deepStrictEqual(stored.items, [{ id: "246", qty: 1 }]);
+  assert.deepStrictEqual(Object.keys(stored).sort(), ["p_code", "p_expires_at", "p_items"]);
+  assert.deepStrictEqual(stored.p_items, [{ id: "246", qty: 1 }]);
   const text = JSON.stringify(stored);
+  assert.strictEqual(stored.p_expires_at, "2026-11-01T00:00:00.000Z");
   assert.ok(!text.includes("Ayshe"));
   assert.ok(!text.includes("a@b.c"));
   assert.ok(!text.includes("0555"));
@@ -153,7 +155,7 @@ test("PII is not persisted", async () => {
   assert.ok(!text.includes("tok-1"));
   assert.ok(!text.includes("346"));
   assert.ok(!text.includes("cover.webp"));
-  assert.strictEqual(stored.expires_at, "2026-11-01T00:00:00.000Z");
+  assert.ok(!JSON.stringify(result.body).includes(secret));
 });
 
 test("GET valid code", async () => {
@@ -309,7 +311,7 @@ test("no public Supabase access", () => {
   assert.match(sql, /REVOKE ALL ON TABLE public\.shared_cart_links FROM PUBLIC/);
   assert.match(sql, /REVOKE ALL ON TABLE public\.shared_cart_links FROM anon/);
   assert.match(sql, /REVOKE ALL ON TABLE public\.shared_cart_links FROM authenticated/);
-  assert.match(sql, /GRANT SELECT, INSERT ON TABLE public\.shared_cart_links TO service_role/);
+  assert.match(sql, /GRANT SELECT, INSERT, DELETE ON TABLE public\.shared_cart_links TO service_role/);
   assert.doesNotMatch(sql, /create policy/i);
   assert.doesNotMatch(sql, /GRANT [^;]+ TO anon/i);
   assert.doesNotMatch(sql, /GRANT [^;]+ TO authenticated/i);
@@ -338,9 +340,128 @@ test("server errors stay generic and hide the secret", async () => {
   assert.ok(!JSON.stringify(result.body).includes(secret));
 });
 
+function rpcOk() {
+  return { status: 200, text: async () => "\"ok\"" };
+}
+
+test("POST /api/shared-cart through preview.dispatch reaches the handler", async () => {
+  assert.strictEqual(preview.methodAllowed("shared-cart-create", "POST"), true);
+  assert.strictEqual(preview.methodAllowed("shared-cart-create", "GET"), false);
+  assert.strictEqual(preview.methodAllowed("shared-cart-read", "GET"), true);
+  assert.strictEqual(preview.methodAllowed("shared-cart-read", "HEAD"), true);
+  assert.strictEqual(preview.methodAllowed("shared-cart-read", "POST"), false);
+  assert.strictEqual(preview.methodAllowed("shared-cart-page", "GET"), true);
+  assert.strictEqual(preview.methodAllowed("shared-cart-page", "POST"), false);
+  const seen = [];
+  const response = await preview.dispatch(
+    new Request("http://127.0.0.1:8787/api/shared-cart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{ id: "246", qty: 1 }] })
+    }),
+    { SUPABASE_SECRET_KEY: secret },
+    {
+      fetchImpl: async (url, init) => {
+        seen.push(String(url));
+        assert.match(String(init.body), /"p_items"/);
+        return rpcOk();
+      }
+    }
+  );
+  const body = await response.json();
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(body.ok, true);
+  assert.match(body.url, /^https:\/\/www\.kutadgubilik\.com\/c\/[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$/);
+  assert.match(seen[0], /\/rpc\/create_shared_cart_link$/);
+});
+
+test("GET create endpoint and POST read endpoint are 405", async () => {
+  const getCreate = await preview.dispatch(new Request("http://127.0.0.1:8787/api/shared-cart"), {}, {
+    fetchImpl: async () => { throw new Error("create GET must not call upstream"); }
+  });
+  assert.strictEqual(getCreate.status, 405);
+  const postRead = await preview.dispatch(
+    new Request("http://127.0.0.1:8787/api/shared-cart/Ab3K7xQ2", { method: "POST", body: "{}" }),
+    { SUPABASE_SECRET_KEY: secret },
+    { fetchImpl: async () => { throw new Error("read POST must not call upstream"); } }
+  );
+  assert.strictEqual(postRead.status, 405);
+});
+
+test("item check calls a function and does not embed a subquery", () => {
+  const check = sliceBetween(sql, "shared_cart_links_items_shape", "ENABLE ROW LEVEL SECURITY");
+  assert.match(check, /CHECK \(public\.shared_cart_items_valid\(items\)\)/);
+  assert.doesNotMatch(check, /select|jsonb_array_elements/i);
+  const validator = sliceBetween(sql, "FUNCTION public.shared_cart_items_valid", "$shared_cart_items$;");
+  assert.match(validator, /IMMUTABLE/);
+  assert.match(validator, /jsonb_typeof\(value\) = 'array'/);
+  assert.match(validator, /BETWEEN 1 AND 80/);
+  assert.match(validator, /elem\.value - 'id' - 'qty'/);
+  assert.match(validator, /\^\[0-9\]\{1,18\}\$/);
+  assert.match(validator, /numeric <> trunc/);
+  assert.match(validator, /numeric < 1/);
+  assert.match(validator, /numeric > 99/);
+  assert.doesNotMatch(validator, /security definer/i);
+});
+
+test("validator accepts valid items and rejects bad shape", () => {
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "246", qty: 1 }]), true);
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "246", qty: 1, title: "Hidden" }]), false);
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "12a", qty: 1 }]), false);
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "8", qty: 0 }]), false);
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "8", qty: 100 }]), false);
+  assert.strictEqual(links.sharedCartItemsValid([{ id: "8", qty: 1.5 }]), false);
+});
+
+test("rate limit allows a count below the threshold and rejects the overflow", async () => {
+  assert.strictEqual(links.CREATE_LIMIT, 300);
+  assert.strictEqual(links.CREATE_WINDOW_MINUTES, 10);
+  const creator = sliceBetween(sql, "FUNCTION public.create_shared_cart_link", "$shared_cart_create$;");
+  assert.match(creator, /pg_advisory_xact_lock\(841050105\)/);
+  assert.match(creator, /interval '10 minutes'/);
+  assert.match(creator, /recent_count >= 300/);
+  assert.ok(creator.indexOf("DELETE FROM public.shared_cart_links") > creator.indexOf("RETURN 'rate_limited'"));
+  assert.match(creator, /DELETE FROM public\.shared_cart_links\s+WHERE expires_at <= now\(\)/);
+  const allowed = await links.handleSharedCartApi({
+    method: "POST",
+    pathname: "/api/shared-cart",
+    body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
+    env: { SUPABASE_SECRET_KEY: secret },
+    generateCode: () => "Ab3K7xQ2",
+    fetchImpl: async () => rpcOk()
+  });
+  assert.strictEqual(allowed.status, 200);
+  const limited = await links.handleSharedCartApi({
+    method: "POST",
+    pathname: "/api/shared-cart",
+    body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
+    env: { SUPABASE_SECRET_KEY: secret },
+    generateCode: () => "Ab3K7xQ2",
+    fetchImpl: async () => ({ status: 200, text: async () => "\"rate_limited\"" })
+  });
+  assert.strictEqual(limited.status, 429);
+  assert.deepStrictEqual(limited.body, { ok: false, error: "rate_limited" });
+  assert.ok(!JSON.stringify(limited.body).includes(secret));
+  const button = sliceBetween(shop, "async function shareCartLink(){", "async function importSharedCartFromQuery(){");
+  assert.match(button, /error==="rate_limited"/);
+  assert.match(button, /سەل تۇرۇپ قايتا سىناڭ/);
+});
+
+test("creation RPC is service_role only", () => {
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.create_shared_cart_link\(text, jsonb, timestamptz\) FROM PUBLIC/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.create_shared_cart_link\(text, jsonb, timestamptz\) FROM anon/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.create_shared_cart_link\(text, jsonb, timestamptz\) FROM authenticated/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.create_shared_cart_link\(text, jsonb, timestamptz\) TO service_role/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.shared_cart_items_valid\(jsonb\) FROM PUBLIC/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.shared_cart_items_valid\(jsonb\) TO service_role/);
+  assert.doesNotMatch(sql, /security definer/i);
+  const creator = sliceBetween(sql, "FUNCTION public.create_shared_cart_link", "$shared_cart_create$;");
+  assert.doesNotMatch(creator, /inet|ip_address|user_id|auth\.uid/i);
+});
+
 test("dark light and mobile cart layout stay unchanged", () => {
   assert.match(cartHtml, /shop\.css\?v=55/);
-  assert.match(cartHtml, /shop\.js\?v=140/);
+  assert.match(cartHtml, /shop\.js\?v=141/);
   assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");

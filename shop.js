@@ -4045,6 +4045,10 @@ async function shareCartLink(){
     });
     const data=await response.json();
     url=data&&typeof data.url==="string"?data.url:"";
+    if(response.status===429||(data&&data.error==="rate_limited")){
+      toast("سېۋەت ئۇلانمىسى ھازىرچە كۆپ. سەل تۇرۇپ قايتا سىناڭ.");
+      return;
+    }
     if(!response.ok||!data||data.ok!==true||!Codec.isCanonicalShortCartUrl(url)){
       toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
       return;

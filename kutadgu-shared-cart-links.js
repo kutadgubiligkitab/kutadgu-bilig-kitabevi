@@ -12,6 +12,8 @@ const MAX_BODY_BYTES = 8192;
 const MAX_ID_LENGTH = 18;
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const INSERT_ATTEMPTS = 5;
+const CREATE_LIMIT = 300;
+const CREATE_WINDOW_MINUTES = 10;
 const JSON_HEADERS = Object.freeze({
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store"
@@ -124,6 +126,32 @@ function insertRow(code, items, nowMs) {
   };
 }
 
+function sharedCartItemsValid(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ITEMS) return false;
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const keys = Object.keys(item);
+    if (keys.length !== 2 || keys.indexOf("id") === -1 || keys.indexOf("qty") === -1) return false;
+    if (typeof item.id !== "string" || !/^\d{1,18}$/.test(item.id)) return false;
+    if (typeof item.qty !== "number" || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > MAX_QTY) return false;
+  }
+  return true;
+}
+
+function rpcResult(payload) {
+  let value = payload;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    try {
+      value = JSON.parse(trimmed);
+    } catch (err) {
+      value = trimmed;
+    }
+  }
+  if (value === "ok" || value === "conflict" || value === "rate_limited" || value === "invalid") return value;
+  return "";
+}
+
 function parseJson(raw) {
   if (utf8ByteLength(raw) > MAX_BODY_BYTES) return { ok: false, error: "invalid" };
   try {
@@ -139,20 +167,30 @@ async function readBody(options) {
   return String(options.body);
 }
 
-async function insertLink(env, fetchImpl, row) {
+async function createLink(env, fetchImpl, row) {
   const key = serverKey(env);
-  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/shared_cart_links", {
+  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/create_shared_cart_link", {
     method: "POST",
     headers: {
       apikey: key,
       Authorization: "Bearer " + key,
       "Content-Type": "application/json",
-      Accept: "application/json",
-      Prefer: "return=minimal"
+      Accept: "application/json"
     },
-    body: JSON.stringify(row)
+    body: JSON.stringify({
+      p_code: row.code,
+      p_items: row.items,
+      p_expires_at: row.expires_at
+    })
   });
-  return response && response.status;
+  let payload = "";
+  try {
+    if (response && typeof response.text === "function") payload = await response.text();
+    else if (response && typeof response.json === "function") payload = JSON.stringify(await response.json());
+  } catch (err) {
+    payload = "";
+  }
+  return { status: response && response.status, payload };
 }
 
 async function readLink(env, fetchImpl, code) {
@@ -189,16 +227,22 @@ async function handleCreate(options, normalized) {
     }
     if (!CODE_RE.test(code)) return unavailable();
     const row = insertRow(code, normalized.items, nowMs);
-    let status = 0;
+    if (!sharedCartItemsValid(row.items)) return invalid("invalid");
+    let created = null;
     try {
-      status = await insertLink(env, fetchImpl, row);
+      created = await createLink(env, fetchImpl, row);
     } catch (err) {
       return unavailable();
     }
-    if (status === 200 || status === 201 || status === 204) {
+    const outcome = rpcResult(created && created.payload);
+    if (created && created.status === 200 && outcome === "ok") {
       return jsonResult(200, { ok: true, code, url: canonicalShortUrl(code) });
     }
-    if (status === 409) continue;
+    if (created && created.status === 200 && outcome === "conflict") continue;
+    if (created && created.status === 200 && outcome === "rate_limited") {
+      return jsonResult(429, { ok: false, error: "rate_limited" });
+    }
+    if (created && created.status === 200 && outcome === "invalid") return invalid("invalid");
     return unavailable();
   }
   return unavailable();
@@ -261,11 +305,15 @@ module.exports = {
   MAX_QTY,
   MAX_BODY_BYTES,
   RETENTION_MS,
+  CREATE_LIMIT,
+  CREATE_WINDOW_MINUTES,
   generateShortCode,
   canonicalShortUrl,
   normalizeCreateItems,
   normalizeStoredItems,
   isExpired,
   insertRow,
+  sharedCartItemsValid,
+  rpcResult,
   handleSharedCartApi
 };

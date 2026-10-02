@@ -1,8 +1,11 @@
 -- Shared cart short links.
 -- Run once by hand in the Supabase SQL editor. The app does not apply this file.
--- Stores an 8-character code and normalized book id/qty pairs for 30 days.
+-- A link stays valid for 30 days. The create function deletes expired rows
+-- in the same transaction as a successful insert, so the table does not keep them.
+-- Stores an 8-character code and normalized book id/qty pairs only.
 -- No customer name, phone, address, email, account id, price, title, or image.
--- The Cloudflare Worker reads and inserts with SUPABASE_SECRET_KEY (service_role).
+-- No IP address or account identifier is stored for the creation limit.
+-- The Cloudflare Worker calls create_shared_cart_link with SUPABASE_SECRET_KEY.
 -- Repeat-safe. Does not change books, auth, orders, storage, or other grants.
 
 BEGIN;
@@ -19,31 +22,39 @@ ALTER TABLE public.shared_cart_links
   ADD CONSTRAINT shared_cart_links_code_format
   CHECK (code ~ '^[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$');
 
-ALTER TABLE public.shared_cart_links DROP CONSTRAINT IF EXISTS shared_cart_links_items_shape;
+ALTER TABLE public.shared_cart_links DROP CONSTRAINT IF EXISTS shared_cart_links_expires_after_create;
 ALTER TABLE public.shared_cart_links
-  ADD CONSTRAINT shared_cart_links_items_shape
-  CHECK (
-    jsonb_typeof(items) = 'array'
-    AND jsonb_array_length(items) BETWEEN 1 AND 80
+  ADD CONSTRAINT shared_cart_links_expires_after_create
+  CHECK (expires_at > created_at);
+
+CREATE OR REPLACE FUNCTION public.shared_cart_items_valid(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $shared_cart_items$
+  SELECT
+    jsonb_typeof(value) = 'array'
+    AND jsonb_array_length(value) BETWEEN 1 AND 80
     AND NOT EXISTS (
       SELECT 1
-      FROM jsonb_array_elements(items) AS elem(value)
+      FROM jsonb_array_elements(value) AS elem(value)
       WHERE jsonb_typeof(elem.value) IS DISTINCT FROM 'object'
         OR (elem.value - 'id' - 'qty') IS DISTINCT FROM '{}'::jsonb
         OR jsonb_typeof(elem.value -> 'id') IS DISTINCT FROM 'string'
         OR (elem.value ->> 'id') !~ '^[0-9]{1,18}$'
         OR jsonb_typeof(elem.value -> 'qty') IS DISTINCT FROM 'number'
-        OR (elem.value ->> 'qty') !~ '^[0-9]+$'
         OR (elem.value ->> 'qty')::numeric <> trunc((elem.value ->> 'qty')::numeric)
         OR (elem.value ->> 'qty')::numeric < 1
         OR (elem.value ->> 'qty')::numeric > 99
-    )
-  );
+    );
+$shared_cart_items$;
 
-ALTER TABLE public.shared_cart_links DROP CONSTRAINT IF EXISTS shared_cart_links_expires_after_create;
+ALTER TABLE public.shared_cart_links DROP CONSTRAINT IF EXISTS shared_cart_links_items_shape;
 ALTER TABLE public.shared_cart_links
-  ADD CONSTRAINT shared_cart_links_expires_after_create
-  CHECK (expires_at > created_at);
+  ADD CONSTRAINT shared_cart_links_items_shape
+  CHECK (public.shared_cart_items_valid(items));
 
 ALTER TABLE public.shared_cart_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shared_cart_links FORCE ROW LEVEL SECURITY;
@@ -52,6 +63,58 @@ REVOKE ALL ON TABLE public.shared_cart_links FROM PUBLIC;
 REVOKE ALL ON TABLE public.shared_cart_links FROM anon;
 REVOKE ALL ON TABLE public.shared_cart_links FROM authenticated;
 
-GRANT SELECT, INSERT ON TABLE public.shared_cart_links TO service_role;
+GRANT SELECT, INSERT, DELETE ON TABLE public.shared_cart_links TO service_role;
+
+CREATE OR REPLACE FUNCTION public.create_shared_cart_link(
+  p_code text,
+  p_items jsonb,
+  p_expires_at timestamptz
+) RETURNS text
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $shared_cart_create$
+DECLARE
+  recent_count integer;
+BEGIN
+  PERFORM pg_advisory_xact_lock(841050105);
+
+  IF p_code IS NULL
+    OR p_code !~ '^[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$'
+    OR p_expires_at IS NULL
+    OR p_expires_at <= now()
+    OR NOT public.shared_cart_items_valid(p_items) THEN
+    RETURN 'invalid';
+  END IF;
+
+  SELECT count(*)::integer INTO recent_count
+    FROM public.shared_cart_links
+   WHERE created_at > now() - interval '10 minutes';
+
+  IF recent_count >= 300 THEN
+    RETURN 'rate_limited';
+  END IF;
+
+  DELETE FROM public.shared_cart_links
+   WHERE expires_at <= now();
+
+  INSERT INTO public.shared_cart_links (code, items, expires_at)
+  VALUES (p_code, p_items, p_expires_at);
+
+  RETURN 'ok';
+EXCEPTION
+  WHEN unique_violation THEN
+    RETURN 'conflict';
+END;
+$shared_cart_create$;
+
+REVOKE ALL ON FUNCTION public.shared_cart_items_valid(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.shared_cart_items_valid(jsonb) FROM anon;
+REVOKE ALL ON FUNCTION public.shared_cart_items_valid(jsonb) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.shared_cart_items_valid(jsonb) TO service_role;
+
+REVOKE ALL ON FUNCTION public.create_shared_cart_link(text, jsonb, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_shared_cart_link(text, jsonb, timestamptz) FROM anon;
+REVOKE ALL ON FUNCTION public.create_shared_cart_link(text, jsonb, timestamptz) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_shared_cart_link(text, jsonb, timestamptz) TO service_role;
 
 COMMIT;

@@ -508,6 +508,7 @@ module.exports = {
   CLEAN_REWRITES,
   normalizeHost,
   isProductionHostname,
+  methodAllowed,
   posthogUpstream,
   classifyPath,
   dispatch,
