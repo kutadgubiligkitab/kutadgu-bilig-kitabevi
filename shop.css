@@ -2220,4 +2220,24 @@ body.dark-mode .adabiyat-hub-pill[aria-selected="true"]{
   aspect-ratio:2 / 3;
 }
 
+/* Dark cart/checkout text only.
+   --site-brown-dark is #171311 in dark mode (a surface color), so prices,
+   totals, and section titles painted with it become black on the dark card.
+   --site-brown (#8d6b52) is also too dim on those same surfaces.
+   Light-mode rules above keep both tokens. */
+body.dark-mode .cart-unit-price,
+body.dark-mode .cart-line-price strong,
+body.dark-mode .cart-total strong,
+body.dark-mode .cart-summary-heading,
+body.dark-mode .cart-summary-row strong,
+body.dark-mode .checkout-section-title,
+body.dark-mode .checkout-member-note a{
+  color:var(--site-text);
+}
+body.dark-mode .checkout-form input::placeholder,
+body.dark-mode .checkout-form textarea::placeholder{
+  color:var(--site-text-soft);
+  opacity:1;
+}
+
 

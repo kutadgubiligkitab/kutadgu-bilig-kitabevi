@@ -68,6 +68,31 @@ test("sample-book-cover.png file is kept on disk", () => {
   assert.ok(fs.existsSync(path.join(root, "sample-book-cover.png")));
 });
 
+test("dark cart and checkout text does not use the near-black brown token", () => {
+  const css = fs.readFileSync(path.join(root, "shop.css"), "utf8");
+  assert.match(css, /\.cart-line-price strong\{[^}]*color:var\(--site-brown-dark,#4b3327\)/);
+  assert.match(css, /\.cart-total strong\{[^}]*color:var\(--site-brown-dark,#4b3327\)/);
+  assert.match(css, /\.checkout-section-title\{[\s\S]*?color:var\(--site-brown-dark,#4b3327\)/);
+  assert.match(css, /\.cart-unit-price\{[^}]*color:var\(--site-brown,#70503d\)/);
+  const dark = sliceBetween(css, "body.dark-mode .cart-unit-price,", "body.dark-mode .checkout-form input::placeholder");
+  [
+    ".cart-unit-price",
+    ".cart-line-price strong",
+    ".cart-total strong",
+    ".cart-summary-heading",
+    ".cart-summary-row strong",
+    ".checkout-section-title",
+    ".checkout-member-note a"
+  ].forEach((selector) => assert.match(dark, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))));
+  assert.match(dark, /color:var\(--site-text\)/);
+  assert.doesNotMatch(dark, /#fff|white|--site-brown-dark|--site-brown[^-]/);
+  const placeholder = css.slice(css.indexOf("body.dark-mode .checkout-form input::placeholder"));
+  assert.match(placeholder, /color:var\(--site-text-soft\)/);
+  assert.match(html, /shop\.css\?v=55/);
+  assert.match(css, /\.whatsapp-order\{[^}]*background:#168b4b/);
+  assert.match(css, /\.remove-cart\{[^}]*color:#a94a3b/);
+});
+
 if (failed) {
   console.error("\n" + failed + " test(s) failed");
   process.exit(1);
