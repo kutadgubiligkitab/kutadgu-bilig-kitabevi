@@ -160,9 +160,7 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
     const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
     const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
     const body = lines.join("\n");
-    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
-    assert.match(body, /\.cover-stock-overlay/);
-    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+    assert.doesNotMatch(body, /cover-stock-overlay|cover-stock-wrap|stock-badge|book-card|book-image/);
   }
   ["index.css", "mobile.css"].forEach((rel) => {
     if (!files.includes(rel)) return;

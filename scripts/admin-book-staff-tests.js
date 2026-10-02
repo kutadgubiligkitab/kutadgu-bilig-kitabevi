@@ -184,9 +184,7 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
     const diff = execSync("git diff origin/main -- shop.css", { cwd: root, encoding: "utf8" });
     const lines = diff.split("\n").filter((line) => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"));
     const body = lines.join("\n");
-    assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
-    assert.match(body, /\.cover-stock-overlay/);
-    assert.doesNotMatch(body, /cover-stock-wrap|stock-badge|book-card|book-image/);
+    assert.doesNotMatch(body, /cover-stock-overlay|cover-stock-wrap|stock-badge|book-card|book-image/);
   }
   if (files.includes("public-header.js")) {
     const header = read("public-header.js");

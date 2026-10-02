@@ -553,6 +553,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/listing-catalog-boot-tests.js",
     "scripts/order-prepared-semantics-tests.js",
     "scripts/p0-cart-favorites-identity-tests.js",
+    "scripts/cart-page-boot-tests.js",
     "scripts/stage82-stock-foundation-tests.js",
     "scripts/stage83-stock-enforcement-tests.js",
     "scripts/stage97-shop-hours-tests.js",
