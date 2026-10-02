@@ -253,7 +253,6 @@ async function run() {
 
       "kutadgu-search-rank.js",
       "api/ai-search.js",
-      "kutadgu-ai-search.js",
       "favorites.js"
     ].forEach((rel) => assert.ok(!files.includes(rel), rel));
   });

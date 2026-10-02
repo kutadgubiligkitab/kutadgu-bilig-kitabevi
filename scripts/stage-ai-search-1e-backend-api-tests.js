@@ -147,10 +147,12 @@ function makeFetch(state) {
   };
 }
 
+const TEST_RPC_KEY = "test-supabase-rpc-key";
+
 async function invoke(req, env, fetchImpl, extra) {
   const res = mockRes();
   const stats = await Ai.handleAiSearch(req, res, Object.assign({
-    env: env || {},
+    env: Object.assign({ SUPABASE_SECRET_KEY: TEST_RPC_KEY }, env || {}),
     fetchImpl: fetchImpl || makeFetch({})
   }, extra || {}));
   return {
@@ -203,6 +205,15 @@ async function run() {
     const long = await invoke({ method: "POST", body: { query: "ك".repeat(301) } }, env, fetchImpl);
     assert.strictEqual(long.status, 400);
     assert.strictEqual(state.calls.length, 0);
+    const noSecret = {};
+    const blocked = await invoke(
+      { method: "POST", body: { query: "بالىلار تەربىيەسى" } },
+      { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "" },
+      makeFetch(noSecret)
+    );
+    assert.strictEqual(blocked.status, 503);
+    assert.strictEqual(blocked.json.error, "unavailable");
+    assert.strictEqual(noSecret.calls.length, 0);
     assert.strictEqual(Ai.normalizeQuery("  بالىلار\n\nتەربىيەسى  "), "بالىلار تەربىيەسى");
     assert.strictEqual(Ai.normalizeQuery("\u0065\u0301"), "é");
   });
@@ -238,6 +249,10 @@ async function run() {
     assert.ok(state.calls.every((call) => !/book_embeddings/.test(call.url)));
     assert.ok(state.calls.every((call) => call.method === "POST"));
     assert.ok(state.calls.every((call) => !/service_role/i.test(JSON.stringify(call.headers))));
+    assert.strictEqual(rpc.headers.apikey, TEST_RPC_KEY);
+    assert.strictEqual(rpc.headers.Authorization, "Bearer " + TEST_RPC_KEY);
+    assert.doesNotMatch(JSON.stringify(rpc.headers), /sb_publishable_|sb_secret_/);
+    assert.doesNotMatch(out.body, new RegExp(TEST_RPC_KEY));
     assert.ok(!state.forbidden);
   });
 
@@ -295,13 +310,22 @@ async function run() {
     const apiSrc = fs.readFileSync(path.join(root, "api/ai-search.js"), "utf8");
     assert.match(src, /match_active_books_ai/);
     assert.match(src, /match_count: CANDIDATE_COUNT/);
+    assert.match(src, /SUPABASE_SECRET_KEY/);
     assert.doesNotMatch(src, /book_embeddings/);
     assert.doesNotMatch(src, /SUPABASE_SERVICE_ROLE_KEY/);
-    assert.doesNotMatch(apiSrc, /SUPABASE_SERVICE_ROLE_KEY/);
+    assert.doesNotMatch(src, /sb_publishable_|sb_secret_/);
+    assert.doesNotMatch(apiSrc, /SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SECRET_KEY|sb_secret_/);
     assert.doesNotMatch(src, /method:\s*"PATCH"|method:\s*"PUT"|method:\s*"DELETE"/);
     assert.doesNotMatch(src, /\/rest\/v1\/books/);
-    assert.match(src, /sb_publishable_/);
     assert.doesNotMatch(fs.readFileSync(path.join(root, ".env.example"), "utf8"), /AI_SEARCH_ENABLED\s*=\s*true/);
+    const grantSql = fs.readFileSync(path.join(root, "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql"), "utf8");
+    assert.match(grantSql, /GRANT EXECUTE ON FUNCTION public\.match_active_books_ai\(extensions\.vector, integer\) TO service_role/);
+    assert.match(grantSql, /GRANT EXECUTE ON FUNCTION public\.list_active_books_by_categories_ai\(text\[\], integer\) TO service_role/);
+    assert.match(grantSql, /REVOKE ALL ON FUNCTION public\.match_active_books_ai\(extensions\.vector, integer\) FROM anon/);
+    assert.match(grantSql, /REVOKE ALL ON FUNCTION public\.match_active_books_ai\(extensions\.vector, integer\) FROM authenticated/);
+    assert.match(grantSql, /REVOKE ALL ON FUNCTION public\.list_active_books_by_categories_ai\(text\[\], integer\) FROM anon/);
+    assert.match(grantSql, /REVOKE ALL ON FUNCTION public\.list_active_books_by_categories_ai\(text\[\], integer\) FROM authenticated/);
+    assert.match(grantSql, /FROM PUBLIC/);
   });
 
   await test("existing Normal Search files remain byte-identical and unused by this API", () => {

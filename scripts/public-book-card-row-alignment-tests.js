@@ -178,7 +178,8 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     "scripts/stage101-isolated-assertions.sql",
     "scripts/stage101-isolated-rollback-assertions.sql",
     "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql",
-    "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql"].includes(file)) ||
+    "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql",
+    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|stage4b-public-cards|stage4b2-homepage-discovery\.css|premium-cart-row-alignment-safety/.test(file)

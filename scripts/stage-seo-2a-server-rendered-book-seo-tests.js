@@ -197,7 +197,6 @@ async function run() {
     [
 
       "kutadgu-search-rank.js",
-      "kutadgu-ai-search.js",
       "api/ai-search.js"
     ].forEach((rel) => {
       assert.ok(!files.includes(rel), rel);

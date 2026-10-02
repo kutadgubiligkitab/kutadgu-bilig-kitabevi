@@ -102,7 +102,7 @@ async function search(query, rpcRows, extra) {
   const stats = await Ai.handleAiSearch(
     { method: "POST", body: { query } },
     res,
-    { env: { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key" }, fetchImpl: state.fetchImpl }
+    { env: { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" }, fetchImpl: state.fetchImpl }
   );
   return {
     status: res.statusCode,
@@ -421,7 +421,8 @@ async function run() {
     assert.strictEqual(disabledState.rpc, 0);
 
     const src = fs.readFileSync(path.join(root, "kutadgu-ai-search.js"), "utf8");
-    assert.doesNotMatch(src, /SUPABASE_SERVICE_ROLE_KEY/);
+    assert.match(src, /SUPABASE_SECRET_KEY/);
+    assert.doesNotMatch(src, /SUPABASE_SERVICE_ROLE_KEY|sb_secret_|sb_publishable_/);
     assert.doesNotMatch(src, /book_embeddings/);
     assert.doesNotMatch(src, /kutadgu-search-rank/);
     assert.doesNotMatch(src, /require\("\.\/kutadgu-search-rank/);

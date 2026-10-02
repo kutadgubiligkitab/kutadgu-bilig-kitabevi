@@ -113,7 +113,8 @@ test("this PR does not change Admin/SQL/auth/order surfaces", () => {
     "scripts/stage101-isolated-assertions.sql",
     "scripts/stage101-isolated-rollback-assertions.sql",
     "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql",
-    "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql"].includes(file)) ||
+    "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql",
+    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
