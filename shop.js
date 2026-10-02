@@ -3658,6 +3658,7 @@ function cartPage(){
        <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
        <div class="cart-summary-actions">
          ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
+         <button type="button" class="checkout-secondary" id="shareCart">📤 سېۋەتنى ھەمبەھىرلەش</button>
          <button type="button" class="clear-cart" id="clearCart">🗑️ سېۋەتنى تازىلاش</button>
        </div>
      </div>`;
@@ -3682,6 +3683,8 @@ function cartPage(){
 
   let scroll=document.querySelector("#scrollCheckout");
   if(scroll)scroll.onclick=()=>document.querySelector("#checkoutCard")?.scrollIntoView({behavior:"smooth",block:"start"});
+  let shareCartBtn=document.querySelector("#shareCart");
+  if(shareCartBtn)shareCartBtn.onclick=shareCartLink;
 
   setupCheckout();
   updateBadge();
@@ -3927,6 +3930,145 @@ function whatsappOrderUrl(text){
   const configured=String(window.KUTADGU_WHATSAPP_NUMBER||"").replace(/\D/g,"");
   const base=configured?`https://wa.me/${configured}`:"https://wa.me/";
   return `${base}?text=${encodeURIComponent(text)}`;
+}
+
+let sharedCartImportClaimed=false;
+let sharedCartImportBusy=false;
+function sharedCartOrigin(){
+  try{
+    const host=String(location.hostname||"").toLowerCase();
+    if(host==="www.kutadgubilik.com"||host==="kutadgubilik.com")return "https://www.kutadgubilik.com";
+  }catch(e){}
+  try{return location.origin||"https://www.kutadgubilik.com"}catch(e){}
+  return "https://www.kutadgubilik.com";
+}
+function sharedCartQueryPresent(){
+  try{return new URL(location.href).searchParams.has("share")}catch(e){return false}
+}
+function sharedCartWriteReady(){
+  if(!catalogBootSettled)return false;
+  if(cartHydrationPending())return false;
+  if(identityBootstrapPending())return false;
+  return !!shopStateWriteAllowed();
+}
+function stripShareQuery(){
+  try{
+    const url=new URL(location.href);
+    if(!url.searchParams.has("share"))return;
+    url.searchParams.delete("share");
+    const query=url.searchParams.toString();
+    history.replaceState(history.state,"",url.pathname+(query?"?"+query:"")+url.hash);
+  }catch(e){}
+}
+async function copySharedCartUrl(url){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+      return true;
+    }
+  }catch(e){}
+  try{
+    const ta=document.createElement("textarea");
+    ta.value=url;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    return true;
+  }catch(e){return false}
+}
+async function shareCartLink(){
+  if(cartHydrationPending()){toast("كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ.");return}
+  const Codec=window.KutadguSharedCart;
+  if(!Codec){toast("سېۋەتنى ھەمبەھىرلەش ھازىرچە تەييار ئەمەس");return}
+  const items=[];
+  for(const line of cart()){
+    const book=find(line.id);
+    const id=book&&isCanonicalBookId(book.id)?String(book.id):(isCanonicalBookId(line.id)?String(line.id):"");
+    if(!id)continue;
+    items.push({id,qty:line.qty});
+  }
+  const encoded=Codec.encodeSharedCart(items);
+  if(!encoded.ok){
+    toast(encoded.reason==="too_many"?"سېۋەت بەك چوڭ، ھەمبەھىرلەشكە بولمايدۇ":"سېۋەت بوش، ھەمبەھىرلەشكە بولمايدۇ");
+    return;
+  }
+  const url=Codec.sharedCartUrl(sharedCartOrigin(),encoded.payload);
+  const title="قۇتادغۇبىلىك كىتابخانىسى — سېۋەت";
+  const text="سېۋىتىمدىكى كىتابلار";
+  try{
+    if(navigator.share){
+      await navigator.share({title,text,url});
+      toast("سېۋەت ئۇلانمىسى ھەمبەھىرلەندى");
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==="AbortError")return;
+  }
+  const copied=await copySharedCartUrl(url);
+  toast(copied?"سېۋەت ئۇلانمىسى كۆچۈرۈلدى":"سېۋەت ئۇلانمىسىنى كۆچۈرگىلى بولمىدى");
+}
+async function importSharedCartFromQuery(){
+  if(!isCartDocument()||sharedCartImportClaimed||sharedCartImportBusy)return;
+  const Codec=window.KutadguSharedCart;
+  if(!Codec)return;
+  let raw="";
+  try{raw=new URL(location.href).searchParams.get("share")||""}catch(e){return}
+  if(!raw)return;
+  if(!sharedCartWriteReady())return;
+  const decoded=Codec.decodeSharedCart(raw);
+  if(!decoded.ok){
+    sharedCartImportClaimed=true;
+    stripShareQuery();
+    toast("ھەمبەھىرلەنگەن سېۋەت ئۇلانمىسى ئىناۋەتسىز");
+    return;
+  }
+  sharedCartImportBusy=true;
+  try{
+    await hydrateBooksByIds(decoded.items.map(item=>item.id));
+    if(!sharedCartWriteReady())return;
+    const lookup=id=>{
+      const book=find(id);
+      if(!book||!isStorefrontVisible(book))return null;
+      const stock=stockInfo(book);
+      if(!stock.canBuy)return {id:String(book.id),available:false};
+      return {id:String(book.id),available:true,canBuy:true,stockQty:Number.isFinite(stock.qty)?stock.qty:null};
+    };
+    const existing=shopOwnerAllowsLocalDisplay()?cart():(Array.isArray(get(CART_KEY,[]))?get(CART_KEY,[]):[]);
+    const merged=Codec.mergeSharedLines(existing,decoded.items,lookup);
+    const persisted=merged.items.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
+    const before=existing.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
+    if(JSON.stringify(persisted)!==JSON.stringify(before)){
+      if(!set(CART_KEY,persisted))return;
+      for(const row of persisted){
+        const book=find(row.id);
+        if(book)upsertCartDisplaySnapshot(book);
+      }
+    }
+    sharedCartImportClaimed=true;
+    stripShareQuery();
+    cartPage();
+    updateBadge();
+    toast(Codec.sharedCartNotice(merged));
+  }finally{
+    sharedCartImportBusy=false;
+  }
+}
+function scheduleSharedCartImport(){
+  if(!isCartDocument()||!sharedCartQueryPresent())return;
+  if(document.documentElement.dataset.kutadguSharedCartWatch==="1")return;
+  document.documentElement.dataset.kutadguSharedCartWatch="1";
+  const run=()=>{importSharedCartFromQuery()};
+  document.addEventListener("kutadgu:catalog-ready",run);
+  document.addEventListener("kutadgu-member-state-synced",run);
+  document.addEventListener("kutadgu-member-change",run);
+  let tries=0;
+  const timer=setInterval(()=>{
+    tries+=1;
+    run();
+    if(sharedCartImportClaimed||tries>=40)clearInterval(timer);
+  },250);
+  run();
 }
 
 function safeText(value){
@@ -4762,6 +4904,7 @@ function init(){
   if(!liveListingWaiting())syncStaticCards();
   bindShopMemberListeners();
   loadMemberSystem();
+  scheduleSharedCartImport();
 }
 let bootStarted=false;
 async function boot(){
