@@ -208,8 +208,8 @@ test("member sync path is preserved and share query is removed once", () => {
 
 test("dark light and mobile cart layout stay on existing classes", () => {
   assert.match(cartHtml, /shop\.css\?v=55/);
-  assert.match(cartHtml, /shop\.js\?v=139/);
-  assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=2/);
+  assert.match(cartHtml, /shop\.js\?v=141/);
+  assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");
   assert.match(page, /class="cart-summary-actions"/);

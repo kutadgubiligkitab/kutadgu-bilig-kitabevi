@@ -10,7 +10,7 @@ const Ai = require("../kutadgu-ai-search.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "f614bea842486401a34831005b9b48c7c124dc16e5437052a2394a5ac18a70a9",
+  "shop.js": "8ef2a32e196b38d7032fe4f6da8e6efe3ce5c9266ada268e087daa650680bba6",
   "kutadgu-ai-search-ui.js": shaOf("kutadgu-ai-search-ui.js"),
   "index.html": shaOf("index.html"),
   "ai-search-ui.css": shaOf("ai-search-ui.css")

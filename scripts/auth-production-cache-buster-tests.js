@@ -71,7 +71,7 @@ test("production HTML script tags pin current auth isolation assets", () => {
       if (name === "member.js") memberPages += 1;
       const ver = scriptVersion(src);
       if (name === "shop.js" && rel.replace(/\\/g, "/") === "cart.html") {
-        if (ver !== "139") stale.push(rel + " -> " + src);
+        if (ver !== "141") stale.push(rel + " -> " + src);
         continue;
       }
       if (!ver) missingVersion.push(rel + " -> " + src);

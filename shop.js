@@ -3945,6 +3945,44 @@ function sharedCartOrigin(){
 function sharedCartQueryPresent(){
   try{return new URL(location.href).searchParams.has("share")}catch(e){return false}
 }
+function sharedCartShortCode(){
+  const Codec=window.KutadguSharedCart;
+  if(!Codec||typeof Codec.parseShortCartPath!=="function")return "";
+  try{return Codec.parseShortCartPath(location.pathname)||""}catch(e){return ""}
+}
+function sharedCartImportPending(){
+  return sharedCartQueryPresent()||!!sharedCartShortCode();
+}
+function readShortImportStore(){
+  try{
+    const parsed=JSON.parse(sessionStorage.getItem("kutadgu-shared-cart-short-v1")||"{}");
+    return parsed&&typeof parsed==="object"?parsed:{};
+  }catch(e){return {}}
+}
+function shortCartAlreadyImported(code){
+  const Codec=window.KutadguSharedCart;
+  if(!Codec||typeof Codec.shortImportSeen!=="function")return false;
+  return !!Codec.shortImportSeen(readShortImportStore(),code);
+}
+function markShortCartImported(code){
+  const Codec=window.KutadguSharedCart;
+  if(!Codec||typeof Codec.rememberShortImport!=="function")return;
+  try{
+    sessionStorage.setItem("kutadgu-shared-cart-short-v1",JSON.stringify(Codec.rememberShortImport(readShortImportStore(),code)));
+  }catch(e){}
+}
+async function fetchShortSharedCart(code){
+  try{
+    const response=await fetch("/api/shared-cart/"+encodeURIComponent(code),{headers:{Accept:"application/json"}});
+    if(response.status===404||response.status===410)return {ok:false};
+    if(!response.ok)return {retry:true};
+    const data=await response.json();
+    if(!data||data.ok!==true||!Array.isArray(data.items))return {ok:false};
+    return {ok:true,items:data.items};
+  }catch(e){
+    return {retry:true};
+  }
+}
 function sharedCartWriteReady(){
   if(!catalogBootSettled)return false;
   if(cartHydrationPending())return false;
@@ -3993,7 +4031,32 @@ async function shareCartLink(){
     toast(encoded.reason==="too_many"?"سېۋەت بەك چوڭ، ھەمبەھىرلەشكە بولمايدۇ":"سېۋەت بوش، ھەمبەھىرلەشكە بولمايدۇ");
     return;
   }
-  const url=Codec.sharedCartUrl(sharedCartOrigin(),encoded.payload);
+  const decoded=Codec.decodeSharedCart(encoded.payload);
+  if(!decoded.ok){
+    toast("سېۋەت بوش، ھەمبەھىرلەشكە بولمايدۇ");
+    return;
+  }
+  let url="";
+  try{
+    const response=await fetch("/api/shared-cart",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({items:decoded.items})
+    });
+    const data=await response.json();
+    url=data&&typeof data.url==="string"?data.url:"";
+    if(response.status===429||(data&&data.error==="rate_limited")){
+      toast("سېۋەت ئۇلانمىسى ھازىرچە كۆپ. سەل تۇرۇپ قايتا سىناڭ.");
+      return;
+    }
+    if(!response.ok||!data||data.ok!==true||!Codec.isCanonicalShortCartUrl(url)){
+      toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
+      return;
+    }
+  }catch(e){
+    toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
+    return;
+  }
   const title="قۇتادغۇبىلىك كىتابخانىسى — سېۋەت";
   const text="سېۋىتىمدىكى كىتابلار";
   try{
@@ -4012,20 +4075,41 @@ async function importSharedCartFromQuery(){
   if(!isCartDocument()||sharedCartImportClaimed||sharedCartImportBusy)return;
   const Codec=window.KutadguSharedCart;
   if(!Codec)return;
+  const shortCode=sharedCartShortCode();
   let raw="";
-  try{raw=new URL(location.href).searchParams.get("share")||""}catch(e){return}
-  if(!raw)return;
-  if(!sharedCartWriteReady())return;
-  const decoded=Codec.decodeSharedCart(raw);
-  if(!decoded.ok){
+  if(!shortCode){
+    try{raw=new URL(location.href).searchParams.get("share")||""}catch(e){return}
+    if(!raw)return;
+  }
+  if(shortCode&&shortCartAlreadyImported(shortCode)){
     sharedCartImportClaimed=true;
-    stripShareQuery();
-    toast("ھەمبەھىرلەنگەن سېۋەت ئۇلانمىسى ئىناۋەتسىز");
     return;
   }
+  if(!sharedCartWriteReady())return;
   sharedCartImportBusy=true;
   try{
-    await hydrateBooksByIds(decoded.items.map(item=>item.id));
+    let incoming=[];
+    if(shortCode){
+      const loaded=await fetchShortSharedCart(shortCode);
+      if(!loaded||loaded.retry)return;
+      if(!loaded.ok){
+        sharedCartImportClaimed=true;
+        markShortCartImported(shortCode);
+        toast("ھەمبەھىرلەنگەن سېۋەت ئۇلانمىسى ئىناۋەتسىز");
+        return;
+      }
+      incoming=loaded.items;
+    }else{
+      const decoded=Codec.decodeSharedCart(raw);
+      if(!decoded.ok){
+        sharedCartImportClaimed=true;
+        stripShareQuery();
+        toast("ھەمبەھىرلەنگەن سېۋەت ئۇلانمىسى ئىناۋەتسىز");
+        return;
+      }
+      incoming=decoded.items;
+    }
+    await hydrateBooksByIds(incoming.map(item=>item.id));
     if(!sharedCartWriteReady())return;
     const lookup=id=>{
       const book=find(id);
@@ -4035,7 +4119,7 @@ async function importSharedCartFromQuery(){
       return {id:String(book.id),available:true,canBuy:true,stockQty:Number.isFinite(stock.qty)?stock.qty:null};
     };
     const existing=shopOwnerAllowsLocalDisplay()?cart():(Array.isArray(get(CART_KEY,[]))?get(CART_KEY,[]):[]);
-    const merged=Codec.mergeSharedLines(existing,decoded.items,lookup);
+    const merged=Codec.mergeSharedLines(existing,incoming,lookup);
     const persisted=merged.items.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
     const before=existing.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
     if(JSON.stringify(persisted)!==JSON.stringify(before)){
@@ -4045,8 +4129,9 @@ async function importSharedCartFromQuery(){
         if(book)upsertCartDisplaySnapshot(book);
       }
     }
+    if(shortCode)markShortCartImported(shortCode);
+    else stripShareQuery();
     sharedCartImportClaimed=true;
-    stripShareQuery();
     cartPage();
     updateBadge();
     toast(Codec.sharedCartNotice(merged));
@@ -4055,7 +4140,7 @@ async function importSharedCartFromQuery(){
   }
 }
 function scheduleSharedCartImport(){
-  if(!isCartDocument()||!sharedCartQueryPresent())return;
+  if(!isCartDocument()||!sharedCartImportPending())return;
   if(document.documentElement.dataset.kutadguSharedCartWatch==="1")return;
   document.documentElement.dataset.kutadguSharedCartWatch="1";
   const run=()=>{importSharedCartFromQuery()};
