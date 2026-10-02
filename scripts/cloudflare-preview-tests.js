@@ -271,6 +271,39 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(config.assets.html_handling, "none");
   assert.strictEqual(config.assets.not_found_handling, "none");
   assert.strictEqual(config.assets.binding, "ASSETS");
+  assert.strictEqual(config.assets.directory, ".");
+  const headerFile = fs.readFileSync(path.join(root, "_headers"), "utf8");
+  const headerRules = [];
+  let headerRule = null;
+  headerFile.split(/\r?\n/).forEach((line) => {
+    if (!line.trim()) return;
+    if (!/^\s/.test(line)) {
+      headerRule = { path: line.trim(), headers: {} };
+      headerRules.push(headerRule);
+      return;
+    }
+    const splitAt = line.indexOf(":");
+    headerRule.headers[line.slice(0, splitAt).trim()] = line.slice(splitAt + 1).trim();
+  });
+  const headerMap = Object.fromEntries(headerRules.map((rule) => [rule.path, rule.headers]));
+  const globalHeaders = headerMap["/*"];
+  assert.strictEqual(globalHeaders["X-Content-Type-Options"], "nosniff");
+  assert.strictEqual(globalHeaders["Referrer-Policy"], "strict-origin-when-cross-origin");
+  assert.strictEqual(globalHeaders["Permissions-Policy"], "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  assert.strictEqual(globalHeaders["X-Frame-Options"], "DENY");
+  assert.strictEqual(globalHeaders["Content-Security-Policy"], headers.ENFORCED_CSP);
+  assert.strictEqual(globalHeaders["Content-Security-Policy-Report-Only"], headers.PRODUCTION_CSP_REPORT_ONLY);
+  assert.strictEqual(globalHeaders["Strict-Transport-Security"], headers.HSTS_VALUE);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(globalHeaders, "Cache-Control"), false);
+  assert.strictEqual(headerMap["/*.css"]["Cache-Control"], headers.STOREFRONT_CODE);
+  assert.strictEqual(headerMap["/*.js"]["Cache-Control"], headers.STOREFRONT_CODE);
+  for (const ext of ["png", "jpg", "jpeg", "webp", "gif", "svg", "ttf", "woff", "woff2"]) {
+    assert.strictEqual(headerMap["/*." + ext]["Cache-Control"], headers.LONG_ASSET, ext);
+  }
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(headerMap, "/*.ico"), false);
+  const wranglerBundle = fs.readFileSync(path.join(root, "node_modules/wrangler/wrangler-dist/cli.js"), "utf8");
+  assert.match(wranglerBundle, /HEADERS_FILENAME = "_headers"/);
+  assert.match(wranglerBundle, /\/\$\{HEADERS_FILENAME\}/);
   const dev = previewDev.previewDevConfig();
   assert.strictEqual(path.resolve(dev.config.assets.directory), root);
   assert.ok(path.relative(dev.config.assets.directory, dev.configDir).startsWith(".."));

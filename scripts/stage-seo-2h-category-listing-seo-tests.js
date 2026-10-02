@@ -326,6 +326,7 @@ test("protected product files stay frozen and out of this diff", () => {
     ".assetsignore",
     ".dev.vars.example",
     "wrangler.jsonc",
+    "_headers",
     "CLOUDFLARE_MIGRATION_REPORT.md",
     "kutadgu-image-storage.js",
     "cloudflare/worker.js",
