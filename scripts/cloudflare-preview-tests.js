@@ -218,7 +218,59 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(cutover.worker, "kutadgu-cloudflare-production");
   assert.ok(cutover.routes.some((rule) => rule.pattern === "www.kutadgubilik.com" && rule.custom_domain === true));
   assert.ok(cutover.routes.some((rule) => rule.pattern === "kutadgubilik.com" && rule.custom_domain === true));
-  assert.strictEqual(config.assets.run_worker_first, true);
+  const workerFirst = config.assets.run_worker_first;
+  assert.ok(Array.isArray(workerFirst));
+  assert.ok(workerFirst.length < 100);
+  const requiredWorkerFirst = [
+    "/",
+    "/*.html",
+    "/.*",
+    "/api/*",
+    "/book",
+    "/book/*",
+    "/c/*",
+    "/__r2",
+    "/__r2/*",
+    "/kbg",
+    "/kbg/*",
+    "/sitemap.xml",
+    "/sitemap-books.xml",
+    "/sitemap-books-*.xml",
+    "/books",
+    "/order-info",
+    "/privacy",
+    "/returns",
+    "/delete-account",
+    "/adabiyat",
+    "/romanlar",
+    "/tarikhiy-romanlar",
+    "/sheirlar",
+    "/hekayiler",
+    "/dastanlar",
+    "/dunya-edebiyati",
+    "/adabiyat-roman",
+    "/uyghur-adabiyati",
+    "/universal",
+    "/tibb",
+    "/derslik",
+    "/terbiye",
+    "/dini",
+    "/children",
+    "/dictionary",
+    "/grammar",
+    "/admin.js",
+    "/catalog-bibliography.js",
+    "/supabase-config.js"
+  ];
+  for (const rule of requiredWorkerFirst) {
+    assert.ok(workerFirst.includes(rule), rule);
+  }
+  for (const blocked of ["/*", "/*.css", "/*.js", "/*.png", "/*.webp", "/*.woff2"]) {
+    assert.equal(workerFirst.includes(blocked), false, blocked);
+  }
+  assert.strictEqual(config.assets.html_handling, "none");
+  assert.strictEqual(config.assets.not_found_handling, "none");
+  assert.strictEqual(config.assets.binding, "ASSETS");
   const dev = previewDev.previewDevConfig();
   assert.strictEqual(path.resolve(dev.config.assets.directory), root);
   assert.ok(path.relative(dev.config.assets.directory, dev.configDir).startsWith(".."));
