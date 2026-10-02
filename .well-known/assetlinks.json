@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kutadgubilig.kitabevi",
+      "sha256_cert_fingerprints": [
+        "2C:D7:46:A1:20:BA:11:D7:28:66:26:80:C7:44:C2:84:28:EF:0C:2F:D9:5C:D0:C6:6F:3F:55:E2:9A:28:44:FC"
+      ]
+    }
+  }
+]

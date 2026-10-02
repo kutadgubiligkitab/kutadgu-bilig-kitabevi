@@ -330,6 +330,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "kutadgu-image-storage.js",
     "cloudflare/worker.js",
     "cloudflare/preview-dispatch.js",
+    ".well-known/assetlinks.json",
+    ".well-known/apple-app-site-association.json",
     "cloudflare/r2-cover-upload.js",
     "admin-hero.js",
     "scripts/admin-hero-tests.js",
