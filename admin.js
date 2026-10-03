@@ -2483,7 +2483,7 @@ function currentCreditPlan(){
       }
     };
   }
-  return Credits.planCreditSave({
+  const plan=Credits.planCreditSave({
     loading:creditSaveMode==="loading",
     blocked:creditSaveMode==="blocked",
     legacyOnly:creditSaveMode==="legacyOnly",
@@ -2491,6 +2491,10 @@ function currentCreditPlan(){
     translators,
     publisher
   });
+  if(plan&&plan.ok!==false&&plan.writeCredits&&!(db&&typeof db.rpc==="function")){
+    return Object.assign({},plan,{writeCredits:false});
+  }
+  return plan;
 }
 function creditEditorState(){
   const Credits=window.KutadguCredits;
@@ -2564,7 +2568,7 @@ async function loadEditorCredits(book,token){
     return;
   }
   const settled=await Credits.loadCreditEditor(editor,token,book&&book.id,async()=>{
-    if(!db||!book||book.id==null)return {ok:true,rows:[]};
+    if(!(db&&typeof db.from==="function")||!book||book.id==null)return {ok:false,missing:true};
     const {data,error}=await db.from("book_credits").select("role,position,identity_id,catalog_identities(id,display_name)").eq("book_id",book.id).order("position");
     if(error)return {ok:false,missing:!!(Credits.creditRelationMissing&&Credits.creditRelationMissing(error)),error};
     return {ok:true,rows:Array.isArray(data)?data:[]};

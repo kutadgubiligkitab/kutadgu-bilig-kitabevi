@@ -139,6 +139,9 @@ comment on function public.apply_catalog_credit_corrections() is
 comment on function public.catalog_credit_unresolved() is
   'Review rows this map does not correct. Selecting them does not separate names.';
 
+alter table public.catalog_credit_correction_map enable row level security;
+alter table public.catalog_credit_correction_map force row level security;
+
 revoke all on table public.catalog_credit_correction_map from public, anon, authenticated;
 revoke all on function public.apply_catalog_credit_corrections() from public, anon, authenticated;
 revoke all on function public.catalog_credit_unresolved() from public, anon, authenticated;
