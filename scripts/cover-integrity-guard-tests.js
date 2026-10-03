@@ -129,7 +129,11 @@ assert.ok(stampAt >= 0 && rpcAt > stampAt);
 
 assert.match(premium, /function isSampleDemoCover/);
 assert.match(premium, /if\(!value\|\|isSampleDemoCover\(value\)\)return ""/);
-assert.match(premium, /book-cover-unavailable/);
+assert.match(premium, /assignCoverImage\(img,src,/);
+assert.match(premium, /recoverCachedCoverFailure\(img\)/);
+assert.doesNotMatch(premium, /img\.onerror=\(\)=>markMissing\(\)/);
+assert.match(shop, /function markCoverUnavailable\(img\)/);
+assert.match(shop, /book-cover-unavailable/);
 assert.doesNotMatch(premium, /fallbackCover\s*=/);
 assert.doesNotMatch(premium, /\.src\s*=\s*["'][^"']*sample-book-cover/);
 assert.doesNotMatch(premium, /src=["']\/sample-book-cover\.png["']/);

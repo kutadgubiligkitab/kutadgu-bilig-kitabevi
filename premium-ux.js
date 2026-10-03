@@ -59,17 +59,26 @@
   };
 
   function compactCard(book){
-    return `<article class="premium-book-card" data-premium-book-id="${escapeHtml(book.id)}">
-      <button type="button" class="premium-card-favorite" data-premium-favorite="${escapeHtml(book.id)}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
+    const src=cover(book);
+    const id=escapeHtml(book.id);
+    return `<article class="premium-book-card" data-premium-book-id="${id}">
+      <button type="button" class="premium-card-favorite" data-premium-favorite="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a class="premium-card-link" href="${escapeHtml(bookHref(book))}">
-        <span class="premium-card-cover"><img src="${cover(book)}" alt="${escapeHtml(book.title)} كىتاب مۇقاۋىسى" loading="lazy" decoding="async"></span>
+        <span class="premium-card-cover"><img src="${src}" data-cover-src="${src}" data-cover-book="${id}" alt="${escapeHtml(book.title)} كىتاب مۇقاۋىسى" loading="lazy" decoding="async"></span>
         ${badges(book)?`<span class="premium-card-badges">${badges(book)}</span>`:""}
         <strong>${escapeHtml(book.title)}</strong>
         <small>${escapeHtml(book.author||"—")}</small>
         <span class="premium-card-price">${money(book.price)}</span>
       </a>
-      <button type="button" class="premium-card-cart" data-premium-cart="${escapeHtml(book.id)}">🛒 سېۋەتكە</button>
+      <button type="button" class="premium-card-cart" data-premium-cart="${id}">🛒 سېۋەتكە</button>
     </article>`;
+  }
+
+  function recoverCachedCoverFailure(img){
+    const shop=window.kutadguShop;
+    if(!img||img.isConnected===false||!shop||typeof shop.handleCoverError!=="function")return;
+    if(!img.complete||img.naturalWidth!==0)return;
+    shop.handleCoverError(img);
   }
 
   function bindCards(scope){
@@ -77,18 +86,14 @@
       const card=img.closest&&img.closest("[data-premium-book-id]");
       const bookId=card?String(card.getAttribute("data-premium-book-id")||""):"";
       if(bookId)img.setAttribute("data-cover-book",bookId);
-      const markMissing=()=>{
-        if(img.isConnected===false||!img.parentNode)return;
-        if(bookId&&img.getAttribute("data-cover-book")!==bookId)return;
-        img.onerror=null;
-        const span=document.createElement("span");
-        span.className="book-cover-unavailable";
-        span.setAttribute("aria-hidden","true");
-        img.replaceWith(span);
-      };
-      const src=String(img.getAttribute("src")||"").trim();
-      if(!src||isSampleDemoCover(src)){markMissing();return;}
-      img.onerror=()=>markMissing();
+      const src=String(img.getAttribute("data-cover-src")||img.getAttribute("src")||"").trim();
+      const shop=window.kutadguShop;
+      if(shop&&typeof shop.assignCoverImage==="function"){
+        shop.assignCoverImage(img,src,{bookId:bookId,loading:img.getAttribute("loading")||"lazy"});
+        recoverCachedCoverFailure(img);
+        if(typeof queueMicrotask==="function")queueMicrotask(()=>recoverCachedCoverFailure(img));
+        if(typeof requestAnimationFrame==="function")requestAnimationFrame(()=>recoverCachedCoverFailure(img));
+      }
     });
     scope.querySelectorAll("[data-premium-favorite]").forEach(button=>{
       const active=!!window.kutadguShop?.favHas?.(button.dataset.premiumFavorite);

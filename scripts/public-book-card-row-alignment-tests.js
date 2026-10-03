@@ -58,6 +58,24 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
+function compactCardSlice(src) {
+  const startNeedle = "function compactCard(book){";
+  const start = src.indexOf(startNeedle);
+  assert.ok(start >= 0, startNeedle);
+  const ends = ["function recoverCachedCoverFailure(img){", "function bindCards(scope){"]
+    .map((needle) => src.indexOf(needle, start + startNeedle.length))
+    .filter((index) => index > start);
+  assert.ok(ends.length > 0, "compactCard end");
+  return src.slice(start, Math.min(...ends));
+}
+
+function normalizePremiumCoverCard(src) {
+  return src
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+}
+
 test("public-book-card-row-alignment-safety.css exists with family contracts", () => {
   assert.ok(fs.existsSync(cssPath));
   const body = stripComments(css);
@@ -143,10 +161,17 @@ test("card generators stay unchanged from origin/main", () => {
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = compactCardSlice(compact);
+  const mainSlice = compactCardSlice(mainCompact);
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
+  assert.match(compactSlice, /<small>\$\{escapeHtml\(book\.author\|\|"—"\)\}<\/small>/);
+  assert.match(compactSlice, /premium-card-price/);
+  assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
+  assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
+  assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
+  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
 });
 
 test("public alignment CSS loads last after premium cart-row safety", () => {

@@ -44,6 +44,24 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
+function compactCardSlice(src) {
+  const startNeedle = "function compactCard(book){";
+  const start = src.indexOf(startNeedle);
+  assert.ok(start >= 0, startNeedle);
+  const ends = ["function recoverCachedCoverFailure(img){", "function bindCards(scope){"]
+    .map((needle) => src.indexOf(needle, start + startNeedle.length))
+    .filter((index) => index > start);
+  assert.ok(ends.length > 0, "compactCard end");
+  return src.slice(start, Math.min(...ends));
+}
+
+function normalizePremiumCoverCard(src) {
+  return src
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+}
+
 test("overlay exists, is host-scoped, and avoids unscoped .card/.book rules", () => {
   assert.ok(fs.existsSync(path.join(root, "storefront-cards-1a-polish.css")));
   const selectorChunks = body.split("{").slice(0, -1).map((chunk) => {
@@ -133,10 +151,17 @@ test("card generators and Search 1A rank helper stay unchanged except Cards 1B c
   assert.match(shop, /usesSearchRelevance/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = compactCardSlice(compact);
+  const mainSlice = compactCardSlice(mainCompact);
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
+  assert.match(compactSlice, /<small>\$\{escapeHtml\(book\.author\|\|"—"\)\}<\/small>/);
+  assert.match(compactSlice, /premium-card-price/);
+  assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
+  assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
+  assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
+  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
   const cfg = fs.readFileSync(path.join(root, "app-config.js"), "utf8");
   assert.match(cfg, /id:"parenting"/);
   assert.match(cfg, /id:"textbooks"/);

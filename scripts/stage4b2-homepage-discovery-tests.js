@@ -59,6 +59,24 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
+function compactCardSlice(src) {
+  const startNeedle = "function compactCard(book){";
+  const start = src.indexOf(startNeedle);
+  assert.ok(start >= 0, startNeedle);
+  const ends = ["function recoverCachedCoverFailure(img){", "function bindCards(scope){"]
+    .map((needle) => src.indexOf(needle, start + startNeedle.length))
+    .filter((index) => index > start);
+  assert.ok(ends.length > 0, "compactCard end");
+  return src.slice(start, Math.min(...ends));
+}
+
+function normalizePremiumCoverCard(src) {
+  return src
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+}
+
 test("stage4b2-homepage-discovery.css exists", () => {
   assert.ok(fs.existsSync(cssPath));
   assert.match(css, /#homeFeaturedBooks/);
@@ -140,15 +158,33 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = compactCardSlice(compact);
+  const mainSlice = compactCardSlice(mainCompact);
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  assert.match(compactSlice, /loading="lazy" decoding="async"/);
+  assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
+  assert.match(compactSlice, /<small>\$\{escapeHtml\(book\.author\|\|"—"\)\}<\/small>/);
+  assert.match(compactSlice, /premium-card-price/);
+  assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
+  assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
+  assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
+  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
+  const bind = sliceBetween(compact, "function recoverCachedCoverFailure(img){", "const DISCOVERY_PAGE_SIZE=8;");
+  assert.match(bind, /assignCoverImage\(img,src,\{bookId:bookId,loading:img\.getAttribute\("loading"\)\|\|"lazy"\}\)/);
+  assert.match(bind, /recoverCachedCoverFailure\(img\)/);
+  assert.match(bind, /requestAnimationFrame\(\(\)=>recoverCachedCoverFailure\(img\)\)/);
+  assert.match(bind, /!img\.complete\|\|img\.naturalWidth!==0/);
+  assert.doesNotMatch(bind, /markMissing/);
+  assert.match(bind, /data-premium-favorite/);
+  assert.match(bind, /data-premium-cart/);
+  assert.match(bind, /toggleFav\?/);
+  assert.match(bind, /kutadguShop\?\.add\?/);
 });
 
 test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload", () => {
   assert.match(shopJs, /premium-ux\.css\?v=10/);
-  assert.match(shopJs, /premium-ux\.js\?v=12/);
+  assert.match(shopJs, /premium-ux\.js\?v=13/);
   assert.match(shopJs, /stage4b2-homepage-discovery\.css\?v=1/);
   assert.match(shopJs, /data-kutadgu-stage4b2-homepage-discovery/);
   assert.match(shopJs, /premium-cart-row-alignment-safety\.css\?v=1/);

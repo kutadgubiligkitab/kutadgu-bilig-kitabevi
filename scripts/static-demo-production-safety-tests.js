@@ -115,7 +115,7 @@ test("pins use shop.js v=136 on homepage, book-shell, and static fixtures, and c
   assert.match(bookHtml, /catalog-visibility\.js\?v=3/);
   assert.match(romanlar2, /shop\.js\?v=138/);
   assert.match(shop, /member\.js\?v=28/);
-  assert.match(shop, /premium-ux\.js\?v=12/);
+  assert.match(shop, /premium-ux\.js\?v=13/);
 });
 
 if (failed) {
