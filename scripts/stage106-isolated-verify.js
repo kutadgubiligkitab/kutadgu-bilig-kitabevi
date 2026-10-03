@@ -409,12 +409,36 @@ async function main() {
      where c.book_id = $1 and c.role = 'author' and c.position = 0`,
     [activeId]
   ))[0].id;
+  await q("update public.books set translator = $2, publisher = $3 where id = $1", [inactiveId, "كونا تەرجىمان", "كونا نەشر"]);
   await asSession("authenticated", { aal: "aal2", sub: OTHER }, { admin: true }, async () => {
     await q("select public.set_book_credits($1, $2::jsonb, '[]'::jsonb, null)", [
       inactiveId,
-      JSON.stringify(["ئاپتور ئالف"])
+      JSON.stringify(["ئاپتور ئالف", "ئاپتور بېت"])
     ]);
   });
+  const optionalColumns = await q("select translator, publisher from public.books where id = $1", [inactiveId]);
+  check(
+    "empty translator and publisher become null on the existing books schema",
+    optionalColumns[0].translator == null && optionalColumns[0].publisher == null,
+    JSON.stringify(optionalColumns[0])
+  );
+  const optionalAuthors = await q(
+    `select i.display_name
+     from public.book_credits c
+     join public.catalog_identities i on i.id = c.identity_id
+     where c.book_id = $1 and c.role = 'author'
+     order by c.position`,
+    [inactiveId]
+  );
+  check(
+    "empty optional roles keep both authors in order",
+    optionalAuthors.map((row) => row.display_name).join("|") === "ئاپتور ئالف|ئاپتور بېت"
+  );
+  const optionalTranslators = await q(
+    "select count(*)::int as n from public.book_credits where book_id = $1 and role = 'translator'",
+    [inactiveId]
+  );
+  check("empty translator stores no translator links", optionalTranslators[0].n === 0, String(optionalTranslators[0].n));
   const translatorBook = [{ id: await insertBook({ title: "تەرجىمە", author: "باشقا ئاپتور", is_active: true }) }];
   await asSession("authenticated", { aal: "aal2", sub: OTHER }, { admin: true }, async () => {
     await q("select public.set_book_credits($1, $2::jsonb, $3::jsonb, null)", [

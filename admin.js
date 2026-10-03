@@ -6516,6 +6516,7 @@ function init(){
     renderSourceOptions();
     const creditForm=$("#bookForm");
     if(creditForm)creditForm.addEventListener("submit",saveBook);
+    bindBookEntrySuggestions();
     return;
   }
   applyBooksSchema();

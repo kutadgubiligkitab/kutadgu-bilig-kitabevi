@@ -4,6 +4,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
 const C = require("../catalog-credits.js");
 const preview = require("../cloudflare/preview-dispatch.js");
@@ -572,6 +573,7 @@ async function adminPage() {
         or() { return self; },
         in() { return self; },
         order() { return self; },
+        not() { return self; },
         limit() { return self; },
         range() { return self; },
         maybeSingle() { return self; },
@@ -586,6 +588,7 @@ async function adminPage() {
       from(table) {
         if (table === "book_credits") {
           window.__creditStarted = true;
+          if (window.__creditRows) return chain(Promise.resolve(window.__creditRows));
           return chain(window.__creditHold);
         }
         return chain({ data: [], error: null });
@@ -594,7 +597,12 @@ async function adminPage() {
         window.__writes.push({ kind: "rpc", name, args });
         return Promise.resolve(window.__rpcResult || { data: null, error: null });
       },
-      auth: { onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } }; } }
+      auth: {
+        onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } }; },
+        getSession() {
+          return Promise.resolve({ data: { session: { access_token: "isolated-admin-access-token" } }, error: null });
+        }
+      }
     };
   });
   const page = await context.newPage();
@@ -731,6 +739,169 @@ DIRTY_DURING_LOAD.forEach((item) => {
   });
 });
 
+function rowsForNames(authors, translators, publisher) {
+  const rows = [];
+  authors.forEach((name, position) => {
+    const id = CREDIT_IDS[name];
+    rows.push({ role: "author", position, identity_id: id, catalog_identities: { id, display_name: name } });
+  });
+  translators.forEach((name, position) => {
+    const id = CREDIT_IDS[name];
+    rows.push({ role: "translator", position, identity_id: id, catalog_identities: { id, display_name: name } });
+  });
+  if (publisher) {
+    const id = CREDIT_IDS.Press;
+    rows.push({ role: "publisher", position: 0, identity_id: id, catalog_identities: { id, display_name: publisher } });
+  }
+  return rows;
+}
+
+test("admin create with a cover saves one book and restores the individual names", async () => {
+  const png = path.join(os.tmpdir(), "kutadgu-credit-cover.png");
+  fs.writeFileSync(png, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  const page = await adminPage();
+  const harness = await formHarnessOnce();
+  await page.goto(harness.origin + "/admin.html", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__kutadguAdminTest && document.querySelector("#bookTitle"));
+  await page.evaluate(() => window.__kutadguAdminTest.openNew());
+  const source = await page.$eval("#bookSource", (el) => (el.options[1] && el.options[1].value) || "");
+  await page.fill("#bookTitle", "يېڭى كىتاب");
+  await page.fill("#bookAuthor", "Alice");
+  await page.click("#bookAuthorAdd");
+  await page.locator("#bookAuthorExtras input").fill("Bob");
+  await page.fill("#bookTranslator", "Carol");
+  await page.click("#bookTranslatorAdd");
+  await page.locator("#bookTranslatorExtras input").fill("Dave");
+  await page.fill("#bookPublisher", "Structured Press");
+  await page.selectOption("#bookSource", source);
+  await page.fill("#bookPrice", "15");
+  const stock = page.locator("#bookStock");
+  if (await stock.count() && await stock.isVisible()) await stock.fill("2");
+  await page.setInputFiles("#bookCover", png);
+  await page.route("**/api/r2-cover-upload", async (route) => {
+    const key = route.request().headers()["x-kutadgu-object-key"];
+    const url = "https://www.kutadgubilik.com/__r2/" + String(key || "").split("/").map((part) => encodeURIComponent(part)).join("/");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, url, key })
+    });
+  });
+  await page.evaluate(() => {
+    window.__writes = [];
+    window.__alerts = [];
+    window.__bookInserts = 0;
+    window.__kutadguAdminPersistBook = async (payload, op) => {
+      window.__writes.push({ kind: "book", payload, op });
+      if (op === "INSERT") window.__bookInserts += 1;
+      return { error: null, data: [{ id: 81 }] };
+    };
+  });
+  await page.locator("#bookForm button[type=submit]").click();
+  await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "rpc" && entry.name === "set_book_credits") || window.__alerts.length, null, { timeout: 30000 });
+  const created = await readAdminCredits(page);
+  assert.deepStrictEqual(created.alerts, [], JSON.stringify(created.alerts));
+  assert.strictEqual(await page.evaluate(() => window.__bookInserts), 1);
+  const createdRpc = created.writes.filter((entry) => entry.kind === "rpc" && entry.name === "set_book_credits");
+  assert.strictEqual(createdRpc.length, 1);
+  assert.strictEqual(createdRpc[0].args.p_book_id, 81);
+  assert.deepStrictEqual(createdRpc[0].args.p_authors, ["Alice", "Bob"]);
+  assert.deepStrictEqual(createdRpc[0].args.p_translators, ["Carol", "Dave"]);
+  assert.strictEqual(createdRpc[0].args.p_publisher, "Structured Press");
+  const inserted = created.writes.find((entry) => entry.kind === "book");
+  assert.strictEqual(inserted.op, "INSERT");
+  assert.ok(!Object.prototype.hasOwnProperty.call(inserted.payload, "author"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(inserted.payload, "translator"));
+  assert.ok(!Object.prototype.hasOwnProperty.call(inserted.payload, "publisher"));
+  await page.evaluate((rows) => {
+    window.__creditRows = { data: rows, error: null };
+    window.__creditBook = {
+      id: 81,
+      title: "يېڭى كىتاب",
+      author: "Alice، Bob",
+      translator: "Carol، Dave",
+      publisher: "Structured Press",
+      price: 15,
+      stock: 2,
+      image_url: "https://cdn.example/admin-preview-covers/saved.webp",
+      is_active: true,
+      language: "",
+      description: "",
+      sales_count: 0,
+      source: document.querySelector("#bookSource").value
+    };
+  }, rowsForNames(["Alice", "Bob"], ["Carol", "Dave"], "Structured Press"));
+  await page.evaluate(() => window.__kutadguAdminTest.openEdit(81));
+  await page.waitForFunction(() => {
+    const authorExtra = document.querySelector("#bookAuthorExtras input");
+    const translatorExtra = document.querySelector("#bookTranslatorExtras input");
+    return authorExtra && authorExtra.value === "Bob" && translatorExtra && translatorExtra.value === "Dave";
+  });
+  const restored = await page.evaluate(() => window.__kutadguAdminTest.currentCreditPlan());
+  assert.deepStrictEqual(restored.authors, ["Alice", "Bob"]);
+  assert.deepStrictEqual(restored.translators, ["Carol", "Dave"]);
+  assert.strictEqual(restored.publisher, "Structured Press");
+  await page.fill("#bookDescription", "باشقا ئىزاھ");
+  await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
+  await page.locator("#bookForm button[type=submit]").click();
+  await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "rpc" && entry.name === "set_book_credits") || window.__alerts.length, null, { timeout: 30000 });
+  const kept = await readAdminCredits(page);
+  assert.deepStrictEqual(kept.alerts, [], JSON.stringify(kept.alerts));
+  assert.strictEqual(await page.evaluate(() => window.__bookInserts), 1);
+  const keptRpc = kept.writes.filter((entry) => entry.kind === "rpc" && entry.name === "set_book_credits");
+  assert.strictEqual(keptRpc.length, 1);
+  assert.strictEqual(keptRpc[0].args.p_book_id, 81);
+  assert.deepStrictEqual(keptRpc[0].args.p_authors, ["Alice", "Bob"]);
+  assert.deepStrictEqual(keptRpc[0].args.p_translators, ["Carol", "Dave"]);
+  assert.strictEqual(keptRpc[0].args.p_publisher, "Structured Press");
+  const updated = kept.writes.find((entry) => entry.kind === "book");
+  assert.strictEqual(updated.op, "UPDATE");
+  assert.strictEqual(updated.payload.description, "باشقا ئىزاھ");
+  await page.evaluate(() => window.__kutadguAdminTest.openEdit(81));
+  await page.waitForFunction(() => {
+    const translatorExtra = document.querySelector("#bookTranslatorExtras input");
+    const modal = document.querySelector("#bookModal");
+    return translatorExtra && translatorExtra.value === "Dave" && modal && !modal.hidden;
+  });
+  await page.fill("#bookTranslator", "");
+  await page.locator("#bookTranslatorExtras input").fill("");
+  await page.fill("#bookPublisher", "");
+  await page.evaluate((rows) => {
+    window.__writes = [];
+    window.__alerts = [];
+    window.__creditRows = { data: rows, error: null };
+  }, rowsForNames(["Alice", "Bob"], [], ""));
+  await page.locator("#bookForm button[type=submit]").click();
+  await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "rpc" && entry.name === "set_book_credits") || window.__alerts.length, null, { timeout: 30000 });
+  const cleared = await readAdminCredits(page);
+  assert.deepStrictEqual(cleared.alerts, [], JSON.stringify(cleared.alerts));
+  assert.strictEqual(await page.evaluate(() => window.__bookInserts), 1);
+  const clearedRpc = cleared.writes.filter((entry) => entry.kind === "rpc" && entry.name === "set_book_credits");
+  assert.strictEqual(clearedRpc.length, 1);
+  assert.strictEqual(clearedRpc[0].args.p_book_id, 81);
+  assert.deepStrictEqual(clearedRpc[0].args.p_authors, ["Alice", "Bob"]);
+  assert.deepStrictEqual(clearedRpc[0].args.p_translators, []);
+  assert.strictEqual(clearedRpc[0].args.p_publisher, null);
+  await page.evaluate(() => {
+    window.__creditBook = Object.assign({}, window.__creditBook, {
+      author: "Alice، Bob",
+      translator: null,
+      publisher: null
+    });
+  });
+  await page.evaluate(() => window.__kutadguAdminTest.openEdit(81));
+  await page.waitForFunction(() => {
+    const authorExtra = document.querySelector("#bookAuthorExtras input");
+    const translatorExtra = document.querySelector("#bookTranslatorExtras input");
+    return authorExtra && authorExtra.value === "Bob" && !translatorExtra && document.querySelector("#bookTranslator").value === "" && document.querySelector("#bookPublisher").value === "";
+  });
+  const emptyOptional = await page.evaluate(() => window.__kutadguAdminTest.currentCreditPlan());
+  assert.deepStrictEqual(emptyOptional.authors, ["Alice", "Bob"]);
+  assert.deepStrictEqual(emptyOptional.translators, []);
+  assert.strictEqual(emptyOptional.publisher, null);
+  await page.context().close();
+});
+
 test("admin create form keeps typed contributors and does not write before a cover exists", async () => {
   const page = await adminPage();
   const harness = await formHarnessOnce();
@@ -806,7 +977,11 @@ test("staff submit shows retry after a failed credit write and retry does not cr
   });
   await page.fill("#staffTitle", "خادىم كىتابى");
   await page.fill("#staffAuthor", "خادىم ئاپتور");
+  await page.click("#staffAuthorAdd");
+  await page.locator("#staffAuthorExtras input").fill("خادىم شېرىك");
   await page.fill("#staffTranslator", "خادىم تەرجىمان");
+  await page.click("#staffTranslatorAdd");
+  await page.locator("#staffTranslatorExtras input").fill("خادىم شېرىك تەرجىمان");
   await page.selectOption("#staffSource", source);
   await page.fill("#staffPrice", "9");
   await page.click("#staffSubmitBtn");
@@ -825,13 +1000,20 @@ test("staff submit shows retry after a failed credit write and retry does not cr
     const success = document.querySelector("#staffSuccess");
     return success && !success.hidden;
   });
-  const afterRetry = await page.evaluate(() => window.__staffCalls.map((call) => call.name));
-  assert.deepStrictEqual(afterRetry, [
+  const afterRetry = await page.evaluate(() => window.__staffCalls);
+  assert.deepStrictEqual(afterRetry.map((call) => call.name), [
     "is_kutadgu_book_staff",
     "submit_book_for_approval",
     "set_own_pending_book_credits",
     "set_own_pending_book_credits"
   ]);
+  const creditCalls = afterRetry.filter((call) => call.name === "set_own_pending_book_credits");
+  assert.deepStrictEqual(creditCalls.map((call) => call.args.p_book_id), [55, 55]);
+  assert.deepStrictEqual(creditCalls[0].args.p_authors, ["خادىم ئاپتور", "خادىم شېرىك"]);
+  assert.deepStrictEqual(creditCalls[0].args.p_translators, ["خادىم تەرجىمان", "خادىم شېرىك تەرجىمان"]);
+  assert.deepStrictEqual(creditCalls[1].args.p_authors, creditCalls[0].args.p_authors);
+  assert.deepStrictEqual(creditCalls[1].args.p_translators, creditCalls[0].args.p_translators);
+  assert.strictEqual(afterRetry.filter((call) => call.name === "submit_book_for_approval").length, 1);
   await context.close();
 });
 
