@@ -87,7 +87,7 @@ This SHA is the last verified application and runtime baseline. It is not necess
 | Subject | Add author, publisher, and translator book browsing |
 | Date | 2026-10-03 |
 | Branch | `cursor/catalog-credit-browsing-c4dc` |
-| PR | draft, not merged |
+| PR | #241, draft, not merged |
 | Why it stays | Book detail names link to role-specific listings. `STAGE106` is not applied to production. The previous live baseline remains `20bd3cd3915717824ae36a26fa65b3d7087c986a`. |
 
 `#240` merged as `20bd3cd3915717824ae36a26fa65b3d7087c986a`. Production Worker `822f9e2f-f02e-4e15-9559-9c90f00f8af9` serves that `main` tip until this catalog-credit branch is merged and deployed. This branch requests `shop.js?v=142` from `book-shell.html` and `credit-books.html` only. `#239` merged as `0abd907f22a620b64dc5b84cc235d1ff8e340441`. Production Worker `2a3f8dd4-ffb4-4386-ba3d-216b6c630e23` was the previous App Link deploy. `#236` merged as `40eb0a5161e25c74af5261b096bb2e6d6ab2278e`. Production Worker `363a1a98-ace3-45fa-9dd3-cadb5f2ed724` was the previous short-link deploy. `#235` merged as `f673c2a8db72f1f9666842d8d1e6c289a5ce68ce`. `#234` merged as `e3715b54c5f950f870a9f91f4bd0b6807740facb`. `#233` merged as `1600ed6d2721f1517f107ccbb0b3204efb68ecfc`. `cart.html` still requests `shop.css?v=55`. Other storefront pages still request `shop.css?v=54`. `public-header.js` is `?v=3` on the public HTML pages that already load it. That script still requests `public-header.css?v=7`. `account.css` is `?v=7`. Production `cart.html` requests `shop.js?v=141` and `kutadgu-shared-cart.js?v=3`. Every other storefront page still requests `shop.js?v=138`.
