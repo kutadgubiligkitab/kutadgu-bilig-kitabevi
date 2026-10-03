@@ -638,6 +638,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage93-book-staff-gallery-tests.js",
     "scripts/member-premerge-sync-tests.js",
     "scripts/qa-customer-facing-fixes-tests.js",
+    "scripts/finalqa-clear-filter-stale-chips-tests.js",
     "scripts/qa-audit2-low-fixes-tests.js",
     "public-header.css",
     "public-header.js",

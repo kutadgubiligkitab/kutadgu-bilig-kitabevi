@@ -3,6 +3,7 @@
 
 const assert = require("assert");
 const fs = require("fs");
+const http = require("http");
 const path = require("path");
 const C = require("../catalog-credits.js");
 const preview = require("../cloudflare/preview-dispatch.js");
@@ -279,6 +280,35 @@ test("closing or resetting the editor drops a late credit response", async () =>
   const kept = C.settleCreditLoad(editor, again, 4, { ok: true, rows: [{ role: "author" }] });
   assert.strictEqual(kept.applied, false);
   assert.strictEqual(kept.keptInput, true);
+  assert.deepStrictEqual(kept.applyRoles, []);
+});
+
+test("a failed load stays blocked when a contributor field is already dirty", () => {
+  ["publisher", "author", "translator"].forEach((role) => {
+    const editor = C.createCreditEditor();
+    const token = editor.openBook(9);
+    editor.markDirty(role);
+    const settled = C.settleCreditLoad(editor, token, 9, { ok: false, error: new Error("down") });
+    assert.strictEqual(settled.mode, "blocked");
+    assert.notStrictEqual(settled.mode, "ready");
+    assert.strictEqual(settled.applied, false);
+    assert.deepStrictEqual(settled.applyRoles, []);
+  });
+});
+
+test("a successful load hydrates only the roles that were not edited", () => {
+  const rows = [{ role: "author", display_name: "Alice" }, { role: "translator", display_name: "Carol" }];
+  ["publisher", "author", "translator"].forEach((role) => {
+    const editor = C.createCreditEditor();
+    const token = editor.openBook(9);
+    editor.markDirty(role);
+    const settled = C.settleCreditLoad(editor, token, 9, { ok: true, rows });
+    assert.strictEqual(settled.mode, "ready");
+    assert.strictEqual(settled.applied, false);
+    assert.strictEqual(settled.keptInput, true);
+    assert.deepStrictEqual(settled.rows, rows);
+    assert.deepStrictEqual(settled.applyRoles, ["author", "translator", "publisher"].filter((item) => item !== role));
+  });
 });
 
 test("a failed credit load keeps contributors out of an unrelated edit", async () => {
@@ -450,6 +480,361 @@ test("staff credit rejection, network loss, and retry do not show success", asyn
   assert.strictEqual(retry, 2);
 });
 
+const CREDIT_IDS = {
+  Alice: "11111111-1111-4111-8111-111111111111",
+  Bob: "22222222-2222-4222-8222-222222222222",
+  Carol: "33333333-3333-4333-8333-333333333333",
+  Dave: "44444444-4444-4444-8444-444444444444",
+  Press: "55555555-5555-4555-8555-555555555555"
+};
+
+function structuredCreditRows() {
+  return [
+    ["author", 0, "Alice", CREDIT_IDS.Alice],
+    ["author", 1, "Bob", CREDIT_IDS.Bob],
+    ["translator", 0, "Carol", CREDIT_IDS.Carol],
+    ["translator", 1, "Dave", CREDIT_IDS.Dave],
+    ["publisher", 0, "Structured Press", CREDIT_IDS.Press]
+  ].map(([role, position, name, id]) => ({
+    role,
+    position,
+    identity_id: id,
+    catalog_identities: { id, display_name: name }
+  }));
+}
+
+function startStaticServer() {
+  const types = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".woff2": "font/woff2"
+  };
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://127.0.0.1");
+    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, "");
+    const file = path.resolve(root, rel);
+    if (file !== root && !file.startsWith(root + path.sep)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    fs.readFile(file, (error, body) => {
+      if (error) {
+        res.writeHead(404);
+        res.end("missing");
+        return;
+      }
+      res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" });
+      res.end(body);
+    });
+  });
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
+}
+
+let formHarness;
+async function formHarnessOnce() {
+  if (formHarness) return formHarness;
+  const { chromium } = require("@playwright/test");
+  const server = await startStaticServer();
+  const browser = await chromium.launch({ headless: true });
+  formHarness = { server, browser, origin: "http://127.0.0.1:" + server.address().port };
+  return formHarness;
+}
+
+async function adminPage() {
+  const harness = await formHarnessOnce();
+  const context = await harness.browser.newContext();
+  await context.addInitScript(() => {
+    window.__alerts = [];
+    window.__writes = [];
+    window.__creditStarted = false;
+    window.alert = (message) => { window.__alerts.push(String(message)); };
+    let releaseCredits;
+    window.__creditHold = new Promise((resolve) => { releaseCredits = resolve; });
+    window.__releaseCredits = (value) => releaseCredits(value);
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguCreditFormTest = true;
+    window.__kutadguAdminFetchBook = () => window.__creditBook;
+    window.__kutadguAdminPersistBook = async (payload) => {
+      window.__writes.push({ kind: "book", payload });
+      return { error: null, data: [{ id: 7 }] };
+    };
+    function chain(result) {
+      const self = {
+        select() { return self; },
+        eq() { return self; },
+        neq() { return self; },
+        or() { return self; },
+        in() { return self; },
+        order() { return self; },
+        limit() { return self; },
+        range() { return self; },
+        maybeSingle() { return self; },
+        update(payload) { window.__writes.push({ kind: "update", payload }); return self; },
+        insert(payload) { window.__writes.push({ kind: "insert", payload }); return self; },
+        delete() { return self; },
+        then(ok, fail) { return Promise.resolve(result).then(ok, fail); }
+      };
+      return self;
+    }
+    window.__kutadguAnalyticsDb = {
+      from(table) {
+        if (table === "book_credits") {
+          window.__creditStarted = true;
+          return chain(window.__creditHold);
+        }
+        return chain({ data: [], error: null });
+      },
+      rpc(name, args) {
+        window.__writes.push({ kind: "rpc", name, args });
+        return Promise.resolve(window.__rpcResult || { data: null, error: null });
+      },
+      auth: { onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } }; } }
+    };
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(20000);
+  page.on("dialog", (dialog) => dialog.accept());
+  return page;
+}
+
+async function openCreditBook(page) {
+  const harness = await formHarnessOnce();
+  await page.goto(harness.origin + "/admin.html", { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(() => window.__kutadguAdminTest && document.querySelector("#bookAuthor"), null, { timeout: 8000 });
+  const source = await page.$eval("#bookSource", (el) => (el.options[1] && el.options[1].value) || "");
+  await page.evaluate((nextSource) => {
+    window.__creditBook = {
+      id: 7,
+      title: "Held book",
+      author: "Alice، Bob",
+      translator: "Carol، Dave",
+      publisher: "Old Press",
+      source: nextSource,
+      price: 12,
+      stock: 4,
+      image_url: "https://cdn.example/cover.webp",
+      is_active: true,
+      language: "",
+      description: "",
+      sales_count: 0
+    };
+  }, source);
+  await page.evaluate(() => {
+    window.__opening = window.__kutadguAdminTest.openEdit(7);
+  });
+  await page.waitForFunction(() => window.__creditStarted === true, null, { timeout: 8000 });
+}
+
+async function finishCreditOpen(page) {
+  return page.evaluate(() => window.__opening);
+}
+
+async function readAdminCredits(page) {
+  return page.evaluate(() => ({
+    authors: window.__kutadguAdminTest.creditFieldValues("bookAuthor", "bookAuthorExtras").map((value) => String(value).trim()).filter(Boolean),
+    translators: window.__kutadguAdminTest.creditFieldValues("bookTranslator", "bookTranslatorExtras").map((value) => String(value).trim()).filter(Boolean),
+    publisher: document.querySelector("#bookPublisher").value,
+    plan: window.__kutadguAdminTest.currentCreditPlan(),
+    writes: window.__writes,
+    alerts: window.__alerts
+  }));
+}
+
+const DIRTY_DURING_LOAD = [
+  { role: "publisher", selector: "#bookPublisher", value: "Edited Press" },
+  { role: "author", selector: "#bookAuthor", value: "Only Alice" },
+  { role: "translator", selector: "#bookTranslator", value: "Only Carol" }
+];
+
+DIRTY_DURING_LOAD.forEach((item) => {
+  test("admin form keeps structured " + item.role + " siblings after a successful load", async () => {
+    const page = await adminPage();
+    await openCreditBook(page);
+    await page.locator(item.selector).fill(item.value);
+    await page.evaluate((rows) => window.__releaseCredits({ data: rows, error: null }), structuredCreditRows());
+    await finishCreditOpen(page);
+    const seen = await readAdminCredits(page);
+    if (item.role === "publisher") {
+      assert.deepStrictEqual(seen.authors, ["Alice", "Bob"]);
+      assert.deepStrictEqual(seen.translators, ["Carol", "Dave"]);
+      assert.strictEqual(seen.publisher, "Edited Press");
+    } else if (item.role === "author") {
+      assert.deepStrictEqual(seen.authors, ["Only Alice"]);
+      assert.deepStrictEqual(seen.translators, ["Carol", "Dave"]);
+      assert.strictEqual(seen.publisher, "Structured Press");
+    } else {
+      assert.deepStrictEqual(seen.authors, ["Alice", "Bob"]);
+      assert.deepStrictEqual(seen.translators, ["Only Carol"]);
+      assert.strictEqual(seen.publisher, "Structured Press");
+    }
+    assert.strictEqual(seen.plan.writeCredits, true);
+    assert.deepStrictEqual(seen.plan.authors, seen.authors);
+    assert.deepStrictEqual(seen.plan.translators, seen.translators);
+    await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
+    await page.locator("#bookForm button[type=submit]").click();
+    await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "rpc") || window.__alerts.length, null, { timeout: 20000 });
+    const saved = await readAdminCredits(page);
+    const rpc = saved.writes.find((entry) => entry.kind === "rpc" && entry.name === "set_book_credits");
+    assert.ok(rpc, JSON.stringify({ alerts: saved.alerts, writes: saved.writes }));
+    assert.deepStrictEqual(rpc.args.p_authors, seen.authors);
+    assert.deepStrictEqual(rpc.args.p_translators, seen.translators);
+    assert.strictEqual(rpc.args.p_publisher, seen.publisher);
+    const bookWrite = saved.writes.find((entry) => entry.kind === "book");
+    assert.ok(bookWrite);
+    assert.ok(!Object.prototype.hasOwnProperty.call(bookWrite.payload, "author"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(bookWrite.payload, "translator"));
+    await page.context().close();
+  });
+
+  test("admin form does not save combined names when " + item.role + " changes during a failed load", async () => {
+    const page = await adminPage();
+    await openCreditBook(page);
+    await page.locator(item.selector).fill(item.value);
+    await page.evaluate(() => window.__releaseCredits({ data: null, error: { message: "credit query failed", code: "57014" } }));
+    await finishCreditOpen(page);
+    const seen = await readAdminCredits(page);
+    assert.strictEqual(seen.plan.writeCredits, false);
+    assert.strictEqual(seen.plan.omitLegacy, true);
+    assert.deepStrictEqual(seen.plan.authors, []);
+    assert.notStrictEqual(seen.plan.ok, false);
+    if (item.role === "publisher") {
+      assert.deepStrictEqual(seen.authors, ["Alice، Bob"]);
+      assert.deepStrictEqual(seen.translators, ["Carol، Dave"]);
+      assert.strictEqual(seen.publisher, "Edited Press");
+    } else if (item.role === "author") {
+      assert.deepStrictEqual(seen.authors, ["Only Alice"]);
+      assert.deepStrictEqual(seen.translators, ["Carol، Dave"]);
+      assert.strictEqual(seen.publisher, "Old Press");
+    } else {
+      assert.deepStrictEqual(seen.authors, ["Alice، Bob"]);
+      assert.deepStrictEqual(seen.translators, ["Only Carol"]);
+      assert.strictEqual(seen.publisher, "Old Press");
+    }
+    await page.evaluate(() => { window.__writes = []; });
+    await page.locator("#bookForm button[type=submit]").click();
+    await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "book") || window.__alerts.length > 1, null, { timeout: 20000 });
+    const saved = await readAdminCredits(page);
+    assert.ok(!saved.writes.some((entry) => entry.kind === "rpc"));
+    const bookWrite = saved.writes.find((entry) => entry.kind === "book");
+    assert.ok(bookWrite, JSON.stringify({ alerts: saved.alerts, writes: saved.writes }));
+    assert.ok(!Object.prototype.hasOwnProperty.call(bookWrite.payload, "author"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(bookWrite.payload, "translator"));
+    assert.ok(!Object.prototype.hasOwnProperty.call(bookWrite.payload, "publisher"));
+    await page.context().close();
+  });
+});
+
+test("admin create form keeps typed contributors and does not write before a cover exists", async () => {
+  const page = await adminPage();
+  const harness = await formHarnessOnce();
+  await page.goto(harness.origin + "/admin.html", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__kutadguAdminTest && document.querySelector("#bookTitle"));
+  await page.evaluate(() => window.__kutadguAdminTest.openNew());
+  const source = await page.$eval("#bookSource", (el) => (el.options[1] && el.options[1].value) || "");
+  await page.fill("#bookTitle", "يېڭى كىتاب");
+  await page.fill("#bookAuthor", "يېڭى ئاپتور");
+  await page.fill("#bookTranslator", "يېڭى تەرجىمان");
+  await page.fill("#bookPublisher", "يېڭى نەشر");
+  await page.selectOption("#bookSource", source);
+  await page.fill("#bookPrice", "15");
+  const stock = page.locator("#bookStock");
+  if (await stock.count() && await stock.isVisible()) await stock.fill("2");
+  const plan = await page.evaluate(() => window.__kutadguAdminTest.currentCreditPlan());
+  assert.strictEqual(plan.writeCredits, true);
+  assert.deepStrictEqual(plan.authors, ["يېڭى ئاپتور"]);
+  assert.deepStrictEqual(plan.translators, ["يېڭى تەرجىمان"]);
+  assert.strictEqual(plan.publisher, "يېڭى نەشر");
+  await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
+  await page.locator("#bookForm button[type=submit]").click();
+  await page.waitForFunction(() => window.__alerts.length > 0 || window.__writes.length > 0);
+  const saved = await readAdminCredits(page);
+  assert.ok(saved.alerts.some((message) => message.includes("مۇقاۋا")), JSON.stringify(saved.alerts));
+  assert.ok(!saved.writes.some((entry) => entry.kind === "rpc" || entry.kind === "book"));
+  await page.context().close();
+});
+
+test("staff submit shows retry after a failed credit write and retry does not create another book", async () => {
+  const harness = await formHarnessOnce();
+  const context = await harness.browser.newContext();
+  await context.addInitScript(() => { window.__kutadguSkipStaffRoute = true; });
+  const page = await context.newPage();
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(20000);
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto(harness.origin + "/book-staff.html", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.querySelector("#staffTitle") && window.KutadguBookStaff);
+  const source = await page.$eval("#staffSource", (el) => (el.options[1] && el.options[1].value) || "");
+  await page.evaluate(() => {
+    window.__staffCalls = [];
+    window.__staffCreditFails = 1;
+    window.KutadguMember = {
+      getUser: () => ({ id: "11111111-1111-4111-8111-111111111111", email: "staff@example.com" }),
+      getClient: () => ({
+        rpc(name, args) {
+          window.__staffCalls.push({ name, args });
+          if (name === "is_kutadgu_book_staff") return Promise.resolve({ data: true, error: null });
+          if (name === "submit_book_for_approval") return Promise.resolve({ data: 55, error: null });
+          if (name === "set_own_pending_book_credits") {
+            return new Promise((resolve) => {
+              setTimeout(() => {
+                if (window.__staffCreditFails > 0) {
+                  window.__staffCreditFails -= 1;
+                  resolve({ data: null, error: { message: "credit write failed", code: "P0001" } });
+                  return;
+                }
+                resolve({ data: null, error: null });
+              }, 250);
+            });
+          }
+          return Promise.resolve({ data: null, error: null });
+        }
+      }),
+      ready: Promise.resolve()
+    };
+    window.KutadguAdminMfa = {
+      ensurePrimarySessionReady: async () => ({ ok: true }),
+      inspectAccess: async () => ({ assurance: { currentLevel: "aal2" } }),
+      normalizeLevel: (level) => level || ""
+    };
+  });
+  await page.fill("#staffTitle", "خادىم كىتابى");
+  await page.fill("#staffAuthor", "خادىم ئاپتور");
+  await page.fill("#staffTranslator", "خادىم تەرجىمان");
+  await page.selectOption("#staffSource", source);
+  await page.fill("#staffPrice", "9");
+  await page.click("#staffSubmitBtn");
+  await page.waitForFunction(() => {
+    const retry = document.querySelector("#staffCreditRetry");
+    return retry && !retry.hidden;
+  });
+  const afterFail = await page.evaluate(() => ({
+    successHidden: document.querySelector("#staffSuccess").hidden,
+    calls: window.__staffCalls.map((call) => call.name)
+  }));
+  assert.strictEqual(afterFail.successHidden, true);
+  assert.deepStrictEqual(afterFail.calls, ["is_kutadgu_book_staff", "submit_book_for_approval", "set_own_pending_book_credits"]);
+  await page.click("#staffCreditRetryBtn");
+  await page.waitForFunction(() => {
+    const success = document.querySelector("#staffSuccess");
+    return success && !success.hidden;
+  });
+  const afterRetry = await page.evaluate(() => window.__staffCalls.map((call) => call.name));
+  assert.deepStrictEqual(afterRetry, [
+    "is_kutadgu_book_staff",
+    "submit_book_for_approval",
+    "set_own_pending_book_credits",
+    "set_own_pending_book_credits"
+  ]);
+  await context.close();
+});
+
 (async () => {
   for (const item of tests) {
     try {
@@ -459,6 +844,10 @@ test("staff credit rejection, network loss, and retry do not show success", asyn
       failed++;
       console.error("FAIL", item.name, err && err.stack || err);
     }
+  }
+  if (formHarness) {
+    await formHarness.browser.close();
+    await new Promise((resolve) => formHarness.server.close(resolve));
   }
   if (failed) {
     console.error("\n" + failed + " catalog credit test(s) failed");

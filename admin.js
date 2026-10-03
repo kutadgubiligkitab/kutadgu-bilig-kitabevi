@@ -2446,7 +2446,7 @@ function addCreditInput(extrasId,value,suggestField){
   extras.appendChild(row);
   input.addEventListener("input",()=>{
     const editor=creditEditorState();
-    if(editor)editor.markDirty();
+    if(editor)editor.markDirty(suggestField);
   });
   const S=window.KutadguBookEntrySuggest;
   if(S&&S.attachCombobox){
@@ -2498,12 +2498,14 @@ function creditEditorState(){
   if(!creditEditor)creditEditor=Credits.createCreditEditor();
   return creditEditor;
 }
-function watchCreditEditorInput(input){
-  if(!input||input.dataset.creditWatch==="1")return;
+function watchCreditEditorInput(input,role){
+  if(!input)return;
+  if(role)input.dataset.creditRole=role;
+  if(input.dataset.creditWatch==="1")return;
   input.dataset.creditWatch="1";
   input.addEventListener("input",()=>{
     const editor=creditEditorState();
-    if(editor)editor.markDirty();
+    if(editor)editor.markDirty(input.dataset.creditRole);
   });
 }
 function applyCreditColumns(row,plan){
@@ -2569,17 +2571,19 @@ async function loadEditorCredits(book,token){
   });
   if(!settled||settled.ignored)return;
   creditSaveMode=settled.mode||creditSaveMode;
-  if(!settled.applied){
-    if(settled.mode==="blocked"){
-      alert("ئاپتور ۋە تەرجىمان ئۇچۇرى يۈكلەنمىدى. باشقا مەيدانلارنى ساقلىسىڭىز، ئاپتور ئۇچۇرى ئۆزگەرمەيدۇ.");
-    }
+  if(settled.mode==="blocked"){
+    alert("ئاپتور ۋە تەرجىمان ئۇچۇرى يۈكلەنمىدى. باشقا مەيدانلارنى ساقلىسىڭىز، ئاپتور ئۇچۇرى ئۆزگەرمەيدۇ.");
     return;
   }
+  if(settled.mode!=="ready")return;
+  const roles=Array.isArray(settled.applyRoles)?settled.applyRoles:["author","translator","publisher"];
   const next=Object.assign({},book,{credits:Array.isArray(settled.rows)?settled.rows:[]});
-  fillCreditRole("bookAuthor","bookAuthorExtras",next,"author","author");
-  fillCreditRole("bookTranslator","bookTranslatorExtras",next,"translator","translator");
-  const publisher=Credits.roleEntries?Credits.roleEntries(next,"publisher"):[];
-  if(publisher.length&&$("#bookPublisher"))$("#bookPublisher").value=publisher[0].name;
+  if(roles.includes("author"))fillCreditRole("bookAuthor","bookAuthorExtras",next,"author","author");
+  if(roles.includes("translator"))fillCreditRole("bookTranslator","bookTranslatorExtras",next,"translator","translator");
+  if(roles.includes("publisher")){
+    const publisher=Credits.roleEntries?Credits.roleEntries(next,"publisher"):[];
+    if(publisher.length&&$("#bookPublisher"))$("#bookPublisher").value=publisher[0].name;
+  }
 }
 function clearForm(){
   const editor=creditEditorState();
@@ -2687,9 +2691,9 @@ async function openEdit(id){
   const editor=creditEditorState();
   const creditToken=editor?editor.openBook(b.id):null;
   creditSaveMode=editor?editor.snapshot().mode:"loading";
-  watchCreditEditorInput($("#bookAuthor"));
-  watchCreditEditorInput($("#bookTranslator"));
-  watchCreditEditorInput($("#bookPublisher"));
+  watchCreditEditorInput($("#bookAuthor"),"author");
+  watchCreditEditorInput($("#bookTranslator"),"translator");
+  watchCreditEditorInput($("#bookPublisher"),"publisher");
   if(pendingEditMode){
     $("#bookModalTitle").textContent="كىتاب ئۇچۇرلىرىنى تەكشۈرۈش";
     fillPendingReviewFields(b);
@@ -6506,6 +6510,14 @@ function scheduleSearch(){
 function init(){
   if(window.__kutadguAdminInit)return;
   window.__kutadguAdminInit=true;
+  if(window.__kutadguCreditFormTest){
+    if(window.__kutadguAnalyticsDb)db=window.__kutadguAnalyticsDb;
+    applyBooksSchema();
+    renderSourceOptions();
+    const creditForm=$("#bookForm");
+    if(creditForm)creditForm.addEventListener("submit",saveBook);
+    return;
+  }
   applyBooksSchema();
   applyFieldDirections();
   bindAdminNavigation();
@@ -6629,6 +6641,6 @@ $("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({
 paintAnalyticsPending();
 
 window.__kutadguAdminTest={
-  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail
+  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
 };
 })();

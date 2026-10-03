@@ -182,6 +182,13 @@ begin
     raise exception 'publisher accepts one name' using errcode = '22023';
   end if;
 
+  -- Books row first, then credit rows. Approval updates books and does not
+  -- touch book_credits, so it waits on this same row lock.
+  perform 1
+  from public.books
+  where id = p_book_id
+  for update;
+
   delete from public.book_credits
   where book_id = p_book_id and role = v_role;
   delete from public.catalog_credit_review
@@ -384,7 +391,8 @@ begin
   select submitted_by, submission_status
   into v_owner, v_status
   from public.books
-  where id = p_book_id;
+  where id = p_book_id
+  for update;
   if v_owner is distinct from auth.uid() or v_status is distinct from 'pending' then
     raise exception 'Pending book permission required' using errcode = '42501';
   end if;

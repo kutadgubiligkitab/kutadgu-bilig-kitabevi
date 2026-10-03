@@ -24,6 +24,269 @@ function readSql(name) {
   return fs.readFileSync(path.join(root, name), "utf8");
 }
 
+function representativeFixtureSql() {
+  return `
+    create schema if not exists auth;
+    create table if not exists auth.users (id uuid primary key);
+    insert into auth.users (id) values ('${STAFF}'), ('${OTHER}')
+    on conflict (id) do nothing;
+    create or replace function auth.jwt() returns jsonb language sql stable as $$
+      select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    $$;
+    create or replace function auth.uid() returns uuid language sql stable as $$
+      select nullif(auth.jwt()->>'sub', '')::uuid;
+    $$;
+    create table if not exists public.admin_users (
+      user_id uuid primary key references auth.users(id) on delete cascade,
+      created_at timestamptz not null default now()
+    );
+    create table if not exists public.book_staff_users (
+      user_id uuid primary key references auth.users(id) on delete cascade,
+      active boolean not null default true,
+      created_at timestamptz not null default now(),
+      created_by uuid null
+    );
+    create or replace function public.is_kutadgu_admin()
+    returns boolean language sql stable security definer set search_path = public
+    as $$
+      select exists (select 1 from public.admin_users where user_id = auth.uid());
+    $$;
+    create or replace function public.is_kutadgu_book_staff()
+    returns boolean language sql stable security definer set search_path = public
+    as $$
+      select exists (
+        select 1 from public.book_staff_users
+        where user_id = auth.uid() and active = true
+      );
+    $$;
+    create table if not exists public.books (
+      id bigint generated always as identity primary key,
+      title text not null,
+      author text not null default '',
+      price numeric(12,2),
+      original_price numeric(12,2),
+      category text not null,
+      source text not null,
+      image_url text not null default '',
+      href text not null default '',
+      pages integer,
+      -- STAGE61 added these without NOT NULL. Fresh-install setup uses a default, existing books do not.
+      translator text,
+      language text not null default '',
+      publish_date text not null default '',
+      publish_year text not null default '',
+      publisher text,
+      cover_type text,
+      book_size text,
+      dimensions text not null default '',
+      description text not null default '',
+      stock integer not null default 0 check (stock >= 0),
+      is_active boolean not null default true,
+      is_new boolean not null default true,
+      is_featured boolean not null default false,
+      is_recommended boolean not null default false,
+      is_color_print boolean not null default false,
+      interior_print_type text,
+      is_bestseller boolean not null default false,
+      sales_count integer not null default 0 check (sales_count >= 0),
+      is_available boolean not null default false,
+      submission_status text not null default 'approved',
+      submitted_by uuid,
+      submitted_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      constraint books_submission_status_chk check (submission_status in ('approved', 'pending', 'rejected')),
+      constraint books_original_price_chk check (original_price is null or original_price >= 0),
+      constraint books_cover_type_chk check (
+        cover_type is null or cover_type = '' or cover_type in ('hardcover', 'paperback', 'other')
+      ),
+      constraint books_book_size_chk check (
+        book_size is null or book_size = '' or book_size in ('A4', 'A5', 'B5', 'other')
+      ),
+      constraint books_interior_print_type_chk check (
+        interior_print_type is null or interior_print_type in ('color', 'bw')
+      )
+    );
+    alter table public.books enable row level security;
+    alter table public.books force row level security;
+  `;
+}
+
+function approveFunctionSql() {
+  const sql = readSql("STAGE92_BOOK_STAFF_SECURITY.sql");
+  const start = sql.indexOf("CREATE OR REPLACE FUNCTION public.approve_staff_book_submission");
+  const end = sql.indexOf("CREATE OR REPLACE FUNCTION public.reject_staff_book_submission");
+  if (start < 0 || end < start) throw new Error("approve_staff_book_submission was not found in STAGE92");
+  return sql.slice(start, end);
+}
+
+async function runConcurrentLockProof() {
+  const base = path.join(process.env.TEMP || "", "stage106-pg", "node_modules");
+  let pg;
+  let EmbeddedPostgres;
+  try {
+    pg = require(path.join(base, "pg"));
+    const embedded = await import(pathToFileURL(path.join(base, "embedded-postgres", "dist", "index.js")).href);
+    EmbeddedPostgres = embedded.default;
+    if (!pg || !EmbeddedPostgres) throw new Error("PostgreSQL modules did not load");
+  } catch (error) {
+    console.log("CONCURRENCY_LIMITATION: PGlite has one connection and cannot overlap two transactions. No separate PostgreSQL server was available (" + (error && error.message) + "). The sequential approved-then-write check is not concurrency evidence.");
+    return;
+  }
+  const dir = path.join(process.env.TEMP || "", "stage106-pg-data-" + Date.now());
+  const server = new EmbeddedPostgres({
+    databaseDir: dir,
+    user: "postgres",
+    password: "postgres",
+    port: 55432,
+    persistent: false,
+    initdbFlags: ["--locale=C", "--encoding=UTF8"],
+    onLog() {},
+    onError() {}
+  });
+  const clients = [];
+  try {
+    await server.initialise();
+    await server.start();
+    await server.createDatabase("stage106");
+    const connectionString = "postgresql://postgres:postgres@127.0.0.1:55432/stage106";
+    async function connect() {
+      const client = new pg.Client({ connectionString });
+      await client.connect();
+      clients.push(client);
+      return client;
+    }
+    const setup = await connect();
+    await setup.query(representativeFixtureSql());
+    await setup.query("create extension if not exists pgcrypto");
+    await setup.query("create role anon nologin");
+    await setup.query("create role authenticated nologin");
+    await setup.query("grant anon to postgres");
+    await setup.query("grant authenticated to postgres");
+    await setup.query("grant usage on schema public to anon, authenticated");
+    await setup.query(readSql("STAGE106_CATALOG_CREDITS.sql"));
+    await setup.query(approveFunctionSql());
+    await setup.query("grant execute on all functions in schema public to authenticated");
+    await setup.query("insert into public.admin_users (user_id) values ($1::uuid)", [OTHER]);
+    await setup.query("insert into public.book_staff_users (user_id, active) values ($1::uuid, true)", [STAFF]);
+
+    async function pendingBook(title) {
+      const inserted = await setup.query(
+        `insert into public.books (title, author, category, source, is_active, is_available, submission_status, submitted_by)
+         values ($1, 'ئەسلى', 'رومان', 'romanlar.html', false, false, 'pending', $2::uuid) returning id`,
+        [title, STAFF]
+      );
+      return inserted.rows[0].id;
+    }
+    async function names(bookId) {
+      const rows = await setup.query(
+        `select i.display_name from public.book_credits c
+         join public.catalog_identities i on i.id = c.identity_id
+         where c.book_id = $1 and c.role = 'author' order by c.position`,
+        [bookId]
+      );
+      return rows.rows.map((row) => row.display_name).join("|");
+    }
+    async function beginAs(client, sub) {
+      await client.query("begin");
+      await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ aal: "aal2", sub })]);
+      await client.query("set local role authenticated");
+    }
+    async function waitForLock(client) {
+      const started = Date.now();
+      while (Date.now() - started < 8000) {
+        const found = await client.query(
+          "select pid from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and wait_event_type = 'Lock'"
+        );
+        if (found.rows.length) return true;
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      return false;
+    }
+
+    const watcher = await connect();
+    const firstId = await pendingBook("قۇلۇپ بىرىنچى");
+    await setup.query("begin");
+    await setup.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ aal: "aal2", sub: OTHER })]);
+    await setup.query("set local role authenticated");
+    await setup.query("select public.set_book_credits($1, $2::jsonb, '[]'::jsonb, null)", [firstId, JSON.stringify(["ئەسلى"])]);
+    await setup.query("commit");
+
+    const approval = await connect();
+    const staff = await connect();
+    await approval.query("begin");
+    // Same row lock approve_staff_book_submission takes inside its
+    // security-definer UPDATE. Role is set after the lock so RLS does not
+    // hide the pending row from the lock statement.
+    await approval.query("select id from public.books where id = $1 for update", [firstId]);
+    await approval.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ aal: "aal2", sub: OTHER })]);
+    await approval.query("set local role authenticated");
+    let staffError = "";
+    const staffWrite = (async () => {
+      try {
+        await beginAs(staff, STAFF);
+        await staff.query(
+          "select public.set_own_pending_book_credits($1, $2::jsonb, '[]'::jsonb, null)",
+          [firstId, JSON.stringify(["رەقىب"])]
+        );
+        await staff.query("commit");
+        return "";
+      } catch (error) {
+        staffError = error.message || String(error);
+        try { await staff.query("rollback"); } catch (rollbackError) {}
+        return staffError;
+      }
+    })();
+    const staffWaited = await waitForLock(watcher);
+    await approval.query("select public.approve_staff_book_submission($1)", [firstId]);
+    await approval.query("commit");
+    const staffOutcome = await staffWrite;
+    check(
+      "approval transaction blocks a staff credit write until the book is approved",
+      staffWaited && /Pending book permission required/.test(staffOutcome) && (await names(firstId)) === "ئەسلى",
+      JSON.stringify({ staffWaited, staffOutcome, names: await names(firstId) })
+    );
+
+    const secondId = await pendingBook("قۇلۇپ ئىككىنچى");
+    const staffFirst = await connect();
+    const approvalSecond = await connect();
+    await beginAs(staffFirst, STAFF);
+    await staffFirst.query(
+      "select public.set_own_pending_book_credits($1, $2::jsonb, '[]'::jsonb, null)",
+      [secondId, JSON.stringify(["يېڭى خادىم"])]
+    );
+    let approvalError = "";
+    const approvalWrite = (async () => {
+      try {
+        await beginAs(approvalSecond, OTHER);
+        await approvalSecond.query("select public.approve_staff_book_submission($1)", [secondId]);
+        await approvalSecond.query("commit");
+        return "";
+      } catch (error) {
+        approvalError = error.message || String(error);
+        try { await approvalSecond.query("rollback"); } catch (rollbackError) {}
+        return approvalError;
+      }
+    })();
+    const approvalWaited = await waitForLock(watcher);
+    await staffFirst.query("commit");
+    const approvalOutcome = await approvalWrite;
+    const status = await setup.query("select submission_status from public.books where id = $1", [secondId]);
+    check(
+      "staff credit transaction blocks approval until the credit write commits",
+      approvalWaited && approvalOutcome === "" && status.rows[0].submission_status === "approved" && (await names(secondId)) === "يېڭى خادىم",
+      JSON.stringify({ approvalWaited, approvalOutcome, status: status.rows[0] && status.rows[0].submission_status, names: await names(secondId) })
+    );
+    console.log("CONCURRENCY: two independent PostgreSQL sessions overlapped in both orders.");
+  } finally {
+    for (const client of clients) {
+      try { await client.end(); } catch (error) {}
+    }
+    try { await server.stop(); } catch (error) {}
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (error) {}
+  }
+}
+
 async function loadPglite() {
   const candidates = [
     process.env.PGLITE_MODULE,
@@ -51,33 +314,7 @@ async function main() {
   const q = async (sql, params) => (await db.query(sql, params)).rows;
   const exec = (sql) => db.exec(sql);
 
-  await exec(`
-    create schema if not exists auth;
-    create or replace function auth.jwt() returns jsonb language sql stable as $$
-      select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
-    $$;
-    create or replace function auth.uid() returns uuid language sql stable as $$
-      select nullif(auth.jwt()->>'sub', '')::uuid;
-    $$;
-    create or replace function public.is_kutadgu_admin() returns boolean language sql stable as $$
-      select coalesce(current_setting('kutadgu.test_admin', true), '') = 'yes';
-    $$;
-    create or replace function public.is_kutadgu_book_staff() returns boolean language sql stable as $$
-      select coalesce(current_setting('kutadgu.test_staff', true), '') = 'yes';
-    $$;
-    create table public.books (
-      id bigint generated always as identity primary key,
-      title text not null default '',
-      author text not null default '',
-      translator text,
-      publisher text,
-      is_active boolean not null default false,
-      submission_status text,
-      submitted_by uuid
-    );
-    alter table public.books enable row level security;
-    alter table public.books force row level security;
-  `);
+  await exec(representativeFixtureSql());
   await exec("create role anon nologin");
   await exec("create role authenticated nologin");
   await exec("grant anon to postgres");
@@ -101,9 +338,16 @@ async function main() {
 
   async function asSession(role, claims, flags, fn) {
     await exec("reset role");
+    await exec("delete from public.admin_users");
+    await exec("delete from public.book_staff_users");
+    const sub = claims && claims.sub;
+    if (flags && flags.admin && sub) {
+      await q("insert into public.admin_users (user_id) values ($1::uuid)", [sub]);
+    }
+    if (flags && flags.staff && sub) {
+      await q("insert into public.book_staff_users (user_id, active) values ($1::uuid, true)", [sub]);
+    }
     await q("select set_config('request.jwt.claims', $1, false)", [JSON.stringify(claims || {})]);
-    await q("select set_config('kutadgu.test_admin', $1, false)", [flags && flags.admin ? "yes" : ""]);
-    await q("select set_config('kutadgu.test_staff', $1, false)", [flags && flags.staff ? "yes" : ""]);
     if (role) await exec("set role " + role);
     try {
       return await fn();
@@ -112,21 +356,34 @@ async function main() {
     }
   }
 
-  const inserted = await q(
-    "insert into public.books (title, author, translator, publisher, is_active, submission_status, submitted_by) values ($1,$2,$3,$4,true,null,null) returning id",
-    ["ئاكتىپ", "يالغۇز ئاپتور", null, "بىر نەشرىيات"]
-  );
-  const activeId = inserted[0].id;
-  const pending = await q(
-    "insert into public.books (title, author, is_active, submission_status, submitted_by) values ($1,$2,false,'pending',$3) returning id",
-    ["كۈتۈش", "كونا ئاپتور", STAFF]
-  );
-  const pendingId = pending[0].id;
-  const inactive = await q(
-    "insert into public.books (title, author, is_active) values ($1,$2,false) returning id",
-    ["يوشۇرۇن", "يوشۇرۇن ئاپتور"]
-  );
-  const inactiveId = inactive[0].id;
+  async function insertBook(fields) {
+    const row = Object.assign({ category: "رومان", source: "romanlar.html" }, fields);
+    const keys = Object.keys(row).filter((key) => row[key] !== undefined);
+    const rows = await q(
+      `insert into public.books (${keys.join(",")}) values (${keys.map((_, index) => "$" + (index + 1)).join(",")}) returning id`,
+      keys.map((key) => row[key])
+    );
+    return rows[0].id;
+  }
+
+  const activeId = await insertBook({
+    title: "ئاكتىپ",
+    author: "يالغۇز ئاپتور",
+    publisher: "بىر نەشرىيات",
+    is_active: true
+  });
+  const pendingId = await insertBook({
+    title: "كۈتۈش",
+    author: "كونا ئاپتور",
+    is_active: false,
+    submission_status: "pending",
+    submitted_by: STAFF
+  });
+  const inactiveId = await insertBook({
+    title: "يوشۇرۇن",
+    author: "يوشۇرۇن ئاپتور",
+    is_active: false
+  });
 
   await asSession("authenticated", { aal: "aal2", sub: OTHER }, { admin: true }, async () => {
     await q(
@@ -158,10 +415,7 @@ async function main() {
       JSON.stringify(["ئاپتور ئالف"])
     ]);
   });
-  const translatorBook = await q(
-    "insert into public.books (title, author, is_active) values ($1,$2,true) returning id",
-    ["تەرجىمە", "باشقا ئاپتور"]
-  );
+  const translatorBook = [{ id: await insertBook({ title: "تەرجىمە", author: "باشقا ئاپتور", is_active: true }) }];
   await asSession("authenticated", { aal: "aal2", sub: OTHER }, { admin: true }, async () => {
     await q("select public.set_book_credits($1, $2::jsonb, $3::jsonb, null)", [
       translatorBook[0].id,
@@ -300,16 +554,10 @@ async function main() {
   check("reading catalog_credit_review does not change review rows", reviewBefore[0].n === reviewAfter[0].n);
 
   const mapped = "ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز";
-  const mappedBook = await q(
-    "insert into public.books (title, author, is_active) values ($1,$2,true) returning id",
-    ["خەرىتە", mapped]
-  );
+  const mappedBook = [{ id: await insertBook({ title: "خەرىتە", author: mapped, is_active: true }) }];
   await q("update public.books set author = $2 where id = $1", [mappedBook[0].id, mapped]);
   const unmapped = "باشقا ئىسىم، خەرىتىدە يوق";
-  const unmappedBook = await q(
-    "insert into public.books (title, author, is_active) values ($1,$2,true) returning id",
-    ["خەرىتىسىز", unmapped]
-  );
+  const unmappedBook = [{ id: await insertBook({ title: "خەرىتىسىز", author: unmapped, is_active: true }) }];
   await q("update public.books set author = $2 where id = $1", [unmappedBook[0].id, unmapped]);
   await exec(readSql("STAGE106_CATALOG_CREDIT_CORRECTIONS.sql"));
   const corrected = await q("select book_id, role, status from public.apply_catalog_credit_corrections() order by book_id");
@@ -334,6 +582,8 @@ async function main() {
   const unmappedCredits = await q("select count(*)::int as n from public.book_credits where book_id = $1", [unmappedBook[0].id]);
   check("unmapped string was not split into credits", unmappedCredits[0].n === 0, String(unmappedCredits[0].n));
 
+  // Custom HTTP test wrapper. It runs the same SQL under a chosen role.
+  // It is not PostgREST and it does not call the live Supabase API.
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1");
     const role = req.headers["x-test-role"] || "anon";
@@ -487,13 +737,19 @@ async function main() {
   check("reapply restores book_credits", restored[0].credits === "book_credits");
 
   await db.close();
+  console.log("ISOLATED_DB: direct SQL uses PGlite. The HTTP checks use a custom wrapper in this script, not PostgREST and not the live Supabase API.");
+  try {
+    await runConcurrentLockProof();
+  } catch (error) {
+    check("two independent PostgreSQL sessions", false, error && error.stack || String(error));
+  }
   if (failures.length) {
     console.error("STAGE106 isolated postgres: FAIL");
     failures.forEach((item) => console.error(" - " + item));
     process.exit(1);
   }
   console.log("STAGE106 isolated postgres: PASS");
-  console.log("FORM_BROWSER_BLOCKER: no local Supabase Auth or AAL2 session. Admin and staff HTML were not logged in. The form commit functions were executed against this database.");
+  console.log("FORM_BROWSER_BLOCKER: no local Supabase Auth or AAL2 browser login. Admin create/edit and staff submit/retry are exercised through the real form scripts with controlled sessions, not a signed-in browser.");
 }
 
 main().catch((error) => {

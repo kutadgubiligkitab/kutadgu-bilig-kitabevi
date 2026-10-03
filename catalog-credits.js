@@ -216,13 +216,17 @@ function legacyColumnsForBookWrite(plan){
     publisher:legacy.publisher==null?null:legacy.publisher
   };
 }
+function blankDirtyRoles(){
+  return {author:false,translator:false,publisher:false};
+}
 function createCreditEditor(){
   let generation=0;
   let mode="create";
   let bookId="";
-  let dirty=false;
+  let dirtyRoles=blankDirtyRoles();
   function snapshot(){
-    return {generation,mode,bookId,dirty};
+    const roles={author:!!dirtyRoles.author,translator:!!dirtyRoles.translator,publisher:!!dirtyRoles.publisher};
+    return {generation,mode,bookId,dirty:roles.author||roles.translator||roles.publisher,dirtyRoles:roles};
   }
   return {
     snapshot,
@@ -230,18 +234,19 @@ function createCreditEditor(){
       generation+=1;
       mode="create";
       bookId="";
-      dirty=false;
+      dirtyRoles=blankDirtyRoles();
       return snapshot();
     },
     openBook(id){
       generation+=1;
       mode="loading";
       bookId=String(id==null?"":id);
-      dirty=false;
+      dirtyRoles=blankDirtyRoles();
       return snapshot();
     },
-    markDirty(){
-      dirty=true;
+    markDirty(role){
+      if(role==="author"||role==="translator"||role==="publisher")dirtyRoles[role]=true;
+      else dirtyRoles={author:true,translator:true,publisher:true};
     },
     matches(token,id){
       if(!token||token.generation!==generation)return false;
@@ -264,17 +269,22 @@ function settleCreditLoad(editor,token,bookId,result){
   if(editor.snapshot().mode!=="loading"){
     return {ignored:true,applied:false,mode:editor.snapshot().mode};
   }
-  if(editor.snapshot().dirty){
-    const kept=editor.complete(token,"ready");
-    return {ignored:!kept,applied:false,keptInput:true,mode:editor.snapshot().mode};
-  }
   if(source.ok===false){
     const next=source.missing?"legacyOnly":"blocked";
     editor.complete(token,next);
-    return {ignored:false,applied:false,mode:next};
+    return {ignored:false,applied:false,keptInput:false,mode:next,applyRoles:[],rows:[]};
   }
+  const dirtyRoles=(editor.snapshot().dirtyRoles)||{};
   editor.complete(token,"ready");
-  return {ignored:false,applied:true,mode:"ready",rows:Array.isArray(source.rows)?source.rows:[]};
+  const applyRoles=ROLES.filter(role=>!dirtyRoles[role]);
+  return {
+    ignored:false,
+    applied:applyRoles.length===ROLES.length,
+    keptInput:applyRoles.length<ROLES.length,
+    mode:"ready",
+    applyRoles,
+    rows:Array.isArray(source.rows)?source.rows:[]
+  };
 }
 async function loadCreditEditor(editor,token,bookId,query){
   let result;

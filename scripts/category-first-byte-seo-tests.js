@@ -329,7 +329,7 @@ async function run() {
     const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
     const listingApply = shop.slice(shop.indexOf("function setupCatalogFilters(){"), shop.indexOf("function myBooksData()"));
     assert.match(listingApply, /function listingFiltersIdle\(\)/);
-    assert.match(listingApply, /function defaultListingSort\(\)\{return isGlobalBooks\?"discover":"relevance"\}/);
+    assert.match(listingApply, /function defaultListingSort\(\)\{return isGlobalBooks\?"discover":\(isCreditListing\?"new":"relevance"\)\}/);
     assert.match(listingApply, /sortEl\.value!==defaultListingSort\(\)/);
     assert.match(listingApply, /\[sortEl,collection\]\.forEach\(el=>el&&el\.addEventListener\("change",\(\)=>apply\(false\)\)\)/);
     assert.match(listingApply, /catalog-load-more/);

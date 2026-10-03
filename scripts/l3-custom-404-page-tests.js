@@ -30,6 +30,9 @@ const EXPECTED_REWRITE_SOURCES = [
   "/dictionary",
   "/grammar",
   "/books",
+  "/author/:id",
+  "/translator/:id",
+  "/publisher/:id",
   "/order-info",
   "/privacy",
   "/returns",
@@ -130,6 +133,9 @@ test("existing known route rewrites remain untouched", () => {
     );
   assert.ok(bySource("/adabiyat", "/api/category-listing?slug=adabiyat"));
   assert.ok(bySource("/books", "/books.html"));
+  assert.ok(bySource("/author/:id", "/credit-books.html"));
+  assert.ok(bySource("/translator/:id", "/credit-books.html"));
+  assert.ok(bySource("/publisher/:id", "/credit-books.html"));
   assert.ok(bySource("/book/:id(\\d+)", "/api/book-public?id=:id"));
   assert.ok(bySource("/book/:id", "/api/book-public?id=:id"));
   assert.ok(bySource("/book.html", "/api/book-public"));
