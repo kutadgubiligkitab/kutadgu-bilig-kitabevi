@@ -8,7 +8,7 @@
   <meta name="robots" content="noindex, nofollow">
   <link rel="stylesheet" href="theme.css?v=9">
   <link rel="stylesheet" href="account.css?v=7">
-  <link rel="stylesheet" href="book-staff.css?v=7">
+  <link rel="stylesheet" href="book-staff.css?v=8">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body data-book-staff-page="true">
@@ -98,6 +98,7 @@
         <h1>✅ كىتاب باشقۇرغۇچىنىڭ تەستىقىغا يوللاندى.</h1>
         <p>كىتاب نومۇرى: <strong id="staffNewBookId" dir="ltr"></strong></p>
         <p>بۇ كىتاب ھازىرچە تور بەتتە كۆرۈنمەيدۇ. تولۇق باشقۇرغۇچى تەستىقلىغاندىن كېيىنلا تور بەتتە چىقىدۇ.</p>
+        <p id="staffCreditNote" class="staff-help" hidden></p>
         <button id="staffAddAnother" class="account-primary" type="button">يەنە بىر كىتاب قوشۇش</button>
       </div>
       <form id="staffBookForm" class="account-card account-form staff-form" novalidate>
@@ -105,6 +106,8 @@
         <p class="staff-help">پەقەت يېڭى كىتاب قوشۇلىدۇ. تەستىقتىن بۇرۇن تور بەتتە كۆرۈنمەيدۇ.</p>
         <label><span>كىتاب نامى *</span><input id="staffTitle" dir="auto" required maxlength="500"><div id="staffTitleSimilarWarning" class="kutadgu-title-warn" hidden></div></label>
         <label><span>ئاپتور *</span><input id="staffAuthor" dir="auto" required maxlength="500"></label>
+        <div id="staffAuthorExtras" class="book-credit-extras"></div>
+        <button type="button" id="staffAuthorAdd" class="account-secondary book-credit-add">ئاپتور قوشۇش</button>
         <p class="kutadgu-combo-hint" id="staffEntrySuggestHint">بۇرۇن كىرگۈزۈلگەن ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ.</p>
         <label><span>تۈر *</span>
           <select id="staffSource" required>
@@ -117,6 +120,8 @@
         <label><span>ئامبار سانى</span><input id="staffStock" dir="ltr" type="number" min="0" step="1"></label>
         <label><span>خەلقئارا كىتاب نومۇرى (ISBN)</span><input id="staffIsbn" dir="ltr" maxlength="32"></label>
         <label><span>تەرجىمان</span><input id="staffTranslator" dir="auto" maxlength="500"></label>
+        <div id="staffTranslatorExtras" class="book-credit-extras"></div>
+        <button type="button" id="staffTranslatorAdd" class="account-secondary book-credit-add">تەرجىمان قوشۇش</button>
         <label><span>نەشرىيات</span><input id="staffPublisher" dir="auto" maxlength="500"></label>
         <label><span>نەشر يىلى</span><input id="staffPublishYear" dir="ltr" type="number" min="1000" max="2100" step="1"></label>
         <label><span>بەت سانى</span><input id="staffPages" dir="ltr" type="number" min="1" step="1"></label>
@@ -175,7 +180,8 @@
   <script defer src="member.js?v=28"></script>
   <script defer src="admin-mfa.js?v=3"></script>
   <script defer src="kutadgu-book-entry-suggest.js?v=2"></script>
+  <script defer src="catalog-credits.js?v=1"></script>
   <script defer src="kutadgu-cover-image.js?v=2"></script>
-  <script defer src="book-staff.js?v=9"></script>
+  <script defer src="book-staff.js?v=10"></script>
 </body>
 </html>

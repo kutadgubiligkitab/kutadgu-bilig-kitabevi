@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=47">
+  <link rel="stylesheet" href="admin.css?v=48">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -531,10 +531,14 @@
         <div class="admin-book-section-grid">
       <label><span>كىتاب ئىسمى *</span><input id="bookTitle" required><div id="bookTitleSimilarWarning" class="kutadgu-title-warn" hidden></div></label>
       <label><span>ئاپتورى *</span><input id="bookAuthor" required></label>
+      <div id="bookAuthorExtras" class="book-credit-extras admin-book-span"></div>
+      <button type="button" id="bookAuthorAdd" class="admin-secondary book-credit-add">ئاپتور قوشۇش</button>
       <p class="kutadgu-combo-hint admin-book-span" id="bookEntrySuggestHint">بۇرۇنقى ئۇچۇرلاردىن تاللىسىڭىز بولىدۇ.</p>
       <label data-book-col="isbn"><span>خەلقئارا كىتاب نومۇرى (ISBN)</span><input id="bookIsbn" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="مەسىلەن 978..."><span class="admin-help">ئىختىيارىي.</span></label>
       <label><span>كىتاب تۈرى *</span><select id="bookSource" required></select></label>
       <label data-book-col="translator"><span>تەرجىمە قىلغۇچى</span><input id="bookTranslator"><span class="admin-help">تەرجىمە كىتابلارغىلا.</span></label>
+      <div id="bookTranslatorExtras" class="book-credit-extras admin-book-span" data-book-col="translator"></div>
+      <button type="button" id="bookTranslatorAdd" class="admin-secondary book-credit-add" data-book-col="translator">تەرجىمان قوشۇش</button>
       <label class="admin-book-span"><span id="bookDescriptionLabel">كىتاب ھەققىدە</span><textarea id="bookDescription" rows="4" maxlength="1200"></textarea><span class="admin-help">قىسقىچە چۈشەندۈرۈش.</span></label>
         </div>
       </section>
@@ -1001,6 +1005,7 @@
 <script defer src="admin-original-price.js?v=5"></script>
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
+<script defer src="catalog-credits.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=7"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
@@ -1014,6 +1019,6 @@
 <script defer src="kutadgu-book-entry-suggest.js?v=2"></script>
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
-  <script defer src="admin.js?v=83"></script>
+  <script defer src="admin.js?v=84"></script>
 </body>
 </html>

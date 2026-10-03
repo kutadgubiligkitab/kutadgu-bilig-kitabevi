@@ -52,6 +52,8 @@ function bindBookEntrySuggestions(){
   if($("#staffAuthor"))S.attachCombobox($("#staffAuthor"),()=>S.uniqueValuesFromRows(getRows(),"author"));
   if($("#staffTranslator"))S.attachCombobox($("#staffTranslator"),()=>S.uniqueValuesFromRows(getRows(),"translator"));
   if($("#staffPublisher"))S.attachCombobox($("#staffPublisher"),()=>S.uniqueValuesFromRows(getRows(),"publisher"));
+  if($("#staffAuthorAdd"))$("#staffAuthorAdd").addEventListener("click",()=>addStaffCreditInput("staffAuthorExtras","author"));
+  if($("#staffTranslatorAdd"))$("#staffTranslatorAdd").addEventListener("click",()=>addStaffCreditInput("staffTranslatorExtras","translator"));
   if($("#staffTitle"))S.attachTitleWarning($("#staffTitle"),getRows,{box:$("#staffTitleSimilarWarning")});
 }
 function loadStaffSuggestionRows(){
@@ -333,6 +335,49 @@ function buildPayload(values){
   });
   return payload;
 }
+function staffCreditValues(primaryId,extrasId){
+  const values=[];
+  const primary=$(`#${primaryId}`);
+  values.push(primary?primary.value:"");
+  const extras=$(`#${extrasId}`);
+  if(extras)extras.querySelectorAll("input").forEach(input=>values.push(input.value));
+  return values;
+}
+function resetStaffCreditExtras(){
+  const author=$("#staffAuthorExtras");
+  const translator=$("#staffTranslatorExtras");
+  if(author)author.replaceChildren();
+  if(translator)translator.replaceChildren();
+}
+function addStaffCreditInput(extrasId,suggestField){
+  const extras=$(`#${extrasId}`);
+  if(!extras)return;
+  if(1+extras.querySelectorAll("input").length>=8)return;
+  const row=document.createElement("div");
+  row.className="book-credit-extra";
+  const input=document.createElement("input");
+  input.dir="auto";
+  input.maxLength=500;
+  const remove=document.createElement("button");
+  remove.type="button";
+  remove.className="account-secondary";
+  remove.textContent="ئۆچۈرۈش";
+  remove.addEventListener("click",()=>row.remove());
+  row.append(input,remove);
+  extras.appendChild(row);
+  const S=window.KutadguBookEntrySuggest;
+  if(S&&S.attachCombobox)S.attachCombobox(input,()=>S.uniqueValuesFromRows(suggestionCatalogRows(),suggestField));
+}
+function staffCreditPlan(){
+  const Credits=window.KutadguCredits;
+  const authors=staffCreditValues("staffAuthor","staffAuthorExtras");
+  const translators=staffCreditValues("staffTranslator","staffTranslatorExtras");
+  const publisher=$("#staffPublisher")&&$("#staffPublisher").value;
+  if(!Credits||!Credits.planCreditSave){
+    return {ok:true,writeCredits:false,authors:[],translators:[],publisher:null,legacy:{author:String(authors[0]||"").trim(),translator:String(translators[0]||"").trim()||null,publisher:String(publisher||"").trim()||null}};
+  }
+  return Credits.planCreditSave({authors,translators,publisher});
+}
 function formValues(){
   const source=$("#staffSource")&&$("#staffSource").value||"";
   const hit=categoryOptions().find(([src])=>src===source);
@@ -360,6 +405,7 @@ function formValues(){
 function resetStaffForm(){
   const form=$("#staffBookForm");
   if(form)form.reset();
+  resetStaffCreditExtras();
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
   setCoverFileStatus(null);
@@ -733,6 +779,11 @@ async function submitBook(e){
     if(imageUrl)imageUrl=assertStaffCoverPublicUrl(String(user.id),imageUrl);
     const galleryUrls=await uploadStaffGallery(client,String(user.id),galleryDraft.map(item=>item&&item.file));
     const values=formValues();
+    const creditPlan=staffCreditPlan();
+    if(!creditPlan.ok)throw new Error(creditPlan.message||"ئىسىم تىزىمى توغرا ئەمەس.");
+    values.author=creditPlan.legacy.author;
+    values.translator=creditPlan.legacy.translator;
+    values.publisher=creditPlan.legacy.publisher;
     values.image_url=imageUrl;
     values.staff_uid=String(user.id);
     values.gallery_images=galleryUrls;
@@ -740,6 +791,23 @@ async function submitBook(e){
     const {data,error}=await client.rpc("submit_book_for_approval",{payload:payload});
     if(error)throw error;
     const newId=Array.isArray(data)?data[0]:data;
+    const note=$("#staffCreditNote");
+    if(note){note.hidden=true;note.textContent="";}
+    if(creditPlan.writeCredits&&newId!=null&&String(newId).trim()!==""){
+      const creditResult=await client.rpc("set_own_pending_book_credits",{
+        p_book_id:Number(newId),
+        p_authors:creditPlan.authors,
+        p_translators:creditPlan.translators,
+        p_publisher:creditPlan.publisher
+      });
+      if(creditResult&&creditResult.error&&note){
+        const Credits=window.KutadguCredits;
+        note.hidden=false;
+        note.textContent=Credits&&Credits.creditRpcMissing&&Credits.creditRpcMissing(creditResult.error)
+          ?"كىتاب يوللاندى. ئايرىم ئاپتور ئۇلانمىسى ئۈچۈن STAGE106_CATALOG_CREDITS.sql نى Supabase SQL Editor دا Run قىلىڭ."
+          :"كىتاب يوللاندى، لېكىن ئاپتور ئۇلانمىسى ساقلانمىدى.";
+      }
+    }
     $("#staffBookForm").hidden=true;
     $("#staffSuccess").hidden=false;
     $("#staffNewBookId").textContent=String(newId||"");

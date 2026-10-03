@@ -187,3 +187,7 @@ body[data-book-staff-page="true"] .account-card{padding:28px 26px}
   body[data-book-staff-page="true"] #staffCoverPickBtn,
   body[data-book-staff-page="true"] #staffGalleryPickBtn{min-height:44px}
 }
+.book-credit-extras{display:grid;gap:8px;margin:0 0 8px}
+.book-credit-extra{display:flex;gap:8px;align-items:center;min-width:0}
+.book-credit-extra input{flex:1;min-width:0}
+.book-credit-add{margin:0 0 12px}

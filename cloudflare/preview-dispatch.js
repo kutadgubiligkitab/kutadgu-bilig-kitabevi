@@ -124,6 +124,9 @@ function classifyPath(pathname, search) {
   if (Object.prototype.hasOwnProperty.call(CLEAN_REWRITES, path)) {
     return { kind: "rewrite", file: CLEAN_REWRITES[path] };
   }
+  if (/^\/(author|translator|publisher)\/[^/]+\/?$/.test(path)) {
+    return { kind: "rewrite", file: "/credit-books.html" };
+  }
   const shortPage = sharedCartLinks.SHORT_PAGE_RE.exec(path);
   if (shortPage) return { kind: "shared-cart-page", code: shortPage[1] };
   if (path === "/api/shared-cart") return { kind: "shared-cart-create" };

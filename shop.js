@@ -8,6 +8,7 @@ function splitLookupIds(ids){return Legacy.splitLookupIds?Legacy.splitLookupIds(
 function quotePostgrestValue(value){return Legacy.quotePostgrestValue?Legacy.quotePostgrestValue(value):`"${String(value).replace(/["\\]/g,"")}"`}
 function legacyIdSupported(){return bibliographicColumnEnabled("legacy_id")}
 function bibliographicLib(){return window.KutadguBibliography||{}}
+function creditLib(){return window.KutadguCredits||{}}
 function bibliographicColumnEnabled(col){
   const lib=bibliographicLib();
   if(lib.schemaOptional)return lib.schemaOptional(window.KUTADGU_BOOKS_SCHEMA,col);
@@ -86,7 +87,8 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     createdAt:value("createdAt","created_at","")||"",
     updatedAt:value("updatedAt","updated_at","")||"",
     isRemote,
-    catalogOrder:index
+    catalogOrder:index,
+    credits:Array.isArray(book.credits)?book.credits:(Array.isArray(book.book_credits)?book.book_credits:null)
   };
 }
 const STATIC_CATALOG=[...(window.KITAP_CATALOG||[])].map((book,index)=>normalizeCatalogBook(book,index,false)).filter(book=>book.id);
@@ -100,7 +102,7 @@ let catalogStatus={source:"static",remoteCount:0,total:STATIC_CATALOG.length,mig
 const QUERY_DEFAULTS=Object.freeze({
   offset:0,pageSize:24,category:"",source:"",sources:null,search:"",sort:"new",
   minPrice:null,maxPrice:null,featured:false,recommended:false,bestseller:false,newOnly:false,allowZeroSales:false,
-  ids:null,includeInactive:false
+  ids:null,includeInactive:false,creditId:"",creditRole:""
 });
 const ADABIYAT_HUB_SUBS=Object.freeze([
   {sub:"",source:"",label:"ھەممىسى"},
@@ -1220,6 +1222,8 @@ function normalizeQueryState(input={}){
     offset:Math.max(0,Number(input.offset)||0),
     pageSize:Math.max(1,Math.min(100,Number.isFinite(requested)?requested:pageSize())),
     search:cleanSearchTerm(input.search),
+    creditId:creditLib().normalizeCreditId?creditLib().normalizeCreditId(input.creditId):"",
+    creditRole:creditLib().normalizeRole?creditLib().normalizeRole(input.creditRole):"",
     source:source||(sources.length===1?sources[0]:""),
     sources:source?null:(sources.length>1?sources:null),
     minPrice:input.minPrice===""||input.minPrice===null||input.minPrice===undefined?null:Number(input.minPrice),
@@ -1238,6 +1242,9 @@ function staticQueryPage(input={}){
     rows=rows.filter(book=>allowed.has(book.source));
   }
   if(state.category)rows=rows.filter(book=>book.category===state.category);
+  if(state.creditId||state.creditRole){
+    rows=rows.filter(book=>creditLib().sameCredit&&creditLib().sameCredit(book,state.creditRole,state.creditId));
+  }
   if(q)rows=rows.filter(book=>{
     const shape=searchDigitShape(state.search);
     const hay=storefrontStaticSearchHaystack(book,state.search);
@@ -1287,7 +1294,9 @@ function searchRankKey(state){
     recommended:!!state.recommended,
     bestseller:!!state.bestseller,
     includeInactive:!!state.includeInactive,
-    ids:state.ids||null
+    ids:state.ids||null,
+    creditId:state.creditId||"",
+    creditRole:state.creditRole||""
   });
 }
 function rankSelectList(){
@@ -1368,6 +1377,7 @@ function remoteBooksUrl(input={},flags={}){
     params.set("or",`(${expression.slice(3,-1)})`);
   }  else if(logic.length>1)params.set("and",`(${logic.join(",")})`);
   params.set("order",flags.discoveryIndex||flags.rankFields?"id.asc":remoteOrder(state.sort));
+  if(creditLib().applyCreditFilter)creditLib().applyCreditFilter(params,state);
   return {url:`${cfg.url}/rest/v1/books?${params.toString()}`,state,cfg};
 }
 
@@ -1445,6 +1455,7 @@ async function fetchRankedRemotePage(state,options={}){
 
 function visitOrderApi(){return window.KutadguVisitOrder||null}
 function isGlobalBooksDiscoveryState(state){
+  if(state&&(state.creditId||state.creditRole))return false;
   const api=visitOrderApi();
   return !!(api&&api.isDiscoveryListing&&api.isDiscoveryListing(state));
 }
@@ -1607,21 +1618,26 @@ async function fetchRemotePage(input={},options={}){
   }
   const rows=response.status===416?[]:await response.json();
   if(!Array.isArray(rows))throw new Error("Catalog query returned invalid data");
-  const fetched=refreshCatalogCache(rows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
+  const creditRows=state.creditId&&creditLib().dedupeCreditRows?creditLib().dedupeCreditRows(rows):rows;
+  const fetched=refreshCatalogCache(creditRows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
   const items=state.includeInactive?fetched:fetched.filter(isStorefrontVisible);
   const exactTotal=totalFromContentRange(response.headers.get("content-range"));
-  const total=Number.isFinite(exactTotal)?exactTotal:from+items.length+(items.length===state.pageSize?1:0);
+  const received=rows.length;
+  const total=Number.isFinite(exactTotal)?exactTotal:from+received+(received===state.pageSize?1:0);
   catalogStatus={source:"supabase",remoteCount:C.length,total:exactTotal,migrated:true,error:""};
   window.KUTADGU_CATALOG_STATUS=catalogStatus;
   return {
-    items,total,hasMore:Number.isFinite(exactTotal)?from+items.length<exactTotal:items.length===state.pageSize,
+    items,total,hasMore:Number.isFinite(exactTotal)?from+received<exactTotal:received===state.pageSize,
     offset:from,pageSize:state.pageSize,source:"supabase",
-    status:response.status,contentRange:response.headers.get("content-range")||"",rowCount:rows.length
+    status:response.status,contentRange:response.headers.get("content-range")||"",rowCount:received
   };
 }
 
 async function queryCatalog(input={},options={}){
   const state=widenDiscoveryPage(input,normalizeQueryState(input));
+  if((state.creditId||state.creditRole)&&!remoteCatalog.available){
+    throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
+  }
   if(remoteCatalog.available){
     try{return await fetchRemotePage(state,options)}
     catch(error){
@@ -1638,6 +1654,9 @@ async function queryCatalog(input={},options={}){
     }
   }
   if(remoteCatalog.configured){
+    throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
+  }
+  if(state.creditId||state.creditRole){
     throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
   }
   return staticQueryPage(state);
@@ -1730,6 +1749,22 @@ async function hydrateBooksByIds(ids=[]){
 }
 
 let pageBookHydrationDone=false;
+async function attachPublicBookCredits(bookId){
+  const lib=creditLib();
+  const id=String(bookId||"").trim();
+  const book=find(id);
+  const cfg=supabasePublicConfig();
+  if(!book||!cfg.url||!cfg.key||!/^\d+$/.test(id))return;
+  const select="role,position,identity_id,catalog_identities(id,display_name)";
+  const url=`${cfg.url}/rest/v1/book_credits?select=${encodeURIComponent(select)}&book_id=eq.${encodeURIComponent(id)}&order=position.asc`;
+  const response=await fetch(url,{headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Accept:"application/json"}});
+  if(!response.ok)return;
+  const rows=await response.json();
+  if(!Array.isArray(rows))return;
+  if(rows.length&&!rows.every(row=>row&&row.role&&(row.identity_id||row.catalog_identities)))return;
+  book.credits=rows;
+  if(lib.roleEntries)indexCatalogBook(book);
+}
 async function hydratePageBook(){
   try{
     if(isStorefrontHomepage())return;
@@ -1738,6 +1773,8 @@ async function hydratePageBook(){
     if(!id||!remoteCatalog.available)return;
     try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
     catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
+    try{await attachPublicBookCredits(id)}
+    catch(error){if(error?.name!=="AbortError")console.warn("Book credits could not be loaded.",error)}
   }finally{
     pageBookHydrationDone=true;
   }
@@ -2249,6 +2286,12 @@ function colorPrintDetailValue(b){
   return (b&&(b.isColorPrint===true||b.is_color_print===true))?"رەڭلىك":"";
 }
 
+function creditMetaRow(label,role,book){
+  const lib=creditLib();
+  if(lib.renderMetaRow)return lib.renderMetaRow(label,role,book);
+  if(role==="author")return setDynamicMeta(label,storefrontAuthor(book));
+  return setDynamicMeta(label,book&&book[role]);
+}
 function setDynamicMeta(label,value){
   const lib=bibliographicLib();
   if(lib.detailMetaVisible){
@@ -2340,17 +2383,23 @@ function populateDynamicBookPage(b){
   if(h1)h1.textContent=b.title;
   const author=info.querySelector(".book-author");
   if(author){
-    const name=storefrontAuthor(b);
-    author.textContent=name?`ئاپتورى: ${name}`:"";
-    author.hidden=!name;
+    const line=creditLib().renderAuthorLine?creditLib().renderAuthorLine(b):"";
+    if(creditLib().renderAuthorLine){
+      author.innerHTML=line;
+      author.hidden=!line;
+    }else{
+      const name=storefrontAuthor(b);
+      author.textContent=name?`ئاپتورى: ${name}`:"";
+      author.hidden=!name;
+    }
   }
 
   const meta=info.querySelector(".book-meta");
   if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
-      setDynamicMeta("ئاپتورى",storefrontAuthor(b)),
-      setDynamicMeta("تەرجىمە قىلغۇچى",b.translator),
-      setDynamicMeta("نەشرىيات",b.publisher),
+      creditMetaRow("ئاپتورى","author",b),
+      creditMetaRow("تەرجىمە قىلغۇچى","translator",b),
+      creditMetaRow("نەشرىيات","publisher",b),
       setDynamicMeta("نەشر يىلى",b.publishYear),
       setDynamicMeta("ISBN",storefrontIsbn(b)),
       setDynamicMeta("بەت سانى",b.pages),
@@ -3176,7 +3225,7 @@ function dynamicListingCard(b,index=0){return bookCardMarkup(b,"listing",{loadin
 
 function listingCatalogSource(raw){
   const source=String(raw||"").trim();
-  if(!source||source==="*"||source==="all"||source==="books.html")return "";
+  if(!source||source==="*"||source==="all"||source==="books.html"||source==="credit")return "";
   return source;
 }
 
@@ -3186,7 +3235,9 @@ function setupCatalogFilters(){
   if(ssrListingPresent(grid))bindDynamicActions(grid);
   const isAdabiyatHub=grid.hasAttribute("data-adabiyat-hub");
   const defaultSource=listingCatalogSource(grid.dataset.catalogSource);
-  const isGlobalBooks=!isAdabiyatHub&&!defaultSource;
+  const isCreditListing=grid.dataset.catalogSource==="credit";
+  const creditPath=isCreditListing&&creditLib().parseCreditPath?creditLib().parseCreditPath(location.pathname):null;
+  const isGlobalBooks=!isAdabiyatHub&&!defaultSource&&!isCreditListing;
   const hubSources=isAdabiyatHub
     ?(String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(Boolean).length
       ?String(grid.dataset.catalogSources||"").split(",").map(value=>value.trim()).filter(value=>/^[a-z0-9.-]+\.html$/i.test(value))
@@ -3208,21 +3259,25 @@ function setupCatalogFilters(){
     <div class="catalog-filter-field"><label for="catalogCollection">تاللانما</label><select id="catalogCollection"><option value="">بارلىق كىتابلار</option><option value="new">يېڭى كەلگەنلەر</option><option value="bestseller">كۆپ سېتىلغانلار</option><option value="recommended">تەۋسىيەلىك</option></select></div>
     <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
     <div class="catalog-filter-field"><label for="catalogMaxPrice">ئەڭ يۇقىرى باھا</label><input id="catalogMaxPrice" type="number" min="0" placeholder="500 ₺"></div>
-    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort">${isGlobalBooks?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى</option>`:""}<option value="relevance">مۇناسىۋەتلىك تەرتىپ</option><option value="new">يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
+    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort">${isGlobalBooks?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى</option>`:""}<option value="relevance">مۇناسىۋەتلىك تەرتىپ</option><option value="new"${isCreditListing?" selected":""}>يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
     <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
   }
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
-  const emptyFilterMarkup='<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
-  const emptySectionMarkup='<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق.</strong><br><span>باشقا تۈرلەردىن كىتاب كۆرەلەيسىز.</span><br><a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
+  const emptyFilterMarkup=isCreditListing
+    ?'<strong>بۇ ئىزدەشكە ماس كىتاب يوق.</strong><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button>'
+    :'<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
+  const emptySectionMarkup=isCreditListing
+    ?'<strong>بۇ ئىسىمگە تەۋە ئاممىۋى كىتاب يوق.</strong>'
+    :'<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق.</strong><br><span>باشقا تۈرلەردىن كىتاب كۆرەلەيسىز.</span><br><a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
   let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptySectionMarkup;controls.insertAdjacentElement("afterend",empty);
-  if(catalogStatus.error&&!remoteCatalog.configured){
+  if(!isCreditListing&&catalogStatus.error&&!remoteCatalog.configured){
     const notice=document.createElement("div");notice.className="catalog-data-notice";notice.textContent="تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.";bar.insertAdjacentElement("beforebegin",notice);
   }
 
   let text=bar.querySelector("#catalogFilterText"),collection=bar.querySelector("#catalogCollection"),minEl=bar.querySelector("#catalogMinPrice"),maxEl=bar.querySelector("#catalogMaxPrice"),sortEl=bar.querySelector("#catalogSort"),count=bar.querySelector("#catalogFilterCount"),reset=bar.querySelector("#catalogFilterReset");
-  let inputTimer,controller=null,requestId=0,items=[],loadingMore=false,hubSub="",discoveryCursor=0;
+  let inputTimer,controller=null,requestId=0,items=[],loadingMore=false,hubSub="",discoveryCursor=0,creditCursor=0,creditIdentity=null;
   function readHubSubFromUrl(){
     try{return normalizeAdabiyatSub(new URLSearchParams(location.search).get("sub"))}catch(err){return ""}
   }
@@ -3260,7 +3315,7 @@ function setupCatalogFilters(){
     if(mapped.sources&&hubSources.length)return {source:"",sources:hubSources};
     return mapped;
   }
-  function defaultListingSort(){return isGlobalBooks?"discover":"relevance"}
+  function defaultListingSort(){return isGlobalBooks?"discover":(isCreditListing?"new":"relevance")}
   function listingSortValue(){
     const collectionMode=collection&&collection.value||"";
     if(collectionMode==="new")return "new";
@@ -3280,7 +3335,9 @@ function setupCatalogFilters(){
       offset,pageSize:size||pageSize(),source:sourceFields.source||"",sources:sourceFields.sources||null,
       search:text.value.trim(),sort,
       minPrice:minEl?minEl.value:"",maxPrice:maxEl?maxEl.value:"",
-      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller"
+      newOnly:collectionMode==="new",recommended:collectionMode==="recommended",bestseller:collectionMode==="bestseller",
+      creditId:isCreditListing&&creditPath&&creditPath.valid?creditPath.id:"",
+      creditRole:isCreditListing&&creditPath&&creditPath.valid?creditPath.role:""
     };
     if(sort==="discover"&&Number.isFinite(Number(size))&&Number(size)>pageSize())catalogQueryState.listing.discoveryMaxCursor=Number(size);
     return catalogQueryState.listing;
@@ -3332,6 +3389,7 @@ function setupCatalogFilters(){
     bindDynamicActions(grid);
     const totalShown=shownTotal(result);
     count.textContent=`${items.length} / ${totalShown} كىتاب كۆرسىتىلدى`;
+    if(isCreditListing)paintCreditHeading(creditIdentity&&creditIdentity.display_name,totalShown);
     controls.innerHTML=result.hasMore?`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${pageSize()} دانە</button>`:"";
     controls.querySelector(".catalog-load-more")?.addEventListener("click",()=>apply(true));
     empty.innerHTML=listingFiltersIdle()?emptySectionMarkup:emptyFilterMarkup;
@@ -3342,6 +3400,42 @@ function setupCatalogFilters(){
     controls.hidden=showEmpty;
     if(!append)trackEvent("filter_apply",{source:isAdabiyatHub?(hubSub||"adabiyat"):defaultSource,results:result.total,rendered:items.length});
   }
+  function paintCreditHeading(name,total){
+    if(!isCreditListing)return;
+    const title=document.querySelector("#creditName");
+    const summary=document.querySelector("#creditSummary");
+    const role=creditPath&&creditPath.role||"";
+    const label=creditLib().ROLE_LABELS&&creditLib().ROLE_LABELS[role]||"";
+    if(title)title.textContent=name||"بۇ ئىسىم تېپىلمىدى";
+    if(summary)summary.textContent=Number.isFinite(Number(total))&&creditLib().summaryText?creditLib().summaryText(role,total):(label||"");
+    if(name)document.title=`${name} - ${label||"كىتابلار"} - قۇتادغۇبىلىك كىتابخانىسى`;
+    const robots=document.querySelector('meta[name="robots"]');
+    if(robots)robots.setAttribute("content",name?"index, follow":"noindex, follow");
+  }
+  function showCreditStop(message,allowRetry){
+    items=[];
+    grid.hidden=false;
+    empty.hidden=true;
+    controls.hidden=true;
+    controls.innerHTML="";
+    if(count)count.textContent="";
+    grid.removeAttribute("data-catalog-ready");
+    grid.setAttribute("aria-busy","false");
+    grid.innerHTML=allowRetry?listingErrorMarkup():`<div class="catalog-error-state" role="alert"><p>${escapeHtml(message)}</p></div>`;
+    if(allowRetry)grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{await loadRemoteCatalog();apply(false)});
+  }
+  async function loadCreditIdentity(signal){
+    const cfg=supabasePublicConfig();
+    if(!cfg.url||!cfg.key)throw new Error("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
+    const response=await fetch(`${cfg.url}/rest/v1/catalog_identities?select=id,display_name&id=eq.${encodeURIComponent(creditPath.id)}`,{
+      signal,
+      headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Accept:"application/json"}
+    });
+    if(!response.ok)throw new Error(`Identity query failed (HTTP ${response.status})`);
+    const rows=await response.json();
+    if(!Array.isArray(rows))throw new Error("Identity query returned invalid data");
+    return rows[0]||null;
+  }
   async function apply(append=false){
     if(append&&loadingMore)return;
     const token=++requestId;
@@ -3349,7 +3443,7 @@ function setupCatalogFilters(){
     const signal=controller.signal;
     const savedCursor=append?0:savedDiscoveryCursor();
     const size=append?pageSize():Math.max(pageSize(),savedCursor);
-    const state=readState(append?(discoveryRequest()?discoveryCursor:items.length):0,size);
+    const state=readState(append?(isCreditListing?creditCursor:(discoveryRequest()?discoveryCursor:items.length)):0,size);
     const visitAtStart=state.sort==="discover"?visitOrderApi()?.visitStore(visitSessionStorage()).load():null;
     loadingMore=append;
     empty.hidden=true;grid.hidden=false;controls.hidden=false;
@@ -3365,12 +3459,34 @@ function setupCatalogFilters(){
       }
       controls.innerHTML="";
     }
+    if(isCreditListing&&(!creditPath||!creditPath.valid)){
+      paintCreditHeading("",null);
+      const title=document.querySelector("#creditName");
+      if(title)title.textContent="بۇ ئادرېس توغرا ئەمەس";
+      showCreditStop("بۇ ئادرېس توغرا ئەمەس.",false);
+      return;
+    }
     try{
+      if(isCreditListing&&!append){
+        creditCursor=0;
+        creditIdentity=await loadCreditIdentity(signal);
+        if(token!==requestId||signal.aborted)return;
+        if(!creditIdentity){
+          paintCreditHeading("",null);
+          showCreditStop("بۇ ئىسىم تېپىلمىدى.",false);
+          return;
+        }
+        paintCreditHeading(creditIdentity.display_name,null);
+      }
       let result=await queryCatalog(state,{signal});
       if(token!==requestId||signal.aborted)return;
       if(result.discovery&&append&&!(Number(result.nextOffset)>discoveryCursor))result={...result,hasMore:false};
       if(!append)discoveryCursor=0;
       if(result.discovery)rememberDiscoveryCursor(result,visitAtStart);
+      if(isCreditListing){
+        const received=Number(result.rowCount);
+        creditCursor=(append?creditCursor:0)+(Number.isFinite(received)?received:result.items.length);
+      }
       if(token!==requestId||signal.aborted)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
       if(!append)trackCompletedSearch(state.search,result);
@@ -3378,6 +3494,10 @@ function setupCatalogFilters(){
       if(token!==requestId||signal.aborted||error?.name==="AbortError")return;
       if(token===requestId){
         console.error("Category catalog query failed.",error);
+        if(isCreditListing){
+          showCreditStop("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى. قايتا سىناڭ.",true);
+          return;
+        }
         empty.hidden=true;controls.hidden=true;grid.hidden=false;
         if(ssrListingPresent(grid)&&!grid.hasAttribute("data-catalog-client")){
           grid.setAttribute("data-catalog-ready","");
@@ -3404,7 +3524,7 @@ function setupCatalogFilters(){
   [text,minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedApply));
   text&&text.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);if(isAdabiyatHub)writeHubUrl(hubSub,text.value.trim(),"replace");apply(false)}});
   [sortEl,collection].forEach(el=>el&&el.addEventListener("change",()=>apply(false)));
-  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";if(isGlobalBooks&&sortEl)sortEl.value="discover";reset.dispatchEvent(new Event("input",{bubbles:true}));apply(false)};
+  if(reset)reset.onclick=()=>{text.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value=isCreditListing?"new":"relevance";if(isGlobalBooks&&sortEl)sortEl.value="discover";reset.dispatchEvent(new Event("input",{bubbles:true}));apply(false)};
   empty.querySelector(".catalog-empty-reset")?.addEventListener("click",()=>{if(reset)reset.click()});
   if(isAdabiyatHub){
     hubSub=readHubSubFromUrl();

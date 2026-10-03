@@ -1,0 +1,98 @@
+.book-credit-list{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+.book-credit-person{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  justify-content:flex-start;
+  column-gap:14px;
+  row-gap:2px;
+  min-width:0;
+}
+.book-credit-name{
+  color:inherit;
+  text-decoration-line:underline;
+  text-decoration-thickness:1px;
+  text-underline-offset:0.18em;
+  overflow-wrap:anywhere;
+}
+.book-credit-all{
+  margin-inline-start:auto;
+  color:#70503d;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.6;
+  text-decoration:none;
+  white-space:nowrap;
+}
+body.dark-mode .book-credit-all{
+  color:#e2c98d;
+}
+.book-credit-name:focus-visible,
+.book-credit-all:focus-visible{
+  outline:2px solid var(--site-gold,#b99555);
+  outline-offset:3px;
+}
+.book-author .book-credit-name{
+  color:inherit;
+}
+@media(max-width:760px){
+  .book-credit-all{
+    margin-inline-start:0;
+    flex-basis:100%;
+    white-space:normal;
+  }
+}
+
+.credit-listing-page{
+  background:var(--site-bg,#f6f0e5);
+  color:var(--site-text,#44352d);
+}
+.credit-listing-page .page-header{
+  text-align:center;
+  padding:55px 20px 28px;
+}
+.credit-listing-page .page-header h1{
+  margin:0 0 8px;
+  color:var(--site-brown-dark,#4b3327);
+  font-size:clamp(26px,4vw,36px);
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.credit-listing-page .credit-summary{
+  margin:0;
+  color:var(--site-text-soft,#806f62);
+  font-size:15px;
+}
+.credit-listing-page .books-section{
+  width:min(1200px,calc(100% - 32px));
+  margin:0 auto;
+  padding:8px 0 70px;
+}
+.credit-listing-page .books-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:28px;
+}
+.credit-listing-page .catalog-error-state,
+.credit-listing-page .catalog-filter-empty{
+  grid-column:1/-1;
+  text-align:center;
+  color:var(--site-text,#44352d);
+  line-height:1.8;
+}
+@media(max-width:900px){
+  .credit-listing-page .books-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .credit-listing-page .page-header{padding:32px 16px 18px}
+  .credit-listing-page .books-section{width:calc(100% - 24px)}
+  .credit-listing-page .books-grid{gap:15px}
+}
+@media(max-width:380px){
+  .credit-listing-page .books-grid{grid-template-columns:1fr}
+}

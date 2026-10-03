@@ -21,16 +21,16 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "8ef2a32e196b38d7032fe4f6da8e6efe3ce5c9266ada268e087daa650680bba6",
+  "shop.js": "8afd2e3f211cd1f0ae78cbd2dcb6d1fc3607a9ac90683b1bfe1b7c0d31fefe4e",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "1722a44298c7db917d84f06722b2d2ce5b7d01e33c834cb47f9c8dea6737218e",
+  "book-shell.html": "80ba6d7aeafd20289617865f305acce897ac4a8bb4998efee0085200e3b99656",
   "index.html": "cb8f1fe832706455520ecdde5c6e242aab4f218d368c53ec5d8db1418ef02a13",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
-  "vercel.json": "6b64b17147a87f6637df7cc0ed492741e3ce20ccbeb5d13c88e0df2615fb9009",
+  "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -658,7 +658,15 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/static-demo-production-safety.spec.js",
     "tests/e2e/account-cross-tab-logout.spec.js",
     "tests/e2e/auth-oauth-recovery.spec.js",
-    "tests/e2e/search-relevance.spec.js"
+    "tests/e2e/search-relevance.spec.js",
+    "catalog-credits.js",
+    "catalog-credits.css",
+    "credit-books.html",
+    "STAGE106_CATALOG_CREDITS.sql",
+    "STAGE106_CATALOG_CREDITS_ROLLBACK.sql",
+    "book-staff.css",
+    "scripts/catalog-credits-tests.js",
+    "tests/e2e/catalog-credits.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

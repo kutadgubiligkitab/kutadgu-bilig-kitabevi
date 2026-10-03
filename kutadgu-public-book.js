@@ -4,6 +4,7 @@ const visibility = require("./catalog-visibility.js");
 const seo = require("./kutadgu-book-seo.js");
 const safeUrl = require("./kutadgu-safe-url.js");
 const bib = require("./catalog-bibliography.js");
+const credits = require("./catalog-credits.js");
 const stock = require("./kutadgu-stock.js");
 const { bookCanonicalUrl } = seo;
 
@@ -126,9 +127,9 @@ function renderBookMetaRow(label, value) {
 
 function renderBookMeta(book) {
   return [
-    renderBookMetaRow("ئاپتورى", seo.storefrontAuthor(book)),
-    renderBookMetaRow("تەرجىمە قىلغۇچى", book && book.translator),
-    renderBookMetaRow("نەشرىيات", book && book.publisher),
+    credits.renderMetaRow("ئاپتورى", "author", book),
+    credits.renderMetaRow("تەرجىمە قىلغۇچى", "translator", book),
+    credits.renderMetaRow("نەشرىيات", "publisher", book),
     renderBookMetaRow("نەشر يىلى", publishYearForMeta(book)),
     renderBookMetaRow("ISBN", seo.storefrontIsbn(book)),
     renderBookMetaRow("بەت سانى", book && book.pages),
@@ -146,6 +147,33 @@ function replaceFirst(html, findRe, replacement) {
     seen = true;
     return replacement;
   });
+}
+
+async function attachPublicCredits(book, canonical, fetchFn) {
+  const select = "role,position,identity_id,catalog_identities(id,display_name)";
+  const url = `${SUPABASE_URL}/rest/v1/book_credits?select=${encodeURIComponent(select)}&book_id=eq.${encodeURIComponent(canonical)}&order=position.asc`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+  try {
+    const response = await fetchFn(url, {
+      method: "GET",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+    if (!response || (response.status !== 200 && response.status !== 206) || typeof response.json !== "function") return;
+    const rows = await response.json();
+    if (!Array.isArray(rows)) return;
+    if (rows.length && !rows.every((row) => row && row.role && (row.identity_id || row.catalog_identities))) return;
+    book.credits = rows;
+  } catch (err) {
+    /* Credits are optional. A missing table or a non-credit payload keeps the plain name. */
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function bookDocumentTitle(book) {
@@ -184,7 +212,9 @@ async function lookupPublicNumericBook(id, options) {
     const row = rows.find((item) => String(item && item.id) === canonical);
     if (!row) return { outcome: "missing" };
     const book = publicSeoBook(row, canonical);
-    return book ? { outcome: "found", book } : { outcome: "missing" };
+    if (!book) return { outcome: "missing" };
+    await attachPublicCredits(book, canonical, fetchFn);
+    return { outcome: "found", book };
   } catch (err) {
     const name = err && err.name;
     return { outcome: "error", reason: name === "AbortError" ? "timeout" : "network" };
@@ -302,12 +332,12 @@ function applyBookSpecificBody(html, book) {
     `<div class="book-detail-info">\n        <h1>${safeTitle}</h1>`
   );
 
-  const authorName = seo.storefrontAuthor(book);
-  if (authorName) {
+  const authorLine = credits.renderAuthorLine(book);
+  if (authorLine) {
     out = replaceFirst(
       out,
       /<div class="book-author">[\s\S]*?<\/div>/,
-      `<div class="book-author">ئاپتورى: ${escapeHtml(authorName)}</div>`
+      `<div class="book-author">${authorLine}</div>`
     );
   } else {
     out = replaceFirst(
