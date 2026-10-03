@@ -6,6 +6,8 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const T1 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const T2 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const P = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const NEW = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const NEW_NAME = "يېڭى ئاپتور";
 const LONG = "مۇھەممەد ئابدۇللاھ ئابدۇلقادىر ئۇيغۇر تەتقىقاتى";
 const ODD = "غەربىي ئات (A&B)";
 const PLAIN = "يالغۇز ئاپتور";
@@ -15,7 +17,8 @@ const IDENTITIES = {
   [B]: "پەرھات جىلانوۋ",
   [T1]: "تۇرسۇنگۈل ياسىن",
   [T2]: ODD,
-  [P]: "شىنجاڭ خەلق نەشرىياتى"
+  [P]: "شىنجاڭ خەلق نەشرىياتى",
+  [NEW]: NEW_NAME
 };
 
 function credit(role, id, position) {
@@ -120,7 +123,12 @@ async function installApi(page, seen) {
       rows = BOOKS.filter((row) => String(row.id) === idFilter.slice(3));
     }
     const range = parseRange(req.headers());
-    const slice = rows.slice(range.from, range.to + 1).map((row) => payloadBook(row, select));
+    const slice = rows.slice(range.from, range.to + 1).map((row) => {
+      const payload = payloadBook(row, select);
+      const replacement = seen.creditOverride && seen.creditOverride[String(row.id)];
+      if (!/book_credits!/.test(select) && Array.isArray(replacement)) payload.credits = replacement;
+      return payload;
+    });
     slice.forEach((row) => {
       if (String(row.id) !== "101") return;
       seen.detailBooks.push({
@@ -140,7 +148,7 @@ async function installApi(page, seen) {
 }
 
 async function boot(page) {
-  const seen = { creditBookIds: [], detailBooks: [], shellSourceHasAuthorLink: false };
+  const seen = { creditBookIds: [], detailBooks: [], shellSourceHasAuthorLink: false, creditOverride: null };
   await H.installReadSafeNetwork(page);
   await installApi(page, seen);
   return seen;
@@ -180,6 +188,33 @@ async function cachedCreditCount(page, id) {
     const book = window.kutadguShop.find(bookId);
     return book && Array.isArray(book.credits) ? book.credits.length : 0;
   }, String(id));
+}
+
+async function cachedCreditIds(page, id) {
+  return page.evaluate((bookId) => {
+    const book = window.kutadguShop.find(bookId);
+    if (!book || !Array.isArray(book.credits)) return null;
+    return book.credits.map((row) => String(row.identity_id || ""));
+  }, String(id));
+}
+
+async function replaceCachedCredits(page, seen, id, credits) {
+  seen.creditOverride = { [String(id)]: credits };
+  await page.evaluate((bookId) => window.kutadguShop.hydrateBooksByIds([bookId]), String(id));
+  await page.evaluate(() => window.kutadguShop.refreshStorefrontVisibility());
+}
+
+async function installBookDocument(page) {
+  await page.route(/\/book\/\d+\/?(?:\?.*)?$/, async (route) => {
+    if (route.request().resourceType() !== "document") return route.fallback();
+    const id = new URL(route.request().url()).pathname.match(/\/book\/(\d+)/)[1];
+    const shellUrl = new URL(`/book-shell.html?id=${id}`, route.request().url()).toString();
+    const response = await route.fetch({ url: shellUrl });
+    const headers = response.headers();
+    delete headers["content-length"];
+    delete headers["content-encoding"];
+    await route.fulfill({ status: response.status(), headers, body: await response.text() });
+  });
 }
 
 test.describe("contributor links survive a later catalog refetch", () => {
@@ -235,6 +270,59 @@ test.describe("contributor links survive a later catalog refetch", () => {
     await page.waitForFunction(() => document.body.dataset.bookId === "106");
     await expect(page.locator(".book-author")).toContainText(`ئاپتورى: ${PLAIN}`);
     await expect(page.locator("a.book-credit-name")).toHaveCount(0);
+  });
+});
+
+test.describe("a fetched credit array replaces the cache", () => {
+  test.use({ viewport: { width: 390, height: 800 }, hasTouch: true });
+
+  test("an empty array removes links and a new array replaces identities", async ({ page }) => {
+    const seen = await boot(page);
+    await openDetail(page, 101);
+    await expectCreditLink(page, `/author/${A}`);
+    await expect.poll(() => seen.detailBooks.filter((row) => row.idFilter === "").length).toBeGreaterThan(0);
+
+    await replaceCachedCredits(page, seen, 101, []);
+    expect(await cachedCreditIds(page, 101)).toEqual([]);
+    await expect(page.locator(".book-author")).toContainText(`ئاپتورى: ${LONG}`);
+    await expect(page.locator("a.book-credit-name")).toHaveCount(0);
+
+    await replaceCachedCredits(page, seen, 101, [credit("author", NEW, 0)]);
+    expect(await cachedCreditIds(page, 101)).toEqual([NEW]);
+    await expectCreditLink(page, `/author/${NEW}`);
+    await expect(page.locator(`a.book-credit-name[href="/author/${A}"]`)).toHaveCount(0);
+    await expect(page.locator(`a.book-credit-name[href="/author/${B}"]`)).toHaveCount(0);
+    await expect(page.locator(".book-author")).toContainText(NEW_NAME);
+  });
+});
+
+test.describe("author listing still uses shop.js v=142", () => {
+  test.use({ viewport: { width: 390, height: 800 }, hasTouch: true });
+
+  test("listing, book, Back, and the same book keep the detail links", async ({ page }) => {
+    await boot(page);
+    await installBookDocument(page);
+    await page.goto(`/author/${A}`, { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=142");
+    const card = page.locator(".book-card[data-live-book-id='101'] a.detail-button");
+    await expect(card).toBeVisible();
+    await card.click();
+    await expect(page).toHaveURL(/\/book\/101$/);
+    await page.waitForFunction(() => document.body.dataset.bookId === "101");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=143");
+    await expectCreditLink(page, `/author/${A}`);
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(new RegExp(`/author/${A}$`));
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=142");
+    await page.locator(".book-card[data-live-book-id='101'] a.detail-button").click();
+    await expect(page).toHaveURL(/\/book\/101$/);
+    await page.waitForFunction(() => document.body.dataset.bookId === "101");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=143");
+    await expectCreditLink(page, `/author/${A}`);
+    await expectCreditLink(page, `/translator/${T1}`);
+    await expectCreditLink(page, `/publisher/${P}`);
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-recent-v1") || "[]"))).toContain("101");
   });
 });
 
