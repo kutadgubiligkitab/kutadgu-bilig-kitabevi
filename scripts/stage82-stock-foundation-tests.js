@@ -195,7 +195,7 @@ test("shop.js Phase 1 gate does not disable Add to Cart from stock and still pro
 
 test("shop.js cache pins were bumped with the Phase 1 gate",()=>{
   assert.match(indexHtml,/shop\.js\?v=138/);
-  assert.match(bookHtml,/shop\.js\?v=138/);
+  assert.match(bookHtml,/shop\.js\?v=142/);
   assert.match(shop,/app-config\.js\?v=5/);
 });
 

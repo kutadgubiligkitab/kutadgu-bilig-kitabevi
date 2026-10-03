@@ -83,7 +83,10 @@ test("no cover image files, schema, or covers.css are part of this change", () =
     "scripts/stage101-isolated-rollback-assertions.sql",
     "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql",
     "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql",
-    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql"
+    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql",
+    "STAGE106_CATALOG_CREDITS.sql",
+    "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
+    "STAGE106_CATALOG_CREDITS_ROLLBACK.sql"
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !stage100Sql.has(file)) ||

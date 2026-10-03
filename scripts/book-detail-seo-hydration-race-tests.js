@@ -219,7 +219,7 @@ async function run() {
     assert.ok(!/rel=["']canonical["']/i.test(bookShell));
     assert.ok(!bookShell.includes("noindex"));
     assert.match(bookShell, /kutadgu-book-seo\.js\?v=5/);
-    assert.match(bookShell, /shop\.js\?v=138/);
+    assert.match(bookShell, /shop\.js\?v=142/);
     assert.match(shop, /applyUnresolvedDetailDocument/);
   });
 }

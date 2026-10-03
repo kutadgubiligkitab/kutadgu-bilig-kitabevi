@@ -70,8 +70,13 @@ test("production HTML script tags pin current auth isolation assets", () => {
       if (name === "supabase-config.js") configPages += 1;
       if (name === "member.js") memberPages += 1;
       const ver = scriptVersion(src);
-      if (name === "shop.js" && rel.replace(/\\/g, "/") === "cart.html") {
+      const page = rel.replace(/\\/g, "/");
+      if (name === "shop.js" && page === "cart.html") {
         if (ver !== "141") stale.push(rel + " -> " + src);
+        continue;
+      }
+      if (name === "shop.js" && (page === "book-shell.html" || page === "credit-books.html")) {
+        if (ver !== "142") stale.push(rel + " -> " + src);
         continue;
       }
       if (!ver) missingVersion.push(rel + " -> " + src);

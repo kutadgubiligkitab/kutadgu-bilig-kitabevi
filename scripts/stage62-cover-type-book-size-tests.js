@@ -161,7 +161,9 @@ test("import does not require new columns and can map them when present", () => 
 test("storefront detail shows labels when present and hides empty rows", () => {
   assert.match(shop, /setDynamicMeta\("مۇقاۋا تۈرى"/);
   assert.match(shop, /setDynamicMeta\("كىتاب ئۆلچىمى"/);
-  assert.match(shop, /setDynamicMeta\("تەرجىمە قىلغۇچى"/);
+  assert.match(shop, /creditMetaRow\("تەرجىمە قىلغۇچى","translator",b\)/);
+  assert.match(shop, /if\(lib\.renderMetaRow\)return lib\.renderMetaRow\(label,role,book\)/);
+  assert.match(shop, /if\(value===null\|\|value===undefined\|\|String\(value\)\.trim\(\)===""\)return "";/);
   assert.doesNotMatch(shop, /setDynamicMeta\("تەرجىمانى"/);
   assert.match(shop, /bookSize:\(bibliographicLib\(\)\.normalizeBookSize/);
   assert.doesNotMatch(shop, /value\("dimensions","book_size"/);
@@ -185,8 +187,8 @@ test("book.html loads catalog-bibliography before shop.js", () => {
 
 test("Admin cache pins include bibliography v=3 and admin.js v=73", () => {
   assert.match(adminHtml, /catalog-bibliography\.js\?v=3/);
-  assert.match(adminHtml, /admin\.js\?v=83/);
-  assert.match(adminHtml, /admin\.css\?v=47/);
+  assert.match(adminHtml, /admin\.js\?v=86/);
+  assert.match(adminHtml, /admin\.css\?v=48/);
   assert.match(adminHtml, /تەرجىمە قىلغۇچى/);
   assert.doesNotMatch(adminHtml, /<span>تەرجىمانى /);
   assert.doesNotMatch(adminHtml, /ئىزدەش ۋە مەزمۇن سۈزگۈچلىرى Database تەرەپتە ئېلىپ بېرىلىدۇ/);

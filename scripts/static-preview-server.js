@@ -128,6 +128,17 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (/^\/(author|translator|publisher)\/[^/]+\/?$/i.test(url.pathname)) {
+    const absCredit = path.join(root, "credit-books.html");
+    fs.readFile(absCredit, (err, data) => {
+      if (err) {
+        send(res, 404, { "Content-Type": "text/plain; charset=utf-8" }, "not found");
+        return;
+      }
+      send(res, 200, { "Content-Type": "text/html; charset=utf-8" }, data);
+    });
+    return;
+  }
   let rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   if (hubSlug && !url.pathname.endsWith(".html")) rel = `${hubSlug}.html`;
   rel = path.normalize(rel).replace(/^(\.\.[/\\])+/, "");

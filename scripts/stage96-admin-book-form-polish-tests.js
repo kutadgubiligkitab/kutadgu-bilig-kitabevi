@@ -100,9 +100,9 @@ test("sticky save bar is inside the book modal and save IDs are unchanged", () =
   assert.doesNotMatch(adminJs, /Save and Approve|ساقلاش ۋە تەستىقلاش/);
 });
 
-test("cache pin is admin.css v=47; admin.js pin stays v=83", () => {
-  assert.match(adminHtml, /admin\.css\?v=47/);
-  assert.match(adminHtml, /admin\.js\?v=83/);
+test("cache pin is admin.css v=48; admin.js pin stays v=86", () => {
+  assert.match(adminHtml, /admin\.css\?v=48/);
+  assert.match(adminHtml, /admin\.js\?v=86/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=43/);
 });
 

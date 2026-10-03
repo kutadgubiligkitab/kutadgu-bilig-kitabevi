@@ -164,8 +164,11 @@ test("invalid login credentials become a Uyghur message and unknown errors stay 
 });
 
 test("idle empty category copy is distinct from an active filter miss", () => {
-  assert.match(shop, /const emptySectionMarkup='<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق\.<\/strong>/);
-  assert.match(shop, /const emptyFilterMarkup='<strong>نەتىجە تېپىلمىدى\.<\/strong>/);
+  assert.match(shop, /const emptySectionMarkup=isCreditListing/);
+  assert.match(shop, /<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق\.<\/strong>/);
+  assert.match(shop, /<strong>بۇ ئىسىمگە تەۋە ئاممىۋى كىتاب يوق\.<\/strong>/);
+  assert.match(shop, /const emptyFilterMarkup=isCreditListing/);
+  assert.match(shop, /<strong>نەتىجە تېپىلمىدى\.<\/strong>/);
   assert.match(shop, /empty\.innerHTML=listingFiltersIdle\(\)\?emptySectionMarkup:emptyFilterMarkup/);
   assert.match(shop, /emptySectionMarkup[\s\S]*باشقا كىتابلارنى كۆرۈش/);
   assert.match(shop, /emptyFilterMarkup[\s\S]*سۈزگۈچنى تازىلاڭ[\s\S]*باشقا كىتابلارنى كۆرۈش/);

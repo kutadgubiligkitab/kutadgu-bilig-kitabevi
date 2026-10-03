@@ -843,6 +843,10 @@ button{cursor:pointer}
 }
 .admin-staff-status.is-inactive{background:#f3e4e4;color:#9d3030}
 .admin-staff-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.book-credit-extras{display:grid;gap:8px}
+.book-credit-extra{display:flex;gap:8px;align-items:center;min-width:0}
+.book-credit-extra input{flex:1;min-width:0}
+.book-credit-add{justify-self:start;margin:0 0 8px}
 @media(max-width:850px){
   .admin-staff-actions button{flex:1;min-height:44px}
 }

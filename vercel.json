@@ -202,6 +202,18 @@
       "destination": "/books.html"
     },
     {
+      "source": "/author/:id",
+      "destination": "/credit-books.html"
+    },
+    {
+      "source": "/translator/:id",
+      "destination": "/credit-books.html"
+    },
+    {
+      "source": "/publisher/:id",
+      "destination": "/credit-books.html"
+    },
+    {
       "source": "/order-info",
       "destination": "/order-info.html"
     },

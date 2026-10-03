@@ -59,12 +59,14 @@ test("listing and search reset still clear controls, re-query, and do not reload
   for (const handler of [listing, search]) {
     assert.match(handler, /minEl\)minEl\.value=""/);
     assert.match(handler, /maxEl\)maxEl\.value=""/);
-    assert.match(handler, /sortEl\)sortEl\.value="relevance"/);
     assert.match(handler, /collection\)collection\.value=""/);
     assert.doesNotMatch(handler, /location\.reload/);
     assert.doesNotMatch(handler, /location\.href\s*=/);
     assert.doesNotMatch(handler, /meta.*refresh/i);
   }
+  assert.match(search, /sortEl\)sortEl\.value="relevance"/);
+  assert.match(listing, /sortEl\)sortEl\.value=isCreditListing\?"new":"relevance"/);
+  assert.match(listing, /if\(isGlobalBooks&&sortEl\)sortEl\.value="discover"/);
   assert.match(listing, /text\.value=""/);
   assert.match(listing, /apply\(false\)/);
   assert.match(search, /input\.value=""/);

@@ -52,6 +52,8 @@ function bindBookEntrySuggestions(){
   if($("#staffAuthor"))S.attachCombobox($("#staffAuthor"),()=>S.uniqueValuesFromRows(getRows(),"author"));
   if($("#staffTranslator"))S.attachCombobox($("#staffTranslator"),()=>S.uniqueValuesFromRows(getRows(),"translator"));
   if($("#staffPublisher"))S.attachCombobox($("#staffPublisher"),()=>S.uniqueValuesFromRows(getRows(),"publisher"));
+  if($("#staffAuthorAdd"))$("#staffAuthorAdd").addEventListener("click",()=>addStaffCreditInput("staffAuthorExtras","author"));
+  if($("#staffTranslatorAdd"))$("#staffTranslatorAdd").addEventListener("click",()=>addStaffCreditInput("staffTranslatorExtras","translator"));
   if($("#staffTitle"))S.attachTitleWarning($("#staffTitle"),getRows,{box:$("#staffTitleSimilarWarning")});
 }
 function loadStaffSuggestionRows(){
@@ -333,6 +335,49 @@ function buildPayload(values){
   });
   return payload;
 }
+function staffCreditValues(primaryId,extrasId){
+  const values=[];
+  const primary=$(`#${primaryId}`);
+  values.push(primary?primary.value:"");
+  const extras=$(`#${extrasId}`);
+  if(extras)extras.querySelectorAll("input").forEach(input=>values.push(input.value));
+  return values;
+}
+function resetStaffCreditExtras(){
+  const author=$("#staffAuthorExtras");
+  const translator=$("#staffTranslatorExtras");
+  if(author)author.replaceChildren();
+  if(translator)translator.replaceChildren();
+}
+function addStaffCreditInput(extrasId,suggestField){
+  const extras=$(`#${extrasId}`);
+  if(!extras)return;
+  if(1+extras.querySelectorAll("input").length>=8)return;
+  const row=document.createElement("div");
+  row.className="book-credit-extra";
+  const input=document.createElement("input");
+  input.dir="auto";
+  input.maxLength=500;
+  const remove=document.createElement("button");
+  remove.type="button";
+  remove.className="account-secondary";
+  remove.textContent="ئۆچۈرۈش";
+  remove.addEventListener("click",()=>row.remove());
+  row.append(input,remove);
+  extras.appendChild(row);
+  const S=window.KutadguBookEntrySuggest;
+  if(S&&S.attachCombobox)S.attachCombobox(input,()=>S.uniqueValuesFromRows(suggestionCatalogRows(),suggestField));
+}
+function staffCreditPlan(){
+  const Credits=window.KutadguCredits;
+  const authors=staffCreditValues("staffAuthor","staffAuthorExtras");
+  const translators=staffCreditValues("staffTranslator","staffTranslatorExtras");
+  const publisher=$("#staffPublisher")&&$("#staffPublisher").value;
+  if(!Credits||!Credits.planCreditSave){
+    return {ok:true,writeCredits:false,authors:[],translators:[],publisher:null,legacy:{author:String(authors[0]||"").trim(),translator:String(translators[0]||"").trim()||null,publisher:String(publisher||"").trim()||null}};
+  }
+  return Credits.planCreditSave({authors,translators,publisher});
+}
 function formValues(){
   const source=$("#staffSource")&&$("#staffSource").value||"";
   const hit=categoryOptions().find(([src])=>src===source);
@@ -360,11 +405,14 @@ function formValues(){
 function resetStaffForm(){
   const form=$("#staffBookForm");
   if(form)form.reset();
+  resetStaffCreditExtras();
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
   setCoverFileStatus(null);
   resetGallerySelection();
   const success=$("#staffSuccess");if(success)success.hidden=true;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=true;
+  pendingCreditRetry=null;
   const bookForm=$("#staffBookForm");if(bookForm)bookForm.hidden=false;
   setStatus($("#staffSubmitStatus"),"", "");
 }
@@ -709,6 +757,48 @@ async function logoutStaff(){
   const member=memberApi();
   if(member&&member.signOut)await member.signOut();
 }
+let pendingCreditRetry=null;
+function showStaffCreditIncomplete(bookId,outcome){
+  pendingCreditRetry={bookId,plan:outcome&&outcome.plan};
+  const form=$("#staffBookForm");if(form)form.hidden=true;
+  const success=$("#staffSuccess");if(success)success.hidden=true;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=false;
+  const idEl=$("#staffCreditRetryId");if(idEl)idEl.textContent=String(bookId||"");
+  const message=$("#staffCreditRetryMessage");
+  if(message){
+    message.textContent=outcome&&outcome.status==="rpc-missing"
+      ?"كىتاب قۇرۇلدى، لېكىن ئايرىم ئاپتور ئۇلانمىسى يوق. STAGE106_CATALOG_CREDITS.sql نى Run قىلغاندىن كېيىن قايتا ساقلاڭ. بۇ قايتا ساقلاش كىتابنى قايتا قۇرمايدۇ."
+      :"كىتاب قۇرۇلدى، لېكىن ئاپتور ئۇلانمىسى ساقلانمىدى. بۇ تولۇق مۇۋەپپەقىيەت ئەمەس. قايتا ساقلاش پەقەت ئۇلانمىنى يازىدۇ.";
+  }
+}
+function showStaffSuccess(bookId){
+  pendingCreditRetry=null;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=true;
+  const form=$("#staffBookForm");if(form)form.hidden=true;
+  const success=$("#staffSuccess");if(success)success.hidden=false;
+  const idEl=$("#staffNewBookId");if(idEl)idEl.textContent=String(bookId||"");
+  const note=$("#staffCreditNote");if(note){note.hidden=true;note.textContent="";}
+}
+async function retryStaffCredits(){
+  const pending=pendingCreditRetry;
+  const Credits=window.KutadguCredits;
+  const client=db();
+  const status=$("#staffSubmitStatus");
+  if(!pending||!client||!Credits||!Credits.applyStaffCredits)return;
+  const btn=$("#staffCreditRetryBtn");
+  if(btn)btn.disabled=true;
+  try{
+    const outcome=await Credits.applyStaffCredits(args=>client.rpc("set_own_pending_book_credits",args),pending.bookId,pending.plan);
+    if(!outcome||outcome.panel!=="success"){
+      showStaffCreditIncomplete(pending.bookId,Object.assign({},outcome,{plan:pending.plan}));
+      return;
+    }
+    showStaffSuccess(pending.bookId);
+    setStatus(status,"","");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
 async function submitBook(e){
   e.preventDefault();
   const status=$("#staffSubmitStatus");
@@ -733,6 +823,11 @@ async function submitBook(e){
     if(imageUrl)imageUrl=assertStaffCoverPublicUrl(String(user.id),imageUrl);
     const galleryUrls=await uploadStaffGallery(client,String(user.id),galleryDraft.map(item=>item&&item.file));
     const values=formValues();
+    const creditPlan=staffCreditPlan();
+    if(!creditPlan.ok)throw new Error(creditPlan.message||"ئىسىم تىزىمى توغرا ئەمەس.");
+    values.author=creditPlan.legacy.author;
+    values.translator=creditPlan.legacy.translator;
+    values.publisher=creditPlan.legacy.publisher;
     values.image_url=imageUrl;
     values.staff_uid=String(user.id);
     values.gallery_images=galleryUrls;
@@ -740,9 +835,19 @@ async function submitBook(e){
     const {data,error}=await client.rpc("submit_book_for_approval",{payload:payload});
     if(error)throw error;
     const newId=Array.isArray(data)?data[0]:data;
-    $("#staffBookForm").hidden=true;
-    $("#staffSuccess").hidden=false;
-    $("#staffNewBookId").textContent=String(newId||"");
+    const Credits=window.KutadguCredits;
+    if(creditPlan.writeCredits&&Credits&&Credits.saveStaffCreditsAfterInsert){
+      const outcome=await Credits.saveStaffCreditsAfterInsert(
+        async()=>({id:newId}),
+        args=>client.rpc("set_own_pending_book_credits",args),
+        creditPlan
+      );
+      if(!outcome||outcome.panel!=="success"){
+        showStaffCreditIncomplete(newId,Object.assign({},outcome,{plan:creditPlan}));
+        return;
+      }
+    }
+    showStaffSuccess(newId);
     const cover=$("#staffCoverFile");if(cover)cover.value="";
     resetGallerySelection();
   }catch(err){
@@ -799,6 +904,7 @@ async function init(){
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);
   const another=$("#staffAddAnother");if(another)another.onclick=()=>resetStaffForm();
+  const retryBtn=$("#staffCreditRetryBtn");if(retryBtn)retryBtn.addEventListener("click",()=>{retryStaffCredits().catch(err=>setStatus($("#staffSubmitStatus"),staffFriendlyMessage(err),"error"));});
   const source=$("#staffSource");
   if(source)source.addEventListener("change",()=>{
     const hit=categoryOptions().find(([src])=>src===source.value);
