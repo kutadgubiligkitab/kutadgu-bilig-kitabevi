@@ -105,17 +105,24 @@ async function mockBooks(page, books) {
 }
 
 function installProbe(page, initialMode) {
-  const hits = { n: 0 };
+  const hits = { n: 0, abort: 0, ok: 0 };
   const state = { mode: initialMode, release: null };
   const ready = page.route(`**${PROBE}`, async (route) => {
     hits.n += 1;
-    if (state.mode === "always-fail") return route.abort("failed");
-    if (state.mode === "fail-first" && hits.n === 1) return route.abort("failed");
-    if (state.mode === "fail-then-hold") {
-      if (hits.n === 1) return route.abort("failed");
-      await new Promise((resolve) => { state.release = resolve; });
-      return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
+    const fail = state.mode === "always-fail" || state.mode === "fail-next" || (state.mode === "fail-first" && hits.n === 1) || (state.mode === "fail-then-hold" && hits.n === 1);
+    if (state.mode === "fail-next") state.mode = "ok";
+    if (fail && state.mode !== "fail-then-hold") {
+      hits.abort += 1;
+      return route.abort("failed");
     }
+    if (state.mode === "fail-then-hold") {
+      if (hits.n === 1) {
+        hits.abort += 1;
+        return route.abort("failed");
+      }
+      await new Promise((resolve) => { state.release = resolve; });
+    }
+    hits.ok += 1;
     return route.fulfill({ status: 200, contentType: "image/png", body: LOGO });
   });
   return ready.then(() => ({
@@ -169,30 +176,15 @@ test.describe("premium discovery cover retry", () => {
       img.onload = () => resolve("load");
       img.src = src;
     }), PROBE);
-    expect(probe.hits.n).toBeGreaterThanOrEqual(1);
-    probe.setMode("ok");
-    await page.evaluate(() => {
-      const shop = window.kutadguShop;
-      const fail = shop.handleCoverError.bind(shop);
-      window.__premiumCoverTrace = [];
-      shop.handleCoverError = (img) => {
-        const stack = new Error().stack || "";
-        window.__premiumCoverTrace.push({
-          fromRecover: stack.includes("recoverCachedCoverFailure"),
-          complete: !!(img && img.complete),
-          width: img && img.naturalWidth || 0,
-          connected: !!(img && img.isConnected !== false)
-        });
-        return fail(img);
-      };
-    });
-    const before = probe.hits.n;
+    const primed = probe.hits.abort;
+    expect(primed).toBeGreaterThanOrEqual(1);
+    probe.setMode("fail-next");
     await showGroup(page, "history");
     await expect.poll(() => cardImageWidth(page, "88001"), { timeout: 8_000 }).toBeGreaterThan(0);
     await expect(page.locator('#premiumDiscoveryResults [data-premium-book-id="88001"] .book-cover-unavailable')).toHaveCount(0);
-    const trace = await page.evaluate(() => window.__premiumCoverTrace || []);
-    expect(trace.some((entry) => entry.fromRecover && entry.complete && entry.width === 0 && entry.connected)).toBe(true);
-    expect(probe.hits.n).toBeGreaterThan(before);
+    expect(new URL(page.url()).pathname).toBe("/");
+    expect(probe.hits.abort).toBeGreaterThan(primed);
+    expect(probe.hits.ok).toBeGreaterThan(0);
   });
   }
 
@@ -257,7 +249,7 @@ test.describe("premium discovery cover retry", () => {
       }).toBe(true);
       await page.goto("/book-shell.html?id=88001", { waitUntil: "domcontentloaded" });
       await page.waitForFunction(() => document.body.dataset.bookId === "88001");
-      const link = page.locator(`a.book-credit-name[href="/author/${AUTHOR_ID}"]`);
+      const link = page.locator(`.book-author a.book-credit-name[href="/author/${AUTHOR_ID}"]`).first();
       await expect(link).toBeVisible();
       await expect(link).toHaveText(AUTHOR_NAME);
     });

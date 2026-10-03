@@ -153,6 +153,7 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
   const bind = sliceBetween(compact, "function recoverCachedCoverFailure(img){", "const DISCOVERY_PAGE_SIZE=8;");
   assert.match(bind, /assignCoverImage\(img,src,\{bookId:bookId,loading:img\.getAttribute\("loading"\)\|\|"lazy"\}\)/);
   assert.match(bind, /recoverCachedCoverFailure\(img\)/);
+  assert.match(bind, /requestAnimationFrame\(\(\)=>recoverCachedCoverFailure\(img\)\)/);
   assert.match(bind, /!img\.complete\|\|img\.naturalWidth!==0/);
   assert.doesNotMatch(bind, /markMissing/);
   assert.match(bind, /data-premium-favorite/);

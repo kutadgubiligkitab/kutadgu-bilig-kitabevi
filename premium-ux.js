@@ -92,6 +92,7 @@
         shop.assignCoverImage(img,src,{bookId:bookId,loading:img.getAttribute("loading")||"lazy"});
         recoverCachedCoverFailure(img);
         if(typeof queueMicrotask==="function")queueMicrotask(()=>recoverCachedCoverFailure(img));
+        if(typeof requestAnimationFrame==="function")requestAnimationFrame(()=>recoverCachedCoverFailure(img));
       }
     });
     scope.querySelectorAll("[data-premium-favorite]").forEach(button=>{
