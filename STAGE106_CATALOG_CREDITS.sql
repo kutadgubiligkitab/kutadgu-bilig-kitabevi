@@ -505,10 +505,18 @@ using (
     where c.identity_id = catalog_identities.id
       and b.is_active = true
   )
-  or (
-    public.is_kutadgu_admin()
-    and (select auth.jwt()->>'aal') = 'aal2'
-  )
+);
+
+-- Anonymous users cannot execute is_kutadgu_admin(). Keep the admin-only
+-- predicate in a policy restricted to authenticated so public reads work.
+drop policy if exists "admin aal2 reads all catalog identities" on public.catalog_identities;
+create policy "admin aal2 reads all catalog identities"
+on public.catalog_identities
+for select
+to authenticated
+using (
+  public.is_kutadgu_admin()
+  and (select auth.jwt()->>'aal') = 'aal2'
 );
 
 drop policy if exists "public reads credits of active books" on public.book_credits;
