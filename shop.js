@@ -5059,7 +5059,7 @@ function loadPremiumUX(){
   ensureStage4b2HomepageDiscoveryCss();
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
-  return loadAssetScript("/premium-ux.js?v=12","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=13","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){

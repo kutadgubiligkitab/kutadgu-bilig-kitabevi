@@ -140,15 +140,30 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = sliceBetween(compact, "function compactCard(book){", "function recoverCachedCoverFailure(img){");
+  const mainSlice = sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){");
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  assert.match(compactSlice, /loading="lazy" decoding="async"/);
+  const normalized = compactSlice
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+  assert.strictEqual(normalized, mainSlice);
+  const bind = sliceBetween(compact, "function recoverCachedCoverFailure(img){", "const DISCOVERY_PAGE_SIZE=8;");
+  assert.match(bind, /assignCoverImage\(img,src,\{bookId:bookId,loading:img\.getAttribute\("loading"\)\|\|"lazy"\}\)/);
+  assert.match(bind, /recoverCachedCoverFailure\(img\)/);
+  assert.match(bind, /!img\.complete\|\|img\.naturalWidth!==0/);
+  assert.doesNotMatch(bind, /markMissing/);
+  assert.match(bind, /data-premium-favorite/);
+  assert.match(bind, /data-premium-cart/);
+  assert.match(bind, /toggleFav\?/);
+  assert.match(bind, /kutadguShop\?\.add\?/);
 });
 
 test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload", () => {
   assert.match(shopJs, /premium-ux\.css\?v=10/);
-  assert.match(shopJs, /premium-ux\.js\?v=12/);
+  assert.match(shopJs, /premium-ux\.js\?v=13/);
   assert.match(shopJs, /stage4b2-homepage-discovery\.css\?v=1/);
   assert.match(shopJs, /data-kutadgu-stage4b2-homepage-discovery/);
   assert.match(shopJs, /premium-cart-row-alignment-safety\.css\?v=1/);

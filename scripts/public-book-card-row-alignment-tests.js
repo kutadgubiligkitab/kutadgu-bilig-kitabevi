@@ -143,10 +143,15 @@ test("card generators stay unchanged from origin/main", () => {
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = sliceBetween(compact, "function compactCard(book){", "function recoverCachedCoverFailure(img){");
+  const mainSlice = sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){");
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  const normalized = compactSlice
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+  assert.strictEqual(normalized, mainSlice);
 });
 
 test("public alignment CSS loads last after premium cart-row safety", () => {

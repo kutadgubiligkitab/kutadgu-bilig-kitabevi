@@ -106,10 +106,15 @@ test("generators match origin/main except the visible cart label", () => {
   );
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });
-  assert.strictEqual(
-    sliceBetween(compact, "function compactCard(book){", "function bindCards(scope){"),
-    sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){")
-  );
+  const compactSlice = sliceBetween(compact, "function compactCard(book){", "function recoverCachedCoverFailure(img){");
+  const mainSlice = sliceBetween(mainCompact, "function compactCard(book){", "function bindCards(scope){");
+  assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
+  assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
+  const normalized = compactSlice
+    .replace("    const src=cover(book);\n    const id=escapeHtml(book.id);\n", "")
+    .replace(/\$\{id\}/g, "${escapeHtml(book.id)}")
+    .replace(' src="${src}" data-cover-src="${src}" data-cover-book="${escapeHtml(book.id)}"', ' src="${cover(book)}"');
+  assert.strictEqual(normalized, mainSlice);
 });
 
 test("no Search Discovery SQL RLS auth admin or protected geometry changes", () => {
