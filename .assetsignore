@@ -24,3 +24,4 @@ package-lock.json
 playwright.config.js
 .gitignore
 .assetsignore
+test-results
