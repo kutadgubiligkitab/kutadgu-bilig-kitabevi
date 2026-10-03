@@ -277,6 +277,44 @@ async function runConcurrentLockProof() {
       approvalWaited && approvalOutcome === "" && status.rows[0].submission_status === "approved" && (await names(secondId)) === "يېڭى خادىم",
       JSON.stringify({ approvalWaited, approvalOutcome, status: status.rows[0] && status.rows[0].submission_status, names: await names(secondId) })
     );
+    await setup.query(readSql("STAGE106_CATALOG_CREDIT_CORRECTIONS.sql"));
+    const mappedText = "ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز";
+    const newerText = "باشقا ئىسىم، يېڭىراق";
+    const raceInserted = await setup.query(
+      `insert into public.books (title, author, category, source, is_active, is_available)
+       values ('يېڭىلانغان', 'يېڭى ئاپتور', 'رومان', 'romanlar.html', true, true) returning id`
+    );
+    const raceId = raceInserted.rows[0].id;
+    await setup.query("begin");
+    await setup.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ aal: "aal2", sub: OTHER })]);
+    await setup.query("set local role authenticated");
+    await setup.query(
+      "select public.set_book_credits($1, $2::jsonb, '[]'::jsonb, null)",
+      [raceId, JSON.stringify(["يېڭى ئاپتور", "يېڭى شېرىك"])]
+    );
+    await setup.query("commit");
+    await setup.query("update public.books set author = $2 where id = $1", [raceId, mappedText]);
+    const holder = await connect();
+    const applier = await connect();
+    await holder.query("begin");
+    await holder.query("select id from public.books where id = $1 for update", [raceId]);
+    const applyPromise = applier.query(
+      "select book_id, role, status from public.apply_catalog_credit_corrections()"
+    );
+    const correctionWaited = await waitForLock(watcher);
+    await holder.query("update public.books set author = $2 where id = $1", [raceId, newerText]);
+    await holder.query("commit");
+    const applyRows = (await applyPromise).rows;
+    const raceAuthor = await setup.query("select author from public.books where id = $1", [raceId]);
+    check(
+      "correction waits for the book lock and then skips the stale review",
+      correctionWaited
+        && applyRows.some((row) => String(row.book_id) === String(raceId) && row.status === "skipped-stale")
+        && !applyRows.some((row) => String(row.book_id) === String(raceId) && row.status === "corrected")
+        && raceAuthor.rows[0].author === newerText
+        && (await names(raceId)) === "يېڭى ئاپتور|يېڭى شېرىك",
+      JSON.stringify({ correctionWaited, applyRows, author: raceAuthor.rows[0].author, names: await names(raceId) })
+    );
     console.log("CONCURRENCY: two independent PostgreSQL sessions overlapped in both orders.");
   } finally {
     for (const client of clients) {
@@ -580,9 +618,29 @@ async function main() {
   const mapped = "ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز";
   const mappedBook = [{ id: await insertBook({ title: "خەرىتە", author: mapped, is_active: true }) }];
   await q("update public.books set author = $2 where id = $1", [mappedBook[0].id, mapped]);
+  const paddedBook = [{ id: await insertBook({ title: "بوشلۇق", author: mapped + " ", is_active: true }) }];
   const unmapped = "باشقا ئىسىم، خەرىتىدە يوق";
   const unmappedBook = [{ id: await insertBook({ title: "خەرىتىسىز", author: unmapped, is_active: true }) }];
   await q("update public.books set author = $2 where id = $1", [unmappedBook[0].id, unmapped]);
+  const newerText = "باشقا ئىسىم، يېڭىراق";
+  const staleBook = [{ id: await insertBook({ title: "كونا خەرىتە", author: "يېڭى ئاپتور", is_active: true }) }];
+  const firstMap = "ھاجى مىرزاھىد كېرىمى، ساۋۇت داۋۇت";
+  const secondMap = "شى شۇەن، جىن چۈنمىڭ";
+  const historyBook = [{ id: await insertBook({ title: "كۆپ خەرىتە", author: "باشلانغۇچ", is_active: true }) }];
+  await asSession("authenticated", { aal: "aal2", sub: OTHER }, { admin: true }, async () => {
+    await q("select public.set_book_credits($1, $2::jsonb, '[]'::jsonb, null)", [
+      staleBook[0].id,
+      JSON.stringify(["يېڭى ئاپتور", "يېڭى شېرىك"])
+    ]);
+    await q("select public.set_book_credits($1, $2::jsonb, '[]'::jsonb, null)", [
+      historyBook[0].id,
+      JSON.stringify(["ۋاقىتلىق", "ئىسىم"])
+    ]);
+  });
+  await q("update public.books set author = $2 where id = $1", [staleBook[0].id, mapped]);
+  await q("update public.books set author = $2 where id = $1", [staleBook[0].id, newerText]);
+  await q("update public.books set author = $2 where id = $1", [historyBook[0].id, firstMap]);
+  await q("update public.books set author = $2 where id = $1", [historyBook[0].id, secondMap]);
   await exec(readSql("STAGE106_CATALOG_CREDIT_CORRECTIONS.sql"));
   const corrected = await q("select book_id, role, status from public.apply_catalog_credit_corrections() order by book_id");
   const mappedNames = await q(
@@ -605,6 +663,75 @@ async function main() {
   );
   const unmappedCredits = await q("select count(*)::int as n from public.book_credits where book_id = $1", [unmappedBook[0].id]);
   check("unmapped string was not split into credits", unmappedCredits[0].n === 0, String(unmappedCredits[0].n));
+  const paddedNames = await q(
+    `select i.display_name from public.book_credits c
+     join public.catalog_identities i on i.id = c.identity_id
+     where c.book_id = $1 and c.role = 'author' order by c.position`,
+    [paddedBook[0].id]
+  );
+  check(
+    "trimmed current text still matches the reviewed whole string",
+    paddedNames.map((row) => row.display_name).join("|") === "ئەنۋەر جاپپار|پەرھات جىلانوۋ|قادىر قاۋۇز"
+      && corrected.some((row) => String(row.book_id) === String(paddedBook[0].id) && row.status === "corrected"),
+    paddedNames.map((row) => row.display_name).join("|")
+  );
+  async function authorState(bookId) {
+    const text = await q("select author from public.books where id = $1", [bookId]);
+    const credits = await q(
+      `select i.display_name from public.book_credits c
+       join public.catalog_identities i on i.id = c.identity_id
+       where c.book_id = $1 and c.role = 'author' order by c.position`,
+      [bookId]
+    );
+    return {
+      author: text[0].author,
+      names: credits.map((row) => row.display_name).join("|")
+    };
+  }
+  const staleState = await authorState(staleBook[0].id);
+  check(
+    "a newer ambiguous value keeps its text and credits",
+    staleState.author === newerText
+      && staleState.names === "يېڭى ئاپتور|يېڭى شېرىك"
+      && corrected.some((row) => String(row.book_id) === String(staleBook[0].id) && row.status === "skipped-stale")
+      && !corrected.some((row) => String(row.book_id) === String(staleBook[0].id) && row.status === "corrected"),
+    JSON.stringify(staleState)
+  );
+  const historyState = await authorState(historyBook[0].id);
+  const historyRows = corrected.filter((row) => String(row.book_id) === String(historyBook[0].id));
+  check(
+    "older mapped reviews do not replace the current mapped names",
+    historyState.author === secondMap
+      && historyState.names === "شى شۇەن|جىن چۈنمىڭ"
+      && historyRows.some((row) => row.status === "corrected")
+      && historyRows.some((row) => row.status === "skipped-stale")
+      && !historyState.names.includes("ھاجى مىرزاھىد كېرىمى"),
+    JSON.stringify({ historyState, historyRows })
+  );
+  const beforeSecondApply = await q(
+    `select c.book_id, c.role, c.position, i.display_name
+     from public.book_credits c
+     join public.catalog_identities i on i.id = c.identity_id
+     where c.book_id = any($1::bigint[])
+     order by c.book_id, c.role, c.position`,
+    [[mappedBook[0].id, paddedBook[0].id, staleBook[0].id, historyBook[0].id]]
+  );
+  const repeated = await q("select book_id, role, status from public.apply_catalog_credit_corrections() order by book_id");
+  const afterSecondApply = await q(
+    `select c.book_id, c.role, c.position, i.display_name
+     from public.book_credits c
+     join public.catalog_identities i on i.id = c.identity_id
+     where c.book_id = any($1::bigint[])
+     order by c.book_id, c.role, c.position`,
+    [[mappedBook[0].id, paddedBook[0].id, staleBook[0].id, historyBook[0].id]]
+  );
+  check(
+    "repeat application preserves already corrected contributors",
+    JSON.stringify(beforeSecondApply) === JSON.stringify(afterSecondApply)
+      && !repeated.some((row) => String(row.book_id) === String(mappedBook[0].id))
+      && repeated.some((row) => String(row.book_id) === String(staleBook[0].id) && row.status === "skipped-stale"),
+    JSON.stringify(repeated)
+  );
 
   // Custom HTTP test wrapper. It runs the same SQL under a chosen role.
   // It is not PostgREST and it does not call the live Supabase API.

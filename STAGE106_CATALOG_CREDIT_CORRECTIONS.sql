@@ -5,8 +5,11 @@
 -- Apply STAGE106_CATALOG_CREDITS.sql first.
 -- Reading public.catalog_credit_review does not separate any name.
 -- This file loads an explicit map. It does not split on Arabic comma, comma,
--- spaces, or ۋە. A row changes only when role and the whole legacy string
--- match one map row. The names array is the reviewed order.
+-- spaces, or ۋە. A row changes only when the role and the book's current
+-- text, under catalog_identity_key, still equal one reviewed whole string.
+-- The book row is locked before that comparison. A mapped review whose
+-- current text no longer matches is returned as skipped-stale and is not
+-- written. The names array is the reviewed order.
 --
 -- After this file:
 --   select * from public.apply_catalog_credit_corrections();
@@ -70,19 +73,40 @@ set search_path = public
 as $apply$
 declare
   rec record;
+  v_current text;
 begin
   if to_regclass('public.catalog_credit_review') is null
      or to_regclass('public.catalog_credit_correction_map') is null then
     raise exception 'catalog credit corrections require STAGE106' using errcode = '42704';
   end if;
   for rec in
-    select r.book_id, r.role, m.names
+    select r.book_id, r.role, r.legacy_value, m.names
     from public.catalog_credit_review r
     join public.catalog_credit_correction_map m
       on m.role = r.role
      and m.legacy_value = r.legacy_value
-    order by r.book_id, r.role
+    order by r.book_id, r.role, r.legacy_value
   loop
+    -- Lock first, then read. A concurrent edit waits, so the comparison
+    -- uses the text that is still current when the correction can write.
+    select case rec.role
+      when 'author' then b.author
+      when 'translator' then b.translator
+      else b.publisher
+    end
+    into v_current
+    from public.books b
+    where b.id = rec.book_id
+    for update;
+
+    if not found or public.catalog_identity_key(v_current) is distinct from rec.legacy_value then
+      book_id := rec.book_id;
+      role := rec.role;
+      status := 'skipped-stale';
+      return next;
+      continue;
+    end if;
+
     perform public.catalog_write_role_credits(rec.book_id, rec.role, rec.names);
     book_id := rec.book_id;
     role := rec.role;
@@ -111,7 +135,7 @@ as $unresolved$
 $unresolved$;
 
 comment on function public.apply_catalog_credit_corrections() is
-  'Writes reviewed names for an exact legacy match. Does not split other strings.';
+  'Writes reviewed names only when the locked book text still matches. A stale review returns skipped-stale and is not written.';
 comment on function public.catalog_credit_unresolved() is
   'Review rows this map does not correct. Selecting them does not separate names.';
 

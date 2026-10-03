@@ -190,6 +190,9 @@ test("admin and staff saves cannot drop contributors when the credit load is blo
   assert.ok(corrections.includes("Reading public.catalog_credit_review does not separate"));
   assert.ok(!/split_part\s*\(/i.test(corrections));
   assert.ok(!/regexp_split_to_array\s*\(/i.test(corrections));
+  assert.ok(corrections.includes("for update"));
+  assert.ok(corrections.includes("skipped-stale"));
+  assert.ok(corrections.includes("catalog_identity_key"));
   assert.ok(corrections.includes("ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز"));
   assert.ok(corrections.includes("شەھىدە، خەدىچە"));
   assert.ok(corrections.includes("شىنجاڭ خەلق نەشرىياتى، قەشقەر ئۇيغۇر نەشرىياتى"));
