@@ -142,8 +142,8 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
 
 test("admin and staff pages load the shared helper before upload code", () => {
   assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=2'));
-  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=84'));
-  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=10'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=85'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=11'));
   assert.match(adminJs, /optimizeCover\(file\)/);
   assert.match(staffJs, /await requireAal2\(client\)/);
   assert.match(staffJs, /rpcIsBookStaff\(client\)/);

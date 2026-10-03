@@ -666,7 +666,9 @@ test("protected product files stay frozen and out of this diff", () => {
     "STAGE106_CATALOG_CREDITS_ROLLBACK.sql",
     "book-staff.css",
     "scripts/catalog-credits-tests.js",
-    "tests/e2e/catalog-credits.spec.js"
+    "tests/e2e/catalog-credits.spec.js",
+    "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
+    "scripts/stage106-isolated-verify.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

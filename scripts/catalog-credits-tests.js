@@ -172,14 +172,282 @@ test("admin and staff saves cannot drop contributors when the credit load is blo
   assert.ok(admin.includes("applyCreditColumns(row,creditPlan)"));
   assert.ok(admin.includes("delete pendingPayload.author"));
   assert.ok(admin.includes('rpc("set_book_credits"'));
+  assert.ok(admin.includes("loadCreditEditor"));
+  assert.ok(!/function loadEditorCredits[\s\S]{0,180}creditSaveMode="ready"/.test(admin));
   assert.ok(staff.includes('rpc("set_own_pending_book_credits"'));
   assert.ok(staff.includes("values.author=creditPlan.legacy.author"));
+  assert.ok(staff.includes('outcome.panel!=="success"'));
   const sql = fs.readFileSync(path.join(root, "STAGE106_CATALOG_CREDITS.sql"), "utf8");
   assert.ok(sql.includes("does not split"));
   assert.ok(sql.includes("enable row level security"));
   assert.ok(sql.includes("is_kutadgu_admin()"));
   assert.ok(sql.includes("is_kutadgu_book_staff()"));
   assert.ok(!/split_part\s*\(/i.test(sql));
+  assert.ok(sql.includes("catalog_credit_legacy_ambiguous"));
+  const corrections = fs.readFileSync(path.join(root, "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql"), "utf8");
+  assert.ok(corrections.includes("Reading public.catalog_credit_review does not separate"));
+  assert.ok(!/split_part\s*\(/i.test(corrections));
+  assert.ok(!/regexp_split_to_array\s*\(/i.test(corrections));
+  assert.ok(corrections.includes("ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز"));
+  assert.ok(corrections.includes("شەھىدە، خەدىچە"));
+  assert.ok(corrections.includes("شىنجاڭ خەلق نەشرىياتى، قەشقەر ئۇيغۇر نەشرىياتى"));
+});
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+test("save while the credits query is delayed does not write contributors", async () => {
+  const editor = C.createCreditEditor();
+  const token = editor.openBook(11);
+  const query = deferred();
+  const pending = C.loadCreditEditor(editor, token, 11, () => query.promise);
+  assert.strictEqual(editor.snapshot().mode, "loading");
+  const plan = C.planCreditSave({
+    loading: true,
+    authors: ["ئەھمەد", "باتۇر"],
+    translators: [],
+    publisher: ""
+  });
+  assert.strictEqual(plan.ok, false);
+  assert.strictEqual(plan.error, "loading");
+  assert.strictEqual(plan.writeCredits, false);
+  assert.strictEqual(C.legacyColumnsForBookWrite(plan), null);
+  let bookWrites = 0;
+  let creditWrites = 0;
+  const outcome = await C.commitAdminContributorWrite({
+    plan,
+    writeBook: async () => {
+      bookWrites += 1;
+      return { error: null };
+    },
+    writeCredits: async () => {
+      creditWrites += 1;
+      return { error: null };
+    },
+    writeLegacyText: async () => ({ error: null })
+  });
+  assert.strictEqual(outcome.status, "blocked");
+  assert.strictEqual(bookWrites, 0);
+  assert.strictEqual(creditWrites, 0);
+  query.resolve({ ok: true, rows: [{ role: "author", position: 0 }] });
+  const settled = await pending;
+  assert.strictEqual(settled.applied, true);
+  assert.strictEqual(editor.snapshot().mode, "ready");
+});
+
+test("book A response is ignored after book B is opened", async () => {
+  const editor = C.createCreditEditor();
+  const tokenA = editor.openBook(1);
+  const queryA = deferred();
+  const loadA = C.loadCreditEditor(editor, tokenA, 1, () => queryA.promise);
+  const tokenB = editor.openBook(2);
+  const queryB = deferred();
+  const loadB = C.loadCreditEditor(editor, tokenB, 2, () => queryB.promise);
+  queryA.resolve({ ok: true, rows: [{ role: "author", display_name: "A" }] });
+  const settledA = await loadA;
+  assert.strictEqual(settledA.ignored, true);
+  assert.strictEqual(settledA.applied, false);
+  assert.strictEqual(editor.snapshot().bookId, "2");
+  assert.strictEqual(editor.snapshot().mode, "loading");
+  queryB.resolve({ ok: true, rows: [{ role: "author", display_name: "B" }] });
+  const settledB = await loadB;
+  assert.strictEqual(settledB.applied, true);
+  assert.deepStrictEqual(settledB.rows, [{ role: "author", display_name: "B" }]);
+});
+
+test("closing or resetting the editor drops a late credit response", async () => {
+  const editor = C.createCreditEditor();
+  const token = editor.openBook(4);
+  const query = deferred();
+  const pending = C.loadCreditEditor(editor, token, 4, () => query.promise);
+  editor.openCreate();
+  query.resolve({ ok: true, rows: [{ role: "author", display_name: "كېچىككەن" }] });
+  const settled = await pending;
+  assert.strictEqual(settled.ignored, true);
+  assert.strictEqual(settled.applied, false);
+  assert.strictEqual(editor.snapshot().mode, "create");
+  editor.markDirty();
+  const again = editor.openBook(4);
+  editor.markDirty();
+  const kept = C.settleCreditLoad(editor, again, 4, { ok: true, rows: [{ role: "author" }] });
+  assert.strictEqual(kept.applied, false);
+  assert.strictEqual(kept.keptInput, true);
+});
+
+test("a failed credit load keeps contributors out of an unrelated edit", async () => {
+  const editor = C.createCreditEditor();
+  const token = editor.openBook(9);
+  const settled = await C.loadCreditEditor(editor, token, 9, async () => {
+    throw new Error("network down");
+  });
+  assert.strictEqual(settled.applied, false);
+  assert.strictEqual(settled.mode, "blocked");
+  const plan = C.planCreditSave({
+    blocked: true,
+    authors: ["يېڭى ئىسىم"],
+    translators: ["تەرجىمان"],
+    publisher: "نەشرىيات"
+  });
+  assert.strictEqual(plan.writeCredits, false);
+  assert.strictEqual(plan.omitLegacy, true);
+  const state = { title: "كونا", author: "ئەسلى ئاپتور", credits: ["ئەسلى ئاپتور"] };
+  const outcome = await C.commitAdminContributorWrite({
+    plan,
+    writeBook: async (columns) => {
+      assert.strictEqual(columns, null);
+      state.title = "يېڭى ماۋزۇ";
+      return { error: null };
+    },
+    writeCredits: async () => {
+      throw new Error("credits must not be called");
+    },
+    writeLegacyText: async () => {
+      throw new Error("legacy text must not be called");
+    }
+  });
+  assert.strictEqual(outcome.status, "book-saved");
+  assert.strictEqual(outcome.creditsCalled, false);
+  assert.strictEqual(state.author, "ئەسلى ئاپتور");
+  assert.deepStrictEqual(state.credits, ["ئەسلى ئاپتور"]);
+  assert.strictEqual(state.title, "يېڭى ماۋزۇ");
+});
+
+test("a rejected credit RPC does not replace contributors or report success", async () => {
+  const plan = C.planCreditSave({
+    authors: ["ئەھمەد", "باتۇر"],
+    translators: ["تەرجىمان"],
+    publisher: "نەشر"
+  });
+  assert.strictEqual(C.legacyColumnsForBookWrite(plan), null);
+  const state = { author: "ئەھمەد، باتۇر", credits: ["ئەھمەد", "باتۇر"] };
+  let legacyCalls = 0;
+  const outcome = await C.commitAdminContributorWrite({
+    plan,
+    writeBook: async (columns) => {
+      assert.strictEqual(columns, null);
+      return { error: null, id: 15 };
+    },
+    writeCredits: async () => ({ error: { code: "42501", message: "Admin permission required" } }),
+    writeLegacyText: async () => {
+      legacyCalls += 1;
+      state.author = plan.legacy.author;
+      state.credits = ["ئەھمەد، باتۇر"];
+      return { error: null };
+    }
+  });
+  assert.strictEqual(outcome.status, "credit-failed");
+  assert.strictEqual(outcome.legacyWritten, false);
+  assert.strictEqual(legacyCalls, 0);
+  assert.deepStrictEqual(state.credits, ["ئەھمەد", "باتۇر"]);
+  assert.strictEqual(state.author, "ئەھمەد، باتۇر");
+});
+
+test("a network failure leaves contributors unchanged and a retry writes once", async () => {
+  const plan = C.planCreditSave({ authors: ["ئەھمەد", "باتۇر"], translators: [], publisher: "" });
+  const state = { author: "كونا", credits: ["كونا"] };
+  let attempts = 0;
+  async function writeCredits() {
+    attempts += 1;
+    if (attempts === 1) throw new Error("Failed to fetch");
+    state.author = plan.legacy.author;
+    state.credits = plan.authors.slice();
+    return { error: null };
+  }
+  const first = await C.commitAdminContributorWrite({
+    plan,
+    writeBook: async () => ({ error: null }),
+    writeCredits,
+    writeLegacyText: async () => {
+      throw new Error("legacy fallback is not a network retry");
+    }
+  });
+  assert.strictEqual(first.status, "credit-failed");
+  assert.strictEqual(first.legacyWritten, false);
+  assert.deepStrictEqual(state.credits, ["كونا"]);
+  const second = await C.commitAdminContributorWrite({
+    plan,
+    writeBook: async () => ({ error: null }),
+    writeCredits,
+    writeLegacyText: async () => ({ error: null })
+  });
+  assert.strictEqual(second.status, "saved");
+  assert.strictEqual(attempts, 2);
+  assert.deepStrictEqual(state.credits, ["ئەھمەد", "باتۇر"]);
+  assert.strictEqual(state.author, "ئەھمەد، باتۇر");
+});
+
+test("pending submission failure does not call the credit RPC", async () => {
+  const plan = C.planCreditSave({ authors: ["ئەھمەد", "باتۇر"], translators: [], publisher: "" });
+  let creditCalls = 0;
+  const outcome = await C.commitPendingSubmissionCredits({
+    plan,
+    submit: async () => ({ error: { code: "42501", message: "pending update rejected" } }),
+    writeCredits: async () => {
+      creditCalls += 1;
+      return { error: null };
+    },
+    writeLegacyText: async () => ({ error: null })
+  });
+  assert.strictEqual(outcome.status, "submission-failed");
+  assert.strictEqual(outcome.creditsCalled, false);
+  assert.strictEqual(creditCalls, 0);
+});
+
+test("staff credit rejection, network loss, and retry do not show success", async () => {
+  const plan = C.planCreditSave({ authors: ["شەھىدە", "خەدىچە"], translators: [], publisher: "" });
+  let submits = 0;
+  let credits = 0;
+  const rejected = await C.saveStaffCreditsAfterInsert(
+    async () => {
+      submits += 1;
+      return { id: 40 };
+    },
+    async () => {
+      credits += 1;
+      return { error: { code: "42501", message: "Pending book permission required" } };
+    },
+    plan
+  );
+  assert.strictEqual(rejected.panel, "incomplete");
+  assert.strictEqual(rejected.retry, true);
+  assert.notStrictEqual(rejected.panel, "success");
+  const lost = await C.applyStaffCredits(async () => {
+    throw new Error("Failed to fetch");
+  }, 40, plan);
+  assert.strictEqual(lost.status, "failed");
+  assert.strictEqual(lost.panel, "incomplete");
+  const missing = await C.saveStaffCreditsAfterInsert(
+    async () => ({ error: { message: "submit_book_for_approval failed" } }),
+    async () => {
+      credits += 1;
+      return { error: null };
+    },
+    plan
+  );
+  assert.strictEqual(missing.status, "submission-failed");
+  assert.strictEqual(missing.creditsCalled, false);
+  assert.strictEqual(credits, 1);
+  let retry = 0;
+  const first = await C.applyStaffCredits(async () => {
+    retry += 1;
+    return { error: { message: "network down" } };
+  }, 40, plan);
+  assert.strictEqual(first.panel, "incomplete");
+  const second = await C.applyStaffCredits(async () => {
+    retry += 1;
+    return { error: null };
+  }, 40, plan);
+  assert.strictEqual(second.panel, "success");
+  assert.strictEqual(second.status, "saved");
+  assert.strictEqual(submits, 1);
+  assert.strictEqual(retry, 2);
 });
 
 (async () => {

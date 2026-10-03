@@ -4,9 +4,12 @@
 --
 -- Deployment order:
 -- 1. Apply this file once in the Supabase SQL editor on the live project.
--- 2. Read public.catalog_credit_review. Those rows are legacy author, translator,
---    or publisher strings that contain a separator and were NOT split.
--- 3. Deploy the website after this file succeeds. The site keeps books.author,
+-- 2. Read public.catalog_credit_review. Reading that table does not separate
+--    any names. Those rows stay one identity until
+--    STAGE106_CATALOG_CREDIT_CORRECTIONS.sql is applied for an exact match.
+-- 3. Apply STAGE106_CATALOG_CREDIT_CORRECTIONS.sql, then run
+--    apply_catalog_credit_corrections(). Unmapped review rows stay whole.
+-- 4. Deploy the website after the SQL succeeds. The site keeps books.author,
 --    books.translator, and books.publisher for the mobile app and other clients.
 --
 -- Rollback is STAGE106_CATALOG_CREDITS_ROLLBACK.sql, run by itself.
@@ -255,6 +258,19 @@ begin
   where c.book_id = p_book_id and c.role = v_role;
   v_current_join := public.catalog_credit_legacy_join(v_current);
   if v_new_key is not distinct from v_current_join then
+    return;
+  end if;
+
+  -- An ambiguous legacy string is not one person. A text write must not
+  -- replace separate contributors with one combined identity. Reading
+  -- catalog_credit_review does not split it. The reviewed correction file
+  -- matches the whole string and writes the ordered names in one transaction.
+  if public.catalog_credit_legacy_ambiguous(p_new) then
+    if v_new_key is not null then
+      insert into public.catalog_credit_review (book_id, role, legacy_value, reason)
+      values (p_book_id, v_role, v_new_key, 'legacy-value-not-split')
+      on conflict (book_id, role, legacy_value) do nothing;
+    end if;
     return;
   end if;
 

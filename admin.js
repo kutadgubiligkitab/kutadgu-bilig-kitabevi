@@ -42,6 +42,7 @@ const LIVE_OPTIONAL_BOOK_COLS={isbn:true,publisher:true,href:false,stock:false,s
 
 let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let creditSaveMode="create";
+let creditEditor=null;
 let profileById=new Map();
 let adminOrders=[];
 let adminOrderTotal=0;
@@ -281,6 +282,9 @@ function bindAdminNavigation(){
 }
 function modal(open){
   if(!open){
+    const editor=creditEditorState();
+    if(editor)editor.openCreate();
+    creditSaveMode="create";
     applyPendingEditChrome(false);
     closeOriginalPriceCorrectModal();
     closePriceRollbackModal();
@@ -2440,6 +2444,10 @@ function addCreditInput(extrasId,value,suggestField){
   remove.addEventListener("click",()=>row.remove());
   row.append(input,remove);
   extras.appendChild(row);
+  input.addEventListener("input",()=>{
+    const editor=creditEditorState();
+    if(editor)editor.markDirty();
+  });
   const S=window.KutadguBookEntrySuggest;
   if(S&&S.attachCombobox){
     S.attachCombobox(input,()=>S.uniqueValuesFromRows(suggestionCatalogRows(),suggestField));
@@ -2476,6 +2484,7 @@ function currentCreditPlan(){
     };
   }
   return Credits.planCreditSave({
+    loading:creditSaveMode==="loading",
     blocked:creditSaveMode==="blocked",
     legacyOnly:creditSaveMode==="legacyOnly",
     authors,
@@ -2483,57 +2492,99 @@ function currentCreditPlan(){
     publisher
   });
 }
-function applyCreditColumns(row,plan){
-  if(!row||!plan||plan.omitLegacy){
-    if(row){
-      delete row.author;
-      delete row.translator;
-      delete row.publisher;
-    }
-    return;
-  }
-  row.author=plan.legacy.author;
-  row.translator=plan.legacy.translator;
-  row.publisher=plan.legacy.publisher;
-}
-async function persistStructuredCredits(bookId,plan){
-  if(!plan||!plan.writeCredits||!db||bookId==null||String(bookId).trim()==="")return;
-  const {error}=await db.rpc("set_book_credits",{
-    p_book_id:Number(bookId),
-    p_authors:plan.authors,
-    p_translators:plan.translators,
-    p_publisher:plan.publisher
-  });
-  if(!error)return;
+function creditEditorState(){
   const Credits=window.KutadguCredits;
-  if(Credits&&Credits.creditRpcMissing&&Credits.creditRpcMissing(error)){
-    alert("كىتاب تېكىستى ساقلاندى. ئايرىم ئاپتور، تەرجىمان ۋە نەشرىيات ئۇلانمىسى ئۈچۈن STAGE106_CATALOG_CREDITS.sql نى Supabase SQL Editor دا Run قىلىڭ.");
+  if(!Credits||!Credits.createCreditEditor)return null;
+  if(!creditEditor)creditEditor=Credits.createCreditEditor();
+  return creditEditor;
+}
+function watchCreditEditorInput(input){
+  if(!input||input.dataset.creditWatch==="1")return;
+  input.dataset.creditWatch="1";
+  input.addEventListener("input",()=>{
+    const editor=creditEditorState();
+    if(editor)editor.markDirty();
+  });
+}
+function applyCreditColumns(row,plan){
+  const Credits=window.KutadguCredits;
+  const columns=Credits&&Credits.legacyColumnsForBookWrite?Credits.legacyColumnsForBookWrite(plan):null;
+  if(!row)return;
+  if(!columns){
+    delete row.author;
+    delete row.translator;
+    delete row.publisher;
     return;
   }
-  alert("كىتاب ساقلاندى، لېكىن ئاپتور ئۇلانمىسى ساقلانمىدى.\n"+(error.message||error));
+  row.author=columns.author;
+  row.translator=columns.translator;
+  row.publisher=columns.publisher;
 }
-async function loadEditorCredits(book){
-  creditSaveMode="ready";
+async function finishContributorWrite(bookId,plan){
+  const Credits=window.KutadguCredits;
+  if(!plan||!plan.writeCredits)return;
+  if(bookId==null||String(bookId).trim()===""){
+    throw new Error("كىتاب ID تېپىلمىدى. ئاپتور ئۇلانمىسى ساقلانمىدى.");
+  }
+  if(!db||!Credits||!Credits.commitAdminContributorWrite){
+    throw new Error("ئاپتور ئۇلانمىسى ساقلانمىدى. ئىلگىرىكى ئاپتور، تەرجىمان ۋە نەشرىيات ئۆزگەرمىدى.");
+  }
+  const outcome=await Credits.commitAdminContributorWrite({
+    plan,
+    writeBook:async()=>({error:null,id:bookId}),
+    writeCredits:()=>db.rpc("set_book_credits",{
+      p_book_id:Number(bookId),
+      p_authors:plan.authors,
+      p_translators:plan.translators,
+      p_publisher:plan.publisher
+    }),
+    writeLegacyText:legacy=>db.from("books").update({
+      author:legacy&&legacy.author||"",
+      translator:legacy?legacy.translator:null,
+      publisher:legacy?legacy.publisher:null
+    }).eq("id",bookId)
+  });
+  if(outcome.status==="credit-failed"){
+    const failure=new Error("ئاپتور ئۇلانمىسى ساقلانمىدى. ئىلگىرىكى ئاپتور، تەرجىمان ۋە نەشرىيات ئۆزگەرمىدى.\n"+((outcome.error&&outcome.error.message)||outcome.error||""));
+    failure.creditWriteFailed=true;
+    throw failure;
+  }
+  if(outcome.status==="legacy-fallback"){
+    alert("كىتاب تېكىستى ساقلاندى. ئايرىم ئاپتور، تەرجىمان ۋە نەشرىيات ئۇلانمىسى ئۈچۈن STAGE106_CATALOG_CREDITS.sql نى Supabase SQL Editor دا Run قىلىڭ.");
+  }
+}
+async function loadEditorCredits(book,token){
+  const Credits=window.KutadguCredits;
+  const editor=creditEditorState();
   resetCreditExtras();
-  if(!db||!book||book.id==null)return;
-  const {data,error}=await db.from("book_credits").select("role,position,identity_id,catalog_identities(id,display_name)").eq("book_id",book.id).order("position");
-  if(error){
-    const Credits=window.KutadguCredits;
-    creditSaveMode=Credits&&Credits.creditRelationMissing&&Credits.creditRelationMissing(error)?"legacyOnly":"blocked";
-    if(creditSaveMode==="blocked"){
+  if(!editor||!Credits||!Credits.loadCreditEditor){
+    creditSaveMode="blocked";
+    return;
+  }
+  const settled=await Credits.loadCreditEditor(editor,token,book&&book.id,async()=>{
+    if(!db||!book||book.id==null)return {ok:true,rows:[]};
+    const {data,error}=await db.from("book_credits").select("role,position,identity_id,catalog_identities(id,display_name)").eq("book_id",book.id).order("position");
+    if(error)return {ok:false,missing:!!(Credits.creditRelationMissing&&Credits.creditRelationMissing(error)),error};
+    return {ok:true,rows:Array.isArray(data)?data:[]};
+  });
+  if(!settled||settled.ignored)return;
+  creditSaveMode=settled.mode||creditSaveMode;
+  if(!settled.applied){
+    if(settled.mode==="blocked"){
       alert("ئاپتور ۋە تەرجىمان ئۇچۇرى يۈكلەنمىدى. باشقا مەيدانلارنى ساقلىسىڭىز، ئاپتور ئۇچۇرى ئۆزگەرمەيدۇ.");
     }
     return;
   }
-  const next=Object.assign({},book,{credits:Array.isArray(data)?data:[]});
+  const next=Object.assign({},book,{credits:Array.isArray(settled.rows)?settled.rows:[]});
   fillCreditRole("bookAuthor","bookAuthorExtras",next,"author","author");
   fillCreditRole("bookTranslator","bookTranslatorExtras",next,"translator","translator");
-  const Credits=window.KutadguCredits;
-  const publisher=Credits&&Credits.roleEntries?Credits.roleEntries(next,"publisher"):[];
+  const publisher=Credits.roleEntries?Credits.roleEntries(next,"publisher"):[];
   if(publisher.length&&$("#bookPublisher"))$("#bookPublisher").value=publisher[0].name;
 }
 function clearForm(){
-  creditSaveMode="create";
+  const editor=creditEditorState();
+  if(editor)editor.openCreate();
+  creditSaveMode=editor?editor.snapshot().mode:"create";
   resetCreditExtras();
   applyPendingEditChrome(false);
   editing=null;
@@ -2633,13 +2684,21 @@ async function openEdit(id){
   hideCreateConflict();
   resetGalleryDraft(normalizeGalleryField(b.gallery_images,b.image_url));
   applyPendingEditChrome(isPendingSubmissionRow(b));
+  const editor=creditEditorState();
+  const creditToken=editor?editor.openBook(b.id):null;
+  creditSaveMode=editor?editor.snapshot().mode:"loading";
+  watchCreditEditorInput($("#bookAuthor"));
+  watchCreditEditorInput($("#bookTranslator"));
+  watchCreditEditorInput($("#bookPublisher"));
   if(pendingEditMode){
     $("#bookModalTitle").textContent="كىتاب ئۇچۇرلىرىنى تەكشۈرۈش";
     fillPendingReviewFields(b);
   }
   modal(true);
   logSavePlan(planCurrentSave());
-  try{await loadEditorCredits(b)}catch(err){creditSaveMode="blocked"}
+  try{await loadEditorCredits(b,creditToken)}catch(err){
+    if(editor&&creditToken&&editor.complete(creditToken,"blocked"))creditSaveMode="blocked";
+  }
 }
 function renderOriginalPriceStatus(value,opts){
   const el=$("#bookOriginalPriceStatus");
@@ -4298,7 +4357,7 @@ async function saveBook(e){
     if(pendingSave){
       Object.assign(row,pendingReview.values);
       const pendingPayload=pendingEditPayload(row,imageUrl,galleryUrls);
-      if(creditPlan.omitLegacy){
+      if(creditPlan.omitLegacy||creditPlan.writeCredits){
         delete pendingPayload.author;
         delete pendingPayload.translator;
         delete pendingPayload.publisher;
@@ -4308,7 +4367,7 @@ async function saveBook(e){
         :await persistPendingSubmission(editingBookId,pendingPayload);
       if(attempt!==saveAttempt)return;
       if(pendingResult&&pendingResult.error)throw pendingResult.error;
-      await persistStructuredCredits(editingBookId,creditPlan);
+      await finishContributorWrite(editingBookId,creditPlan);
       setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
       modal(false);
       showAdminSection("submissions",{skipLoad:true});
@@ -4419,12 +4478,18 @@ async function saveBook(e){
     }
     if(error)throw error;
     if(attempt!==saveAttempt)return;
-    await persistStructuredCredits(persistSavedId(persistResult,isEdit?editingBookId:""),creditPlan);
+    const savedId=persistSavedId(persistResult,isEdit?editingBookId:"");
+    if(!isEdit&&savedId){
+      editing={id:savedId,author:(creditPlan.legacy&&creditPlan.legacy.author)||""};
+      setSaveMode("edit");
+      if($("#bookId"))$("#bookId").value=savedId;
+    }
+    await finishContributorWrite(savedId,creditPlan);
     rememberAdminSuggestionRow({
       title:row.title,
-      author:row.author,
-      translator:row.translator,
-      publisher:row.publisher,
+      author:(creditPlan.legacy&&creditPlan.legacy.author)||row.author,
+      translator:(creditPlan.legacy&&creditPlan.legacy.translator)||row.translator,
+      publisher:(creditPlan.legacy&&creditPlan.legacy.publisher)||row.publisher,
       isbn:isbnColumn?isbn:(row.isbn||"")
     },persistSavedId(persistResult,isEdit?editingBookId:""));
     setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");

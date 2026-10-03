@@ -177,6 +177,9 @@ function collectCreditNames(values,options){
 }
 function planCreditSave(input){
   const source=input||{};
+  if(source.loading){
+    return {ok:false,error:"loading",message:"ئاپتور ئۇچۇرى يۈكلىنىۋاتىدۇ. يۈكلەش تاماملانغۇچە ساقلىماڭ.",writeCredits:false,omitLegacy:true,authors:[],translators:[],publisher:null,legacy:{author:"",translator:null,publisher:null}};
+  }
   if(source.blocked){
     return {ok:true,error:"",message:"",writeCredits:false,omitLegacy:true,authors:[],translators:[],publisher:null,legacy:{author:"",translator:null,publisher:null}};
   }
@@ -203,6 +206,182 @@ function planCreditSave(input){
       publisher
     }
   };
+}
+function legacyColumnsForBookWrite(plan){
+  if(!plan||plan.ok===false||plan.omitLegacy||plan.writeCredits)return null;
+  const legacy=plan.legacy||{};
+  return {
+    author:legacy.author==null?"":legacy.author,
+    translator:legacy.translator==null?null:legacy.translator,
+    publisher:legacy.publisher==null?null:legacy.publisher
+  };
+}
+function createCreditEditor(){
+  let generation=0;
+  let mode="create";
+  let bookId="";
+  let dirty=false;
+  function snapshot(){
+    return {generation,mode,bookId,dirty};
+  }
+  return {
+    snapshot,
+    openCreate(){
+      generation+=1;
+      mode="create";
+      bookId="";
+      dirty=false;
+      return snapshot();
+    },
+    openBook(id){
+      generation+=1;
+      mode="loading";
+      bookId=String(id==null?"":id);
+      dirty=false;
+      return snapshot();
+    },
+    markDirty(){
+      dirty=true;
+    },
+    matches(token,id){
+      if(!token||token.generation!==generation)return false;
+      const expected=String(id==null?"":id);
+      return bookId===expected&&String(token.bookId)===expected;
+    },
+    complete(token,nextMode){
+      if(!this.matches(token,token&&token.bookId))return false;
+      if(mode!=="loading")return false;
+      mode=nextMode;
+      return true;
+    }
+  };
+}
+function settleCreditLoad(editor,token,bookId,result){
+  const source=result||{};
+  if(!editor||typeof editor.matches!=="function"||!editor.matches(token,bookId)){
+    return {ignored:true,applied:false,mode:editor&&editor.snapshot?editor.snapshot().mode:""};
+  }
+  if(editor.snapshot().mode!=="loading"){
+    return {ignored:true,applied:false,mode:editor.snapshot().mode};
+  }
+  if(editor.snapshot().dirty){
+    const kept=editor.complete(token,"ready");
+    return {ignored:!kept,applied:false,keptInput:true,mode:editor.snapshot().mode};
+  }
+  if(source.ok===false){
+    const next=source.missing?"legacyOnly":"blocked";
+    editor.complete(token,next);
+    return {ignored:false,applied:false,mode:next};
+  }
+  editor.complete(token,"ready");
+  return {ignored:false,applied:true,mode:"ready",rows:Array.isArray(source.rows)?source.rows:[]};
+}
+async function loadCreditEditor(editor,token,bookId,query){
+  let result;
+  try{
+    result=await query();
+  }catch(error){
+    result={ok:false,missing:false,error};
+  }
+  return settleCreditLoad(editor,token,bookId,result||{ok:false});
+}
+async function writeStructuredCredits(invoke){
+  let error=null;
+  try{
+    const result=await invoke();
+    error=result&&result.error||null;
+  }catch(err){
+    error=err;
+  }
+  if(!error)return {status:"saved"};
+  if(creditRpcMissing(error))return {status:"rpc-missing",error};
+  const failure=new Error(error.message||String(error));
+  failure.creditWriteFailed=true;
+  failure.cause=error;
+  throw failure;
+}
+async function commitAdminContributorWrite(options){
+  const source=options||{};
+  const plan=source.plan||{};
+  if(plan.ok===false){
+    return {status:"blocked",creditsCalled:false,bookWritten:false,legacyWritten:false};
+  }
+  const columns=legacyColumnsForBookWrite(plan);
+  const bookResult=await source.writeBook(columns);
+  if(bookResult&&bookResult.error){
+    return {status:"book-failed",creditsCalled:false,bookWritten:false,legacyWritten:!!columns,error:bookResult.error};
+  }
+  if(!plan.writeCredits){
+    return {status:"book-saved",creditsCalled:false,bookWritten:true,legacyWritten:!!columns};
+  }
+  try{
+    const outcome=await writeStructuredCredits(()=>source.writeCredits(plan));
+    if(outcome.status==="rpc-missing"){
+      const fallback=await source.writeLegacyText(plan.legacy||{});
+      if(fallback&&fallback.error){
+        return {status:"credit-failed",creditsCalled:true,bookWritten:true,legacyWritten:false,error:fallback.error};
+      }
+      return {status:"legacy-fallback",creditsCalled:true,bookWritten:true,legacyWritten:true};
+    }
+    return {status:"saved",creditsCalled:true,bookWritten:true,legacyWritten:false};
+  }catch(error){
+    return {status:"credit-failed",creditsCalled:true,bookWritten:true,legacyWritten:false,error};
+  }
+}
+async function commitPendingSubmissionCredits(options){
+  const source=options||{};
+  let submitted;
+  try{
+    submitted=await source.submit();
+  }catch(error){
+    return {status:"submission-failed",creditsCalled:false,error};
+  }
+  if(!submitted||submitted.error){
+    return {status:"submission-failed",creditsCalled:false,error:submitted&&submitted.error};
+  }
+  const outcome=await commitAdminContributorWrite({
+    plan:source.plan,
+    writeBook:async()=>({error:null,id:submitted.id}),
+    writeCredits:source.writeCredits,
+    writeLegacyText:source.writeLegacyText
+  });
+  outcome.id=submitted.id;
+  return outcome;
+}
+async function applyStaffCredits(rpc,bookId,plan){
+  if(!plan||plan.ok===false){
+    return {status:"blocked",panel:"incomplete",retry:false};
+  }
+  if(!plan.writeCredits){
+    return {status:"saved",panel:"success",retry:false};
+  }
+  try{
+    const outcome=await writeStructuredCredits(()=>rpc({
+      p_book_id:Number(bookId),
+      p_authors:plan.authors,
+      p_translators:plan.translators,
+      p_publisher:plan.publisher
+    }));
+    if(outcome.status==="rpc-missing"){
+      return {status:"rpc-missing",panel:"incomplete",retry:true,error:outcome.error};
+    }
+    return {status:"saved",panel:"success",retry:false};
+  }catch(error){
+    return {status:"failed",panel:"incomplete",retry:true,error};
+  }
+}
+async function saveStaffCreditsAfterInsert(submit,rpc,plan){
+  let submitted;
+  try{
+    submitted=await submit();
+  }catch(error){
+    return {status:"submission-failed",creditsCalled:false,panel:"error",error};
+  }
+  if(!submitted||submitted.error){
+    return {status:"submission-failed",creditsCalled:false,panel:"error",error:submitted&&submitted.error};
+  }
+  const credit=await applyStaffCredits(rpc,submitted.id,plan);
+  return Object.assign({creditsCalled:!!(plan&&plan.writeCredits),id:submitted.id},credit);
 }
 function creditRelationMissing(error){
   const code=String(error&&error.code||"");
@@ -261,6 +440,15 @@ const api={
   renderAuthorLine,
   collectCreditNames,
   planCreditSave,
+  legacyColumnsForBookWrite,
+  createCreditEditor,
+  settleCreditLoad,
+  loadCreditEditor,
+  writeStructuredCredits,
+  commitAdminContributorWrite,
+  commitPendingSubmissionCredits,
+  applyStaffCredits,
+  saveStaffCreditsAfterInsert,
   creditRelationMissing,
   creditRpcMissing,
   sameCredit,

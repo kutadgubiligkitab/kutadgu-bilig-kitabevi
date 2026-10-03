@@ -411,6 +411,8 @@ function resetStaffForm(){
   setCoverFileStatus(null);
   resetGallerySelection();
   const success=$("#staffSuccess");if(success)success.hidden=true;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=true;
+  pendingCreditRetry=null;
   const bookForm=$("#staffBookForm");if(bookForm)bookForm.hidden=false;
   setStatus($("#staffSubmitStatus"),"", "");
 }
@@ -755,6 +757,48 @@ async function logoutStaff(){
   const member=memberApi();
   if(member&&member.signOut)await member.signOut();
 }
+let pendingCreditRetry=null;
+function showStaffCreditIncomplete(bookId,outcome){
+  pendingCreditRetry={bookId,plan:outcome&&outcome.plan};
+  const form=$("#staffBookForm");if(form)form.hidden=true;
+  const success=$("#staffSuccess");if(success)success.hidden=true;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=false;
+  const idEl=$("#staffCreditRetryId");if(idEl)idEl.textContent=String(bookId||"");
+  const message=$("#staffCreditRetryMessage");
+  if(message){
+    message.textContent=outcome&&outcome.status==="rpc-missing"
+      ?"كىتاب قۇرۇلدى، لېكىن ئايرىم ئاپتور ئۇلانمىسى يوق. STAGE106_CATALOG_CREDITS.sql نى Run قىلغاندىن كېيىن قايتا ساقلاڭ. بۇ قايتا ساقلاش كىتابنى قايتا قۇرمايدۇ."
+      :"كىتاب قۇرۇلدى، لېكىن ئاپتور ئۇلانمىسى ساقلانمىدى. بۇ تولۇق مۇۋەپپەقىيەت ئەمەس. قايتا ساقلاش پەقەت ئۇلانمىنى يازىدۇ.";
+  }
+}
+function showStaffSuccess(bookId){
+  pendingCreditRetry=null;
+  const retry=$("#staffCreditRetry");if(retry)retry.hidden=true;
+  const form=$("#staffBookForm");if(form)form.hidden=true;
+  const success=$("#staffSuccess");if(success)success.hidden=false;
+  const idEl=$("#staffNewBookId");if(idEl)idEl.textContent=String(bookId||"");
+  const note=$("#staffCreditNote");if(note){note.hidden=true;note.textContent="";}
+}
+async function retryStaffCredits(){
+  const pending=pendingCreditRetry;
+  const Credits=window.KutadguCredits;
+  const client=db();
+  const status=$("#staffSubmitStatus");
+  if(!pending||!client||!Credits||!Credits.applyStaffCredits)return;
+  const btn=$("#staffCreditRetryBtn");
+  if(btn)btn.disabled=true;
+  try{
+    const outcome=await Credits.applyStaffCredits(args=>client.rpc("set_own_pending_book_credits",args),pending.bookId,pending.plan);
+    if(!outcome||outcome.panel!=="success"){
+      showStaffCreditIncomplete(pending.bookId,Object.assign({},outcome,{plan:pending.plan}));
+      return;
+    }
+    showStaffSuccess(pending.bookId);
+    setStatus(status,"","");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
 async function submitBook(e){
   e.preventDefault();
   const status=$("#staffSubmitStatus");
@@ -791,26 +835,19 @@ async function submitBook(e){
     const {data,error}=await client.rpc("submit_book_for_approval",{payload:payload});
     if(error)throw error;
     const newId=Array.isArray(data)?data[0]:data;
-    const note=$("#staffCreditNote");
-    if(note){note.hidden=true;note.textContent="";}
-    if(creditPlan.writeCredits&&newId!=null&&String(newId).trim()!==""){
-      const creditResult=await client.rpc("set_own_pending_book_credits",{
-        p_book_id:Number(newId),
-        p_authors:creditPlan.authors,
-        p_translators:creditPlan.translators,
-        p_publisher:creditPlan.publisher
-      });
-      if(creditResult&&creditResult.error&&note){
-        const Credits=window.KutadguCredits;
-        note.hidden=false;
-        note.textContent=Credits&&Credits.creditRpcMissing&&Credits.creditRpcMissing(creditResult.error)
-          ?"كىتاب يوللاندى. ئايرىم ئاپتور ئۇلانمىسى ئۈچۈن STAGE106_CATALOG_CREDITS.sql نى Supabase SQL Editor دا Run قىلىڭ."
-          :"كىتاب يوللاندى، لېكىن ئاپتور ئۇلانمىسى ساقلانمىدى.";
+    const Credits=window.KutadguCredits;
+    if(creditPlan.writeCredits&&Credits&&Credits.saveStaffCreditsAfterInsert){
+      const outcome=await Credits.saveStaffCreditsAfterInsert(
+        async()=>({id:newId}),
+        args=>client.rpc("set_own_pending_book_credits",args),
+        creditPlan
+      );
+      if(!outcome||outcome.panel!=="success"){
+        showStaffCreditIncomplete(newId,Object.assign({},outcome,{plan:creditPlan}));
+        return;
       }
     }
-    $("#staffBookForm").hidden=true;
-    $("#staffSuccess").hidden=false;
-    $("#staffNewBookId").textContent=String(newId||"");
+    showStaffSuccess(newId);
     const cover=$("#staffCoverFile");if(cover)cover.value="";
     resetGallerySelection();
   }catch(err){
@@ -867,6 +904,7 @@ async function init(){
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);
   const another=$("#staffAddAnother");if(another)another.onclick=()=>resetStaffForm();
+  const retryBtn=$("#staffCreditRetryBtn");if(retryBtn)retryBtn.addEventListener("click",()=>{retryStaffCredits().catch(err=>setStatus($("#staffSubmitStatus"),staffFriendlyMessage(err),"error"));});
   const source=$("#staffSource");
   if(source)source.addEventListener("change",()=>{
     const hit=categoryOptions().find(([src])=>src===source.value);
