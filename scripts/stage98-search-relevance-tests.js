@@ -143,10 +143,13 @@ test("every shop.js page loads kutadgu-search-rank.js immediately before it", ()
   for (const file of walk(root, [])) {
     const html = fs.readFileSync(file, "utf8");
     if (!html.includes("shop.js?")) continue;
-    const creditPage = /(?:^|[\\/])(book-shell|credit-books)\.html$/i.test(file);
-    const pattern = creditPage
-      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=142/
-      : /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=138/;
+    const bookShell = /(?:^|[\\/])book-shell\.html$/i.test(file);
+    const creditBooks = /(?:^|[\\/])credit-books\.html$/i.test(file);
+    const pattern = bookShell
+      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=143/
+      : creditBooks
+        ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=142/
+        : /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=138/;
     assert.match(html, pattern, path.relative(root, file));
   }
 });

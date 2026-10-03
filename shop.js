@@ -910,7 +910,13 @@ function isStorefrontVisible(book){
 }
 function indexCatalogBook(book){
   if(!book?.id)return;
-  catalogCache.set(String(book.id),book);
+  const key=String(book.id);
+  // select=* does not embed book_credits. Keep identities already loaded for this id.
+  if(book.credits==null){
+    const previous=catalogCache.get(key)||bookLookupFallback.get(key);
+    if(previous&&previous!==book&&Array.isArray(previous.credits))book.credits=previous.credits;
+  }
+  catalogCache.set(key,book);
   bookLookupFallback.set(String(book.id),book);
   persistBookAliases(book);
   if(book.legacyId){

@@ -26,13 +26,13 @@ const META_LABELS = [
 ];
 
 const FROZEN = {
-  "shop.js": "8afd2e3f211cd1f0ae78cbd2dcb6d1fc3607a9ac90683b1bfe1b7c0d31fefe4e",
+  "shop.js": "cb70db3d00bade0309bc028d7ad3f31c769e13bf942970193a9840339d932de6",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "80ba6d7aeafd20289617865f305acce897ac4a8bb4998efee0085200e3b99656",
+  "book-shell.html": "e5a045b4600d5fdc2429bbeaa8ba33c32e7c0aea385e97e6ae9b0630c7a82764",
   "index.html": "cb8f1fe832706455520ecdde5c6e242aab4f218d368c53ec5d8db1418ef02a13",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452"
