@@ -77,13 +77,13 @@ Android package `com.kutadgubilig.kitabevi`. Production signing SHA-256 `2C:D7:4
 
 ## Last verified runtime/application baseline
 
-Catalog credit browsing is verified on `cursor/catalog-credit-browsing-c4dc` at `CATALOG_CREDIT_SHA`. It is not merged and not deployed. Production still serves `20bd3cd3915717824ae36a26fa65b3d7087c986a` on Worker `822f9e2f-f02e-4e15-9559-9c90f00f8af9`. `STAGE106_CATALOG_CREDITS.sql` has not been applied. `origin/main` at verification was `66e36ec78f21cb3e4e24b9d42b5c9665b14a9304`, a documentation commit after #240. This baseline moves because detail links, credit listings, and contributor saves change application behavior. The live site stays on the previous baseline until this branch is merged, the SQL is applied by hand, and the site is deployed after that.
+Catalog credit browsing is verified on `cursor/catalog-credit-browsing-c4dc` at `8e328620bc1b0946e66dd2dad722a7f9b9db0c56`. It is not merged and not deployed. Production still serves `20bd3cd3915717824ae36a26fa65b3d7087c986a` on Worker `822f9e2f-f02e-4e15-9559-9c90f00f8af9`. `STAGE106_CATALOG_CREDITS.sql` has not been applied. `origin/main` at verification was `66e36ec78f21cb3e4e24b9d42b5c9665b14a9304`, a documentation commit after #240. This baseline moves because detail links, credit listings, and contributor saves change application behavior. The live site stays on the previous baseline until this branch is merged, the SQL is applied by hand, and the site is deployed after that.
 
 This SHA is the last verified application and runtime baseline. It is not necessarily the current `origin/main` tip. Compare the two before substantial work. A documentation-only commit does not require changing it.
 
 | | |
 |---|---|
-| Commit | `CATALOG_CREDIT_SHA` |
+| Commit | `8e328620bc1b0946e66dd2dad722a7f9b9db0c56` |
 | Subject | Add author, publisher, and translator book browsing |
 | Date | 2026-10-03 |
 | Branch | `cursor/catalog-credit-browsing-c4dc` |
