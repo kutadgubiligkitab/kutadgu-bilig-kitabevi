@@ -68,6 +68,7 @@
           <p class="admin-sidenav-title">باشقۇرۇش تىزىملىكى</p>
           <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="reviews">📝 كىتاب باھالىرى</button>
           <button type="button" class="admin-nav-item" data-admin-section="overview">📊 ئومۇمىي كۆرۈنۈش</button>
           <button type="button" class="admin-nav-item" data-admin-section="storefront">📢 توربەت مەزمۇنى</button>
           <button type="button" class="admin-nav-item" data-admin-section="import-covers">📥 ئىمپورت ۋە مۇقاۋا</button>
@@ -82,6 +83,7 @@
             <select id="adminSectionSelect" aria-label="باشقۇرۇش بۆلىكى">
               <option value="books">📚 كىتابلار</option>
               <option value="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</option>
+              <option value="reviews">📝 كىتاب باھالىرى</option>
               <option value="overview">📊 ئومۇمىي كۆرۈنۈش</option>
               <option value="storefront">📢 توربەت مەزمۇنى</option>
               <option value="import-covers">📥 ئىمپورت ۋە مۇقاۋا</option>
@@ -385,6 +387,13 @@
         <p id="pendingSubmissionCount" class="admin-help" role="status">تەستىق ساقلاۋاتقان: 0</p>
         <div id="pendingSubmissionStatus" class="admin-status">تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىدۇ.</div>
         <div id="pendingSubmissionList" class="admin-submission-list"></div>
+      </section>
+
+      <section class="admin-card" id="bookReviewsCard" data-admin-section-panel="reviews" hidden>
+        <h2>📝 كىتاب باھالىرى</h2>
+        <p class="admin-help">تەستىق ساقلاۋاتقان باھالار. تەستىقلانغان باھا كىتاب بېتىدە كۆرۈنىدۇ. رەت قىلىنغان باھا كۆرۈنمەيدۇ.</p>
+        <div id="bookReviewModerationStatus" class="admin-status" role="status"></div>
+        <div id="bookReviewModerationList"></div>
       </section>
 
       <div data-admin-section-panel="import-covers" hidden>
@@ -1019,6 +1028,7 @@
 <script defer src="kutadgu-book-entry-suggest.js?v=2"></script>
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
-  <script defer src="admin.js?v=86"></script>
+  <script defer src="admin-book-reviews.js?v=1"></script>
+  <script defer src="admin.js?v=87"></script>
 </body>
 </html>

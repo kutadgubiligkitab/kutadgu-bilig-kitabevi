@@ -264,6 +264,8 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "STAGE106_CATALOG_CREDITS.sql",
     "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
     "STAGE106_CATALOG_CREDITS_ROLLBACK.sql",
+    "STAGE107_BOOK_REVIEWS.sql",
+    "STAGE107_BOOK_REVIEWS_ROLLBACK.sql",
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||

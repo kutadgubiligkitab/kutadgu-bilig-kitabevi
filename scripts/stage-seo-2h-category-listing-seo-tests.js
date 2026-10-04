@@ -27,7 +27,7 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "e5a045b4600d5fdc2429bbeaa8ba33c32e7c0aea385e97e6ae9b0630c7a82764",
+  "book-shell.html": "bd923135a5634f1f401f2f68cbd5718426c8422a872e77d902c3232000f40519",
   "index.html": "560d2c0303c03972f16813741e44e06421642cc07db350ed6279205db02829e2",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
@@ -671,7 +671,16 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/catalog-credit-link-persistence.spec.js",
     "tests/e2e/premium-discovery-cover-retry.spec.js",
     "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
-    "scripts/stage106-isolated-verify.js"
+    "scripts/stage106-isolated-verify.js",
+    "STAGE107_BOOK_REVIEWS.sql",
+    "STAGE107_BOOK_REVIEWS_ROLLBACK.sql",
+    "book-reviews.js",
+    "book-reviews.css",
+    "admin-book-reviews.js",
+    "scripts/book-reviews-tests.js",
+    "scripts/stage107-isolated-verify.js",
+    "tests/e2e/book-reviews.spec.js",
+    "scripts/admin-order-management-tests.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
