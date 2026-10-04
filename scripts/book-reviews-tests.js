@@ -29,12 +29,17 @@ test("review text rejects empty and oversized values", () => {
   assert.strictEqual(reviews.validateReviewBody("").reason, "empty");
   assert.strictEqual(reviews.validateReviewBody("  ياخشى كىتاب  ").ok, true);
   assert.strictEqual(reviews.validateReviewBody("  ياخشى كىتاب  ").value, "ياخشى كىتاب");
-  assert.strictEqual(reviews.validateReviewBody("ئ".repeat(2000)).ok, true);
-  assert.strictEqual(reviews.validateReviewBody("ئ".repeat(2001)).reason, "long");
+  assert.strictEqual(reviews.validateReviewBody("ئ".repeat(1000)).ok, true);
+  assert.strictEqual(reviews.validateReviewBody("ئ".repeat(1001)).reason, "long");
+  assert.strictEqual(reviews.textLength("  " + "ئ".repeat(1000) + "  "), 1000);
+  assert.strictEqual(reviews.remainingLabel(1000, "ئئ"), "قالغان: 998");
 });
 
 test("pending copy is the agreed Uyghur message", () => {
-  assert.strictEqual(reviews.PENDING_MESSAGE, "باھايىڭىز تەستىقنى ساقلاۋاتىدۇ. تەستىقلانغاندىن كېيىن بۇ كىتاب بېتىدە كۆرۈنىدۇ.");
+  assert.strictEqual(reviews.PENDING_MESSAGE, "ئىنكاسىڭىز تەستىقنى ساقلاۋاتىدۇ. تەستىقلانغاندىن كېيىن بۇ كىتاب بېتىدە كۆرۈنىدۇ.");
+  assert.strictEqual(reviews.INVITE_LABEL, "كىتاب ھەققىدە ئىنكاس يېزىڭ");
+  assert.strictEqual(reviews.SIGN_IN_LABEL, "ئەزا بولغاندىن كېيىن كىتاب ھەققىدە ئىنكاس يېزىڭ");
+  assert.strictEqual(reviews.VISIBILITY_NOTE, "ئىنكاسىڭىز باشقۇرغۇچى تەستىقلىغاندىن كېيىن، بۇ كىتاب بېتىدە ھەممەيلەنگە كۆرۈنىدۇ.");
 });
 
 test("storefront renders review text through text nodes and does not moderate", () => {
@@ -56,9 +61,12 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.doesNotMatch(admin, /innerHTML|email/);
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
-  assert.match(adminHtml, /admin-book-reviews\.js\?v=2/);
-  assert.match(shell, /book-reviews\.js\?v=3/);
-  assert.match(shell, /book-reviews\.css\?v=2/);
+  assert.match(adminHtml, /admin-book-reviews\.js\?v=3/);
+  assert.match(admin, /delete_book_review/);
+  assert.match(admin, /admin_book_review_exists/);
+  assert.match(admin, /data-review-status/);
+  assert.match(shell, /book-reviews\.js\?v=4/);
+  assert.match(shell, /book-reviews\.css\?v=3/);
   assert.match(shell, /shop\.js\?v=143/);
 });
 

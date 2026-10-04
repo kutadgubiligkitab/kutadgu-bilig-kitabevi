@@ -1592,6 +1592,7 @@ async function reviewStaffSubmission(bookId,action){
     pendingSubmissions=pendingSubmissions.filter(b=>String(b.id)!==id);
     renderPendingSubmissions();
     status($("#pendingSubmissionStatus"),approve?"كىتاب تەستىقلاندى ۋە ئاممىۋى بولدى.":"تەكلىپ رەت قىلىندى ۋە ئاكتىپ ئەمەس ھالەتتە قالدى.","ok");
+    try{if(window.KutadguAdminApprovals&&typeof window.KutadguAdminApprovals.refresh==="function")window.KutadguAdminApprovals.refresh()}catch(ignore){}
     try{await Promise.all([loadPendingSubmissions(),loadBooks(),loadStats()])}catch(err){}
   }catch(err){
     status($("#pendingSubmissionStatus"),formatStaffSubmissionError(err),"error");

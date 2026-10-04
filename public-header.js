@@ -376,6 +376,15 @@
     document.addEventListener("kutadgu-member-state-synced", refreshHeaderCartCount);
   }
 
+  function ensureReviewNotices() {
+    if (typeof document === "undefined" || !document.body) return;
+    if (document.querySelector("script[src*='book-reviews.js']")) return;
+    var script = document.createElement("script");
+    script.src = "/book-reviews.js?v=4";
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
   function ensure() {
     if (typeof document === "undefined" || !document.body) return null;
     if (isExcluded()) return null;
@@ -401,6 +410,7 @@
     document.documentElement.classList.add("kutadgu-has-public-header");
     bindCartCountRefresh();
     refreshHeaderCartCount();
+    ensureReviewNotices();
     return header;
   }
 
