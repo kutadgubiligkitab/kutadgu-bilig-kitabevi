@@ -108,6 +108,38 @@ grant execute on function public.book_reviews_before_insert() to authenticated;
 revoke all on function public.moderate_book_review(uuid, text) from public, anon;
 grant execute on function public.moderate_book_review(uuid, text) to authenticated;
 
+-- Returns only the caller's pending or rejected status.
+-- security definer reads user_id without granting that column to the client.
+-- The admin moderation queue remains the table select policy, not this function.
+create or replace function public.my_book_review_status(p_book_id bigint)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when exists (
+      select 1
+      from public.book_reviews
+      where book_id = p_book_id
+        and user_id = (select auth.uid())
+        and status = 'pending'
+    ) then 'pending'
+    when exists (
+      select 1
+      from public.book_reviews
+      where book_id = p_book_id
+        and user_id = (select auth.uid())
+        and status = 'rejected'
+    ) then 'rejected'
+    else null
+  end;
+$$;
+
+revoke all on function public.my_book_review_status(bigint) from public, anon;
+grant execute on function public.my_book_review_status(bigint) to authenticated;
+
 alter table public.book_reviews enable row level security;
 alter table public.book_reviews force row level security;
 

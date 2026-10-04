@@ -43,6 +43,8 @@ test("storefront renders review text through text nodes and does not moderate", 
   assert.doesNotMatch(storefront, /moderate_book_review|is_kutadgu_admin/);
   assert.match(storefront, /submitLock/);
   assert.match(storefront, /book_id: Number\(bookId\)/);
+  assert.match(storefront, /my_book_review_status/);
+  assert.doesNotMatch(storefront, /\.in\("status"/);
   assert.doesNotMatch(storefront, /user_id:/);
 });
 
@@ -54,8 +56,9 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.doesNotMatch(admin, /innerHTML|email/);
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
-  assert.match(adminHtml, /admin-book-reviews\.js\?v=1/);
-  assert.match(shell, /book-reviews\.js\?v=1/);
+  assert.match(adminHtml, /admin-book-reviews\.js\?v=2/);
+  assert.match(shell, /book-reviews\.js\?v=2/);
+  assert.match(shell, /book-reviews\.css\?v=2/);
   assert.match(shell, /shop\.js\?v=143/);
 });
 
@@ -72,6 +75,10 @@ test("review SQL keeps anonymous reads off the admin helper", () => {
   assert.match(sql, /grant insert \(book_id, body\)/);
   assert.doesNotMatch(sql, /grant update|grant delete/i);
   assert.match(sql, /revoke all on function public\.moderate_book_review\(uuid, text\) from public, anon/);
+  assert.match(sql, /function public\.my_book_review_status\(p_book_id bigint\)/);
+  assert.match(sql, /user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /revoke all on function public\.my_book_review_status\(bigint\) from public, anon/);
+  assert.match(sql, /grant execute on function public\.my_book_review_status\(bigint\) to authenticated/);
   assert.doesNotMatch(sql, /p\.email|profiles\.email/);
 });
 

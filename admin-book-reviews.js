@@ -100,6 +100,12 @@
     setStatus(rows.length ? "" : EMPTY_MESSAGE);
   }
 
+  function releaseDecision(approve, reject) {
+    decisionLock = false;
+    if (approve && approve.isConnected) approve.disabled = false;
+    if (reject && reject.isConnected) reject.disabled = false;
+  }
+
   async function decide(reviewId, decision, approve, reject) {
     if (decisionLock) return;
     const db = client();
@@ -107,25 +113,28 @@
       setStatus(DENIED_MESSAGE);
       return;
     }
-    const aal = await sessionAal(db);
-    if (aal !== "aal2") {
-      setStatus(AAL2_MESSAGE);
-      return;
-    }
     decisionLock = true;
-    approve.disabled = true;
-    reject.disabled = true;
-    const result = await db.rpc("moderate_book_review", { review_id: reviewId, decision: decision });
-    decisionLock = false;
-    const error = result && result.error;
-    if (error) {
-      approve.disabled = false;
-      reject.disabled = false;
-      const blob = String(error.code || "") + " " + String(error.message || "");
-      setStatus(/42501|aal2|permission/i.test(blob) ? AAL2_MESSAGE : DENIED_MESSAGE);
-      return;
+    if (approve) approve.disabled = true;
+    if (reject) reject.disabled = true;
+    try {
+      const aal = await sessionAal(db);
+      if (aal !== "aal2") {
+        setStatus(AAL2_MESSAGE);
+        return;
+      }
+      const result = await db.rpc("moderate_book_review", { review_id: reviewId, decision: decision });
+      const error = result && result.error;
+      if (error) {
+        const blob = String(error.code || "") + " " + String(error.message || "");
+        setStatus(/42501|aal2|permission/i.test(blob) ? AAL2_MESSAGE : DENIED_MESSAGE);
+        return;
+      }
+      await load();
+    } catch (error) {
+      setStatus(DENIED_MESSAGE);
+    } finally {
+      releaseDecision(approve, reject);
     }
-    await load();
   }
 
   window.KutadguAdminReviews = { load: load, jwtAal: jwtAal };

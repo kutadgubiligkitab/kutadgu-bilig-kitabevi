@@ -162,6 +162,43 @@ async function main() {
     check("stored body keeps markup as text", stored.rows[0].body === "<script>alert(1)</script>", stored.rows[0].body);
     check("stored row does not copy the member email", stored.rows[0].display_name !== "member-secret@example.com");
 
+    const memberStatus = await asRole(client, "authenticated", MEMBER, "aal1", async () => {
+      const row = await client.query("select public.my_book_review_status($1) as status", [activeId]);
+      return row.rows[0].status;
+    });
+    check("member status read returns that member's pending review", memberStatus === "pending", String(memberStatus));
+
+    const otherStatus = await asRole(client, "authenticated", OTHER, "aal1", async () => {
+      const row = await client.query("select public.my_book_review_status($1) as status", [activeId]);
+      return row.rows[0].status;
+    });
+    check("another member's pending review does not become this member's status", otherStatus == null, String(otherStatus));
+
+    const adminStatus = await asRole(client, "authenticated", ADMIN, "aal2", async () => {
+      const row = await client.query("select public.my_book_review_status($1) as status", [activeId]);
+      return row.rows[0].status;
+    });
+    check("admin AAL2 status read does not adopt another member's pending review", adminStatus == null, String(adminStatus));
+
+    const adminQueue = await asRole(client, "authenticated", ADMIN, "aal2", async () => {
+      const rows = await client.query("select id, status from public.book_reviews where status = 'pending'");
+      return rows.rows;
+    });
+    check("admin AAL2 moderation queue still reads the pending review", adminQueue.length === 1 && adminQueue[0].id === inserted.id && adminQueue[0].status === "pending", JSON.stringify(adminQueue));
+
+    const statusPrivileges = await client.query(
+      "select has_function_privilege('anon', 'public.my_book_review_status(bigint)', 'execute') as anon_exec, has_function_privilege('authenticated', 'public.my_book_review_status(bigint)', 'execute') as auth_exec, (select prosecdef from pg_proc where proname = 'my_book_review_status') as definer"
+    );
+    check(
+      "own-status execute is limited to authenticated",
+      statusPrivileges.rows[0].anon_exec === false && statusPrivileges.rows[0].auth_exec === true && statusPrivileges.rows[0].definer === true,
+      JSON.stringify(statusPrivileges.rows[0])
+    );
+
+    await expectError("anonymous cannot execute the own-status read", () => asRole(client, "anon", null, "aal1", () =>
+      client.query("select public.my_book_review_status($1)", [activeId])
+    ), /permission denied/i);
+
     await expectError("second pending insert from the same member is rejected", () => asRole(client, "authenticated", MEMBER, "aal1", () =>
       client.query("insert into public.book_reviews (book_id, body) values ($1, 'قايتا')", [activeId])
     ), /duplicate|unique/i);
@@ -253,12 +290,42 @@ async function main() {
     });
     check("rejected review is hidden from anonymous readers", rejectedHidden.length === 0);
 
+    const rejectedStatus = await asRole(client, "authenticated", OTHER, "aal1", async () => {
+      const row = await client.query("select public.my_book_review_status($1) as status", [otherId]);
+      return row.rows[0].status;
+    });
+    check("member status read returns that member's rejected review", rejectedStatus === "rejected", String(rejectedStatus));
+
+    const adminRejectedStatus = await asRole(client, "authenticated", ADMIN, "aal2", async () => {
+      const row = await client.query("select public.my_book_review_status($1) as status", [otherId]);
+      return row.rows[0].status;
+    });
+    check("admin AAL2 status read does not adopt another member's rejected review", adminRejectedStatus == null, String(adminRejectedStatus));
+
+    const anonVisible = await asRole(client, "anon", null, "aal1", async () => {
+      const rows = await client.query("select book_id, status from public.book_reviews order by book_id");
+      return rows.rows;
+    });
+    check(
+      "anonymous readers still see only approved reviews of active books",
+      anonVisible.length === 1 && anonVisible[0].status === "approved" && String(anonVisible[0].book_id) === String(activeId),
+      JSON.stringify(anonVisible)
+    );
+
+    await expectError("authenticated cannot read the user id column", () => asRole(client, "authenticated", ADMIN, "aal2", () =>
+      client.query("select user_id from public.book_reviews")
+    ), /permission denied/i);
+
     await client.query(readSql("STAGE107_BOOK_REVIEWS_ROLLBACK.sql"));
     const gone = await client.query("select to_regclass('public.book_reviews') as name");
     check("rollback removes the review table", gone.rows[0].name === null);
+    const functionGone = await client.query("select to_regprocedure('public.my_book_review_status(bigint)') as name");
+    check("rollback removes the own-status function", functionGone.rows[0].name === null);
     await client.query(readSql("STAGE107_BOOK_REVIEWS.sql"));
     const back = await client.query("select to_regclass('public.book_reviews') as name");
     check("review SQL can be applied again after rollback", back.rows[0].name === "book_reviews");
+    const functionBack = await client.query("select to_regprocedure('public.my_book_review_status(bigint)') as name");
+    check("own-status function returns after the review SQL is applied again", functionBack.rows[0].name === "my_book_review_status(bigint)");
   } finally {
     if (client) await client.end().catch(() => {});
     await server.stop().catch(() => {});

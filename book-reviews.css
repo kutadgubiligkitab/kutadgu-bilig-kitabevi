@@ -2,11 +2,16 @@
   margin:8px 0 0;
   color:var(--site-text,#44352d);
 }
-.book-reviews-invite{
+.book-reviews-invite,
+.book-reviews-retry{
   margin:0;
 }
+.book-reviews-retry{
+  margin-top:8px;
+}
 .book-reviews-invite button,
-.book-reviews-invite a{
+.book-reviews-invite a,
+.book-reviews-retry button{
   padding:0;
   border:0;
   background:transparent;

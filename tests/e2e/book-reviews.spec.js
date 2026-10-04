@@ -63,6 +63,8 @@ async function installStorefront(page, state) {
       state.inserts.push(req.postDataJSON());
       return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
     }
+    if (!state.reviewGets) state.reviewGets = [];
+    state.reviewGets.push(url.search);
     const status = String(url.searchParams.get("status") || "");
     if (status.indexOf("approved") !== -1) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(state.approved) });
@@ -88,7 +90,12 @@ async function openBook(page) {
 }
 
 test("signed-out readers see approved text and a compact invitation", async ({ page }) => {
-  const state = { approved: [], own: [], inserts: [] };
+  const state = {
+    approved: [],
+    own: [{ id: "hidden", display_name: "باشقا", body: "يوشۇرۇن باھا", status: "pending", created_at: "2026-10-01T00:00:00Z" }],
+    inserts: [],
+    reviewGets: []
+  };
   await installStorefront(page, state);
   await page.setViewportSize({ width: 1280, height: 900 });
   await openBook(page);
@@ -96,6 +103,13 @@ test("signed-out readers see approved text and a compact invitation", async ({ p
   await expect(invite).toBeVisible();
   await expect(invite).toContainText("كىرىپ تۇنجى باھانى يېزىڭ");
   await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  await expect(page.locator(".book-reviews")).not.toContainText("يوشۇرۇن باھا");
+  expect(state.reviewGets.length).toBeGreaterThan(0);
+  state.reviewGets.forEach((search) => {
+    expect(search).toContain("status=eq.approved");
+    expect(search).not.toContain("pending");
+    expect(search).not.toContain("rejected");
+  });
   const box = await invite.boundingBox();
   expect(box.height).toBeLessThan(80);
   state.approved = [{ id: "r1", display_name: "ئەزا ئىسمى", body: RAW, created_at: "2026-10-01T00:00:00Z" }];
@@ -139,6 +153,9 @@ test("a signed-in submission stays pending and ignores a repeated click", async 
           }
         };
         return query;
+      },
+      rpc() {
+        return Promise.resolve({ data: null, error: null });
       }
     };
     const api = window.KutadguMember;
@@ -228,4 +245,319 @@ test("admin below AAL2 cannot send a moderation request", async ({ page }) => {
   await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#bookReviewModerationStatus")).toContainText("AAL2");
   expect(await page.evaluate(() => window.__reviewDecisions)).toEqual([]);
+});
+
+async function useReviewMember(page, memberId) {
+  await page.evaluate((id) => {
+    const control = {
+      approvedMode: "ok",
+      statusMode: "ok",
+      statusValue: null,
+      insertMode: "ok",
+      approvedRows: [],
+      inserts: [],
+      selects: [],
+      rpcs: []
+    };
+    window.__reviewControl = control;
+    const db = {
+      from() {
+        const query = {
+          columns: "",
+          select(columns) {
+            query.columns = String(columns || "");
+            control.selects.push(query.columns);
+            return query;
+          },
+          eq() { return query; },
+          in() { return query; },
+          order() { return query; },
+          limit() { return query; },
+          insert(payload) {
+            control.inserts.push(payload);
+            if (control.insertMode === "reject") return Promise.reject(new Error("insert rejected"));
+            if (control.insertMode === "error") return Promise.resolve({ data: null, error: { message: "insert failed" } });
+            if (control.insertMode === "fail-refresh") {
+              control.approvedMode = "error";
+              control.statusMode = "error";
+            }
+            return Promise.resolve({ data: null, error: null });
+          },
+          then(resolve, reject) {
+            const unscopedStatus = query.columns.indexOf("body") === -1;
+            if (unscopedStatus) {
+              return Promise.resolve({
+                data: [{ id: "other-pending", status: "pending" }, { id: "other-rejected", status: "rejected" }],
+                error: null
+              }).then(resolve, reject);
+            }
+            if (control.approvedMode === "reject") return Promise.reject(new Error("approved rejected")).then(resolve, reject);
+            if (control.approvedMode === "error") return Promise.resolve({ data: null, error: { message: "approved failed" } }).then(resolve, reject);
+            return Promise.resolve({ data: control.approvedRows.slice(), error: null }).then(resolve, reject);
+          }
+        };
+        return query;
+      },
+      rpc(name, args) {
+        control.rpcs.push({ name: name, args: args });
+        if (control.statusMode === "reject") return Promise.reject(new Error("status rejected"));
+        if (control.statusMode === "error") return Promise.resolve({ data: null, error: { message: "status failed" } });
+        return Promise.resolve({ data: control.statusValue, error: null });
+      }
+    };
+    const api = window.KutadguMember;
+    api.getUser = () => ({ id: id });
+    api.getClient = () => db;
+  }, memberId);
+}
+
+test("failed review reads show an error and retry without reloading", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openBook(page);
+  const navigations = () => page.evaluate(() => performance.getEntriesByType("navigation").length);
+  expect(await navigations()).toBe(1);
+  await useReviewMember(page, MEMBER_ID);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "error";
+    window.__reviewControl.statusMode = "error";
+  });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("kutadgu-member-change")));
+  const error = page.locator(".book-reviews-note", { hasText: "باھالار يۈكلەنمىدى." });
+  await expect(error).toBeVisible();
+  await expect(page.locator(".book-reviews-invite")).toHaveCount(0);
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "reject";
+    window.__reviewControl.statusMode = "reject";
+  });
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(error).toBeVisible();
+  await expect(page.locator(".book-reviews-invite")).toHaveCount(0);
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  expect(await navigations()).toBe(1);
+  await page.evaluate(() => {
+    const control = window.__reviewControl;
+    control.approvedMode = "ok";
+    control.statusMode = "ok";
+    control.statusValue = null;
+    control.approvedRows = [{ id: "r1", display_name: "ئەزا ئىسمى", body: "ساقلانغان باھا", created_at: "2026-10-01T00:00:00Z" }];
+  });
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(page.locator(".book-reviews-body")).toHaveText("ساقلانغان باھا");
+  await expect(error).toHaveCount(0);
+  await page.getByRole("button", { name: "باھا يېزىش" }).click();
+  await page.locator(".book-reviews-form textarea").fill("قوليازما");
+  await page.evaluate(() => {
+    const area = document.querySelector(".book-reviews-form textarea");
+    if (area) area.blur();
+    window.__reviewControl.approvedMode = "error";
+    window.__reviewControl.statusMode = "reject";
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await expect(page.locator(".book-reviews-body")).toHaveText("ساقلانغان باھا");
+  await expect(page.locator(".book-reviews-form textarea")).toHaveValue("قوليازما");
+  await expect(error).toBeVisible();
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "ok";
+    window.__reviewControl.statusMode = "ok";
+    window.__reviewControl.statusValue = "pending";
+  });
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "error";
+    window.__reviewControl.statusMode = "reject";
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await expect(page.getByRole("button", { name: "قايتا سىناش" })).toBeVisible();
+  await expect(page.locator(".book-reviews-body")).toHaveText("ساقلانغان باھا");
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(error).toBeVisible();
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "ok";
+    window.__reviewControl.statusMode = "ok";
+    window.__reviewControl.statusValue = "pending";
+  });
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(error).toHaveCount(0);
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  expect(await navigations()).toBe(1);
+  expect(await page.evaluate(() => window.__reviewControl.inserts)).toEqual([]);
+});
+
+test("a rejected insert can be submitted again and a saved review is not inserted twice", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openBook(page);
+  await useReviewMember(page, MEMBER_ID);
+  await page.evaluate(() => {
+    window.__reviewControl.insertMode = "reject";
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await page.locator(".book-reviews-invite button").click();
+  await page.locator(".book-reviews-form textarea").fill("قايتا يوللاش");
+  await page.locator(".book-reviews-form").evaluate((form) => form.requestSubmit());
+  await expect(page.locator(".book-reviews-form .book-reviews-note")).toHaveText("باھا يوللانمىدى. قايتا سىناڭ.");
+  await expect(page.locator(".book-reviews-form button")).toBeEnabled();
+  await page.evaluate(() => {
+    const area = document.querySelector(".book-reviews-form textarea");
+    if (area) area.blur();
+    window.__reviewControl.approvedRows = [{ id: "fresh", display_name: "ئەزا", body: "يېڭىلاندى", created_at: "2026-10-02T00:00:00Z" }];
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await expect(page.locator(".book-reviews-body")).toHaveText("يېڭىلاندى");
+  await expect(page.locator(".book-reviews-form textarea")).toBeVisible();
+  await page.locator(".book-reviews-form textarea").fill("قايتا يوللاش");
+  await page.evaluate(() => {
+    window.__reviewControl.insertMode = "ok";
+  });
+  await page.locator(".book-reviews-form").evaluate((form) => form.requestSubmit());
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  expect(await page.evaluate(() => window.__reviewControl.inserts)).toEqual([
+    { book_id: 252, body: "قايتا يوللاش" },
+    { book_id: 252, body: "قايتا يوللاش" }
+  ]);
+});
+
+test("a saved review stays pending when the following refresh fails", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openBook(page);
+  await useReviewMember(page, MEMBER_ID);
+  await page.evaluate(() => {
+    window.__reviewControl.insertMode = "fail-refresh";
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await page.locator(".book-reviews-invite button").click();
+  await page.locator(".book-reviews-form textarea").fill("ساقلانغان");
+  await page.locator(".book-reviews-form").evaluate((form) => form.requestSubmit());
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(page.locator(".book-reviews-note")).toHaveText("باھا ساقلاندى. كۆرۈنۈش يېڭىلانمىدى.");
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__reviewControl.inserts.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__reviewControl.approvedMode = "ok";
+    window.__reviewControl.statusMode = "ok";
+    window.__reviewControl.statusValue = "pending";
+  });
+  await page.getByRole("button", { name: "قايتا سىناش" }).click();
+  await expect(page.locator(".book-reviews-pending")).toBeVisible();
+  await expect(page.locator(".book-reviews-note")).toHaveCount(0);
+  await expect(page.locator(".book-reviews-form")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__reviewControl.inserts)).toEqual([{ book_id: 252, body: "ساقلانغان" }]);
+});
+
+test("another member's pending or rejected review is not shown as this member's status", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await openBook(page);
+  await useReviewMember(page, "33333333-3333-4333-8333-333333333333");
+  await page.evaluate(() => {
+    window.__reviewControl.statusValue = null;
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await expect(page.locator(".book-reviews-invite button")).toBeVisible();
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  await expect(page.locator(".book-reviews-note:visible")).toHaveCount(0);
+  const calls = await page.evaluate(() => window.__reviewControl.rpcs);
+  expect(calls.length).toBeGreaterThan(0);
+  calls.forEach((call) => {
+    expect(call).toEqual({ name: "my_book_review_status", args: { p_book_id: 252 } });
+  });
+  await page.evaluate(() => {
+    window.__reviewControl.statusValue = "rejected";
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  });
+  await expect(page.locator(".book-reviews-note:visible")).toHaveText("ئالدىنقى باھا رەت قىلىندى. يېڭى باھا يازالايسىز.");
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+});
+
+test("moderation failure restores both buttons and a later click can succeed", async ({ page }) => {
+  await page.addInitScript(() => {
+    const payload = btoa(JSON.stringify({ aal: "aal2" })).replace(/=+$/g, "");
+    const token = "e30." + payload + ".sig";
+    const session = { data: { session: { access_token: token } }, error: null };
+    let rows = [{
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      book_id: 252,
+      display_name: "ئەزا ئىسمى",
+      body: "تەستىق",
+      status: "pending",
+      created_at: "2026-10-01T00:00:00Z"
+    }];
+    let release;
+    window.__reviewGate = new Promise((resolve) => { release = resolve; });
+    window.__releaseReview = () => release();
+    window.__reviewSessions = 0;
+    window.__reviewDecisions = [];
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguBookReviewAdminClient = {
+      auth: {
+        getSession() {
+          window.__reviewSessions += 1;
+          if (window.__reviewSessions === 1) return Promise.resolve(session);
+          return window.__reviewGate.then(() => session);
+        }
+      },
+      from() {
+        const query = {
+          select() { return query; },
+          eq() { return query; },
+          order() { return query; },
+          limit() { return query; },
+          then(resolve, reject) { return Promise.resolve({ data: rows.slice(), error: null }).then(resolve, reject); }
+        };
+        return query;
+      },
+      rpc(name, args) {
+        window.__reviewDecisions.push({ name: name, args: args });
+        if (window.__reviewDecisions.length === 1) return Promise.resolve({ data: null, error: { message: "nope", code: "500" } });
+        if (window.__reviewDecisions.length === 2) return Promise.reject(new Error("rpc rejected"));
+        rows = [];
+        return Promise.resolve({ data: null, error: null });
+      }
+    };
+  });
+  await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
+  const item = page.locator(".admin-review-item");
+  await expect(item).toBeVisible();
+  const approve = item.getByRole("button", { name: "تەستىقلاش" });
+  const reject = item.getByRole("button", { name: "رەت قىلىش" });
+  await page.evaluate(() => {
+    const button = document.querySelector(".admin-review-actions .admin-primary");
+    const rejectButton = document.querySelector(".admin-review-actions .admin-secondary");
+    button.click();
+    window.__heldDisabled = button.disabled && rejectButton.disabled;
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.__reviewSessions)).toBe(2);
+  expect(await page.evaluate(() => window.__heldDisabled)).toBe(true);
+  expect(await page.evaluate(() => window.__reviewDecisions)).toEqual([]);
+  await expect(approve).toBeDisabled();
+  await expect(reject).toBeDisabled();
+  await page.evaluate(() => window.__releaseReview());
+  await expect(approve).toBeEnabled();
+  await expect(reject).toBeEnabled();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("بۇ مەشغۇلاتقا ئىجازەت يوق.");
+  expect(await page.evaluate(() => window.__reviewDecisions.length)).toBe(1);
+  await approve.click();
+  await expect(approve).toBeEnabled();
+  await expect(reject).toBeEnabled();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("بۇ مەشغۇلاتقا ئىجازەت يوق.");
+  expect(await page.evaluate(() => window.__reviewDecisions.length)).toBe(2);
+  await approve.click();
+  await expect(page.locator("#bookReviewModerationStatus")).toContainText("تەستىق ساقلاۋاتقان باھا يوق");
+  expect(await page.evaluate(() => window.__reviewDecisions.length)).toBe(3);
+  await expect(page.locator(".admin-review-item")).toHaveCount(0);
 });

@@ -13,6 +13,9 @@
   const EMPTY_MESSAGE = "باھا يېزىڭ.";
   const LONG_MESSAGE = "باھا 2000 ھەرپتىن ئېشىپ كەتمىسۇن.";
   const SEND_FAILED = "باھا يوللانمىدى. قايتا سىناڭ.";
+  const READ_FAILED = "باھالار يۈكلەنمىدى.";
+  const RETRY_LABEL = "قايتا سىناش";
+  const SAVED_REFRESH_FAILED = "باھا ساقلاندى. كۆرۈنۈش يېڭىلانمىدى.";
 
   function validateReviewBody(value) {
     const text = String(value == null ? "" : value).replace(/\u0000/g, "").trim();
@@ -75,9 +78,20 @@
     }
     if (state.pending) {
       host.appendChild(el("p", "book-reviews-pending", PENDING_MESSAGE));
+      if (state.refreshFailed) host.appendChild(el("p", "book-reviews-note", SAVED_REFRESH_FAILED));
+      else if (state.readError) host.appendChild(el("p", "book-reviews-note", READ_FAILED));
+      if (state.readError || state.refreshFailed) appendRetry(host, state);
       return host;
     }
     if (state.rejected) host.appendChild(el("p", "book-reviews-note", REJECTED_NOTE));
+    if (state.readError) {
+      host.appendChild(el("p", "book-reviews-note", READ_FAILED));
+      appendRetry(host, state);
+    }
+    if (state.ownUnknown || state.unknownReviews || (state.readError && !reviews.length)) {
+      if (signedIn && !state.ownUnknown) host.appendChild(buildForm(state));
+      return host;
+    }
     if (!reviews.length) {
       const invite = el("p", "book-reviews-invite");
       if (signedIn) {
@@ -105,6 +119,17 @@
     }
     if (signedIn) host.appendChild(buildForm(state));
     return host;
+  }
+
+  function appendRetry(host, state) {
+    const retry = el("p", "book-reviews-retry");
+    const button = el("button", "", RETRY_LABEL);
+    button.type = "button";
+    button.addEventListener("click", () => {
+      if (typeof state.onRetry === "function") state.onRetry();
+    });
+    retry.appendChild(button);
+    host.appendChild(retry);
   }
 
   function openForm(host) {
@@ -164,6 +189,8 @@
   let paintedKey = "";
   let running = null;
   let submitLock = false;
+  let forceQueued = false;
+  let lastGood = null;
 
   function memberApi() {
     return root.KutadguMember || null;
@@ -189,30 +216,103 @@
     return memberApi();
   }
 
+  function readerKey(bookId) {
+    const api = memberApi();
+    const user = api && typeof api.getUser === "function" ? api.getUser() : null;
+    return String(bookId) + "|" + (user && user.id ? String(user.id) : "");
+  }
+
+  function previousFor(bookId) {
+    const key = readerKey(bookId);
+    return lastGood && lastGood.key === key ? lastGood : null;
+  }
+
+  function remember(bookId, patch) {
+    const key = readerKey(bookId);
+    const previous = previousFor(bookId);
+    const reviewsKnown = !!patch.reviewsKnown || !!(previous && previous.reviewsKnown);
+    const ownKnown = !!patch.ownKnown || !!(previous && previous.ownKnown);
+    const next = {
+      key: key,
+      reviews: patch.reviewsKnown ? patch.reviews.slice() : (previous && previous.reviewsKnown ? previous.reviews.slice() : []),
+      reviewsKnown: reviewsKnown,
+      pending: patch.ownKnown ? !!patch.pending : !!(previous && previous.ownKnown && previous.pending),
+      rejected: patch.ownKnown ? !!patch.rejected : !!(previous && previous.ownKnown && previous.rejected),
+      ownKnown: ownKnown
+    };
+    if (patch.reviewsKnown || patch.ownKnown || previous) lastGood = next;
+    return next;
+  }
+
+  function stateFromMemory(bookId, readError) {
+    const api = memberApi();
+    const user = api && typeof api.getUser === "function" ? api.getUser() : null;
+    const signedIn = !!(user && user.id);
+    const stored = remember(bookId, { reviews: [], reviewsKnown: false, pending: false, rejected: false, ownKnown: false });
+    return {
+      reviews: stored.reviewsKnown ? stored.reviews.slice() : [],
+      signedIn: signedIn,
+      pending: stored.ownKnown ? stored.pending : false,
+      rejected: stored.ownKnown ? stored.rejected : false,
+      submitLock: submitLock,
+      readError: !!readError,
+      unknownReviews: !stored.reviewsKnown,
+      ownUnknown: signedIn && !stored.ownKnown
+    };
+  }
+
   async function loadState(bookId) {
     const api = await waitForMember();
     const db = api && typeof api.getClient === "function" ? api.getClient() : null;
     const user = api && typeof api.getUser === "function" ? api.getUser() : null;
     const signedIn = !!(user && user.id);
-    if (!db || typeof db.from !== "function") {
-      return { reviews: [], signedIn: signedIn, pending: false, rejected: false, submitLock: submitLock };
-    }
+    if (!db || typeof db.from !== "function") return stateFromMemory(bookId, true);
     const numericId = Number(bookId);
-    const approved = await db.from("book_reviews").select("id,display_name,body,created_at").eq("book_id", numericId).eq("status", "approved").order("created_at", { ascending: false }).limit(50);
+    let approvedFailed = false;
+    let approvedRows = [];
+    try {
+      const approved = await db.from("book_reviews").select("id,display_name,body,created_at").eq("book_id", numericId).eq("status", "approved").order("created_at", { ascending: false }).limit(50);
+      if (!approved || approved.error || !Array.isArray(approved.data)) approvedFailed = true;
+      else approvedRows = approved.data;
+    } catch (error) {
+      approvedFailed = true;
+    }
     let pending = false;
     let rejected = false;
+    let ownFailed = false;
     if (signedIn) {
-      const own = await db.from("book_reviews").select("id,status").eq("book_id", numericId).in("status", ["pending", "rejected"]);
-      const rows = own && Array.isArray(own.data) ? own.data : [];
-      pending = rows.some((row) => row && row.status === "pending");
-      rejected = !pending && rows.some((row) => row && row.status === "rejected");
+      try {
+        if (typeof db.rpc !== "function") ownFailed = true;
+        else {
+          const own = await db.rpc("my_book_review_status", { p_book_id: numericId });
+          if (!own || own.error) ownFailed = true;
+          else if (own.data == null || own.data === "") {
+            pending = false;
+            rejected = false;
+          } else if (own.data === "pending") pending = true;
+          else if (own.data === "rejected") rejected = true;
+          else ownFailed = true;
+        }
+      } catch (error) {
+        ownFailed = true;
+      }
     }
-    return {
-      reviews: approved && Array.isArray(approved.data) ? approved.data : [],
-      signedIn: signedIn,
+    const stored = remember(bookId, {
+      reviews: approvedRows,
+      reviewsKnown: !approvedFailed,
       pending: pending,
       rejected: rejected,
-      submitLock: submitLock
+      ownKnown: !signedIn || !ownFailed
+    });
+    return {
+      reviews: stored.reviewsKnown ? stored.reviews.slice() : [],
+      signedIn: signedIn,
+      pending: stored.ownKnown ? stored.pending : false,
+      rejected: stored.ownKnown ? stored.rejected : false,
+      submitLock: submitLock,
+      readError: approvedFailed || ownFailed,
+      unknownReviews: !stored.reviewsKnown,
+      ownUnknown: signedIn && !stored.ownKnown
     };
   }
 
@@ -229,51 +329,124 @@
     return { ok: false, message: SEND_FAILED };
   }
 
-  function refresh() {
-    if (running) return running;
-    running = refreshNow().finally(() => {
+  function refresh(options) {
+    const force = !!(options && options.force);
+    if (running) {
+      if (force) forceQueued = true;
+      return running;
+    }
+    running = refreshNow({ force: force }).finally(() => {
       running = null;
+      if (forceQueued) {
+        forceQueued = false;
+        refresh({ force: true });
+      }
     });
     return running;
   }
 
-  async function refreshNow() {
-    try {
+  function retryReviewRead() {
+    paintedKey = "";
+    return refresh({ force: true });
+  }
+
+  async function refreshNow(options) {
+    const force = !!(options && options.force);
     const doc = root.document;
     if (!doc) return;
     const page = doc.querySelector(".book-detail-page");
     if (!page) return;
-    const bookId = bookIdFromLocation(root.location);
-    const key = viewKey();
-    if (!bookId || !detailIsPublic(doc)) {
-      if (paintedKey === key) return;
-      page.querySelector("[data-book-reviews]")?.remove();
-      paintedKey = key;
-      return;
-    }
-    if (key === paintedKey && page.querySelector("[data-book-reviews]")) return;
-    if (submitLock) return;
-    const state = await loadState(bookId);
-    if (submitLock) return;
-    const host = mountHost(page);
-    const area = host.querySelector("textarea");
-    if (area && doc.activeElement === area) return;
-    state.onSubmit = async (body) => {
-      submitLock = true;
-      const result = await submitReview(bookId, body);
-      submitLock = false;
-      if (result && result.ok) {
-        const next = await loadState(bookId);
-        next.pending = true;
-        next.onSubmit = state.onSubmit;
-        paint(host, next);
-        paintedKey = viewKey();
+    try {
+      const bookId = bookIdFromLocation(root.location);
+      const key = viewKey();
+      if (!bookId || !detailIsPublic(doc)) {
+        if (!force && paintedKey === key) return;
+        page.querySelector("[data-book-reviews]")?.remove();
+        paintedKey = key;
+        return;
       }
-      return result;
-    };
-    paint(host, state);
-    paintedKey = viewKey();
+      if (!force && key === paintedKey && page.querySelector("[data-book-reviews]")) return;
+      if (submitLock) return;
+      const host = mountHost(page);
+      const area = host.querySelector("textarea");
+      const draft = area ? area.value : "";
+      const formOpen = !!(area && area.form && !area.form.hidden);
+      if (!force && area && doc.activeElement === area) return;
+      let state;
+      try {
+        state = await loadState(bookId);
+      } catch (error) {
+        state = stateFromMemory(bookId, true);
+      }
+      if (submitLock) return;
+      state.onRetry = retryReviewRead;
+      state.onSubmit = async (body) => {
+        if (submitLock) return { ok: false, message: SEND_FAILED };
+        submitLock = true;
+        try {
+          const result = await submitReview(bookId, body);
+          if (!(result && result.ok)) return result || { ok: false, message: SEND_FAILED };
+          let next = null;
+          let refreshFailed = false;
+          try {
+            next = await loadState(bookId);
+            refreshFailed = !!(next && next.readError);
+          } catch (error) {
+            refreshFailed = true;
+          }
+          const kept = previousFor(bookId);
+          const reviewsKnown = !!(next && !next.unknownReviews) || !!(kept && kept.reviewsKnown);
+          const reviews = next && !next.unknownReviews && Array.isArray(next.reviews)
+            ? next.reviews.slice()
+            : (kept && kept.reviewsKnown ? kept.reviews.slice() : []);
+          lastGood = {
+            key: readerKey(bookId),
+            reviews: reviews.slice(),
+            reviewsKnown: reviewsKnown,
+            pending: true,
+            rejected: false,
+            ownKnown: true
+          };
+          paint(host, {
+            reviews: reviews,
+            signedIn: true,
+            pending: true,
+            rejected: false,
+            readError: refreshFailed,
+            refreshFailed: refreshFailed,
+            saved: true,
+            unknownReviews: false,
+            ownUnknown: false,
+            onSubmit: state.onSubmit,
+            onRetry: state.onRetry
+          });
+          paintedKey = viewKey();
+          return { ok: true, saved: true };
+        } catch (error) {
+          return { ok: false, message: SEND_FAILED };
+        } finally {
+          submitLock = false;
+        }
+      };
+      paint(host, state);
+      if (draft) {
+        const nextArea = host.querySelector("textarea");
+        if (nextArea) {
+          nextArea.value = draft;
+          if (formOpen) openForm(host);
+        }
+      }
+      paintedKey = viewKey();
     } catch (error) {
+      try {
+        const bookId = bookIdFromLocation(root.location);
+        if (bookId && detailIsPublic(doc)) {
+          const host = mountHost(page);
+          const failed = stateFromMemory(bookId, true);
+          failed.onRetry = retryReviewRead;
+          paint(host, failed);
+        }
+      } catch (ignore) {}
       paintedKey = viewKey();
     }
   }
