@@ -216,7 +216,7 @@ function show(id){
     if(el)el.hidden=x!==id;
   });
 }
-const ADMIN_SECTIONS=["overview","books","submissions","storefront","import-covers","insights","customers","orders","system"];
+const ADMIN_SECTIONS=["overview","books","submissions","reviews","storefront","import-covers","insights","customers","orders","system"];
 const DEFAULT_ADMIN_SECTION="books";
 let applyingAdminSection=false;
 function parseAdminSectionHash(hash){
@@ -247,6 +247,7 @@ function showAdminSection(sectionId,opts){
   if(!options.skipLoad){
     if(id==="orders")loadAdminOrders();
     if(id==="submissions")loadPendingSubmissions();
+    if(id==="reviews"&&window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.load==="function")window.KutadguAdminReviews.load();
     if(id==="system")loadBookStaffAccounts();
   }
   if(options.updateHash===false||!dashboardAuthorized())return;
@@ -6571,6 +6572,7 @@ function init(){
   db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
     auth:(typeof window.kutadguAdminAuthOptions==="function"?window.kutadguAdminAuthOptions():{persistSession:true,detectSessionInUrl:false,flowType:"pkce",storageKey:String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1")})
   });
+  window.__kutadguAdminDb=db;
   if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
   bindBookListUx();
   $("#loginForm").addEventListener("submit",login);
