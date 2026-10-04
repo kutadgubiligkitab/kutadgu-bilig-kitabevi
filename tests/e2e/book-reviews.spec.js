@@ -3,6 +3,8 @@ const H = require("./helpers");
 
 const BOOK_ID = 252;
 const MEMBER_ID = "11111111-1111-4111-8111-111111111111";
+const MEMBER_B = "22222222-2222-4222-8222-222222222222";
+const PRIVATE_DRAFT = "مەخپىي خەت";
 const RAW = '<img src=x onerror="alert(1)"> & <script>alert(1)</script>';
 
 function bookRow() {
@@ -560,4 +562,147 @@ test("moderation failure restores both buttons and a later click can succeed", a
   await expect(page.locator("#bookReviewModerationStatus")).toContainText("تەستىق ساقلاۋاتقان باھا يوق");
   expect(await page.evaluate(() => window.__reviewDecisions.length)).toBe(3);
   await expect(page.locator(".admin-review-item")).toHaveCount(0);
+});
+
+async function useSwitchableMember(page, options) {
+  await page.evaluate((setup) => {
+    const control = {
+      memberId: setup.memberId,
+      approvedRows: setup.approvedRows,
+      statusValue: null,
+      statusMode: "ok",
+      holdStatus: !!setup.holdStatus,
+      statusHeld: false,
+      insertMode: "ok",
+      inserts: [],
+      rpcs: [],
+      releaseStatus: null,
+      releaseInsert: null
+    };
+    window.__reviewControl = control;
+    const db = {
+      from() {
+        const query = {
+          select() { return query; },
+          eq() { return query; },
+          in() { return query; },
+          order() { return query; },
+          limit() { return query; },
+          insert(payload) {
+            control.inserts.push(payload);
+            if (control.insertMode === "delay") {
+              return new Promise((resolve) => {
+                control.releaseInsert = () => resolve({ data: null, error: null });
+              });
+            }
+            return Promise.resolve({ data: null, error: null });
+          },
+          then(resolve, reject) {
+            return Promise.resolve({ data: control.approvedRows.slice(), error: null }).then(resolve, reject);
+          }
+        };
+        return query;
+      },
+      rpc(name, args) {
+        control.rpcs.push({ name: name, args: args, memberId: control.memberId });
+        if (control.holdStatus && !control.statusHeld) {
+          control.statusHeld = true;
+          return new Promise((resolve) => {
+            control.releaseStatus = () => resolve({ data: "pending", error: null });
+          });
+        }
+        if (control.statusMode === "error") return Promise.resolve({ data: null, error: { message: "status failed" } });
+        return Promise.resolve({ data: control.statusValue, error: null });
+      }
+    };
+    const api = window.KutadguMember;
+    api.getUser = () => control.memberId ? { id: control.memberId } : null;
+    api.getClient = () => db;
+  }, options);
+}
+
+async function switchMember(page, memberId, statusMode) {
+  await page.evaluate(({ memberId, statusMode }) => {
+    const control = window.__reviewControl;
+    control.memberId = memberId || "";
+    if (statusMode) control.statusMode = statusMode;
+    document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
+  }, { memberId: memberId, statusMode: statusMode || "" });
+}
+
+test("a delayed status from member A does not become member B's pending review", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await openBook(page);
+  await useSwitchableMember(page, {
+    memberId: MEMBER_ID,
+    holdStatus: true,
+    approvedRows: [{ id: "pub", display_name: "ئەزا", body: "ئاشكارا باھا", created_at: "2026-10-01T00:00:00Z" }]
+  });
+  await switchMember(page, MEMBER_ID);
+  await expect.poll(() => page.evaluate(() => window.__reviewControl.statusHeld)).toBe(true);
+  await switchMember(page, MEMBER_B, "error");
+  await page.evaluate(() => window.__reviewControl.releaseStatus());
+  await expect(page.locator(".book-reviews-body")).toHaveText("ئاشكارا باھا");
+  await expect(page.locator(".book-reviews-note", { hasText: "باھالار يۈكلەنمىدى." })).toBeVisible();
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+});
+
+test("a delayed status from member A does not become the signed-out state", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await openBook(page);
+  await useSwitchableMember(page, {
+    memberId: MEMBER_ID,
+    holdStatus: true,
+    approvedRows: [{ id: "pub", display_name: "ئەزا", body: "ئاشكارا باھا", created_at: "2026-10-01T00:00:00Z" }]
+  });
+  await switchMember(page, MEMBER_ID);
+  await expect.poll(() => page.evaluate(() => window.__reviewControl.statusHeld)).toBe(true);
+  await switchMember(page, "");
+  await page.evaluate(() => window.__reviewControl.releaseStatus());
+  await expect(page.locator(".book-reviews-body")).toHaveText("ئاشكارا باھا");
+  await expect(page.locator(".book-reviews-invite a")).toHaveText("باھا يېزىش ئۈچۈن كىرىڭ");
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+});
+
+test("a saved review for member A does not become pending after an account switch", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openBook(page);
+  await useSwitchableMember(page, { memberId: MEMBER_ID, holdStatus: false, approvedRows: [] });
+  await switchMember(page, MEMBER_ID);
+  await page.locator(".book-reviews-invite button").click();
+  await page.locator(".book-reviews-form textarea").fill(PRIVATE_DRAFT);
+  await page.evaluate(() => { window.__reviewControl.insertMode = "delay"; });
+  await page.locator(".book-reviews-form").evaluate((form) => form.requestSubmit());
+  await expect.poll(() => page.evaluate(() => typeof window.__reviewControl.releaseInsert === "function")).toBe(true);
+  await switchMember(page, MEMBER_B);
+  await expect(page.locator(".book-reviews-form button")).toBeDisabled();
+  await page.evaluate(() => window.__reviewControl.releaseInsert());
+  await expect(page.locator(".book-reviews-invite button")).toHaveText("تۇنجى باھانى يېزىڭ");
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  await expect(page.locator(".book-reviews")).not.toContainText(PRIVATE_DRAFT);
+  expect(await page.evaluate(() => window.__reviewControl.inserts.length)).toBe(1);
+});
+
+test("a saved review for member A does not become pending after sign-out", async ({ page }) => {
+  const state = { approved: [], own: [], inserts: [], reviewGets: [] };
+  await installStorefront(page, state);
+  await openBook(page);
+  await useSwitchableMember(page, { memberId: MEMBER_ID, holdStatus: false, approvedRows: [] });
+  await switchMember(page, MEMBER_ID);
+  await page.locator(".book-reviews-invite button").click();
+  await page.locator(".book-reviews-form textarea").fill(PRIVATE_DRAFT);
+  await page.evaluate(() => { window.__reviewControl.insertMode = "delay"; });
+  await page.locator(".book-reviews-form").evaluate((form) => form.requestSubmit());
+  await expect.poll(() => page.evaluate(() => typeof window.__reviewControl.releaseInsert === "function")).toBe(true);
+  await switchMember(page, "");
+  await expect(page.locator(".book-reviews-form button")).toBeDisabled();
+  await page.evaluate(() => window.__reviewControl.releaseInsert());
+  await expect(page.locator(".book-reviews-invite a")).toHaveText("كىرىپ تۇنجى باھانى يېزىڭ");
+  await expect(page.locator(".book-reviews-pending")).toHaveCount(0);
+  await expect(page.locator(".book-reviews")).not.toContainText(PRIVATE_DRAFT);
+  expect(await page.evaluate(() => window.__reviewControl.inserts.length)).toBe(1);
 });

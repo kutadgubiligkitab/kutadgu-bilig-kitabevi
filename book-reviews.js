@@ -171,7 +171,7 @@
       button.disabled = true;
       note.hidden = true;
       Promise.resolve(state.onSubmit(check.value)).then((result) => {
-        if (result && result.ok) return;
+        if (result && (result.ok || result.stale)) return;
         state.submitLock = false;
         button.disabled = false;
         note.hidden = false;
@@ -191,6 +191,8 @@
   let submitLock = false;
   let forceQueued = false;
   let lastGood = null;
+  let operationGeneration = 0;
+  let activeMemberId = "";
 
   function memberApi() {
     return root.KutadguMember || null;
@@ -216,20 +218,42 @@
     return memberApi();
   }
 
-  function readerKey(bookId) {
+  function currentMemberId() {
     const api = memberApi();
     const user = api && typeof api.getUser === "function" ? api.getUser() : null;
-    return String(bookId) + "|" + (user && user.id ? String(user.id) : "");
+    return user && user.id ? String(user.id) : "";
   }
 
-  function previousFor(bookId) {
-    const key = readerKey(bookId);
+  function storageKey(bookId, memberId) {
+    return String(bookId) + "|" + String(memberId || "");
+  }
+
+  function beginOperation(bookId) {
+    return {
+      bookId: String(bookId || ""),
+      memberId: currentMemberId(),
+      generation: operationGeneration
+    };
+  }
+
+  function sameContext(op) {
+    if (!op) return false;
+    return op.generation === operationGeneration
+      && op.memberId === currentMemberId()
+      && op.bookId === String(bookIdFromLocation(root.location) || "");
+  }
+
+  function previousFor(bookId, memberId) {
+    const key = storageKey(bookId, memberId);
     return lastGood && lastGood.key === key ? lastGood : null;
   }
 
-  function remember(bookId, patch) {
-    const key = readerKey(bookId);
-    const previous = previousFor(bookId);
+  function remember(op, patch) {
+    if (!sameContext(op)) {
+      return { reviews: [], reviewsKnown: false, pending: false, rejected: false, ownKnown: false, stale: true };
+    }
+    const key = storageKey(op.bookId, op.memberId);
+    const previous = previousFor(op.bookId, op.memberId);
     const reviewsKnown = !!patch.reviewsKnown || !!(previous && previous.reviewsKnown);
     const ownKnown = !!patch.ownKnown || !!(previous && previous.ownKnown);
     const next = {
@@ -244,11 +268,10 @@
     return next;
   }
 
-  function stateFromMemory(bookId, readError) {
-    const api = memberApi();
-    const user = api && typeof api.getUser === "function" ? api.getUser() : null;
-    const signedIn = !!(user && user.id);
-    const stored = remember(bookId, { reviews: [], reviewsKnown: false, pending: false, rejected: false, ownKnown: false });
+  function stateFromMemory(op, readError) {
+    const signedIn = !!op.memberId;
+    const stored = remember(op, { reviews: [], reviewsKnown: false, pending: false, rejected: false, ownKnown: false });
+    if (stored.stale) return { stale: true };
     return {
       reviews: stored.reviewsKnown ? stored.reviews.slice() : [],
       signedIn: signedIn,
@@ -261,20 +284,23 @@
     };
   }
 
-  async function loadState(bookId) {
+  async function loadState(bookId, op) {
+    const context = op || beginOperation(bookId);
     const api = await waitForMember();
+    if (!sameContext(context)) return { stale: true };
     const db = api && typeof api.getClient === "function" ? api.getClient() : null;
-    const user = api && typeof api.getUser === "function" ? api.getUser() : null;
-    const signedIn = !!(user && user.id);
-    if (!db || typeof db.from !== "function") return stateFromMemory(bookId, true);
+    const signedIn = !!context.memberId;
+    if (!db || typeof db.from !== "function") return stateFromMemory(context, true);
     const numericId = Number(bookId);
     let approvedFailed = false;
     let approvedRows = [];
     try {
       const approved = await db.from("book_reviews").select("id,display_name,body,created_at").eq("book_id", numericId).eq("status", "approved").order("created_at", { ascending: false }).limit(50);
+      if (!sameContext(context)) return { stale: true };
       if (!approved || approved.error || !Array.isArray(approved.data)) approvedFailed = true;
       else approvedRows = approved.data;
     } catch (error) {
+      if (!sameContext(context)) return { stale: true };
       approvedFailed = true;
     }
     let pending = false;
@@ -285,6 +311,7 @@
         if (typeof db.rpc !== "function") ownFailed = true;
         else {
           const own = await db.rpc("my_book_review_status", { p_book_id: numericId });
+          if (!sameContext(context)) return { stale: true };
           if (!own || own.error) ownFailed = true;
           else if (own.data == null || own.data === "") {
             pending = false;
@@ -294,16 +321,19 @@
           else ownFailed = true;
         }
       } catch (error) {
+        if (!sameContext(context)) return { stale: true };
         ownFailed = true;
       }
     }
-    const stored = remember(bookId, {
+    if (!sameContext(context)) return { stale: true };
+    const stored = remember(context, {
       reviews: approvedRows,
       reviewsKnown: !approvedFailed,
       pending: pending,
       rejected: rejected,
       ownKnown: !signedIn || !ownFailed
     });
+    if (stored.stale) return { stale: true };
     return {
       reviews: stored.reviewsKnown ? stored.reviews.slice() : [],
       signedIn: signedIn,
@@ -356,8 +386,9 @@
     if (!doc) return;
     const page = doc.querySelector(".book-detail-page");
     if (!page) return;
+    const bookId = bookIdFromLocation(root.location);
+    const op = beginOperation(bookId);
     try {
-      const bookId = bookIdFromLocation(root.location);
       const key = viewKey();
       if (!bookId || !detailIsPublic(doc)) {
         if (!force && paintedKey === key) return;
@@ -369,44 +400,51 @@
       if (submitLock) return;
       const host = mountHost(page);
       const area = host.querySelector("textarea");
-      const draft = area ? area.value : "";
-      const formOpen = !!(area && area.form && !area.form.hidden);
+      const draft = area && op.memberId && area.value ? area.value : "";
+      const formOpen = !!(draft && area && area.form && !area.form.hidden);
       if (!force && area && doc.activeElement === area) return;
       let state;
       try {
-        state = await loadState(bookId);
+        state = await loadState(bookId, op);
       } catch (error) {
-        state = stateFromMemory(bookId, true);
+        if (!sameContext(op)) return;
+        state = stateFromMemory(op, true);
       }
+      if (!sameContext(op) || !state || state.stale) return;
       if (submitLock) return;
       state.onRetry = retryReviewRead;
       state.onSubmit = async (body) => {
+        const submitOp = beginOperation(bookId);
         if (submitLock) return { ok: false, message: SEND_FAILED };
         submitLock = true;
         try {
           const result = await submitReview(bookId, body);
+          if (!sameContext(submitOp)) return { stale: true, ok: !!(result && result.ok) };
           if (!(result && result.ok)) return result || { ok: false, message: SEND_FAILED };
           let next = null;
           let refreshFailed = false;
           try {
-            next = await loadState(bookId);
-            refreshFailed = !!(next && next.readError);
+            next = await loadState(bookId, submitOp);
+            if (!next || next.stale || !sameContext(submitOp)) return { ok: true, saved: true, stale: true };
+            refreshFailed = !!next.readError;
           } catch (error) {
+            if (!sameContext(submitOp)) return { ok: true, saved: true, stale: true };
             refreshFailed = true;
           }
-          const kept = previousFor(bookId);
+          if (!sameContext(submitOp)) return { ok: true, saved: true, stale: true };
+          const kept = previousFor(submitOp.bookId, submitOp.memberId);
           const reviewsKnown = !!(next && !next.unknownReviews) || !!(kept && kept.reviewsKnown);
           const reviews = next && !next.unknownReviews && Array.isArray(next.reviews)
             ? next.reviews.slice()
             : (kept && kept.reviewsKnown ? kept.reviews.slice() : []);
-          lastGood = {
-            key: readerKey(bookId),
-            reviews: reviews.slice(),
+          remember(submitOp, {
+            reviews: reviews,
             reviewsKnown: reviewsKnown,
             pending: true,
             rejected: false,
             ownKnown: true
-          };
+          });
+          if (!sameContext(submitOp)) return { ok: true, saved: true, stale: true };
           paint(host, {
             reviews: reviews,
             signedIn: true,
@@ -423,32 +461,46 @@
           paintedKey = viewKey();
           return { ok: true, saved: true };
         } catch (error) {
+          if (!sameContext(submitOp)) return { stale: true };
           return { ok: false, message: SEND_FAILED };
         } finally {
           submitLock = false;
+          if (!sameContext(submitOp)) {
+            paintedKey = "";
+            refresh({ force: true });
+          }
         }
       };
       paint(host, state);
-      if (draft) {
+      if (draft && sameContext(op) && currentMemberId() === op.memberId) {
         const nextArea = host.querySelector("textarea");
         if (nextArea) {
           nextArea.value = draft;
           if (formOpen) openForm(host);
         }
       }
-      paintedKey = viewKey();
+      if (sameContext(op)) paintedKey = viewKey();
     } catch (error) {
+      if (!sameContext(op)) return;
       try {
-        const bookId = bookIdFromLocation(root.location);
         if (bookId && detailIsPublic(doc)) {
           const host = mountHost(page);
-          const failed = stateFromMemory(bookId, true);
-          failed.onRetry = retryReviewRead;
-          paint(host, failed);
+          const failed = stateFromMemory(op, true);
+          if (!failed.stale) {
+            failed.onRetry = retryReviewRead;
+            paint(host, failed);
+            paintedKey = viewKey();
+          }
         }
       } catch (ignore) {}
-      paintedKey = viewKey();
     }
+  }
+
+  function clearMemberDraft(doc) {
+    const area = doc.querySelector("[data-book-reviews] textarea");
+    if (area) area.value = "";
+    const form = doc.querySelector("[data-book-reviews] form");
+    if (form) form.hidden = true;
   }
 
   function boot() {
@@ -465,17 +517,25 @@
       refresh();
     });
     observer.observe(page, { childList: true, subtree: true });
+    activeMemberId = currentMemberId();
     doc.addEventListener("kutadgu-member-change", () => {
+      const nextId = currentMemberId();
+      const changed = nextId !== activeMemberId;
+      activeMemberId = nextId;
+      if (changed) {
+        operationGeneration += 1;
+        clearMemberDraft(doc);
+      }
       paintedKey = "";
       const current = running;
       if (current) {
         current.finally(() => {
           paintedKey = "";
-          refresh();
+          refresh({ force: true });
         });
         return;
       }
-      refresh();
+      refresh({ force: changed });
     });
     refresh();
   }
