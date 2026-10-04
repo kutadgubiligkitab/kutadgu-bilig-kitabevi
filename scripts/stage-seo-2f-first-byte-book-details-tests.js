@@ -33,7 +33,7 @@ const FROZEN = {
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "e5a045b4600d5fdc2429bbeaa8ba33c32e7c0aea385e97e6ae9b0630c7a82764",
-  "index.html": "cb8f1fe832706455520ecdde5c6e242aab4f218d368c53ec5d8db1418ef02a13",
+  "index.html": "560d2c0303c03972f16813741e44e06421642cc07db350ed6279205db02829e2",
   "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452"
 };

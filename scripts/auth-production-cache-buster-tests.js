@@ -75,6 +75,10 @@ test("production HTML script tags pin current auth isolation assets", () => {
         if (ver !== "141") stale.push(rel + " -> " + src);
         continue;
       }
+      if (name === "shop.js" && page === "index.html") {
+        if (ver !== "144") stale.push(rel + " -> " + src);
+        continue;
+      }
       if (name === "shop.js" && (page === "book-shell.html" || page === "credit-books.html")) {
         if (ver !== "142") stale.push(rel + " -> " + src);
         continue;
