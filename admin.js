@@ -2003,6 +2003,7 @@ function renderMembers(){
       </div>
       <div class="admin-member-side">
         <span class="admin-member-badge ${suspended?"is-suspended":""}">${suspended?"⛔ توختىتىلغان":"✅ نورمال"}</span>
+        <button type="button" data-member-cart="${esc(m.id)}">سېۋەتنى كۆرۈش</button>
         <button type="button" class="${suspended?"":"member-suspend"}" data-member-status="${esc(m.id)}" data-next-status="${suspended?"active":"suspended"}">${suspended?"♻️ قايتا ئېچىش":"⛔ توختىتىش"}</button>
       </div>
       <div class="admin-member-last-page">ئاخىرقى بەت: ${esc(m.last_page||"—")}</div>
@@ -6550,6 +6551,10 @@ function init(){
     show("dashboardPanel");
     applyDashboardSectionFromLocation({replace:true});
     previewBooksMaster=(Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[]).map(b=>({...b}));
+    if(Array.isArray(window.__kutadguAdminPreviewMembers)){
+      members=window.__kutadguAdminPreviewMembers.map(row=>({...row}));
+      renderMembers();
+    }
     bindBookListUx();
     refreshPreviewBooks();
     $("#importCsvBtn")&&($("#importCsvBtn").onclick=openImport);
