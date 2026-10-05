@@ -48,10 +48,30 @@
     }catch(err){}
   }
 
-  function show(next){
+  let paintToken=0;
+  let pending=null;
+
+  function slideReady(slide){
+    return !!(slide&&slide.getAttribute("src")&&slide.complete&&slide.naturalWidth>0);
+  }
+
+  function clearPending(){
+    if(!pending)return;
+    pending.slide.removeEventListener("load",pending.onLoad);
+    pending.slide.removeEventListener("error",pending.onError);
+    pending=null;
+  }
+
+  function ensureSrc(slide){
+    if(!slide||slide.getAttribute("src"))return;
+    const url=slide.getAttribute("data-hero-src")||"";
+    if(url)slide.src=url;
+  }
+
+  function applyActive(nextIndex){
     query();
     if(!slides.length)return;
-    index=((Number(next)||0)%slides.length+slides.length)%slides.length;
+    index=((Number(nextIndex)||0)%slides.length+slides.length)%slides.length;
     slides.forEach((slide,i)=>{
       const on=i===index;
       slide.classList.toggle("is-active",on);
@@ -64,6 +84,40 @@
       else dot.removeAttribute("aria-current");
     });
     emit();
+  }
+
+  function show(next){
+    query();
+    if(!slides.length)return;
+    const target=((Number(next)||0)%slides.length+slides.length)%slides.length;
+    const slide=slides[target];
+    if(!slide)return;
+    const url=slide.getAttribute("src")||slide.getAttribute("data-hero-src")||"";
+    if(!url)return;
+    if(slideReady(slide)){
+      clearPending();
+      applyActive(target);
+      return;
+    }
+    if(pending&&pending.slide===slide&&pending.target===target)return;
+    clearPending();
+    const token=++paintToken;
+    const finish=(ok)=>{
+      if(!pending||pending.token!==token)return;
+      clearPending();
+      if(!ok||token!==paintToken||!slide.isConnected)return;
+      query();
+      if(slides[target]!==slide||!slideReady(slide))return;
+      applyActive(target);
+    };
+    const onLoad=()=>finish(true);
+    const onError=()=>finish(false);
+    pending={slide,token,target,onLoad,onError};
+    slide.addEventListener("load",onLoad);
+    slide.addEventListener("error",onError);
+    ensureSrc(slide);
+    if(slideReady(slide))finish(true);
+    else if(slide.complete&&slide.getAttribute("src"))finish(false);
   }
 
   function stop(){

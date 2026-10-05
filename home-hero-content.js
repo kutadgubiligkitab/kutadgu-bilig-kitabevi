@@ -298,6 +298,22 @@
     return null;
   }
 
+  function firstDecodableIndex(items) {
+    var list = Array.isArray(items) ? items : [];
+    var i = 0;
+    function step() {
+      if (i >= list.length) return Promise.resolve(-1);
+      var at = i;
+      var src = list[at] && list[at].src;
+      return probeImage(src).then(function (ok) {
+        if (ok) return at;
+        i += 1;
+        return step();
+      });
+    }
+    return step();
+  }
+
   function probeImage(url) {
     var src = trimText(url);
     if (!src) return Promise.resolve(false);
@@ -426,18 +442,19 @@
       img.setAttribute("data-shop-hero-slide", "");
       img.setAttribute("data-hero-kind", campaign ? "campaign" : "store");
       if (item.shot) img.setAttribute("data-hero-shot", item.shot);
-      img.src = item.src;
       img.alt = item.alt || "";
       img.width = 1440;
       img.height = 1081;
       img.decoding = "async";
-      if (i === 0 && !campaign) {
-        img.setAttribute("fetchpriority", "high");
+      if (i === 0) {
+        img.src = item.src;
+        if (!campaign) img.setAttribute("fetchpriority", "high");
+        img.classList.add("is-active");
+        img.setAttribute("aria-hidden", "false");
       } else {
-        img.loading = "lazy";
+        img.setAttribute("data-hero-src", item.src);
+        img.setAttribute("aria-hidden", "true");
       }
-      img.setAttribute("aria-hidden", i === 0 ? "false" : "true");
-      if (i === 0) img.classList.add("is-active");
       img.addEventListener("error", function () {
         onSlideImageError(img);
       });
@@ -561,19 +578,14 @@
       markReady();
       return;
     }
-    Promise.all(usable.map(function (slide) {
-      return probeImage(slide.src).then(function (ok) {
-        return ok ? slide : null;
-      });
-    })).then(function (rows) {
-      var live = rows.filter(Boolean);
-      if (!live.length) {
+    firstDecodableIndex(usable).then(function (at) {
+      if (at < 0) {
         restoreHardcodedMedia();
         refreshSlideshow();
         markReady();
         return;
       }
-      renderSlides(live, false);
+      renderSlides(usable.slice(at), false);
       markReady();
     });
   }
@@ -721,20 +733,16 @@
             if (key) bookMap[key] = book;
           });
         }
-        return Promise.all(campaigns.map(function (row) {
-          var item = buildCampaignItem(row, bookMap);
-          if (!item) return Promise.resolve(null);
-          return probeImage(item.src).then(function (ok) {
-            return ok ? item : null;
-          });
-        })).then(function (rows) {
+        var built = campaigns.map(function (row) {
+          return buildCampaignItem(row, bookMap);
+        }).filter(Boolean);
+        return firstDecodableIndex(built).then(function (at) {
           if (gen !== applyGen) return;
-          var eligible = rows.filter(Boolean);
-          if (eligible.length) {
-            applyCampaignMode(eligible, settings, slides);
+          if (at < 0) {
+            applyStoreMode(settings, slides);
             return;
           }
-          applyStoreMode(settings, slides);
+          applyCampaignMode(built.slice(at), settings, slides);
         });
       });
     }).catch(function () {

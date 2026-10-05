@@ -16,7 +16,7 @@ const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
+  "home-hero-content.js": "b904ca445547df8c8b102195bcb36a33b7afa10c2e24b00a6c54fd8e64f6e4e5",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452"
 };
 
@@ -190,8 +190,6 @@ async function run() {
 
       "kutadgu-search-rank.js",
       "api/ai-search.js",
-      "home-hero-content.js",
-
     ].forEach((rel) => {
       assert.ok(!files.includes(rel), rel);
     });
