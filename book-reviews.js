@@ -10,7 +10,7 @@
   const SIGN_IN_LABEL = "ئەزا بولغاندىن كېيىن كىتاب ھەققىدە ئىنكاس يېزىڭ";
   const WRITE_LABEL = INVITE_LABEL;
   const WRITE_SIGN_IN_LABEL = SIGN_IN_LABEL;
-  const VISIBILITY_NOTE = "ئىنكاسىڭىز باشقۇرغۇچى تەستىقلىغاندىن كېيىن، بۇ كىتاب بېتىدە ھەممەيلەنگە كۆرۈنىدۇ.";
+  const VISIBILITY_NOTE = "بۇ بەتكە يېزىلغان ئىنكاسلار باشقۇرغۇچى تەستىقلىغاندىن كېيىن ھەممەيلەنگە كۆرۈنىدۇ.";
   const REJECTED_NOTE = "ئالدىنقى ئىنكاس رەت قىلىندى. يېڭى ئىنكاس يازالايسىز.";
   const EMPTY_MESSAGE = "ئىنكاس يېزىڭ.";
   const LONG_MESSAGE = "ئىنكاس 1000 ھەرپتىن ئېشىپ كەتمىسۇن.";
