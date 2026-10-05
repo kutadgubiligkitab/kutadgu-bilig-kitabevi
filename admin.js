@@ -2001,6 +2001,16 @@ function setMemberNotice(text,retryContext){
     notice.appendChild(button);
   }
 }
+function resetMemberDirectoryStats(){
+  const membersEl=$("#statMembers");
+  const visitsEl=$("#statVisits");
+  const ordersEl=$("#statOrders");
+  const revenueEl=$("#statRevenue");
+  if(membersEl)membersEl.textContent="0";
+  if(visitsEl)visitsEl.textContent="0";
+  if(ordersEl)ordersEl.textContent="0";
+  if(revenueEl)revenueEl.textContent="0 ₺";
+}
 function clearMemberPrivate(){
   memberDirectoryGeneration+=1;
   memberDirectoryCommitted=null;
@@ -2013,7 +2023,43 @@ function clearMemberPrivate(){
   const pager=$("#adminMemberPager");
   if(pager){pager.hidden=true;pager.replaceChildren()}
   setMemberNotice("");
+  resetMemberDirectoryStats();
   if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList([]);
+}
+function discardUnownedMemberDirectory(admin){
+  const committed=memberDirectoryCommitted;
+  const owned=!!(admin&&committed&&committed.adminId===admin.id&&committed.aal==="aal2"&&admin.aal==="aal2");
+  if(owned)return true;
+  memberDirectoryCommitted=null;
+  memberDirectoryFailed=null;
+  members=[];
+  memberStats=null;
+  if(committed){
+    profileById=new Map();
+    resetMemberDirectoryStats();
+  }
+  const host=$("#adminMemberList");
+  if(host)host.replaceChildren();
+  const pager=$("#adminMemberPager");
+  if(pager){pager.hidden=true;pager.replaceChildren()}
+  setMemberNotice("");
+  if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList([]);
+  return false;
+}
+async function finishMemberDirectoryAuth(generation,before){
+  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
+  const after=await readMemberAdmin();
+  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
+  if(!memberSurfaceOpen()||!after.id||after.id!==before.id||after.aal!=="aal2")return {ok:false,reason:"auth",after};
+  return {ok:true,after};
+}
+function rejectMemberDirectoryAuth(context,after){
+  clearMemberPrivate();
+  if(!after||after.aal!=="aal2")showMemberFailure(context,"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+}
+function keepOwnedDirectoryFailure(admin,context,message){
+  discardUnownedMemberDirectory(admin);
+  showMemberFailure(context,message);
 }
 function applyMemberDirectoryStats(stats){
   if(!stats)return;
@@ -2089,18 +2135,22 @@ async function loadMembers(request){
       p_page:context.page
     });
   }catch(err){
-    if(generation!==memberDirectoryGeneration||!memberSurfaceOpen())return {ok:false,stale:true};
-    showMemberFailure(context,"خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
+    const auth=await finishMemberDirectoryAuth(generation,before);
+    if(!auth.ok){
+      if(auth.stale)return {ok:false,stale:true};
+      rejectMemberDirectoryAuth(context,auth.after);
+      return {ok:false,reason:"auth",error:err};
+    }
+    keepOwnedDirectoryFailure(auth.after,context,"خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
     return {ok:false,error:err};
   }
-  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
-  const after=await readMemberAdmin();
-  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
-  if(!memberSurfaceOpen()||!after.id||after.id!==before.id||after.aal!=="aal2"){
-    clearMemberPrivate();
-    if(after.aal!=="aal2")showMemberFailure(context,"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+  const auth=await finishMemberDirectoryAuth(generation,before);
+  if(!auth.ok){
+    if(auth.stale)return {ok:false,stale:true};
+    rejectMemberDirectoryAuth(context,auth.after);
     return {ok:false,reason:"auth"};
   }
+  const after=auth.after;
   if(!result||result.error){
     const code=String(result&&result.error&&result.error.code||"");
     const blob=String(result&&result.error&&(result.error.message||result.error.details||result.error.hint)||"");
@@ -2110,7 +2160,7 @@ async function loadMembers(request){
       memberDirectoryCommitted=null;
       return {ok:false,reason:"denied"};
     }
-    showMemberFailure(context);
+    keepOwnedDirectoryFailure(after,context);
     return {ok:false,error:result&&result.error};
   }
   const payload=result.data&&typeof result.data==="string"?JSON.parse(result.data):result.data;
@@ -2120,7 +2170,7 @@ async function loadMembers(request){
   if(context.page>maxPage){
     return loadMembers({context:{...context,page:maxPage},silent:opts.silent});
   }
-  memberDirectoryCommitted={...context,total,rows};
+  memberDirectoryCommitted={...context,total,rows,adminId:after.id,aal:after.aal};
   memberDirectoryFailed=null;
   members=rows.map(row=>({...row}));
   rows.forEach(row=>{if(row&&row.id)profileById.set(row.id,{id:row.id,full_name:row.full_name,email:row.email})});
@@ -2334,10 +2384,21 @@ function parseOrderItems(raw){
 async function hydrateOrderMemberProfiles(rows){
   const ids=[...new Set((rows||[]).map(order=>order&&order.user_id).filter(Boolean))].filter(id=>!profileById.has(id));
   if(!ids.length||!db||typeof db.from!=="function")return;
+  const generation=memberDirectoryGeneration;
+  const cache=profileById;
+  if(!memberSurfaceOpen())return;
+  const before=await readMemberAdmin();
+  if(generation!==memberDirectoryGeneration||cache!==profileById||!memberSurfaceOpen())return;
+  if(!before.id||before.aal!=="aal2")return;
   try{
     const result=await db.from("profiles").select("id,full_name,email").in("id",ids);
+    if(generation!==memberDirectoryGeneration||cache!==profileById||!memberSurfaceOpen())return;
+    const after=await readMemberAdmin();
+    if(generation!==memberDirectoryGeneration||cache!==profileById||!memberSurfaceOpen())return;
+    if(!after.id||after.id!==before.id||after.aal!=="aal2")return;
     if(!result||result.error||!Array.isArray(result.data))return;
-    result.data.forEach(row=>{if(row&&row.id)profileById.set(row.id,row)});
+    if(cache!==profileById)return;
+    result.data.forEach(row=>{if(row&&row.id)cache.set(row.id,row)});
   }catch(err){}
 }
 function bindMemberDirectory(){

@@ -73,6 +73,7 @@ async function install(page) {
     window.__kutadguAnalyticsDb = {
       auth: {
         getSession: async () => {
+          window.__memberDirectorySessionReads = (window.__memberDirectorySessionReads || 0) + 1;
           if (!window.__memberDirectoryUser) return { data: { session: null }, error: null };
           return {
             data: {
@@ -99,8 +100,11 @@ async function install(page) {
         }
         const payload = () => ({ data: answer(window.__kutadguMemberDirectoryMembers, args), error: null });
         if (window.__memberDirectoryHold) {
-          return new Promise((resolve) => {
-            window.__releaseMemberDirectory = () => resolve(payload());
+          return new Promise((resolve, reject) => {
+            window.__releaseMemberDirectory = () => {
+              if (window.__memberDirectoryReject) reject(new Error("rejected"));
+              else resolve(payload());
+            };
           });
         }
         return Promise.resolve(payload());
@@ -257,6 +261,107 @@ test("paging away closes the open cart, and an emptied page steps back", async (
   await expect(page.locator(".admin-member-row")).toHaveCount(20);
 });
 
+async function holdDirectoryReload(page) {
+  await page.evaluate(() => {
+    window.__memberDirectoryReject = false;
+    window.__memberDirectoryHold = true;
+  });
+  await page.locator("#reloadMembers").click();
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseMemberDirectory === "function")).toBe(true);
+  return page.evaluate(() => window.__memberDirectorySessionReads || 0);
+}
+
+async function rejectHeldDirectory(page, reads) {
+  await page.evaluate(() => {
+    window.__memberDirectoryReject = true;
+    window.__releaseMemberDirectory();
+  });
+  await expect.poll(() => page.evaluate(() => window.__memberDirectorySessionReads || 0)).toBeGreaterThan(reads);
+  await expect(page.locator(".admin-member-row")).toHaveCount(0);
+  await expect(page.locator(".admin-member-email")).toHaveCount(0);
+  await expect(page.locator("#adminMemberList")).not.toContainText("member1100@example.com");
+  await expect(page.locator("#adminMemberNotice")).not.toContainText("ئالدىنقى نەتىجە");
+}
+
+test("a rejected directory read follows the authenticated context", async ({ page }) => {
+  await install(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openCustomers(page);
+  await expect(page.locator(".admin-member-email").first()).toHaveText("member1100@example.com");
+  await expect(page.locator("#statMembers")).toHaveText("1100");
+
+  await page.evaluate(() => { window.__memberDirectoryReject = true; });
+  await page.locator("#adminMemberPager").getByRole("button", { name: "كېيىنكى" }).click();
+  await expect(page.locator("#adminMemberNotice")).toContainText("خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
+  await expect(page.locator(".admin-member-name").first()).toHaveText("ئەزا 1100");
+  await expect(page.locator(".admin-member-email").first()).toHaveText("member1100@example.com");
+  await expect(page.locator("#statMembers")).toHaveText("1100");
+  await expect(page.locator("#adminMemberPager")).toContainText("بەت 1 / 55");
+  await expect(page.locator("[data-member-cart]")).toHaveCount(20);
+  await page.evaluate(() => { window.__memberDirectoryReject = false; });
+  await page.locator("#memberDirectoryRetry").click();
+  await expect(page.locator("#adminMemberPager")).toContainText("بەت 2 / 55");
+  await expect(page.locator(".admin-member-name").first()).toHaveText("ئەزا 1080");
+  await expect(page.locator("#adminMemberNotice")).toBeHidden();
+
+  await page.locator("#memberSearch").fill("");
+  await expect(page.locator(".admin-member-row")).toHaveCount(20);
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryReject = true;
+  }, OTHER);
+  await page.locator("#reloadMembers").click();
+  await expect(page.locator(".admin-member-row")).toHaveCount(0);
+  await expect(page.locator(".admin-member-email")).toHaveCount(0);
+  await expect(page.locator("#adminMemberList")).not.toContainText("member1100@example.com");
+  await expect(page.locator("#adminMemberList")).toContainText("خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
+  await expect(page.locator("#adminMemberNotice")).not.toContainText("ئالدىنقى نەتىجە");
+  await expect(page.locator("#statMembers")).toHaveText("0");
+  await expect(page.locator("[data-member-cart]")).toHaveCount(0);
+
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryReject = false;
+    window.__memberDirectoryHold = false;
+  }, ADMIN);
+  await page.locator("#memberDirectoryRetry").click();
+  await expect(page.locator(".admin-member-row")).toHaveCount(20);
+  await expect(page.locator(".admin-member-email").first()).toHaveText("member1100@example.com");
+
+  let reads = await holdDirectoryReload(page);
+  await page.evaluate((id) => { window.__memberDirectoryUser = id; }, OTHER);
+  await rejectHeldDirectory(page, reads);
+
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryAal = "aal2";
+    window.__memberDirectoryReject = false;
+    window.__memberDirectoryHold = false;
+  }, ADMIN);
+  await page.locator("#reloadMembers").click();
+  await expect(page.locator(".admin-member-row")).toHaveCount(20);
+
+  reads = await holdDirectoryReload(page);
+  await page.evaluate(() => { window.__memberDirectoryUser = ""; });
+  await rejectHeldDirectory(page, reads);
+  await expect(page.locator("#adminMemberList")).toContainText("AAL2");
+
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryAal = "aal2";
+    window.__memberDirectoryReject = false;
+    window.__memberDirectoryHold = false;
+  }, ADMIN);
+  await page.locator("#memberDirectoryRetry").click();
+  await expect(page.locator(".admin-member-row")).toHaveCount(20);
+
+  reads = await holdDirectoryReload(page);
+  await page.evaluate(() => { window.__memberDirectoryAal = "aal1"; });
+  await rejectHeldDirectory(page, reads);
+  await expect(page.locator("#adminMemberList")).toContainText("AAL2");
+  await expect(page.locator("#statMembers")).toHaveText("0");
+});
+
 test("phone and desktop controls stay in view", async ({ page }) => {
   await install(page);
   for (const size of [{ width: 1280, height: 900 }, { width: 390, height: 800 }]) {
@@ -280,4 +385,168 @@ test("phone and desktop controls stay in view", async ({ page }) => {
     await page.keyboard.press("Tab");
     await expect(page.locator("#reloadMembers")).toBeFocused();
   }
+});
+
+const ORDER_MEMBER = "11111111-1111-4111-8111-111111111111";
+const ORDER_PROFILE = { id: ORDER_MEMBER, full_name: "يوشۇرۇن ئەزا", email: "hidden-member@example.com" };
+const ORDER_ROWS = [{
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  order_no: "KB-77",
+  user_id: ORDER_MEMBER,
+  customer_name: "خېرىدار ئىسمى",
+  customer_phone: "900100",
+  customer_city: "ئانكارا",
+  status: "confirmed",
+  total: 10,
+  total_qty: 1,
+  created_at: "2024-06-01T00:00:00.000Z",
+  items: []
+}];
+
+async function installOrders(page) {
+  await page.addInitScript(({ adminId, orders, profile }) => {
+    window.__kutadguSkipAdminAuth = true;
+    window.__memberDirectoryAal = "aal2";
+    window.__memberDirectoryUser = adminId;
+    window.__profileHydrationHold = false;
+    window.__profileHydrationPending = false;
+    window.__adminOrderRows = orders;
+    window.__adminOrderProfiles = [profile];
+    const token = (aal, userId) => {
+      const payload = btoa(JSON.stringify({ aal: aal, sub: userId })).replace(/=+$/g, "");
+      return "e30." + payload + ".sig";
+    };
+    function builder(table) {
+      const state = { table: table, ids: null };
+      const api = {
+        select() { return api; },
+        range() { return api; },
+        eq() { return api; },
+        or() { return api; },
+        order() { return api; },
+        limit() { return api; },
+        in(_column, ids) { state.ids = ids.slice(); return api; },
+        then(onFulfilled, onRejected) {
+          let result;
+          if (state.table === "orders") {
+            result = Promise.resolve({
+              data: window.__adminOrderRows,
+              error: null,
+              count: window.__adminOrderRows.length
+            });
+          } else if (state.table === "profiles") {
+            const rows = window.__adminOrderProfiles.filter((row) => !state.ids || state.ids.indexOf(row.id) !== -1);
+            if (window.__profileHydrationHold) {
+              window.__profileHydrationPending = true;
+              result = new Promise((resolve) => {
+                window.__releaseProfileHydration = () => resolve({ data: rows, error: null });
+              });
+            } else {
+              result = Promise.resolve({ data: rows, error: null });
+            }
+          } else {
+            result = Promise.resolve({ data: [], error: null, count: 0 });
+          }
+          return result.then(onFulfilled, onRejected);
+        }
+      };
+      return api;
+    }
+    window.__kutadguAnalyticsDb = {
+      auth: {
+        getSession: async () => {
+          if (!window.__memberDirectoryUser) return { data: { session: null }, error: null };
+          return {
+            data: {
+              session: {
+                access_token: token(window.__memberDirectoryAal, window.__memberDirectoryUser),
+                user: { id: window.__memberDirectoryUser }
+              }
+            },
+            error: null
+          };
+        }
+      },
+      rpc() { return Promise.resolve({ data: null, error: null }); },
+      from(table) { return builder(table); }
+    };
+  }, { adminId: ADMIN, orders: ORDER_ROWS, profile: ORDER_PROFILE });
+}
+
+async function openOrders(page) {
+  await page.goto("/admin.html#orders", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#orderManagement")).toBeVisible();
+}
+
+async function emptyPrivateCache(page) {
+  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = true; });
+}
+
+async function holdOrderProfiles(page) {
+  await page.evaluate(() => {
+    window.__profileHydrationHold = true;
+    window.__profileHydrationPending = false;
+  });
+  await page.locator('[data-admin-section="orders"]').click();
+  await expect.poll(() => page.evaluate(() => window.__profileHydrationPending)).toBe(true);
+}
+
+async function expectPrivateProfileDiscarded(page) {
+  await page.evaluate(() => window.__releaseProfileHydration());
+  await expect(page.locator("#adminOrderList")).toContainText("ئەزا تېپىلمىدى");
+  await expect(page.locator("#adminOrderList")).not.toContainText("يوشۇرۇن ئەزا");
+  await expect(page.locator("#adminOrderList")).not.toContainText("hidden-member@example.com");
+  await expect(page.locator("#adminOrderList")).toContainText("KB-77");
+}
+
+test("an authorized order page still hydrates the member name", async ({ page }) => {
+  await installOrders(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openOrders(page);
+  await expect(page.locator("#adminOrderList")).toContainText("يوشۇرۇن ئەزا");
+  await expect(page.locator("#adminOrderList")).toContainText("hidden-member@example.com");
+  await expect(page.locator("#adminOrderList")).toContainText("KB-77");
+  await expect(page.locator("#adminOrderList")).not.toContainText("ئەزا تېپىلمىدى");
+});
+
+test("a late profile hydration does not refill a cleared private cache", async ({ page }) => {
+  await installOrders(page);
+  await page.addInitScript(() => { window.__profileHydrationHold = true; });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openOrders(page);
+  await expect.poll(() => page.evaluate(() => window.__profileHydrationPending)).toBe(true);
+  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+  await expectPrivateProfileDiscarded(page);
+
+  await page.evaluate(() => {
+    document.querySelector("#idleLockPanel").hidden = true;
+    window.__profileHydrationHold = false;
+  });
+  await page.locator('[data-admin-section="orders"]').click();
+  await expect(page.locator("#adminOrderList")).toContainText("يوشۇرۇن ئەزا");
+  await expect(page.locator("#adminOrderList")).toContainText("hidden-member@example.com");
+
+  await emptyPrivateCache(page);
+  await holdOrderProfiles(page);
+  await page.evaluate((id) => { window.__memberDirectoryUser = id; }, OTHER);
+  await expectPrivateProfileDiscarded(page);
+
+  await emptyPrivateCache(page);
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryAal = "aal2";
+  }, ADMIN);
+  await holdOrderProfiles(page);
+  await page.evaluate(() => { window.__memberDirectoryUser = ""; });
+  await expectPrivateProfileDiscarded(page);
+
+  await emptyPrivateCache(page);
+  await page.evaluate((id) => {
+    window.__memberDirectoryUser = id;
+    window.__memberDirectoryAal = "aal2";
+  }, ADMIN);
+  await holdOrderProfiles(page);
+  await page.evaluate(() => { window.__memberDirectoryAal = "aal1"; });
+  await expectPrivateProfileDiscarded(page);
 });

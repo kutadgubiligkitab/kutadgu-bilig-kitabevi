@@ -31,7 +31,7 @@ test("members list keeps its action and adds only the cart view", () => {
   assert.match(html, /id="memberCartPanel"/);
   assert.match(html, /id="memberCartIdentity"/);
   assert.match(html, /بۇ ئەزانىڭ تور بېتىدە ساقلانغان نۆۋەتتىكى سېۋىتى\. زاكاز ياكى سېتىۋېلىش ئەمەس\./);
-  assert.match(html, /admin\.js\?v=90/);
+  assert.match(html, /admin\.js\?v=91/);
   assert.match(html, /id="memberCartTitle" tabindex="-1"/);
   assert.match(html, /admin-member-cart\.js\?v=3/);
   assert.match(html, /admin\.css\?v=50/);
