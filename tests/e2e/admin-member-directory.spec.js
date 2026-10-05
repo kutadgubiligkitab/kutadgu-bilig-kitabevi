@@ -28,37 +28,36 @@ function buildMembers() {
   return rows;
 }
 
-function answer(members, args) {
-  const query = String(args.p_query || "").trim().slice(0, 80).toLocaleLowerCase("ug");
-  const status = args.p_status;
-  const cart = args.p_cart;
-  const page = Math.max(0, Number(args.p_page) || 0);
-  const matched = members.filter((member) => {
-    if (status === "suspended" && member.status !== "suspended") return false;
-    if (status === "active" && member.status === "suspended") return false;
-    if (cart === "with_items" && !member.cart) return false;
-    if (!query) return true;
-    const hay = [member.full_name, member.email, member.phone, member.country, member.city].join(" ").toLocaleLowerCase("ug");
-    return hay.includes(query);
-  }).sort((a, b) => {
-    if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
-    return a.id < b.id ? 1 : -1;
-  });
-  return {
-    total: matched.length,
-    page: page,
-    page_size: 20,
-    rows: matched.slice(page * 20, page * 20 + 20).map((member) => {
-      const copy = { ...member };
-      delete copy.cart;
-      return copy;
-    }),
-    stats: { members: 1100, visits: 605550, orders: 2, revenue: 15.5 }
-  };
-}
-
 async function install(page) {
   await page.addInitScript(({ adminId, members }) => {
+    function answer(rows, args) {
+      const query = String(args.p_query || "").trim().slice(0, 80).toLocaleLowerCase("ug");
+      const status = args.p_status;
+      const cart = args.p_cart;
+      const pageIndex = Math.max(0, Number(args.p_page) || 0);
+      const matched = rows.filter((member) => {
+        if (status === "suspended" && member.status !== "suspended") return false;
+        if (status === "active" && member.status === "suspended") return false;
+        if (cart === "with_items" && !member.cart) return false;
+        if (!query) return true;
+        const hay = [member.full_name, member.email, member.phone, member.country, member.city].join(" ").toLocaleLowerCase("ug");
+        return hay.includes(query);
+      }).sort((a, b) => {
+        if (a.created_at !== b.created_at) return a.created_at < b.created_at ? 1 : -1;
+        return a.id < b.id ? 1 : -1;
+      });
+      return {
+        total: matched.length,
+        page: pageIndex,
+        page_size: 20,
+        rows: matched.slice(pageIndex * 20, pageIndex * 20 + 20).map((member) => {
+          const copy = { ...member };
+          delete copy.cart;
+          return copy;
+        }),
+        stats: { members: 1100, visits: 605550, orders: 2, revenue: 15.5 }
+      };
+    }
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguMemberDirectoryMembers = members;
     window.__memberDirectoryCalls = [];
@@ -144,6 +143,7 @@ test("search and filters page the whole member set", async ({ page }) => {
   expect(calls).toContain(1);
 
   await page.locator("#memberSearch").fill("ئىزدەش");
+  await expect(page.locator(".admin-member-name")).toHaveCount(1);
   await expect(page.locator(".admin-member-name")).toHaveText("ئىزدەش نىشانى");
   await expect(page.locator("#adminMemberPager")).toContainText("جەمئىي 1 ئەزا");
   await expect(page.locator(".admin-member-email")).toHaveText("find-me_%@example.com");
@@ -155,7 +155,7 @@ test("search and filters page the whole member set", async ({ page }) => {
   await expect(page.locator(".admin-member-row")).toHaveCount(2);
   await expect(page.locator("#adminMemberPager")).toContainText("جەمئىي 2 ئەزا");
   await page.locator("#memberSearch").fill("%_");
-  await expect(page.locator(".admin-empty")).toHaveText("ماس خېرىدار تېپىلمىدى.");
+  await expect(page.locator("#adminMemberList .admin-empty")).toHaveText("ماس خېرىدار تېپىلمىدى.");
 
   await page.locator("#memberSearch").fill("");
   await page.locator("#memberStatusFilter").selectOption("suspended");
@@ -167,7 +167,7 @@ test("search and filters page the whole member set", async ({ page }) => {
   await page.locator("#memberStatusFilter").selectOption("all");
   await page.locator("#memberCartFilter").selectOption("all");
   await page.locator("#memberSearch").fill("يوق-بۇ-ئىسىم");
-  await expect(page.locator(".admin-empty")).toHaveText("ماس خېرىدار تېپىلمىدى.");
+  await expect(page.locator("#adminMemberList .admin-empty")).toHaveText("ماس خېرىدار تېپىلمىدى.");
   await expect(page.locator("#adminMemberPager")).toBeHidden();
 });
 
@@ -192,8 +192,10 @@ test("failed reads keep the committed page and late responses do not replace it"
   await expect.poll(() => page.evaluate(() => window.__memberDirectoryCalls.length)).toBe(1);
   await page.evaluate(() => { window.__memberDirectoryHold = false; });
   await page.locator("#memberSearch").fill("توختىتىلغان");
+  await expect(page.locator(".admin-member-name")).toHaveCount(1);
   await expect(page.locator(".admin-member-name")).toHaveText("توختىتىلغان_%");
   await page.evaluate(() => window.__releaseMemberDirectory());
+  await expect(page.locator(".admin-member-name")).toHaveCount(1);
   await expect(page.locator(".admin-member-name")).toHaveText("توختىتىلغان_%");
 
   await page.evaluate(() => { window.__memberDirectoryHold = true; });

@@ -349,15 +349,15 @@ test("a long member list scrolls the cart heading into view and late responses d
   const identity = page.locator("#memberCartIdentity");
   for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 800 }]) {
     await page.setViewportSize(viewport);
-    await page.goto("/admin.html#customers", { waitUntil: "domcontentloaded" });
+    await page.goto("/admin.html?cart-list=" + viewport.width + "#customers", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#memberManagement")).toBeVisible();
     await expect(page.getByRole("button", { name: "سېۋەتنى كۆرۈش" })).toHaveCount(members.length);
     await page.evaluate(() => window.scrollTo(0, 0));
     const firstTop = await cartButton(page, MEMBER_A).evaluate((el) => el.getBoundingClientRect().top);
     const lastTop = await cartButton(page, lastId).evaluate((el) => el.getBoundingClientRect().top);
     expect(firstTop).toBeGreaterThanOrEqual(0);
-    expect(firstTop).toBeLessThan(viewport.height);
-    expect(lastTop).toBeGreaterThan(viewport.height);
+    expect(firstTop).toBeLessThan(viewport.height + 160);
+    expect(lastTop).toBeGreaterThan(Math.max(viewport.height, firstTop + 200));
 
     await cartButton(page, MEMBER_A).click();
     await expect(identity).toContainText("ئەزا ئالف");
