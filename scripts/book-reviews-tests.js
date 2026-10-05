@@ -12,6 +12,7 @@ const admin = fs.readFileSync(path.join(root, "admin-book-reviews.js"), "utf8");
 const sql = fs.readFileSync(path.join(root, "STAGE107_BOOK_REVIEWS.sql"), "utf8");
 const shell = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
 const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
+const adminCss = fs.readFileSync(path.join(root, "admin.css"), "utf8");
 
 let failed = 0;
 function test(name, fn) {
@@ -62,6 +63,11 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
   assert.match(adminHtml, /admin-book-reviews\.js\?v=3/);
+  assert.match(adminHtml, /admin\.css\?v=50/);
+  assert.doesNotMatch(adminHtml, /admin\.css\?v=49/);
+  assert.match(adminCss, /\.admin-top-actions a,\.admin-top-actions button\{[^}]*color:#fff/);
+  assert.match(adminCss, /\.admin-top-actions \.admin-approval-panel\[hidden\]\{display:none\}/);
+  assert.match(adminCss, /\.admin-top-actions \.admin-approval-panel button\{[^}]*color:#44352d/);
   assert.match(admin, /delete_book_review/);
   assert.match(admin, /admin_book_review_exists/);
   assert.match(admin, /data-review-status/);
