@@ -1885,7 +1885,7 @@ test("a failed moderation page keeps the last successful page and retries that c
   await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
   await expect(reviewPrev).toHaveCount(0);
   await expect(reviewNext).toBeVisible();
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
   await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-101" })).toHaveCount(0);
   const failedNext = await callsSince(page, "reviews", beforeFailedNext);
   expect(failedNext).toEqual([{ kind: "reviews", status: "pending", after: pendingReviewCursor.after, afterId: pendingReviewCursor.afterId }]);
@@ -1914,7 +1914,7 @@ test("a failed moderation page keeps the last successful page and retries that c
   await expect(page.locator(".admin-review-item")).toHaveCount(5);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-105$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-1" })).toHaveCount(0);
+  await expect(page.locator("#bookReviewModerationList .admin-review-body", { hasText: /^باھا-pending-1$/ })).toHaveCount(0);
   await expect(reviewPrev).toBeVisible();
   await expect(reviewNext).toHaveCount(0);
   const pageTwoBodies = await page.locator("#bookReviewModerationList .admin-review-body").allTextContents();
@@ -1926,7 +1926,7 @@ test("a failed moderation page keeps the last successful page and retries that c
   await reviewPrev.click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-1" })).toHaveCount(0);
+  await expect(page.locator("#bookReviewModerationList .admin-review-body", { hasText: /^باھا-pending-1$/ })).toHaveCount(0);
   await expect(reviewPrev).toBeVisible();
   await expect(reviewNext).toHaveCount(0);
   const failedPrev = await callsSince(page, "reviews", beforeFailedPrev);
@@ -1947,7 +1947,7 @@ test("a failed moderation page keeps the last successful page and retries that c
   await replyNext.click();
   await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
   await expect(page.locator(".admin-reply-item")).toHaveCount(100);
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
   await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-101" })).toHaveCount(0);
   await expect(replyPrev).toHaveCount(0);
   await expect(replyNext).toBeVisible();
@@ -1960,8 +1960,8 @@ test("a failed moderation page keeps the last successful page and retries that c
 
   await replyNext.click();
   await expect(page.locator(".admin-reply-item")).toHaveCount(5);
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
   const replyPageTwo = await page.locator("#bookReviewReplyList .admin-review-body").allTextContents();
   expect(replyPageTwo).toEqual(["جاۋاب-pending-101", "جاۋاب-pending-102", "جاۋاب-pending-103", "جاۋاب-pending-104", "جاۋاب-pending-105"]);
@@ -1969,11 +1969,11 @@ test("a failed moderation page keeps the last successful page and retries that c
   await page.evaluate(() => { window.__pageFail = { kind: "replies", mode: "error" }; });
   await replyPrev.click();
   await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-1" })).toHaveCount(0);
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toHaveCount(0);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
   await replyPrev.click();
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
   await expect(page.locator(".admin-reply-item")).toHaveCount(100);
   await expect(page.locator(".admin-review-item")).toHaveCount(5);
   const replyPageOne = await page.locator("#bookReviewReplyList .admin-review-body").allTextContents();
@@ -1983,13 +1983,13 @@ test("a failed moderation page keeps the last successful page and retries that c
   await reviewPrev.click();
   await replyNext.click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
   await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "error" }; });
   await reviewNext.click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
   await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
   await expect(page.locator(".admin-reply-item")).toHaveCount(5);
 
   for (const status of ["approved", "rejected"]) {
@@ -2013,12 +2013,12 @@ test("a failed moderation page keeps the last successful page and retries that c
     await page.evaluate((mode) => { window.__pageFail = { kind: "replies", mode: mode }; }, status === "approved" ? "reject" : "error");
     await replyNext.click();
     await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
-    await expect(page.locator(".admin-reply-body", { hasText: new RegExp("^جاۋاب-" + status + "-1$") })).toBeVisible();
+    await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-1$") })).toBeVisible();
     await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-" + status + "-101" })).toHaveCount(0);
     await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-105$") })).toBeVisible();
     expect(await callsSince(page, "replies", replyMark)).toEqual([{ kind: "replies", status: status, after: replyCursor.after, afterId: replyCursor.afterId }]);
     await replyNext.click();
-    await expect(page.locator(".admin-reply-body", { hasText: new RegExp("^جاۋاب-" + status + "-105$") })).toBeVisible();
+    await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-105$") })).toBeVisible();
     await expect(page.locator(".admin-reply-item")).toHaveCount(5);
     await expect(page.locator(".admin-review-item")).toHaveCount(5);
   }
@@ -2058,7 +2058,7 @@ test("a delayed moderation page does not land after a filter change, idle lock, 
   await page.evaluate(() => window.__releaseReview());
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-approved-1$/ })).toBeVisible();
   await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await expect(page.locator(".admin-reply-body", { hasText: /^جاۋاب-approved-1$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-approved-1$/ })).toBeVisible();
   await page.locator(".admin-review-filters button[data-review-status='pending']").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
   await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
