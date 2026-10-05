@@ -266,6 +266,12 @@ test("this PR does not change Admin/auth-backend/SQL surfaces", () => {
     "STAGE106_CATALOG_CREDITS_ROLLBACK.sql",
     "STAGE107_BOOK_REVIEWS.sql",
     "STAGE107_BOOK_REVIEWS_ROLLBACK.sql",
+    "STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql",
+    "STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql",
+    "STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql",
+    "STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql",
+    "STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql",
+    "STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql","STAGE111_BOOK_REVIEW_PAGES.sql","STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql",
   ]);
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && !allowedSql.has(file)) ||
