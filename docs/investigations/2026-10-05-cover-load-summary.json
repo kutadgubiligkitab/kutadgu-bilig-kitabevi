@@ -1,0 +1,39 @@
+{
+  "testedAt": "2026-10-05",
+  "site": "https://www.kutadgubilik.com",
+  "applicationCommit": "d5802b66b34e846d6300b072708bc1ab9861c6ae",
+  "shopJsSha256": "b0c08e280594b35112bb942b534eae4e85eb7af7dcb36929c6d5e87c06e5750f",
+  "browsers": {
+    "chromium": "151.0.7922.34",
+    "webkit": "26.5"
+  },
+  "lab": "Playwright headless, cache enabled, datacenter network. Phone sizes are emulation, not a physical phone. INP was not measured. WebKit transferred-byte totals are not comparable.",
+  "medians": {
+    "home-desktop": {"runs": 5, "viewport": "1280x900", "coldLcpMs": 500, "warmLcpMs": 64, "coldCls": 0.018, "warmCls": 0.015, "coldTransfer": 6159045, "warmTransfer": 117069, "coldRequests": 113, "warmRequests": 110, "coldTtfbMs": 72, "warmTtfbMs": 21},
+    "books-desktop": {"runs": 5, "viewport": "1280x900", "coldLcpMs": 1220, "warmLcpMs": 300, "coldCls": 0.009, "warmCls": 0, "coldTransfer": 3900638, "warmTransfer": 114050, "coldRequests": 80, "warmRequests": 77, "coldTtfbMs": 81, "warmTtfbMs": 27},
+    "book-252": {"runs": 3, "viewport": "1280x900", "coldLcpMs": 892, "warmLcpMs": 500, "coldCls": 0.011, "warmCls": 0, "coldTransfer": 2241516, "warmTransfer": 115291, "coldRequests": 79, "warmRequests": 76, "coldTtfbMs": 518, "warmTtfbMs": 466},
+    "adabiyat": {"runs": 3, "viewport": "1280x900", "coldLcpMs": 704, "warmLcpMs": 560, "coldCls": 0.006, "warmCls": 0, "coldTransfer": 5890390, "warmTransfer": 121329, "coldRequests": 96, "warmRequests": 93, "coldTtfbMs": 291, "warmTtfbMs": 250},
+    "home-phone-emulation": {"runs": 3, "viewport": "390x800", "coldLcpMs": 488, "warmLcpMs": 64, "coldCls": 0, "warmCls": 0, "coldTransfer": 4632382, "warmTransfer": 116982, "coldRequests": 100, "warmRequests": 97},
+    "webkit-home": {"runs": 3, "viewport": "1280x900", "coldLcpMs": 1064, "warmLcpMs": 192, "coldCls": 0, "warmCls": 0, "bytes": "not used; resource timing under-counted cover bytes"}
+  },
+  "firstRunCoverSample": {
+    "homeFirstBookCover": {"book": "306", "responseEndMs": 1084, "natural": "955x1351", "display": "227x320", "decoded": 96564},
+    "booksFirstCover": {"book": "133", "coldResponseEndMs": 1151, "warmResponseEndMs": 270, "natural": "789x1124", "display": "353x534", "decoded": 43776},
+    "booksLargeCover": {"book": "447", "natural": "1131x1600", "display": "353x534", "decoded": 600776},
+    "book252": {"coldResponseEndMs": 758, "warmResponseEndMs": 386, "natural": "690x966", "display": "370x555", "decoded": 42036},
+    "hero": {"file": "/assets/store/shop-interior-main.webp", "natural": "1440x1081", "displayDesktop": "544x358", "decoded": 266460}
+  },
+  "coldBucketsFirstHomeRun": {
+    "cover": {"count": 27, "transfer": 3821700},
+    "fontAndOtherLinks": {"count": 22, "transfer": 1240339},
+    "heroAndOtherImg": {"count": 4, "transfer": 756398},
+    "script": {"count": 36, "transfer": 333379},
+    "document": {"transfer": 7086}
+  },
+  "transientBlank": [
+    {"page": "/books", "book": "411", "atMs": 1675, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "opacity": "1", "recoveredByMs": 7684, "reload": false},
+    {"page": "/books", "book": "316", "atMs": 1045, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "recoveredByMs": 1802, "reload": false},
+    {"page": "/books", "book": "392", "atMs": 1045, "state": "still-loading", "recoveredByMs": 1802, "reload": false},
+    {"page": "/books", "book": "398", "atMs": 1045, "state": "still-loading", "recoveredByMs": 1802, "reload": false}
+  ]
+}
