@@ -416,8 +416,8 @@ test("a long member list scrolls the cart heading into view and late responses d
     await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
     await expect(page.locator("#memberCartPanel")).toBeHidden();
     await expect(heading).not.toBeFocused();
-    await expect(cartButton(page, MEMBER_A)).not.toBeFocused();
-    await expect(cartButton(page, MEMBER_B)).not.toBeFocused();
+    await expect(cartButton(page, MEMBER_A)).toHaveCount(0);
+    await expect(cartButton(page, MEMBER_B)).toHaveCount(0);
     await settleFrames(page);
     await armScrollCounter(page);
     await page.evaluate(() => window.__releaseMemberCart());

@@ -44,6 +44,10 @@ let db=null,user=null,books=[],editing=null,members=[],orders=[];
 let creditSaveMode="create";
 let creditEditor=null;
 let profileById=new Map();
+let memberDirectoryGeneration=0;
+let memberDirectoryCommitted=null;
+let memberDirectoryFailed=null;
+let memberStats=null;
 let adminOrders=[];
 let adminOrderTotal=0;
 let adminOrderPage=0;
@@ -51,6 +55,7 @@ let adminOrderDetail=null;
 let adminOrdersRequest=0;
 let adminOrderSearchTimer=0;
 const ADMIN_ORDER_PAGE_SIZE=40;
+const MEMBER_PAGE_SIZE=20;
 const ADMIN_ORDER_SELECT="id,order_no,user_id,status,stock_committed,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at";
 const ORDER_STATUSES=["prepared","confirmed","processing","shipped","completed","cancelled"];
 const ORDER_STATUS_SET=new Set(ORDER_STATUSES);
@@ -1154,6 +1159,7 @@ async function routeSession(){
     if(ready&&ready.reason==="network"&&user)return;
     user=null;
     clearAdminSuggestionState();
+    clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     if(ready&&ready.reason==="network"){
@@ -1167,6 +1173,7 @@ async function routeSession(){
   if(!session){
     user=null;
     clearAdminSuggestionState();
+    clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     return;
@@ -1175,6 +1182,7 @@ async function routeSession(){
   if(!ok){
     user=null;
     clearAdminSuggestionState();
+    clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     status($("#loginStatus"),"بۇ ھېسابات Admin ھېسابى ئەمەس.","error");
@@ -1934,24 +1942,192 @@ function bindBookStaffUi(){
   });
 }
 
-async function loadMembers(){
+function memberDirectoryInput(){
+  const status=$("#memberStatusFilter")?.value||"all";
+  const cart=$("#memberCartFilter")?.value||"all";
+  return {
+    query:String($("#memberSearch")?.value||"").trim().slice(0,80),
+    status:status==="suspended"||status==="active"?status:"all",
+    cart:cart==="with_items"?"with_items":"all"
+  };
+}
+function memberDirectoryContext(page){
+  return {...memberDirectoryInput(),page:Number.isInteger(page)?page:0};
+}
+function memberSurfaceOpen(){
+  const dash=$("#dashboardPanel");
+  const lock=$("#idleLockPanel");
+  if(!dash||dash.hidden)return false;
+  if(lock&&!lock.hidden)return false;
+  return true;
+}
+function readTokenAal(token){
+  try{
+    const part=String(token||"").split(".")[1]||"";
+    if(!part)return "";
+    const json=JSON.parse(atob(part.replace(/-/g,"+").replace(/_/g,"/")));
+    return String(json&&json.aal||"");
+  }catch(err){
+    return "";
+  }
+}
+async function readMemberAdmin(){
+  if(!db||!db.auth||typeof db.auth.getSession!=="function")return {id:user&&user.id||"",aal:""};
+  try{
+    const {data}=await db.auth.getSession();
+    const session=data&&data.session;
+    if(!session)return {id:"",aal:""};
+    return {id:session.user&&session.user.id||"",aal:readTokenAal(session.access_token)};
+  }catch(err){
+    return {id:"",aal:""};
+  }
+}
+function setMemberNotice(text,retryContext){
+  const notice=$("#adminMemberNotice");
+  if(!notice)return;
+  notice.replaceChildren();
+  if(!text){notice.hidden=true;return}
+  notice.hidden=false;
+  const line=document.createElement("span");
+  line.textContent=text;
+  notice.appendChild(line);
+  if(retryContext){
+    const button=document.createElement("button");
+    button.type="button";
+    button.id="memberDirectoryRetry";
+    button.textContent="قايتا سىناش";
+    button.addEventListener("click",()=>loadMembers({context:retryContext}));
+    notice.appendChild(document.createTextNode(" "));
+    notice.appendChild(button);
+  }
+}
+function clearMemberPrivate(){
+  memberDirectoryGeneration+=1;
+  memberDirectoryCommitted=null;
+  memberDirectoryFailed=null;
+  members=[];
+  memberStats=null;
+  profileById=new Map();
   const host=$("#adminMemberList");
-  if(host)host.innerHTML='<div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div>';
-  const [profileResult,orderResult]=await Promise.all([
-    db.from("profiles").select("*").order("created_at",{ascending:false}),
-    db.from("orders").select("id,user_id,total,status,created_at").order("created_at",{ascending:false})
-  ]);
-  if(profileResult.error){
-    if(host)host.innerHTML=`<div class="admin-empty">خېرىدارلارنى ئوقۇش مەغلۇپ بولدى: ${esc(profileResult.error.message)}<br>SUPABASE_SETUP.sql نى ئىجرا قىلغانلىقىڭىزنى تەكشۈرۈڭ.</div>`;
+  if(host)host.replaceChildren();
+  const pager=$("#adminMemberPager");
+  if(pager){pager.hidden=true;pager.replaceChildren()}
+  setMemberNotice("");
+  if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList([]);
+}
+function applyMemberDirectoryStats(stats){
+  if(!stats)return;
+  memberStats={
+    members:Number(stats.members)||0,
+    visits:Number(stats.visits)||0,
+    orders:Number(stats.orders)||0,
+    revenue:Number(stats.revenue)||0
+  };
+  const membersEl=$("#statMembers");
+  const visitsEl=$("#statVisits");
+  const ordersEl=$("#statOrders");
+  const revenueEl=$("#statRevenue");
+  if(membersEl)membersEl.textContent=String(memberStats.members);
+  if(visitsEl)visitsEl.textContent=memberStats.visits.toLocaleString("tr-TR");
+  if(ordersEl)ordersEl.textContent=String(memberStats.orders);
+  if(revenueEl)revenueEl.textContent=money(memberStats.revenue);
+}
+function showMemberFailure(context,message){
+  memberDirectoryFailed=context;
+  const text=message||"يېڭى ئوقۇش مەغلۇپ بولدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.";
+  const host=$("#adminMemberList");
+  if(!memberDirectoryCommitted){
+    if(host){
+      host.replaceChildren();
+      const empty=document.createElement("div");
+      empty.className="admin-empty";
+      empty.textContent=text;
+      const button=document.createElement("button");
+      button.type="button";
+      button.id="memberDirectoryRetry";
+      button.textContent="قايتا سىناش";
+      button.addEventListener("click",()=>loadMembers({context}));
+      host.appendChild(empty);
+      host.appendChild(button);
+    }
+    const pager=$("#adminMemberPager");
+    if(pager){pager.hidden=true;pager.replaceChildren()}
+    setMemberNotice("");
     return;
   }
-  members=(profileResult.data||[]).filter(p=>p.id!==user?.id);
-  profileById=new Map((profileResult.data||[]).map(p=>[p.id,p]));
-  orders=orderResult.error?[]:(orderResult.data||[]);
-  renderMemberStats();
+  setMemberNotice(text,context);
+}
+async function loadMembers(request){
+  const host=$("#adminMemberList");
+  const opts=request||{};
+  const context=opts.context||memberDirectoryContext(memberDirectoryCommitted?memberDirectoryCommitted.page:0);
+  const generation=++memberDirectoryGeneration;
+  const before=await readMemberAdmin();
+  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
+  if(!memberSurfaceOpen()){
+    clearMemberPrivate();
+    return {ok:false,reason:"closed"};
+  }
+  if(!before.id||before.aal!=="aal2"){
+    clearMemberPrivate();
+    showMemberFailure(context,"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+    memberDirectoryCommitted=null;
+    return {ok:false,reason:"aal"};
+  }
+  if(!db||typeof db.rpc!=="function"){
+    showMemberFailure(context,"خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
+    return {ok:false,reason:"no_db"};
+  }
+  if(!opts.silent&&!memberDirectoryCommitted&&host)host.innerHTML='<div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div>';
+  if(!opts.silent&&memberDirectoryCommitted)setMemberNotice("خېرىدارلار يۈكلىنىۋاتىدۇ...");
+  let result;
+  try{
+    result=await db.rpc("admin_member_directory_page",{
+      p_query:context.query,
+      p_status:context.status,
+      p_cart:context.cart,
+      p_page:context.page
+    });
+  }catch(err){
+    if(generation!==memberDirectoryGeneration||!memberSurfaceOpen())return {ok:false,stale:true};
+    showMemberFailure(context,"خېرىدارلارنى ئوقۇش مەغلۇپ بولدى.");
+    return {ok:false,error:err};
+  }
+  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
+  const after=await readMemberAdmin();
+  if(generation!==memberDirectoryGeneration)return {ok:false,stale:true};
+  if(!memberSurfaceOpen()||!after.id||after.id!==before.id||after.aal!=="aal2"){
+    clearMemberPrivate();
+    if(after.aal!=="aal2")showMemberFailure(context,"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+    return {ok:false,reason:"auth"};
+  }
+  if(!result||result.error){
+    const code=String(result&&result.error&&result.error.code||"");
+    const blob=String(result&&result.error&&(result.error.message||result.error.details||result.error.hint)||"");
+    if(code==="42501"||/42501|aal2|permission denied|admin permission/i.test(blob)){
+      clearMemberPrivate();
+      showMemberFailure(context,"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+      memberDirectoryCommitted=null;
+      return {ok:false,reason:"denied"};
+    }
+    showMemberFailure(context);
+    return {ok:false,error:result&&result.error};
+  }
+  const payload=result.data&&typeof result.data==="string"?JSON.parse(result.data):result.data;
+  const total=Number(payload&&payload.total)||0;
+  const rows=payload&&Array.isArray(payload.rows)?payload.rows:[];
+  const maxPage=Math.max(0,Math.ceil(total/MEMBER_PAGE_SIZE)-1);
+  if(context.page>maxPage){
+    return loadMembers({context:{...context,page:maxPage},silent:opts.silent});
+  }
+  memberDirectoryCommitted={...context,total,rows};
+  memberDirectoryFailed=null;
+  members=rows.map(row=>({...row}));
+  rows.forEach(row=>{if(row&&row.id)profileById.set(row.id,{id:row.id,full_name:row.full_name,email:row.email})});
+  applyMemberDirectoryStats(payload&&payload.stats);
+  setMemberNotice("");
   renderMembers();
-  const ordersPanel=document.querySelector("[data-admin-section-panel='orders']");
-  if(ordersPanel&&!ordersPanel.hidden)renderAdminOrders();
+  return {ok:true,total};
 }
 const COUNTED_ORDER_STATUSES=new Set(["confirmed","processing","shipped","completed"]);
 function orderStatusKey(order){
@@ -1983,11 +2159,15 @@ function memberOrderSummary(memberId){
 }
 function renderMembers(){
   const host=$("#adminMemberList");if(!host)return;
-  const q=String($("#memberSearch")?.value||"").trim().toLocaleLowerCase("ug");
-  const filtered=members.filter(m=>!q||`${m.full_name||""} ${m.email||""} ${m.phone||""} ${m.country||""} ${m.city||""}`.toLocaleLowerCase("ug").includes(q));
-  if(!filtered.length){host.innerHTML='<div class="admin-empty">ماس خېرىدار تېپىلمىدى.</div>';return}
+  const filtered=members;
+  if(!filtered.length){
+    host.innerHTML='<div class="admin-empty">ماس خېرىدار تېپىلمىدى.</div>';
+    renderMemberPager();
+    if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList([]);
+    return;
+  }
   host.innerHTML=filtered.map(m=>{
-    const summary=memberOrderSummary(m.id),suspended=m.status==="suspended";
+    const summary=m.order_count==null?memberOrderSummary(m.id):{count:Number(m.order_count)||0,total:Number(m.order_total)||0},suspended=m.status==="suspended";
     const contact=[m.phone,m.country,m.city].filter(Boolean).join(" · ")||"قوشۇمچە ئالاقە ئۇچۇرى يوق";
     return `<article class="admin-member-row ${suspended?"is-suspended":""}">
       <div>
@@ -2010,6 +2190,30 @@ function renderMembers(){
     </article>`;
   }).join("");
   host.querySelectorAll("[data-member-status]").forEach(btn=>btn.onclick=()=>toggleMemberStatus(btn.dataset.memberStatus,btn.dataset.nextStatus));
+  renderMemberPager();
+  if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList(filtered.map(m=>m.id));
+}
+function renderMemberPager(){
+  const host=$("#adminMemberPager");if(!host)return;
+  const committed=memberDirectoryCommitted;
+  if(!committed||!committed.total){host.hidden=true;host.innerHTML="";return}
+  const pages=Math.max(1,Math.ceil(committed.total/MEMBER_PAGE_SIZE));
+  host.hidden=false;
+  host.innerHTML=`<button type="button" data-member-page="prev" ${committed.page<=0?"disabled":""}>ئالدىنقى</button>
+    <span>بەت ${committed.page+1} / ${pages} · جەمئىي ${committed.total} ئەزا · ھەر بەتتە ${MEMBER_PAGE_SIZE}</span>
+    <button type="button" data-member-page="next" ${committed.page>=pages-1?"disabled":""}>كېيىنكى</button>`;
+  host.querySelector("[data-member-page='prev']").onclick=()=>{
+    if(!memberDirectoryCommitted||memberDirectoryCommitted.page<=0)return;
+    const current=memberDirectoryCommitted;
+    loadMembers({context:{query:current.query,status:current.status,cart:current.cart,page:current.page-1}});
+  };
+  host.querySelector("[data-member-page='next']").onclick=()=>{
+    if(!memberDirectoryCommitted)return;
+    const current=memberDirectoryCommitted;
+    const pagesNow=Math.max(1,Math.ceil(current.total/MEMBER_PAGE_SIZE));
+    if(current.page>=pagesNow-1)return;
+    loadMembers({context:{query:current.query,status:current.status,cart:current.cart,page:current.page+1}});
+  };
 }
 async function toggleMemberStatus(memberId,nextStatus){
   const member=members.find(m=>m.id===memberId);if(!member)return;
@@ -2017,7 +2221,8 @@ async function toggleMemberStatus(memberId,nextStatus){
   if(!confirm(`${member.full_name||member.email||"بۇ خېرىدار"} ھېسابىنى ${label}نى جەزملەشتۈرەمسىز؟`))return;
   const {error}=await db.rpc("set_member_status",{member_id:memberId,new_status:nextStatus});
   if(error){alert("ھېساب ھالىتىنى ئۆزگەرتىش مەغلۇپ بولدى:\n"+error.message);return}
-  await loadMembers();
+  const current=memberDirectoryCommitted;
+  await loadMembers({context:current?{query:current.query,status:current.status,cart:current.cart,page:current.page}:memberDirectoryContext(0)});
 }
 function isAllowedOrderStatus(status){
   return ORDER_STATUS_SET.has(orderStatusKey({status}));
@@ -2126,6 +2331,41 @@ function parseOrderItems(raw){
     };
   });
 }
+async function hydrateOrderMemberProfiles(rows){
+  const ids=[...new Set((rows||[]).map(order=>order&&order.user_id).filter(Boolean))].filter(id=>!profileById.has(id));
+  if(!ids.length||!db||typeof db.from!=="function")return;
+  try{
+    const result=await db.from("profiles").select("id,full_name,email").in("id",ids);
+    if(!result||result.error||!Array.isArray(result.data))return;
+    result.data.forEach(row=>{if(row&&row.id)profileById.set(row.id,row)});
+  }catch(err){}
+}
+function bindMemberDirectory(){
+  if(document.body&&document.body.dataset.memberDirectoryBound==="1")return;
+  if(document.body)document.body.dataset.memberDirectoryBound="1";
+  let memberSearchTimer=0;
+  const search=$("#memberSearch");
+  if(search)search.addEventListener("input",()=>{
+    clearTimeout(memberSearchTimer);
+    memberSearchTimer=setTimeout(()=>loadMembers({context:memberDirectoryContext(0)}),250);
+  });
+  const reload=$("#reloadMembers");
+  if(reload)reload.onclick=()=>{
+    const input=memberDirectoryInput();
+    const current=memberDirectoryCommitted;
+    const same=current&&current.query===input.query&&current.status===input.status&&current.cart===input.cart;
+    loadMembers({context:{...input,page:same?current.page:0}});
+  };
+  ["memberStatusFilter","memberCartFilter"].forEach(id=>{
+    const el=$("#"+id);
+    if(el)el.addEventListener("change",()=>loadMembers({context:memberDirectoryContext(0)}));
+  });
+  const lock=$("#idleLockPanel");
+  if(lock&&typeof MutationObserver==="function"){
+    const observer=new MutationObserver(()=>{if(!lock.hidden)clearMemberPrivate()});
+    observer.observe(lock,{attributes:true,attributeFilter:["hidden"]});
+  }
+}
 function orderMemberContext(order){
   const profile=order&&order.user_id?profileById.get(order.user_id):null;
   if(!profile)return {name:"ئەزا تېپىلمىدى",email:"—"};
@@ -2171,6 +2411,8 @@ async function loadAdminOrders(opts){
   }
   adminOrders=data||[];
   adminOrderTotal=count||0;
+  await hydrateOrderMemberProfiles(adminOrders);
+  if(req!==adminOrdersRequest)return {ok:true,stale:true};
   const maxPage=Math.max(0,Math.ceil(adminOrderTotal/ADMIN_ORDER_PAGE_SIZE)-1);
   if(adminOrderPage>maxPage){adminOrderPage=maxPage;return loadAdminOrders(opts)}
   if(adminOrderDetail){
@@ -2319,7 +2561,9 @@ async function saveAdminOrderStatus(orderId){
   }
   const row=Array.isArray(data)?data[0]:data;
   orders=patchOrdersStatus(orders,orderId,row.status,row.updated_at);
-  renderMemberStats();
+  const currentMembers=memberDirectoryCommitted;
+  if(currentMembers)await loadMembers({context:{query:currentMembers.query,status:currentMembers.status,cart:currentMembers.cart,page:currentMembers.page},silent:true});
+  else renderMemberStats();
   const reloaded=await loadAdminOrders({silent:true});
   try{await loadBooks()}catch(err){}
   if(!reloaded||reloaded.ok===false){
@@ -5729,6 +5973,7 @@ async function logout(){
   if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
   user=null;
   clearAdminSuggestionState();
+  clearMemberPrivate();
   show("loginPanel");
   $("#adminLogout").hidden=true;
 }
@@ -6550,6 +6795,7 @@ function init(){
     }
     show("dashboardPanel");
     applyDashboardSectionFromLocation({replace:true});
+    bindMemberDirectory();
     previewBooksMaster=(Array.isArray(window.__kutadguAdminPreviewBooks)?window.__kutadguAdminPreviewBooks:[]).map(b=>({...b}));
     if(Array.isArray(window.__kutadguAdminPreviewMembers)){
       members=window.__kutadguAdminPreviewMembers.map(row=>({...row}));
@@ -6624,8 +6870,7 @@ function init(){
       $("#coverRepairConfirmBtn").disabled=true;
     }
   });
-  $("#memberSearch").addEventListener("input",renderMembers);
-  $("#reloadMembers").onclick=loadMembers;
+  bindMemberDirectory();
   $("#reloadAdminOrders")&&($("#reloadAdminOrders").onclick=()=>loadAdminOrders());
   $("#adminOrderSearch")&&$("#adminOrderSearch").addEventListener("input",()=>{
     adminOrderPage=0;

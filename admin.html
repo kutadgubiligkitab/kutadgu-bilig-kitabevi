@@ -487,12 +487,27 @@
             <h2 class="admin-section-title">خېرىدارلار</h2>
           </div>
           <div class="admin-toolbar-group">
-            <input id="memberSearch" class="admin-search" type="search" placeholder="ئىسىم، ئېلخەت ياكى تېلېفون ئىزدەڭ...">
+            <input id="memberSearch" class="admin-search" type="search" placeholder="ئىسىم، ئېلخەت ياكى تېلېفون ئىزدەڭ..." autocomplete="off">
             <button class="admin-secondary" id="reloadMembers" type="button">↻ يېڭىلاش</button>
           </div>
         </div>
         <p class="admin-help">تىزىملاتقان ۋاقىت، ئاخىرقى كىرىش، ئاخىرقى زىيارەت، زىيارەت سانى ۋە زاكاز تارىخى بۇ يەردە كۆرۈنىدۇ.</p>
+        <div class="admin-filter-row" id="adminMemberFilters">
+          <label for="memberStatusFilter">ھېساب</label>
+          <select id="memberStatusFilter" aria-label="ھېساب ھالىتى">
+            <option value="all">بارلىق ئەزالار</option>
+            <option value="active">نورمال</option>
+            <option value="suspended">توختىتىلغان</option>
+          </select>
+          <label for="memberCartFilter">سېۋەت</label>
+          <select id="memberCartFilter" aria-label="ساقلانغان سېۋەت">
+            <option value="all">ھەممىسى</option>
+            <option value="with_items">سېۋىتىدە كىتاب بار</option>
+          </select>
+        </div>
+        <p id="adminMemberNotice" class="admin-help" hidden></p>
         <div id="adminMemberList" class="admin-member-list"><div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div></div>
+        <div id="adminMemberPager" class="admin-pager" hidden></div>
         <div id="memberCartPanel" class="admin-order-detail" hidden role="region" aria-labelledby="memberCartTitle">
           <div class="admin-modal-head">
             <h3 id="memberCartTitle" tabindex="-1">سېۋەت</h3>
@@ -1046,7 +1061,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=89"></script>
-  <script defer src="admin-member-cart.js?v=2"></script>
+  <script defer src="admin.js?v=90"></script>
+  <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
