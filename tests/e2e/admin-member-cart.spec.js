@@ -13,10 +13,16 @@ function paddedRows(count) {
   return rows;
 }
 
-async function installAdmin(page, carts) {
-  await page.addInitScript(({ members, carts: stored, adminId }) => {
+const DEFAULT_MEMBERS = [
+  { id: MEMBER_A, full_name: "ئەزا ئالف", email: "a@example.com", phone: "111", country: "تۈركىيە", city: "ئىستانبۇل", status: "active" },
+  { id: MEMBER_B, full_name: "ئەزا بې", email: "b@example.com", phone: "222", country: "تۈركىيە", city: "ئانكارا", status: "active" },
+  { id: MEMBER_EMPTY, full_name: "ئەزا بوش", email: "c@example.com", phone: "333", status: "active" }
+];
+
+async function installAdmin(page, carts, members) {
+  await page.addInitScript(({ members: memberRows, carts: stored, adminId }) => {
     window.__kutadguSkipAdminAuth = true;
-    window.__kutadguAdminPreviewMembers = members;
+    window.__kutadguAdminPreviewMembers = memberRows;
     window.__memberCartCalls = [];
     window.__memberCartWrites = [];
     window.__memberCarts = stored;
@@ -73,12 +79,41 @@ async function installAdmin(page, carts) {
     };
   }, {
     adminId: ADMIN,
-    members: [
-      { id: MEMBER_A, full_name: "ئەزا ئالف", email: "a@example.com", phone: "111", country: "تۈركىيە", city: "ئىستانبۇل", status: "active" },
-      { id: MEMBER_B, full_name: "ئەزا بې", email: "b@example.com", phone: "222", country: "تۈركىيە", city: "ئانكارا", status: "active" },
-      { id: MEMBER_EMPTY, full_name: "ئەزا بوش", email: "c@example.com", phone: "333", status: "active" }
-    ],
+    members: members || DEFAULT_MEMBERS,
     carts: carts
+  });
+}
+
+async function expectInsideViewport(locator) {
+  const box = await locator.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      height: rect.height,
+      viewHeight: window.innerHeight,
+      viewWidth: window.innerWidth
+    };
+  });
+  expect(box.height).toBeGreaterThan(0);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  expect(box.left).toBeGreaterThanOrEqual(-1);
+  expect(box.bottom).toBeLessThanOrEqual(box.viewHeight + 1);
+  expect(box.right).toBeLessThanOrEqual(box.viewWidth + 1);
+}
+
+async function settleFrames(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+async function armScrollCounter(page) {
+  await page.evaluate(() => {
+    window.__cartScrollCount = 0;
+    if (window.__cartScrollArmed) return;
+    window.__cartScrollArmed = true;
+    window.addEventListener("scroll", () => { window.__cartScrollCount += 1; }, true);
   });
 }
 
@@ -292,4 +327,107 @@ test("phone and desktop layouts keep the members section and the approval bell",
   await expect(page.locator("#memberCartPanel")).not.toContainText("سېۋەتتە كىتاب يوق.");
   const calls = await page.evaluate(() => window.__memberCartCalls.filter((call) => call.user === "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb").length);
   expect(calls).toBe(0);
+});
+
+test("a long member list scrolls the cart heading into view and late responses do not jump", async ({ page }) => {
+  const members = DEFAULT_MEMBERS.slice();
+  for (let i = 0; i < 24; i += 1) {
+    members.push({
+      id: "00000000-0000-4000-8000-" + String(i + 1).padStart(12, "0"),
+      full_name: "ئەزا " + String(i + 1),
+      email: "m" + String(i + 1) + "@example.com",
+      phone: "555",
+      status: "active"
+    });
+  }
+  const lastId = members[members.length - 1].id;
+  await installAdmin(page, {
+    [MEMBER_A]: [{ book_id: "10", quantity: 2, title: "كۇتادغۇ بىلىگ" }],
+    [MEMBER_B]: [{ book_id: "20", quantity: 7, title: "باشقا كىتاب" }]
+  }, members);
+  const heading = page.locator("#memberCartTitle");
+  const identity = page.locator("#memberCartIdentity");
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/admin.html#customers", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#memberManagement")).toBeVisible();
+    await expect(page.getByRole("button", { name: "سېۋەتنى كۆرۈش" })).toHaveCount(members.length);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const firstTop = await cartButton(page, MEMBER_A).evaluate((el) => el.getBoundingClientRect().top);
+    const lastTop = await cartButton(page, lastId).evaluate((el) => el.getBoundingClientRect().top);
+    expect(firstTop).toBeGreaterThanOrEqual(0);
+    expect(firstTop).toBeLessThan(viewport.height);
+    expect(lastTop).toBeGreaterThan(viewport.height);
+
+    await cartButton(page, MEMBER_A).click();
+    await expect(identity).toContainText("ئەزا ئالف");
+    await expect(identity).toContainText("a@example.com");
+    await expectInsideViewport(heading);
+    await expectInsideViewport(identity);
+    await expect(heading).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+
+    await page.locator("#closeMemberCart").click();
+    await expect(page.locator("#memberCartPanel")).toBeHidden();
+    await expect(cartButton(page, MEMBER_A)).toBeFocused();
+    await expectInsideViewport(cartButton(page, MEMBER_A));
+
+    const releaseGeneration = await page.evaluate(() => window.__memberCartReleaseGeneration || 0);
+    await page.evaluate((id) => { window.__memberCartHold = id; }, MEMBER_A);
+    await cartButton(page, MEMBER_A).click();
+    await expect.poll(() => page.evaluate((generation) => window.__memberCartReleaseGeneration > generation, releaseGeneration)).toBe(true);
+    await expect(heading).toBeFocused();
+    await page.locator("#closeMemberCart").click();
+    await expect(cartButton(page, MEMBER_A)).toBeFocused();
+    await settleFrames(page);
+    await armScrollCounter(page);
+    await page.evaluate(() => window.__releaseMemberCart());
+    await settleFrames(page);
+    expect(await page.evaluate(() => window.__cartScrollCount)).toBe(0);
+    await expect(cartButton(page, MEMBER_A)).toBeFocused();
+    await expect(page.locator("#memberCartPanel")).toBeHidden();
+    await page.evaluate(() => { window.__memberCartHold = ""; });
+
+    const switchGeneration = await page.evaluate(() => window.__memberCartReleaseGeneration || 0);
+    await page.evaluate((id) => { window.__memberCartHold = id; }, MEMBER_A);
+    await cartButton(page, MEMBER_A).click();
+    await expect.poll(() => page.evaluate((generation) => window.__memberCartReleaseGeneration > generation, switchGeneration)).toBe(true);
+    await cartButton(page, MEMBER_B).click();
+    await expect(identity).toContainText("ئەزا بې");
+    await expect(page.locator("#memberCartPanel")).not.toContainText("كۇتادغۇ بىلىگ");
+    await expect(heading).toBeFocused();
+    await expectInsideViewport(heading);
+    await expectInsideViewport(identity);
+    await settleFrames(page);
+    await armScrollCounter(page);
+    await page.evaluate(() => window.__releaseMemberCart());
+    await settleFrames(page);
+    expect(await page.evaluate(() => window.__cartScrollCount)).toBe(0);
+    await expect(heading).toBeFocused();
+    await expect(identity).toContainText("ئەزا بې");
+    await expect(page.locator("#memberCartPanel")).not.toContainText("كۇتادغۇ بىلىگ");
+
+    const lockGeneration = await page.evaluate(() => window.__memberCartReleaseGeneration || 0);
+    await page.evaluate((id) => { window.__memberCartHold = id; }, MEMBER_B);
+    await cartButton(page, MEMBER_B).click();
+    await expect.poll(() => page.evaluate((generation) => window.__memberCartReleaseGeneration > generation, lockGeneration)).toBe(true);
+    await expect(heading).toBeFocused();
+    await settleFrames(page);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await expect(page.locator("#memberCartPanel")).toBeHidden();
+    await expect(heading).not.toBeFocused();
+    await expect(cartButton(page, MEMBER_A)).not.toBeFocused();
+    await expect(cartButton(page, MEMBER_B)).not.toBeFocused();
+    await settleFrames(page);
+    await armScrollCounter(page);
+    await page.evaluate(() => window.__releaseMemberCart());
+    await settleFrames(page);
+    expect(await page.evaluate(() => window.__cartScrollCount)).toBe(0);
+    await expect(page.locator("#memberCartPanel")).toBeHidden();
+    await expect(heading).not.toBeFocused();
+    await page.evaluate(() => {
+      document.querySelector("#idleLockPanel").hidden = true;
+      window.__memberCartHold = "";
+    });
+  }
 });

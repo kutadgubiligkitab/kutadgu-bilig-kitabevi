@@ -32,7 +32,8 @@ test("members list keeps its action and adds only the cart view", () => {
   assert.match(html, /id="memberCartIdentity"/);
   assert.match(html, /بۇ ئەزانىڭ تور بېتىدە ساقلانغان نۆۋەتتىكى سېۋىتى\. زاكاز ياكى سېتىۋېلىش ئەمەس\./);
   assert.match(html, /admin\.js\?v=89/);
-  assert.match(html, /admin-member-cart\.js\?v=1/);
+  assert.match(html, /id="memberCartTitle" tabindex="-1"/);
+  assert.match(html, /admin-member-cart\.js\?v=2/);
   assert.match(html, /admin\.css\?v=50/);
   assert.doesNotMatch(reviews, /admin_member_cart_page|سېۋەتنى كۆرۈش/);
 });
@@ -49,6 +50,16 @@ test("the cart panel is read-only and does not store or log rows", () => {
   assert.match(cart, /textContent/);
   assert.doesNotMatch(cart, /innerHTML|localStorage|sessionStorage|console\.|catalog\.js|member_cart_items|kutadgu-cart-v1|\.update\(|\.insert\(|\.delete\(|\.from\(/);
   assert.doesNotMatch(member, /admin_member_cart_page/);
+  const open = cart.slice(cart.indexOf("function openFrom"), cart.indexOf("function bind"));
+  const load = cart.slice(cart.indexOf("async function load"), cart.indexOf("function openFrom"));
+  const showRows = cart.slice(cart.indexOf("function showRows"), cart.indexOf("async function readAuth"));
+  const showFailure = cart.slice(cart.indexOf("function showFailure"), cart.indexOf("function showRows"));
+  assert.match(open, /revealPanel\(\)/);
+  assert.match(cart, /heading\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(cart, /reason === "close" && openerUsable\(opener\)\) opener\.focus\(\)/);
+  assert.doesNotMatch(load, /scrollTo|scrollIntoView|\.focus\(/);
+  assert.doesNotMatch(showRows, /scrollTo|scrollIntoView|\.focus\(/);
+  assert.doesNotMatch(showFailure, /scrollTo|scrollIntoView|\.focus\(/);
 });
 
 test("the read function enforces admin AAL2 and returns one page", () => {

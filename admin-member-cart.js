@@ -8,7 +8,7 @@
   const LOADING_MESSAGE = "سېۋەت يۈكلىنىۋاتىدۇ...";
   const MISSING_TITLE = "كىتاب ئۇچۇرى يوق";
   const AAL2_MESSAGE = "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
-  const state = { generation: 0, member: null, snapshot: null };
+  const state = { generation: 0, member: null, snapshot: null, opener: null };
 
   function jwtAal(token) {
     try {
@@ -50,11 +50,21 @@
     return true;
   }
 
-  function clearPrivate() {
+  function openerUsable(button) {
+    if (!button || !button.isConnected || button.disabled) return false;
+    if (typeof button.closest === "function" && button.closest("[hidden]")) return false;
+    return true;
+  }
+
+  function clearPrivate(reason) {
+    const opener = state.opener;
+    const dialog = modal();
+    const active = document.activeElement;
+    if (dialog && active && active !== document.body && typeof dialog.contains === "function" && dialog.contains(active)) active.blur();
     state.generation += 1;
     state.member = null;
     state.snapshot = null;
-    const dialog = modal();
+    state.opener = null;
     if (dialog) dialog.hidden = true;
     const who = identityNode();
     if (who) who.textContent = "";
@@ -63,6 +73,24 @@
       host.dataset.memberCartState = "";
       host.replaceChildren();
     }
+    if (reason === "close" && openerUsable(opener)) opener.focus();
+  }
+
+  function revealPanel() {
+    const dialog = modal();
+    const heading = document.querySelector("#memberCartTitle");
+    const who = identityNode();
+    if (!dialog || dialog.hidden || !heading) return;
+    if (heading.getAttribute("tabindex") !== "-1") heading.setAttribute("tabindex", "-1");
+    const margin = 8;
+    const headingTop = heading.getBoundingClientRect().top;
+    const bottom = who ? who.getBoundingClientRect().bottom : heading.getBoundingClientRect().bottom;
+    const viewHeight = window.innerHeight || document.documentElement.clientHeight;
+    if (headingTop < margin || bottom > viewHeight - margin) {
+      const next = Math.max(0, window.scrollY + headingTop - margin);
+      window.scrollTo(window.scrollX, next);
+    }
+    heading.focus({ preventScroll: true });
   }
 
   function showLoading() {
@@ -223,6 +251,7 @@
     const email = row.querySelector(".admin-member-email");
     const contact = row.querySelector(".admin-member-contact");
     if (!state.snapshot || state.snapshot.userId !== id) state.snapshot = null;
+    state.opener = button;
     state.member = {
       id: id,
       name: name ? name.textContent : "",
@@ -235,6 +264,7 @@
     if (who) who.textContent = [state.member.name, state.member.email, state.member.contact].filter(Boolean).join(" · ");
     const host = body();
     if (host) host.replaceChildren();
+    revealPanel();
     load();
   }
 
@@ -251,14 +281,14 @@
         openFrom(opener);
         return;
       }
-      if (target.closest("#closeMemberCart")) clearPrivate();
+      if (target.closest("#closeMemberCart")) clearPrivate("close");
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       const dialog = modal();
       if (!dialog || dialog.hidden) return;
       event.preventDefault();
-      clearPrivate();
+      clearPrivate("close");
     });
     const logout = document.querySelector("#adminLogout");
     if (logout) logout.addEventListener("click", clearPrivate);
