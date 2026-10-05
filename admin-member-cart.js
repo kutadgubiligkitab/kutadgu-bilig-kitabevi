@@ -303,7 +303,19 @@
     }
   }
 
-  window.KutadguAdminMemberCart = { load: load, clear: clearPrivate, pageSize: PAGE_SIZE };
+  function syncList(ids) {
+    if (!state.member) return;
+    const id = state.member.id;
+    const keep = Array.isArray(ids) && ids.some((item) => String(item) === String(id));
+    if (!keep) {
+      clearPrivate();
+      return;
+    }
+    const next = document.querySelector('[data-member-cart="' + String(id).replace(/"/g, "") + '"]');
+    if (next) state.opener = next;
+  }
+
+  window.KutadguAdminMemberCart = { load: load, clear: clearPrivate, syncList: syncList, pageSize: PAGE_SIZE };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
   else bind();
 })();
