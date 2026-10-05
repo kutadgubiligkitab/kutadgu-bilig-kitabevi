@@ -7,7 +7,7 @@
     "chromium": "151.0.7922.34",
     "webkit": "26.5"
   },
-  "lab": "Playwright headless, cache enabled, datacenter network. Phone sizes are emulation, not a physical phone. INP was not measured. WebKit transferred-byte totals are not comparable.",
+  "lab": "Playwright headless, cache enabled, datacenter network. Phone sizes are emulation, not a physical phone. Datacenter medians are not physical-phone performance. INP was not measured. WebKit transferred-byte totals are not comparable.",
   "medians": {
     "home-desktop": {"runs": 5, "viewport": "1280x900", "coldLcpMs": 500, "warmLcpMs": 64, "coldCls": 0.018, "warmCls": 0.015, "coldTransfer": 6159045, "warmTransfer": 117069, "coldRequests": 113, "warmRequests": 110, "coldTtfbMs": 72, "warmTtfbMs": 21},
     "books-desktop": {"runs": 5, "viewport": "1280x900", "coldLcpMs": 1220, "warmLcpMs": 300, "coldCls": 0.009, "warmCls": 0, "coldTransfer": 3900638, "warmTransfer": 114050, "coldRequests": 80, "warmRequests": 77, "coldTtfbMs": 81, "warmTtfbMs": 27},
@@ -31,9 +31,51 @@
     "document": {"transfer": 7086}
   },
   "transientBlank": [
-    {"page": "/books", "book": "411", "atMs": 1675, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "opacity": "1", "recoveredByMs": 7684, "reload": false},
-    {"page": "/books", "book": "316", "atMs": 1045, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "recoveredByMs": 1802, "reload": false},
-    {"page": "/books", "book": "392", "atMs": 1045, "state": "still-loading", "recoveredByMs": 1802, "reload": false},
-    {"page": "/books", "book": "398", "atMs": 1045, "state": "still-loading", "recoveredByMs": 1802, "reload": false}
-  ]
+    {"page": "/books", "book": "411", "kind": "single observation, not a median", "atMs": 1675, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "opacity": "1", "nextPixelSampleMs": 7684, "nextPixelSampleDecoded": true, "exactDecodeMs": null, "lcpMs": 1764, "lcpNote": "largest-contentful-paint timestamp for this URL on the same navigation, not a second pixel reading", "reload": false},
+    {"page": "/books", "book": "316", "kind": "single observation, not a median", "atMs": 1045, "state": "still-loading", "loading": "eager", "complete": false, "currentSrc": "", "naturalWidth": 0, "retrying": false, "stillEmptyAtMs": 1549, "nextPixelSampleMs": 1802, "nextPixelSampleDecoded": true, "exactDecodeMs": null, "reload": false},
+    {"page": "/books", "book": "392", "kind": "single observation, not a median", "atMs": 1045, "state": "still-loading", "stillEmptyAtMs": 1549, "nextPixelSampleMs": 1802, "nextPixelSampleDecoded": true, "exactDecodeMs": null, "reload": false},
+    {"page": "/books", "book": "398", "kind": "single observation, not a median", "atMs": 1045, "state": "still-loading", "nextPixelSampleMs": 1297, "nextPixelSampleDecoded": true, "exactDecodeMs": null, "reload": false}
+  ],
+  "visibleDiscovery": {
+    "viewport": "390x800 emulation, not a physical phone",
+    "cache": "enabled",
+    "reload": false,
+    "injectedFailure": false,
+    "blankUntilReload": "not reproduced",
+    "inViewRule": "more than 40px inside the viewport and rendered height over 40px",
+    "exactDecode": "not measured when the first in-view sample already had pixels",
+    "discarded": "Earlier slow switches left #premiumDiscoveryResults below the viewport. One 400 kb/s warm attempt left images near y=3971. Those runs are not visible-loading evidence.",
+    "initial": {"resultImages": 0, "friendlyEmpty": true},
+    "chromium1600kbps": {
+      "network": "lab throttle 1.6 Mb/s down, 400 ms RTT, not a physical phone",
+      "historyInView": [
+        {"book": "468", "emptyNotInViewMs": 14845, "firstInViewDecodedMs": 15433},
+        {"book": "467", "emptyNotInViewMs": 14845, "firstInViewDecodedMs": 15433}
+      ],
+      "literatureRemovedStillEmpty": ["456", "334", "330", "329", "317", "316"],
+      "back": {"persisted": false, "cards": 0, "reopened": true, "href": "/book/470"}
+    },
+    "chromium400kbps": {
+      "network": "lab throttle 400 kb/s down, 400 ms RTT, not a physical phone",
+      "freshLiteratureInView": [
+        {"book": "463", "emptyNotInViewMs": 39090, "firstInViewDecodedMs": 40613},
+        {"book": "470", "emptyNotInViewMs": 39090, "firstInViewDecodedMs": 40693}
+      ],
+      "warmRetryInView": [
+        {"book": "470", "firstInViewDecodedMs": 5883, "naturalWidth": 628},
+        {"book": "463", "firstInViewDecodedMs": 6183, "naturalWidth": 946}
+      ],
+      "back": {"persisted": false, "discoveryAtFirstRead": false, "cards": 0, "reopened": true, "href": "/book/470"}
+    },
+    "webkitLab": {
+      "network": "machine network, throughput not emulated, not a physical phone",
+      "historyInView": [
+        {"book": "468", "insertedNaturalWidth": 634, "alreadyRequested": true, "firstInViewMs": 3080},
+        {"book": "467", "insertedNaturalWidth": 771, "alreadyRequested": true, "firstInViewMs": 3080},
+        {"book": "461", "insertedNaturalWidth": 946, "alreadyRequested": true, "firstInViewMs": 3331},
+        {"book": "460", "insertedNaturalWidth": 1126, "alreadyRequested": true, "firstInViewMs": 3331}
+      ],
+      "back": {"persisted": false, "cards": 0, "reopened": true, "href": "/book/470"}
+    }
+  }
 }
