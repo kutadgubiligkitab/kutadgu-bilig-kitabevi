@@ -21,14 +21,14 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "b0c08e280594b35112bb942b534eae4e85eb7af7dcb36929c6d5e87c06e5750f",
+  "shop.js": "bea39c676a56c8fdd96da0a00adb226a9a7ac50f161399a4d5c201d8395e9f2f",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "c8a42683b84777680450bd970eb3483213edc8e4ddc49d09b6e5c9c56c810d14",
-  "index.html": "ac79832a3c2eb304569311162f922b8b049ba094bace71fa93505895101f3a8a",
+  "index.html": "8712f52b08faefc68ca02fe29261c4901a13242cd56154b8a8f6bdcc888a992a",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -441,6 +441,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "book-staff.js",
     "admin-catalog-productivity.js",
     "premium-ux.js",
+    "discovery-cover-space.css",
     "scripts/audit-book-covers.js",
     "scripts/admin-catalog-productivity-tests.js",
     "scripts/security-hardening-2a-tests.js",

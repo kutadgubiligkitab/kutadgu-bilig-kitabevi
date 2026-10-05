@@ -34,10 +34,26 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
-test("homepage pins shop.js v=144 and premium-ux v=13", () => {
-  assert.match(indexHtml, /shop\.js\?v=144/);
-  assert.match(shop, /premium-ux\.js\?v=13/);
+test("homepage pins shop.js v=145 and premium-ux v=14", () => {
+  assert.match(indexHtml, /shop\.js\?v=145/);
+  assert.match(shop, /premium-ux\.js\?v=14/);
   assert.match(shop, /premium-ux\.css\?v=10/);
+  assert.match(shop, /discovery-cover-space\.css\?v=1/);
+});
+
+test("discovery loading reserves eight cover boxes and leaves the wizard spinner", () => {
+  const showGroup = sliceBetween(premium, "async function showGroup(", "section.querySelectorAll(\"[data-premium-group]\").forEach(button=>button.onclick");
+  assert.match(showGroup, /discoveryResultsLoadingMarkup\(\)/);
+  assert.doesNotMatch(showGroup, /discoveryLoadingMarkup\(\)/);
+  const reserved = sliceBetween(premium, "function discoveryCoverSlot(){", "function discoveryEmptyMarkup(){");
+  assert.match(reserved, /DISCOVERY_PAGE_SIZE/);
+  assert.match(reserved, /premium-card-cover/);
+  assert.match(reserved, /premium-card-cart/);
+  assert.doesNotMatch(reserved, /<img/);
+  const wizard = sliceBetween(premium, "wizard.querySelectorAll(\"[data-wizard-price]\")", "function setupSearchSuggestions");
+  assert.match(wizard, /discoveryLoadingMarkup\(\)/);
+  const css = fs.readFileSync(path.join(root, "discovery-cover-space.css"), "utf8");
+  assert.match(css, /#premiumDiscoveryResults \.premium-card-cover \.book-cover-unavailable\{[^}]*min-height:\s*0/);
 });
 
 test("discovery no longer substitutes recommended() for empty category/group results", () => {
