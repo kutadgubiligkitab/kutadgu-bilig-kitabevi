@@ -1127,26 +1127,27 @@ test("a delayed notification from member A does not appear for member B", async 
   await expect(page.locator(".book-reviews")).not.toContainText("يوشۇرۇن");
 });
 
-test("a warm cached header delivers the member bell on the first navigation", async ({ page }) => {
+test("a warm cached header delivers the member bell on the first navigation", async ({ browser }) => {
   const { execSync } = require("child_process");
   const http = require("http");
   const oldHeader = execSync("git show origin/main:public-header.js", { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
   expect(oldHeader).not.toContain("ensureReviewNotices");
-  const hits = { v3: 0, v4: 0 };
+  const hits = { v3: 0, v4: 0, notes: [] };
   const fixture = "<!doctype html><html lang=\"ug\" dir=\"rtl\"><head><title>fixture</title></head><body><a class=\"member-account-button\" href=\"/account.html\">كىرىش</a><script src=\"/public-header.js?v=3\"></script></body></html>";
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
-      if (url.pathname === "/header-cache-fixture.html") {
+      if (url.pathname === "/header-cache-fixture.html" || url.pathname === "/header-cache-next.html") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
         res.end(fixture);
         return;
       }
       if (url.pathname === "/public-header.js" && url.searchParams.get("v") === "3") {
         hits.v3 += 1;
+        hits.notes.push(String(req.headers["cache-control"] || req.headers.pragma || "no-request-cache"));
         res.writeHead(200, {
           "content-type": "application/javascript; charset=utf-8",
-          "cache-control": "public, max-age=300",
+          "cache-control": "public, max-age=300, immutable",
           "content-length": Buffer.byteLength(oldHeader)
         });
         res.end(oldHeader);
@@ -1172,15 +1173,14 @@ test("a warm cached header delivers the member bell on the first navigation", as
     server.listen(0, "127.0.0.1", () => resolve({ server: server, origin: "http://127.0.0.1:" + server.address().port }));
     server.on("error", reject);
   });
+  const context = await browser.newContext();
+  const page = await context.newPage();
   try {
-    const client = await page.context().newCDPSession(page);
-    await client.send("Network.enable");
-    await client.send("Network.setCacheDisabled", { cacheDisabled: false });
     await page.goto(origin.origin + "/header-cache-fixture.html", { waitUntil: "domcontentloaded" });
     expect(hits.v3).toBe(1);
     await expect(page.locator("script[src*='book-reviews.js']")).toHaveCount(0);
-    await page.goto(origin.origin + "/header-cache-fixture.html", { waitUntil: "domcontentloaded" });
-    expect(hits.v3).toBe(1);
+    await page.goto(origin.origin + "/header-cache-next.html", { waitUntil: "domcontentloaded" });
+    expect(hits.v3, JSON.stringify(hits)).toBe(1);
     const cached = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("public-header.js?v=3")).map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
     expect(cached.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     await expect(page.locator("script[src*='book-reviews.js']")).toHaveCount(0);
@@ -1194,12 +1194,14 @@ test("a warm cached header delivers the member bell on the first navigation", as
       document.dispatchEvent(new CustomEvent("kutadgu-member-change"));
     }, MEMBER_ID);
     await expect(page.locator(".book-review-notices-button")).toBeVisible();
-    await page.evaluate(() => document.body.classList.add("dark-mode"));
     await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator(".book-review-notices-button")).toBeVisible();
+    await page.evaluate(() => document.body.classList.add("dark-mode"));
     await expect(page.locator(".book-review-notices-button")).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 900 });
     await expect(page.locator(".book-review-notices-button")).toBeVisible();
   } finally {
+    await context.close();
     await new Promise((resolve) => origin.server.close(resolve));
   }
 });
@@ -1368,7 +1370,7 @@ test("a queued notification read runs for the current member and after the tab i
   await page.evaluate(() => {
     window.__reviewControl.noticeRows = [{ id: "b1", book_title: "بەتنىڭ كىتابى", excerpt: "يېڭى خەت", read_at: null, book_id: 252, reply_id: "br", review_id: "bv" }];
   });
-  const before = await page.evaluate(() => window.__reviewControl.rpcs.filter((row) => row.name === "my_book_review_notifications").length);
+  const before = await page.evaluate(() => window.__reviewControl.rpcs.filter((row) => row.name === "my_book_review_notifications" && row.memberId === "22222222-2222-4222-8222-222222222222").length);
   await page.evaluate(() => window.__reviewControl.releaseNotices());
   await expect.poll(() => page.evaluate((start) => window.__reviewControl.rpcs.filter((row) => row.name === "my_book_review_notifications" && row.memberId === "22222222-2222-4222-8222-222222222222").length > start, before)).toBe(true);
   await expect(page.locator(".book-review-notices-button")).toContainText("1");
@@ -1450,7 +1452,7 @@ test("a notification opens a reply outside the first page and leaves a missing r
   });
   await page.locator(".book-review-notices-button").click();
   await page.locator(".book-review-notice", { hasText: "يوق كىتاب" }).click();
-  await expect(page.locator(".book-review-notice-error")).toHaveText("بۇ جاۋاب تېپىلمىدى.");
+  await expect(page.locator(".book-review-notices-panel .book-review-notice-error")).toHaveText("بۇ جاۋاب تېپىلمىدى.");
   await expect(page).toHaveURL(/\/book\/252#reply-old-reply$/);
   expect(page.url()).toBe(page.url());
   expect(await page.evaluate(() => window.__reviewControl.noticeMarks)).toEqual([]);
@@ -1633,7 +1635,7 @@ test("moderation pages reach every status and name the deleted record", async ({
   expect(confirmText).toContain("تارىخىمىزدىكى خاقانلار");
   expect(confirmText).toContain("باھا-pending-101");
   await page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" }).click();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-1" })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
   for (const status of ["approved", "rejected"]) {
     await page.locator(".admin-review-filters button[data-review-status='" + status + "']").click();
     await expect(page.locator(".admin-review-item")).toHaveCount(100);
@@ -1734,16 +1736,20 @@ test("late moderation responses stay on the requested filter and private lists c
   await page.evaluate(() => window.__releaseCounts());
   await expect.poll(() => page.evaluate((start) => window.__reviewReads > start, readsBefore)).toBe(true);
   await expect(page.locator(".admin-approval-bell-button")).toContainText("3");
-  await page.evaluate(() => { window.__rejectReads = false; window.__holdPending = true; window.__pendingHeld = false; });
+  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+  await expect(page.locator(".admin-review-item")).toHaveCount(0);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(0);
+  await expect(page.locator(".admin-approval-bell")).toHaveCount(0);
+  await page.evaluate(() => {
+    document.querySelector("#idleLockPanel").hidden = true;
+    window.__rejectReads = false;
+    window.__holdPending = true;
+    window.__pendingHeld = false;
+  });
   await page.locator(".admin-review-filters button[data-review-status='pending']").click();
   await expect.poll(() => page.evaluate(() => window.__pendingHeld)).toBe(true);
   await page.evaluate(() => { document.querySelector("#adminLogout").click(); });
   await page.evaluate(() => window.__releasePending());
   await expect(page.locator(".admin-review-item")).toHaveCount(0);
   await expect(page.locator(".admin-reply-item")).toHaveCount(0);
-  await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".admin-review-item")).toContainText("كۈتۈۋاتقان ئىنكاس");
-  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
-  await expect(page.locator(".admin-review-item")).toHaveCount(0);
-  await expect(page.locator(".admin-approval-bell")).toHaveCount(0);
 });

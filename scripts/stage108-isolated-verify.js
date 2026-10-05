@@ -474,7 +474,7 @@ async function main() {
       await client.query(
         `insert into public.book_reviews (book_id, user_id, display_name, body, status, created_at)
          select $1, ('10000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, 'ئەزا', $2 || i::text, $3,
-                timestamptz '2099-01-01' + (i || ' seconds')::interval
+                timestamptz '2099-01-01' + make_interval(secs => i)
          from generate_series(1, 101) i`,
         [pageBookId, "باھا-" + status + "-", status]
       );
@@ -491,7 +491,7 @@ async function main() {
       await client.query(
         `insert into public.book_review_replies (review_id, user_id, display_name, body, status, created_at)
          select $1, ('10000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, 'ئەزا', $2 || i::text, $3,
-                timestamptz '2099-06-01' + (i || ' seconds')::interval
+                timestamptz '2099-06-01' + make_interval(secs => i)
          from generate_series(1, 101) i`,
         [parent.rows[0].id, "جاۋاب-" + status + "-", status]
       );
@@ -530,7 +530,7 @@ async function main() {
       const mine = reviews.filter((row) => String(row.body).indexOf("باھا-" + status + "-") === 0);
       const ids = new Set(reviews.map((row) => row.id));
       check("every " + status + " review page is reachable", mine.length === 101 && ids.size === reviews.length, String(mine.length));
-      check(status + " review pages stay ordered", reviews.every((row, index) => index === 0 || String(reviews[index - 1].created_at) <= String(row.created_at)));
+      check(status + " review pages stay ordered", pagesStayOrdered(reviews));
       const replies = await walkPages("admin_list_book_review_replies", status);
       const replyMine = replies.filter((row) => String(row.body).indexOf("جاۋاب-" + status + "-") === 0);
       check("every " + status + " reply page is reachable", replyMine.length === 101, String(replyMine.length));
@@ -550,7 +550,7 @@ async function main() {
       "select id from public.book_review_replies where body = 'جاۋاب-approved-101' and review_id = $1",
       [parent.rows[0].id]
     );
-    const pendingReply = await client.query(
+    const pendingTarget = await client.query(
       "select id from public.book_review_replies where body = 'جاۋاب-pending-1' and review_id = $1",
       [parent.rows[0].id]
     );
@@ -563,7 +563,7 @@ async function main() {
     });
     check("anonymous can read an approved reply outside a short page", anonSeen.length === 1 && anonSeen[0].reply_body === "جاۋاب-approved-101" && anonSeen[0].review_body === "ئانا ئىنكاس" && String(anonSeen[0].book_id) === String(pageBookId));
     const pendingSeen = await asRole(client, "anon", null, "aal1", async () => {
-      const row = await client.query("select reply_id from public.public_book_review_reply_target($1)", [pendingReply.rows[0].id]);
+      const row = await client.query("select reply_id from public.public_book_review_reply_target($1)", [pendingTarget.rows[0].id]);
       return row.rows;
     });
     check("a pending reply is not a public target", pendingSeen.length === 0);
@@ -581,17 +581,35 @@ async function main() {
 
     if (failures.length) {
       console.error(failures.length + " stage108 check(s) failed");
-      process.exitCode = 1;
     } else {
       console.log("stage108 isolated postgres: PASS");
     }
+    return failures.length;
   } finally {
     if (client) await client.end().catch(() => {});
     await server.stop().catch(() => {});
   }
 }
 
-main().catch((error) => {
+function pagesStayOrdered(rows) {
+  function stamp(value) {
+    if (value instanceof Date) return value.getTime();
+    const parsed = Date.parse(String(value || ""));
+    return Number.isNaN(parsed) ? String(value) : parsed;
+  }
+  for (let index = 1; index < rows.length; index += 1) {
+    const previous = stamp(rows[index - 1].created_at);
+    const current = stamp(rows[index].created_at);
+    if (previous < current) continue;
+    if (previous === current && String(rows[index - 1].id) <= String(rows[index].id)) continue;
+    return false;
+  }
+  return true;
+}
+
+main().then((count) => {
+  if (count) process.exit(1);
+}).catch((error) => {
   console.error(error);
   process.exit(1);
 });

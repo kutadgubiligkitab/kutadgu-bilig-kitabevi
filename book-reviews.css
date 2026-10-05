@@ -172,6 +172,8 @@
 }
 .book-reviews-reply-form button:disabled{opacity:.65;cursor:progress}
 .book-review-notices{position:relative;display:inline-flex}
+header.is-mobile-enhanced > .book-review-notices{position:absolute;z-index:5;inset-block-start:calc(9px + env(safe-area-inset-top, 0px));inset-inline-end:58px}
+header.is-mobile-enhanced > .book-review-notices .book-review-notices-button{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.08);color:#fff}
 .book-review-notices-button{min-height:44px;min-width:44px;padding:0 8px;border:0;border-radius:999px;background:transparent;color:var(--site-brown,#70503d);font:inherit;font-weight:800;cursor:pointer}
 .book-review-notices-panel{position:absolute;z-index:6;top:calc(100% + 6px);inset-inline-end:0;display:grid;gap:6px;width:min(280px,70vw);padding:8px;border:1px solid var(--site-border,#e8dccb);border-radius:12px;background:var(--site-card,#fffdf9);color:var(--site-text,#44352d)}
 .book-review-notice{display:grid;gap:2px;min-height:44px;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}

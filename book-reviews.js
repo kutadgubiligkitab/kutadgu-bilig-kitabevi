@@ -1029,6 +1029,19 @@
     return reply;
   }
 
+  function rememberLoadedTarget(target) {
+    if (!target || target.reply_id == null || target.reply_body == null || target.review_id == null) return;
+    loadedTargets[String(target.reply_id)] = {
+      review_id: target.review_id,
+      review_display_name: target.review_display_name,
+      review_body: target.review_body,
+      reply_id: target.reply_id,
+      reply_display_name: target.reply_display_name,
+      reply_body: target.reply_body,
+      book_id: target.book_id
+    };
+  }
+
   async function fetchReplyTarget(db, replyId) {
     if (!db || typeof db.rpc !== "function" || !replyId) return null;
     try {
@@ -1106,16 +1119,25 @@
       await completeStoredNotice(replyId);
       return;
     }
+    const cached = loadedTargets[replyId];
+    const here = String(bookIdFromLocation(root.location) || "");
+    if (cached && String(cached.book_id) === here) {
+      const cachedNode = appendPublicTarget(host, cached);
+      if (cachedNode && revealTarget(cachedNode)) {
+        await completeStoredNotice(replyId);
+        return;
+      }
+    }
     const api = await waitForMember();
     if (op && !sameContext(op)) return;
     const db = api && typeof api.getClient === "function" ? api.getClient() : null;
     const target = await fetchReplyTarget(db, replyId);
     if (op && !sameContext(op)) return;
-    const here = String(bookIdFromLocation(root.location) || "");
     if (!target || String(target.book_id) !== here) {
       showMissingTarget(host);
       return;
     }
+    rememberLoadedTarget(target);
     const node = appendPublicTarget(host, target);
     if (!node || !revealTarget(node)) {
       showMissingTarget(host);
@@ -1141,13 +1163,14 @@
   let noticeInflight = null;
   let noticeQueued = false;
   let noticesBound = false;
+  const loadedTargets = {};
 
   function ensureReviewCss() {
     const doc = root.document;
     if (!doc || !doc.head || doc.querySelector("link[href*='book-reviews.css']")) return;
     const link = doc.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/book-reviews.css?v=3";
+    link.href = "/book-reviews.css?v=4";
     doc.head.appendChild(link);
   }
 
@@ -1219,7 +1242,19 @@
       bell.append(button, panel);
       account.insertAdjacentElement("beforebegin", bell);
     }
+    placeNoticeBell(bell, account);
     renderNoticeBell();
+  }
+
+  function placeNoticeBell(bell, account) {
+    if (!bell || !account) return;
+    const header = account.closest("header");
+    const narrow = !!(header && root.matchMedia && root.matchMedia("(max-width: 768px)").matches);
+    if (narrow) {
+      if (bell.parentElement !== header) header.insertBefore(bell, header.firstChild);
+      return;
+    }
+    if (bell.nextElementSibling !== account) account.insertAdjacentElement("beforebegin", bell);
   }
 
   function refreshNotices() {
@@ -1279,6 +1314,7 @@
       showNoticeProblem(NOTICE_MISSING);
       return;
     }
+    rememberLoadedTarget(target);
     const bookId = String(target.book_id || "");
     const hash = "#reply-" + String(target.reply_id);
     const here = String(bookIdFromLocation(root.location) || "");
@@ -1311,6 +1347,16 @@
         mountNoticeBell();
         refreshNotices();
       });
+      const place = () => {
+        const account = doc.querySelector(".kutadgu-public-header a.kutadgu-header-account, a.member-account-button");
+        const bell = doc.querySelector(".book-review-notices");
+        placeNoticeBell(bell, account);
+      };
+      root.addEventListener("resize", place);
+      if (root.matchMedia) {
+        const media = root.matchMedia("(max-width: 768px)");
+        if (typeof media.addEventListener === "function") media.addEventListener("change", place);
+      }
       doc.addEventListener("visibilitychange", () => {
         if (doc.visibilityState === "hidden") {
           noticeGeneration += 1;
