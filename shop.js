@@ -5056,7 +5056,7 @@ function ensureDiscoveryCoverSpaceCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="/discovery-cover-space.css?v=1";
+    el.href="/discovery-cover-space.css?v=2";
     el.setAttribute("data-kutadgu-discovery-cover-space","1");
   }
   document.head.appendChild(el);

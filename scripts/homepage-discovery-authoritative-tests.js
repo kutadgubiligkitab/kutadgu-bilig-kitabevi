@@ -38,7 +38,7 @@ test("homepage pins shop.js v=145 and premium-ux v=14", () => {
   assert.match(indexHtml, /shop\.js\?v=145/);
   assert.match(shop, /premium-ux\.js\?v=14/);
   assert.match(shop, /premium-ux\.css\?v=10/);
-  assert.match(shop, /discovery-cover-space\.css\?v=1/);
+  assert.match(shop, /discovery-cover-space\.css\?v=2/);
 });
 
 test("discovery loading reserves eight cover boxes and leaves the wizard spinner", () => {
@@ -49,11 +49,17 @@ test("discovery loading reserves eight cover boxes and leaves the wizard spinner
   assert.match(reserved, /DISCOVERY_PAGE_SIZE/);
   assert.match(reserved, /premium-card-cover/);
   assert.match(reserved, /premium-card-cart/);
+  assert.match(reserved, /كىتابلار يۈكلىنىۋاتىدۇ…/);
   assert.doesNotMatch(reserved, /<img/);
   const wizard = sliceBetween(premium, "wizard.querySelectorAll(\"[data-wizard-price]\")", "function setupSearchSuggestions");
   assert.match(wizard, /discoveryLoadingMarkup\(\)/);
   const css = fs.readFileSync(path.join(root, "discovery-cover-space.css"), "utf8");
   assert.match(css, /#premiumDiscoveryResults \.premium-card-cover \.book-cover-unavailable\{[^}]*min-height:\s*0/);
+  assert.match(css, /#premiumDiscoveryResults \.premium-discovery-pending > \.premium-discovery-loading\{[^}]*position:\s*absolute/);
+  assert.match(css, /#premiumDiscoveryResults \.premium-discovery-pending > \.premium-discovery-loading\{[^}]*pointer-events:\s*none/);
+  assert.match(css, /#premiumDiscoveryResults \.premium-discovery-pending > \.premium-discovery-loading\{[^}]*color:\s*var\(--site-text/);
+  assert.doesNotMatch(css, /width:\s*1px/);
+  assert.doesNotMatch(css, /clip:\s*rect/);
 });
 
 test("discovery no longer substitutes recommended() for empty category/group results", () => {

@@ -1,19 +1,34 @@
 /* Homepage discovery results only.
    The pending grid reuses the existing 2:3 cover box.
-   This file keeps the loading sentence out of that grid's height
-   and keeps a failed cover inside the same box. */
+   The loading sentence sits on that grid without adding height.
+   A failed cover stays inside the same box. */
 #premiumDiscoveryResults .premium-discovery-pending{
   position:relative;
 }
 #premiumDiscoveryResults .premium-discovery-pending > .premium-discovery-loading{
   position:absolute;
-  width:1px;
-  height:1px;
-  margin:-1px;
-  padding:0;
-  overflow:hidden;
-  clip:rect(0,0,0,0);
-  border:0;
+  z-index:3;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:8px;
+  width:max-content;
+  max-width:calc(100% - 24px);
+  height:auto;
+  margin:0;
+  padding:8px 12px;
+  overflow:visible;
+  pointer-events:none;
+  color:var(--site-text,#44352d);
+  background:var(--site-card,#fffdf9);
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:10px;
+  line-height:1.5;
+  text-align:center;
 }
 #premiumDiscoveryResults .premium-card-cover .book-cover-unavailable{
   display:block;
