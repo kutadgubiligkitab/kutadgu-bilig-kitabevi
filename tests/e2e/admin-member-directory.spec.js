@@ -326,7 +326,9 @@ test("a rejected directory read follows the authenticated context", async ({ pag
   }, ADMIN);
   await page.locator("#memberDirectoryRetry").click();
   await expect(page.locator(".admin-member-row")).toHaveCount(20);
-  await expect(page.locator(".admin-member-email").first()).toHaveText("member1100@example.com");
+  await expect(page.locator("#adminMemberPager")).toContainText("بەت 2 / 55");
+  await expect(page.locator(".admin-member-email").first()).toHaveText("member1080@example.com");
+  await expect(page.locator("#adminMemberList")).not.toContainText("ئالدىنقى نەتىجە");
 
   let reads = await holdDirectoryReload(page);
   await page.evaluate((id) => { window.__memberDirectoryUser = id; }, OTHER);
