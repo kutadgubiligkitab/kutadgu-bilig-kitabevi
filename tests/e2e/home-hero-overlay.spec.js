@@ -73,10 +73,18 @@ async function expectFallbackStore(page) {
   await expect(copy.locator("[data-home-hero-secondary]")).toHaveAttribute("href", "#about");
   await expect(page.locator("[data-home-hero-title]")).toBeHidden();
   await expect(page.locator('img[src="/assets/store/shop-interior-main.webp"]')).toBeVisible();
-  await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
-  await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
-  await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
-  await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+  await expectDeferredSlides(page, REPO);
+}
+
+async function expectDeferredSlides(page, urls) {
+  const slides = page.locator("[data-shop-hero-slide]");
+  await expect(slides).toHaveCount(urls.length);
+  await expect(slides.nth(0)).toHaveAttribute("src", urls[0]);
+  await expect(slides.nth(0)).toHaveClass(/is-active/);
+  for (let i = 1; i < urls.length; i += 1) {
+    await expect(slides.nth(i)).toHaveAttribute("data-hero-src", urls[i]);
+    await expect(slides.nth(i)).not.toHaveAttribute("src");
+  }
 }
 
 test.describe("homepage Hero overlay fail-open", () => {
@@ -131,9 +139,7 @@ test.describe("homepage Hero overlay fail-open", () => {
       ]
     });
     await openHero(page);
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
-    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[2]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[0]);
+    await expectDeferredSlides(page, [REPO[2], REPO[0]]);
   });
 
   test("no usable configured store slides restore the original 3 photos", async ({ page }) => {
@@ -337,10 +343,7 @@ test.describe("homepage Hero overlay fail-open", () => {
     await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
     await expect(page.locator("[data-home-hero-media]")).toHaveAttribute("aria-label", "كىتابخانا رەسىملىرى");
     await expect(page.locator("[data-home-hero-media]")).not.toHaveAttribute("aria-label", "ئالاھىدە تەۋسىيە");
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
-    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expectDeferredSlides(page, REPO);
     await expect(page.locator('[data-hero-kind="campaign"]')).toHaveCount(0);
     await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
     await expect(page.locator(".shop-hero-dots")).not.toHaveAttribute("hidden");
@@ -370,10 +373,8 @@ test.describe("homepage Hero overlay fail-open", () => {
     await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
     await expect(page.locator("[data-home-hero-title]")).toBeHidden();
     await expect(page.locator('[data-hero-kind="campaign"]')).toHaveCount(0);
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+    await expectDeferredSlides(page, [REPO[2], REPO[0]]);
     await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(2);
-    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[2]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[0]);
   });
 
   test("store image exhaustion keeps settings copy and restores hardcoded media", async ({ page }) => {
@@ -403,10 +404,7 @@ test.describe("homepage Hero overlay fail-open", () => {
     await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
     await expect(page.locator("[data-home-hero-eyebrow]")).toHaveText("سىناق قاش قالدۇرۇلسۇن");
     await expect(page.locator("[data-home-hero-body]")).toHaveText("سىناق تېكىست قالدۇرۇلسۇن");
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
-    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expectDeferredSlides(page, REPO);
     await expect(page.locator("[data-shop-hero-dot]")).toHaveCount(3);
     await expect(page.locator("[data-home-hero-media]")).toHaveAttribute("aria-label", "كىتابخانا رەسىملىرى");
     const interval = await page.evaluate(() => window.KutadguHeroSlideshow.getIntervalMs());
@@ -422,10 +420,7 @@ test.describe("homepage Hero overlay fail-open", () => {
       ]
     });
     await openHero(page);
-    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(3);
-    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[0]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
-    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveAttribute("src", REPO[2]);
+    await expectDeferredSlides(page, REPO);
     await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("alt", "سىناق ئالت تېكىستى");
     const fit = await page.locator("[data-shop-hero-slide]").nth(0).evaluate((el) => getComputedStyle(el).objectFit);
     expect(fit).toBe("cover");
@@ -534,6 +529,305 @@ test.describe("homepage Hero overlay fail-open", () => {
           path: path.join(outDir, "hero-overlay-1366-dark.png")
         });
       }
+      await page.evaluate(() => {
+        document.body.classList.remove("dark-mode");
+        document.documentElement.classList.remove("dark-mode");
+      });
+    }
+  });
+
+  test("fresh load requests only the visible hero image until a slide is chosen", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const heroUrls = [];
+    page.on("request", (req) => {
+      if (/shop-interior-library\.webp|shop-exterior\.webp/.test(req.url())) heroUrls.push(req.url());
+    });
+    await mockHero(page, { failCore: true });
+    await openHero(page);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[0]);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toBeVisible();
+    expect(heroUrls).toEqual([]);
+    const before = await page.locator(".shop-hero-frame").boundingBox();
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveClass(/is-active/);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toBeVisible();
+    const decoded = await page.locator("[data-shop-hero-slide].is-active").evaluate((img) => img.naturalWidth);
+    expect(decoded).toBeGreaterThan(0);
+    const after = await page.locator(".shop-hero-frame").boundingBox();
+    expect(Math.abs(after.height - before.height)).toBeLessThan(2);
+    expect(heroUrls.filter((url) => url.includes("shop-exterior"))).toEqual([]);
+  });
+
+  test("slow rejected and rapid hero moves keep the current photo until the chosen one is ready", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    let libraryHits = 0;
+    await page.route("**/shop-interior-library.webp", async (route) => {
+      libraryHits += 1;
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return route.continue();
+    });
+    await page.route("**/missing-hero-slide.webp", (route) => route.abort("failed"));
+    await mockHero(page, { failCore: true });
+    await openHero(page);
+    const main = page.locator("[data-shop-hero-slide]").nth(0);
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    await page.locator("[data-shop-hero-dot]").nth(2).click();
+    await expect(page.locator("[data-shop-hero-slide]").nth(2)).toHaveClass(/is-active/, { timeout: 10000 });
+    await expect(main).not.toHaveClass(/is-active/);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveClass(/is-active/);
+    const hitsAfterLibrary = libraryHits;
+    await page.locator("[data-shop-hero-dot]").nth(0).click();
+    await expect(main).toHaveClass(/is-active/);
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveClass(/is-active/);
+    expect(libraryHits).toBe(hitsAfterLibrary);
+    await page.evaluate(() => {
+      const img = document.createElement("img");
+      img.setAttribute("data-shop-hero-slide", "");
+      img.setAttribute("data-hero-src", "/missing-hero-slide.webp");
+      img.alt = "missing";
+      document.querySelector(".shop-hero-frame").appendChild(img);
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.setAttribute("data-shop-hero-dot", "");
+      dot.setAttribute("aria-label", "missing");
+      document.querySelector(".shop-hero-dots").appendChild(dot);
+      window.KutadguHeroSlideshow.refresh();
+    });
+    await page.locator("[data-shop-hero-dot]").nth(3).click();
+    await page.waitForFunction(() => {
+      const img = document.querySelectorAll("[data-shop-hero-slide]")[3];
+      return !!(img && img.getAttribute("src") && img.complete);
+    });
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toBeVisible();
+  });
+
+  test("keyboard, phone, desktop, and dark theme keep the visible hero", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockHero(page, { failCore: true });
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: width === 390 ? 800 : 900 });
+      await openHero(page);
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toBeVisible();
+      await page.evaluate(() => {
+        document.body.classList.add("dark-mode");
+        document.documentElement.classList.add("dark-mode");
+      });
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toBeVisible();
+      const frame = await page.locator(".shop-hero-frame").boundingBox();
+      expect(frame.height).toBeGreaterThan(80);
+      await page.locator("[data-shop-hero-dot]").nth(1).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveClass(/is-active/);
+      await page.evaluate(() => {
+        document.body.classList.remove("dark-mode");
+        document.documentElement.classList.remove("dark-mode");
+      });
+    }
+  });
+
+  test("disabled JavaScript still shows the first hero photo and skips inactive files", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 800 } });
+    const page = await context.newPage();
+    const inactive = [];
+    page.on("request", (req) => {
+      if (/shop-interior-library\.webp|shop-exterior\.webp/.test(req.url())) inactive.push(req.url());
+    });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator('img[src="/assets/store/shop-interior-main.webp"]')).toBeVisible();
+    expect(inactive).toEqual([]);
+    const box = await page.locator(".shop-hero-frame").boundingBox();
+    expect(box.height).toBeGreaterThan(80);
+    await context.close();
+  });
+
+  test("configured custom slides defer every image after the first", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const seen = [];
+    page.on("request", (req) => {
+      if (/shop-interior-library\.webp/.test(req.url())) seen.push(new URL(req.url()).pathname);
+    });
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "upload", image_url: REPO[2], alt_text: "سىرت", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "upload", image_url: REPO[1], alt_text: "كۈتۈپخانا", created_at: "2020-01-02" }
+      ]
+    });
+    await openHero(page);
+    await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("data-hero-src", REPO[1]);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).not.toHaveAttribute("src");
+    expect(seen).toEqual([]);
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveClass(/is-active/);
+    await expect(page.locator("[data-shop-hero-slide]").nth(1)).toHaveAttribute("src", REPO[1]);
+  });
+
+  test("configured store failure keeps the visible slide and its controls", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const missed = [];
+    page.on("request", (req) => {
+      if (/missing-store-b\.webp|shop-exterior\.webp/.test(req.url())) missed.push(new URL(req.url()).pathname);
+    });
+    await page.route("**/missing-store-b.webp", (route) => route.abort("failed"));
+    await mockHero(page, {
+      settings: [{
+        id: 1,
+        rotation_interval_seconds: 7,
+        eyebrow: "سىناق قاش",
+        primary_label: "كىتابلار",
+        primary_href: "/books",
+        secondary_label: "بىز",
+        secondary_href: "#about"
+      }],
+      slides: [
+        { enabled: true, sort_order: 0, origin: "upload", image_url: REPO[0], alt_text: "A", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "upload", image_url: "/missing-store-b.webp", alt_text: "B", created_at: "2020-01-02" },
+        { enabled: true, sort_order: 2, origin: "upload", image_url: REPO[2], alt_text: "C", created_at: "2020-01-03" }
+      ]
+    });
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: width === 390 ? 800 : 900 });
+      missed.length = 0;
+      await openHero(page);
+      expect(missed, "inactive before transition " + width).toEqual([]);
+      const before = await page.locator(".shop-hero-frame").boundingBox();
+      await page.locator("[data-shop-hero-dot]").nth(2).click();
+      const active = page.locator("[data-shop-hero-slide].is-active");
+      await expect(active).toHaveAttribute("src", REPO[2]);
+      await expect(active).toHaveAttribute("aria-hidden", "false");
+      expect(await active.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+      await page.evaluate(() => {
+        document.body.classList.add("dark-mode");
+        document.documentElement.classList.add("dark-mode");
+      });
+      await expect(active).toBeVisible();
+      await page.locator("[data-shop-hero-dot]").nth(1).click();
+      await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+      await expect(active).toHaveAttribute("src", REPO[2]);
+      await expect(active).toHaveAttribute("aria-hidden", "false");
+      await expect(page.locator("[data-shop-hero-slide]").nth(0)).toHaveAttribute("aria-hidden", "true");
+      await expect(page.locator("[data-shop-hero-dot].is-active")).toHaveAttribute("aria-current", "true");
+      await expect(page.locator("[data-shop-hero-dot].is-active")).toHaveAttribute("aria-label", "C");
+      await expect(page.locator("[data-home-hero-eyebrow]")).toHaveText("سىناق قاش");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "/books");
+      await expect(page.locator("[data-home-hero-secondary]")).toHaveAttribute("href", "#about");
+      const during = await page.locator(".shop-hero-frame").boundingBox();
+      expect(Math.abs(during.height - before.height)).toBeLessThan(2);
+      await page.locator("[data-shop-hero-dot]").nth(0).click();
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[0]);
+      const exteriorHits = missed.filter((url) => url.includes("shop-exterior")).length;
+      await page.locator("[data-shop-hero-dot]").nth(1).click();
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+      expect(missed.filter((url) => url.includes("shop-exterior")).length).toBe(exteriorHits);
+      await page.evaluate(() => {
+        document.body.classList.remove("dark-mode");
+        document.documentElement.classList.remove("dark-mode");
+      });
+    }
+  });
+
+  test("slow and rapid configured-store failures do not replace the visible slide", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    let release = null;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route("**/missing-store-b.webp", async (route) => {
+      await held;
+      await route.abort("failed");
+    });
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "upload", image_url: REPO[0], alt_text: "A", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "upload", image_url: "/missing-store-b.webp", alt_text: "B", created_at: "2020-01-02" },
+        { enabled: true, sort_order: 2, origin: "upload", image_url: REPO[2], alt_text: "C", created_at: "2020-01-03" }
+      ]
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openHero(page);
+    await page.locator("[data-shop-hero-dot]").nth(2).click();
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+    await page.evaluate(() => {
+      document.querySelectorAll("[data-shop-hero-slide]")[0].dispatchEvent(new Event("error"));
+    });
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("alt", "C");
+    await page.locator("[data-shop-hero-dot]").nth(0).click();
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+    expect(await page.locator("[data-shop-hero-slide].is-active").evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+    await page.locator("[data-shop-hero-dot]").nth(1).click();
+    release();
+    await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(1);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+    await expect(page.locator("[data-shop-hero-slide].is-active")).toBeVisible();
+  });
+
+  test("configured campaign failure keeps the visible slide text and link", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const deferred = [];
+    page.on("request", (req) => {
+      if (/missing-campaign-b\.webp|shop-exterior\.webp/.test(req.url())) deferred.push(new URL(req.url()).pathname);
+    });
+    await page.route("**/missing-campaign-b.webp", (route) => route.abort("failed"));
+    await mockHero(page, {
+      slides: [
+        { enabled: true, sort_order: 0, origin: "repo", repo_key: "main", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, origin: "repo", repo_key: "library", created_at: "2020-01-02" }
+      ],
+      campaigns: [
+        { enabled: true, sort_order: 0, title: "A تەكلىپ", image_url: REPO[0], primary_label: "A", primary_href: "/books", created_at: "2020-01-01" },
+        { enabled: true, sort_order: 1, title: "B تەكلىپ", image_url: "/missing-campaign-b.webp", primary_label: "B", primary_href: "/book/7", created_at: "2020-01-02" },
+        { enabled: true, sort_order: 2, title: "C تەكلىپ", image_url: REPO[2], primary_label: "C", primary_href: "#about", created_at: "2020-01-03" }
+      ]
+    });
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: width === 390 ? 800 : 900 });
+      deferred.length = 0;
+      await openHero(page);
+      expect(deferred, "campaign inactive before transition " + width).toEqual([]);
+      await page.locator("[data-shop-hero-dot]").nth(2).click();
+      await expect(page.locator("[data-home-hero-title]")).toHaveText("C تەكلىپ");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveText("C");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "#about");
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+      await page.evaluate(() => {
+        document.body.classList.add("dark-mode");
+        document.documentElement.classList.add("dark-mode");
+      });
+      await page.locator("[data-shop-hero-dot]").nth(1).click();
+      await expect(page.locator("[data-shop-hero-slide]")).toHaveCount(2);
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("aria-hidden", "false");
+      await expect(page.locator("[data-home-hero-title]")).toHaveText("C تەكلىپ");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "#about");
+      await expect(page.locator("[data-shop-hero-dot].is-active")).toHaveAttribute("aria-label", "C تەكلىپ");
+      await expect(page.locator("[data-home-hero-title]")).toBeVisible();
+      const frame = await page.locator(".shop-hero-frame").boundingBox();
+      expect(frame.height).toBeGreaterThan(80);
+      await page.locator("[data-shop-hero-dot]").nth(0).click();
+      await expect(page.locator("[data-home-hero-title]")).toHaveText("A تەكلىپ");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "/books");
+      await page.locator("[data-shop-hero-dot]").nth(1).click();
+      await expect(page.locator("[data-home-hero-title]")).toHaveText("C تەكلىپ");
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[2]);
+      await page.evaluate(() => {
+        const visible = document.querySelector("[data-shop-hero-slide].is-active");
+        visible.dispatchEvent(new Event("error"));
+      });
+      await expect(page.locator("[data-home-hero-title]")).toHaveText("A تەكلىپ");
+      await expect(page.locator("[data-home-hero-primary]")).toHaveAttribute("href", "/books");
+      await expect(page.locator("[data-shop-hero-slide].is-active")).toHaveAttribute("src", REPO[0]);
+      await page.evaluate(() => {
+        document.querySelector("[data-shop-hero-slide].is-active").dispatchEvent(new Event("error"));
+      });
+      await expect(page.locator(".home-bookstore-hero")).toHaveAttribute("data-hero-mode", "store");
+      await expect(page.locator("[data-home-hero-title]")).toBeHidden();
+      await expect(page.locator('[data-hero-kind="campaign"]')).toHaveCount(0);
+      await expectDeferredSlides(page, [REPO[0], REPO[1]]);
       await page.evaluate(() => {
         document.body.classList.remove("dark-mode");
         document.documentElement.classList.remove("dark-mode");

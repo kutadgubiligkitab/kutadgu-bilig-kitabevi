@@ -35,12 +35,16 @@ test("hard-coded fallback identity is still in index.html", () => {
   assert.match(html, /\/assets\/store\/shop-interior-library\.webp/);
   assert.match(html, /\/assets\/store\/shop-exterior\.webp/);
   assert.match(html, /fetchpriority="high"/);
+  assert.match(html, /data-hero-shot="library"[^>]*data-hero-src="\/assets\/store\/shop-interior-library\.webp"/);
+  assert.match(html, /data-hero-shot="exterior"[^>]*data-hero-src="\/assets\/store\/shop-exterior\.webp"/);
+  assert.doesNotMatch(html, /data-hero-shot="library"[^>]*\ssrc=/);
+  assert.doesNotMatch(html, /data-hero-shot="exterior"[^>]*\ssrc=/);
   assert.match(html, /data-home-hero-eyebrow/);
   assert.match(html, /data-home-hero-title/);
   assert.doesNotMatch(html, /role="heading"/);
   assert.doesNotMatch(html, /aria-level="1"/);
-  assert.match(html, /home-hero-slideshow\.js\?v=2/);
-  assert.match(html, /home-hero-content\.js\?v=1/);
+  assert.match(html, /home-hero-slideshow\.js\?v=4/);
+  assert.match(html, /home-hero-content\.js\?v=3/);
   const slideAt = html.indexOf("home-hero-slideshow.js");
   const contentAt = html.indexOf("home-hero-content.js");
   assert.ok(slideAt >= 0 && contentAt > slideAt);
@@ -53,6 +57,8 @@ test("hard-coded fallback identity is still in index.html", () => {
 
 test("slideshow keeps 7000 default and exposes a safe refresh API", () => {
   assert.match(slideJs, /INTERVAL_MS=7000/);
+  assert.match(slideJs, /data-hero-src/);
+  assert.match(slideJs, /paintToken/);
   assert.match(slideJs, /kutadgu:hero-slide-change/);
   assert.match(slideJs, /KutadguHeroSlideshow/);
   assert.match(slideJs, /getIntervalMs/);

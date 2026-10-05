@@ -28,8 +28,8 @@ const FROZEN = {
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "c8a42683b84777680450bd970eb3483213edc8e4ddc49d09b6e5c9c56c810d14",
-  "index.html": "56810851cb0e5cb2b7a76bbfe3cd45a3f48e1e6a3ad26929568a1c22c6ba9e15",
-  "home-hero-content.js": "dddb9141d6b06414b44577524473dd48d28a7021f64abfcbac5c3f6ce0ad023b",
+  "index.html": "ac79832a3c2eb304569311162f922b8b049ba094bace71fa93505895101f3a8a",
+  "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
@@ -703,7 +703,11 @@ test("protected product files stay frozen and out of this diff", () => {
     "STAGE113_ADMIN_MEMBER_DIRECTORY_ROLLBACK.sql",
     "scripts/stage113-isolated-verify.js",
     "scripts/admin-member-directory-tests.js",
-    "tests/e2e/admin-member-directory.spec.js"
+    "tests/e2e/admin-member-directory.spec.js",
+    "home-hero-content.js",
+    "home-hero-slideshow.js",
+    "scripts/home-hero-overlay-tests.js",
+    "tests/e2e/home-hero-overlay.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
