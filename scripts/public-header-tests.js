@@ -61,7 +61,7 @@ test("public pages load the shared header helper before shop/mobile", () => {
     const shopAt = html.search(/shop\.js\?v=\d+/);
     if (shopAt >= 0) assert.ok(helper >= 0 && helper < shopAt);
   });
-  assert.match(accountHtml, /public-header\.js\?v=3/);
+  assert.match(accountHtml, /public-header\.js\?v=4/);
   assert.match(accountHtml, /theme\.js\?v=5/);
   assert.match(accountHtml, /href="\/"/);
   assert.match(indexHtml, /href="\/cart\.html"/);

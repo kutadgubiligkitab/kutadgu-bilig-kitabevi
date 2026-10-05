@@ -29,6 +29,8 @@
   const REPLY_SIGN_IN = "جاۋاب يېزىش ئۈچۈن كىرىڭ";
   const NOTICE_MESSAGE = "ئىنكاسىڭىزغا يېڭى جاۋاب كەلدى";
   const NOTICE_FAILED = "ئۇقتۇرۇش يۈكلەنمىدى.";
+  const NOTICE_MISSING = "بۇ جاۋاب تېپىلمىدى.";
+  const HEART_FAILED = "ياقتۇرۇش يوللانمىدى. قايتا سىناڭ.";
 
   function normalizedText(value) {
     return String(value == null ? "" : value).replace(/\u0000/g, "").trim();
@@ -185,6 +187,14 @@
       if (reply.body) note.appendChild(document.createTextNode(" " + String(reply.body)));
       item.appendChild(note);
     });
+    const saved = typeof state.savedBodies === "function" ? state.savedBodies(reviewId) : [];
+    saved.forEach((body) => {
+      if (own.some((reply) => reply && reply.body === body)) return;
+      item.appendChild(el("p", "book-reviews-note", REPLY_PENDING));
+      const kept = el("p", "book-reviews-note", REPLY_SAVED);
+      kept.appendChild(document.createTextNode(" " + String(body)));
+      item.appendChild(kept);
+    });
     if (state.signedIn) item.appendChild(buildReplyForm(row, state));
     else {
       const link = el("a", "book-reviews-reply-signin", REPLY_SIGN_IN);
@@ -210,12 +220,25 @@
     button.addEventListener("click", () => {
       if (typeof state.onHeart !== "function" || button.disabled) return;
       button.disabled = true;
+      const showFailure = (message) => {
+        if (!button.isConnected) return;
+        button.disabled = false;
+        const host = button.parentElement;
+        if (!host) return;
+        let note = host.querySelector(".book-reviews-heart-note");
+        if (!note) {
+          note = el("p", "book-reviews-note book-reviews-heart-note", message || HEART_FAILED);
+          button.insertAdjacentElement("afterend", note);
+          return;
+        }
+        note.hidden = false;
+        note.textContent = message || HEART_FAILED;
+      };
       Promise.resolve(state.onHeart(row.id, !mine)).then((result) => {
         if (result && result.stale) return;
-        if (!(result && result.ok) && button.isConnected) button.disabled = false;
-      }, () => {
-        if (button.isConnected) button.disabled = false;
-      });
+        if (result && result.ok) return;
+        showFailure(result && result.message);
+      }, () => showFailure(HEART_FAILED));
     });
     return button;
   }
@@ -254,6 +277,11 @@
         note.textContent = check.message;
         return;
       }
+      if (typeof state.replyAlreadySaved === "function" && state.replyAlreadySaved(row.id, check.value)) {
+        note.hidden = false;
+        note.textContent = REPLY_SAVED;
+        return;
+      }
       button.disabled = true;
       note.hidden = true;
       Promise.resolve(state.onReply(row.id, check.value)).then((result) => {
@@ -262,7 +290,15 @@
           if (result.refreshFailed && form.isConnected) {
             form.hidden = true;
             opener.hidden = true;
-            wrap.append(el("p", "book-reviews-note", REPLY_PENDING), el("p", "book-reviews-note", REPLY_SAVED));
+            const pending = el("p", "book-reviews-note", REPLY_PENDING);
+            const saved = el("p", "book-reviews-note", REPLY_SAVED);
+            saved.appendChild(document.createTextNode(" " + check.value));
+            const retry = el("button", "", RETRY_LABEL);
+            retry.type = "button";
+            retry.addEventListener("click", () => {
+              if (typeof state.onRetry === "function") state.onRetry();
+            });
+            wrap.append(pending, saved, retry);
           }
           return;
         }
@@ -356,6 +392,8 @@
   let replyLock = false;
   const heartLocks = Object.create(null);
   let forceQueued = false;
+  let refreshAfterLock = false;
+  const savedReplies = [];
   let lastGood = null;
   let operationGeneration = 0;
   let activeMemberId = "";
@@ -407,6 +445,33 @@
     return op.generation === operationGeneration
       && op.memberId === currentMemberId()
       && op.bookId === String(bookIdFromLocation(root.location) || "");
+  }
+
+  function savedMatch(memberId, bookId, reviewId, body) {
+    return savedReplies.find((item) => item.memberId === String(memberId || "") && item.bookId === String(bookId || "") && item.reviewId === String(reviewId || "") && item.body === body);
+  }
+
+  function rememberSavedReply(op, reviewId, body) {
+    if (!op || !op.memberId || savedMatch(op.memberId, op.bookId, reviewId, body)) return;
+    savedReplies.push({ memberId: String(op.memberId), bookId: String(op.bookId), reviewId: String(reviewId), body: body });
+  }
+
+  function savedBodies(memberId, bookId, reviewId) {
+    return savedReplies.filter((item) => item.memberId === String(memberId || "") && item.bookId === String(bookId || "") && item.reviewId === String(reviewId || "")).map((item) => item.body);
+  }
+
+  function reconcileSavedReplies(op, stored) {
+    if (!op || !op.memberId || !stored) return;
+    const own = stored.ownRepliesKnown && Array.isArray(stored.ownReplies) ? stored.ownReplies : [];
+    const replies = stored.repliesKnown && Array.isArray(stored.replies) ? stored.replies : [];
+    if (!stored.ownRepliesKnown && !stored.repliesKnown) return;
+    for (let index = savedReplies.length - 1; index >= 0; index -= 1) {
+      const item = savedReplies[index];
+      if (item.memberId !== String(op.memberId) || item.bookId !== String(op.bookId)) continue;
+      const seen = (stored.ownRepliesKnown && own.some((row) => row && String(row.review_id) === item.reviewId && row.body === item.body))
+        || (stored.repliesKnown && replies.some((row) => row && String(row.review_id) === item.reviewId && row.body === item.body));
+      if (seen) savedReplies.splice(index, 1);
+    }
   }
 
   function previousFor(bookId, memberId) {
@@ -498,7 +563,15 @@
       }
     }
     if (!sameContext(context)) return { stale: true };
-    let extras = { hearts: {}, heartsKnown: !approvedRows.length, replies: [], repliesKnown: !approvedRows.length, ownReplies: [], ownRepliesKnown: !signedIn || !approvedRows.length };
+    const approvedEmpty = !approvedFailed && !approvedRows.length;
+    let extras = {
+      hearts: {},
+      heartsKnown: approvedEmpty,
+      replies: [],
+      repliesKnown: approvedEmpty,
+      ownReplies: [],
+      ownRepliesKnown: !signedIn || approvedEmpty
+    };
     if (!approvedFailed && approvedRows.length) {
       extras = await loadExtras(db, context, bookId, approvedRows);
       if (!extras || extras.stale || !sameContext(context)) return { stale: true };
@@ -517,6 +590,7 @@
       ownRepliesKnown: !!extras.ownRepliesKnown
     });
     if (stored.stale) return { stale: true };
+    reconcileSavedReplies(context, stored);
     return {
       reviews: stored.reviewsKnown ? decorateReviews(stored) : [],
       signedIn: signedIn,
@@ -568,10 +642,9 @@
     try {
       const summary = await db.rpc("book_review_heart_summary", { p_review_ids: ids });
       if (!sameContext(context)) return { stale: true };
-      if (summary && !summary.error) {
+      if (summary && !summary.error && Array.isArray(summary.data)) {
         extras.heartsKnown = true;
-        const list = Array.isArray(summary.data) ? summary.data : [];
-        list.forEach((row) => {
+        summary.data.forEach((row) => {
           if (!row || !row.review_id) return;
           extras.hearts[String(row.review_id)] = { count: Number(row.heart_count) || 0, mine: !!row.mine };
         });
@@ -597,9 +670,9 @@
       try {
         const own = await db.rpc("my_book_review_replies", { p_book_id: Number(bookId) });
         if (!sameContext(context)) return { stale: true };
-        if (own && !own.error) {
+        if (own && !own.error && Array.isArray(own.data)) {
           extras.ownRepliesKnown = true;
-          extras.ownReplies = Array.isArray(own.data) ? own.data : [];
+          extras.ownReplies = own.data;
         }
       } catch (error) {
         if (!sameContext(context)) return { stale: true };
@@ -646,7 +719,10 @@
         return;
       }
       if (!force && key === paintedKey && page.querySelector("[data-book-reviews]")) return;
-      if (submitLock || replyLock) return;
+      if (submitLock || replyLock) {
+        refreshAfterLock = true;
+        return;
+      }
       const host = mountHost(page);
       const area = host.querySelector(".book-reviews-form textarea");
       const draft = area && op.memberId && area.value ? area.value : "";
@@ -655,7 +731,10 @@
       if (op.memberId) {
         host.querySelectorAll(".book-reviews-reply-form textarea").forEach((node) => {
           const review = node.closest(".book-reviews-item");
-          if (node.value && review) replyDrafts.push({ id: review.id, value: node.value, open: !!(node.form && !node.form.hidden) });
+          const reviewId = review && review.id.indexOf("review-") === 0 ? review.id.slice("review-".length) : "";
+          if (node.value && review && !savedMatch(op.memberId, op.bookId, reviewId, node.value)) {
+            replyDrafts.push({ id: review.id, reviewId: reviewId, value: node.value, open: !!(node.form && !node.form.hidden) });
+          }
         });
       }
       if (!force && doc.activeElement && host.contains(doc.activeElement) && doc.activeElement.tagName === "TEXTAREA") return;
@@ -667,13 +746,18 @@
         state = stateFromMemory(op, true);
       }
       if (!sameContext(op) || !state || state.stale) return;
-      if (submitLock || replyLock) return;
+      if (submitLock || replyLock) {
+        refreshAfterLock = true;
+        return;
+      }
       state.onRetry = retryReviewRead;
+      state.savedBodies = (reviewId) => savedBodies(op.memberId, op.bookId, reviewId);
+      state.replyAlreadySaved = (reviewId, body) => !!savedMatch(op.memberId, op.bookId, reviewId, body);
       state.onHeart = async (reviewId, want) => {
         const heartOp = beginOperation(bookId);
         if (heartLocks[reviewId]) return { ok: true, duplicate: true };
         heartLocks[reviewId] = true;
-        let outcome = { ok: false, message: SEND_FAILED };
+        let outcome = { ok: false, message: HEART_FAILED };
         try {
           const api = memberApi();
           const db = api && typeof api.getClient === "function" ? api.getClient() : null;
@@ -682,9 +766,11 @@
             const result = await db.rpc(name, { p_review_id: reviewId });
             if (!sameContext(heartOp)) outcome = { stale: true };
             else if (!(result && result.error)) outcome = { ok: true };
+            else outcome = { ok: false, message: HEART_FAILED };
           }
         } catch (error) {
           if (!sameContext(heartOp)) outcome = { stale: true };
+          else outcome = { ok: false, message: HEART_FAILED };
         } finally {
           heartLocks[reviewId] = false;
         }
@@ -701,48 +787,81 @@
       state.onReply = async (reviewId, body) => {
         const replyOp = beginOperation(bookId);
         if (replyLock) return { ok: false, message: REPLY_FAILED };
+        if (savedMatch(replyOp.memberId, replyOp.bookId, reviewId, body)) {
+          return { ok: true, saved: true, refreshFailed: true, duplicate: true };
+        }
         replyLock = true;
+        let failed = null;
+        let insertedOk = false;
         try {
           const api = memberApi();
           const db = api && typeof api.getClient === "function" ? api.getClient() : null;
-          if (!db || typeof db.from !== "function") return { ok: false, message: REPLY_FAILED };
-          const inserted = await db.from("book_review_replies").insert({ review_id: reviewId, body: body });
-          if (!sameContext(replyOp)) return { stale: true, ok: !(inserted && inserted.error) };
-          const error = inserted && inserted.error;
-          if (error) {
-            if (intervalMessage(error)) return { ok: false, message: INTERVAL_MESSAGE };
-            return { ok: false, message: REPLY_FAILED };
+          if (!db || typeof db.from !== "function") failed = { ok: false, message: REPLY_FAILED };
+          else {
+            const inserted = await db.from("book_review_replies").insert({ review_id: reviewId, body: body });
+            const error = inserted && inserted.error;
+            if (error) {
+              if (!sameContext(replyOp)) failed = { stale: true, ok: false };
+              else if (intervalMessage(error)) failed = { ok: false, message: INTERVAL_MESSAGE };
+              else failed = { ok: false, message: REPLY_FAILED };
+            } else {
+              insertedOk = true;
+              if (sameContext(replyOp)) rememberSavedReply(replyOp, reviewId, body);
+            }
           }
         } catch (error) {
-          if (!sameContext(replyOp)) return { stale: true };
-          return { ok: false, message: REPLY_FAILED };
+          if (!sameContext(replyOp)) failed = { stale: true, ok: false };
+          else failed = { ok: false, message: REPLY_FAILED };
         } finally {
           replyLock = false;
         }
+        const queued = refreshAfterLock;
+        refreshAfterLock = false;
         if (!sameContext(replyOp)) {
           paintedKey = "";
           refresh({ force: true });
-          return { stale: true, ok: true };
+          return failed || { stale: true, ok: insertedOk };
+        }
+        if (failed) {
+          if (queued) {
+            paintedKey = "";
+            refresh({ force: true });
+          }
+          return failed;
         }
         let refreshFailed = false;
         try {
           const next = await loadState(bookId, replyOp);
-          if (!next || next.stale || !sameContext(replyOp)) return { ok: true, saved: true, stale: true };
+          if (!next || next.stale || !sameContext(replyOp)) {
+            paintedKey = "";
+            refresh({ force: true });
+            return { ok: true, saved: true, stale: true };
+          }
           const found = (next.reviews || []).some((row) => {
             return String(row.id) === String(reviewId) && (row.ownReplies || []).some((reply) => reply && reply.status === "pending" && reply.body === body);
           });
           refreshFailed = !!next.readError || !found;
         } catch (error) {
-          if (!sameContext(replyOp)) return { ok: true, saved: true, stale: true };
+          if (!sameContext(replyOp)) {
+            paintedKey = "";
+            refresh({ force: true });
+            return { ok: true, saved: true, stale: true };
+          }
           refreshFailed = true;
         }
-        if (!sameContext(replyOp)) return { ok: true, saved: true, stale: true };
+        if (!sameContext(replyOp)) {
+          paintedKey = "";
+          refresh({ force: true });
+          return { ok: true, saved: true, stale: true };
+        }
         paintedKey = "";
         if (!refreshFailed) {
           const currentHost = root.document && root.document.querySelector("[data-book-reviews]");
           const reviewNode = currentHost && currentHost.querySelector("#review-" + reviewId);
           const sent = reviewNode && reviewNode.querySelector(".book-reviews-reply-form textarea");
           if (sent) sent.value = "";
+          refresh({ force: true });
+        } else if (queued) {
           refresh({ force: true });
         }
         return { ok: true, saved: true, refreshFailed: refreshFailed };
@@ -799,14 +918,15 @@
           return { ok: false, message: SEND_FAILED };
         } finally {
           submitLock = false;
-          if (!sameContext(submitOp)) {
+          if (!sameContext(submitOp) || refreshAfterLock) {
+            refreshAfterLock = false;
             paintedKey = "";
             refresh({ force: true });
           }
         }
       };
       paint(host, state);
-      focusReviewHash(host);
+      void resolveHashedTarget(op);
       if (draft && sameContext(op) && currentMemberId() === op.memberId) {
         const nextArea = host.querySelector(".book-reviews-form textarea");
         if (nextArea) {
@@ -837,7 +957,10 @@
           const failed = stateFromMemory(op, true);
           if (!failed.stale) {
             failed.onRetry = retryReviewRead;
+            failed.savedBodies = (reviewId) => savedBodies(op.memberId, op.bookId, reviewId);
+            failed.replyAlreadySaved = (reviewId, body) => !!savedMatch(op.memberId, op.bookId, reviewId, body);
             paint(host, failed);
+            void resolveHashedTarget(op);
             paintedKey = viewKey();
           }
         }
@@ -845,11 +968,160 @@
     }
   }
 
-  function focusReviewHash(host) {
+  function revealTarget(node) {
+    if (!node || !node.isConnected) return false;
+    const body = node.querySelector(".book-reviews-body");
+    if (!body || !String(body.textContent || "").trim()) return false;
+    node.classList.add("book-reviews-target");
+    if (!node.hasAttribute("tabindex")) node.tabIndex = -1;
+    if (typeof node.focus === "function") {
+      try { node.focus({ preventScroll: true }); } catch (error) { node.focus(); }
+    }
+    if (typeof node.scrollIntoView === "function") node.scrollIntoView({ block: "center" });
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function showNoticeProblem(message) {
+    noticeOpen = true;
+    renderNoticeBell();
+    const panel = root.document && root.document.querySelector(".book-review-notices-panel");
+    if (!panel) return;
+    panel.hidden = false;
+    panel.appendChild(el("p", "book-review-notice-error", message));
+  }
+
+  function showMissingTarget(host) {
+    if (!host || host.querySelector(".book-review-notice-error")) return;
+    host.appendChild(el("p", "book-reviews-note book-review-notice-error", NOTICE_MISSING));
+  }
+
+  function appendPublicTarget(host, target) {
+    const reviewId = String(target.review_id || "");
+    const replyId = String(target.reply_id || "");
+    if (!reviewId || !replyId) return null;
+    let list = host.querySelector(".book-reviews-list");
+    if (!list) {
+      list = el("div", "book-reviews-list");
+      host.insertBefore(list, host.firstChild);
+    }
+    let review = host.querySelector("#review-" + reviewId);
+    if (!review) {
+      review = el("article", "book-reviews-item");
+      review.id = "review-" + reviewId;
+      review.appendChild(el("p", "book-reviews-name", target.review_display_name ? String(target.review_display_name) : "ئەزا"));
+      review.appendChild(el("p", "book-reviews-body", target.review_body != null ? String(target.review_body) : ""));
+      list.appendChild(review);
+    }
+    let reply = host.querySelector("#reply-" + replyId);
+    if (!reply) {
+      let replyList = review.querySelector(".book-reviews-replies");
+      if (!replyList) {
+        replyList = el("div", "book-reviews-replies");
+        review.appendChild(replyList);
+      }
+      reply = el("article", "book-reviews-reply");
+      reply.id = "reply-" + replyId;
+      reply.appendChild(el("p", "book-reviews-name", target.reply_display_name ? String(target.reply_display_name) : "ئەزا"));
+      reply.appendChild(el("p", "book-reviews-body", target.reply_body != null ? String(target.reply_body) : ""));
+      replyList.appendChild(reply);
+    }
+    return reply;
+  }
+
+  async function fetchReplyTarget(db, replyId) {
+    if (!db || typeof db.rpc !== "function" || !replyId) return null;
+    try {
+      const result = await db.rpc("public_book_review_reply_target", { p_reply_id: replyId });
+      if (!result || result.error || !Array.isArray(result.data) || !result.data.length) return null;
+      const row = result.data[0];
+      if (!row || !row.reply_id || row.reply_body == null || !row.review_id) return null;
+      return row;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readStoredNotice() {
+    try {
+      if (!root.sessionStorage) return null;
+      return JSON.parse(root.sessionStorage.getItem("kutadgu-review-notice-v1") || "null");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeStoredNotice(value) {
+    try {
+      if (!root.sessionStorage) return;
+      if (!value) root.sessionStorage.removeItem("kutadgu-review-notice-v1");
+      else root.sessionStorage.setItem("kutadgu-review-notice-v1", JSON.stringify(value));
+    } catch (error) {}
+  }
+
+  async function markNoticeRead(db, row, gen, member) {
+    if (!db || !row || !row.id) return false;
+    let result = null;
+    try {
+      result = await db.rpc("mark_book_review_notification_read", { p_id: row.id });
+    } catch (error) {
+      result = { error: error };
+    }
+    if (gen !== noticeGeneration || currentMemberId() !== member) return false;
+    if (!result || result.error) return false;
+    if (Array.isArray(noticeLast)) {
+      noticeLast = noticeLast.map((item) => item && item.id === row.id ? Object.assign({}, item, { read_at: item.read_at || "read" }) : item);
+      renderNoticeBell();
+    }
+    return true;
+  }
+
+  async function completeStoredNotice(replyId) {
+    const stored = readStoredNotice();
+    const member = currentMemberId();
+    if (!stored || String(stored.replyId) !== String(replyId) || String(stored.memberId || "") !== member) return false;
+    const api = memberApi();
+    const db = api && typeof api.getClient === "function" ? api.getClient() : null;
+    const ok = await markNoticeRead(db, { id: stored.id }, noticeGeneration, member);
+    if (ok) writeStoredNotice(null);
+    return ok;
+  }
+
+  async function resolveHashedTarget(op) {
     const hash = String(root.location && root.location.hash || "");
-    if (hash.indexOf("#review-") !== 0 && hash.indexOf("#reply-") !== 0) return;
-    const node = host.querySelector(hash);
-    if (node && typeof node.scrollIntoView === "function") node.scrollIntoView({ block: "center" });
+    if (hash.indexOf("#reply-") !== 0 && hash.indexOf("#review-") !== 0) return;
+    const doc = root.document;
+    const page = doc && doc.querySelector(".book-detail-page");
+    if (!page || !detailIsPublic(doc)) return;
+    const host = mountHost(page);
+    if (hash.indexOf("#review-") === 0) {
+      const review = host.querySelector(hash);
+      if (review) revealTarget(review);
+      else showMissingTarget(host);
+      return;
+    }
+    const replyId = decodeURIComponent(hash.slice("#reply-".length));
+    const existing = host.querySelector("#reply-" + replyId);
+    if (existing && revealTarget(existing)) {
+      await completeStoredNotice(replyId);
+      return;
+    }
+    const api = await waitForMember();
+    if (op && !sameContext(op)) return;
+    const db = api && typeof api.getClient === "function" ? api.getClient() : null;
+    const target = await fetchReplyTarget(db, replyId);
+    if (op && !sameContext(op)) return;
+    const here = String(bookIdFromLocation(root.location) || "");
+    if (!target || String(target.book_id) !== here) {
+      showMissingTarget(host);
+      return;
+    }
+    const node = appendPublicTarget(host, target);
+    if (!node || !revealTarget(node)) {
+      showMissingTarget(host);
+      return;
+    }
+    await completeStoredNotice(replyId);
   }
 
   function clearMemberDraft(doc) {
@@ -867,6 +1139,7 @@
   let noticeOpen = false;
   let noticeMember = "";
   let noticeInflight = null;
+  let noticeQueued = false;
   let noticesBound = false;
 
   function ensureReviewCss() {
@@ -950,7 +1223,10 @@
   }
 
   function refreshNotices() {
-    if (noticeInflight) return noticeInflight;
+    if (noticeInflight) {
+      noticeQueued = true;
+      return noticeInflight;
+    }
     const member = currentMemberId();
     mountNoticeBell();
     if (!member) return Promise.resolve();
@@ -980,6 +1256,10 @@
       renderNoticeBell();
     })().finally(() => {
       noticeInflight = null;
+      if (noticeQueued) {
+        noticeQueued = false;
+        refreshNotices();
+      }
     });
     return noticeInflight;
   }
@@ -989,31 +1269,34 @@
     const member = currentMemberId();
     const api = memberApi();
     const db = api && typeof api.getClient === "function" ? api.getClient() : null;
-    if (!db || typeof db.rpc !== "function" || !row || !row.id) return;
-    let result = null;
-    try {
-      result = await db.rpc("mark_book_review_notification_read", { p_id: row.id });
-    } catch (error) {
-      result = { error: error };
-    }
-    if (gen !== noticeGeneration || currentMemberId() !== member) return;
-    if (result && result.error) return;
-    if (Array.isArray(noticeLast)) {
-      noticeLast = noticeLast.map((item) => item && item.id === row.id ? Object.assign({}, item, { read_at: item.read_at || "read" }) : item);
-      renderNoticeBell();
-    }
-    const bookId = String(row.book_id || "");
-    const hash = "#reply-" + String(row.reply_id || "");
-    const target = "/book/" + encodeURIComponent(bookId) + hash;
-    if (String(bookIdFromLocation(root.location) || "") === bookId) {
-      if (root.location && root.location.hash !== hash && root.history && typeof root.history.replaceState === "function") {
-        root.history.replaceState(null, "", target);
-      }
-      const node = root.document && root.document.querySelector(hash);
-      if (node && typeof node.scrollIntoView === "function") node.scrollIntoView({ block: "center" });
+    if (!db || typeof db.rpc !== "function" || !row || !row.id || !row.reply_id) {
+      showNoticeProblem(NOTICE_MISSING);
       return;
     }
-    if (root.location) root.location.assign(target);
+    const target = await fetchReplyTarget(db, row.reply_id);
+    if (gen !== noticeGeneration || currentMemberId() !== member) return;
+    if (!target || (row.book_id && String(target.book_id) !== String(row.book_id))) {
+      showNoticeProblem(NOTICE_MISSING);
+      return;
+    }
+    const bookId = String(target.book_id || "");
+    const hash = "#reply-" + String(target.reply_id);
+    const here = String(bookIdFromLocation(root.location) || "");
+    if (here === bookId) {
+      const page = root.document && root.document.querySelector(".book-detail-page");
+      const host = page ? mountHost(page) : null;
+      const node = host ? appendPublicTarget(host, target) : null;
+      if (!node || !revealTarget(node)) {
+        showNoticeProblem(NOTICE_MISSING);
+        return;
+      }
+      const url = "/book/" + encodeURIComponent(bookId) + hash;
+      if (root.history && typeof root.history.replaceState === "function") root.history.replaceState(null, "", url);
+      await markNoticeRead(db, row, gen, member);
+      return;
+    }
+    writeStoredNotice({ id: row.id, replyId: String(target.reply_id), bookId: bookId, memberId: member });
+    if (root.location) root.location.assign("/book/" + encodeURIComponent(bookId) + hash);
   }
 
   function bootNotices() {
@@ -1049,7 +1332,10 @@
       return;
     }
     const observer = new MutationObserver(() => {
-      if (submitLock || replyLock) return;
+      if (submitLock || replyLock) {
+        refreshAfterLock = true;
+        return;
+      }
       if (viewKey() === paintedKey) return;
       refresh();
     });

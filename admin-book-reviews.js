@@ -2,15 +2,39 @@
   const AAL2_MESSAGE = "بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.";
   const DENIED_MESSAGE = "بۇ مەشغۇلاتقا ئىجازەت يوق.";
   const EMPTY_MESSAGE = "بۇ ھالەتتە ئىنكاس يوق.";
-  const DELETE_CONFIRM = "بۇ ئىنكاسنى ئۆچۈرەمسىز؟\nبۇ ئىنكاس ۋە ئۇنىڭ جاۋابلىرى، يۈرەكلىرى ۋە ئۇقتۇرۇشلىرى ئۆچۈرۈلىدۇ. كىتاب ۋە ئەزا ھېسابى ئۆچمەيدۇ.";
   const DELETED_MESSAGE = "ئىنكاس ئۆچۈرۈلدى.";
   const UNCERTAIN_MESSAGE = "ئۆچۈرۈش نەتىجىسى ئېنىق ئەمەس. قايتا سىناڭ.";
-  const REPLY_DELETE_CONFIRM = "بۇ جاۋابنى ئۆچۈرەمسىز؟\nبۇ جاۋاب ۋە ئۇنىڭ ئۇقتۇرۇشلىرى ئۆچۈرۈلىدۇ. ئىنكاس، كىتاب ۋە ئەزا ھېسابى ئۆچمەيدۇ.";
+  const READ_FAILED = "ئىنكاسلار يۈكلەنمىدى.";
+  const PAGE_SIZE = 100;
   const REPLY_DELETED_MESSAGE = "جاۋاب ئۆچۈرۈلدى.";
   const REPLY_EMPTY_MESSAGE = "بۇ ھالەتتە جاۋاب يوق.";
   const REPLY_READ_FAILED = "جاۋابلار يۈكلەنمىدى.";
   let decisionLock = false;
-  let currentStatus = "pending";
+  let loadGeneration = 0;
+  const STATUSES = ["pending", "approved", "rejected"];
+  const cursors = { reviews: {}, replies: {} };
+  const cursorIndex = { reviews: {}, replies: {} };
+  const lastRows = { reviews: {}, replies: {} };
+  STATUSES.forEach((status) => {
+    cursors.reviews[status] = [null];
+    cursors.replies[status] = [null];
+    cursorIndex.reviews[status] = 0;
+    cursorIndex.replies[status] = 0;
+    lastRows.reviews[status] = null;
+    lastRows.replies[status] = null;
+  });
+
+  function reviewDeleteConfirm(row) {
+    const title = row && row.book_title ? String(row.book_title) : ("كىتاب " + String(row && row.book_id || ""));
+    const excerpt = String(row && row.body || "").slice(0, 80);
+    return "بۇ ئىنكاسنى ئۆچۈرەمسىز؟\n" + title + "\n" + excerpt + "\nبۇ ئىنكاس ۋە ئۇنىڭ جاۋابلىرى، يۈرەكلىرى ۋە ئۇقتۇرۇشلىرى ئۆچۈرۈلىدۇ. كىتاب ۋە ئەزا ھېسابى ئۆچمەيدۇ.";
+  }
+
+  function replyDeleteConfirm(row) {
+    const title = row && row.book_title ? String(row.book_title) : ("كىتاب " + String(row && row.book_id || ""));
+    const excerpt = String(row && row.body || "").slice(0, 80);
+    return "بۇ جاۋابنى ئۆچۈرەمسىز؟\n" + title + "\n" + excerpt + "\nبۇ جاۋاب ۋە ئۇنىڭ ئۇقتۇرۇشلىرى ئۆچۈرۈلىدۇ. ئىنكاس، كىتاب ۋە ئەزا ھېسابى ئۆچمەيدۇ.";
+  }
 
   function jwtAal(token) {
     try {
@@ -46,15 +70,19 @@
     return link;
   }
 
-  function renderRows(rows) {
+  function renderRows(rows, status, failed) {
     const list = document.querySelector("#bookReviewModerationList");
     if (!list) return;
     list.replaceChildren();
     if (!rows.length) {
-      const empty = document.createElement("p");
-      empty.className = "admin-help";
-      empty.textContent = EMPTY_MESSAGE;
-      list.appendChild(empty);
+      if (!failed) {
+        const empty = document.createElement("p");
+        empty.className = "admin-help";
+        empty.textContent = EMPTY_MESSAGE;
+        list.appendChild(empty);
+      }
+      const bar = pager("reviews", status, 0);
+      if (bar) list.appendChild(bar);
       return;
     }
     rows.forEach((row) => {
@@ -83,7 +111,7 @@
       remove.type = "button";
       remove.className = "admin-review-delete";
       remove.textContent = "ئۆچۈرۈش";
-      if (row.status === "pending" || currentStatus === "pending") {
+      if (row.status === "pending" || status === "pending") {
         approve.addEventListener("click", () => decide(row.id, "approved", approve, reject));
         reject.addEventListener("click", () => decide(row.id, "rejected", approve, reject));
         actions.append(approve, reject);
@@ -93,19 +121,25 @@
       item.append(title, body, actions);
       list.appendChild(item);
     });
+    const bar = pager("reviews", status, rows.length);
+    if (bar) list.appendChild(bar);
   }
 
   function replyStatusNode() {
     return document.querySelector("#bookReviewReplyStatus");
   }
 
-  function renderReplies(rows, failed) {
+  function renderReplies(rows, failed, status) {
     const list = document.querySelector("#bookReviewReplyList");
-    const status = replyStatusNode();
-    if (status) status.textContent = failed ? REPLY_READ_FAILED : (rows.length ? "" : REPLY_EMPTY_MESSAGE);
+    const statusNode = replyStatusNode();
+    if (statusNode) statusNode.textContent = failed ? REPLY_READ_FAILED : (rows.length ? "" : REPLY_EMPTY_MESSAGE);
     if (!list) return;
     list.replaceChildren();
-    if (failed || !rows.length) return;
+    if (!rows.length) {
+      const bar = pager("replies", status, 0);
+      if (bar) list.appendChild(bar);
+      return;
+    }
     rows.forEach((row) => {
       const item = document.createElement("article");
       item.className = "admin-reply-item";
@@ -132,7 +166,7 @@
       remove.type = "button";
       remove.className = "admin-review-delete";
       remove.textContent = "ئۆچۈرۈش";
-      if (row.status === "pending" || currentStatus === "pending") {
+      if (row.status === "pending" || status === "pending") {
         approve.addEventListener("click", () => decideReply(row.id, "approved", approve, reject));
         reject.addEventListener("click", () => decideReply(row.id, "rejected", approve, reject));
         actions.append(approve, reject);
@@ -142,6 +176,83 @@
       item.append(title, body, actions);
       list.appendChild(item);
     });
+    const bar = pager("replies", status, rows.length);
+    if (bar) list.appendChild(bar);
+  }
+
+  function pager(kind, status, count) {
+    const index = cursorIndex[kind][status] || 0;
+    if (!index && count < PAGE_SIZE) return null;
+    const bar = document.createElement("div");
+    bar.className = "admin-review-pager";
+    if (index > 0) {
+      const prev = document.createElement("button");
+      prev.type = "button";
+      prev.className = "admin-secondary";
+      prev.textContent = "ئالدىنقى بەت";
+      prev.addEventListener("click", () => {
+        cursorIndex[kind][status] = Math.max(0, index - 1);
+        load();
+      });
+      bar.appendChild(prev);
+    }
+    if (count === PAGE_SIZE) {
+      const next = document.createElement("button");
+      next.type = "button";
+      next.className = "admin-secondary";
+      next.textContent = "كېيىنكى بەت";
+      next.addEventListener("click", () => {
+        cursorIndex[kind][status] = index + 1;
+        load();
+      });
+      bar.appendChild(next);
+    }
+    if (!bar.childNodes.length) return null;
+    return bar;
+  }
+
+  function listArgs(status, cursor) {
+    return {
+      p_status: status,
+      p_after: cursor && cursor.created_at ? cursor.created_at : null,
+      p_after_id: cursor && cursor.id ? cursor.id : null
+    };
+  }
+
+  function cursorFor(kind, status) {
+    return cursors[kind][status][cursorIndex[kind][status] || 0] || null;
+  }
+
+  function rememberNextCursor(kind, status, rows) {
+    if (!rows || rows.length < PAGE_SIZE) return;
+    const last = rows[rows.length - 1];
+    if (!last || !last.id) return;
+    const index = cursorIndex[kind][status] || 0;
+    cursors[kind][status][index + 1] = { created_at: last.created_at, id: last.id };
+    cursors[kind][status].length = index + 2;
+  }
+
+  function stillCurrent(generation, requested) {
+    return generation === loadGeneration && selectedStatus() === requested;
+  }
+
+  function clearPrivateLists() {
+    loadGeneration += 1;
+    STATUSES.forEach((status) => {
+      lastRows.reviews[status] = null;
+      lastRows.replies[status] = null;
+      cursors.reviews[status] = [null];
+      cursors.replies[status] = [null];
+      cursorIndex.reviews[status] = 0;
+      cursorIndex.replies[status] = 0;
+    });
+    const list = document.querySelector("#bookReviewModerationList");
+    if (list) list.replaceChildren();
+    const replies = document.querySelector("#bookReviewReplyList");
+    if (replies) replies.replaceChildren();
+    setStatus("");
+    const replyStatus = replyStatusNode();
+    if (replyStatus) replyStatus.textContent = "";
   }
 
   async function sessionAal(db) {
@@ -160,36 +271,57 @@
 
   async function load() {
     const db = client();
+    const requested = selectedStatus();
+    const generation = ++loadGeneration;
     if (!db) {
       setStatus("باشقۇرغۇچى كىرىشى كېرەك.");
       return;
     }
     const aal = await sessionAal(db);
+    if (!stillCurrent(generation, requested)) return;
     if (aal !== "aal2") {
-      renderRows([]);
+      renderRows([], requested, true);
+      renderReplies([], false, requested);
       setStatus(AAL2_MESSAGE);
       return;
     }
-    currentStatus = selectedStatus();
-    const result = await db.rpc("admin_list_book_reviews", { p_status: currentStatus });
-    if (result && result.error) {
-      setStatus(DENIED_MESSAGE);
-      renderRows([]);
-      return;
+    let reviewRows = [];
+    let reviewsFailed = false;
+    try {
+      const result = await db.rpc("admin_list_book_reviews", listArgs(requested, cursorFor("reviews", requested)));
+      if (!stillCurrent(generation, requested)) return;
+      if (!result || result.error || !Array.isArray(result.data)) reviewsFailed = true;
+      else reviewRows = result.data;
+    } catch (error) {
+      if (!stillCurrent(generation, requested)) return;
+      reviewsFailed = true;
     }
-    const rows = result && Array.isArray(result.data) ? result.data : [];
-    renderRows(rows);
-    setStatus(rows.length ? "" : EMPTY_MESSAGE);
-    let replies = [];
+    let replyRows = [];
     let repliesFailed = false;
     try {
-      const replyResult = await db.rpc("admin_list_book_review_replies", { p_status: currentStatus });
+      const replyResult = await db.rpc("admin_list_book_review_replies", listArgs(requested, cursorFor("replies", requested)));
+      if (!stillCurrent(generation, requested)) return;
       if (!replyResult || replyResult.error || !Array.isArray(replyResult.data)) repliesFailed = true;
-      else replies = replyResult.data;
+      else replyRows = replyResult.data;
     } catch (error) {
+      if (!stillCurrent(generation, requested)) return;
       repliesFailed = true;
     }
-    renderReplies(replies, repliesFailed);
+    if (!stillCurrent(generation, requested)) return;
+    const shownReviews = reviewsFailed ? (lastRows.reviews[requested] || []) : reviewRows;
+    if (!reviewsFailed) {
+      lastRows.reviews[requested] = shownReviews.slice();
+      rememberNextCursor("reviews", requested, shownReviews);
+    }
+    const shownReplies = repliesFailed ? (lastRows.replies[requested] || []) : replyRows;
+    if (!repliesFailed) {
+      lastRows.replies[requested] = shownReplies.slice();
+      rememberNextCursor("replies", requested, shownReplies);
+    }
+    renderRows(shownReviews, requested, reviewsFailed && !shownReviews.length);
+    renderReplies(shownReplies, repliesFailed, requested);
+    if (reviewsFailed) setStatus(READ_FAILED);
+    else setStatus(shownReviews.length ? "" : EMPTY_MESSAGE);
   }
 
   function releaseDecision(approve, reject) {
@@ -252,7 +384,7 @@
     if (button) button.disabled = true;
     let confirmed = false;
     try {
-      confirmed = window.confirm(DELETE_CONFIRM);
+      confirmed = window.confirm(reviewDeleteConfirm(row));
     } catch (error) {
       confirmed = false;
     }
@@ -358,7 +490,7 @@
     if (button) button.disabled = true;
     let confirmed = false;
     try {
-      confirmed = window.confirm(REPLY_DELETE_CONFIRM);
+      confirmed = window.confirm(replyDeleteConfirm(row));
     } catch (error) {
       confirmed = false;
     }
@@ -433,6 +565,7 @@
   window.KutadguAdminReviews = { load: load, jwtAal: jwtAal };
 
   const approvalState = { generation: 0, last: null, failed: false, open: false, inflight: null };
+  let approvalQueued = false;
 
   function approvalVisible() {
     const dash = document.querySelector("#dashboardPanel");
@@ -514,7 +647,10 @@
   }
 
   function refreshApprovalCounts() {
-    if (approvalState.inflight) return approvalState.inflight;
+    if (approvalState.inflight) {
+      approvalQueued = true;
+      return approvalState.inflight;
+    }
     if (!approvalVisible()) {
       clearApprovals();
       return Promise.resolve();
@@ -550,6 +686,10 @@
       renderBell();
     })().finally(() => {
       approvalState.inflight = null;
+      if (approvalQueued) {
+        approvalQueued = false;
+        refreshApprovalCounts();
+      }
     });
     return approvalState.inflight;
   }
@@ -560,23 +700,37 @@
     const logout = document.querySelector("#adminLogout");
     if (logout && logout.dataset.approvalBound !== "1") {
       logout.dataset.approvalBound = "1";
-      logout.addEventListener("click", clearApprovals);
+      logout.addEventListener("click", () => {
+        clearApprovals();
+        clearPrivateLists();
+      });
     }
     if (typeof MutationObserver === "function" && dash && dash.dataset.approvalWatch !== "1") {
       dash.dataset.approvalWatch = "1";
       const observer = new MutationObserver(() => {
         if (!approvalVisible()) clearApprovals();
         else refreshApprovalCounts();
+        if (lock && !lock.hidden) clearPrivateLists();
       });
       observer.observe(dash, { attributes: true, attributeFilter: ["hidden"] });
       if (lock) observer.observe(lock, { attributes: true, attributeFilter: ["hidden"] });
     }
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && approvalVisible()) refreshApprovalCounts();
-      if (document.visibilityState === "hidden") approvalState.generation += 1;
+      if (document.visibilityState === "hidden") {
+        approvalState.generation += 1;
+        loadGeneration += 1;
+        return;
+      }
+      if (approvalVisible()) refreshApprovalCounts();
+      const card = document.querySelector("#bookReviewsCard");
+      if (card && !card.hidden) load();
     });
     window.setInterval(() => {
-      if (!approvalVisible() || approvalState.inflight) return;
+      if (!approvalVisible()) return;
+      if (approvalState.inflight) {
+        approvalQueued = true;
+        return;
+      }
       refreshApprovalCounts();
     }, 50000);
     if (approvalVisible()) refreshApprovalCounts();

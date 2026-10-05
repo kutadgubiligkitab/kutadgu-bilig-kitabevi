@@ -90,6 +90,20 @@ test("review SQL keeps anonymous reads off the admin helper", () => {
   assert.doesNotMatch(sql, /p\.email|profiles\.email/);
 });
 
+test("paged moderation and the public reply target stay narrow", () => {
+  const pages = fs.readFileSync(path.join(root, "STAGE111_BOOK_REVIEW_PAGES.sql"), "utf8");
+  const target = pages.slice(pages.indexOf("function public.public_book_review_reply_target"), pages.indexOf("revoke all on function public.admin_list_book_reviews(text, timestamptz, uuid)"));
+  assert.match(pages, /admin_list_book_reviews\(\s*p_status text,\s*p_after timestamptz,\s*p_after_id uuid/);
+  assert.match(pages, /limit 100/);
+  assert.match(target, /rp\.status = 'approved'/);
+  assert.match(target, /parent\.status = 'approved'/);
+  assert.match(target, /b\.is_active = true/);
+  assert.doesNotMatch(target, /is_kutadgu_admin|user_id/);
+  assert.match(storefront, /public_book_review_reply_target/);
+  assert.match(storefront, /HEART_FAILED|ياقتۇرۇش يوللانمىدى/);
+  assert.doesNotMatch(storefront, /user_id:/);
+});
+
 if (failed) {
   console.error(failed + " book review test(s) failed");
   process.exit(1);

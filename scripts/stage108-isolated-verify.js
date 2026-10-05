@@ -454,6 +454,131 @@ async function main() {
     const keptAuthor = await client.query("select id from auth.users where id = $1", [AUTHOR]);
     check("notification cleanup keeps the book and the member", keptBook.rows.length === 1 && keptAuthor.rows.length === 1);
 
+    console.log("STAGE 111");
+    await client.query(readSql("STAGE111_BOOK_REVIEW_PAGES.sql"));
+    const targetDef = await client.query("select pg_get_functiondef('public.public_book_review_reply_target(uuid)'::regprocedure) as def");
+    check("public reply target does not call the admin helper", !/is_kutadgu_admin/.test(targetDef.rows[0].def));
+    check("public reply target does not return a user id", !/user_id/.test(targetDef.rows[0].def));
+    const anonTarget = await client.query("select has_function_privilege('anon', 'public.public_book_review_reply_target(uuid)', 'execute') as ok");
+    const anonPage = await client.query("select has_function_privilege('anon', 'public.admin_list_book_reviews(text, timestamptz, uuid)', 'execute') as ok");
+    check("anonymous can read one public reply target", anonTarget.rows[0].ok === true);
+    check("anonymous cannot page the moderation queue", anonPage.rows[0].ok === false);
+
+    const pageBook = await client.query("insert into public.books (title, is_active) values ('بەت كىتابى', true) returning id");
+    const pageBookId = pageBook.rows[0].id;
+    const inactiveBook = await client.query("insert into public.books (title, is_active) values ('يوشۇرۇن كىتاب', false) returning id");
+    await client.query("insert into auth.users (id) select ('10000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid from generate_series(1, 101) i on conflict do nothing");
+    await client.query("alter table public.book_reviews disable trigger book_reviews_before_insert");
+    await client.query("alter table public.book_review_replies disable trigger book_review_replies_before_insert");
+    for (const status of ["pending", "approved", "rejected"]) {
+      await client.query(
+        `insert into public.book_reviews (book_id, user_id, display_name, body, status, created_at)
+         select $1, ('10000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, 'ئەزا', $2 || i::text, $3,
+                timestamptz '2099-01-01' + (i || ' seconds')::interval
+         from generate_series(1, 101) i`,
+        [pageBookId, "باھا-" + status + "-", status]
+      );
+    }
+    const parent = await client.query(
+      "insert into public.book_reviews (book_id, user_id, display_name, body, status, created_at) values ($1, $2, 'ئەزا', 'ئانا ئىنكاس', 'approved', timestamptz '2098-01-01') returning id",
+      [pageBookId, MEMBER]
+    );
+    const hiddenParent = await client.query(
+      "insert into public.book_reviews (book_id, user_id, display_name, body, status, created_at) values ($1, $2, 'ئەزا', 'يوشۇرۇن ئىنكاس', 'approved', timestamptz '2098-01-02') returning id",
+      [inactiveBook.rows[0].id, MEMBER]
+    );
+    for (const status of ["pending", "approved", "rejected"]) {
+      await client.query(
+        `insert into public.book_review_replies (review_id, user_id, display_name, body, status, created_at)
+         select $1, ('10000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, 'ئەزا', $2 || i::text, $3,
+                timestamptz '2099-06-01' + (i || ' seconds')::interval
+         from generate_series(1, 101) i`,
+        [parent.rows[0].id, "جاۋاب-" + status + "-", status]
+      );
+    }
+    await client.query(
+      "insert into public.book_review_replies (review_id, user_id, display_name, body, status) values ($1, $2, 'ئەزا', 'يوشۇرۇن جاۋاب', 'approved')",
+      [hiddenParent.rows[0].id, MEMBER]
+    );
+    await client.query("alter table public.book_reviews enable trigger book_reviews_before_insert");
+    await client.query("alter table public.book_review_replies enable trigger book_review_replies_before_insert");
+
+    async function walkPages(fnName, status) {
+      let after = null;
+      let afterId = null;
+      const seen = [];
+      for (let page = 0; page < 6; page += 1) {
+        const rows = await asRole(client, "authenticated", ADMIN, "aal2", async () => {
+          const result = await client.query(
+            "select id::text as id, body, created_at from public." + fnName + "($1, $2, $3)",
+            [status, after, afterId]
+          );
+          return result.rows;
+        });
+        check(fnName + " " + status + " page is bounded", rows.length <= 100, String(rows.length));
+        if (!rows.length) break;
+        seen.push.apply(seen, rows);
+        if (rows.length < 100) break;
+        after = rows[rows.length - 1].created_at;
+        afterId = rows[rows.length - 1].id;
+      }
+      return seen;
+    }
+
+    for (const status of ["pending", "approved", "rejected"]) {
+      const reviews = await walkPages("admin_list_book_reviews", status);
+      const mine = reviews.filter((row) => String(row.body).indexOf("باھا-" + status + "-") === 0);
+      const ids = new Set(reviews.map((row) => row.id));
+      check("every " + status + " review page is reachable", mine.length === 101 && ids.size === reviews.length, String(mine.length));
+      check(status + " review pages stay ordered", reviews.every((row, index) => index === 0 || String(reviews[index - 1].created_at) <= String(row.created_at)));
+      const replies = await walkPages("admin_list_book_review_replies", status);
+      const replyMine = replies.filter((row) => String(row.body).indexOf("جاۋاب-" + status + "-") === 0);
+      check("every " + status + " reply page is reachable", replyMine.length === 101, String(replyMine.length));
+    }
+    const pendingBeforeDelete = await walkPages("admin_list_book_reviews", "pending");
+    const doomed = pendingBeforeDelete.find((row) => row.body === "باھا-pending-50");
+    const lastPending = pendingBeforeDelete.find((row) => row.body === "باھا-pending-101");
+    await asRole(client, "authenticated", ADMIN, "aal2", () => client.query("select public.delete_book_review($1)", [doomed.id]));
+    const pendingAfterDelete = await walkPages("admin_list_book_reviews", "pending");
+    check("deleting one paged review leaves the later record reachable",
+      !pendingAfterDelete.some((row) => row.id === doomed.id) && pendingAfterDelete.some((row) => row.id === lastPending.id));
+    await expectError("anonymous cannot page reviews", () => asRole(client, "anon", null, "aal1", () =>
+      client.query("select * from public.admin_list_book_reviews('pending', null, null)")
+    ), /permission denied/i);
+
+    const visibleReply = await client.query(
+      "select id from public.book_review_replies where body = 'جاۋاب-approved-101' and review_id = $1",
+      [parent.rows[0].id]
+    );
+    const pendingReply = await client.query(
+      "select id from public.book_review_replies where body = 'جاۋاب-pending-1' and review_id = $1",
+      [parent.rows[0].id]
+    );
+    const hiddenReply = await client.query(
+      "select id from public.book_review_replies where body = 'يوشۇرۇن جاۋاب'"
+    );
+    const anonSeen = await asRole(client, "anon", null, "aal1", async () => {
+      const row = await client.query("select reply_body, review_body, book_id from public.public_book_review_reply_target($1)", [visibleReply.rows[0].id]);
+      return row.rows;
+    });
+    check("anonymous can read an approved reply outside a short page", anonSeen.length === 1 && anonSeen[0].reply_body === "جاۋاب-approved-101" && anonSeen[0].review_body === "ئانا ئىنكاس" && String(anonSeen[0].book_id) === String(pageBookId));
+    const pendingSeen = await asRole(client, "anon", null, "aal1", async () => {
+      const row = await client.query("select reply_id from public.public_book_review_reply_target($1)", [pendingReply.rows[0].id]);
+      return row.rows;
+    });
+    check("a pending reply is not a public target", pendingSeen.length === 0);
+    const inactiveSeen = await asRole(client, "authenticated", OTHER, "aal1", async () => {
+      const row = await client.query("select reply_id from public.public_book_review_reply_target($1)", [hiddenReply.rows[0].id]);
+      return row.rows;
+    });
+    check("an inactive book reply is not a public target", inactiveSeen.length === 0);
+    await client.query("delete from public.book_review_replies where id = $1", [visibleReply.rows[0].id]);
+    const deletedSeen = await asRole(client, "anon", null, "aal1", async () => {
+      const row = await client.query("select reply_id from public.public_book_review_reply_target($1)", [visibleReply.rows[0].id]);
+      return row.rows;
+    });
+    check("a deleted reply target is empty", deletedSeen.length === 0);
+
     if (failures.length) {
       console.error(failures.length + " stage108 check(s) failed");
       process.exitCode = 1;
