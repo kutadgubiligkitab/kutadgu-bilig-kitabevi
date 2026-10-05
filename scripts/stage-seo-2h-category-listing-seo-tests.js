@@ -28,8 +28,8 @@ const FROZEN = {
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "c8a42683b84777680450bd970eb3483213edc8e4ddc49d09b6e5c9c56c810d14",
-  "index.html": "769a805b40f97f3a8c3e5c4f0c086da6aea4bf7b9ddb43a71993e044f63bfe51",
-  "home-hero-content.js": "b904ca445547df8c8b102195bcb36a33b7afa10c2e24b00a6c54fd8e64f6e4e5",
+  "index.html": "ac79832a3c2eb304569311162f922b8b049ba094bace71fa93505895101f3a8a",
+  "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };

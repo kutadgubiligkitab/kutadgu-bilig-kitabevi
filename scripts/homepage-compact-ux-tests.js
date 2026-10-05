@@ -60,7 +60,7 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /mobile\.js\?v=9/);
   assert.match(html, /public-header\.js\?v=2/);
   assert.match(html, /stage3-shop-identity\.css\?v=6/);
-  assert.match(html, /home-hero-slideshow\.js\?v=3/);
+  assert.match(html, /home-hero-slideshow\.js\?v=4/);
   assert.match(html, /assets\/store\/shop-interior-main\.webp/);
   assert.match(html, /assets\/store\/shop-interior-library\.webp/);
   assert.match(html, /assets\/store\/shop-exterior\.webp/);

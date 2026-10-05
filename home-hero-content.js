@@ -478,20 +478,24 @@
     refreshSlideshow();
   }
 
-  function onSlideImageError(img) {
-    var src = img ? img.getAttribute("src") : "";
-    if (mode === "campaign") {
-      campaignItems = campaignItems.filter(function (item) { return item.src !== src; });
-      if (!campaignItems.length) {
-        applyStoreMode(lastSettings, lastStoreSlides);
-        return;
-      }
-      renderSlides(campaignItems.map(toSlideView), true);
-      applyCampaignCopy(campaignItems[0]);
-      return;
+  function slideSrc(img) {
+    if (!img) return "";
+    return img.getAttribute("src") || img.getAttribute("data-hero-src") || "";
+  }
+
+  function campaignItemForSlide(img) {
+    var src = slideSrc(img);
+    var i;
+    if (!src) return null;
+    for (i = 0; i < campaignItems.length; i += 1) {
+      if (campaignItems[i] && campaignItems[i].src === src) return campaignItems[i];
     }
+    return null;
+  }
+
+  function removeFailedSlideNode(img) {
     var els = heroEls();
-    if (!els || !els.frame || !img) return;
+    if (!els || !els.frame || !img) return 0;
     var slides = els.frame.querySelectorAll("[data-shop-hero-slide]");
     var index = Array.prototype.indexOf.call(slides, img);
     if (img.parentNode) img.parentNode.removeChild(img);
@@ -500,16 +504,39 @@
       if (dots[index] && dots[index].parentNode) dots[index].parentNode.removeChild(dots[index]);
     }
     var remaining = els.frame.querySelectorAll("[data-shop-hero-slide]").length;
-    if (!remaining) {
-      restoreHardcodedMedia();
-      refreshSlideshow();
-      return;
-    }
     if (els.dots) {
       if (remaining < 2) els.dots.setAttribute("hidden", "");
       else els.dots.removeAttribute("hidden");
     }
+    return remaining;
+  }
+
+  function onSlideImageError(img) {
+    var src = slideSrc(img);
+    if (mode === "campaign") {
+      campaignItems = campaignItems.filter(function (item) { return item.src !== src; });
+      if (!campaignItems.length) {
+        applyStoreMode(lastSettings, lastStoreSlides);
+        return;
+      }
+    }
+    var remaining = removeFailedSlideNode(img);
+    if (!remaining) {
+      if (mode === "campaign") {
+        applyStoreMode(lastSettings, lastStoreSlides);
+        return;
+      }
+      restoreHardcodedMedia();
+      refreshSlideshow();
+      return;
+    }
     refreshSlideshow();
+    if (mode === "campaign") {
+      var els = heroEls();
+      var visible = els && els.frame ? els.frame.querySelector("[data-shop-hero-slide].is-active") : null;
+      var match = campaignItemForSlide(visible);
+      if (match) applyCampaignCopy(match);
+    }
   }
 
   var lastSettings = null;

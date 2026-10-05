@@ -13,8 +13,8 @@ const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "home-hero-content.js": "b904ca445547df8c8b102195bcb36a33b7afa10c2e24b00a6c54fd8e64f6e4e5",
-  "home-hero-slideshow.js": "488cc80c937c9d02e70301ae84199ab8637e73fe2821a4840a3a625b8c1e9ae8",
+  "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
+  "home-hero-slideshow.js": "4609ef12a6339d22564500df793675a16152cad4fa973f00d31cd6c4fc1b12ce",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452"
 };
 

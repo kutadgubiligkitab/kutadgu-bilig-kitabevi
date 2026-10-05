@@ -158,13 +158,18 @@
   }
 
   function refresh(){
+    const current=root.querySelector("[data-shop-hero-slide].is-active");
     query();
-    if(index>=slides.length)index=0;
-    if(slides.length)show(index);
-    else{
+    if(!slides.length){
       index=0;
       stop();
+      start();
+      return;
     }
+    const found=current&&current.isConnected?slides.indexOf(current):-1;
+    if(found>=0)index=found;
+    else if(index>=slides.length)index=0;
+    show(index);
     start();
   }
 

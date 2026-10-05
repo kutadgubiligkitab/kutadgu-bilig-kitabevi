@@ -43,8 +43,8 @@ test("hard-coded fallback identity is still in index.html", () => {
   assert.match(html, /data-home-hero-title/);
   assert.doesNotMatch(html, /role="heading"/);
   assert.doesNotMatch(html, /aria-level="1"/);
-  assert.match(html, /home-hero-slideshow\.js\?v=3/);
-  assert.match(html, /home-hero-content\.js\?v=2/);
+  assert.match(html, /home-hero-slideshow\.js\?v=4/);
+  assert.match(html, /home-hero-content\.js\?v=3/);
   const slideAt = html.indexOf("home-hero-slideshow.js");
   const contentAt = html.indexOf("home-hero-content.js");
   assert.ok(slideAt >= 0 && contentAt > slideAt);
