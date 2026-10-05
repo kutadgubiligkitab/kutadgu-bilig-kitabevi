@@ -493,6 +493,15 @@
         </div>
         <p class="admin-help">تىزىملاتقان ۋاقىت، ئاخىرقى كىرىش، ئاخىرقى زىيارەت، زىيارەت سانى ۋە زاكاز تارىخى بۇ يەردە كۆرۈنىدۇ.</p>
         <div id="adminMemberList" class="admin-member-list"><div class="admin-empty">خېرىدارلار يۈكلىنىۋاتىدۇ...</div></div>
+        <div id="memberCartPanel" class="admin-order-detail" hidden role="region" aria-labelledby="memberCartTitle">
+          <div class="admin-modal-head">
+            <h3 id="memberCartTitle" tabindex="-1">سېۋەت</h3>
+            <button id="closeMemberCart" type="button" aria-label="يېپىش">✕</button>
+          </div>
+          <p id="memberCartIdentity" class="admin-help"></p>
+          <p class="admin-help">بۇ ئەزانىڭ تور بېتىدە ساقلانغان نۆۋەتتىكى سېۋىتى. زاكاز ياكى سېتىۋېلىش ئەمەس.</p>
+          <div id="memberCartBody"></div>
+        </div>
       </section>
       </div>
 
@@ -1037,6 +1046,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=88"></script>
+  <script defer src="admin.js?v=89"></script>
+  <script defer src="admin-member-cart.js?v=2"></script>
 </body>
 </html>
