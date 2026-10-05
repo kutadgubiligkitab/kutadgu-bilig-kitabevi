@@ -13,15 +13,12 @@
   let loadGeneration = 0;
   const STATUSES = ["pending", "approved", "rejected"];
   const cursors = { reviews: {}, replies: {} };
-  const cursorIndex = { reviews: {}, replies: {} };
-  const lastRows = { reviews: {}, replies: {} };
+  const pages = { reviews: {}, replies: {} };
   STATUSES.forEach((status) => {
     cursors.reviews[status] = [null];
     cursors.replies[status] = [null];
-    cursorIndex.reviews[status] = 0;
-    cursorIndex.replies[status] = 0;
-    lastRows.reviews[status] = null;
-    lastRows.replies[status] = null;
+    pages.reviews[status] = { index: 0, rows: null };
+    pages.replies[status] = { index: 0, rows: null };
   });
 
   function reviewDeleteConfirm(row) {
@@ -181,7 +178,7 @@
   }
 
   function pager(kind, status, count) {
-    const index = cursorIndex[kind][status] || 0;
+    const index = pages[kind][status].index || 0;
     if (!index && count < PAGE_SIZE) return null;
     const bar = document.createElement("div");
     bar.className = "admin-review-pager";
@@ -191,8 +188,9 @@
       prev.className = "admin-secondary";
       prev.textContent = "ئالدىنقى بەت";
       prev.addEventListener("click", () => {
-        cursorIndex[kind][status] = Math.max(0, index - 1);
-        load();
+        const target = {};
+        target[kind] = index - 1;
+        load(target);
       });
       bar.appendChild(prev);
     }
@@ -202,8 +200,9 @@
       next.className = "admin-secondary";
       next.textContent = "كېيىنكى بەت";
       next.addEventListener("click", () => {
-        cursorIndex[kind][status] = index + 1;
-        load();
+        const target = {};
+        target[kind] = index + 1;
+        load(target);
       });
       bar.appendChild(next);
     }
@@ -219,15 +218,21 @@
     };
   }
 
-  function cursorFor(kind, status) {
-    return cursors[kind][status][cursorIndex[kind][status] || 0] || null;
+  function cursorAt(kind, status, index) {
+    const pageIndex = index > 0 ? index : 0;
+    if (!pageIndex) return { ok: true, index: 0, cursor: null };
+    const cursor = cursors[kind][status][pageIndex];
+    if (!cursor || !cursor.id || !cursor.created_at) return { ok: false, index: pageIndex, cursor: null };
+    return { ok: true, index: pageIndex, cursor: cursor };
   }
 
-  function rememberNextCursor(kind, status, rows) {
-    if (!rows || rows.length < PAGE_SIZE) return;
+  function rememberNextCursor(kind, status, index, rows) {
+    if (!rows || rows.length < PAGE_SIZE) {
+      cursors[kind][status].length = index + 1;
+      return;
+    }
     const last = rows[rows.length - 1];
-    if (!last || !last.id) return;
-    const index = cursorIndex[kind][status] || 0;
+    if (!last || !last.id || !last.created_at) return;
     cursors[kind][status][index + 1] = { created_at: last.created_at, id: last.id };
     cursors[kind][status].length = index + 2;
   }
@@ -239,12 +244,10 @@
   function clearPrivateLists() {
     loadGeneration += 1;
     STATUSES.forEach((status) => {
-      lastRows.reviews[status] = null;
-      lastRows.replies[status] = null;
+      pages.reviews[status] = { index: 0, rows: null };
+      pages.replies[status] = { index: 0, rows: null };
       cursors.reviews[status] = [null];
       cursors.replies[status] = [null];
-      cursorIndex.reviews[status] = 0;
-      cursorIndex.replies[status] = 0;
     });
     const list = document.querySelector("#bookReviewModerationList");
     if (list) list.replaceChildren();
@@ -269,10 +272,12 @@
     return "pending";
   }
 
-  async function load() {
+  async function load(target) {
     const db = client();
     const requested = selectedStatus();
     const generation = ++loadGeneration;
+    const reviewAsk = cursorAt("reviews", requested, target && Number.isInteger(target.reviews) ? target.reviews : pages.reviews[requested].index);
+    const replyAsk = cursorAt("replies", requested, target && Number.isInteger(target.replies) ? target.replies : pages.replies[requested].index);
     if (!db) {
       setStatus("باشقۇرغۇچى كىرىشى كېرەك.");
       return;
@@ -286,38 +291,42 @@
       return;
     }
     let reviewRows = [];
-    let reviewsFailed = false;
-    try {
-      const result = await db.rpc("admin_list_book_reviews", listArgs(requested, cursorFor("reviews", requested)));
-      if (!stillCurrent(generation, requested)) return;
-      if (!result || result.error || !Array.isArray(result.data)) reviewsFailed = true;
-      else reviewRows = result.data;
-    } catch (error) {
-      if (!stillCurrent(generation, requested)) return;
-      reviewsFailed = true;
+    let reviewsFailed = !reviewAsk.ok;
+    if (reviewAsk.ok) {
+      try {
+        const result = await db.rpc("admin_list_book_reviews", listArgs(requested, reviewAsk.cursor));
+        if (!stillCurrent(generation, requested)) return;
+        if (!result || result.error || !Array.isArray(result.data)) reviewsFailed = true;
+        else reviewRows = result.data;
+      } catch (error) {
+        if (!stillCurrent(generation, requested)) return;
+        reviewsFailed = true;
+      }
     }
     let replyRows = [];
-    let repliesFailed = false;
-    try {
-      const replyResult = await db.rpc("admin_list_book_review_replies", listArgs(requested, cursorFor("replies", requested)));
-      if (!stillCurrent(generation, requested)) return;
-      if (!replyResult || replyResult.error || !Array.isArray(replyResult.data)) repliesFailed = true;
-      else replyRows = replyResult.data;
-    } catch (error) {
-      if (!stillCurrent(generation, requested)) return;
-      repliesFailed = true;
+    let repliesFailed = !replyAsk.ok;
+    if (replyAsk.ok) {
+      try {
+        const replyResult = await db.rpc("admin_list_book_review_replies", listArgs(requested, replyAsk.cursor));
+        if (!stillCurrent(generation, requested)) return;
+        if (!replyResult || replyResult.error || !Array.isArray(replyResult.data)) repliesFailed = true;
+        else replyRows = replyResult.data;
+      } catch (error) {
+        if (!stillCurrent(generation, requested)) return;
+        repliesFailed = true;
+      }
     }
     if (!stillCurrent(generation, requested)) return;
-    const shownReviews = reviewsFailed ? (lastRows.reviews[requested] || []) : reviewRows;
     if (!reviewsFailed) {
-      lastRows.reviews[requested] = shownReviews.slice();
-      rememberNextCursor("reviews", requested, shownReviews);
+      pages.reviews[requested] = { index: reviewAsk.index, rows: reviewRows.slice() };
+      rememberNextCursor("reviews", requested, reviewAsk.index, reviewRows);
     }
-    const shownReplies = repliesFailed ? (lastRows.replies[requested] || []) : replyRows;
     if (!repliesFailed) {
-      lastRows.replies[requested] = shownReplies.slice();
-      rememberNextCursor("replies", requested, shownReplies);
+      pages.replies[requested] = { index: replyAsk.index, rows: replyRows.slice() };
+      rememberNextCursor("replies", requested, replyAsk.index, replyRows);
     }
+    const shownReviews = reviewsFailed ? (pages.reviews[requested].rows || []) : reviewRows;
+    const shownReplies = repliesFailed ? (pages.replies[requested].rows || []) : replyRows;
     renderRows(shownReviews, requested, reviewsFailed && !shownReviews.length);
     renderReplies(shownReplies, repliesFailed, requested);
     if (reviewsFailed) setStatus(READ_FAILED);

@@ -690,6 +690,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage108-isolated-verify.js",
     "scripts/cover-upload-optimize-tests.js",
     "tests/e2e/book-reviews.spec.js",
+    "tests/e2e/fixtures/public-header-4e07e95a.js",
     "scripts/admin-order-management-tests.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
