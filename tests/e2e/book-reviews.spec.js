@@ -1038,20 +1038,52 @@ test("the admin bell shows approval totals, keeps a failed read, and drops a sta
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
   const bell = page.locator(".admin-approval-bell-button");
-  await expect(bell).toContainText("6");
-  await bell.click();
   const panel = page.locator(".admin-approval-panel");
+  await expect(bell).toContainText("6");
+  await expect(bell).toHaveAttribute("aria-expanded", "false");
+  await expectClosedApprovalPanel(panel);
+  expect(await bell.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
+  await bell.click();
+  await expect(bell).toHaveAttribute("aria-expanded", "true");
+  await expect(panel).toBeVisible();
   await expect(panel).toContainText("كىتاب تەستىقى 2");
   await expect(panel).toContainText("ئىنكاسلار 3");
   await expect(panel).toContainText("جاۋابلار 1");
+  await expectReadableApprovalText(panel.getByRole("button", { name: "كىتاب تەستىقى 2" }));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "ئىنكاسلار 3" }));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "جاۋابلار 1" }));
+  await bell.click();
+  await expect(bell).toHaveAttribute("aria-expanded", "false");
+  await expectClosedApprovalPanel(panel);
+  await bell.click();
   await panel.getByRole("button", { name: "كىتاب تەستىقى 2" }).click();
   await expect(page.locator("[data-admin-section-panel='submissions']")).toBeVisible();
+  await expect(bell).toHaveAttribute("aria-expanded", "false");
+  await expectClosedApprovalPanel(panel);
   await page.evaluate(() => { window.__approvalFail = true; });
   await page.evaluate(() => window.KutadguAdminApprovals.refresh());
   await expect(bell).toContainText("6");
   await bell.click();
   await expect(panel).toContainText("سان يۈكلەنمىدى.");
   await expect(panel).not.toContainText("كىتاب تەستىقى 0");
+  await expectReadableApprovalText(panel.locator("p"));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "قايتا سىناش" }));
+  await bell.click();
+  await expectClosedApprovalPanel(panel);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await bell.click();
+  await expectReadableApprovalText(panel.getByRole("button", { name: "قايتا سىناش" }));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.evaluate(() => document.body.classList.add("dark-mode"));
+  await expectReadableApprovalText(panel.locator("p"));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "قايتا سىناش" }));
+  expect(await bell.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
+  await bell.click();
+  await expectClosedApprovalPanel(panel);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.evaluate(() => document.body.classList.remove("dark-mode"));
+  await page.setViewportSize({ width: 390, height: 800 });
   await page.evaluate(() => { window.__approvalFail = false; window.__approvalDelay = true; });
   await page.evaluate(() => { void window.KutadguAdminApprovals.refresh(); });
   await expect.poll(() => page.evaluate(() => typeof window.__releaseCounts === "function")).toBe(true);
@@ -1063,6 +1095,193 @@ test("the admin bell shows approval totals, keeps a failed read, and drops a sta
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(overflow).toBe(false);
 });
+
+test("a zero approval count keeps the closed dropdown hidden", async ({ page }) => {
+  await installApprovalBell(page, { submissions: 0, reviews: 0, replies: 0 });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  const bell = page.locator(".admin-approval-bell-button");
+  const panel = page.locator(".admin-approval-panel");
+  await expect(bell).toContainText("0");
+  await expect(bell).toHaveAttribute("aria-expanded", "false");
+  await expectClosedApprovalPanel(panel);
+  await bell.click();
+  await expectReadableApprovalText(panel.getByRole("button", { name: "كىتاب تەستىقى 0" }));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "ئىنكاسلار 0" }));
+  await expectReadableApprovalText(panel.getByRole("button", { name: "جاۋابلار 0" }));
+  await panel.getByRole("button", { name: "جاۋابلار 0" }).click();
+  await expect(page.locator("[data-admin-section-panel='reviews']")).toBeVisible();
+  await expectClosedApprovalPanel(panel);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.evaluate(() => document.body.classList.add("dark-mode"));
+  await expectClosedApprovalPanel(panel);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+  await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+  await expect(page.locator(".admin-approval-bell")).toHaveCount(0);
+  await page.evaluate(() => {
+    document.querySelector("#idleLockPanel").hidden = true;
+    document.querySelector("#dashboardPanel").hidden = false;
+  });
+  await expect(bell).toBeVisible();
+  await page.evaluate(() => {
+    document.querySelector("#loginPanel").hidden = false;
+    document.querySelector("#dashboardPanel").hidden = true;
+    document.querySelector("#adminLogout").click();
+  });
+  await expect(page.locator(".admin-approval-bell")).toHaveCount(0);
+});
+
+test("a warm cached admin stylesheet stays broken until the new pin loads", async ({ browser }) => {
+  const fs = require("fs");
+  const path = require("path");
+  const crypto = require("crypto");
+  const http = require("http");
+  const oldCssBuffer = fs.readFileSync(path.join(__dirname, "fixtures", "admin-css-6c3e7bb6.css"));
+  const oldCss = oldCssBuffer.toString("utf8");
+  const blob = crypto.createHash("sha1");
+  blob.update("blob " + oldCssBuffer.length + "\0");
+  blob.update(oldCssBuffer);
+  expect(blob.digest("hex")).toBe("e61cc4e4d3830ee68e176aec529f5a7e36b6b1f0");
+  expect(oldCss).toContain(".admin-approval-panel{position:absolute");
+  expect(oldCss).not.toContain(".admin-approval-panel[hidden]");
+  const currentHtml = fs.readFileSync(path.join(__dirname, "../../admin.html"), "utf8");
+  expect(currentHtml).toContain("admin.css?v=50");
+  const oldDocument = currentHtml.replace("admin.css?v=50", "admin.css?v=49");
+  expect(oldDocument).toContain('class="admin-top-actions"');
+  expect(oldDocument).not.toContain("admin.css?v=50");
+  const hits = { v49: 0, v50: 0 };
+  const origin = await new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url || "/", "http://127.0.0.1");
+      if (url.pathname === "/admin-css-cache-old.html") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end(oldDocument);
+        return;
+      }
+      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "49") {
+        hits.v49 += 1;
+        res.writeHead(200, {
+          "content-type": "text/css; charset=utf-8",
+          "cache-control": "public, max-age=300, immutable",
+          "content-length": oldCssBuffer.length
+        });
+        res.end(oldCssBuffer);
+        return;
+      }
+      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "50") hits.v50 += 1;
+      const proxy = http.request({
+        hostname: "127.0.0.1",
+        port: 4173,
+        path: req.url,
+        method: req.method,
+        headers: Object.assign({}, req.headers, { host: "127.0.0.1:4173" })
+      }, (upstream) => {
+        res.writeHead(upstream.statusCode || 502, upstream.headers);
+        upstream.pipe(res);
+      });
+      proxy.on("error", () => {
+        if (!res.headersSent) res.writeHead(502, { "content-type": "text/plain" });
+        res.end("proxy failed");
+      });
+      req.pipe(proxy);
+    });
+    server.listen(0, "127.0.0.1", () => resolve({ server: server, origin: "http://127.0.0.1:" + server.address().port }));
+    server.on("error", reject);
+  });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await installApprovalBell(page, { submissions: 1, reviews: 1, replies: 1 });
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto(origin.origin + "/admin-css-cache-old.html", { waitUntil: "domcontentloaded" });
+    const bell = page.locator(".admin-approval-bell-button");
+    const panel = page.locator(".admin-approval-panel");
+    await expect(bell).toContainText("3");
+    expect(hits.v49).toBe(1);
+    expect(hits.v50).toBe(0);
+    await expect(bell).toHaveAttribute("aria-expanded", "false");
+    expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+    expect(await panel.getByRole("button", { name: "كىتاب تەستىقى 1" }).evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
+    await page.goto(origin.origin + "/admin.html", { waitUntil: "domcontentloaded" });
+    expect(hits.v50).toBe(1);
+    expect(hits.v49).toBe(1);
+    await expect(bell).toContainText("3");
+    await expect(bell).toHaveAttribute("aria-expanded", "false");
+    await expectClosedApprovalPanel(panel);
+    await bell.click();
+    await expectReadableApprovalText(panel.getByRole("button", { name: "كىتاب تەستىقى 1" }));
+    await expectReadableApprovalText(panel.getByRole("button", { name: "ئىنكاسلار 1" }));
+    await expectReadableApprovalText(panel.getByRole("button", { name: "جاۋابلار 1" }));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectReadableApprovalText(panel.getByRole("button", { name: "جاۋابلار 1" }));
+    await page.goto(origin.origin + "/admin-css-cache-old.html", { waitUntil: "domcontentloaded" });
+    await expect(bell).toContainText("3");
+    expect(hits.v49).toBe(1);
+    const cached = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("admin.css?v=49")).map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
+    expect(cached.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
+    expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+  } finally {
+    await context.close();
+    await new Promise((resolve) => origin.server.close(resolve));
+  }
+});
+
+async function installApprovalBell(page, counts) {
+  await page.addInitScript((payloadCounts) => {
+    const payload = btoa(JSON.stringify({ aal: "aal2" })).replace(/=+$/g, "");
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguBookReviewAdminClient = {
+      auth: { getSession: async () => ({ data: { session: { access_token: "e30." + payload + ".sig" } }, error: null }) },
+      rpc(name) {
+        if (name === "admin_list_book_reviews" || name === "admin_list_book_review_replies") {
+          return Promise.resolve({ data: [], error: null });
+        }
+        if (name === "admin_approval_counts") return Promise.resolve({ data: payloadCounts, error: null });
+        return Promise.resolve({ data: null, error: null });
+      }
+    };
+  }, counts);
+}
+
+async function expectClosedApprovalPanel(panel) {
+  await expect(panel).toBeHidden();
+  expect(await panel.evaluate((el) => ({
+    display: getComputedStyle(el).display,
+    box: el.getBoundingClientRect().width
+  }))).toEqual({ display: "none", box: 0 });
+}
+
+async function expectReadableApprovalText(locator) {
+  const sample = await locator.evaluate((el) => {
+    function channel(value) {
+      const match = String(value).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
+      if (!match) return null;
+      return { rgb: [Number(match[1]), Number(match[2]), Number(match[3])], alpha: match[4] == null ? 1 : Number(match[4]) };
+    }
+    function linear(value) {
+      const scaled = value / 255;
+      return scaled <= 0.04045 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+    }
+    function luminance(rgb) {
+      return 0.2126 * linear(rgb[0]) + 0.7152 * linear(rgb[1]) + 0.0722 * linear(rgb[2]);
+    }
+    const style = getComputedStyle(el);
+    const panel = getComputedStyle(el.closest(".admin-approval-panel"));
+    const foreground = channel(style.color);
+    let background = channel(style.backgroundColor);
+    if (!background || background.alpha < 1) background = channel(panel.backgroundColor);
+    const high = Math.max(luminance(foreground.rgb), luminance(background.rgb));
+    const low = Math.min(luminance(foreground.rgb), luminance(background.rgb));
+    return {
+      contrast: (high + 0.05) / (low + 0.05),
+      color: style.color,
+      panel: panel.backgroundColor
+    };
+  });
+  expect(sample.contrast).toBeGreaterThanOrEqual(4.5);
+  expect(sample.color).not.toBe("rgb(255, 255, 255)");
+  expect(sample.panel).toBe("rgb(255, 253, 249)");
+}
 
 test("a member sees only their reply notification and marks that one read", async ({ page }) => {
   const state = { approved: [], own: [], inserts: [], reviewGets: [] };
