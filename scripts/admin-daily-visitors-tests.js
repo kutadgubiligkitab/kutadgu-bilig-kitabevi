@@ -340,7 +340,8 @@ test("tracking keeps session and visitor apart and retries the same event id", (
   assert.ok(core.includes("kutadgu-analytics-session"));
   assert.ok(js.includes('core.visitorId(safeStorage("local"))'));
   assert.ok(js.includes("kutadgu-analytics-session"));
-  assert.ok(js.includes("resolution=ignore-duplicates"));
+  assert.ok(!js.includes("resolution=ignore-duplicates"));
+  assert.ok(js.includes('Prefer:"return=minimal"'));
   assert.ok(js.includes("idempotent:hasEvent"));
   assert.ok(js.includes("schemaAttempts:state.schema"));
   assert.ok(js.includes("networkAttempts:state.network"));
@@ -404,10 +405,10 @@ test("cache pins moved for the changed analytics files", () => {
   assert.match(html, /admin\.css\?v=48/);
   assert.match(html, /kutadgu-analytics-core\.js\?v=7/);
   assert.match(html, /admin\.js\?v=86/);
-  assert.match(home, /analytics\.js\?v=5/);
+  assert.match(home, /analytics\.js\?v=6/);
   assert.match(home, /kutadgu-analytics-core\.js\?v=5/);
   assert.match(home, /shop\.js\?v=144/);
-  assert.match(shell, /src="\/analytics\.js\?v=5"/);
+  assert.match(shell, /src="\/analytics\.js\?v=6"/);
 });
 
 function browserStorage() {
@@ -491,10 +492,10 @@ async function eventIdRetryStaysOneRow() {
     const body = JSON.parse(init.body);
     if (!body.event_id) throw new Error("event_id missing");
     if (seen.has(body.event_id)) {
-      if (!String(init.headers.Prefer || "").includes("resolution=ignore-duplicates")) {
-        throw new Error("retry did not ignore duplicates");
+      if (String(init.headers.Prefer || "").includes("resolution=ignore-duplicates")) {
+        throw new Error("retry asked PostgREST to select the inserted row");
       }
-      return { ok: true, status: 201, text: async () => "" };
+      return { ok: false, status: 409, text: async () => "{\"code\":\"23505\"}" };
     }
     seen.add(body.event_id);
     stored.push(body);

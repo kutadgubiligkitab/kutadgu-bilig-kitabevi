@@ -27,8 +27,8 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "c8a42683b84777680450bd970eb3483213edc8e4ddc49d09b6e5c9c56c810d14",
-  "index.html": "ac79832a3c2eb304569311162f922b8b049ba094bace71fa93505895101f3a8a",
+  "book-shell.html": "69984770d2581b3ca6adf75de33594876622ea15afdc3aa9f518e9069e9063e6",
+  "index.html": "705bba60ba2e9eca18607a64ed4bc775eca5a7f6ea1c21b5897c986d051b74c3",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -718,6 +718,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage114-isolated-counter-failure.sql",
     "scripts/stage114-isolated-counter-recovery.sql",
     "scripts/three-hour-visits-tests.js",
+    "STAGE115_ANALYTICS_EVENT_ID.sql",
+    "scripts/analytics-insert-postgrest.sh",
     "tests/e2e/admin-three-hour-visits.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));

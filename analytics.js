@@ -86,7 +86,9 @@
           apikey:key,
           Authorization:"Bearer "+key,
           "Content-Type":"application/json",
-          Prefer:hasEvent?"return=minimal,resolution=ignore-duplicates":"return=minimal"
+          // A repeated event_id hits the unique index and returns 409, which is stored.
+          // Asking PostgREST to ignore duplicates makes it SELECT the insert, and anon cannot.
+          Prefer:"return=minimal"
         },
         body:JSON.stringify(body)
       });
