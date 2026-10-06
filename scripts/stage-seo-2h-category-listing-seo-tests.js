@@ -707,7 +707,18 @@ test("protected product files stay frozen and out of this diff", () => {
     "home-hero-content.js",
     "home-hero-slideshow.js",
     "scripts/home-hero-overlay-tests.js",
-    "tests/e2e/home-hero-overlay.spec.js"
+    "tests/e2e/home-hero-overlay.spec.js",
+    "STAGE114_THREE_HOUR_VISITS.sql",
+    "STAGE114_THREE_HOUR_VISITS_ROLLBACK.sql",
+    "scripts/stage114-isolated-postgres.sh",
+    "scripts/stage114-isolated-fixture.sql",
+    "scripts/stage114-isolated-assertions.sql",
+    "scripts/stage114-isolated-rollback-assertions.sql",
+    "scripts/stage114-isolated-reapply-assertions.sql",
+    "scripts/stage114-isolated-counter-failure.sql",
+    "scripts/stage114-isolated-counter-recovery.sql",
+    "scripts/three-hour-visits-tests.js",
+    "tests/e2e/admin-three-hour-visits.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

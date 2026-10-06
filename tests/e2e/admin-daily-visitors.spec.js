@@ -22,7 +22,9 @@ test.describe("admin analytics daily visitors", () => {
     await expect(page.locator("#analyticsBookViews")).toHaveText("—");
     await expect(page.locator("#analyticsMeta")).toContainText("Europe/Istanbul");
     await expect(page.locator("#analyticsVisitorChart .admin-analytics-chart-col")).toHaveCount(7);
-    await expect(page.locator("#analyticsVisitorNote")).toContainText("PostHog");
+    await expect(page.locator("#analyticsVisitorNote")).toContainText("زىيارەت قېتىمى");
+    await expect(page.locator("#analyticsVisitorNote")).toContainText("3 سائەت");
+    await expect(page.locator("#analyticsManagement")).not.toContainText("بۈگۈنكى خاتىرىلەنگەن زىيارەتچى");
     await page.locator("#analyticsRange").selectOption("7");
     await expect(page.locator("#analyticsRange")).toHaveValue("7");
     await page.locator("#reloadAnalytics").click();

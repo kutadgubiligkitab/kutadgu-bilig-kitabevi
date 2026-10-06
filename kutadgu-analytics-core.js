@@ -399,6 +399,50 @@
     return {kind:"aggregate_ratio",funnel:Object.assign({kind:"aggregate_ratio",accurate_user_action_order:false},counts)};
   }
 
+  function countedVisitMetric(day){
+    if(!day||typeof day!=="object")return {text:"—",status:"unavailable",visits:null};
+    const status=day.status==="zero"||day.status==="partial"||day.status==="complete"||day.status==="unavailable"
+      ?day.status
+      :"unavailable";
+    if(status==="zero")return {text:"0",status:"zero",visits:0};
+    if(status==="complete"||status==="partial"){
+      const n=Number(day.visits);
+      if(!Number.isFinite(n))return {text:"—",status:"unavailable",visits:null};
+      return {text:String(n),status,visits:n};
+    }
+    return {text:"—",status:"unavailable",visits:null};
+  }
+
+  function describeCountedVisits(block,now){
+    const src=block&&typeof block==="object"?block:null;
+    const end=istanbulDate(now||new Date());
+    const axis=lastSevenEnding(end);
+    const empty=()=>({
+      version:0,
+      timezone:"Europe/Istanbul",
+      windowHours:3,
+      today:{text:"—",status:"unavailable",visits:null},
+      yesterday:{text:"—",status:"unavailable",visits:null},
+      period:{text:"—",status:"unavailable",visits:null},
+      daily:axis.map(date=>({date,status:"unavailable",visits:null}))
+    });
+    if(!src)return empty();
+    const by=new Map((Array.isArray(src.daily)?src.daily:[]).map(row=>[row&&row.date,row]));
+    return {
+      version:Number(src.version)||1,
+      timezone:"Europe/Istanbul",
+      windowHours:Number(src.window_hours)||3,
+      today:countedVisitMetric(src.today),
+      yesterday:countedVisitMetric(src.yesterday),
+      period:countedVisitMetric(src.period),
+      daily:axis.map(date=>{
+        if(!by.has(date))return {date,status:"unavailable",visits:null};
+        const metric=countedVisitMetric(by.get(date));
+        return {date,status:metric.status,visits:metric.visits};
+      })
+    };
+  }
+
   function describeAnalytics(summary,now){
     const src=summary&&typeof summary==="object"?summary:{};
     const schema=Number(src.schema_version)===2?2:1;
@@ -434,6 +478,7 @@
         period,
         daily:chartDays(src,now)
       },
+      countedVisits:describeCountedVisits(src.counted_visits,now),
       funnel:describeFunnel(src),
       arrival:src.arrival_funnel&&typeof src.arrival_funnel==="object"
         ?describeFunnel({funnel:src.arrival_funnel}).funnel
@@ -778,6 +823,7 @@
     visitorMetric,
     chartDays,
     describeFunnel,
+    describeCountedVisits,
     describeAnalytics,
     createAnalyticsLoadGate,
     classifyVisitorDay,
