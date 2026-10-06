@@ -1784,15 +1784,23 @@ function settleBoot(work,ms=CATALOG_BOOT_TIMEOUT_MS){
     });
   });
 }
+function currentPageBook(id,payload){
+  const items=payload&&Array.isArray(payload.items)?payload.items:[];
+  const want=String(id||"");
+  return items.find(book=>book&&String(book.id)===want)||null;
+}
 function applyPageBookResult(seq,id,result){
   if(seq!==pageBookBoot.seq)return;
   if(result?.error?.name==="AbortError"||result?.result?.stale)return;
-  const book=result?.ok?find(id):null;
-  if(result?.ok&&book){
-    pageBookAuthority="ready";
-    if(isStorefrontVisible(book))void attachPublicBookCredits(id,{seq});
-  }else if(result?.ok)pageBookAuthority="hidden";
-  else pageBookAuthority="unavailable";
+  if(!result?.ok||!Array.isArray(result.result?.items))pageBookAuthority="unavailable";
+  else{
+    const book=currentPageBook(id,result.result);
+    if(!book)pageBookAuthority="hidden";
+    else{
+      pageBookAuthority="ready";
+      if(isStorefrontVisible(book))void attachPublicBookCredits(id,{seq});
+    }
+  }
   if(detailBootReady&&isBookDetailDocument())decorateDetail();
 }
 async function attachPublicBookCredits(bookId,options={}){
@@ -1841,8 +1849,13 @@ async function hydratePageBook(){
     const Seo=window.KutadguBookSeo||{};
     const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
     pageBookBoot.id=String(id||"");
-    if(!id||!remoteCatalog.available){
+    if(!id){
       pageBookAuthority="idle";
+      return;
+    }
+    if(!remoteCatalog.available){
+      pageBookAuthority=remoteCatalog.configured&&isBookDetailDocument()?"unavailable":"idle";
+      if(detailBootReady&&isBookDetailDocument())decorateDetail();
       return;
     }
     pageBookAuthority="pending";
@@ -2849,11 +2862,13 @@ function paintDetailBootNotice(kind){
     :"كىتاب ئۇچۇرىنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.";
   notice.innerHTML=`<p class="detail-order-tip">${message}</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button>`;
   const retry=notice.querySelector("button");
-  if(retry)retry.onclick=()=>{
-    pageBookAuthority="pending";
-    paintDetailBootNotice("pending");
-    void hydratePageBook();
-  };
+  if(retry)retry.onclick=()=>{void retryDetailBoot()};
+}
+async function retryDetailBoot(){
+  pageBookAuthority="pending";
+  if(isBookDetailDocument())paintDetailBootNotice("pending");
+  if(remoteCatalog.configured&&!remoteCatalog.available)await loadRemoteCatalog();
+  await hydratePageBook();
 }
 
 function decorateDetail(){
@@ -2867,6 +2882,10 @@ function decorateDetail(){
   if(Seo.shouldDeferNumericCleanDetailSeo?Seo.shouldDeferNumericCleanDetailSeo(location,{pageBookHydrationDone}):(Seo.numericCleanBookIdFromLocation&&Seo.numericCleanBookIdFromLocation(location)&&!pageBookHydrationDone))return;
   if(pageBookAuthority==="pending"||pageBookAuthority==="unavailable"){
     paintDetailBootNotice(pageBookAuthority);
+    return;
+  }
+  if(pageBookAuthority==="hidden"){
+    paintUnauthorizedDetail();
     return;
   }
   document.querySelector("[data-detail-boot]")?.remove();

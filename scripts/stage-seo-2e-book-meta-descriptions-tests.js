@@ -14,7 +14,7 @@ const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
 const STORE = "قۇتادغۇبىلىك كىتابخانىسى";
 
 const FROZEN = {
-  "shop.js": "4354096754aee19c1a58c93b4d74751b0f68cee3c587671a8468f14eddebf128",
+  "shop.js": "d04bcc0d1e16f26df4da4f12c84eeb1e8a5368bacf4c94f4bf3986a212d0e054",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",

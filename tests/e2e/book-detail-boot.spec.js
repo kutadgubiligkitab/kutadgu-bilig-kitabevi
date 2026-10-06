@@ -16,6 +16,12 @@ function savedBooksUrl(url) {
   return /\/rest\/v1\/books\?/.test(text) && /(?:^|[?&])id=in\.\(/.test(text) && !pageBookUrl(text);
 }
 
+function availabilityHead(request) {
+  if (request.method() !== "HEAD") return false;
+  const text = textUrl(request.url());
+  return /\/rest\/v1\/books\?/.test(text) && /(?:^|[?&])select=id(?:&|$)/.test(text) && /is_active=eq\.true/.test(text);
+}
+
 async function silenceAnalytics(page) {
   await page.route("**/rest/v1/analytics_events**", (route) => route.fulfill({
     status: 201,
@@ -268,4 +274,91 @@ test("a superseded book response does not replace the later row", async ({ page 
   expect(state.price).not.toContain("99");
   expect(state.h1).not.toContain("STALE-TITLE");
   expect(state.purchase).toBe(true);
+});
+
+test("an empty current book response does not purchase a book cached by saved-book hydration", async ({ page }) => {
+  let releasePage = () => {};
+  const pageGate = new Promise((resolve) => { releasePage = resolve; });
+  let savedCached = false;
+  await page.addInitScript(() => {
+    const now = Date.now();
+    sessionStorage.setItem("kutadgu-catalog-active-count-v1", JSON.stringify({ total: 350, at: now }));
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "252", qty: 1 }, { id: "100", qty: 1 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["101"]));
+    localStorage.setItem("kutadgu-recent-v1", JSON.stringify(["102"]));
+  });
+  await page.route("**/rest/v1/books**", async (route) => {
+    const url = route.request().url();
+    if (pageBookUrl(url) && route.request().method() === "GET") {
+      await pageGate;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "content-range": "*/0", "content-type": "application/json" },
+        body: "[]"
+      });
+    }
+    if (savedBooksUrl(url) && /(?:^|[?&])id=in\.\([^)]*\b252\b/.test(textUrl(url))) {
+      await route.continue();
+      savedCached = true;
+      return;
+    }
+    return route.continue();
+  });
+  await page.goto(`/book/${BOOK_ID}`, { waitUntil: "commit" });
+  await expect.poll(() => savedCached, { timeout: 15000 }).toBe(true);
+  await page.waitForTimeout(300);
+  const cached = await detailState(page);
+  expect(cached.purchase).toBe(false);
+  expect(cached.h1).toContain("لۇغەت");
+  releasePage();
+  await expect.poll(async () => (await detailState(page)).h1, { timeout: 6000 }).toContain("تەمىنلەنمەيدۇ");
+  const after = await detailState(page);
+  expect(after.purchase).toBe(false);
+  expect(after.price).toBe("");
+  expect(after.cartDisabled).toBe(null);
+});
+
+async function recoverAvailability(page, mode) {
+  let open = true;
+  await page.route("**/rest/v1/books**", async (route) => {
+    if (!availabilityHead(route.request())) return route.continue();
+    if (!open) return route.continue();
+    if (mode === "status") return route.fulfill({ status: 500, contentType: "application/json", body: "" });
+    await new Promise(() => {});
+  });
+  return {
+    recover() { open = false; }
+  };
+}
+
+async function expectAvailabilityFailure(page) {
+  await expect.poll(async () => (await detailState(page)).boot, { timeout: 12000 }).toBe("unavailable");
+  const failed = await detailState(page);
+  expect(failed.purchase).toBe(false);
+  expect(failed.price).toBe("");
+  expect(failed.cartDisabled).toBe(null);
+  expect(failed.h1).toContain("لۇغەت");
+  expect(failed.h1).not.toContain("تەمىنلەنمەيدۇ");
+  return failed;
+}
+
+test("a failed catalog availability check keeps the server book and retry reloads it", async ({ page }) => {
+  const gate = await recoverAvailability(page, "status");
+  await page.goto(`/book/${BOOK_ID}`, { waitUntil: "commit" });
+  await expectAvailabilityFailure(page);
+  gate.recover();
+  await page.locator("[data-detail-boot='unavailable'] .catalog-retry-btn").click();
+  const done = await expectCompleteDetail(page);
+  expect(done.cartDisabled).toBe(false);
+});
+
+test("a timed-out catalog availability check keeps the server book and retry reloads it", async ({ page }) => {
+  const gate = await recoverAvailability(page, "timeout");
+  await page.goto(`/book/${BOOK_ID}`, { waitUntil: "commit" });
+  await expectAvailabilityFailure(page);
+  gate.recover();
+  await page.locator("[data-detail-boot='unavailable'] .catalog-retry-btn").click();
+  const done = await expectCompleteDetail(page);
+  expect(done.cartDisabled).toBe(false);
 });
