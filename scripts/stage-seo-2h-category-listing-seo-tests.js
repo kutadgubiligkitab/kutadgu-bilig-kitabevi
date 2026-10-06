@@ -21,7 +21,7 @@ const LIT_CHILDREN = [
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
 const FROZEN = {
-  "shop.js": "e8b500fc2240c5d070ac19c3be0a32c45332532f03522707404a056563604ea8",
+  "shop.js": "00ec77b3ce8223cac0ec93f4195f2fb4be6af5c00879efff7b484c01c30d2fc1",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",

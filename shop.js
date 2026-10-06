@@ -1787,7 +1787,10 @@ function settleBoot(work,ms=CATALOG_BOOT_TIMEOUT_MS){
 function currentPageBook(id,payload){
   const items=payload&&Array.isArray(payload.items)?payload.items:[];
   const want=String(id||"");
-  return items.find(book=>book&&String(book.id)===want)||null;
+  if(!want)return null;
+  return items.find(book=>book&&String(book.id)===want)
+    ||items.find(book=>book&&String(book.legacyId||"")===want)
+    ||null;
 }
 function applyPageBookResult(seq,id,result){
   if(seq!==pageBookBoot.seq)return;
@@ -1854,7 +1857,8 @@ async function hydratePageBook(){
       return;
     }
     if(!remoteCatalog.available){
-      pageBookAuthority=remoteCatalog.configured&&isBookDetailDocument()?"unavailable":"idle";
+      const numericBook=isCanonicalBookId(id);
+      pageBookAuthority=remoteCatalog.configured&&isBookDetailDocument()&&(requiresRemoteProductAuthority()||numericBook)?"unavailable":"idle";
       if(detailBootReady&&isBookDetailDocument())decorateDetail();
       return;
     }
