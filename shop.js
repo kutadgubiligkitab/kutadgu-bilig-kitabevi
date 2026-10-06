@@ -2775,35 +2775,62 @@ function scheduleDetailRelated(book){
     paintDetailRelated(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
   });
 }
-function renderDetailExtras(book){
-  let main=document.querySelector(".book-detail-page");
-  if(!main)return;
-  if(!main.querySelector(".detail-extra-sections")){
-    let recentBooks=get(REC_KEY,[])
-      .filter(id=>canonicalId(id)!==canonicalId(book.id))
-      .map(find)
-      .filter(item=>item&&isStorefrontVisible(item))
-      .slice(0,4);
-    let wrap=document.createElement("div");
-    wrap.className="detail-extra-sections";
-    const relatedHtml=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
-    let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
-      ? `<section class="detail-extra-section" data-recently-viewed="1">
+function detailRecentBooks(book){
+  if(!book||!featureEnabled("recentlyViewed"))return [];
+  return get(REC_KEY,[])
+    .filter(id=>canonicalId(id)!==canonicalId(book.id))
+    .map(find)
+    .filter(item=>item&&isStorefrontVisible(item))
+    .slice(0,4);
+}
+function detailRecentMarkup(books){
+  if(!books.length)return "";
+  return `<section class="detail-extra-section" data-recently-viewed="1">
            <div class="detail-section-heading">
              <div>
                <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
                <h2>يېقىندا كۆرگەنلىرىڭىز</h2>
              </div>
            </div>
-           <div class="shop-grid detail-related-grid">${recentBooks.map(miniCard).join("")}</div>
-         </section>`
-      : "";
-    wrap.innerHTML=relatedHtml+recentHtml;
+           <div class="shop-grid detail-related-grid">${books.map(miniCard).join("")}</div>
+         </section>`;
+}
+function paintDetailRecent(book){
+  const main=document.querySelector(".book-detail-page");
+  if(!main||!book)return;
+  const html=detailRecentMarkup(detailRecentBooks(book));
+  let wrap=main.querySelector(".detail-extra-sections");
+  const existing=wrap?.querySelector("[data-recently-viewed]");
+  if(!html)return;
+  if(existing?.querySelector(".shop-mini-card"))return;
+  if(!wrap){
+    if(!main.querySelector(".detail-purchase-panel"))return;
+    wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
+    main.appendChild(wrap);
+  }
+  if(existing)existing.remove();
+  wrap.insertAdjacentHTML("beforeend",html);
+  const added=wrap.querySelector("[data-recently-viewed]");
+  if(added)bindDynamicActions(added);
+}
+function refreshDetailRecent(){
+  if(!isBookDetailDocument()||pageBookAuthority!=="ready")return;
+  const book=getDetailBook();
+  if(book)paintDetailRecent(book);
+}
+function renderDetailExtras(book){
+  let main=document.querySelector(".book-detail-page");
+  if(!main)return;
+  if(!main.querySelector(".detail-extra-sections")){
+    let wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
+    wrap.innerHTML=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT))+detailRecentMarkup(detailRecentBooks(book));
     if(wrap.innerHTML.trim()){
       main.appendChild(wrap);
       bindDynamicActions(wrap);
     }
-  }
+  }else refreshDetailRecent();
   scheduleDetailRelated(book);
 }
 
@@ -5304,11 +5331,13 @@ async function boot(){
     if(document.querySelector("#favoritesList"))renderFavoritesPage();
   })();
   if(!isBookDetailDocument())await settleBoot(savedWork);
+  else savedWork.then(()=>refreshDetailRecent());
   detailBootReady=true;
   markCatalogBootSettled();
   window.KUTADGU_LIVE_CATALOG=C;
   init();
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
+  if(isBookDetailDocument())await settleBoot(savedWork);
   try{await loadPremiumUX()}catch(error){console.warn(error)}
   ensureCoverSystemCss();
   ensureStage4b2HomepageDiscoveryCss();
