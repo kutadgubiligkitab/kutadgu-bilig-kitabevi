@@ -251,8 +251,8 @@ test("admin zero-search section is paginated and does not paint the summary top 
   assert.ok(!admin.includes('setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches)'));
   assert.ok(!admin.includes('renderAnalyticsList($("#analyticsZeroSearches")'));
   assert.match(html, /id="analyticsZeroSearchesMore"/);
-  assert.match(html, /admin\.js\?v=86/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=7/);
+  assert.match(html, /admin\.js\?v=94/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=9/);
   assert.match(admin, /نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
   assert.match(admin, /كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى/);
 });
