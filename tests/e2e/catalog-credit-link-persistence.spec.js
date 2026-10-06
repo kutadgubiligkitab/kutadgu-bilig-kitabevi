@@ -310,7 +310,7 @@ test.describe("author listing still uses shop.js v=142", () => {
     await card.click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=143");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=145");
     await expectCreditLink(page, `/author/${A}`);
     await page.goBack({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(new RegExp(`/author/${A}$`));
@@ -318,7 +318,7 @@ test.describe("author listing still uses shop.js v=142", () => {
     await page.locator(".book-card[data-live-book-id='101'] a.detail-button").click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=143");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=145");
     await expectCreditLink(page, `/author/${A}`);
     await expectCreditLink(page, `/translator/${T1}`);
     await expectCreditLink(page, `/publisher/${P}`);

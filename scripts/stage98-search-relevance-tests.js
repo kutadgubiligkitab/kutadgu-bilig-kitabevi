@@ -147,7 +147,7 @@ test("every shop.js page loads kutadgu-search-rank.js immediately before it", ()
     const creditBooks = /(?:^|[\\/])credit-books\.html$/i.test(file);
     const home = /(?:^|[\\/])index\.html$/i.test(file);
     const pattern = bookShell
-      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=143/
+      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=145/
       : creditBooks
         ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=142/
         : home
