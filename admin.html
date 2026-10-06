@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=50">
+  <link rel="stylesheet" href="admin.css?v=51">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -448,7 +448,7 @@
             <button class="admin-secondary" id="reloadAnalytics" type="button">↻ يېڭىلاش</button>
           </div>
         </div>
-        <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp زاكاز چېكىش (مەقسەت، سېتىش ئەمەس). نەتىجىسىز ئىزدەش كىتاب تېپىلمىغان سۈرۈشتۈرۈشلەرنى كۆرسىتىدۇ. تىزىملىك ئاخىرقى ئىزدەلگەن ۋاقىت بويىچە، بەت-بەت. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
+        <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp چېكىش (مەقسەت، سېتىش ئەمەس) دومىلىما ۋاقىت دائىرىسىدە. ئىزدەش سۆزلىرى ۋە نەتىجىسىز ئىزدەش Europe/Istanbul كۈن چېگرىسىدە، بەت-بەت. زىيارەت قېتىمى 3 سائەت قائىدىسىدە؛ ئىزدەش بۇ قائىدىگە كىرمەيدۇ. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
         <p class="admin-help" id="analyticsMeta">Europe/Istanbul · يۈكلىنىۋاتىدۇ...</p>
         <div class="admin-stats admin-analytics-stats" id="analyticsVisitors">
           <div class="admin-stat"><strong id="analyticsVisitorsToday">—</strong><span>بۈگۈنكى زىيارەت قېتىمى</span></div>
@@ -471,9 +471,9 @@
         </div>
         <div class="admin-analytics-grid">
           <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><div id="analyticsTopSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><p class="admin-help">سېۋەتكە قوشۇش ۋەقىسى. زاكاز ئەمەس.</p><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><p class="admin-help">چېكىش سانى. سېتىش ياكى زاكاز ئەمەس.</p><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><p class="admin-help">ھەر بىر تاماملانغان ئىزدەش بىر قېتىم. ئوخشاش سۆز 3 سائەت ئىچىدە قايتا ئىزدەلسە يەنە سانىلىدۇ. Europe/Istanbul كۈن چېگرىسى. سانى كۆپتىن ئازغىچە، بەت-بەت.</p><div id="analyticsSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
           <div><h3>🚫 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsZeroSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsZeroSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
         </div>
       </section>
@@ -1047,7 +1047,7 @@
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
 <script defer src="catalog-credits.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=8"></script>
+<script defer src="kutadgu-analytics-core.js?v=9"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
@@ -1061,7 +1061,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=93"></script>
+  <script defer src="admin.js?v=94"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

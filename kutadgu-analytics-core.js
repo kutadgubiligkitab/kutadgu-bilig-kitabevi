@@ -790,6 +790,14 @@
     return /get_kutadgu_zero_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
   }
 
+  function missingSearchTermsRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
   const api={
     QUERY_MAX,
     ALLOWED_EVENTS,
@@ -841,7 +849,8 @@
     zeroSearchPageRequest,
     zeroSearchAppendMatches,
     continueZeroSearchSession,
-    missingZeroSearchRpc
+    missingZeroSearchRpc,
+    missingSearchTermsRpc
   };
 
   if(typeof module==="object"&&module.exports)module.exports=api;
