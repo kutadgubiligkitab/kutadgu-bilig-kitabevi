@@ -318,7 +318,7 @@ test("admin rendering keeps the RPC, the period count, and the failure copy", ()
   const html = read("admin.html");
   assert.ok(admin.includes('rpc("get_kutadgu_analytics"'));
   assert.ok(!admin.includes('from("analytics_events")'));
-  assert.ok(admin.includes("visitors.period"));
+  assert.ok(admin.includes("counted.period"));
   assert.ok(!/daily\.reduce|sumDaily/.test(admin));
   assert.ok(admin.includes("كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى"));
   assert.ok(admin.includes("ordered_user_action"));

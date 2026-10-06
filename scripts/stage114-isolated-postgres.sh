@@ -24,6 +24,14 @@ if [[ "$before" != "$after" || "$started" != "$started_again" ]]; then
   exit 1
 fi
 psql_db -f "$ROOT/scripts/stage114-isolated-assertions.sql" >/dev/null
+psql_db -f "$ROOT/scripts/stage114-isolated-counter-failure.sql" >/dev/null
+psql_db -f "$ROOT/STAGE114_THREE_HOUR_VISITS.sql" >/dev/null
+restored="$(psql_db -tA -c "SELECT started_at FROM private.analytics_visit_counter")"
+if [[ "$started" != "$restored" ]]; then
+  echo "counter recovery reapply moved collection start" >&2
+  exit 1
+fi
+psql_db -f "$ROOT/scripts/stage114-isolated-counter-recovery.sql" >/dev/null
 
 visitor="12121212-1212-4121-8121-121212121212"
 e1="13131313-1313-4131-8131-131313131313"

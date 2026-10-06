@@ -715,6 +715,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage114-isolated-assertions.sql",
     "scripts/stage114-isolated-rollback-assertions.sql",
     "scripts/stage114-isolated-reapply-assertions.sql",
+    "scripts/stage114-isolated-counter-failure.sql",
+    "scripts/stage114-isolated-counter-recovery.sql",
     "scripts/three-hour-visits-tests.js",
     "tests/e2e/admin-three-hour-visits.spec.js"
   ]);

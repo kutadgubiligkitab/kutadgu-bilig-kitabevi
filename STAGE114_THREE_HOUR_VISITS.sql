@@ -21,10 +21,12 @@
 -- Collection starts at private.analytics_visit_counter.started_at, set on the
 -- first successful apply and left unchanged when this file is applied again.
 -- Older analytics_events rows stay in place. They are not backfilled.
--- Days before that marker which already have public events stay unavailable.
--- A quiet day with no public events is a measured zero. A day that mixes
--- pre-start events, or later page views with no browser id, is partial:
--- the number is only the visits actually accepted.
+-- An interval entirely before that marker is unavailable, including an empty
+-- one. Missing old rows are not a measured zero. An interval that crosses
+-- the marker is partial even when it has no pre-start row. Only a fully
+-- covered post-start interval may be zero or complete. A valid public
+-- page_view with no receipt is a processing gap and stays partial. A receipt
+-- with counted = false is a suppressed visit, not a gap.
 --
 -- Deployment order:
 --   The site can ship first. Until these columns exist, the browser omits
@@ -243,10 +245,9 @@ SET search_path = public
 AS $status$
 DECLARE
   v_counted integer := 0;
-  v_public_events integer := 0;
   v_public_page_views integer := 0;
   v_unidentified integer := 0;
-  v_before_start integer := 0;
+  v_unprocessed integer := 0;
 BEGIN
   SELECT count(*)::integer INTO v_counted
   FROM private.analytics_visit_receipts
@@ -254,8 +255,17 @@ BEGIN
     AND counted_at >= p_start
     AND counted_at < p_end;
 
+  -- Entirely before collection. An empty interval is still unavailable.
+  IF p_started IS NULL OR p_end <= p_started THEN
+    RETURN private.kutadgu_visit_status_json('unavailable', NULL);
+  END IF;
+
+  -- The interval contains time before collection, even with no pre-start row.
+  IF p_start < p_started THEN
+    RETURN private.kutadgu_visit_status_json('partial', v_counted);
+  END IF;
+
   SELECT
-    count(*)::integer,
     count(*) FILTER (WHERE event_name = 'page_view')::integer,
     count(*) FILTER (
       WHERE event_name = 'page_view'
@@ -265,25 +275,22 @@ BEGIN
         )
     )::integer,
     count(*) FILTER (
-      WHERE p_started IS NOT NULL AND created_at < p_started
+      WHERE event_name = 'page_view'
+        AND private.kutadgu_visitor_id_ok(visitor_id)
+        AND event_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM private.analytics_visit_receipts AS r
+          WHERE r.event_id = public.analytics_events.event_id
+        )
     )::integer
-  INTO v_public_events, v_public_page_views, v_unidentified, v_before_start
+  INTO v_public_page_views, v_unidentified, v_unprocessed
   FROM public.analytics_events
   WHERE created_at >= p_start
     AND created_at < p_end
     AND private.kutadgu_analytics_public_path(path);
 
-  IF p_started IS NULL OR p_end <= p_started THEN
-    IF v_counted > 0 THEN
-      RETURN private.kutadgu_visit_status_json('partial', v_counted);
-    ELSIF v_public_events > 0 THEN
-      RETURN private.kutadgu_visit_status_json('unavailable', NULL);
-    ELSE
-      RETURN private.kutadgu_visit_status_json('zero', 0);
-    END IF;
-  END IF;
-
-  IF v_before_start > 0 OR v_unidentified > 0 THEN
+  IF v_unidentified > 0 OR v_unprocessed > 0 THEN
     RETURN private.kutadgu_visit_status_json('partial', v_counted);
   ELSIF v_public_page_views = 0 AND v_counted = 0 THEN
     RETURN private.kutadgu_visit_status_json('zero', 0);

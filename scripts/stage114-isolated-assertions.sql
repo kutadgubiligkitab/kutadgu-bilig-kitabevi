@@ -81,8 +81,34 @@ BEGIN
     timestamptz '2020-01-02 00:00:00+03',
     (SELECT started_at FROM private.analytics_visit_counter)
   ) INTO v_payload;
+  IF v_payload->>'status' <> 'unavailable' OR v_payload->>'visits' IS NOT NULL THEN
+    RAISE EXCEPTION 'empty pre-start day was treated as measured zero: %', v_payload;
+  END IF;
+
+  SELECT started_at INTO v_gate FROM private.analytics_visit_counter;
+  SELECT private.kutadgu_visit_window_status(
+    v_gate - interval '1 minute',
+    v_gate,
+    v_gate
+  ) INTO v_payload;
+  IF v_payload->>'status' <> 'unavailable' OR v_payload->>'visits' IS NOT NULL THEN
+    RAISE EXCEPTION 'interval ending at collection start is not unavailable: %', v_payload;
+  END IF;
+  SELECT private.kutadgu_visit_window_status(
+    v_gate - interval '1 minute',
+    v_gate + interval '1 minute',
+    v_gate
+  ) INTO v_payload;
+  IF v_payload->>'status' <> 'partial' OR (v_payload->>'visits')::integer <> 0 THEN
+    RAISE EXCEPTION 'overlap with no pre-start events is not partial: %', v_payload;
+  END IF;
+  SELECT private.kutadgu_visit_window_status(
+    v_gate,
+    v_gate + interval '1 minute',
+    v_gate
+  ) INTO v_payload;
   IF v_payload->>'status' <> 'zero' OR (v_payload->>'visits')::integer <> 0 THEN
-    RAISE EXCEPTION 'empty historical day should be zero: %', v_payload;
+    RAISE EXCEPTION 'quiet interval starting at collection start is not zero: %', v_payload;
   END IF;
 
   IF private.kutadgu_accept_page_visit(v_visitor, '11111111-1111-4111-8111-111111111111', timestamptz '2026-10-05 14:00:00+03') IS NOT TRUE THEN
@@ -210,6 +236,56 @@ BEGIN
   WHERE event_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
   IF v_counted <> 1 THEN
     RAISE EXCEPTION 'duplicate event_id created % receipts', v_counted;
+  END IF;
+
+  -- A fully covered interval whose only page view was suppressed is complete/0.
+  INSERT INTO public.analytics_events (event_name, path, visitor_id, event_id, created_at)
+  VALUES (
+    'page_view',
+    '/index.html',
+    'fafafafa-fafa-4afa-8afa-fafafafafafa',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+    now()
+  );
+  INSERT INTO public.analytics_events (event_name, path, visitor_id, event_id, created_at)
+  VALUES (
+    'page_view',
+    '/index.html',
+    'fafafafa-fafa-4afa-8afa-fafafafafafa',
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+    now() + interval '1 hour'
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM private.analytics_visit_receipts
+    WHERE event_id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2' AND counted = false AND counted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'suppressed visit has no counted=false receipt';
+  END IF;
+  SELECT private.kutadgu_visit_window_status(
+    now() + interval '30 minutes',
+    now() + interval '2 hours',
+    (SELECT started_at FROM private.analytics_visit_counter)
+  ) INTO v_payload;
+  IF v_payload->>'status' <> 'complete' OR (v_payload->>'visits')::integer <> 0 THEN
+    RAISE EXCEPTION 'suppressed-only interval is not complete zero: %', v_payload;
+  END IF;
+
+  -- A missing browser id in a fully covered interval is partial, not zero.
+  INSERT INTO public.analytics_events (event_name, path, visitor_id, event_id, created_at)
+  VALUES (
+    'page_view',
+    '/index.html',
+    NULL,
+    NULL,
+    now() + interval '4 hours'
+  );
+  SELECT private.kutadgu_visit_window_status(
+    now() + interval '4 hours' - interval '1 minute',
+    now() + interval '4 hours' + interval '1 minute',
+    (SELECT started_at FROM private.analytics_visit_counter)
+  ) INTO v_payload;
+  IF v_payload->>'status' <> 'partial' OR (v_payload->>'visits')::integer <> 0 THEN
+    RAISE EXCEPTION 'unidentified post-start page view is not partial: %', v_payload;
   END IF;
 
   SET LOCAL ROLE anon;

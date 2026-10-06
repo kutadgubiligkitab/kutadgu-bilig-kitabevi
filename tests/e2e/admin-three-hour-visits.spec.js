@@ -28,12 +28,19 @@ async function paintSample(page) {
     const days = [];
     for (let i = 6; i >= 0; i -= 1) days.push(Core.addCalendarDays(end, -i));
     const described = Core.describeAnalytics({
+      schema_version: 2,
       page_views: 7244,
       book_views: 1561,
       cart_adds: 235,
       whatsapp_clicks: 9,
       top_books: [{ book_id: "15", title: "كىتاب", views: 4 }],
       zero_searches: [],
+      visitors: {
+        today: { status: "complete", visitors: 99 },
+        yesterday: { status: "complete", visitors: 99 },
+        period: { status: "complete", visitors: 99 },
+        daily: days.map((date) => ({ date, status: "complete", visitors: 99 }))
+      },
       counted_visits: {
         version: 1,
         window_hours: 3,
@@ -59,27 +66,28 @@ for (const viewport of viewports) {
       await page.setViewportSize(viewport);
       await page.emulateMedia({ colorScheme: scheme });
       await openInsights(page);
-      await expect(page.locator("#analyticsVisitCountsToday")).toHaveText("—");
-      await expect(page.locator("#analyticsVisitCountChart .admin-analytics-chart-col")).toHaveCount(7);
-      await paintSample(page);
-      await expect(page.locator("#analyticsVisitCountsToday")).toHaveText("3");
-      await expect(page.locator("#analyticsVisitCountsYesterday")).toHaveText("—");
-      await expect(page.locator("#analyticsVisitCountsPeriod")).toHaveText("5 (قىسمەن)");
-      await expect(page.locator("#analyticsVisitCountNote")).toContainText("زىيارەت قېتىمى");
-      await expect(page.locator("#analyticsVisitCountNote")).toContainText("3 سائەت");
       await expect(page.locator("#analyticsVisitorsToday")).toHaveText("—");
-      await expect(page.locator("#analyticsVisitorsPeriod")).toHaveText("—");
+      await expect(page.locator("#analyticsVisitorChart .admin-analytics-chart-col")).toHaveCount(7);
+      await expect(page.locator("#analyticsVisitCounts")).toHaveCount(0);
+      await paintSample(page);
+      await expect(page.locator("#analyticsVisitorsToday")).toHaveText("3");
+      await expect(page.locator("#analyticsVisitorsYesterday")).toHaveText("—");
+      await expect(page.locator("#analyticsVisitorsPeriod")).toHaveText("5 (قىسمەن)");
+      await expect(page.locator("#analyticsVisitorNote")).toContainText("زىيارەت قېتىمى");
+      await expect(page.locator("#analyticsVisitorNote")).toContainText("3 سائەت");
+      await expect(page.locator("#analyticsVisitors")).not.toContainText("99");
+      await expect(page.locator("#analyticsManagement")).not.toContainText("بۈگۈنكى خاتىرىلەنگەن زىيارەتچى");
       await expect(page.locator("#analyticsBookViews")).toHaveText("1.561");
       await expect(page.locator("#analyticsCartAdds")).toHaveText("235");
       await expect(page.locator("#analyticsWhatsapp")).toHaveText("9");
       await expect(page.locator("#analyticsPageViews")).toHaveText("7.244");
-      const chart = page.locator("#analyticsVisitCountChart .admin-analytics-chart-col");
+      const chart = page.locator("#analyticsVisitorChart .admin-analytics-chart-col");
       await expect(chart).toHaveCount(7);
       await expect(chart.nth(6).locator("strong")).toHaveText("3");
       await expect(chart.nth(5).locator("strong")).toHaveText("—");
       await expect(chart.nth(4).locator("strong")).toHaveText("0");
       await expect(chart.nth(3).locator("strong")).toHaveText("2");
-      const readable = await page.locator("#analyticsVisitCountsToday").evaluate((el) => {
+      const readable = await page.locator("#analyticsVisitorsToday").evaluate((el) => {
         const style = getComputedStyle(el);
         const box = el.getBoundingClientRect();
         return {
@@ -93,7 +101,7 @@ for (const viewport of viewports) {
       expect(readable.width).toBeGreaterThan(0);
       expect(readable.height).toBeGreaterThan(0);
       expect(readable.color).not.toBe("rgba(0, 0, 0, 0)");
-      const overflow = await page.locator("#analyticsVisitCounts").evaluate((el) => el.scrollWidth <= el.clientWidth + 2);
+      const overflow = await page.locator("#analyticsVisitors").evaluate((el) => el.scrollWidth <= el.clientWidth + 2);
       expect(overflow).toBe(true);
     });
   }
@@ -113,11 +121,11 @@ test("a legacy payload keeps visit counts unavailable and event totals visible",
     }, new Date("2026-10-06T09:00:00Z"));
     window.__kutadguRenderAnalytics(described, { shownDays: 30 });
   });
-  await expect(page.locator("#analyticsVisitCountsToday")).toHaveText("—");
-  await expect(page.locator("#analyticsVisitCountsYesterday")).toHaveText("—");
-  await expect(page.locator("#analyticsVisitCountsPeriod")).toHaveText("—");
+  await expect(page.locator("#analyticsVisitorsToday")).toHaveText("—");
+  await expect(page.locator("#analyticsVisitorsYesterday")).toHaveText("—");
+  await expect(page.locator("#analyticsVisitorsPeriod")).toHaveText("—");
   await expect(page.locator("#analyticsBookViews")).toHaveText("4");
   await expect(page.locator("#analyticsCartAdds")).toHaveText("0");
   await expect(page.locator("#analyticsWhatsapp")).toHaveText("1");
-  await expect(page.locator("#analyticsVisitorsToday")).toHaveText("—");
+  await expect(page.locator("#analyticsVisitorChart .admin-analytics-chart-col strong")).toHaveText(["—", "—", "—", "—", "—", "—", "—"]);
 });

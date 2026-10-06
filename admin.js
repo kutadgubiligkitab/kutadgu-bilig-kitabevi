@@ -5638,13 +5638,6 @@ function setAnalyticsCount(id,state){
   const el=$(id);
   if(el)el.textContent=analyticsCountText(state);
 }
-function setVisitorCount(id,metric){
-  const el=$(id);
-  if(!el)return;
-  if(!metric||metric.status==="unavailable"||metric.visitors==null)el.textContent="—";
-  else if(metric.status==="partial")el.textContent=Number(metric.visitors).toLocaleString("tr-TR")+" (قىسمەن)";
-  else el.textContent=Number(metric.visitors).toLocaleString("tr-TR");
-}
 function countedVisitSource(view){
   if(view&&view.countedVisits)return view.countedVisits;
   const Core=window.KutadguAnalyticsCore;
@@ -5670,22 +5663,8 @@ function renderAnalyticsList(el,state,countKey,emptyText){
   }
   el.innerHTML=state.rows.map((row,i)=>`<div class="admin-analytics-row"><span>${i+1}. ${esc(row.title||row.query||row.book_id||"—")}</span><strong>${Number(row[countKey]||row.views||row.adds||row.clicks||row.searches||0).toLocaleString("tr-TR")}</strong></div>`).join("");
 }
-function renderVisitorChart(days){
-  const host=$("#analyticsVisitorChart");
-  if(!host)return;
-  const rows=Array.isArray(days)?days:[];
-  const max=Math.max(1,...rows.map(day=>day&&day.visitors==null?0:Number(day.visitors)||0));
-  host.innerHTML=rows.map(day=>{
-    const status=day&&day.status||"unavailable";
-    const visitors=day&&day.visitors;
-    const label=status==="unavailable"||visitors==null?"—":Number(visitors).toLocaleString("tr-TR");
-    const height=status==="unavailable"||visitors==null?0:Math.round((Number(visitors)||0)/max*100);
-    const cls=status==="partial"?"is-partial":status==="zero"?"is-zero":status==="complete"?"is-complete":"is-unavailable";
-    return `<div class="admin-analytics-chart-col ${cls}"><strong>${esc(label)}</strong><div class="admin-analytics-chart-bar" title="${esc(day&&day.date||"")}"><span style="height:${height}%"></span></div><small>${esc(String(day&&day.date||"").slice(5))}</small></div>`;
-  }).join("");
-}
 function renderVisitCountChart(days){
-  const host=$("#analyticsVisitCountChart");
+  const host=$("#analyticsVisitorChart");
   if(!host)return;
   const rows=Array.isArray(days)?days:[];
   const max=Math.max(1,...rows.map(day=>day&&day.visits==null?0:Number(day.visits)||0));
@@ -5700,9 +5679,9 @@ function renderVisitCountChart(days){
 }
 function paintCountedVisits(view){
   const counted=countedVisitSource(view);
-  setCountedVisit("#analyticsVisitCountsToday",counted&&counted.today);
-  setCountedVisit("#analyticsVisitCountsYesterday",counted&&counted.yesterday);
-  setCountedVisit("#analyticsVisitCountsPeriod",counted&&counted.period);
+  setCountedVisit("#analyticsVisitorsToday",counted&&counted.today);
+  setCountedVisit("#analyticsVisitorsYesterday",counted&&counted.yesterday);
+  setCountedVisit("#analyticsVisitorsPeriod",counted&&counted.period);
   renderVisitCountChart(counted&&counted.daily);
 }
 function renderAnalytics(described,opts){
@@ -5727,9 +5706,7 @@ function renderAnalytics(described,opts){
       meta.textContent=`Europe/Istanbul · يۈكلىنىۋاتىدۇ...${retained}`;
     }
     const chart=$("#analyticsVisitorChart");
-    if(chart&&!chart.childElementCount)renderVisitorChart(described&&described.visitors&&described.visitors.daily);
-    const visitChart=$("#analyticsVisitCountChart");
-    if(visitChart&&!visitChart.childElementCount)paintCountedVisits(described);
+    if(chart&&!chart.childElementCount)paintCountedVisits(described);
     ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
       const el=$(sel);
       if(el)el.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
@@ -5737,10 +5714,6 @@ function renderAnalytics(described,opts){
     return;
   }
   const view=described||{};
-  setVisitorCount("#analyticsVisitorsToday",view.visitors&&view.visitors.today);
-  setVisitorCount("#analyticsVisitorsYesterday",view.visitors&&view.visitors.yesterday);
-  setVisitorCount("#analyticsVisitorsPeriod",view.visitors&&view.visitors.period);
-  renderVisitorChart(view.visitors&&view.visitors.daily);
   paintCountedVisits(view);
   setAnalyticsCount("#analyticsPageViews",view.counts&&view.counts.page_views);
   setAnalyticsCount("#analyticsBookViews",view.counts&&view.counts.book_views);
@@ -5761,7 +5734,7 @@ function renderAnalytics(described,opts){
     if(view.schema===2&&view.range){
       base=`دائىرە: ${view.range.start} — ${view.range.end}${shownDayCount?` · ئاخىرقى ${shownDayCount} كۈن`:""} · Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
     }else if(shownDayCount){
-      base=`كۆرسىتىلگەن سانلار: ئاخىرقى ${shownDayCount} كۈن (كونا فۇنكسىيە، دومىلىما ئارىلىق). Europe/Istanbul كۈن چېگرىسى ۋە زىيارەتچى سانى بۇ نەشرىدە يوق.${stamp?` يېڭىلانغان: ${stamp}.`:""}`;
+      base=`كۆرسىتىلگەن ۋەقە سانلىرى: ئاخىرقى ${shownDayCount} كۈن (كونا فۇنكسىيە، دومىلىما ئارىلىق). زىيارەت قېتىمى ئايرىم، Europe/Istanbul كۈن چېگرىسىدە، بەت كۆرۈشتىن ھېسابلانمايدۇ.${stamp?` يېڭىلانغان: ${stamp}.`:""}`;
     }else{
       base=`Europe/Istanbul${stamp?` · يېڭىلانغان: ${stamp}`:""}`;
     }
