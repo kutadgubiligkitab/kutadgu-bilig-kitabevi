@@ -457,6 +457,13 @@
         </div>
         <div class="admin-analytics-chart" id="analyticsVisitorChart" aria-label="ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
         <p class="admin-help" id="analyticsVisitorNote">زىيارەتچى = خاتىرىلەنگەن ئىختىيارىي تور كۆرگۈچ كىملىكى، دەلىللەنگەن ئادەم ئەمەس. بىر كۈندە كۆپ بەت ئاچقان زىيارەتچى بىر قېتىم سانىلىدۇ. كۈنلۈك زىيارەتچىنى قوشۇپ دەۋر سانى قىلىنمايدۇ. كىملىكى يوق كونا قۇرلار «يوق» دەپ كۆرسىتىلىدۇ، بەت كۆرۈشتىن قايتا ھېسابلانمايدۇ. بوت سۈزۈش تولۇق ئەمەس. ئاممىۋى بەتنى ئاچقان باشقۇرغۇچىمۇ سانىلىشى مۇمكىن. PostHog سانلىرى بۇ يەرگە قوشۇلمايدۇ.</p>
+        <div class="admin-stats admin-analytics-stats" id="analyticsVisitCounts">
+          <div class="admin-stat"><strong id="analyticsVisitCountsToday">—</strong><span>بۈگۈنكى زىيارەت قېتىمى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitCountsYesterday">—</strong><span>تۈنۈگۈنكى زىيارەت قېتىمى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitCountsPeriod">—</strong><span>تاللانغان دائىرىدىكى زىيارەت قېتىمى</span></div>
+        </div>
+        <div class="admin-analytics-chart" id="analyticsVisitCountChart" aria-label="زىيارەت قېتىمى، ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
+        <p class="admin-help" id="analyticsVisitCountNote">زىيارەت قېتىمى بىر تور كۆرگۈچ كىملىكىنىڭ سانىلىدىغان ئېچىلىشى. ئالدىنقى سانىلىدىغان زىيارەتتىن 3 سائەت ئىچىدىكى قايتا ئېچىش، يېڭىلاش ۋە يېڭى بەتكۈچ قوشۇلمايدۇ، بۇ 3 سائەتنىمۇ ئۇزارتمايدۇ. دەل 3 سائەت ياكى ئۇنىڭدىن كېيىن كېيىنكى ئېچىش يەنە بىر قېتىم سانىلىدۇ. كېچە يېرىمى بۇ ۋاقىتنى ئۈزمەيدۇ. بۇ دەلىللەنگەن ئادەم ياكى ئوخشىمىغان زىيارەتچى سانى ئەمەس. كۈن چېگرىسى Europe/Istanbul. تاللانغان دائىرە كۈنلۈك سانىلغان قېتىملارنىڭ يىغىندىسى. سانىش باشلانغاندىن بۇرۇنقى كۈن «—» بولىدۇ، بەت كۆرۈش ياكى session_id دىن قايتا ھېسابلانمايدۇ. قىسمەن كۈندە پەقەت خاتىرىلەنگەن قېتىم كۆرۈنىدۇ.</p>
         <div class="admin-stats admin-analytics-stats">
           <div class="admin-stat"><strong id="analyticsBookViews">—</strong><span>كىتاب كۆرۈش</span></div>
           <div class="admin-stat"><strong id="analyticsCartAdds">—</strong><span>سېۋەتكە قوشۇش</span></div>
@@ -1047,7 +1054,7 @@
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
 <script defer src="catalog-credits.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=7"></script>
+<script defer src="kutadgu-analytics-core.js?v=8"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
@@ -1061,7 +1068,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=91"></script>
+  <script defer src="admin.js?v=92"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

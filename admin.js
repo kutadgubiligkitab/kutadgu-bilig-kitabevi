@@ -5645,6 +5645,19 @@ function setVisitorCount(id,metric){
   else if(metric.status==="partial")el.textContent=Number(metric.visitors).toLocaleString("tr-TR")+" (قىسمەن)";
   else el.textContent=Number(metric.visitors).toLocaleString("tr-TR");
 }
+function countedVisitSource(view){
+  if(view&&view.countedVisits)return view.countedVisits;
+  const Core=window.KutadguAnalyticsCore;
+  if(Core&&typeof Core.describeCountedVisits==="function")return Core.describeCountedVisits(null,new Date());
+  return null;
+}
+function setCountedVisit(id,metric){
+  const el=$(id);
+  if(!el)return;
+  if(!metric||metric.status==="unavailable"||metric.visits==null)el.textContent="—";
+  else if(metric.status==="partial")el.textContent=Number(metric.visits).toLocaleString("tr-TR")+" (قىسمەن)";
+  else el.textContent=Number(metric.visits).toLocaleString("tr-TR");
+}
 function renderAnalyticsList(el,state,countKey,emptyText){
   if(!el)return;
   if(!state||state.state==="unsupported"){
@@ -5671,6 +5684,27 @@ function renderVisitorChart(days){
     return `<div class="admin-analytics-chart-col ${cls}"><strong>${esc(label)}</strong><div class="admin-analytics-chart-bar" title="${esc(day&&day.date||"")}"><span style="height:${height}%"></span></div><small>${esc(String(day&&day.date||"").slice(5))}</small></div>`;
   }).join("");
 }
+function renderVisitCountChart(days){
+  const host=$("#analyticsVisitCountChart");
+  if(!host)return;
+  const rows=Array.isArray(days)?days:[];
+  const max=Math.max(1,...rows.map(day=>day&&day.visits==null?0:Number(day.visits)||0));
+  host.innerHTML=rows.map(day=>{
+    const status=day&&day.status||"unavailable";
+    const visits=day&&day.visits;
+    const label=status==="unavailable"||visits==null?"—":Number(visits).toLocaleString("tr-TR");
+    const height=status==="unavailable"||visits==null?0:Math.round((Number(visits)||0)/max*100);
+    const cls=status==="partial"?"is-partial":status==="zero"?"is-zero":status==="complete"?"is-complete":"is-unavailable";
+    return `<div class="admin-analytics-chart-col ${cls}"><strong>${esc(label)}</strong><div class="admin-analytics-chart-bar" title="${esc(day&&day.date||"")}"><span style="height:${height}%"></span></div><small>${esc(String(day&&day.date||"").slice(5))}</small></div>`;
+  }).join("");
+}
+function paintCountedVisits(view){
+  const counted=countedVisitSource(view);
+  setCountedVisit("#analyticsVisitCountsToday",counted&&counted.today);
+  setCountedVisit("#analyticsVisitCountsYesterday",counted&&counted.yesterday);
+  setCountedVisit("#analyticsVisitCountsPeriod",counted&&counted.period);
+  renderVisitCountChart(counted&&counted.daily);
+}
 function renderAnalytics(described,opts){
   const pending=!!(opts&&opts.pending);
   const errorText=opts&&opts.error;
@@ -5694,6 +5728,8 @@ function renderAnalytics(described,opts){
     }
     const chart=$("#analyticsVisitorChart");
     if(chart&&!chart.childElementCount)renderVisitorChart(described&&described.visitors&&described.visitors.daily);
+    const visitChart=$("#analyticsVisitCountChart");
+    if(visitChart&&!visitChart.childElementCount)paintCountedVisits(described);
     ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp","#analyticsTopSearches"].forEach(sel=>{
       const el=$(sel);
       if(el)el.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
@@ -5705,6 +5741,7 @@ function renderAnalytics(described,opts){
   setVisitorCount("#analyticsVisitorsYesterday",view.visitors&&view.visitors.yesterday);
   setVisitorCount("#analyticsVisitorsPeriod",view.visitors&&view.visitors.period);
   renderVisitorChart(view.visitors&&view.visitors.daily);
+  paintCountedVisits(view);
   setAnalyticsCount("#analyticsPageViews",view.counts&&view.counts.page_views);
   setAnalyticsCount("#analyticsBookViews",view.counts&&view.counts.book_views);
   setAnalyticsCount("#analyticsCartAdds",view.counts&&view.counts.cart_adds);
@@ -6958,6 +6995,7 @@ $("#reloadAnalytics")?.addEventListener("click",reloadAnalyticsView);
 $("#analyticsRange")?.addEventListener("change",reloadAnalyticsView);
 $("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({append:true}));
 paintAnalyticsPending();
+if(window.__kutadguExposeAnalyticsRender)window.__kutadguRenderAnalytics=renderAnalytics;
 
 window.__kutadguAdminTest={
   loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
