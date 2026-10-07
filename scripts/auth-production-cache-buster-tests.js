@@ -7,7 +7,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const REQUIRED = {
   "supabase-config.js": "22",
-  "shop.js": "138",
+  "shop.js": "146",
   "member.js": "28"
 };
 const SCRIPT_SRC = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
@@ -75,11 +75,7 @@ test("production HTML script tags pin current auth isolation assets", () => {
         if (ver !== "141") stale.push(rel + " -> " + src);
         continue;
       }
-      if (name === "shop.js" && page === "index.html") {
-        if (ver !== "144") stale.push(rel + " -> " + src);
-        continue;
-      }
-      if (name === "shop.js" && (page === "book-shell.html" || page === "credit-books.html")) {
+      if (name === "shop.js" && page === "book-shell.html") {
         if (ver !== "142") stale.push(rel + " -> " + src);
         continue;
       }

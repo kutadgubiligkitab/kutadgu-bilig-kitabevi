@@ -28,7 +28,7 @@ const FROZEN = {
   "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "640ee261ba85099c1b22514dfeb1dcad868252b779c897144b0d23375d0251fd",
-  "index.html": "d844171cfa14221715b421e674477caa1f8e9e77bc3239fb007ae12de9432eed",
+  "index.html": "21a0019f47e3aacca9a761023efc89d8c92f7bc2567d05b0c93a7af18b085680",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -162,7 +162,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=138/);
+    assert.match(html, /shop\.js\?v=146/);
     assert.strictEqual(
       attr(html, /data-catalog-source="([^"]*)"/),
       attr(old, /data-catalog-source="([^"]*)"/)
@@ -221,7 +221,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=138/);
+  assert.match(html, /shop\.js\?v=146/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");

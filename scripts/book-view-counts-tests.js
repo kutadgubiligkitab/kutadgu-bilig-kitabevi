@@ -237,6 +237,9 @@ test("book detail loads helper before analytics without changing frozen shop.js 
   assert.ok(shell.includes(analyticsPin));
   assert.ok(shell.indexOf(helperPin) < shell.indexOf(analyticsPin));
   assert.match(shop, /kutadgu-book-views\.js\?v=6/);
+  assert.match(read("index.html"), /shop\.js\?v=146/);
+  assert.match(read("books.html"), /shop\.js\?v=146/);
+  assert.match(shell, /shop\.js\?v=145/);
   assert.match(shop, /function trackBookViewOnce\(book\)\{/);
   assert.match(shop, /if\(trackedBookViews\.has\(canonical\)\)return/);
 });
@@ -678,7 +681,7 @@ test("overlapping detail reads still paint 21 and keep 20 hidden", async () => {
     pending[0].resolve(21);
     await first;
     await joined;
-    assert.strictEqual(info.querySelector(".book-view-count").textContent, "👁 21 قېتىم كۆرۈلدى");
+    assert.strictEqual(info.querySelector(".book-view-count"), null);
     pending[1].resolve(21);
     await newer;
     assert.strictEqual(info.querySelector(".book-view-count").textContent, "👁 21 قېتىم كۆرۈلدى");
@@ -700,6 +703,83 @@ test("overlapping detail reads still paint 21 and keep 20 hidden", async () => {
     global.fetch = prevFetch;
     global.KUTADGU_SUPABASE_CONFIG = prevConfig;
     Views.resetStatsCache();
+  }
+});
+
+test("newer isolated totals win in both completion orders", async () => {
+  const orders = [
+    { older: 20, newer: 21, newerFirst: true },
+    { older: 20, newer: 21, newerFirst: false },
+    { older: 21, newer: 22, newerFirst: true },
+    { older: 21, newer: 22, newerFirst: false },
+    { older: 22, newer: 21, newerFirst: true },
+    { older: 22, newer: 21, newerFirst: false }
+  ];
+  for (const order of orders) {
+    Views.resetStatsCache();
+    const info = makeInfo();
+    const card = listingCard("50", "كىتاب");
+    const page = domNode("div", "book-detail-page");
+    page.appendChild(info);
+    page.appendChild(card);
+    const prevDocument = global.document;
+    const prevLocation = global.location;
+    const prevFetch = global.fetch;
+    const prevConfig = global.KUTADGU_SUPABASE_CONFIG;
+    global.KUTADGU_SUPABASE_CONFIG = { url: "https://stats.example.test", anonKey: "anon" };
+    global.location = { pathname: "/book/50", hostname: "www.kutadgubilik.com" };
+    global.document = page;
+    global.document.body = { dataset: { bookId: "50" } };
+    const pending = [];
+    global.fetch = function (url) {
+      return new Promise((resolve) => {
+        pending.push({
+          url: String(url),
+          resolve: (total) => resolve({
+            ok: true,
+            json() { return Promise.resolve([{ book_id: "50", total_views: total }]); }
+          })
+        });
+      });
+    };
+    try {
+      const first = Views.fetchAndPaint();
+      const isolated = Views.refreshDisplayed("50");
+      const joined = Views.fetchAndPaint();
+      assert.strictEqual(pending.length, 2, JSON.stringify(order));
+      assert.match(pending[0].url, /book_id=in\.\(50\)/);
+      assert.match(pending[1].url, /book_id=in\.\(50\)/);
+      const finishOlder = () => pending[0].resolve(order.older);
+      const finishNewer = () => pending[1].resolve(order.newer);
+      if (order.newerFirst) {
+        finishNewer();
+        await isolated;
+        finishOlder();
+        await first;
+        await joined;
+      } else {
+        finishOlder();
+        await first;
+        await joined;
+        finishNewer();
+        await isolated;
+      }
+      const expected = "👁 " + order.newer + " قېتىم كۆرۈلدى";
+      assert.strictEqual(info.querySelector(".book-view-count").textContent, expected, JSON.stringify(order));
+      assert.strictEqual(card.querySelector(".book-view-count-compact").textContent, "👁 " + order.newer, JSON.stringify(order));
+      assert.strictEqual(card.querySelector(".book-view-count-compact").getAttribute("data-view-for"), "50");
+      pending.length = 0;
+      await Views.fetchAndPaint();
+      assert.strictEqual(pending.length, 0, "cached newer total " + JSON.stringify(order));
+      assert.strictEqual(info.querySelector(".book-view-count").textContent, expected);
+      assert.strictEqual(info.querySelector("h1").textContent, "كىتاب");
+    } finally {
+      global.document = prevDocument;
+      global.location = prevLocation;
+      global.fetch = prevFetch;
+      global.KUTADGU_SUPABASE_CONFIG = prevConfig;
+      Views.resetStatsCache();
+    }
   }
 });
 

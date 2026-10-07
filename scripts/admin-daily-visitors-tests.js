@@ -407,7 +407,7 @@ test("cache pins moved for the changed analytics files", () => {
   assert.match(html, /admin\.js\?v=86/);
   assert.match(home, /analytics\.js\?v=7/);
   assert.match(home, /kutadgu-analytics-core\.js\?v=5/);
-  assert.match(home, /shop\.js\?v=144/);
+  assert.match(home, /shop\.js\?v=146/);
   assert.match(shell, /src="\/analytics\.js\?v=7"/);
 });
 
