@@ -1624,6 +1624,9 @@ async function fetchRemotePage(input={},options={}){
   }
   const rows=response.status===416?[]:await response.json();
   if(!Array.isArray(rows))throw new Error("Catalog query returned invalid data");
+  if(typeof options.accept==="function"&&options.accept()===false){
+    return {items:[],total:0,hasMore:false,offset:from,pageSize:state.pageSize,source:"supabase",status:response.status,contentRange:response.headers.get("content-range")||"",rowCount:0,stale:true};
+  }
   const creditRows=state.creditId&&creditLib().dedupeCreditRows?creditLib().dedupeCreditRows(rows):rows;
   const fetched=refreshCatalogCache(creditRows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
   const items=state.includeInactive?fetched:fetched.filter(isStorefrontVisible);
@@ -1755,32 +1758,121 @@ async function hydrateBooksByIds(ids=[]){
 }
 
 let pageBookHydrationDone=false;
-async function attachPublicBookCredits(bookId){
+let pageBookAuthority="idle";
+let pageBookBoot={seq:0,id:"",controller:null};
+let detailBootReady=false;
+let creditBootController=null;
+let appConfigState="pending";
+function settleBoot(work,ms=CATALOG_BOOT_TIMEOUT_MS){
+  return new Promise(resolve=>{
+    let settled=false;
+    const timer=setTimeout(()=>{
+      if(settled)return;
+      settled=true;
+      resolve({timedOut:true});
+    },ms);
+    Promise.resolve(work).then(value=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
+      resolve({timedOut:false,value});
+    },error=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
+      resolve({timedOut:false,error});
+    });
+  });
+}
+function currentPageBook(id,payload){
+  const items=payload&&Array.isArray(payload.items)?payload.items:[];
+  const want=String(id||"");
+  if(!want)return null;
+  return items.find(book=>book&&String(book.id)===want)
+    ||items.find(book=>book&&String(book.legacyId||"")===want)
+    ||null;
+}
+function applyPageBookResult(seq,id,result){
+  if(seq!==pageBookBoot.seq)return;
+  if(result?.error?.name==="AbortError"||result?.result?.stale)return;
+  if(!result?.ok||!Array.isArray(result.result?.items))pageBookAuthority="unavailable";
+  else{
+    const book=currentPageBook(id,result.result);
+    if(!book)pageBookAuthority="hidden";
+    else{
+      pageBookAuthority="ready";
+      if(isStorefrontVisible(book))void attachPublicBookCredits(id,{seq});
+    }
+  }
+  if(detailBootReady&&isBookDetailDocument())decorateDetail();
+}
+async function attachPublicBookCredits(bookId,options={}){
   const lib=creditLib();
   const id=String(bookId||"").trim();
   const book=find(id);
   const cfg=supabasePublicConfig();
   if(!book||!cfg.url||!cfg.key||!/^\d+$/.test(id))return;
+  if(creditBootController)creditBootController.abort();
+  const controller=new AbortController();
+  creditBootController=controller;
+  const seq=Number.isFinite(options.seq)?options.seq:pageBookBoot.seq;
   const select="role,position,identity_id,catalog_identities(id,display_name)";
   const url=`${cfg.url}/rest/v1/book_credits?select=${encodeURIComponent(select)}&book_id=eq.${encodeURIComponent(id)}&order=position.asc`;
-  const response=await fetch(url,{headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Accept:"application/json"}});
+  let response;
+  try{
+    response=await fetch(url,{signal:controller.signal,headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Accept:"application/json"}});
+  }catch(error){
+    if(error?.name!=="AbortError")console.warn("Book credits could not be loaded.",error);
+    return;
+  }
+  if(seq!==pageBookBoot.seq||creditBootController!==controller)return;
   if(!response.ok)return;
-  const rows=await response.json();
+  let rows;
+  try{rows=await response.json()}
+  catch(error){
+    if(error?.name!=="AbortError")console.warn("Book credits could not be loaded.",error);
+    return;
+  }
+  if(seq!==pageBookBoot.seq||creditBootController!==controller)return;
   if(!Array.isArray(rows))return;
   if(rows.length&&!rows.every(row=>row&&row.role&&(row.identity_id||row.catalog_identities)))return;
-  book.credits=rows;
-  if(lib.roleEntries)indexCatalogBook(book);
+  const current=find(id);
+  if(!current)return;
+  current.credits=rows;
+  if(lib.roleEntries)indexCatalogBook(current);
+  paintDetailCreditText(current);
 }
 async function hydratePageBook(){
+  const seq=++pageBookBoot.seq;
+  if(pageBookBoot.controller)pageBookBoot.controller.abort();
+  const controller=new AbortController();
+  pageBookBoot.controller=controller;
   try{
     if(isStorefrontHomepage())return;
     const Seo=window.KutadguBookSeo||{};
     const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
-    if(!id||!remoteCatalog.available)return;
-    try{await fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true})}
-    catch(error){if(error?.name!=="AbortError")console.warn("Book detail could not be loaded.",error)}
-    try{await attachPublicBookCredits(id)}
-    catch(error){if(error?.name!=="AbortError")console.warn("Book credits could not be loaded.",error)}
+    pageBookBoot.id=String(id||"");
+    if(!id){
+      pageBookAuthority="idle";
+      return;
+    }
+    if(!remoteCatalog.available){
+      const numericBook=isCanonicalBookId(id);
+      pageBookAuthority=remoteCatalog.configured&&isBookDetailDocument()&&(requiresRemoteProductAuthority()||numericBook)?"unavailable":"idle";
+      if(detailBootReady&&isBookDetailDocument())decorateDetail();
+      return;
+    }
+    pageBookAuthority="pending";
+    if(isBookDetailDocument())paintDetailBootNotice("pending");
+    const promise=fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true},{signal:controller.signal,accept:()=>seq===pageBookBoot.seq}).then(result=>({ok:true,result})).catch(error=>({ok:false,error}));
+    const settled=await settleBoot(promise);
+    if(seq!==pageBookBoot.seq)return;
+    if(settled.timedOut){
+      pageBookAuthority="pending";
+      promise.then(result=>{applyPageBookResult(seq,id,result)});
+      return;
+    }
+    applyPageBookResult(seq,id,settled.error?{ok:false,error:settled.error}:settled.value);
   }finally{
     pageBookHydrationDone=true;
   }
@@ -2388,6 +2480,24 @@ function populateDynamicBookPage(b){
   const h1=info.querySelector("h1");
   if(h1)h1.textContent=b.title;
   const author=info.querySelector(".book-author");
+  const meta=info.querySelector(".book-meta");
+  const keepServerCredits=!Array.isArray(b.credits)&&!!((author&&author.querySelector("a"))||(meta&&meta.querySelector("a")));
+  if(!keepServerCredits)paintDetailCreditText(b);
+
+  let desc=document.querySelector(".dynamic-book-description");
+  if(desc){
+    if(b.description){
+      desc.hidden=false;
+      desc.querySelector("p").textContent=b.description;
+    }else desc.hidden=true;
+  }
+}
+
+function paintDetailCreditText(b){
+  if(!b||!isBookDetailDocument())return;
+  const info=document.querySelector(".book-detail-info");
+  if(!info)return;
+  const author=info.querySelector(".book-author");
   if(author){
     const line=creditLib().renderAuthorLine?creditLib().renderAuthorLine(b):"";
     if(creditLib().renderAuthorLine){
@@ -2399,8 +2509,8 @@ function populateDynamicBookPage(b){
       author.hidden=!name;
     }
   }
-
   const meta=info.querySelector(".book-meta");
+  const dynamic=document.body.hasAttribute("data-dynamic-book");
   if(meta&&(dynamic||b.isRemote)){
     meta.innerHTML=[
       creditMetaRow("ئاپتورى","author",b),
@@ -2414,14 +2524,6 @@ function populateDynamicBookPage(b){
       setDynamicMeta("ئىچكى بېسىلىشى",colorPrintDetailValue(b)),
       setDynamicMeta("كىتاب تۈرى",b.category)
     ].join("");
-  }
-
-  let desc=document.querySelector(".dynamic-book-description");
-  if(desc){
-    if(b.description){
-      desc.hidden=false;
-      desc.querySelector("p").textContent=b.description;
-    }else desc.hidden=true;
   }
 }
 
@@ -2677,35 +2779,62 @@ function scheduleDetailRelated(book){
     paintDetailRelated(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
   });
 }
-function renderDetailExtras(book){
-  let main=document.querySelector(".book-detail-page");
-  if(!main)return;
-  if(!main.querySelector(".detail-extra-sections")){
-    let recentBooks=get(REC_KEY,[])
-      .filter(id=>canonicalId(id)!==canonicalId(book.id))
-      .map(find)
-      .filter(item=>item&&isStorefrontVisible(item))
-      .slice(0,4);
-    let wrap=document.createElement("div");
-    wrap.className="detail-extra-sections";
-    const relatedHtml=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT));
-    let recentHtml=featureEnabled("recentlyViewed")&&recentBooks.length
-      ? `<section class="detail-extra-section" data-recently-viewed="1">
+function detailRecentBooks(book){
+  if(!book||!featureEnabled("recentlyViewed"))return [];
+  return get(REC_KEY,[])
+    .filter(id=>canonicalId(id)!==canonicalId(book.id))
+    .map(find)
+    .filter(item=>item&&isStorefrontVisible(item))
+    .slice(0,4);
+}
+function detailRecentMarkup(books){
+  if(!books.length)return "";
+  return `<section class="detail-extra-section" data-recently-viewed="1">
            <div class="detail-section-heading">
              <div>
                <span class="detail-section-kicker">🕘 قايتا تېپىش ئاسان</span>
                <h2>يېقىندا كۆرگەنلىرىڭىز</h2>
              </div>
            </div>
-           <div class="shop-grid detail-related-grid">${recentBooks.map(miniCard).join("")}</div>
-         </section>`
-      : "";
-    wrap.innerHTML=relatedHtml+recentHtml;
+           <div class="shop-grid detail-related-grid">${books.map(miniCard).join("")}</div>
+         </section>`;
+}
+function paintDetailRecent(book){
+  const main=document.querySelector(".book-detail-page");
+  if(!main||!book)return;
+  const html=detailRecentMarkup(detailRecentBooks(book));
+  let wrap=main.querySelector(".detail-extra-sections");
+  const existing=wrap?.querySelector("[data-recently-viewed]");
+  if(!html)return;
+  if(existing?.querySelector(".shop-mini-card"))return;
+  if(!wrap){
+    if(!main.querySelector(".detail-purchase-panel"))return;
+    wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
+    main.appendChild(wrap);
+  }
+  if(existing)existing.remove();
+  wrap.insertAdjacentHTML("beforeend",html);
+  const added=wrap.querySelector("[data-recently-viewed]");
+  if(added)bindDynamicActions(added);
+}
+function refreshDetailRecent(){
+  if(!isBookDetailDocument()||pageBookAuthority!=="ready")return;
+  const book=getDetailBook();
+  if(book)paintDetailRecent(book);
+}
+function renderDetailExtras(book){
+  let main=document.querySelector(".book-detail-page");
+  if(!main)return;
+  if(!main.querySelector(".detail-extra-sections")){
+    let wrap=document.createElement("div");
+    wrap.className="detail-extra-sections";
+    wrap.innerHTML=detailRelatedMarkup(book,detailRecommendations(book,DETAIL_RELATED_LIMIT))+detailRecentMarkup(detailRecentBooks(book));
     if(wrap.innerHTML.trim()){
       main.appendChild(wrap);
       bindDynamicActions(wrap);
     }
-  }
+  }else refreshDetailRecent();
   scheduleDetailRelated(book);
 }
 
@@ -2747,6 +2876,32 @@ function paintUnauthorizedDetail(){
   }
 }
 
+function paintDetailBootNotice(kind){
+  const info=document.querySelector(".book-detail-info");
+  if(!info)return;
+  info.querySelector(".detail-purchase-panel")?.remove();
+  info.querySelector(".detail-actions")?.remove();
+  let notice=info.querySelector("[data-detail-boot]");
+  if(!notice){
+    notice=document.createElement("div");
+    notice.className="detail-boot-notice";
+    info.appendChild(notice);
+  }
+  notice.dataset.detailBoot=kind;
+  const message=kind==="pending"
+    ?"كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ…"
+    :"كىتاب ئۇچۇرىنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.";
+  notice.innerHTML=`<p class="detail-order-tip">${message}</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button>`;
+  const retry=notice.querySelector("button");
+  if(retry)retry.onclick=()=>{void retryDetailBoot()};
+}
+async function retryDetailBoot(){
+  pageBookAuthority="pending";
+  if(isBookDetailDocument())paintDetailBootNotice("pending");
+  if(remoteCatalog.configured&&!remoteCatalog.available)await loadRemoteCatalog();
+  await hydratePageBook();
+}
+
 function decorateDetail(){
   if(maybeRedirectLegacyBookUrl())return;
   if(isStorefrontHomepage()){
@@ -2756,6 +2911,15 @@ function decorateDetail(){
   if(!isBookDetailDocument())return;
   const Seo=window.KutadguBookSeo||{};
   if(Seo.shouldDeferNumericCleanDetailSeo?Seo.shouldDeferNumericCleanDetailSeo(location,{pageBookHydrationDone}):(Seo.numericCleanBookIdFromLocation&&Seo.numericCleanBookIdFromLocation(location)&&!pageBookHydrationDone))return;
+  if(pageBookAuthority==="pending"||pageBookAuthority==="unavailable"){
+    paintDetailBootNotice(pageBookAuthority);
+    return;
+  }
+  if(pageBookAuthority==="hidden"){
+    paintUnauthorizedDetail();
+    return;
+  }
+  document.querySelector("[data-detail-boot]")?.remove();
   let b=getDetailBook();
   if(!b||(!isStorefrontVisible(b)&&b.isRemote!==true)){
     paintUnauthorizedDetail();
@@ -2802,8 +2966,12 @@ function decorateDetail(){
 
   let panel=document.createElement("div");
   panel.className="detail-purchase-panel";
+  const stockPolicyReady=appConfigState!=="pending";
   const detailStock=stockInfo(b);
-  const qtyDisabled=detailStock.canBuy?"":" disabled aria-disabled=\"true\"";
+  const qtyDisabled=stockPolicyReady&&detailStock.canBuy?"":" disabled aria-disabled=\"true\"";
+  const cartMarkup=stockPolicyReady
+    ?cartButton(b,"🛒 سېۋەتكە قوشۇش","add-to-cart detail-cart detail-main-cart")
+    :`<button type="button" class="add-to-cart detail-cart detail-main-cart" disabled aria-disabled="true">كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ…</button>`;
   panel.innerHTML=`
     <div class="detail-price-line">
       <div>
@@ -2821,7 +2989,7 @@ function decorateDetail(){
       </div>
     </div>
 
-    ${cartButton(b,"🛒 سېۋەتكە قوشۇش","add-to-cart detail-cart detail-main-cart")}
+    ${cartMarkup}
 
     <div class="detail-secondary-actions">
       <button type="button" class="favorite-button" data-fav-id="${b.id}">♡ ياقتۇرۇش</button>
@@ -2837,14 +3005,17 @@ function decorateDetail(){
   const stockCap=stockInfo(b);
   const maxQty=stockCap.canBuy&&Number.isFinite(stockCap.qty)?Math.max(1,stockCap.qty):99;
   panel.querySelector(".detail-qty-minus").onclick=()=>{
+    if(!stockPolicyReady||!stockInfo(b).canBuy)return;
     qty=Math.max(1,qty-1);
     qtyText.textContent=qty;
   };
   panel.querySelector(".detail-qty-plus").onclick=()=>{
+    if(!stockPolicyReady||!stockInfo(b).canBuy)return;
     qty=Math.min(maxQty,qty+1);
     qtyText.textContent=qty;
   };
-  panel.querySelector(".detail-main-cart").onclick=()=>add(b.id,qty);
+  const cartBtn=panel.querySelector(".detail-main-cart");
+  if(cartBtn&&stockPolicyReady&&stockInfo(b).canBuy)cartBtn.onclick=()=>add(b.id,qty);
   panel.querySelector("[data-fav-id]").onclick=()=>toggleFav(b.id);
   panel.querySelector("[data-share-id]").onclick=()=>shareBook(b);
 
@@ -4977,14 +5148,37 @@ function loadAssetScript(src,id){
     document.head.appendChild(script);
   });
 }
+function whenPublicHeaderScript(){
+  if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function")return Promise.resolve();
+  const existing=document.querySelector("script[src*='public-header.js']");
+  if(!existing)return loadAssetScript("/public-header.js?v=2","kutadguPublicHeaderScript");
+  return new Promise(resolve=>{
+    let settled=false;
+    const done=()=>{
+      if(settled)return;
+      settled=true;
+      resolve();
+    };
+    existing.addEventListener("load",done,{once:true});
+    existing.addEventListener("error",done,{once:true});
+  });
+}
 function loadPublicHeader(){
-  if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function"){
-    window.KutadguPublicHeader.ensure();
-    return Promise.resolve();
-  }
-  return loadAssetScript("/public-header.js?v=2","kutadguPublicHeaderScript").then(()=>{
+  return whenPublicHeaderScript().then(()=>{
     if(window.KutadguPublicHeader&&typeof window.KutadguPublicHeader.ensure==="function")window.KutadguPublicHeader.ensure();
   }).catch(error=>console.warn(error));
+}
+function trackAppConfig(work){
+  const tracked=Promise.resolve(work).then(()=>{appConfigState="ready"},error=>{
+    console.warn(error);
+    appConfigState="failed";
+  });
+  tracked.then(()=>{
+    if(!detailBootReady||!isBookDetailDocument())return;
+    if(pageBookAuthority!=="ready"&&pageBookAuthority!=="idle")return;
+    decorateDetail();
+  });
+  return tracked;
 }
 function ensureCoverSystemCss(){
   let el=document.querySelector("link[data-kutadgu-covers]");
@@ -5124,21 +5318,30 @@ async function boot(){
   ensureBookViewCounts();
   if(maybeRedirectLegacyBookUrl())return;
   const publicHeaderReady=loadPublicHeader();
-  try{await loadAssetScript("/app-config.js?v=5","kutadguAppConfigScript")}catch(error){console.warn(error)}
-  try{await publicHeaderReady}catch(error){console.warn(error)}
+  const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=5","kutadguAppConfigScript"));
+  await settleBoot(configWork);
+  await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();
   await loadRemoteCatalog();
   await hydratePageBook();
-  const savedIds=[...cart().map(item=>item.id),...favs(),...get(REC_KEY,[])];
-  await hydrateBooksByIds(savedIds);
-  migratePersistedBookIds();
-  await hydrateBooksByIds([...cart().map(item=>item.id),...favs()]);
-  migratePersistedBookIds();
+  const savedWork=(async()=>{
+    const savedIds=[...cart().map(item=>item.id),...favs(),...get(REC_KEY,[])];
+    await hydrateBooksByIds(savedIds);
+    migratePersistedBookIds();
+    await hydrateBooksByIds([...cart().map(item=>item.id),...favs()]);
+    migratePersistedBookIds();
+    if(document.querySelector("#cartItems"))cartPage();
+    if(document.querySelector("#favoritesList"))renderFavoritesPage();
+  })();
+  if(!isBookDetailDocument())await settleBoot(savedWork);
+  else savedWork.then(()=>refreshDetailRecent());
+  detailBootReady=true;
   markCatalogBootSettled();
   window.KUTADGU_LIVE_CATALOG=C;
   init();
   document.dispatchEvent(new CustomEvent("kutadgu:catalog-ready",{detail:{count:C.length}}));
+  if(isBookDetailDocument())await settleBoot(savedWork);
   try{await loadPremiumUX()}catch(error){console.warn(error)}
   ensureCoverSystemCss();
   ensureStage4b2HomepageDiscoveryCss();
