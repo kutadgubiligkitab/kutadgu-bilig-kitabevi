@@ -96,13 +96,13 @@ test("total view count below 20 stays hidden", () => {
   assert.strictEqual(info.querySelector(".book-view-count"), null);
 });
 
-test("total view count = 20 is shown on the detail page", () => {
-  assert.strictEqual(Views.shouldShowTotalViews(20), true);
-  assert.strictEqual(Views.viewCountText(20), "👁 20 قېتىم كۆرۈلدى");
+test("total view count = 20 stays hidden on the detail page", () => {
+  assert.strictEqual(Views.shouldShowTotalViews(20), false);
+  assert.strictEqual(Views.viewCountText(20), "");
+  assert.strictEqual(Views.compactViewCountText(20), "");
   const info = makeInfo();
-  const el = Views.mountViewCount(info, 20);
-  assert.ok(el);
-  assert.strictEqual(el.textContent, "👁 20 قېتىم كۆرۈلدى");
+  assert.strictEqual(Views.mountViewCount(info, 20), null);
+  assert.strictEqual(info.querySelector(".book-view-count"), null);
 });
 
 test("total view count above 20 is shown", () => {
@@ -116,9 +116,9 @@ test("total view count above 20 is shown", () => {
 
 test("correct Uyghur text is rendered", () => {
   assert.strictEqual(Views.LABEL, "قېتىم كۆرۈلدى");
-  assert.ok(Views.viewCountText(20).includes("قېتىم كۆرۈلدى"));
+  assert.ok(Views.viewCountText(21).includes("قېتىم كۆرۈلدى"));
   const info = makeInfo(false);
-  const el = Views.mountViewCount(info, 20);
+  const el = Views.mountViewCount(info, 21);
   assert.strictEqual(el.getAttribute("dir"), "rtl");
 });
 
@@ -231,11 +231,12 @@ test("failed or missing stats hide the counter and book page still renders", () 
 });
 
 test("book detail loads helper before analytics without changing frozen shop.js tracking", () => {
-  const helperPin = 'src="/kutadgu-book-views.js?v=5"';
+  const helperPin = 'src="/kutadgu-book-views.js?v=6"';
   const analyticsPin = 'src="/analytics.js?v=7"';
   assert.ok(shell.includes(helperPin));
   assert.ok(shell.includes(analyticsPin));
   assert.ok(shell.indexOf(helperPin) < shell.indexOf(analyticsPin));
+  assert.match(shop, /kutadgu-book-views\.js\?v=6/);
   assert.match(shop, /function trackBookViewOnce\(book\)\{/);
   assert.match(shop, /if\(trackedBookViews\.has\(canonical\)\)return/);
 });
@@ -413,12 +414,13 @@ test("cart quantity changes and rejected adds do not emit engagement", () => {
   assert.match(add, /trackEvent\("add_to_cart"/);
 });
 
-test("listing cards show compact counts from 20 and survive failed stats", async () => {
+test("listing cards show compact counts above 20 and survive failed stats", async () => {
   Views.resetStatsCache();
   const hidden = listingCard("19", "يوشۇرۇن");
-  const shown = listingCard("20", "يىگىرمە");
+  const exact = listingCard("20", "يىگىرمە");
+  const shown = listingCard("21", "يىگىرمە بىر");
   const larger = listingCard("125", "چوڭ");
-  const root = cardGrid([hidden, shown, larger]);
+  const root = cardGrid([hidden, exact, shown, larger]);
   assert.strictEqual(hidden.querySelector(".book-title").textContent, "يوشۇرۇن");
   const calls = [];
   const result = await Views.hydrate(root, {
@@ -429,18 +431,20 @@ test("listing cards show compact counts from 20 and survive failed stats", async
       return statsResponse([
         { book_id: "19", total_views: 19 },
         { book_id: "20", total_views: 20 },
+        { book_id: "21", total_views: 21 },
         { book_id: "125", total_views: 125 }
       ]);
     }
   });
   assert.strictEqual(result.requests, 1);
   assert.strictEqual(calls.length, 1);
-  assert.match(calls[0], /book_id=in\.\(19,20,125\)/);
+  assert.match(calls[0], /book_id=in\.\(19,20,21,125\)/);
   assert.match(calls[0], /select=book_id,total_views/);
   assert.doesNotMatch(calls[0], /unique_views|session/);
   assert.strictEqual(hidden.querySelector(".book-view-count-compact"), null);
-  assert.strictEqual(shown.querySelector(".book-view-count-compact").textContent, "👁 20");
-  assert.strictEqual(shown.querySelector(".book-view-count-compact").getAttribute("aria-label"), "20 قېتىم كۆرۈلدى");
+  assert.strictEqual(exact.querySelector(".book-view-count-compact"), null);
+  assert.strictEqual(shown.querySelector(".book-view-count-compact").textContent, "👁 21");
+  assert.strictEqual(shown.querySelector(".book-view-count-compact").getAttribute("aria-label"), "21 قېتىم كۆرۈلدى");
   assert.strictEqual(larger.querySelector(".book-view-count-compact").textContent, "👁 125");
   assert.strictEqual(shown.querySelector(".add-to-cart").textContent, "سېۋەتكە");
   assert.strictEqual(shown.querySelector(".book-price").textContent, "10 ₺");
@@ -497,12 +501,12 @@ test("stale stats cannot paint the wrong book and rerendered cards stay bound", 
     config: statsConfig,
     fetchImpl(url) {
       assert.match(url, /in\.\(44\)/);
-      return statsResponse([{ book_id: "44", total_views: 20 }]);
+      return statsResponse([{ book_id: "44", total_views: 21 }]);
     }
   });
   assert.strictEqual(searchCard.getAttribute("data-live-book-id"), "44");
   assert.strictEqual(fav.getAttribute("data-live-book-id"), null);
-  assert.strictEqual(searchCard.querySelector(".book-view-count-compact").textContent, "👁 20");
+  assert.strictEqual(searchCard.querySelector(".book-view-count-compact").textContent, "👁 21");
 
   const aiCard = domNode("article", "ai-search-item", { "data-live-book-id": "45" });
   const aiInfo = domNode("div", "ai-search-info");
@@ -637,6 +641,68 @@ test("detail stats cannot paint after the book id changes", async () => {
   }
 });
 
+test("overlapping detail reads still paint 21 and keep 20 hidden", async () => {
+  Views.resetStatsCache();
+  const info = makeInfo();
+  const prevDocument = global.document;
+  const prevLocation = global.location;
+  const prevFetch = global.fetch;
+  const prevConfig = global.KUTADGU_SUPABASE_CONFIG;
+  const body = { dataset: { bookId: "21" } };
+  global.document = {
+    body: body,
+    querySelector(sel) {
+      if (sel === ".book-detail-info" || sel === ".book-detail-page,.book-detail-info") return info;
+      return null;
+    }
+  };
+  global.location = { pathname: "/book/21", hostname: "www.kutadgubilik.com" };
+  global.KUTADGU_SUPABASE_CONFIG = { url: "https://stats.example.test", anonKey: "anon" };
+  const pending = [];
+  global.fetch = function (url) {
+    return new Promise((resolve) => {
+      pending.push({
+        url: String(url),
+        resolve: (total, bookId) => resolve({
+          ok: true,
+          json() { return Promise.resolve([{ book_id: bookId || "21", total_views: total }]); }
+        })
+      });
+    });
+  };
+  try {
+    const first = Views.fetchAndPaint();
+    const newer = Views.refreshDisplayed("21");
+    const joined = Views.fetchAndPaint();
+    assert.strictEqual(pending.length, 2);
+    pending[0].resolve(21);
+    await first;
+    await joined;
+    assert.strictEqual(info.querySelector(".book-view-count").textContent, "👁 21 قېتىم كۆرۈلدى");
+    pending[1].resolve(21);
+    await newer;
+    assert.strictEqual(info.querySelector(".book-view-count").textContent, "👁 21 قېتىم كۆرۈلدى");
+    assert.strictEqual(info.querySelector("h1").textContent, "كىتاب");
+    Views.resetStatsCache();
+    info.querySelector(".book-view-count").remove();
+    body.dataset.bookId = "20";
+    global.location = { pathname: "/book/20", hostname: "www.kutadgubilik.com" };
+    pending.length = 0;
+    const exact = Views.fetchAndPaint();
+    assert.strictEqual(pending.length, 1);
+    assert.match(pending[0].url, /book_id=in\.\(20\)/);
+    pending[0].resolve(20, "20");
+    await exact;
+    assert.strictEqual(info.querySelector(".book-view-count"), null);
+  } finally {
+    global.document = prevDocument;
+    global.location = prevLocation;
+    global.fetch = prevFetch;
+    global.KUTADGU_SUPABASE_CONFIG = prevConfig;
+    Views.resetStatsCache();
+  }
+});
+
 test("compact mount reuses the same counter for the same total", async () => {
   Views.resetStatsCache();
   const card = listingCard("20", "يىگىرمە");
@@ -698,11 +764,11 @@ test("compact mount updates a changed total and rebinds a changed book id", () =
 
 test("compact mount follows the threshold without redundant replacement", () => {
   const card = listingCard("20", "بوساغ");
-  assert.strictEqual(Views.mountCompactCount(card, 19), null);
+  assert.strictEqual(Views.mountCompactCount(card, 20), null);
   assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
-  const el = Views.mountCompactCount(card, 20);
-  assert.strictEqual(el.textContent, "👁 20");
-  assert.strictEqual(Views.mountCompactCount(card, 20), el);
+  const el = Views.mountCompactCount(card, 21);
+  assert.strictEqual(el.textContent, "👁 21");
+  assert.strictEqual(Views.mountCompactCount(card, 21), el);
   assert.strictEqual(card.querySelectorAll(".book-view-count-compact").length, 1);
   assert.strictEqual(Views.mountCompactCount(card, 19), null);
   assert.strictEqual(card.querySelector(".book-view-count-compact"), null);
@@ -826,11 +892,11 @@ test("an in-flight stats batch is not requested again and a failure can retry", 
     config: statsConfig,
     fetchImpl() {
       attempts += 1;
-      return statsResponse([{ book_id: "42", total_views: 20 }]);
+      return statsResponse([{ book_id: "42", total_views: 21 }]);
     }
   });
   assert.strictEqual(attempts, 2);
-  assert.strictEqual(flaky.querySelector(".book-view-count-compact").textContent, "👁 20");
+  assert.strictEqual(flaky.querySelector(".book-view-count-compact").textContent, "👁 21");
 });
 
 test("replacing book A with book B hydrates B only", async () => {

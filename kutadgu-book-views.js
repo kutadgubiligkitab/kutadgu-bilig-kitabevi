@@ -55,7 +55,7 @@
 
   function shouldShowTotalViews(total) {
     var n = Number(total);
-    return Number.isFinite(n) && n >= THRESHOLD;
+    return Number.isFinite(n) && n > THRESHOLD;
   }
 
   function formatTotalViews(total) {
@@ -368,10 +368,9 @@
       });
       var painted = Object.create(null);
       flightIds.forEach(function (id) {
-        if (tokens[id] !== bookTokens[id]) return;
         var has = Object.prototype.hasOwnProperty.call(byId, id);
         var total = has ? byId[id] : null;
-        if (total != null) cacheSet(id, total, now);
+        if (tokens[id] === bookTokens[id] && total != null) cacheSet(id, total, now);
         painted[id] = total;
       });
       releaseStatsFlight(flightIds, own, storeKey);
