@@ -447,11 +447,17 @@ function loadAnalyticsVm(fetchImpl) {
 
 async function legacySchemaStoresFirstPageViewOnce() {
   const stored = [];
-  const legacyMissing = ["visitor_id", "event_id", "host", "occurred_at", "action_seq"];
+  const probed = ["visitor_id", "event_id"];
+  const withheld = ["host", "occurred_at", "action_seq"];
   let schemaErrors = 0;
+  let firstBody = null;
   const window = loadAnalyticsVm(async (_url, init) => {
     const body = JSON.parse(init.body);
-    const missing = legacyMissing.find((col) => Object.prototype.hasOwnProperty.call(body, col));
+    if (!firstBody) firstBody = body;
+    withheld.forEach((col) => {
+      if (Object.prototype.hasOwnProperty.call(body, col)) throw new Error("sent absent column " + col);
+    });
+    const missing = probed.find((col) => Object.prototype.hasOwnProperty.call(body, col));
     if (missing) {
       schemaErrors += 1;
       return { ok: false, status: 400, text: async () => "PGRST204 Could not find the '" + missing + "' column of 'analytics_events' in the schema cache" };
@@ -460,10 +466,12 @@ async function legacySchemaStoresFirstPageViewOnce() {
     return { ok: true, status: 201, text: async () => "" };
   });
   await window.KutadguAnalytics.track("page_view", {});
+  assert.ok(firstBody);
+  withheld.forEach((col) => assert.ok(!(col in firstBody), col));
   assert.strictEqual(stored.length, 1);
   assert.strictEqual(stored[0].event_name, "page_view");
-  assert.strictEqual(schemaErrors, legacyMissing.length);
-  legacyMissing.forEach((col) => assert.ok(!(col in stored[0]), col));
+  assert.strictEqual(schemaErrors, probed.length);
+  probed.concat(withheld).forEach((col) => assert.ok(!(col in stored[0]), col));
 }
 
 async function legacyLostResponseDoesNotDuplicate() {

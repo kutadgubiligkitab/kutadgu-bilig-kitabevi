@@ -241,4 +241,66 @@ if [[ "$(psql_db -c "SELECT count(*) FROM public.analytics_events WHERE event_na
   echo "book view was not stored" >&2
   exit 1
 fi
+python3 - "$PORT" <<'PY'
+import json, sys, urllib.error, urllib.request
+port = sys.argv[1]
+base = f"http://127.0.0.1:{port}"
+visitor = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+absent_id = "12121212-1212-4212-8212-121212121212"
+plain_id = "13131313-1313-4313-8313-131313131313"
+
+def call(payload, prefer="return=minimal"):
+    data = json.dumps(payload).encode()
+    headers = {"Accept": "application/json", "Content-Type": "application/json", "Prefer": prefer}
+    req = urllib.request.Request(base + "/analytics_events", data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return res.status, res.read().decode()
+    except urllib.error.HTTPError as err:
+        return err.code, err.read().decode()
+
+def row(event_id, **extra):
+    body = {
+        "event_name": "page_view",
+        "book_id": None,
+        "search_query": None,
+        "category": None,
+        "result_count": None,
+        "item_count": None,
+        "order_total": None,
+        "path": "/",
+        "session_id": "probe-session",
+        "visitor_id": visitor,
+        "event_id": event_id,
+    }
+    body.update(extra)
+    return body
+
+status, text = call(row(absent_id, host="www.kutadgubilik.com", action_seq=1, occurred_at="2026-10-07T12:00:00.000Z"))
+assert status == 400 and "PGRST204" in text and "action_seq" in text, (status, text)
+status, text = call(row(absent_id, host="www.kutadgubilik.com", occurred_at="2026-10-07T12:00:00.000Z"))
+assert status == 400 and "PGRST204" in text and "host" in text, (status, text)
+status, text = call(row(absent_id, occurred_at="2026-10-07T12:00:00.000Z"))
+assert status == 400 and "PGRST204" in text and "occurred_at" in text, (status, text)
+status, text = call(row(absent_id))
+assert status == 201, (status, text)
+status, text = call(row(plain_id))
+assert status == 201, (status, text)
+req = urllib.request.Request(base + "/analytics_events?select=id&limit=1", method="GET")
+try:
+    with urllib.request.urlopen(req, timeout=10) as res:
+        get_status, get_text = res.status, res.read().decode()
+except urllib.error.HTTPError as err:
+    get_status, get_text = err.code, err.read().decode()
+assert get_status == 401 and "permission denied for table analytics_events" in get_text, (get_status, get_text)
+print("absent-column checks passed")
+PY
+if [[ "$(psql_db -c "SELECT count(*) FROM public.analytics_events WHERE event_id='12121212-1212-4212-8212-121212121212'")" != "1" ]]; then
+  echo "missing-column retries stored more than the final insert" >&2
+  exit 1
+fi
+if [[ "$(psql_db -c "SELECT has_table_privilege('anon','public.analytics_events','select')")" != "f" ]]; then
+  echo "anon select privilege appeared" >&2
+  exit 1
+fi
 echo "analytics insert postgrest: PASS"

@@ -7,7 +7,10 @@
   const key=String(cfg.anonKey||cfg.publishableKey||"");
   const enabled=()=>window.KUTADGU_APP_CONFIG?.featureFlags?.analyticsHooks!==false;
   const Core=()=>window.KutadguAnalyticsCore;
-  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:false,occurred_at:false,action_seq:false};
+  // host, occurred_at, and action_seq are not columns on the live table.
+  // PostgREST 14.5 answers PGRST204 and stores nothing until they are omitted.
+  // STAGE100 would add them and is not applied. visitor_id and event_id exist.
+  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:true,occurred_at:true,action_seq:true};
   function safeStorage(kind){
     try{return kind==="local"?localStorage:sessionStorage}catch(err){return null}
   }
