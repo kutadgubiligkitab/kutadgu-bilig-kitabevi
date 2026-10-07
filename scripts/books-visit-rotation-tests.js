@@ -301,11 +301,11 @@ test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage
   assert.doesNotMatch(sortFn, /permuteIds|Math\.random|discover/);
   assert.doesNotMatch(shop, /localStorage\.setItem\("kutadgu-books-visit/);
   assert.match(booksHtml, /kutadgu-visit-order\.js\?v=2/);
-  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=2") < booksHtml.indexOf("shop.js?v=138"));
+  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=2") < booksHtml.indexOf("shop.js?v=146"));
   assert.match(booksHtml, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/books"/);
   assert.strictEqual((booksHtml.match(/application\/ld\+json/g) || []).length, 1);
   assert.match(booksHtml, /CollectionPage/);
-  assert.match(booksHtml, /shop\.js\?v=138/);
+  assert.match(booksHtml, /shop\.js\?v=146/);
 });
 
 (async () => {
