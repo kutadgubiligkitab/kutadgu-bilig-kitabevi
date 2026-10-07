@@ -110,8 +110,8 @@ test("storefront files do not reset the browser id or count visits locally", () 
   assert.ok(!analytics.includes("lastCounted"));
   assert.ok(!analytics.includes("resolution=ignore-duplicates"));
   assert.ok(analytics.includes('Prefer:"return=minimal"'));
-  assert.ok(fs.readFileSync(path.join(root, "index.html"), "utf8").includes("analytics.js?v=6"));
-  assert.ok(fs.readFileSync(path.join(root, "book-shell.html"), "utf8").includes("/analytics.js?v=6"));
+  assert.ok(fs.readFileSync(path.join(root, "index.html"), "utf8").includes("analytics.js?v=7"));
+  assert.ok(fs.readFileSync(path.join(root, "book-shell.html"), "utf8").includes("/analytics.js?v=7"));
   assert.ok(!analytics.includes("visit-at"));
   assert.strictEqual(A.shouldRecordRemote("www.kutadgubilik.com", "/admin.html"), false);
   assert.strictEqual(A.shouldRecordRemote("www.kutadgubilik.com", "/book-staff.html"), false);
