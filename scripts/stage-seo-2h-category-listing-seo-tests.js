@@ -31,8 +31,8 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "3707b9e7bcac2bb1e842b2e2d9c48281602f3dffbad6b814d9f4716ec5a71fbb",
-  "index.html": "7fd479b1e02b9abffc19a10d9fd9c90197a2b2f68b3ce8c808b871a9902cbeb4",
+  "book-shell.html": "6a7db423854a2401bd181818ad2059692c2294bde303f779b4ae62b6ee438c94",
+  "index.html": "b8c78c1aa85e8e1114a37bab6157b61224c420b2453cf2f38b99d79c082744e2",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"

@@ -185,6 +185,32 @@ test("storefront category links resolve the new hubs and leave cart and view pin
   assert.match(read("book-staff.html"), /app-config\.js\?v=6/);
   assert.match(read("book-shell.html"), /shop\.js\?v=147/);
   assert.match(read("book-shell.html"), /kutadgu-book-views\.js\?v=6/);
+  assert.match(read("book-shell.html"), /kutadgu-book-seo\.js\?v=6/);
+  ["index.html", "iqtisad.html", "taamlar.html", "grammar.html", "books.html", "cart.html"].forEach((file) => {
+    assert.match(read(file), /kutadgu-book-seo\.js\?v=6/);
+    assert.doesNotMatch(read(file), /kutadgu-book-seo\.js\?v=3/);
+  });
+  ADDED.forEach((item) => {
+    assert.strictEqual(seo.categoryCanonicalUrl(item.source), `https://www.kutadgubilik.com/${item.slug}`);
+    const json = seo.buildBookJsonLd({
+      id: "41",
+      title: item.label + " كىتابى",
+      category: item.label,
+      source: item.source,
+      price: 18
+    }, { visible: true, stockKey: "in" });
+    const crumb = json["@graph"][1].itemListElement[1];
+    assert.strictEqual(crumb.name, item.label);
+    assert.strictEqual(crumb.item, `https://www.kutadgubilik.com/${item.slug}`);
+  });
+  const grammarCrumb = seo.buildBookJsonLd({
+    id: "14",
+    title: "گرامماتىكا نۇسخىسى",
+    category: "گرامماتىكا",
+    source: "grammar.html",
+    price: 18
+  }, { visible: true, stockKey: "in" })["@graph"][1].itemListElement[1];
+  assert.strictEqual(grammarCrumb.item, "https://www.kutadgubilik.com/grammar");
   assert.match(read("cart.html"), /shop\.js\?v=141/);
   assert.doesNotMatch(read("cart.html"), /shop\.js\?v=147/);
   assert.match(read("index.html"), /href="\/iqtisad"/);
