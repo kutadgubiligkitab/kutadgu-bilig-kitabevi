@@ -1157,6 +1157,7 @@ async function routeSession(){
       return;
     }
     if(ready&&ready.reason==="network"&&user)return;
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -1171,6 +1172,7 @@ async function routeSession(){
   }
   const session=ready.session;
   if(!session){
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -1178,8 +1180,10 @@ async function routeSession(){
     $("#adminLogout").hidden=true;
     return;
   }
+  if(user&&session.user&&user.id!==session.user.id)abandonAnalyticsContext();
   const ok=await checkAdmin(session.user);
   if(!ok){
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -5630,6 +5634,11 @@ let analyticsShown=null;
 const analyticsRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
   ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
   :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
+function abandonAnalyticsContext(){
+  analyticsShown=null;
+  analyticsRequests.begin();
+  clearVisitCountries();
+}
 
 function analyticsCountText(state){
   return state&&state.state==="value"?Number(state.value).toLocaleString("tr-TR"):"—";
@@ -5684,6 +5693,81 @@ function paintCountedVisits(view){
   setCountedVisit("#analyticsVisitorsPeriod",counted&&counted.period);
   renderVisitCountChart(counted&&counted.daily);
 }
+function clearVisitCountries(){
+  const totals=$("#analyticsVisitCountryTotals");
+  const latest=$("#analyticsVisitCountryLatest");
+  const status=$("#analyticsVisitCountryStatus");
+  const retry=$("#analyticsVisitCountryRetry");
+  if(totals){
+    totals.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    delete totals.dataset.ready;
+  }
+  if(latest)latest.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+  if(status)status.textContent="يۈكلىنىۋاتىدۇ...";
+  if(retry)retry.hidden=true;
+}
+function paintVisitCountries(view,opts){
+  const totals=$("#analyticsVisitCountryTotals");
+  const latest=$("#analyticsVisitCountryLatest");
+  const status=$("#analyticsVisitCountryStatus");
+  const retry=$("#analyticsVisitCountryRetry");
+  if(!totals||!latest)return;
+  const pending=!!(opts&&opts.pending);
+  const errorText=opts&&opts.error;
+  if(pending&&totals.dataset.ready==="1"){
+    if(status)status.textContent="يۈكلىنىۋاتىدۇ... كۆرسىتىلگەن دۆلەت سانلىرى يەنىلا ئالدىنقى نەتىجە.";
+    if(retry)retry.hidden=true;
+    return;
+  }
+  if(pending){
+    if(status)status.textContent="يۈكلىنىۋاتىدۇ...";
+    totals.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    latest.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    if(retry)retry.hidden=true;
+    delete totals.dataset.ready;
+    return;
+  }
+  if(errorText){
+    if(status)status.textContent=errorText;
+    totals.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
+    latest.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
+    if(retry)retry.hidden=false;
+    delete totals.dataset.ready;
+    return;
+  }
+  const Core=window.KutadguAnalyticsCore;
+  const block=view&&view.visitCountries
+    ?view.visitCountries
+    :(Core&&Core.describeVisitCountries?Core.describeVisitCountries(null):{status:"unavailable",rows:null,latest:null});
+  if(retry)retry.hidden=true;
+  if(!block||block.status==="unavailable"){
+    if(status)status.textContent="دۆلەت خاتىرىسى بۇ ئارىلىقتا يوق. بۇ نۆل ئەمەس.";
+    totals.innerHTML='<div class="admin-empty">بۇ ئارىلىق دۆلەت خاتىرىسى باشلىنىشتىن بۇرۇن. نۆل دەپ قارالمايدۇ.</div>';
+    latest.innerHTML='<div class="admin-empty">بۇ ئارىلىقتا دۆلەت خاتىرىسى يوق.</div>';
+    totals.dataset.ready="1";
+    return;
+  }
+  if(block.status==="partial"){
+    if(status)status.textContent="قىسمەن خاتىرە. پەقەت خاتىرە باشلانغاندىن كېيىنكى قېتىم كۆرۈنىدۇ.";
+  }else if(block.status==="zero"){
+    if(status)status.textContent="بۇ ئارىلىقتا سانىلىدىغان زىيارەت 0.";
+  }else if(status){
+    status.textContent="دۆلەت سانىلىدىغان زىيارەت بويىچە. بۇ دەلىللەنگەن ئادەم سانى ئەمەس.";
+  }
+  const rows=Array.isArray(block.rows)?block.rows:[];
+  if(block.status==="zero"||!rows.length){
+    totals.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت 0.</div>';
+  }else{
+    totals.innerHTML=rows.map(row=>`<div class="admin-analytics-row"><span>${esc(row.label||"نامەلۇم")}</span><strong>${Number(row.visits||0).toLocaleString("tr-TR")}</strong></div>`).join("");
+  }
+  const recent=Array.isArray(block.latest)?block.latest:[];
+  if(!recent.length){
+    latest.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت يوق.</div>';
+  }else{
+    latest.innerHTML=recent.map(row=>`<div class="admin-analytics-row"><span>${esc(row.label||"نامەلۇم")}</span><strong>${esc(row.stamp||"—")}</strong></div>`).join("");
+  }
+  totals.dataset.ready="1";
+}
 function renderAnalytics(described,opts){
   const pending=!!(opts&&opts.pending);
   const errorText=opts&&opts.error;
@@ -5698,6 +5782,7 @@ function renderAnalytics(described,opts){
       const el=$(sel);
       if(el)el.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
     });
+    paintVisitCountries(null,{error:errorText});
     return;
   }
   if(pending){
@@ -5711,10 +5796,12 @@ function renderAnalytics(described,opts){
       const el=$(sel);
       if(el)el.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
     });
+    paintVisitCountries(described,{pending:true});
     return;
   }
   const view=described||{};
   paintCountedVisits(view);
+  paintVisitCountries(view);
   setAnalyticsCount("#analyticsPageViews",view.counts&&view.counts.page_views);
   setAnalyticsCount("#analyticsBookViews",view.counts&&view.counts.book_views);
   setAnalyticsCount("#analyticsCartAdds",view.counts&&view.counts.cart_adds);
@@ -6108,7 +6195,17 @@ async function loadAnalytics(){
   const token=analyticsRequests.begin();
   const Core=window.KutadguAnalyticsCore;
   renderAnalytics(Core&&Core.describeAnalytics?Core.describeAnalytics({},new Date()):null,{pending:true});
-  const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
+  let data=null;
+  let error=null;
+  try{
+    const response=await db.rpc("get_kutadgu_analytics",{p_days:days});
+    data=response&&response.data;
+    error=response&&response.error;
+    if(!response)error=error||{message:""};
+  }catch(err){
+    if(!analyticsRequests.isCurrent(token))return;
+    error=err&&typeof err==="object"?err:{message:String(err||"")};
+  }
   if(!analyticsRequests.isCurrent(token))return;
   if(error){
     const notice=`${days} كۈنلۈك Analytics ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى.`;
@@ -6191,7 +6288,10 @@ async function login(e){
 async function logout(){
   const api=idleApi();
   if(api.clearState)api.clearState();
-  if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
+  abandonAnalyticsContext();
+  try{
+    if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
+  }catch(err){}
   user=null;
   clearAdminSuggestionState();
   clearMemberPrivate();
@@ -7116,11 +7216,15 @@ function reloadAnalyticsView(){
   loadSearches();
 }
 $("#reloadAnalytics")?.addEventListener("click",reloadAnalyticsView);
+$("#analyticsVisitCountryRetry")?.addEventListener("click",reloadAnalyticsView);
 $("#analyticsRange")?.addEventListener("change",reloadAnalyticsView);
 $("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({append:true}));
 $("#analyticsSearchesMore")?.addEventListener("click",()=>loadSearches({append:true}));
 paintAnalyticsPending();
-if(window.__kutadguExposeAnalyticsRender)window.__kutadguRenderAnalytics=renderAnalytics;
+if(window.__kutadguExposeAnalyticsRender){
+  window.__kutadguRenderAnalytics=renderAnalytics;
+  window.__kutadguLogoutAnalytics=logout;
+}
 
 window.__kutadguAdminTest={
   loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
