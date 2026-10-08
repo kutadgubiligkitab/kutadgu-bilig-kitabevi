@@ -463,6 +463,8 @@ The Android and iOS apps are not in this repository. They already read `books.ca
 
 Draft PR #266 on `cursor/economics-food-categories-5fba`. This branch is not deployed. The runtime baseline remains merge `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` and Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`. The asset-pin table above still describes that deployed baseline.
 
+Stage 10 run [37709018115](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/37709018115), job `113090226245`, passed on application head `72cf353d5b5212ee8234522d8d76d3614ba373a1`: 865 passed, 3 skipped. Run `37708981622` belongs to the earlier commit `5cc21690f745bbdb3187a7ba21ba3dcb8aca7274`. This paragraph is the only change after `72cf353d`.
+
 ## How to update this document
 
 Update it in the same PR as a significant feature, bug fix, or infrastructure change, before that PR is considered complete. Skip trivial formatting-only edits. Documentation-only commits do not change the runtime baseline.
