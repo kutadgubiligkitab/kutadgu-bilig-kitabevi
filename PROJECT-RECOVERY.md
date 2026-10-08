@@ -471,7 +471,7 @@ A Chromium profile stored the previously deployed `shop.js?v=146`, `?v=145`, and
 
 ## Compact homepage category cards
 
-Draft only. This is not deployed, and the runtime baseline stays the PR #266 merge `cdc413045cf79f894b402ae14c5aec4e67476aef`. `origin/main` at the start of this work was `816da7969f20bbd4be7d54950348d9ee0d058cd9`, which is the documentation commit above that merge.
+Draft PR #267 on `cursor/compact-homepage-category-cards-5fba`. This is not deployed, and the runtime baseline stays the PR #266 merge `cdc413045cf79f894b402ae14c5aec4e67476aef`. `origin/main` at the start of this work was `816da7969f20bbd4be7d54950348d9ee0d058cd9`, which is the documentation commit above that merge. The card change is `c581ac95275f459d97c3a52491f1f386e27d72c7`.
 
 The eleven `#bookCategories` cards keep their labels, descriptions, icons, links, and RTL order. The row pattern stays 4 + 3 + 2 + 2 from 1101px up, 3 columns from 701px through 1100px, and 2 columns with the last card centered at 700px and below. Sizing lives in the existing category stylesheets, scoped to `#bookCategories`. `index.css` and `mobile.css` are unchanged, so book cards, search, and other buttons keep their rules. `index.html` requests `home-category-tablet-grid.css?v=2` and `home-category-appended-cards.css?v=2`.
 
