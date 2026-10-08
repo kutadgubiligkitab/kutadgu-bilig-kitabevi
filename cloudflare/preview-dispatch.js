@@ -38,6 +38,8 @@ const HTML_REDIRECTS = Object.freeze({
   "/children.html": "/children",
   "/dictionary.html": "/dictionary",
   "/grammar.html": "/grammar",
+  "/iqtisad.html": "/iqtisad",
+  "/taamlar.html": "/taamlar",
   "/books.html": "/books",
   "/order-info.html": "/order-info",
   "/privacy.html": "/privacy",

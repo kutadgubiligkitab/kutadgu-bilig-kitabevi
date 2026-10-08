@@ -55,7 +55,7 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /index\.css\?v=21/);
   assert.match(html, /shop\.css\?v=54/);
   assert.match(html, /mobile\.css\?v=25/);
-  assert.match(html, /shop\.js\?v=146/);
+  assert.match(html, /shop\.js\?v=147/);
   assert.match(html, /kutadgu-search-rank\.js\?v=1/);
   assert.match(html, /mobile\.js\?v=9/);
   assert.match(html, /public-header\.js\?v=2/);
@@ -217,8 +217,12 @@ test("homepage category last card is centered on phone 2-column and icons are de
   assert.match(cats, /href="\/children"/);
   assert.match(cats, /href="\/dictionary"/);
   assert.match(cats, /href="\/grammar"/);
+  assert.match(cats, /href="\/iqtisad"/);
+  assert.match(cats, />\s*ئىقتىساد\s*</);
+  assert.match(cats, /href="\/taamlar"/);
+  assert.match(cats, />\s*تائاملار\s*</);
   const icons = cats.match(/<div class="icon"[^>]*>/g) || [];
-  assert.strictEqual(icons.length, 9);
+  assert.strictEqual(icons.length, 11);
   icons.forEach((tag) => {
     assert.match(tag, /aria-hidden="true"/);
   });

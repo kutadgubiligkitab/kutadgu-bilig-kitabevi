@@ -261,6 +261,8 @@ jobs.push(test("preview config does not bind the production domain", () => {
     "/children",
     "/dictionary",
     "/grammar",
+    "/iqtisad",
+    "/taamlar",
     "/admin.js",
     "/catalog-bibliography.js",
     "/supabase-config.js"

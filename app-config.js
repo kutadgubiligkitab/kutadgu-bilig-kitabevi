@@ -55,7 +55,8 @@
       {source:"universal.html",label:"ئۇنىۋېرسال"},{source:"tibb.html",label:"تېبابەت ۋە ساغلاملىق"},
       {source:"derslik.html",label:"دەرسلىك"},{source:"terbiye.html",label:"پەرزەنت تەربىيەسى"},
       {source:"dini.html",label:"دىنىي كىتابلار"},{source:"children.html",label:"بالىلار كىتابلىرى"},
-      {source:"dictionary.html",label:"لۇغەت"},{source:"grammar.html",label:"گرامماتىكا"}
+      {source:"dictionary.html",label:"لۇغەت"},{source:"grammar.html",label:"گرامماتىكا"},
+      {source:"iqtisad.html",label:"ئىقتىساد"},{source:"taamlar.html",label:"تائاملار"}
     ],
     discoveryGroups:current.discoveryGroups||[
       {

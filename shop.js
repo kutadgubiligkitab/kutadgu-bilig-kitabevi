@@ -1039,7 +1039,9 @@ const STOREFRONT_CATEGORY_HUBS={
   "universal.html":"/universal",
   "uyghur-adabiyati.html":"/uyghur-adabiyati",
   "dictionary.html":"/dictionary",
-  "grammar.html":"/grammar"
+  "grammar.html":"/grammar",
+  "iqtisad.html":"/iqtisad",
+  "taamlar.html":"/taamlar"
 };
 const STOREFRONT_APP_PAGES={
   "account.html":"/account.html",
@@ -5318,7 +5320,7 @@ async function boot(){
   ensureBookViewCounts();
   if(maybeRedirectLegacyBookUrl())return;
   const publicHeaderReady=loadPublicHeader();
-  const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=5","kutadguAppConfigScript"));
+  const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
   await settleBoot(publicHeaderReady);
   initStaticShell();

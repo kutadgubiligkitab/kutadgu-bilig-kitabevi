@@ -111,7 +111,7 @@ function typesOf(node) {
 async function run() {
   await test("trusted category slugs match the sitemap hubs", () => {
     assert.deepStrictEqual(listing.CATEGORY_SLUGS, sitemap.CATEGORY_HUB_SLUGS);
-    assert.strictEqual(listing.CATEGORY_SLUGS.length, 17);
+    assert.strictEqual(listing.CATEGORY_SLUGS.length, 19);
     assert.deepStrictEqual(listing.catalogSources("adabiyat"), listing.ADABIYAT_SOURCES);
     assert.ok(!listing.catalogSources("adabiyat").includes("uyghur-adabiyati.html"));
     assert.ok(!listing.catalogSources("adabiyat").includes("adabiyat-roman.html"));

@@ -114,7 +114,7 @@ test("includeFiles is scoped to the category function and lists every trusted te
   const included = expandIncludeFiles(pattern).sort();
   const trusted = trustedTemplateRels().sort();
   assert.deepStrictEqual(included, trusted);
-  assert.strictEqual(trusted.length, 17);
+  assert.strictEqual(trusted.length, 19);
   for (const rel of ["admin.html", "book-staff.html", "book-shell.html", "books.html", "index.html"]) {
     assert.ok(!included.includes(rel), rel);
   }
