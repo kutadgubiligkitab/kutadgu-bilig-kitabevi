@@ -446,6 +446,27 @@ The repo has no separate backlog file. These are cautions, not scheduled tasks:
 6. For storefront or admin behavior, run `npm run test:unit`. Run Stage 10 when the change can affect pages Playwright covers. Refresh frozen hashes and the Stage 2H allowlist when those tests require it.
 7. Before the task is considered complete, update this file in that same PR. A later session confirms the merge. Do not open a second documentation PR just to move a SHA.
 
+## Economics and food categories
+
+This branch adds two book categories to the existing catalog list. `books.category` and `books.source` stay free text. There is no new table, constraint, or permission change, and no existing book row is rewritten. No SQL file is added.
+
+The labels are appended after `گرامماتىكا`:
+
+- `ئىقتىساد` uses source `iqtisad.html`, slug `iqtisad`, and route `/iqtisad`
+- `تائاملار` uses source `taamlar.html`, slug `taamlar`, and route `/taamlar`
+
+Admin category options still sort with `localeCompare("ug")`. Staff options stay in the config order. Homepage cards, the search category list, category listing, sitemap, Vercel rewrites, and the Worker `run_worker_first` paths follow the existing hub pattern. An empty listing uses the existing sentence `بۇ بۆلۈمدە ھازىرچە كىتاب يوق.` Out-of-stock books stay visible with the existing stock badge. Inactive books stay out of the public listing.
+
+Storefront documents that requested `shop.js?v=146` now request `shop.js?v=147`. `book-shell.html` requests `shop.js?v=147` so the detail category link resolves. `cart.html` stays `shop.js?v=141`. `shop.js` requests `app-config.js?v=6`. `admin.html` and `book-staff.html` request `app-config.js?v=6`. `analytics.js?v=7` and `kutadgu-book-views.js?v=6` are unchanged. `.js` cache headers are unchanged. A browser that already cached `shop.js?v=146` and `app-config.js?v=5` fetches `shop.js?v=147` and `app-config.js?v=6` on the next document that asks for those pins.
+
+`kutadgu-book-seo.js` now includes `iqtisad` and `taamlar`. The deployed helper does not. Every browser script tag for that file requests `kutadgu-book-seo.js?v=6`. That covers the 113 documents that requested `?v=3` and `book-shell.html`, which requested `?v=5`. Node and Worker imports load the file directly and have no query pin. A browser that already cached `?v=3` or `?v=5` fetches `?v=6` on the next document that asks for it. Category canonical URLs from the helper are `https://www.kutadgubilik.com/iqtisad` and `https://www.kutadgubilik.com/taamlar`. Book breadcrumb structured data uses those same URLs.
+
+The Android and iOS apps are not in this repository. They already read `books.category` and `books.source` as text, so a book assigned to either label fits the public catalog contract without a schema change. A category menu hardcoded inside the app will not list these hubs until that app is updated. This change does not edit the app.
+
+Draft PR #266 on `cursor/economics-food-categories-5fba`. This branch is not deployed. The runtime baseline remains merge `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` and Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`. The asset-pin table above still describes that deployed baseline.
+
+Stage 10 run [37709018115](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/37709018115), job `113090226245`, passed on application head `72cf353d5b5212ee8234522d8d76d3614ba373a1`: 865 passed, 3 skipped. Run `37710437264`, job `113094862738`, passed on `f97c6ab115e9b640111b7a5ca42b303a74012173` before the `kutadgu-book-seo.js?v=6` pin: 864 passed, 1 flaky, 3 skipped. Run `37708981622` belongs to the earlier commit `5cc21690f745bbdb3187a7ba21ba3dcb8aca7274`. The asset-pin table above still describes the deployed baseline, where listing pages request `kutadgu-book-seo.js?v=3` and `book-shell.html` requests `?v=5`.
+
 ## How to update this document
 
 Update it in the same PR as a significant feature, bug fix, or infrastructure change, before that PR is considered complete. Skip trivial formatting-only edits. Documentation-only commits do not change the runtime baseline.

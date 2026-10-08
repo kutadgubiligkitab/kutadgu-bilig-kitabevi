@@ -419,11 +419,11 @@ test.describe("homepage compact first-view", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
     const cards = page.locator("#bookCategories a.card");
-    await expect(cards).toHaveCount(9);
-    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(9);
-    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(9);
+    await expect(cards).toHaveCount(11);
+    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(11);
+    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(11);
     const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar"]);
+    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"]);
     expect(hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
   });
 
@@ -432,7 +432,7 @@ test.describe("homepage compact first-view", () => {
       await page.setViewportSize({ width, height: 900 });
       await H.openFresh(page, "/");
       await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-      await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+      await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
       const metrics = await page.evaluate(() => {
         const grid = document.querySelector("#bookCategories .cards");
         const cards = [...document.querySelectorAll("#bookCategories a.card")];
@@ -486,7 +486,7 @@ test.describe("homepage compact first-view", () => {
       });
       expect(metrics.overflow).toBeLessThanOrEqual(4);
       expect(metrics.overlap).toBe(false);
-      expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar"]);
+      expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"]);
       expect(metrics.hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
       if (width <= 700) {
         expect(metrics.colCount).toBe(2);
@@ -558,9 +558,9 @@ test.describe("homepage compact first-view", () => {
     expect(contrast.overflow).toBeLessThanOrEqual(4);
     expect(contrast.bg).not.toBe("rgba(0, 0, 0, 0)");
     expect(contrast.title).not.toBe("rgba(0, 0, 0, 0)");
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
     await page.setViewportSize({ width: 1024, height: 900 });
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
     const tablet = await page.evaluate(() => {
       const grid = document.querySelector("#bookCategories .cards");
       const title = document.querySelector("#bookCategories a.card h3");
@@ -572,7 +572,7 @@ test.describe("homepage compact first-view", () => {
     expect(tablet.cols).toBe(3);
     expect(tablet.title).not.toBe("rgba(0, 0, 0, 0)");
     await page.setViewportSize({ width: 1366, height: 900 });
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(9);
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
     const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
     expect(desktop).toBe(8);
   });

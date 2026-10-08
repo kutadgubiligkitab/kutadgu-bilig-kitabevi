@@ -296,7 +296,7 @@ test.describe("a fetched credit array replaces the cache", () => {
   });
 });
 
-test.describe("author listing still uses shop.js v=146", () => {
+test.describe("author listing still uses shop.js v=147", () => {
   test.use({ viewport: { width: 390, height: 800 }, hasTouch: true });
 
   test("listing, book, Back, and the same book keep the detail links", async ({ page }) => {
@@ -304,21 +304,21 @@ test.describe("author listing still uses shop.js v=146", () => {
     await installBookDocument(page);
     await page.goto(`/author/${A}`, { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=146");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=147");
     const card = page.locator(".book-card[data-live-book-id='101'] a.detail-button");
     await expect(card).toBeVisible();
     await card.click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=145");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=147");
     await expectCreditLink(page, `/author/${A}`);
     await page.goBack({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(new RegExp(`/author/${A}$`));
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=146");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=147");
     await page.locator(".book-card[data-live-book-id='101'] a.detail-button").click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=145");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=147");
     await expectCreditLink(page, `/author/${A}`);
     await expectCreditLink(page, `/translator/${T1}`);
     await expectCreditLink(page, `/publisher/${P}`);

@@ -147,12 +147,12 @@ test("every shop.js page loads kutadgu-search-rank.js immediately before it", ()
     const creditBooks = /(?:^|[\\/])credit-books\.html$/i.test(file);
     const home = /(?:^|[\\/])index\.html$/i.test(file);
     const pattern = bookShell
-      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=145/
+      ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=147/
       : creditBooks
-        ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=146/
+        ? /kutadgu-search-rank\.js\?v=1["']><\/script>\s*<script defer src=["'][^"']*shop\.js\?v=147/
         : home
-          ? /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=146/
-          : /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=146/;
+          ? /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=147/
+          : /kutadgu-search-rank\.js\?v=1["']><\/script><script defer src=["'][^"']*shop\.js\?v=147/;
     assert.match(html, pattern, path.relative(root, file));
   }
 });
@@ -161,7 +161,7 @@ test("UI default sort is relevance; layout markup is unchanged", () => {
   assert.match(shop, /<option value="relevance">مۇناسىۋەتلىك تەرتىپ<\/option>/);
   assert.match(shop, /sortEl\?\.value\|\|"relevance"/);
   assert.match(indexHtml, /kutadgu-search-rank\.js\?v=1/);
-  assert.match(indexHtml, /shop\.js\?v=146/);
+  assert.match(indexHtml, /shop\.js\?v=147/);
   assert.match(shop, /id="advancedSearchPanel"/);
   assert.match(shop, /id="searchLoadMore"/);
 });

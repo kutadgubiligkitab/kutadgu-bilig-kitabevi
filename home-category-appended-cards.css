@@ -1,0 +1,9 @@
+/* Desktop only. Cards 10 and 11 use the same centered pair as cards 8 and 9. */
+@media (min-width: 1101px) {
+  .home-main-section .cards .card:nth-child(10) {
+    grid-column: 3 / span 2 !important;
+  }
+  .home-main-section .cards .card:nth-child(11) {
+    grid-column: 5 / span 2 !important;
+  }
+}

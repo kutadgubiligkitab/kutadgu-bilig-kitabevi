@@ -12,7 +12,7 @@ const Ui = require("../kutadgu-ai-search-ui.js");
 const ZERO = "0 دانە كىتاب تېپىلدى";
 const EMPTY = "نەتىجە تېپىلمىدى";
 const FROZEN = {
-  "shop.js": "04e2f09c2d710397cef7b657e6195fe764bb045f56ed0baba7963c4709c0751b",
+  "shop.js": "0038744c226c391b9433a54d99ba1b6edf2a9b0c2cf8956e12439f0d434d885e",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147"
 };

@@ -237,9 +237,9 @@ test("book detail loads helper before analytics without changing frozen shop.js 
   assert.ok(shell.includes(analyticsPin));
   assert.ok(shell.indexOf(helperPin) < shell.indexOf(analyticsPin));
   assert.match(shop, /kutadgu-book-views\.js\?v=6/);
-  assert.match(read("index.html"), /shop\.js\?v=146/);
-  assert.match(read("books.html"), /shop\.js\?v=146/);
-  assert.match(shell, /shop\.js\?v=145/);
+  assert.match(read("index.html"), /shop\.js\?v=147/);
+  assert.match(read("books.html"), /shop\.js\?v=147/);
+  assert.match(shell, /shop\.js\?v=147/);
   assert.match(shop, /function trackBookViewOnce\(book\)\{/);
   assert.match(shop, /if\(trackedBookViews\.has\(canonical\)\)return/);
 });

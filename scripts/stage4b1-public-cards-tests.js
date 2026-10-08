@@ -20,7 +20,7 @@ const LISTING_PAGES = [
   "romanlar.html","universal.html","children.html","dini.html","derslik.html","terbiye.html",
   "tibb.html","dastanlar.html","sheirlar.html","hekayiler.html","uyghur-adabiyati.html",
   "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html","books.html",
-  "dictionary.html","grammar.html"
+  "dictionary.html","grammar.html","iqtisad.html","taamlar.html"
 ];
 
 let failed = 0;
