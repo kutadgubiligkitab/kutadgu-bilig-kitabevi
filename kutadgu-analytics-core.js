@@ -260,6 +260,12 @@
     return "drop";
   }
 
+  function workerAnalyticsResult(status){
+    const code=Number(status);
+    if(code===409||(code>=200&&code<300))return "stored";
+    return "direct";
+  }
+
   function nextActionSeq(storage){
     if(!storage||typeof storage.getItem!=="function"||typeof storage.setItem!=="function")return null;
     try{
@@ -479,6 +485,7 @@
         daily:chartDays(src,now)
       },
       countedVisits:describeCountedVisits(src.counted_visits,now),
+      visitCountries:describeVisitCountries(src.visit_countries),
       funnel:describeFunnel(src),
       arrival:src.arrival_funnel&&typeof src.arrival_funnel==="object"
         ?describeFunnel({funnel:src.arrival_funnel}).funnel
@@ -625,6 +632,106 @@
     const fromArray=meta&&Array.isArray(meta.book_ids);
     const source=fromArray?meta.book_ids:[event&&event.book_id];
     return [...new Set(source.map(value=>String(value==null?"":value).trim()).filter(Boolean))];
+  }
+
+  const COUNTRY_LABELS={
+    TR:"تۈركىيە",
+    CN:"جۇڭگو",
+    DE:"گېرمانىيە",
+    US:"ئامېرىكا",
+    GB:"بۈيۈك بىرىتانىيە",
+    FR:"فرانسىيە",
+    KZ:"قازاقىستان",
+    KG:"قىرغىزىستان",
+    UZ:"ئۆزبېكىستان",
+    SE:"شىۋېتسىيە",
+    NL:"گوللاندىيە",
+    JP:"ياپونىيە",
+    RU:"رۇسىيە",
+    CA:"كانادا",
+    AU:"ئاۋسترالىيە",
+    AZ:"ئەزەربەيجان",
+    TM:"تۈركمەنىستان",
+    TJ:"تاجىكىستان",
+    SA:"سەئۇدى ئەرەبىستان",
+    IT:"ئىتالىيە",
+    ES:"ئىسپانىيە",
+    CH:"شىۋېتسارىيە",
+    AT:"ئاۋسترىيە",
+    BE:"بېلگىيە",
+    NO:"نورۋېگىيە",
+    DK:"دانىيە",
+    FI:"فىنلاندىيە",
+    UA:"ئۇكرائىنا",
+    IN:"ھىندىستان",
+    PK:"پاكىستان",
+    IR:"ئىران",
+    IQ:"ئىراق",
+    EG:"مىسىر",
+    MN:"موڭغۇلىيە",
+    QA:"قاتار",
+    KW:"كۇۋەيت"
+  };
+
+  function countryLabel(code){
+    if(code==null||code==="")return "نامەلۇم";
+    const raw=String(code).trim().toUpperCase();
+    if(!/^[A-Z]{2}$/.test(raw)||raw==="XX")return "نامەلۇم";
+    if(COUNTRY_LABELS[raw])return COUNTRY_LABELS[raw];
+    try{
+      if(typeof Intl!=="undefined"&&typeof Intl.DisplayNames==="function"){
+        const name=new Intl.DisplayNames(["ug"],{type:"region"}).of(raw);
+        if(name&&name!==raw&&/[^\u0000-\u007f]/.test(name))return name;
+      }
+    }catch(err){}
+    return raw;
+  }
+
+  function describeVisitCountries(block){
+    const unavailable={
+      status:"unavailable",
+      countries:null,
+      unknownVisits:null,
+      latest:null,
+      rows:null,
+      startedAt:null
+    };
+    if(!block||typeof block!=="object")return unavailable;
+    const status=block.status==="zero"||block.status==="partial"||block.status==="complete"||block.status==="unavailable"
+      ?block.status
+      :"unavailable";
+    if(status==="unavailable")return Object.assign({},unavailable,{startedAt:block.started_at||null});
+    const countries=(Array.isArray(block.countries)?block.countries:[]).map(row=>{
+      const code=row&&row.code!=null?String(row.code).trim().toUpperCase():"";
+      const visits=Number(row&&row.visits);
+      if(!/^[A-Z]{2}$/.test(code)||code==="XX"||!Number.isFinite(visits))return null;
+      return {code,visits,label:countryLabel(code)};
+    }).filter(Boolean);
+    const unknown=Number(block.unknown_visits);
+    const rows=countries.map(row=>({code:row.code,visits:row.visits,label:row.label}));
+    if(Number.isFinite(unknown)&&unknown>0)rows.push({code:null,visits:unknown,label:"نامەلۇم"});
+    rows.sort((a,b)=>{
+      if(b.visits!==a.visits)return b.visits-a.visits;
+      if((a.code==null)!==(b.code==null))return a.code==null?1:-1;
+      return String(a.code||"").localeCompare(String(b.code||""));
+    });
+    const latest=(Array.isArray(block.latest)?block.latest:[]).slice(0,20).map(row=>{
+      const code=row&&row.country!=null&&String(row.country).trim()!==""?String(row.country).trim().toUpperCase():null;
+      return {
+        country:code&&/^[A-Z]{2}$/.test(code)&&code!=="XX"?code:null,
+        label:countryLabel(code),
+        countedAt:row&&row.counted_at||null,
+        stamp:formatIstanbulStamp(row&&row.counted_at)
+      };
+    });
+    return {
+      status,
+      countries,
+      unknownVisits:Number.isFinite(unknown)?unknown:null,
+      latest,
+      rows,
+      startedAt:block.started_at||null
+    };
   }
 
   function formatIstanbulStamp(value){
@@ -823,6 +930,9 @@
     shouldRecordRemote,
     OPTIONAL_COLUMN_LIMIT,
     retryDecision,
+    workerAnalyticsResult,
+    countryLabel,
+    describeVisitCountries,
     istanbulDate,
     istanbulRange,
     addCalendarDays,

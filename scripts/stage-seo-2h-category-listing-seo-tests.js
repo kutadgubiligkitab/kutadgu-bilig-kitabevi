@@ -31,8 +31,8 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "6a7db423854a2401bd181818ad2059692c2294bde303f779b4ae62b6ee438c94",
-  "index.html": "dd2f775b08a17255b97185b5ad90218104875e622f3fc591cff9e9ec0ec5d7ab",
+  "book-shell.html": "43512847e06e550495c67104358f039aa5cfeec24b68267f802b36e734bdb873",
+  "index.html": "fcd6fd504d1ef7bbe346c603de4476770df0bab4dd5231b4657d8652da109b97",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -765,7 +765,15 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/admin-search-lists-tests.js",
     "scripts/admin-search-lists-postgrest.sh",
     "tests/e2e/admin-search-lists.spec.js",
-    "tests/e2e/book-detail-boot.spec.js"
+    "tests/e2e/book-detail-boot.spec.js",
+    "STAGE117_VISIT_COUNTRIES.sql",
+    "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql",
+    "cloudflare/analytics-visit-country.js",
+    "scripts/stage117-isolated-assertions.sql",
+    "scripts/stage117-isolated-postgres.sh",
+    "scripts/stage117-isolated-postgrest.sh",
+    "scripts/visit-country-tests.js",
+    "tests/e2e/admin-visit-countries.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

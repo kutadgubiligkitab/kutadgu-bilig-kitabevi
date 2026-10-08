@@ -64,11 +64,38 @@
       session_id:clean(ctx.sessionId,100)||null
     };
   }
+  function workerDecision(status){
+    const core=Core();
+    if(core&&core.workerAnalyticsResult)return core.workerAnalyticsResult(status);
+    const code=Number(status);
+    if(code===409||(code>=200&&code<300))return "stored";
+    return "direct";
+  }
+  async function postViaWorker(body){
+    let response;
+    try{
+      response=await fetch("/api/analytics-event",{
+        method:"POST",
+        keepalive:true,
+        cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      });
+    }catch(err){
+      return "direct";
+    }
+    return workerDecision(response&&response.status);
+  }
   async function postRow(row,progress){
     const state=progress&&typeof progress==="object"?progress:{schema:0,network:0};
     const optionalLimit=Object.keys(omitCols).length;
     if(!row||!url||!key||state.schema>optionalLimit||state.network>1)return;
     const body=stripOptional(row);
+    ["country","ip","client_ip","cf_country"].forEach(col=>{delete body[col]});
+    if(!state.workerTried){
+      state.workerTried=true;
+      if(await postViaWorker(body)==="stored")return;
+    }
     const hasEvent=!!body.event_id;
     const decide=(status,missing)=>{
       const core=Core();
