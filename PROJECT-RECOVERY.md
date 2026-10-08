@@ -485,7 +485,7 @@ Desktop Chromium after the deploy checked 390, 1280, and 1536 in light and dark.
 
 ## Admin visit country reporting
 
-This draft adds admin-only country totals for counted storefront visits. It is not deployed. The runtime baseline stays the PR #267 merge `d7be6fa78831036f2b25038a6c9c5f88b7869d58` and Worker `16145b30-be1b-460d-bdd1-f1cc5a3f0d41`. No production SQL was applied. No production test user, visit, book, review, or order was created. No live admin AAL2 session was opened.
+Draft PR #268 on `cursor/admin-visit-countries-5fba` adds admin-only country totals for counted storefront visits. The implementation commit is `ccf404382da1e88d51debfbf43d1f81598c3998f`. It is not deployed. The runtime baseline stays the PR #267 merge `d7be6fa78831036f2b25038a6c9c5f88b7869d58` and Worker `16145b30-be1b-460d-bdd1-f1cc5a3f0d41`. No production SQL was applied. No production test user, visit, book, review, or order was created. No live admin AAL2 session was opened.
 
 The counted-visit gate is still `private.kutadgu_accept_page_visit`. The first public page view counts. A later page view counts only when the last counted visit is at least three hours earlier. A suppressed page view does not move that window. Midnight does not reset it. The same `event_id` is one receipt, including a retry or a concurrent duplicate. `/admin.html` and `/book-staff.html` stay excluded. Book views, cart adds, searches, and other events stay stored and are not counted. These figures are counted page views, not verified people or unique visitors.
 
