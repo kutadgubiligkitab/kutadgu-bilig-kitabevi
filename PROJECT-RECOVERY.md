@@ -461,7 +461,7 @@ Storefront documents that requested `shop.js?v=146` now request `shop.js?v=147`.
 
 The Android and iOS apps are not in this repository. They already read `books.category` and `books.source` as text, so a book assigned to either label fits the public catalog contract without a schema change. A category menu hardcoded inside the app will not list these hubs until that app is updated. This change does not edit the app.
 
-This branch is not deployed. The runtime baseline remains merge `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` and Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`. The asset-pin table above still describes that deployed baseline.
+Draft PR #266 on `cursor/economics-food-categories-5fba`. This branch is not deployed. The runtime baseline remains merge `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` and Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`. The asset-pin table above still describes that deployed baseline.
 
 ## How to update this document
 
