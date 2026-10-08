@@ -427,7 +427,7 @@ test.describe("homepage compact first-view", () => {
     expect(hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
   });
 
-  for (const width of [390, 430, 768, 834, 1024, 1100, 1366]) {
+  for (const width of [390, 430, 768, 834, 1024, 1100, 1280, 1366, 1536]) {
     test(`homepage category grid polish at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await H.openFresh(page, "/");
@@ -481,11 +481,15 @@ test.describe("homepage compact first-view", () => {
             const pairRight = Math.max(a.right, b.right);
             return Math.abs((pairLeft + pairRight) / 2 - gridCenter);
           })(),
-          overlap
+          overlap,
+          minCardH: Math.min(...boxes.map((b) => b.height)),
+          descHidden: cards.some((c) => getComputedStyle(c.querySelector("p")).display === "none")
         };
       });
       expect(metrics.overflow).toBeLessThanOrEqual(4);
       expect(metrics.overlap).toBe(false);
+      expect(metrics.minCardH).toBeGreaterThanOrEqual(44);
+      expect(metrics.descHidden).toBe(false);
       expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"]);
       expect(metrics.hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
       if (width <= 700) {
