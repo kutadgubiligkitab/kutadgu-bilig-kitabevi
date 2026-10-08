@@ -1157,6 +1157,7 @@ async function routeSession(){
       return;
     }
     if(ready&&ready.reason==="network"&&user)return;
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -1171,6 +1172,7 @@ async function routeSession(){
   }
   const session=ready.session;
   if(!session){
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -1178,8 +1180,10 @@ async function routeSession(){
     $("#adminLogout").hidden=true;
     return;
   }
+  if(user&&session.user&&user.id!==session.user.id)abandonAnalyticsContext();
   const ok=await checkAdmin(session.user);
   if(!ok){
+    abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
     clearMemberPrivate();
@@ -5630,6 +5634,11 @@ let analyticsShown=null;
 const analyticsRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
   ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
   :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
+function abandonAnalyticsContext(){
+  analyticsShown=null;
+  analyticsRequests.begin();
+  clearVisitCountries();
+}
 
 function analyticsCountText(state){
   return state&&state.state==="value"?Number(state.value).toLocaleString("tr-TR"):"—";
@@ -6186,7 +6195,17 @@ async function loadAnalytics(){
   const token=analyticsRequests.begin();
   const Core=window.KutadguAnalyticsCore;
   renderAnalytics(Core&&Core.describeAnalytics?Core.describeAnalytics({},new Date()):null,{pending:true});
-  const {data,error}=await db.rpc("get_kutadgu_analytics",{p_days:days});
+  let data=null;
+  let error=null;
+  try{
+    const response=await db.rpc("get_kutadgu_analytics",{p_days:days});
+    data=response&&response.data;
+    error=response&&response.error;
+    if(!response)error=error||{message:""};
+  }catch(err){
+    if(!analyticsRequests.isCurrent(token))return;
+    error=err&&typeof err==="object"?err:{message:String(err||"")};
+  }
   if(!analyticsRequests.isCurrent(token))return;
   if(error){
     const notice=`${days} كۈنلۈك Analytics ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى.`;
@@ -6269,11 +6288,11 @@ async function login(e){
 async function logout(){
   const api=idleApi();
   if(api.clearState)api.clearState();
-  if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
+  abandonAnalyticsContext();
+  try{
+    if(db&&db.auth&&typeof db.auth.signOut==="function")await db.auth.signOut({scope:"local"});
+  }catch(err){}
   user=null;
-  analyticsShown=null;
-  analyticsRequests.begin();
-  clearVisitCountries();
   clearAdminSuggestionState();
   clearMemberPrivate();
   show("loginPanel");

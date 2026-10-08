@@ -1,36 +1,82 @@
 const { test, expect } = require("./playwright-test");
+const http = require("http");
 
-test("a cached analytics.js?v=7 is not the recorder the new homepage runs", async ({ page }) => {
-  await page.route("**/analytics.js?v=7", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/javascript; charset=utf-8",
-    headers: { "cache-control": "public, max-age=300" },
-    body: "window.__kutadguOldAnalytics = true;"
-  }));
-  const planted = await page.goto("/analytics.js?v=7");
-  expect(planted.status()).toBe(200);
-  await page.unroute("**/analytics.js?v=7");
-  const requested = [];
-  page.on("request", (req) => requested.push(new URL(req.url()).pathname + new URL(req.url()).search));
-  await page.goto("/index.html", { waitUntil: "domcontentloaded" });
-  expect(requested).toContain("/analytics.js?v=8");
-  expect(requested).not.toContain("/analytics.js?v=7");
-  const served = await page.evaluate(async () => {
-    const res = await fetch("/analytics.js?v=8", { cache: "no-store" });
-    return res.text();
+test("a cached analytics.js?v=7 stays reusable while the new homepage runs v=8", async ({ browser }) => {
+  const oldBody = "window.__kutadguOldAnalytics = true;";
+  const hits = { v7: 0, v8: 0 };
+  const origin = await new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url || "/", "http://127.0.0.1");
+      if (url.pathname === "/analytics-cache-old.html") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end("<!DOCTYPE html><html><body><script src=\"/analytics.js?v=7\"></script></body></html>");
+        return;
+      }
+      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "7") {
+        hits.v7 += 1;
+        res.writeHead(200, {
+          "content-type": "application/javascript; charset=utf-8",
+          "cache-control": "public, max-age=300, immutable",
+          "content-length": Buffer.byteLength(oldBody)
+        });
+        res.end(oldBody);
+        return;
+      }
+      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "8") hits.v8 += 1;
+      const proxy = http.request({
+        hostname: "127.0.0.1",
+        port: 4173,
+        path: req.url,
+        method: req.method,
+        headers: Object.assign({}, req.headers, { host: "127.0.0.1:4173" })
+      }, (upstream) => {
+        res.writeHead(upstream.statusCode || 502, upstream.headers);
+        upstream.pipe(res);
+      });
+      proxy.on("error", () => {
+        if (!res.headersSent) res.writeHead(502, { "content-type": "text/plain" });
+        res.end("proxy failed");
+      });
+      req.pipe(proxy);
+    });
+    server.listen(0, "127.0.0.1", () => resolve({ server, origin: "http://127.0.0.1:" + server.address().port }));
+    server.on("error", reject);
   });
-  expect(served).toContain("/api/analytics-event");
-  const cached = await page.evaluate(async () => {
-    try {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await page.goto(origin.origin + "/analytics-cache-old.html", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(true);
+    expect(hits.v7).toBe(1);
+    expect(hits.v8).toBe(0);
+    const cached = await page.evaluate(async () => {
       const res = await fetch("/analytics.js?v=7", { cache: "only-if-cached", mode: "same-origin" });
-      if (!res.ok) return "miss";
+      if (!res.ok) throw new Error("cached recorder missed");
       return res.text();
-    } catch (err) {
-      return "miss";
-    }
-  });
-  expect(cached === "miss" || cached.includes("__kutadguOldAnalytics")).toBe(true);
-  expect(cached).not.toContain("/api/analytics-event");
+    });
+    expect(cached).toContain("__kutadguOldAnalytics");
+    expect(cached).not.toContain("/api/analytics-event");
+    await page.goto(origin.origin + "/analytics-cache-old.html", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(true);
+    expect(hits.v7).toBe(1);
+    const reused = await page.evaluate(() => performance.getEntriesByType("resource")
+      .filter((entry) => entry.name.includes("analytics.js?v=7"))
+      .map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
+    expect(reused.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
+    await page.goto(origin.origin + "/index.html", { waitUntil: "domcontentloaded" });
+    await expect.poll(() => hits.v8).toBe(1);
+    expect(hits.v7).toBe(1);
+    expect(await page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(false);
+    const ran = await page.evaluate(async () => {
+      const res = await fetch("/analytics.js?v=8", { cache: "no-store" });
+      return res.text();
+    });
+    expect(ran).toContain("/api/analytics-event");
+    expect(hits.v8).toBe(2);
+  } finally {
+    await context.close();
+    await new Promise((resolve) => origin.server.close(resolve));
+  }
 });
 
 const viewports = [
@@ -271,3 +317,326 @@ for (const viewport of viewports) {
     await expect(page.locator("#analyticsVisitCountryStatus")).toContainText("يۈكلىنىۋاتىدۇ");
   });
 }
+
+test("thrown analytics reads keep the last period and retry", async ({ page }) => {
+  const unhandled = [];
+  page.on("pageerror", (err) => unhandled.push(String(err)));
+  await page.addInitScript(() => {
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguAdminPreviewBooks = [];
+    window.__kutadguExposeAnalyticsRender = true;
+    window.__kutadguCountryMode = "throw";
+    window.__kutadguUnhandled = [];
+    window.addEventListener("unhandledrejection", (event) => {
+      window.__kutadguUnhandled.push(String(event.reason && event.reason.message || event.reason));
+    });
+    window.__kutadguAnalyticsDb = {
+      from() {
+        const q = {};
+        ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((method) => {
+          q[method] = () => q;
+        });
+        q.maybeSingle = async () => ({ data: null, error: null });
+        q.then = (resolve, reject) => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+        return q;
+      },
+      rpc(name, args) {
+        if (name !== "get_kutadgu_analytics") {
+          return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+        }
+        const mode = window.__kutadguCountryMode;
+        if (mode === "throw") return Promise.reject(new Error("تور ئۈزۈلدى"));
+        const days = args && args.p_days;
+        const code = days === 30 ? "DE" : "JP";
+        return Promise.resolve({
+          data: {
+            page_views: 2,
+            book_views: 1,
+            cart_adds: 0,
+            whatsapp_clicks: 0,
+            top_books: [],
+            zero_searches: [],
+            visit_countries: {
+              status: "complete",
+              countries: [{ code, visits: days === 30 ? 4 : 1 }],
+              unknown_visits: 0,
+              latest: [{ country: code, counted_at: "2026-10-08T10:00:00Z" }]
+            }
+          },
+          error: null
+        });
+      }
+    };
+  });
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  const select = page.locator("#adminSectionSelect");
+  if (await select.isVisible()) await select.selectOption("insights");
+  else await page.locator('[data-admin-section="insights"]').click();
+  await page.locator("#analyticsRange").selectOption("30");
+  await page.locator("#reloadAnalytics").click();
+  await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+  await expect(page.locator("#analyticsVisitCountryStatus")).toContainText("تور ئۈزۈلدى");
+  await expect(page.locator("#analyticsVisitCountryStatus")).not.toContainText("يۈكلىنىۋاتىدۇ");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("سانىلىدىغان زىيارەت 0");
+  await page.evaluate(() => { window.__kutadguCountryMode = "ok"; });
+  await page.locator("#analyticsVisitCountryRetry").click();
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("گېرمانىيە");
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("4");
+  await page.evaluate(() => { window.__kutadguCountryMode = "throw"; });
+  await page.locator("#analyticsRange").selectOption("7");
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("گېرمانىيە");
+  await expect(page.locator("#analyticsMeta")).toContainText("يەنىلا ئاخىرقى 30 كۈن");
+  await expect(page.locator("#analyticsVisitCountryStatus")).not.toContainText("يۈكلىنىۋاتىدۇ");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("سانىلىدىغان زىيارەت 0");
+  await page.evaluate(() => { window.__kutadguCountryMode = "ok"; });
+  await page.locator("#reloadAnalytics").click();
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ياپونىيە");
+  expect(await page.evaluate(() => window.__kutadguUnhandled)).toEqual([]);
+  expect(unhandled).toEqual([]);
+});
+
+async function installCountryAdmin(page) {
+  await page.addInitScript(() => {
+    const now = Math.floor(Date.now() / 1000);
+    function sessionFor(user) {
+      return {
+        access_token: "access-" + user.id,
+        refresh_token: "refresh-" + user.id,
+        expires_at: now + 3600,
+        user
+      };
+    }
+    window.__kutadguAuthCalls = { signOut: 0 };
+    window.__kutadguAllowAdmin = true;
+    window.__kutadguHoldNext = false;
+    window.__kutadguReleaseHeld = null;
+    window.__kutadguSignOutImpl = null;
+    window.__kutadguMockSession = sessionFor({ id: "admin-a", email: "a@example.com" });
+    window.__kutadguCountryByUser = { "admin-a": "TR", "admin-b": "FR" };
+    window.__kutadguMfaApi = {
+      async listFactors() {
+        return { data: { all: [], totp: [], phone: [] }, error: null };
+      },
+      async getAuthenticatorAssuranceLevel() {
+        return { data: { currentLevel: "aal2", nextLevel: "aal2" }, error: null };
+      }
+    };
+    function chain(result) {
+      const q = {};
+      ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((method) => {
+        q[method] = () => q;
+      });
+      q.update = async () => result;
+      q.insert = async () => result;
+      q.delete = async () => result;
+      q.maybeSingle = async () => result;
+      q.single = async () => result;
+      q.then = (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+      return q;
+    }
+    function analyticsPayload(code, visits) {
+      return {
+        page_views: 2,
+        book_views: 1,
+        cart_adds: 0,
+        whatsapp_clicks: 0,
+        top_books: [],
+        zero_searches: [],
+        visit_countries: {
+          status: "complete",
+          countries: [{ code, visits }],
+          unknown_visits: 0,
+          latest: [{ country: code, counted_at: "2026-10-08T10:00:00Z" }]
+        }
+      };
+    }
+    function wrapClient() {
+      return {
+        auth: {
+          initialize: async () => {},
+          getSession: async () => ({ data: { session: window.__kutadguMockSession }, error: null }),
+          getUser: async () => ({
+            data: { user: window.__kutadguMockSession && window.__kutadguMockSession.user },
+            error: window.__kutadguMockSession ? null : { name: "AuthSessionMissingError", message: "Auth session missing" }
+          }),
+          refreshSession: async () => ({
+            data: { session: window.__kutadguMockSession, user: window.__kutadguMockSession && window.__kutadguMockSession.user },
+            error: null
+          }),
+          onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+          signOut: async () => {
+            window.__kutadguAuthCalls.signOut += 1;
+            if (window.__kutadguSignOutImpl) return window.__kutadguSignOutImpl();
+            window.__kutadguMockSession = null;
+            return { error: null };
+          },
+          signInWithPassword: async () => ({ error: null }),
+          mfa: window.__kutadguMfaApi
+        },
+        from(table) {
+          if (table === "admin_users") {
+            const user = window.__kutadguMockSession && window.__kutadguMockSession.user;
+            return chain(window.__kutadguAllowAdmin && user
+              ? { data: { user_id: user.id }, error: null, count: 1 }
+              : { data: null, error: null, count: 0 });
+          }
+          return chain({ data: [], error: null, count: 0 });
+        },
+        rpc(name) {
+          if (name !== "get_kutadgu_analytics") {
+            return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+          }
+          if (window.__kutadguHoldNext) {
+            window.__kutadguHoldNext = false;
+            return new Promise((resolve) => {
+              window.__kutadguReleaseHeld = () => resolve({
+                data: analyticsPayload("JP", 9),
+                error: null
+              });
+            });
+          }
+          const id = window.__kutadguMockSession && window.__kutadguMockSession.user && window.__kutadguMockSession.user.id;
+          const code = window.__kutadguCountryByUser[id] || "TR";
+          return Promise.resolve({ data: analyticsPayload(code, code === "FR" ? 2 : 4), error: null });
+        },
+        storage: { from() { return { upload: async () => ({ error: null }), getPublicUrl() { return { data: { publicUrl: "" } }; } }; } }
+      };
+    }
+    let supabaseValue;
+    Object.defineProperty(window, "supabase", {
+      configurable: true,
+      enumerable: true,
+      get() { return supabaseValue; },
+      set(value) {
+        if (value && typeof value.createClient === "function") {
+          value.createClient = function () { return wrapClient(); };
+        }
+        supabaseValue = value;
+      }
+    });
+  });
+}
+
+async function openCountryAdmin(page) {
+  await installCountryAdmin(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#dashboardPanel")).toBeVisible();
+  const select = page.locator("#adminSectionSelect");
+  if (await select.isVisible()) await select.selectOption("insights");
+  else await page.locator('[data-admin-section="insights"]').click();
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
+}
+
+async function showInsights(page) {
+  const select = page.locator("#adminSectionSelect");
+  if (await select.isVisible()) await select.selectOption("insights");
+  else if (await page.locator('[data-admin-section="insights"]').isVisible()) {
+    await page.locator('[data-admin-section="insights"]').click();
+  }
+}
+
+async function holdNextCountryRead(page) {
+  await page.evaluate(() => {
+    window.__kutadguReleaseHeld = null;
+    window.__kutadguHoldNext = true;
+  });
+  await page.locator("#reloadAnalytics").click();
+  await page.waitForFunction(() => typeof window.__kutadguReleaseHeld === "function");
+}
+
+test("session loss, account switch, and logout drop an in-flight country read", async ({ page }) => {
+  await openCountryAdmin(page);
+  await holdNextCountryRead(page);
+  await page.evaluate(() => { window.__kutadguMockSession = null; });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await expect(page.locator("#loginPanel")).toBeVisible();
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
+  await page.evaluate(() => window.__kutadguReleaseHeld());
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
+
+  await page.evaluate(() => {
+    window.__kutadguMockSession = {
+      access_token: "access-admin-a",
+      refresh_token: "refresh-admin-a",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "admin-a", email: "a@example.com" }
+    };
+    window.__kutadguAllowAdmin = true;
+  });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await expect(page.locator("#dashboardPanel")).toBeVisible();
+  await showInsights(page);
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
+  await holdNextCountryRead(page);
+  await page.evaluate(() => {
+    window.__kutadguMockSession = {
+      access_token: "access-admin-b",
+      refresh_token: "refresh-admin-b",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "admin-b", email: "b@example.com" }
+    };
+  });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await showInsights(page);
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("فرانسىيە");
+  await page.evaluate(() => window.__kutadguReleaseHeld());
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("فرانسىيە");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
+
+  await holdNextCountryRead(page);
+  await page.evaluate(() => { window.__kutadguAllowAdmin = false; });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await expect(page.locator("#loginStatus")).toHaveText("بۇ ھېسابات Admin ھېسابى ئەمەس.");
+  expect(await page.evaluate(() => window.__kutadguAuthCalls.signOut)).toBe(0);
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("فرانسىيە");
+  await page.evaluate(() => window.__kutadguReleaseHeld());
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
+
+  await page.evaluate(() => {
+    window.__kutadguAllowAdmin = true;
+    window.__kutadguMockSession = {
+      access_token: "access-admin-a",
+      refresh_token: "refresh-admin-a",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "admin-a", email: "a@example.com" }
+    };
+  });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await showInsights(page);
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
+  await holdNextCountryRead(page);
+  await page.evaluate(() => {
+    window.__kutadguSignOutImpl = () => new Promise((resolve) => {
+      window.__kutadguFinishSignOut = () => {
+        window.__kutadguMockSession = null;
+        resolve({ error: null });
+      };
+    });
+  });
+  const logoutClick = page.locator("#adminLogout").click();
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
+  await page.evaluate(() => window.__kutadguReleaseHeld());
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
+  expect(await page.evaluate(() => window.__kutadguAuthCalls.signOut)).toBe(1);
+  await page.evaluate(() => window.__kutadguFinishSignOut());
+  await logoutClick;
+  await expect(page.locator("#loginPanel")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.__kutadguMockSession = {
+      access_token: "access-admin-a",
+      refresh_token: "refresh-admin-a",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "admin-a", email: "a@example.com" }
+    };
+    window.__kutadguSignOutImpl = () => Promise.reject(new Error("چېكىنىش مەغلۇپ"));
+  });
+  await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+  await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
+  await page.locator("#adminLogout").click();
+  await expect(page.locator("#loginPanel")).toBeVisible();
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
+  await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
+});

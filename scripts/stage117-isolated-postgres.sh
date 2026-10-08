@@ -54,6 +54,15 @@ if [[ "$dup" != "1" ]]; then
 fi
 
 psql_db -f "$ROOT/scripts/stage117-isolated-assertions.sql" >/dev/null
+country_before_gap="$(psql_db -tA -c "SELECT started_at FROM private.analytics_country_counter")"
+psql_db -f "$ROOT/scripts/stage117-isolated-coverage-failure.sql" >/dev/null
+psql_db -f "$ROOT/STAGE117_VISIT_COUNTRIES.sql" >/dev/null
+country_after_gap="$(psql_db -tA -c "SELECT started_at FROM private.analytics_country_counter")"
+if [[ "$country_before_gap" != "$country_after_gap" ]]; then
+  echo "counter recovery reapply moved country start ${country_before_gap}->${country_after_gap}" >&2
+  exit 1
+fi
+psql_db -f "$ROOT/scripts/stage117-isolated-coverage-recovery.sql" >/dev/null
 
 preserved="$(psql_db -tA -c "SELECT count(*) FROM public.analytics_events")"
 psql_db -f "$ROOT/STAGE117_VISIT_COUNTRIES_ROLLBACK.sql" >/dev/null

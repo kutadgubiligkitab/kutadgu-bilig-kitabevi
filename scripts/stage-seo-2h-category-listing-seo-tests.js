@@ -770,6 +770,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql",
     "cloudflare/analytics-visit-country.js",
     "scripts/stage117-isolated-assertions.sql",
+    "scripts/stage117-isolated-coverage-failure.sql",
+    "scripts/stage117-isolated-coverage-recovery.sql",
     "scripts/stage117-isolated-postgres.sh",
     "scripts/stage117-isolated-postgrest.sh",
     "scripts/visit-country-tests.js",

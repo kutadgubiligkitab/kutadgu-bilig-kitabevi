@@ -41,6 +41,13 @@ BEGIN
   SET started_at = now() - interval '30 days'
   WHERE id;
 
+  -- The fixture's yesterday page view has no visitor id. It is pre-collection
+  -- history for this report, not a post-start identity gap.
+  UPDATE public.analytics_events
+  SET created_at = (SELECT started_at FROM private.analytics_country_counter) - interval '1 day'
+  WHERE session_id = 'yesterday-session'
+    AND event_name = 'page_view';
+
   SET ROLE service_role;
   INSERT INTO public.analytics_events (event_name, path, visitor_id, event_id, country)
   VALUES
@@ -175,6 +182,13 @@ BEGIN
 
   PERFORM private.kutadgu_accept_page_visit(v_other, v_e4, now() - interval '30 minutes');
   PERFORM private.kutadgu_accept_page_visit(v_other, v_unknown, now() - interval '20 minutes');
+  PERFORM private.kutadgu_accept_page_visit(v_other, v_t1code, now() - interval '10 minutes');
+  SELECT counted INTO v_counted
+  FROM private.analytics_visit_receipts
+  WHERE event_id = v_t1code;
+  IF v_counted IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'processed T1 page view should stay suppressed';
+  END IF;
 
   v_report := private.kutadgu_country_visit_report(7);
   IF (v_report->>'status') IS DISTINCT FROM 'complete' THEN
@@ -227,7 +241,8 @@ BEGIN
       ('a1000000-0000-4000-8000-' || lpad(to_hex(i), 12, '0'))::uuid,
       'b1000000-0000-4000-8000-' || lpad(to_hex(i), 12, '0'),
       true,
-      now() + interval '1 minute' - make_interval(secs => i),
+      ((timezone('Europe/Istanbul', now()))::date + 1)::timestamp AT TIME ZONE 'Europe/Istanbul'
+        - interval '2 minutes' - make_interval(secs => i),
       'JP'
     );
   END LOOP;
@@ -271,11 +286,23 @@ BEGIN
   DELETE FROM private.analytics_visit_receipts;
   DELETE FROM private.analytics_visit_gate;
   v_report := private.kutadgu_country_visit_report(7);
+  IF (v_report->>'status') IS DISTINCT FROM 'partial'
+     OR (v_report->>'status') IN ('complete', 'zero') THEN
+    RAISE EXCEPTION 'page views without receipts must stay partial: %', v_report;
+  END IF;
+
+  UPDATE public.analytics_events
+  SET created_at = timestamptz '2026-08-01 10:00:00+03'
+  WHERE event_name = 'page_view'
+    AND created_at >= (
+      ((timezone('Europe/Istanbul', now()))::date - 6)::timestamp AT TIME ZONE 'Europe/Istanbul'
+    );
+  v_report := private.kutadgu_country_visit_report(7);
   IF (v_report->>'status') IS DISTINCT FROM 'zero'
      OR (v_report->>'unknown_visits')::integer IS DISTINCT FROM 0
      OR jsonb_array_length(v_report->'countries') IS DISTINCT FROM 0
      OR jsonb_array_length(v_report->'latest') IS DISTINCT FROM 0 THEN
-    RAISE EXCEPTION 'empty covered window should be a measured zero: %', v_report;
+    RAISE EXCEPTION 'quiet covered window should be a measured zero: %', v_report;
   END IF;
 
   PERFORM set_config('test.admin', 'off', true);

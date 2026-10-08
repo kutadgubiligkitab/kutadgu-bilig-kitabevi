@@ -20,9 +20,14 @@
 -- Collection starts at private.analytics_country_counter.started_at, set on
 -- the first successful apply and left unchanged when this file is applied
 -- again. An interval entirely before that marker is unavailable, including
--- an empty one. An interval that crosses it is partial. Unknown metadata
--- after the marker is a measured unknown, not a zero and not unavailable.
--- A fully covered interval with no counted visit is a measured zero.
+-- an empty one. An interval that crosses it is partial. After the marker,
+-- coverage matches the counted-visit rule: a public page view with no
+-- receipt, or one without a usable visitor id or event id, is partial.
+-- Accepted totals and unknown-country receipts stay in the result. Unknown
+-- metadata on a counted receipt is a measured unknown, not a processing gap.
+-- A receipt with counted = false is a suppressed visit, not a gap. A fully
+-- covered quiet interval, or one with only suppressed visits, is a measured
+-- zero. A covered interval with counted visits and no gap is complete.
 --
 -- Deployment order:
 --   The site can ship first. Until this file is applied, the Worker retries
@@ -224,6 +229,8 @@ DECLARE
   v_partial boolean := false;
   v_total integer := 0;
   v_unknown integer := 0;
+  v_unidentified integer := 0;
+  v_unprocessed integer := 0;
   v_countries jsonb := '[]'::jsonb;
   v_latest jsonb := '[]'::jsonb;
 BEGIN
@@ -248,6 +255,36 @@ BEGIN
 
   v_partial := v_since < v_started;
   v_from := greatest(v_since, v_started);
+
+  -- Same gap rule as private.kutadgu_visit_window_status, limited to the
+  -- country-covered slice. A counted receipt with a null country is not a gap.
+  SELECT
+    count(*) FILTER (
+      WHERE event_name = 'page_view'
+        AND (
+          NOT private.kutadgu_visitor_id_ok(visitor_id)
+          OR event_id IS NULL
+        )
+    )::integer,
+    count(*) FILTER (
+      WHERE event_name = 'page_view'
+        AND private.kutadgu_visitor_id_ok(visitor_id)
+        AND event_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM private.analytics_visit_receipts AS r
+          WHERE r.event_id = public.analytics_events.event_id
+        )
+    )::integer
+  INTO v_unidentified, v_unprocessed
+  FROM public.analytics_events
+  WHERE created_at >= v_from
+    AND created_at < v_until
+    AND private.kutadgu_analytics_public_path(path);
+
+  IF v_unidentified > 0 OR v_unprocessed > 0 THEN
+    v_partial := true;
+  END IF;
 
   SELECT
     count(*)::integer,
