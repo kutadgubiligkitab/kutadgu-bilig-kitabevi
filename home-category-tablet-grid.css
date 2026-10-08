@@ -1,8 +1,12 @@
-/* Homepage category grid: tablet/iPad 3 × 3 only. Phone and desktop stay in index.css. */
+/* Homepage category grid: tablet/iPad 3 columns, with a narrower compact card. Phone and desktop stay beside this file. */
 @media (min-width: 701px) and (max-width: 1100px) {
   #bookCategories .cards {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: min(100%, max(680px, 78%)) !important;
+    max-width: min(100%, max(680px, 78%)) !important;
+    gap: 12px !important;
+    margin-inline: auto !important;
   }
   #bookCategories .cards .card,
   #bookCategories .cards .card:nth-child(5),
@@ -16,5 +20,25 @@
     width: 100% !important;
     max-width: none !important;
     justify-self: stretch !important;
+    min-height: 0 !important;
+    padding: 12px 10px !important;
+  }
+  #bookCategories .cards .card .icon {
+    font-size: 28px !important;
+    margin-bottom: 8px !important;
+  }
+  #bookCategories .cards .card h3,
+  #bookCategories .cards .card p {
+    min-height: 0 !important;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 768px) {
+  #bookCategories .cards {
+    gap: 8px !important;
+  }
+  #bookCategories .cards .card,
+  #bookCategories .cards .card:last-child {
+    padding: 11px 8px !important;
   }
 }

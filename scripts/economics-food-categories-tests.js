@@ -215,7 +215,7 @@ test("storefront category links resolve the new hubs and leave cart and view pin
   assert.doesNotMatch(read("cart.html"), /shop\.js\?v=147/);
   assert.match(read("index.html"), /href="\/iqtisad"/);
   assert.match(read("index.html"), /href="\/taamlar"/);
-  assert.match(read("index.html"), /home-category-appended-cards\.css\?v=1/);
+  assert.match(read("index.html"), /home-category-appended-cards\.css\?v=2/);
   assert.match(read("home-category-appended-cards.css"), /nth-child\(10\)/);
   assert.match(read("home-category-appended-cards.css"), /nth-child\(11\)/);
   assert.match(read("home-category-appended-cards.css"), /min-width:\s*1101px/);

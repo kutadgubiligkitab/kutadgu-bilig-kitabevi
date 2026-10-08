@@ -32,7 +32,7 @@ const FROZEN = {
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "6a7db423854a2401bd181818ad2059692c2294bde303f779b4ae62b6ee438c94",
-  "index.html": "b8c78c1aa85e8e1114a37bab6157b61224c420b2453cf2f38b99d79c082744e2",
+  "index.html": "dd2f775b08a17255b97185b5ad90218104875e622f3fc591cff9e9ec0ec5d7ab",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -356,6 +356,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "sitemap-pages.xml",
     "tests/e2e/homepage-compact.spec.js",
     "home-category-appended-cards.css",
+    "home-category-tablet-grid.css",
     "package.json",
     "package-lock.json",
     "PROJECT-RECOVERY.md",

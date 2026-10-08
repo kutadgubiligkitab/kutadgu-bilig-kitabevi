@@ -469,6 +469,16 @@ Live `/` contains both labels and requests `shop.js?v=147`, `kutadgu-book-seo.js
 
 A Chromium profile stored the previously deployed `shop.js?v=146`, `?v=145`, and `?v=141`, `kutadgu-book-seo.js?v=3` and `?v=5`, `app-config.js?v=5`, `analytics.js?v=7`, and `kutadgu-book-views.js?v=6` before the deploy. The profile was not cleared. The next homepage requested `shop.js?v=147` and `kutadgu-book-seo.js?v=6`. A later load reused those new URLs from cache. `cache: only-if-cached` still returned the old helper without `iqtisad` and the old `shop.js` bodies. `cart.html` reused `shop.js?v=141` from that cache. Analytics event POSTs were blocked in the browser and did not receive an HTTP response. Cloudflare RUM POSTs returned 204. No authenticated admin or staff session was opened, so the category selectors were not exercised. Desktop and 390px Chromium were used, not a physical phone. The commit that records this paragraph is documentation only and is not the deployed commit.
 
+## Compact homepage category cards
+
+Draft PR #267 on `cursor/compact-homepage-category-cards-5fba`. This is not deployed, and the runtime baseline stays the PR #266 merge `cdc413045cf79f894b402ae14c5aec4e67476aef`. `origin/main` at the start of this work was `816da7969f20bbd4be7d54950348d9ee0d058cd9`, which is the documentation commit above that merge. The card change is `c581ac95275f459d97c3a52491f1f386e27d72c7`.
+
+The eleven `#bookCategories` cards keep their labels, descriptions, icons, links, and RTL order. The row pattern stays 4 + 3 + 2 + 2 from 1101px up, 3 columns from 701px through 1100px, and 2 columns with the last card centered at 700px and below. Sizing lives in the existing category stylesheets, scoped to `#bookCategories`. `index.css` and `mobile.css` are unchanged, so book cards, search, and other buttons keep their rules. `index.html` requests `home-category-tablet-grid.css?v=2` and `home-category-appended-cards.css?v=2`.
+
+Desktop card width is about 22% smaller at 1536px (338px to 263.5px) and about 20% smaller at 1280px (296px to 237.4px). At 1024px it is about 22% smaller (314.7px to 245.8px). Phone width stays two columns, about 177px, because a further cut crowds the Uyghur labels. Phone height drops from 151px to 103.5px by removing the reserved title and description min-heights and reducing padding from 14px 9px to 11px 8px. The gap is 12px on desktop and 1024px, and 8px at 768px and 390px. Title and description font sizes stay 17px/11px from 1024px up and 14px/9.5px at 768px and 390px. Icons are 28px from 701px up and stay 30px on phones. Cream and brown colors, borders, and both themes are unchanged. Every measured card is at least 44px tall, descriptions stay visible, and there is no overlap or horizontal overflow.
+
+Local Chromium checked 390, 768, 1024, 1280, and 1536 in light and dark. Keyboard focus on the first category link shows a 3px solid outline. This was not a physical phone.
+
 ## How to update this document
 
 Update it in the same PR as a significant feature, bug fix, or infrastructure change, before that PR is considered complete. Skip trivial formatting-only edits. Documentation-only commits do not change the runtime baseline.
