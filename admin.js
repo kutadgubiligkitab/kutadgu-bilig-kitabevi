@@ -5693,6 +5693,13 @@ function paintCountedVisits(view){
   setCountedVisit("#analyticsVisitorsPeriod",counted&&counted.period);
   renderVisitCountChart(counted&&counted.daily);
 }
+function setVisitCountryOpen(open){
+  const button=$("#analyticsVisitCountryToggle");
+  const panel=$("#analyticsVisitCountryPanel");
+  if(!button||!panel)return;
+  button.setAttribute("aria-expanded",open?"true":"false");
+  panel.hidden=!open;
+}
 function clearVisitCountries(){
   const totals=$("#analyticsVisitCountryTotals");
   const latest=$("#analyticsVisitCountryLatest");
@@ -5705,6 +5712,7 @@ function clearVisitCountries(){
   if(latest)latest.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
   if(status)status.textContent="يۈكلىنىۋاتىدۇ...";
   if(retry)retry.hidden=true;
+  setVisitCountryOpen(false);
 }
 function paintVisitCountries(view,opts){
   const totals=$("#analyticsVisitCountryTotals");
@@ -5758,13 +5766,13 @@ function paintVisitCountries(view,opts){
   if(block.status==="zero"||!rows.length){
     totals.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت 0.</div>';
   }else{
-    totals.innerHTML=rows.map(row=>`<div class="admin-analytics-row"><span>${esc(row.label||"نامەلۇم")}</span><strong>${Number(row.visits||0).toLocaleString("tr-TR")}</strong></div>`).join("");
+    totals.innerHTML=rows.map(row=>`<div class="admin-country-row">${esc(row.label||"نامەلۇم")} — ${Number(row.visits||0).toLocaleString("tr-TR")} قېتىم</div>`).join("");
   }
   const recent=Array.isArray(block.latest)?block.latest:[];
   if(!recent.length){
     latest.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت يوق.</div>';
   }else{
-    latest.innerHTML=recent.map(row=>`<div class="admin-analytics-row"><span>${esc(row.label||"نامەلۇم")}</span><strong>${esc(row.stamp||"—")}</strong></div>`).join("");
+    latest.innerHTML=recent.map(row=>`<div class="admin-country-row">${esc(row.label||"نامەلۇم")} — ${esc(row.stamp||"—")}</div>`).join("");
   }
   totals.dataset.ready="1";
 }
@@ -7216,6 +7224,10 @@ function reloadAnalyticsView(){
   loadSearches();
 }
 $("#reloadAnalytics")?.addEventListener("click",reloadAnalyticsView);
+$("#analyticsVisitCountryToggle")?.addEventListener("click",()=>{
+  const button=$("#analyticsVisitCountryToggle");
+  setVisitCountryOpen(!button||button.getAttribute("aria-expanded")!=="true");
+});
 $("#analyticsVisitCountryRetry")?.addEventListener("click",reloadAnalyticsView);
 $("#analyticsRange")?.addEventListener("change",reloadAnalyticsView);
 $("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({append:true}));
