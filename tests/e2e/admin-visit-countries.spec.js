@@ -119,6 +119,8 @@ async function openInsights(page) {
   if (await select.isVisible()) await select.selectOption("insights");
   else await page.locator('[data-admin-section="insights"]').click();
   await expect(page.locator("#analyticsVisitCountries")).toBeVisible();
+  await expect(page.locator("#analyticsVisitCountryToggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#analyticsVisitCountryPanel")).toBeHidden();
 }
 
 for (const viewport of viewports) {
@@ -154,10 +156,12 @@ for (const viewport of viewports) {
         return view.visitCountries.rows.map((row) => row.label + ":" + row.visits);
       });
       expect(described[0]).toBe("تۈركىيە:4");
-      await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
-      await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("نامەلۇم");
-      await expect(page.locator("#analyticsVisitCountryLatest")).toContainText("2026-10-08 12:30");
-      const box = await page.locator("#analyticsVisitCountries").evaluate((el) => {
+      await page.locator("#analyticsVisitCountryToggle").click();
+      await expect(page.locator("#analyticsVisitCountryPanel")).toBeVisible();
+      await expect(page.locator("#analyticsVisitCountryTotals .admin-country-row").first()).toHaveText("تۈركىيە — 4 قېتىم");
+      await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("نامەلۇم — 2 قېتىم");
+      await expect(page.locator("#analyticsVisitCountryLatest .admin-country-row").first()).toHaveText("تۈركىيە — 2026-10-08 12:30");
+      const box = await page.locator("#analyticsVisitCountryPanel").evaluate((el) => {
         const style = getComputedStyle(el);
         return {
           dir: getComputedStyle(document.documentElement).direction,
@@ -316,6 +320,119 @@ for (const viewport of viewports) {
     await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("گېرمانىيە");
     await expect(page.locator("#analyticsVisitCountryStatus")).toContainText("يۈكلىنىۋاتىدۇ");
   });
+
+  test(`country panel toggles in place at ${viewport.label}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      window.__kutadguSkipAdminAuth = true;
+      window.__kutadguAdminPreviewBooks = [];
+      window.__kutadguExposeAnalyticsRender = true;
+      window.__kutadguAnalyticsDb = {
+        from() {
+          const q = {};
+          ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((method) => {
+            q[method] = () => q;
+          });
+          q.maybeSingle = async () => ({ data: null, error: null });
+          q.then = (resolve, reject) => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+          return q;
+        },
+        rpc(name) {
+          if (name !== "get_kutadgu_analytics") {
+            return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+          }
+          return Promise.resolve({
+            data: {
+              page_views: 2,
+              book_views: 1,
+              cart_adds: 0,
+              whatsapp_clicks: 0,
+              top_books: [],
+              zero_searches: [],
+              visit_countries: {
+                status: "complete",
+                countries: [{ code: "US", visits: 1 }, { code: "SA", visits: 1 }],
+                unknown_visits: 0,
+                latest: [
+                  { country: "US", counted_at: "2026-10-08T10:00:00Z" },
+                  { country: "SA", counted_at: "2026-10-07T10:00:00Z" }
+                ]
+              }
+            },
+            error: null
+          });
+        }
+      };
+    });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    const select = page.locator("#adminSectionSelect");
+    if (await select.isVisible()) await select.selectOption("insights");
+    else await page.locator('[data-admin-section="insights"]').click();
+    const toggle = page.locator("#analyticsVisitCountryToggle");
+    const panel = page.locator("#analyticsVisitCountryPanel");
+    await expect(toggle).toHaveAttribute("aria-controls", "analyticsVisitCountryPanel");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toBeHidden();
+    await page.locator("#reloadAnalytics").click();
+    await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ئامېرىكا — 1 قېتىم");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toBeHidden();
+    const box = await toggle.boundingBox();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    const outline = await toggle.evaluate((el) => {
+      el.focus({ focusVisible: true });
+      const style = getComputedStyle(el);
+      return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+    });
+    expect(outline.style).toBe("solid");
+    expect(outline.width).toBeGreaterThanOrEqual(3);
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(panel).toBeVisible();
+    await expect(page.locator("#analyticsVisitCountryNote")).toHaveText("ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.");
+    await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ئامېرىكا — 1 قېتىم");
+    await expect(page.locator("#analyticsVisitCountryLatest")).toContainText("ئامېرىكا — 2026-10-08 13:00");
+    await expect(page.locator("#analyticsVisitCountryLatest")).toContainText("سەئۇدى ئەرەبىستان — 2026-10-07 13:00");
+    const fit = await page.locator("#analyticsVisitCountryTotals .admin-country-row", { hasText: "ئامېرىكا" }).evaluate((el) => {
+      const panelBox = document.querySelector("#analyticsVisitCountryPanel").getBoundingClientRect();
+      const rowBox = el.getBoundingClientRect();
+      return { row: rowBox.width, panel: panelBox.width, overflow: el.scrollWidth <= panelBox.width + 2 };
+    });
+    expect(fit.row).toBeLessThan(fit.panel * 0.85);
+    expect(fit.overflow).toBe(true);
+    const shortHeight = fit.row > 0 ? await page.locator("#analyticsVisitCountryTotals .admin-country-row", { hasText: "ئامېرىكا" }).evaluate((el) => el.getBoundingClientRect().height) : 0;
+    await page.locator("#analyticsVisitCountryTotals .admin-country-row").first().evaluate((el) => {
+      el.textContent = `${"بۈيۈك بىرىتانىيە ئۇيغۇر ئاپتونوم رايونى ".repeat(8)}— 12 قېتىم`;
+    });
+    const wrapped = await page.locator("#analyticsVisitCountryTotals .admin-country-row").first().evaluate((el, previousHeight) => {
+      const panelBox = document.querySelector("#analyticsVisitCountryPanel").getBoundingClientRect();
+      const rowBox = el.getBoundingClientRect();
+      return {
+        wraps: rowBox.height > previousHeight + 8,
+        inside: el.scrollWidth <= panelBox.width + 2 && rowBox.left >= panelBox.left - 2 && rowBox.right <= panelBox.right + 2
+      };
+    }, shortHeight);
+    expect(wrapped.wraps).toBe(true);
+    expect(wrapped.inside).toBe(true);
+    await page.locator("#reloadAnalytics").click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ئامېرىكا — 1 قېتىم");
+    await page.locator("#analyticsRange").selectOption("7");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await panel.evaluate((el) => el.hidden)).toBe(true);
+    await page.locator("#reloadAnalytics").click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.focus();
+    await page.keyboard.press("Space");
+    await expect(panel).toBeVisible();
+    await page.evaluate(() => window.__kutadguLogoutAnalytics());
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await panel.evaluate((el) => el.hidden)).toBe(true);
+    await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ئامېرىكا");
+  });
 }
 
 test("thrown analytics reads keep the last period and retry", async ({ page }) => {
@@ -374,6 +491,8 @@ test("thrown analytics reads keep the last period and retry", async ({ page }) =
   else await page.locator('[data-admin-section="insights"]').click();
   await page.locator("#analyticsRange").selectOption("30");
   await page.locator("#reloadAnalytics").click();
+  await expect(page.locator("#analyticsVisitCountryToggle")).toHaveAttribute("aria-expanded", "false");
+  await page.locator("#analyticsVisitCountryToggle").click();
   await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
   await expect(page.locator("#analyticsVisitCountryStatus")).toContainText("تور ئۈزۈلدى");
   await expect(page.locator("#analyticsVisitCountryStatus")).not.toContainText("يۈكلىنىۋاتىدۇ");

@@ -515,6 +515,22 @@ Playwright used Chromium at 390×800 and 1280×900, light and dark, against the 
 
 Names outside the explicit Uyghur map use `Intl.DisplayNames` for `ug` when that runtime returns a non-Latin name, and otherwise the ISO code. `نامەلۇم` is the label for a missing or invalid country. Historical visits from before the country marker stay out of the totals. A VPN or shared network can show a different country from the person's location.
 
+## Compact admin visit country panel
+
+This is a presentation-only draft on `cursor/compact-visit-country-panel-5fba`. It is not deployed and does not move the runtime baseline. Live `admin.html` still requests `admin.js?v=96` and `admin.css?v=51`. This draft requests `admin.js?v=97` and `admin.css?v=52`. `kutadgu-analytics-core.js` stays `?v=10` on the admin page and `?v=5` on the storefront. Analytics collection, SQL, permissions, RPC payloads, country attribution, the 7/30/90 selector, and the three-hour gate are unchanged. No production visit was created.
+
+The country block inside `#analyticsManagement` is one button, `🌍 زىيارەت دۆلەتلىرى`. It starts collapsed. The control is a real button with `aria-expanded` and `aria-controls="analyticsVisitCountryPanel"`. The panel opens inline in the existing analytics section. There is no modal, popup, animation, new dependency, or extra polling. Opening or closing it does not change the period and does not start another read.
+
+Totals keep the existing order: visit count descending, unknown last, then country code. Each total is one compact row, for example `ئامېرىكا — 1 قېتىم`. The latest 20 stay newest first. Each of those rows puts the country and the existing Istanbul stamp together, for example `تۈركىيە — 2026-10-08 12:30`, so a different day stays visible. The long note is replaced by `ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.` The status line still separates loading, unavailable (`نۆل ئەمەس`), partial, measured zero, complete, and errors. A complete result still says these are counted visits, not verified people. A failed refresh keeps the last numbers and leaves the panel open or closed as the admin left it. Session loss, a non-admin session, an account change, and logout clear the numbers and collapse the panel.
+
+The panel uses the existing cream and brown admin colors and UKIJ RTL type. The button is at least 44px tall. Keyboard focus draws a 3px solid `#70503d` outline. The panel width follows its content and stops at `34rem` or the card, whichever is smaller, so a short row stays together and a long name wraps inside the card.
+
+Local Chromium checked 390×800 and 1280×900. The panel started collapsed. Enter, Space, click, and a touch tap toggled it. Refresh and a period change left that open or closed state in place. Logout collapsed it and removed the country text. Empty, partial, unavailable, zero, error, and retry stayed distinct. A long name wrapped with no horizontal overflow. At 1280 the open panel was about 348px wide for the short rows, against a 983px analytics card. This was desktop Chromium, not a physical phone, and not a live AAL2 session.
+
+`node scripts/visit-country-tests.js`, `node scripts/three-hour-visits-tests.js`, and `node scripts/cover-upload-optimize-tests.js` passed. Playwright `tests/e2e/admin-visit-countries.spec.js` and `tests/e2e/admin-three-hour-visits.spec.js` passed, 16 tests, against the local static server. The warm-cache admin stylesheet test in `tests/e2e/book-reviews.spec.js` passed with `admin.css?v=52`.
+
+Draft PR #269. The application commit is `4dd5af32a51292ab5371bb499dc08b771d1e6ba7`. Stage 10 run [37853593531](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/37853593531), job `113572344948`, passed on that exact head. The job completed at 2026-10-08T22:41:45Z: 877 passed, 3 skipped, and 1 flaky. The flaky case was `tests/e2e/maintenance-mode.spec.js` (“D authenticated Admin bypasses storefront; Admin login stays open”), and it passed on retry. The country and three-hour specs in that run passed. The commit that records this paragraph is documentation only. It is not the tested application head and does not move the runtime baseline.
+
 ## How to update this document
 
 Update it in the same PR as a significant feature, bug fix, or infrastructure change, before that PR is considered complete. Skip trivial formatting-only edits. Documentation-only commits do not change the runtime baseline.

@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=51">
+  <link rel="stylesheet" href="admin.css?v=52">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -458,13 +458,15 @@
         <div class="admin-analytics-chart" id="analyticsVisitorChart" aria-label="زىيارەت قېتىمى، ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
         <p class="admin-help" id="analyticsVisitorNote">زىيارەت قېتىمى بىر تور كۆرگۈچ كىملىكىنىڭ سانىلىدىغان ئېچىلىشى. ئالدىنقى سانىلىدىغان زىيارەتتىن 3 سائەت ئىچىدىكى قايتا ئېچىش، يېڭىلاش ۋە يېڭى بەتكۈچ قوشۇلمايدۇ، بۇ 3 سائەتنىمۇ ئۇزارتمايدۇ. دەل 3 سائەت ياكى ئۇنىڭدىن كېيىن كېيىنكى ئېچىش يەنە بىر قېتىم سانىلىدۇ. كېچە يېرىمى بۇ ۋاقىتنى ئۈزمەيدۇ. بۇ دەلىللەنگەن ئادەم ياكى ئوخشىمىغان زىيارەتچى سانى ئەمەس. كۈن چېگرىسى Europe/Istanbul. تاللانغان دائىرە كۈنلۈك سانىلغان قېتىملارنىڭ يىغىندىسى. سانىش باشلانغاندىن بۇرۇنقى ئارىلىق «—» بولىدۇ، قۇر يوقلىقى نۆل دېگەنلىك ئەمەس، بەت كۆرۈش ياكى session_id دىن قايتا ھېسابلانمايدۇ. قىسمەن ئارىلىقتا پەقەت خاتىرىلەنگەن قېتىم كۆرۈنىدۇ.</p>
         <div id="analyticsVisitCountries">
-          <h3>زىيارەت دۆلەتلىرى</h3>
-          <p class="admin-help" id="analyticsVisitCountryNote">دۆلەت تور ئۇلىنىشىنىڭ ئورنى. VPN ئىشلەتسە كۆرۈنگەن دۆلەت باشقا بولۇشى مۇمكىن. بۇ دەلىللەنگەن ئادەم ياكى ئوخشىمىغان زىيارەتچى سانى ئەمەس. سانىش 3 سائەت قائىدىسى بويىچە، تاللانغان كۈن دائىرىسىدە.</p>
-          <p class="admin-help" id="analyticsVisitCountryStatus">يۈكلىنىۋاتىدۇ...</p>
-          <div id="analyticsVisitCountryTotals" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
-          <h3>ئاخىرقى 20 سانىلىدىغان زىيارەت</h3>
-          <div id="analyticsVisitCountryLatest" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
-          <button type="button" class="admin-secondary" id="analyticsVisitCountryRetry" hidden>قايتا سىناش</button>
+          <button type="button" class="admin-country-toggle" id="analyticsVisitCountryToggle" aria-expanded="false" aria-controls="analyticsVisitCountryPanel">🌍 زىيارەت دۆلەتلىرى</button>
+          <div id="analyticsVisitCountryPanel" class="admin-country-panel" hidden>
+            <p class="admin-help" id="analyticsVisitCountryNote">ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.</p>
+            <p class="admin-help" id="analyticsVisitCountryStatus">يۈكلىنىۋاتىدۇ...</p>
+            <div id="analyticsVisitCountryTotals" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
+            <h3 class="admin-country-latest-title">ئاخىرقى 20 سانىلىدىغان زىيارەت</h3>
+            <div id="analyticsVisitCountryLatest" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
+            <button type="button" class="admin-secondary" id="analyticsVisitCountryRetry" hidden>قايتا سىناش</button>
+          </div>
         </div>
         <div class="admin-stats admin-analytics-stats">
           <div class="admin-stat"><strong id="analyticsBookViews">—</strong><span>كىتاب كۆرۈش</span></div>
@@ -1070,7 +1072,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=96"></script>
+  <script defer src="admin.js?v=97"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
