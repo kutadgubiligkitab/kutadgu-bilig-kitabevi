@@ -5700,11 +5700,21 @@ function setVisitCountryOpen(open){
   button.setAttribute("aria-expanded",open?"true":"false");
   panel.hidden=!open;
 }
+const VISIT_COUNTRY_PAGE_SIZE=20;
+let visitCountryPage=0;
+let visitCountryBlock=null;
 function clearVisitCountries(){
   const totals=$("#analyticsVisitCountryTotals");
   const latest=$("#analyticsVisitCountryLatest");
   const status=$("#analyticsVisitCountryStatus");
   const retry=$("#analyticsVisitCountryRetry");
+  const search=$("#analyticsVisitCountrySearch");
+  const pager=$("#analyticsVisitCountryPager");
+  visitCountryPage=0;
+  visitCountryBlock=null;
+  if(search)search.value="";
+  setVisitCountryControls(false);
+  if(pager)pager.hidden=true;
   if(totals){
     totals.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
     delete totals.dataset.ready;
@@ -5713,6 +5723,79 @@ function clearVisitCountries(){
   if(status)status.textContent="يۈكلىنىۋاتىدۇ...";
   if(retry)retry.hidden=true;
   setVisitCountryOpen(false);
+}
+function setVisitCountryControls(visible){
+  const filter=$("#analyticsVisitCountryFilter");
+  if(filter)filter.hidden=!visible;
+}
+function visitCountrySearchValue(){
+  const input=$("#analyticsVisitCountrySearch");
+  return input?String(input.value||"").trim():"";
+}
+function visitCountryMatches(row, query){
+  if(!query)return true;
+  const needle=query.toLocaleLowerCase("en-US");
+  const label=String(row&&row.label||"").toLocaleLowerCase("en-US");
+  const code=String(row&&row.code||"").toLocaleLowerCase("en-US");
+  return label.includes(needle)||code.includes(needle);
+}
+function countryNameCell(label){
+  const text=label||"نامەلۇم";
+  const latin=/^[A-Z]{2}$/.test(text);
+  return `<div class="admin-country-name" role="cell"><bdi${latin?' dir="ltr"':""}>${esc(text)}</bdi></div>`;
+}
+function splitIstanbulStamp(stamp){
+  const text=String(stamp||"");
+  const match=text.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
+  if(!match)return {date:text||"—", time:"—"};
+  return {date:match[1], time:match[2]};
+}
+function renderVisitCountryTables(block){
+  visitCountryBlock=block||null;
+  const totals=$("#analyticsVisitCountryTotals");
+  const latest=$("#analyticsVisitCountryLatest");
+  const pager=$("#analyticsVisitCountryPager");
+  const pageLabel=$("#analyticsVisitCountryPage");
+  const prev=$("#analyticsVisitCountryPrev");
+  const next=$("#analyticsVisitCountryNext");
+  if(!totals||!latest)return;
+  const rows=Array.isArray(block&&block.rows)?block.rows:[];
+  const query=visitCountrySearchValue();
+  const filtered=rows.filter(row=>visitCountryMatches(row, query));
+  setVisitCountryControls(rows.length>0);
+  if(!rows.length){
+    totals.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت 0.</div>';
+    if(pager)pager.hidden=true;
+  }else if(!filtered.length){
+    totals.innerHTML='<div class="admin-empty">ماس كېلىدىغان دۆلەت يوق.</div>';
+    if(pager)pager.hidden=true;
+  }else{
+    const pages=Math.max(1, Math.ceil(filtered.length/VISIT_COUNTRY_PAGE_SIZE));
+    if(visitCountryPage>pages-1)visitCountryPage=pages-1;
+    if(visitCountryPage<0)visitCountryPage=0;
+    const start=visitCountryPage*VISIT_COUNTRY_PAGE_SIZE;
+    const slice=filtered.slice(start, start+VISIT_COUNTRY_PAGE_SIZE);
+    const body=slice.map(row=>`<div class="admin-country-row" role="row">${countryNameCell(row.label)}<div class="admin-country-count" role="cell"><bdi dir="ltr">${esc(Number(row.visits||0).toLocaleString("tr-TR"))}</bdi> قېتىم</div></div>`).join("");
+    totals.innerHTML=`<div class="admin-country-grid" role="table"><div class="admin-country-head" role="row"><div class="admin-country-name" role="columnheader">دۆلەت</div><div class="admin-country-count" role="columnheader">سانىلىدىغان زىيارەت</div></div>${body}</div>`;
+    if(pager)pager.hidden=false;
+    if(pageLabel)pageLabel.textContent=`${visitCountryPage+1} / ${pages} · ${query?`ماس كەلگىنى ${filtered.length}`:`جەمئىي ${rows.length}`}`;
+    if(prev)prev.disabled=visitCountryPage<=0;
+    if(next)next.disabled=visitCountryPage>=pages-1;
+  }
+  const recent=Array.isArray(block&&block.latest)?block.latest:[];
+  if(!recent.length){
+    latest.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت يوق.</div>';
+  }else{
+    const body=recent.map(row=>{
+      const parts=splitIstanbulStamp(row.stamp);
+      return `<div class="admin-country-row" role="row">${countryNameCell(row.label)}<div class="admin-country-date" role="cell"><bdi dir="ltr">${esc(parts.date)}</bdi></div><div class="admin-country-time" role="cell"><bdi dir="ltr">${esc(parts.time)}</bdi></div></div>`;
+    }).join("");
+    latest.innerHTML=`<div class="admin-country-grid admin-country-history" role="table"><div class="admin-country-head" role="row"><div class="admin-country-name" role="columnheader">دۆلەت</div><div class="admin-country-date" role="columnheader">چېسلا</div><div class="admin-country-time" role="columnheader">ۋاقىت</div></div>${body}</div>`;
+  }
+}
+function repaintVisitCountryTables(){
+  if(!visitCountryBlock)return;
+  renderVisitCountryTables(visitCountryBlock);
 }
 function paintVisitCountries(view,opts){
   const totals=$("#analyticsVisitCountryTotals");
@@ -5731,6 +5814,9 @@ function paintVisitCountries(view,opts){
     if(status)status.textContent="يۈكلىنىۋاتىدۇ...";
     totals.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
     latest.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    setVisitCountryControls(false);
+    const pager=$("#analyticsVisitCountryPager");
+    if(pager)pager.hidden=true;
     if(retry)retry.hidden=true;
     delete totals.dataset.ready;
     return;
@@ -5739,6 +5825,10 @@ function paintVisitCountries(view,opts){
     if(status)status.textContent=errorText;
     totals.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
     latest.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
+    visitCountryBlock=null;
+    setVisitCountryControls(false);
+    const pager=$("#analyticsVisitCountryPager");
+    if(pager)pager.hidden=true;
     if(retry)retry.hidden=false;
     delete totals.dataset.ready;
     return;
@@ -5752,6 +5842,10 @@ function paintVisitCountries(view,opts){
     if(status)status.textContent="دۆلەت خاتىرىسى بۇ ئارىلىقتا يوق. بۇ نۆل ئەمەس.";
     totals.innerHTML='<div class="admin-empty">بۇ ئارىلىق دۆلەت خاتىرىسى باشلىنىشتىن بۇرۇن. نۆل دەپ قارالمايدۇ.</div>';
     latest.innerHTML='<div class="admin-empty">بۇ ئارىلىقتا دۆلەت خاتىرىسى يوق.</div>';
+    visitCountryBlock=null;
+    setVisitCountryControls(false);
+    const pager=$("#analyticsVisitCountryPager");
+    if(pager)pager.hidden=true;
     totals.dataset.ready="1";
     return;
   }
@@ -5762,18 +5856,7 @@ function paintVisitCountries(view,opts){
   }else if(status){
     status.textContent="دۆلەت سانىلىدىغان زىيارەت بويىچە. بۇ دەلىللەنگەن ئادەم سانى ئەمەس.";
   }
-  const rows=Array.isArray(block.rows)?block.rows:[];
-  if(block.status==="zero"||!rows.length){
-    totals.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت 0.</div>';
-  }else{
-    totals.innerHTML=rows.map(row=>`<div class="admin-country-row">${esc(row.label||"نامەلۇم")} — ${Number(row.visits||0).toLocaleString("tr-TR")} قېتىم</div>`).join("");
-  }
-  const recent=Array.isArray(block.latest)?block.latest:[];
-  if(!recent.length){
-    latest.innerHTML='<div class="admin-empty">سانىلىدىغان زىيارەت يوق.</div>';
-  }else{
-    latest.innerHTML=recent.map(row=>`<div class="admin-country-row">${esc(row.label||"نامەلۇم")} — ${esc(row.stamp||"—")}</div>`).join("");
-  }
+  renderVisitCountryTables(block);
   totals.dataset.ready="1";
 }
 function renderAnalytics(described,opts){
@@ -6229,6 +6312,7 @@ async function loadAnalytics(){
   }
   const summary=data&&typeof data==="object"?data:{};
   const described=Core&&Core.describeAnalytics?Core.describeAnalytics(summary,new Date()):null;
+  if(!analyticsShown||analyticsShown.days!==days)visitCountryPage=0;
   analyticsShown={days,described};
   renderAnalytics(described,{shownDays:days});
 }
@@ -7229,6 +7313,18 @@ $("#analyticsVisitCountryToggle")?.addEventListener("click",()=>{
   setVisitCountryOpen(!button||button.getAttribute("aria-expanded")!=="true");
 });
 $("#analyticsVisitCountryRetry")?.addEventListener("click",reloadAnalyticsView);
+$("#analyticsVisitCountrySearch")?.addEventListener("input",()=>{
+  visitCountryPage=0;
+  repaintVisitCountryTables();
+});
+$("#analyticsVisitCountryPrev")?.addEventListener("click",()=>{
+  visitCountryPage=Math.max(0, visitCountryPage-1);
+  repaintVisitCountryTables();
+});
+$("#analyticsVisitCountryNext")?.addEventListener("click",()=>{
+  visitCountryPage+=1;
+  repaintVisitCountryTables();
+});
 $("#analyticsRange")?.addEventListener("change",reloadAnalyticsView);
 $("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({append:true}));
 $("#analyticsSearchesMore")?.addEventListener("click",()=>loadSearches({append:true}));

@@ -179,6 +179,6 @@ test("migration files preserve analytics rows and do not apply Stage 100", () =>
   assert.doesNotMatch(html, /analyticsVisitCounts/);
   assert.doesNotMatch(html, /بۈگۈنكى خاتىرىلەنگەن زىيارەتچى/);
   assert.doesNotMatch(admin, /setVisitorCount/);
-  assert.match(html, /admin\.js\?v=97/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=10/);
+  assert.match(html, /admin\.js\?v=98/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=11/);
 });

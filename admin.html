@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=52">
+  <link rel="stylesheet" href="admin.css?v=53">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -462,8 +462,18 @@
           <div id="analyticsVisitCountryPanel" class="admin-country-panel" hidden>
             <p class="admin-help" id="analyticsVisitCountryNote">ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.</p>
             <p class="admin-help" id="analyticsVisitCountryStatus">يۈكلىنىۋاتىدۇ...</p>
+            <label id="analyticsVisitCountryFilter" class="admin-country-filter" hidden>
+              <span>دۆلەت ئىزدەش</span>
+              <input id="analyticsVisitCountrySearch" type="search" autocomplete="off" enterkeyhint="search" placeholder="دۆلەت نامى ياكى كودى" aria-label="دۆلەت نامى ياكى كودى">
+            </label>
             <div id="analyticsVisitCountryTotals" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
-            <h3 class="admin-country-latest-title">ئاخىرقى 20 سانىلىدىغان زىيارەت</h3>
+            <div id="analyticsVisitCountryPager" class="admin-country-pager" hidden>
+              <button type="button" id="analyticsVisitCountryPrev">ئالدىنقى</button>
+              <span id="analyticsVisitCountryPage"></span>
+              <button type="button" id="analyticsVisitCountryNext">كېيىنكى</button>
+            </div>
+            <h3 class="admin-country-latest-title" id="analyticsVisitCountryLatestTitle">ئاخىرقى 20 سانىلىدىغان زىيارەت</h3>
+            <p class="admin-help" id="analyticsVisitCountryLatestNote">بۇ ئاخىرقى 20 قېتىمنىڭ كۆرۈنۈشى. تولۇق زىيارەت خاتىرىسى ئەمەس.</p>
             <div id="analyticsVisitCountryLatest" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
             <button type="button" class="admin-secondary" id="analyticsVisitCountryRetry" hidden>قايتا سىناش</button>
           </div>
@@ -1058,7 +1068,7 @@
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
 <script defer src="catalog-credits.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=10"></script>
+<script defer src="kutadgu-analytics-core.js?v=11"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
@@ -1072,7 +1082,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=97"></script>
+  <script defer src="admin.js?v=98"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
