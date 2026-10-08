@@ -111,14 +111,14 @@ This SHA is the last verified application and runtime baseline. It is not necess
 
 | | |
 |---|---|
-| Commit | `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` |
-| Subject | Merge pull request #265 from kutadgubiligkitab/cursor/book-view-count-visibility-5fba |
-| Date | 2026-10-07 |
+| Commit | `cdc413045cf79f894b402ae14c5aec4e67476aef` |
+| Subject | Merge pull request #266 from kutadgubiligkitab/cursor/economics-food-categories-5fba |
+| Date | 2026-10-08 |
 | Branch | `main` |
-| PR | #265, merged |
-| Why it stays | This merge is the deployed website. Parents are `1822a1579bf717a8941374311281493368c16c04` and `e536b11f7f956e1c792a36d7eed70b0d44785b62`. The tree matches the reviewed head. Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`, created 2026-10-07T23:35:10.787Z. No production SQL was applied. |
+| PR | #266, merged |
+| Why it stays | This merge is the deployed website. Parents are `1545582083a9d0e6aa5d4809feb00f74c40a667b` and `484bfa230bce9072ed44d4f08f6fc33a7b312429`. The tree matches the reviewed head. Worker `kutadgu-cloudflare-production` version `f79492cb-2d14-4d85-97e8-67557ed3a838`, created 2026-10-08T09:59:48.286Z. No production SQL was applied. |
 
-The runtime baseline table above is the deployed PR #265 merge. The following search-list sentences describe the draft as it was recorded before the PR #263 release. The tested draft application commit is `99d3236c07071400e7031bc7d27edc71f9823137` on `cursor/admin-search-lists-5fba`, draft PR #261. Local proof used PostgreSQL 16.15 and PostgREST 14.5 on a throwaway database. Playwright used Chromium at 1280×900 and 390×800 against the local static server. No production SQL was applied, and no admin AAL2 session was opened.
+The runtime baseline table above is the deployed PR #266 merge. The following search-list sentences describe the draft as it was recorded before the PR #263 release. The tested draft application commit is `99d3236c07071400e7031bc7d27edc71f9823137` on `cursor/admin-search-lists-5fba`, draft PR #261. Local proof used PostgreSQL 16.15 and PostgREST 14.5 on a throwaway database. Playwright used Chromium at 1280×900 and 390×800 against the local static server. No production SQL was applied, and no admin AAL2 session was opened.
 
 PR #257 remains the previous website deploy, Worker `0ac7012d-4324-4a45-bf4e-6467a33e3c1e`. `get_kutadgu_analytics(integer)` keeps the rolling-window event totals and `counted_visits`. An interval entirely before `started_at` is unavailable, including an empty interval. An interval that crosses that marker is partial. A valid public page view with no receipt is partial. A receipt with `counted = false` remains a suppressed visit. The three-hour rule applies only to counted visits. Search events are not suppressed by that window. The admin page has one زىيارەت قېتىمى presentation. Deployed `admin.html` still requests `kutadgu-analytics-core.js?v=8` and `admin.js?v=93`. This draft requests `kutadgu-analytics-core.js?v=9`, `admin.js?v=94`, and `admin.css?v=51` on the admin page only. Storefront pages stay on `kutadgu-analytics-core.js?v=5` and `analytics.js?v=6`. Rollback of the visit counter remains `STAGE114_THREE_HOUR_VISITS_ROLLBACK.sql`, run alone. Rollback of these lists is `STAGE116_ADMIN_ANALYTICS_LISTS_ROLLBACK.sql`, run alone after Stage 116. Neither deletes `analytics_events`. Do not grant `SELECT` to `anon`. Do not apply `STAGE100_ADMIN_DAILY_VISITORS.sql` or rerun Stage 114 or Stage 115.
 
@@ -288,12 +288,12 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 
 | File | Pin at the runtime baseline |
 |---|---|
-| `shop.js` | `book-shell.html` requests `?v=145`. `cart.html` stays `?v=141`. Homepage, listings, `credit-books.html`, and the other storefront documents updated in PR #265 request `?v=146`. `shop.js` requests `kutadgu-book-views.js?v=6` and still loads `premium-ux.js?v=13`. |
+| `shop.js` | `book-shell.html`, homepage, listings, `credit-books.html`, and the other storefront documents updated in PR #266 request `?v=147`. `cart.html` stays `?v=141`. `shop.js` requests `kutadgu-book-views.js?v=6`, `app-config.js?v=6`, and still loads `premium-ux.js?v=13`. |
 | `catalog-credits.js` | `?v=3` on `admin.html` and `book-staff.html`. `book-shell.html` and `credit-books.html` stay `?v=1` |
 | `catalog-credits.css` | `?v=1` on `book-shell.html` and `credit-books.html` |
 | `kutadgu-shared-cart.js` | `?v=3` on `cart.html` only |
 | `kutadgu-visit-order.js` | `?v=2` on `books.html`, immediately before `kutadgu-search-rank.js` |
-| `kutadgu-book-seo.js` | `?v=5` on `book-shell.html` (book schema hydration). Listing pages still request `?v=3`. |
+| `kutadgu-book-seo.js` | `?v=6` on `book-shell.html` and on the storefront documents that previously requested `?v=3`. |
 | `supabase-config.js` | `?v=22` |
 | `member.js` | `?v=28` |
 | `admin.js` | `?v=86` (`no-store`; role-aware credit loading and one contributor transaction) |
@@ -463,9 +463,11 @@ Storefront documents that requested `shop.js?v=146` now request `shop.js?v=147`.
 
 The Android and iOS apps are not in this repository. They already read `books.category` and `books.source` as text, so a book assigned to either label fits the public catalog contract without a schema change. A category menu hardcoded inside the app will not list these hubs until that app is updated. This change does not edit the app.
 
-Draft PR #266 on `cursor/economics-food-categories-5fba`. This branch is not deployed. The runtime baseline remains merge `c932991cacc91bb4ce481ce6b0b03df13f42f3b7` and Worker `kutadgu-cloudflare-production` version `9a3a7bd7-5930-4a32-9bd8-a9832f5c723d`. The asset-pin table above still describes that deployed baseline.
+PR #266 was already merged when this release was inspected. The reviewed head stayed `484bfa230bce9072ed44d4f08f6fc33a7b312429`. Stage 10 run [37757986595](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/37757986595), job `113247176124`, passed on that exact head: 865 passed, 3 skipped. The merge commit is `cdc413045cf79f894b402ae14c5aec4e67476aef`. Its parents are `1545582083a9d0e6aa5d4809feb00f74c40a667b` and `484bfa230bce9072ed44d4f08f6fc33a7b312429`, and its tree matches the reviewed head. `npx wrangler deploy --env production` from that commit, Wrangler 4.145.0, deployed Worker `kutadgu-cloudflare-production` version `f79492cb-2d14-4d85-97e8-67557ed3a838`, created 2026-10-08T09:59:48.286Z. The version listing records the source as an upload and does not store the git SHA. No production SQL was applied, and no book row was recategorized.
 
-Stage 10 run [37709018115](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/37709018115), job `113090226245`, passed on application head `72cf353d5b5212ee8234522d8d76d3614ba373a1`: 865 passed, 3 skipped. Run `37710437264`, job `113094862738`, passed on `f97c6ab115e9b640111b7a5ca42b303a74012173` before the `kutadgu-book-seo.js?v=6` pin: 864 passed, 1 flaky, 3 skipped. Run `37708981622` belongs to the earlier commit `5cc21690f745bbdb3187a7ba21ba3dcb8aca7274`. The asset-pin table above still describes the deployed baseline, where listing pages request `kutadgu-book-seo.js?v=3` and `book-shell.html` requests `?v=5`.
+Live `/` contains both labels and requests `shop.js?v=147`, `kutadgu-book-seo.js?v=6`, and `analytics.js?v=7`. Live `/iqtisad` and `/taamlar` use canonical `https://www.kutadgubilik.com/iqtisad` and `https://www.kutadgubilik.com/taamlar`. Chromium showed the existing empty sentence and no book links. `admin.html` and `book-staff.html` request `app-config.js?v=6`. `cart.html` stays `shop.js?v=141` and shows the empty cart heading. `/book/252` requests `shop.js?v=147`, `kutadgu-book-seo.js?v=6`, `kutadgu-book-views.js?v=6`, and `analytics.js?v=7`. Its contributor link opened `/author/ae013912-6f81-4549-9a57-638b8d3b6efb`, and the heading `ئەنۋەر جاپپار` was present after the catalog loaded. `/test-results/.last-run.json` returns HTTP 404 with the body `not found`. Live `shop.js?v=147`, `kutadgu-book-seo.js?v=6`, `kutadgu-book-views.js?v=6`, `analytics.js?v=7`, and `app-config.js?v=6` match the merge. `.js` cache headers stay `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`. After the deploy, the edge also serves those new file bytes for the old query strings.
+
+A Chromium profile stored the previously deployed `shop.js?v=146`, `?v=145`, and `?v=141`, `kutadgu-book-seo.js?v=3` and `?v=5`, `app-config.js?v=5`, `analytics.js?v=7`, and `kutadgu-book-views.js?v=6` before the deploy. The profile was not cleared. The next homepage requested `shop.js?v=147` and `kutadgu-book-seo.js?v=6`. A later load reused those new URLs from cache. `cache: only-if-cached` still returned the old helper without `iqtisad` and the old `shop.js` bodies. `cart.html` reused `shop.js?v=141` from that cache. Analytics event POSTs were blocked in the browser and did not receive an HTTP response. Cloudflare RUM POSTs returned 204. No authenticated admin or staff session was opened, so the category selectors were not exercised. Desktop and 390px Chromium were used, not a physical phone. The commit that records this paragraph is documentation only and is not the deployed commit.
 
 ## How to update this document
 
