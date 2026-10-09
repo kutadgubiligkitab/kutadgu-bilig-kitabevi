@@ -5797,7 +5797,12 @@ function renderVisitCountryTables(block){
     if(prev)prev.disabled=visitCountryPage<=0;
     if(next)next.disabled=visitCountryPage>=pages-1;
   }
-  if(!visitHistorySession||visitHistorySession.mode!=="history")paintVisitHistoryPreview(block);
+  if(visitHistoryFailed&&(!visitHistorySession||visitHistorySession.mode!=="history")){
+    // A failed first history read has no session. Totals search and paging
+    // repaint this block and must leave that error and its retry in place.
+  }else if(!visitHistorySession||visitHistorySession.mode!=="history"){
+    paintVisitHistoryPreview(block);
+  }
 }
 function setHistoryChrome(mode, session, extra){
   const title=$("#analyticsVisitCountryLatestTitle");
@@ -5949,6 +5954,7 @@ async function loadVisitCountryHistory(intent){
     offset:page.offset,
     limit:page.limit,
     asOf:page.asOf,
+    snapshotId:page.snapshotId,
     total:page.total,
     rows:page.rows,
     hasMore:page.hasMore,

@@ -49,13 +49,22 @@ if psql_db -tA -c "SELECT set_config('test.admin','on',false); SELECT set_config
   exit 1
 fi
 psql_db -f "$ROOT/scripts/stage118-isolated-assertions.sql" >/dev/null
+"$ROOT/scripts/stage118-snapshot-race.sh" "$DB"
 events_mid="$(psql_db -tA -c "SELECT count(*) FROM public.analytics_events")"
 receipts_mid="$(psql_db -tA -c "SELECT count(*) FROM private.analytics_visit_receipts")"
 visit_mid="$(psql_db -tA -c "SELECT started_at FROM private.analytics_visit_counter")"
 country_mid="$(psql_db -tA -c "SELECT started_at FROM private.analytics_country_counter")"
 psql_db -f "$ROOT/STAGE118_VISIT_COUNTRY_HISTORY_ROLLBACK.sql" >/dev/null
-if psql_db -tA -c "SELECT to_regprocedure('public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)')" | grep -q get_kutadgu; then
+if psql_db -tA -c "SELECT to_regprocedure('public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz,uuid)')" | grep -q get_kutadgu; then
   echo "rollback left the history function" >&2
+  exit 1
+fi
+if psql_db -tA -c "SELECT to_regclass('private.kutadgu_visit_history_snapshots')" | grep -q kutadgu_visit_history_snapshots; then
+  echo "rollback left the history snapshot table" >&2
+  exit 1
+fi
+if psql_db -tA -c "SELECT to_regclass('private.kutadgu_visit_history_snapshot_members')" | grep -q kutadgu_visit_history_snapshot_members; then
+  echo "rollback left the history snapshot members" >&2
   exit 1
 fi
 events_after="$(psql_db -tA -c "SELECT count(*) FROM public.analytics_events")"

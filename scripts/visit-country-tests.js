@@ -241,6 +241,7 @@ test("history requests keep the snapshot and reject private fields", () => {
     mode: "history",
     days: 30,
     asOf: "2026-10-09T12:00:00.000Z",
+    snapshotId: "11111111-1111-4111-8111-111111111111",
     total: 21,
     rangeStart: "2026-09-10",
     rangeEnd: "2026-10-09"
@@ -248,6 +249,7 @@ test("history requests keep the snapshot and reject private fields", () => {
   const first = A.visitCountryHistoryRequest({ kind: "initial", selectedDays: 7, limit: 20 });
   assert.deepEqual(first, { p_days: 7, p_offset: 0, p_limit: 20 });
   assert.equal(Object.prototype.hasOwnProperty.call(first, "p_as_of"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(first, "p_snapshot"), false);
   const refresh = A.visitCountryHistoryRequest({ kind: "refresh", selectedDays: 90, limit: 20, session });
   assert.deepEqual(refresh, { p_days: 90, p_offset: 0, p_limit: 20 });
   const page = A.visitCountryHistoryRequest({
@@ -261,7 +263,8 @@ test("history requests keep the snapshot and reject private fields", () => {
     p_days: 30,
     p_offset: 20,
     p_limit: 20,
-    p_as_of: "2026-10-09T12:00:00.000Z"
+    p_as_of: "2026-10-09T12:00:00.000Z",
+    p_snapshot: "11111111-1111-4111-8111-111111111111"
   });
   assert.equal(A.visitCountryHistoryRequest({ kind: "page", session, offset: 20, limit: 80 }), null);
   assert.equal(A.visitCountryHistoryRequest({ kind: "page", session: { days: 30 }, offset: 20, limit: 20 }), null);
@@ -272,6 +275,7 @@ test("history requests keep the snapshot and reject private fields", () => {
     offset: 0,
     limit: 20,
     as_of: "2026-10-09T09:00:00+00:00",
+    snapshot_id: "11111111-1111-4111-8111-111111111111",
     total: 21,
     next_offset: 20,
     range_start: "2026-09-10",
@@ -303,6 +307,7 @@ test("history requests keep the snapshot and reject private fields", () => {
     offset: 0,
     limit: 20,
     as_of: "2026-08-20T09:00:00Z",
+    snapshot_id: "22222222-2222-4222-8222-222222222222",
     total: null,
     rows: null,
     range_start: "2026-08-14",
@@ -317,6 +322,7 @@ test("history requests keep the snapshot and reject private fields", () => {
     offset: 0,
     limit: 20,
     as_of: "2026-08-20T09:00:00Z",
+    snapshot_id: "22222222-2222-4222-8222-222222222222",
     total: 0,
     rows: []
   })), null);
@@ -324,6 +330,7 @@ test("history requests keep the snapshot and reject private fields", () => {
     mode: "history",
     days: 30,
     asOf: "2026-10-09T09:00:00Z",
+    snapshotId: "11111111-1111-4111-8111-111111111111",
     total: 21,
     rangeStart: "2026-09-10",
     rangeEnd: "2026-10-09"
@@ -348,13 +355,16 @@ test("history requests keep the snapshot and reject private fields", () => {
   assert.match(forward, /FROM service_role/);
   assert.match(forward, /private\.analytics_visit_receipts/);
   assert.match(forward, /private\.analytics_country_counter/);
-  assert.doesNotMatch(forward, /delete from/i);
+  assert.match(forward, /DELETE FROM private\.kutadgu_visit_history_snapshots/);
+  assert.match(forward, /kutadgu_visit_history_snapshot_members/);
+  assert.doesNotMatch(forward, /DELETE FROM\s+(public\.analytics_events|private\.analytics_visit_receipts|private\.analytics_country_counter|private\.analytics_visit_gate|private\.analytics_visit_counter)/i);
   assert.match(rollback, /DROP FUNCTION IF EXISTS public\.get_kutadgu_visit_country_history/);
+  assert.match(rollback, /DROP TABLE IF EXISTS private\.kutadgu_visit_history_snapshots/);
   assert.doesNotMatch(rollback, /delete from/i);
   assert.doesNotMatch(rollback, /analytics_country_counter/);
   const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
-  assert.match(adminHtml, /admin\.js\?v=99/);
-  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=12/);
+  assert.match(adminHtml, /admin\.js\?v=100/);
+  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=13/);
   assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
   assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);
 });

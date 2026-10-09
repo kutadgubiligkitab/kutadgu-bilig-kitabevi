@@ -1040,6 +1040,9 @@ function installHistoryAdmin(page) {
         asOf = args && args.p_as_of ? String(args.p_as_of) : "2026-10-09T12:00:00.000Z";
       }
       const pageRows = rows.slice(offset, offset + limit);
+      const snapshotId = args && args.p_snapshot
+        ? String(args.p_snapshot)
+        : (days === 7 ? "70000000-0000-4000-8000-000000000007" : "30000000-0000-4000-8000-000000000030");
       return {
         schema_version: 1,
         status: "complete",
@@ -1047,6 +1050,7 @@ function installHistoryAdmin(page) {
         window_hours: 3,
         days,
         as_of: asOf,
+        snapshot_id: snapshotId,
         offset,
         limit,
         next_offset: offset + pageRows.length,
@@ -1075,7 +1079,7 @@ function installHistoryAdmin(page) {
               window.__kutadguReleaseHistory = () => resolve({ data: historyBody(args), error: null });
             });
           }
-          if (args && Number(args.p_offset) > 0 && !args.p_as_of) {
+          if (args && Number(args.p_offset) > 0 && (!args.p_as_of || !args.p_snapshot)) {
             return Promise.resolve({ data: null, error: { message: "snapshot missing" } });
           }
           return Promise.resolve({ data: historyBody(args), error: null });
@@ -1228,6 +1232,51 @@ for (const viewport of viewports) {
 }
 
 for (const viewport of viewports) {
+  test(`country-total search keeps a failed history read at ${viewport.label}`, async ({ page }) => {
+    test.setTimeout(120000);
+    await page.setViewportSize(viewport);
+    await installHistoryAdmin(page);
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => { window.__kutadguHistoryMode = "fail"; });
+    const select = page.locator("#adminSectionSelect");
+    if (await select.isVisible()) await select.selectOption("insights");
+    else await page.locator('[data-admin-section="insights"]').click();
+    await page.locator("#analyticsVisitCountryToggle").click();
+    await page.locator("#reloadAnalytics").click();
+    const latest = page.locator("#analyticsVisitCountryLatest");
+    await expect(latest).toContainText("خاتىرە ئوقۇلمىدى");
+    await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("تاللانغان ئارىلىقتىكى زىيارەت خاتىرىسى");
+    await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("ئوقۇلمىدى");
+    await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+    await expect(page.locator("#analyticsVisitHistoryPager")).toBeHidden();
+    await expect(latest.locator(".admin-country-date")).toHaveCount(0);
+    const calls = await page.evaluate(() => window.__kutadguHistoryCalls.length);
+    await page.locator("#analyticsVisitCountrySearch").fill("HK");
+    await expect(page.locator("#analyticsVisitCountryTotals .admin-country-row .admin-country-name")).toHaveText("خوڭكوڭ");
+    await expect(latest).toContainText("خاتىرە ئوقۇلمىدى");
+    await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("تاللانغان ئارىلىقتىكى زىيارەت خاتىرىسى");
+    await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+    await expect(latest.locator(".admin-country-date")).toHaveCount(0);
+    await page.locator("#analyticsVisitCountrySearch").fill("");
+    await page.locator("#analyticsVisitCountryNext").click();
+    await expect(page.locator("#analyticsVisitCountryPage")).toContainText("2 /");
+    await expect(latest).toContainText("خاتىرە ئوقۇلمىدى");
+    await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+    await expect(latest.locator(".admin-country-date")).toHaveCount(0);
+    expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(calls);
+    await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+    await page.locator("#analyticsVisitCountryRetry").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row .admin-country-name").first()).toHaveText("نامەلۇم");
+    const retried = await page.evaluate(() => window.__kutadguHistoryCalls.at(-1));
+    expect(retried.p_days).toBe(30);
+    expect(retried.p_offset).toBe(0);
+    expect(retried.p_snapshot).toBeFalsy();
+    expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(calls + 1);
+  });
+}
+
+for (const viewport of viewports) {
   test(`account change drops a stale history page at ${viewport.label}`, async ({ page }) => {
     test.setTimeout(120000);
     await page.setViewportSize(viewport);
@@ -1240,6 +1289,7 @@ for (const viewport of viewports) {
           offset: 0,
           limit: 20,
           as_of: "2026-10-09T12:00:00.000Z",
+          snapshot_id: args && args.p_snapshot ? String(args.p_snapshot) : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
           total: 1,
           next_offset: 1,
           range_start: "2026-09-10",

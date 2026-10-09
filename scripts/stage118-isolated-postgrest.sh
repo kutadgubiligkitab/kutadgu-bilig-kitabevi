@@ -173,6 +173,7 @@ function parsed(text) {
     mode: "history",
     days: first.days,
     asOf: first.asOf,
+    snapshotId: first.snapshotId,
     total: first.total,
     rangeStart: first.rangeStart,
     rangeEnd: first.rangeEnd
@@ -184,7 +185,7 @@ function parsed(text) {
     offset: 20,
     limit: 20
   });
-  if (!pageRequest || pageRequest.p_days !== 7 || pageRequest.p_offset !== 20 || pageRequest.p_as_of !== first.asOf) {
+  if (!pageRequest || pageRequest.p_days !== 7 || pageRequest.p_offset !== 20 || pageRequest.p_as_of !== first.asOf || pageRequest.p_snapshot !== first.snapshotId) {
     fail("client page request " + JSON.stringify(pageRequest));
   }
   const secondCall = await rpc(pageRequest, admin);
@@ -209,6 +210,7 @@ function parsed(text) {
       mode: "history",
       days: current.days,
       asOf: current.asOf,
+      snapshotId: current.snapshotId,
       total: current.total,
       rangeStart: current.rangeStart,
       rangeEnd: current.rangeEnd
@@ -241,6 +243,7 @@ function parsed(text) {
   process.exit(1);
 });
 NODE
+"$ROOT/scripts/stage118-snapshot-race.sh" "$DB" "$PORT"
 events_mid="$(psql_db -c "SELECT count(*) FROM public.analytics_events")"
 receipts_mid="$(psql_db -c "SELECT count(*) FROM private.analytics_visit_receipts")"
 visit_mid="$(psql_db -c "SELECT started_at FROM private.analytics_visit_counter")"

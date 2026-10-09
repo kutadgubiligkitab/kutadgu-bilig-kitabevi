@@ -780,7 +780,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "STAGE118_VISIT_COUNTRY_HISTORY_ROLLBACK.sql",
     "scripts/stage118-isolated-assertions.sql",
     "scripts/stage118-isolated-postgres.sh",
-    "scripts/stage118-isolated-postgrest.sh"
+    "scripts/stage118-isolated-postgrest.sh",
+    "scripts/stage118-snapshot-race.sh"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

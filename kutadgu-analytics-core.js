@@ -906,6 +906,11 @@
     return /get_kutadgu_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
   }
 
+  function historySnapshotId(value){
+    const text=value==null?"":String(value).trim().toLowerCase();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(text)?text:null;
+  }
+
   function visitCountryHistoryRequest(options){
     const limit=integerAtLeast(options&&options.limit,1);
     if(limit===null||limit>50)return null;
@@ -914,8 +919,9 @@
       const days=integerAtLeast(session&&session.days,1);
       const offset=integerAtLeast(options.offset,0);
       const asOf=session&&session.asOf!=null?String(session.asOf):"";
-      if(days===null||offset===null||!asOf)return null;
-      return {p_days:days,p_offset:offset,p_limit:limit,p_as_of:asOf};
+      const snapshotId=historySnapshotId(session&&session.snapshotId);
+      if(days===null||offset===null||!asOf||!snapshotId)return null;
+      return {p_days:days,p_offset:offset,p_limit:limit,p_as_of:asOf,p_snapshot:snapshotId};
     }
     const selected=integerAtLeast(options&&options.selectedDays,1);
     if(selected===null)return null;
@@ -930,6 +936,9 @@
 
   function normalizeVisitCountryHistory(payload){
     if(!payload||typeof payload!=="object"||Array.isArray(payload))return null;
+    if(Object.prototype.hasOwnProperty.call(payload,"db_snapshot")||Object.prototype.hasOwnProperty.call(payload,"xmin")||Object.prototype.hasOwnProperty.call(payload,"event_id")||Object.prototype.hasOwnProperty.call(payload,"visitor_id"))return null;
+    const snapshotId=historySnapshotId(payload.snapshot_id);
+    if(!snapshotId)return null;
     const status=payload.status==="zero"||payload.status==="partial"||payload.status==="complete"||payload.status==="unavailable"
       ?payload.status
       :null;
@@ -947,6 +956,7 @@
         offset,
         limit,
         asOf,
+        snapshotId,
         total:null,
         rows:null,
         hasMore:false,
@@ -981,6 +991,7 @@
       offset,
       limit,
       asOf,
+      snapshotId,
       total,
       rows,
       hasMore:nextOffset<total,
@@ -999,6 +1010,7 @@
     if(days===null||wanted===null||total===null)return false;
     if(page.days!==days||page.offset!==wanted||page.total!==total)return false;
     if(!sameZeroSearchInstant(page.asOf, session.asOf))return false;
+    if(historySnapshotId(page.snapshotId)!==historySnapshotId(session.snapshotId))return false;
     if(String(page.rangeStart||"")!==String(session.rangeStart||""))return false;
     if(String(page.rangeEnd||"")!==String(session.rangeEnd||""))return false;
     return true;

@@ -97,11 +97,15 @@ BEGIN
     RAISE EXCEPTION 'equal timestamp pair diverged';
   END IF;
 
-  v_page2 := public.get_kutadgu_visit_country_history(7, 20, 20, (v_snapshot->>'as_of')::timestamptz);
+  IF v_snapshot->>'snapshot_id' IS NULL OR v_snapshot ? 'db_snapshot' OR v_snapshot ? 'xmin' THEN
+    RAISE EXCEPTION 'snapshot id missing or database snapshot leaked';
+  END IF;
+  v_page2 := public.get_kutadgu_visit_country_history(7, 20, 20, NULL, (v_snapshot->>'snapshot_id')::uuid);
   IF (v_page2->>'total')::integer IS DISTINCT FROM 21
      OR jsonb_array_length(v_page2->'rows') IS DISTINCT FROM 1
      OR v_page2->>'has_more' IS DISTINCT FROM 'false'
-     OR v_page2->>'as_of' IS DISTINCT FROM v_snapshot->>'as_of' THEN
+     OR v_page2->>'as_of' IS DISTINCT FROM v_snapshot->>'as_of'
+     OR v_page2->>'snapshot_id' IS DISTINCT FROM v_snapshot->>'snapshot_id' THEN
     RAISE EXCEPTION 'second page shifted: %', v_page2;
   END IF;
   IF (v_page2->'rows'->0->>'counted_at')::timestamptz IS DISTINCT FROM timestamptz '2026-09-10 10:00:00+03' THEN
@@ -153,8 +157,9 @@ BEGIN
     RAISE EXCEPTION 'history payload exposed a private identifier';
   END IF;
 
-  v_later := public.get_kutadgu_visit_country_history(7, 20, 20, v_as_of);
+  v_later := public.get_kutadgu_visit_country_history(7, 20, 20, NULL, (v_snapshot->>'snapshot_id')::uuid);
   IF (v_later->>'total')::integer IS DISTINCT FROM 21
+     OR v_later->>'snapshot_id' IS DISTINCT FROM v_snapshot->>'snapshot_id'
      OR position('JP' in v_later::text) > 0 THEN
     RAISE EXCEPTION 'later same-day visit entered the open snapshot: %', v_later;
   END IF;
@@ -252,18 +257,39 @@ BEGIN
     RAISE EXCEPTION 'country marker moved during reads';
   END IF;
 
-  IF has_function_privilege('anon', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)', 'execute')
-     OR has_function_privilege('public', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)', 'execute')
-     OR NOT has_function_privilege('authenticated', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)', 'execute') THEN
+  IF to_regprocedure('public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)') IS NOT NULL THEN
+    RAISE EXCEPTION 'four-argument history function is still installed';
+  END IF;
+  IF has_function_privilege('anon', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz,uuid)', 'execute')
+     OR has_function_privilege('public', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz,uuid)', 'execute')
+     OR NOT has_function_privilege('authenticated', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz,uuid)', 'execute') THEN
     RAISE EXCEPTION 'history execute grants are wrong';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role')
-     AND has_function_privilege('service_role', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz)', 'execute') THEN
+     AND has_function_privilege('service_role', 'public.get_kutadgu_visit_country_history(integer,integer,integer,timestamptz,uuid)', 'execute') THEN
     RAISE EXCEPTION 'service_role can execute history';
   END IF;
   IF has_table_privilege('anon', 'private.analytics_visit_receipts', 'select')
      OR has_table_privilege('authenticated', 'private.analytics_visit_receipts', 'select') THEN
     RAISE EXCEPTION 'browser role can read receipts';
+  END IF;
+  IF has_table_privilege('anon', 'private.kutadgu_visit_history_snapshots', 'select')
+     OR has_table_privilege('authenticated', 'private.kutadgu_visit_history_snapshots', 'select')
+     OR has_table_privilege('authenticated', 'private.kutadgu_visit_history_snapshots', 'insert')
+     OR has_table_privilege('anon', 'private.kutadgu_visit_history_snapshots', 'insert')
+     OR has_table_privilege('anon', 'private.kutadgu_visit_history_snapshot_members', 'select')
+     OR has_table_privilege('authenticated', 'private.kutadgu_visit_history_snapshot_members', 'select')
+     OR has_table_privilege('authenticated', 'private.kutadgu_visit_history_snapshot_members', 'insert') THEN
+    RAISE EXCEPTION 'browser role can use history snapshots';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role')
+     AND (
+       has_table_privilege('service_role', 'private.kutadgu_visit_history_snapshots', 'select')
+       OR has_table_privilege('service_role', 'private.kutadgu_visit_history_snapshots', 'insert')
+       OR has_table_privilege('service_role', 'private.kutadgu_visit_history_snapshot_members', 'select')
+       OR has_table_privilege('service_role', 'private.kutadgu_visit_history_snapshot_members', 'insert')
+     ) THEN
+    RAISE EXCEPTION 'service_role can use history snapshots';
   END IF;
 END
 $check$;
