@@ -974,6 +974,8 @@ function installHistoryAdmin(page) {
     window.__kutadguExposeAnalyticsRender = true;
     window.__kutadguHistoryMode = "ok";
     window.__kutadguHistoryCalls = [];
+    window.__kutadguAnalyticsMode = "ok";
+    window.__kutadguAnalyticsCalls = [];
     function chain() {
       const q = {};
       ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((method) => {
@@ -1086,6 +1088,13 @@ function installHistoryAdmin(page) {
         }
         if (name !== "get_kutadgu_analytics") {
           return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+        }
+        window.__kutadguAnalyticsCalls.push(args || {});
+        if (window.__kutadguAnalyticsMode === "error") {
+          return Promise.resolve({ data: null, error: { message: "ئانالىتىكا ئوقۇلمىدى" } });
+        }
+        if (window.__kutadguAnalyticsMode === "throw") {
+          return Promise.reject(new Error("ئانالىتىكا ئۈزۈلدى"));
         }
         return Promise.resolve({ data: analyticsPayload(args && args.p_days), error: null });
       }
@@ -1274,6 +1283,83 @@ for (const viewport of viewports) {
     expect(retried.p_snapshot).toBeFalsy();
     expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(calls + 1);
   });
+}
+
+for (const viewport of viewports) {
+  for (const failure of [
+    { mode: "error", label: "returned error", text: "ئانالىتىكا ئوقۇلمىدى" },
+    { mode: "throw", label: "rejected promise", text: "ئانالىتىكا ئۈزۈلدى" }
+  ]) {
+    test(`history retry stays after a ${failure.label} analytics refresh at ${viewport.label}`, async ({ page }) => {
+      test.setTimeout(120000);
+      const unhandled = [];
+      page.on("pageerror", (err) => unhandled.push(String(err)));
+      await page.setViewportSize(viewport);
+      await installHistoryAdmin(page);
+      await page.addInitScript(() => {
+        window.__kutadguUnhandled = [];
+        window.addEventListener("unhandledrejection", (event) => {
+          window.__kutadguUnhandled.push(String(event.reason && event.reason.message || event.reason));
+        });
+      });
+      await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+      await showHistory(page);
+      const latest = page.locator("#analyticsVisitCountryLatest");
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+      await expect(latest.locator(".admin-country-row").first().locator(".admin-country-name")).toHaveText("نامەلۇم");
+      await page.evaluate(() => { window.__kutadguHistoryMode = "fail"; });
+      await page.locator("#analyticsVisitHistoryNext").click();
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+      await expect(latest.locator(".admin-country-row").first().locator(".admin-country-name")).toHaveText("نامەلۇم");
+      await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("خاتىرە ئوقۇلمىدى");
+      await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+      const failedPage = await page.evaluate(() => window.__kutadguHistoryCalls.at(-1));
+      expect(failedPage.p_days).toBe(30);
+      expect(failedPage.p_offset).toBe(20);
+      expect(failedPage.p_snapshot).toBe("30000000-0000-4000-8000-000000000030");
+      expect(failedPage.p_as_of).toBeTruthy();
+      const historyCalls = await page.evaluate(() => window.__kutadguHistoryCalls.length);
+      const analyticsCalls = await page.evaluate(() => window.__kutadguAnalyticsCalls.length);
+      await page.evaluate((mode) => { window.__kutadguAnalyticsMode = mode; }, failure.mode);
+      await page.locator("#reloadAnalytics").click();
+      await expect(page.locator("#analyticsMeta")).toContainText(failure.text);
+      await expect(page.locator("#analyticsMeta")).toContainText("يەنىلا ئاخىرقى 30 كۈن");
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+      await expect(latest.locator(".admin-country-row").first().locator(".admin-country-name")).toHaveText("نامەلۇم");
+      await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("خاتىرە ئوقۇلمىدى");
+      await expect(page.locator("#analyticsVisitCountryLatestNote")).not.toContainText(failure.text);
+      await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+      await expect(page.locator("#reloadAnalytics")).toBeVisible();
+      expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(historyCalls);
+      expect(await page.evaluate(() => window.__kutadguAnalyticsCalls.length)).toBe(analyticsCalls + 1);
+      await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+      await page.locator("#analyticsVisitCountryRetry").click();
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+      await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+      await expect(page.locator("#analyticsVisitCountryRetry")).toBeHidden();
+      await expect(page.locator("#analyticsMeta")).toContainText(failure.text);
+      const retried = await page.evaluate(() => window.__kutadguHistoryCalls.at(-1));
+      expect(retried.p_days).toBe(failedPage.p_days);
+      expect(retried.p_offset).toBe(failedPage.p_offset);
+      expect(retried.p_snapshot).toBe(failedPage.p_snapshot);
+      expect(retried.p_as_of).toBe(failedPage.p_as_of);
+      expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(historyCalls + 1);
+      expect(await page.evaluate(() => window.__kutadguAnalyticsCalls.length)).toBe(analyticsCalls + 1);
+      await page.locator("#reloadAnalytics").click();
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+      await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+      await expect(page.locator("#analyticsVisitCountryRetry")).toBeHidden();
+      await expect(page.locator("#analyticsMeta")).toContainText(failure.text);
+      expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(historyCalls + 1);
+      await page.evaluate(() => { window.__kutadguAnalyticsMode = "ok"; });
+      await page.locator("#reloadAnalytics").click();
+      await expect(page.locator("#analyticsMeta")).not.toContainText(failure.text);
+      await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+      await expect(page.locator("#analyticsVisitCountryRetry")).toBeHidden();
+      expect(await page.evaluate(() => window.__kutadguUnhandled || [])).toEqual([]);
+      expect(unhandled).toEqual([]);
+    });
+  }
 }
 
 for (const viewport of viewports) {

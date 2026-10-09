@@ -363,7 +363,7 @@ test("history requests keep the snapshot and reject private fields", () => {
   assert.doesNotMatch(rollback, /delete from/i);
   assert.doesNotMatch(rollback, /analytics_country_counter/);
   const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
-  assert.match(adminHtml, /admin\.js\?v=100/);
+  assert.match(adminHtml, /admin\.js\?v=101/);
   assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=13/);
   assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
   assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);

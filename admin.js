@@ -5985,7 +5985,7 @@ function paintVisitCountries(view,opts){
   const errorText=opts&&opts.error;
   if(pending&&totals.dataset.ready==="1"){
     if(status)status.textContent="يۈكلىنىۋاتىدۇ... كۆرسىتىلگەن دۆلەت سانلىرى يەنىلا ئالدىنقى نەتىجە.";
-    if(retry)retry.hidden=true;
+    if(retry&&!visitHistoryFailed)retry.hidden=true;
     return;
   }
   if(pending){
@@ -6021,7 +6021,8 @@ function paintVisitCountries(view,opts){
   const block=view&&view.visitCountries
     ?view.visitCountries
     :(Core&&Core.describeVisitCountries?Core.describeVisitCountries(null):{status:"unavailable",rows:null,latest:null});
-  if(retry)retry.hidden=true;
+  // A retained analytics view must not hide the retry for a failed history read.
+  if(retry)retry.hidden=!visitHistoryFailed;
   if(!block||block.status==="unavailable"){
     if(status)status.textContent="دۆلەت خاتىرىسى بۇ ئارىلىقتا يوق. بۇ نۆل ئەمەس.";
     totals.innerHTML='<div class="admin-empty">بۇ ئارىلىق دۆلەت خاتىرىسى باشلىنىشتىن بۇرۇن. نۆل دەپ قارالمايدۇ.</div>';
