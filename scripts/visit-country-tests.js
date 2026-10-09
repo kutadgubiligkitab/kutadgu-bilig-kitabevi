@@ -235,3 +235,136 @@ test("the storefront recorder follows the worker result and falls back without a
   assert.equal(JSON.parse(directCall.body).country, undefined);
   assert.equal(JSON.parse(directCall.body).event_name, "page_view");
 });
+
+test("history requests keep the snapshot and reject private fields", () => {
+  const session = {
+    mode: "history",
+    days: 30,
+    asOf: "2026-10-09T12:00:00.000Z",
+    snapshotId: "11111111-1111-4111-8111-111111111111",
+    total: 21,
+    rangeStart: "2026-09-10",
+    rangeEnd: "2026-10-09"
+  };
+  const first = A.visitCountryHistoryRequest({ kind: "initial", selectedDays: 7, limit: 20 });
+  assert.deepEqual(first, { p_days: 7, p_offset: 0, p_limit: 20 });
+  assert.equal(Object.prototype.hasOwnProperty.call(first, "p_as_of"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(first, "p_snapshot"), false);
+  const refresh = A.visitCountryHistoryRequest({ kind: "refresh", selectedDays: 90, limit: 20, session });
+  assert.deepEqual(refresh, { p_days: 90, p_offset: 0, p_limit: 20 });
+  const page = A.visitCountryHistoryRequest({
+    kind: "page",
+    selectedDays: 90,
+    session,
+    offset: 20,
+    limit: 20
+  });
+  assert.deepEqual(page, {
+    p_days: 30,
+    p_offset: 20,
+    p_limit: 20,
+    p_as_of: "2026-10-09T12:00:00.000Z",
+    p_snapshot: "11111111-1111-4111-8111-111111111111"
+  });
+  assert.equal(A.visitCountryHistoryRequest({ kind: "page", session, offset: 20, limit: 80 }), null);
+  assert.equal(A.visitCountryHistoryRequest({ kind: "page", session: { days: 30 }, offset: 20, limit: 20 }), null);
+
+  const payload = {
+    status: "complete",
+    days: 30,
+    offset: 0,
+    limit: 20,
+    as_of: "2026-10-09T09:00:00+00:00",
+    snapshot_id: "11111111-1111-4111-8111-111111111111",
+    total: 21,
+    next_offset: 20,
+    range_start: "2026-09-10",
+    range_end: "2026-10-09",
+    rows: [
+      { country: null, counted_at: "2026-10-08T09:30:00Z" },
+      { country: "DE", counted_at: "2026-10-08T09:29:00Z" },
+      { country: "HK", counted_at: "2026-10-08T09:28:00Z" }
+    ]
+  };
+  const normalized = A.normalizeVisitCountryHistory(payload);
+  assert.equal(normalized.rows[0].label, "نامەلۇم");
+  assert.equal(normalized.rows[1].label, "گېرمانىيە");
+  assert.equal(normalized.rows[2].label, "خوڭكوڭ");
+  assert.match(normalized.rows[0].stamp, /^2026-10-08 12:30$/);
+  assert.equal(normalized.hasMore, true);
+  assert.equal(A.normalizeVisitCountryHistory(Object.assign({}, payload, {
+    rows: [{ country: "TR", counted_at: "2026-10-08T09:30:00Z", event_id: "secret" }]
+  })), null);
+  assert.equal(A.normalizeVisitCountryHistory(Object.assign({}, payload, {
+    rows: [{ country: "TR", counted_at: "2026-10-08T09:30:00Z", visitor_id: "secret" }]
+  })), null);
+  assert.equal(A.normalizeVisitCountryHistory(Object.assign({}, payload, {
+    rows: [{ country: "TR", counted_at: "2026-10-08T09:30:00Z", ip: "203.0.113.8" }]
+  })), null);
+  const unavailable = A.normalizeVisitCountryHistory({
+    status: "unavailable",
+    days: 7,
+    offset: 0,
+    limit: 20,
+    as_of: "2026-08-20T09:00:00Z",
+    snapshot_id: "22222222-2222-4222-8222-222222222222",
+    total: null,
+    rows: null,
+    range_start: "2026-08-14",
+    range_end: "2026-08-20"
+  });
+  assert.equal(unavailable.status, "unavailable");
+  assert.equal(unavailable.rows, null);
+  assert.equal(unavailable.total, null);
+  assert.equal(A.normalizeVisitCountryHistory(Object.assign({}, unavailable && {
+    status: "unavailable",
+    days: 7,
+    offset: 0,
+    limit: 20,
+    as_of: "2026-08-20T09:00:00Z",
+    snapshot_id: "22222222-2222-4222-8222-222222222222",
+    total: 0,
+    rows: []
+  })), null);
+  const kept = {
+    mode: "history",
+    days: 30,
+    asOf: "2026-10-09T09:00:00Z",
+    snapshotId: "11111111-1111-4111-8111-111111111111",
+    total: 21,
+    rangeStart: "2026-09-10",
+    rangeEnd: "2026-10-09"
+  };
+  assert.equal(A.visitCountryHistoryPageMatches(kept, normalized, 0), true);
+  assert.equal(A.visitCountryHistoryPageMatches(kept, Object.assign({}, normalized, { total: 22 }), 0), false);
+  assert.equal(A.missingVisitCountryHistoryRpc({ code: "PGRST202", message: "missing" }), true);
+  assert.equal(A.missingVisitCountryHistoryRpc({ code: "42883", message: "undefined function" }), true);
+  assert.equal(A.missingVisitCountryHistoryRpc({
+    message: "Could not find the function public.get_kutadgu_visit_country_history in the schema cache"
+  }), true);
+  assert.equal(A.missingVisitCountryHistoryRpc({ message: "admin only" }), false);
+
+  const forward = fs.readFileSync(path.join(root, "STAGE118_VISIT_COUNTRY_HISTORY.sql"), "utf8");
+  const rollback = fs.readFileSync(path.join(root, "STAGE118_VISIT_COUNTRY_HISTORY_ROLLBACK.sql"), "utf8");
+  assert.match(forward, /SECURITY DEFINER/);
+  assert.match(forward, /SET search_path = public/);
+  assert.match(forward, /GRANT EXECUTE ON FUNCTION public\.get_kutadgu_visit_country_history/);
+  assert.match(forward, /TO authenticated/);
+  assert.match(forward, /REVOKE ALL ON FUNCTION public\.get_kutadgu_visit_country_history[\s\S]*FROM PUBLIC/);
+  assert.match(forward, /FROM anon/);
+  assert.match(forward, /FROM service_role/);
+  assert.match(forward, /private\.analytics_visit_receipts/);
+  assert.match(forward, /private\.analytics_country_counter/);
+  assert.match(forward, /DELETE FROM private\.kutadgu_visit_history_snapshots/);
+  assert.match(forward, /kutadgu_visit_history_snapshot_members/);
+  assert.doesNotMatch(forward, /DELETE FROM\s+(public\.analytics_events|private\.analytics_visit_receipts|private\.analytics_country_counter|private\.analytics_visit_gate|private\.analytics_visit_counter)/i);
+  assert.match(rollback, /DROP FUNCTION IF EXISTS public\.get_kutadgu_visit_country_history/);
+  assert.match(rollback, /DROP TABLE IF EXISTS private\.kutadgu_visit_history_snapshots/);
+  assert.doesNotMatch(rollback, /delete from/i);
+  assert.doesNotMatch(rollback, /analytics_country_counter/);
+  const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
+  assert.match(adminHtml, /admin\.js\?v=101/);
+  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=13/);
+  assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
+  assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);
+});
