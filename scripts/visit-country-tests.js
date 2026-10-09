@@ -161,6 +161,27 @@ test("country report states stay distinct and do not invent a zero", () => {
   assert.deepEqual(zero.rows, []);
   const zz = A.countryLabel("ZZ");
   assert.ok(zz === "ZZ" || /[^\u0000-\u007f]/.test(zz));
+  assert.equal(A.countryLabel("HK"), "خوڭكوڭ");
+  assert.equal(A.countryLabel("hk"), "خوڭكوڭ");
+  assert.equal(A.countryLabel("TR"), "تۈركىيە");
+  assert.equal(A.countryLabel(null), "نامەلۇم");
+  const many = [];
+  for (let i = 0; i < 200; i += 1) {
+    const code = String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + Math.floor(i / 26));
+    many.push({ code, visits: 200 - i });
+  }
+  const full = A.describeVisitCountries({
+    status: "complete",
+    countries: many,
+    unknown_visits: 5,
+    latest: many.slice(0, 25).map((row) => ({
+      country: row.code,
+      counted_at: "2026-10-08T09:30:00Z"
+    }))
+  });
+  assert.equal(full.rows.length, 201);
+  assert.ok(full.rows.some((row) => row.label === "نامەلۇم" && row.visits === 5));
+  assert.equal(full.latest.length, 20);
   const row = A.buildRow("page_view", { country: "TR" }, {
     path: "/",
     visitorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
