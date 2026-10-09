@@ -906,6 +906,112 @@
     return /get_kutadgu_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
   }
 
+  function visitCountryHistoryRequest(options){
+    const limit=integerAtLeast(options&&options.limit,1);
+    if(limit===null||limit>50)return null;
+    if(options&&options.kind==="page"){
+      const session=options.session;
+      const days=integerAtLeast(session&&session.days,1);
+      const offset=integerAtLeast(options.offset,0);
+      const asOf=session&&session.asOf!=null?String(session.asOf):"";
+      if(days===null||offset===null||!asOf)return null;
+      return {p_days:days,p_offset:offset,p_limit:limit,p_as_of:asOf};
+    }
+    const selected=integerAtLeast(options&&options.selectedDays,1);
+    if(selected===null)return null;
+    return {p_days:selected,p_offset:0,p_limit:limit};
+  }
+
+  function historyCountryCode(value){
+    if(value==null||String(value).trim()==="")return null;
+    const code=String(value).trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code)&&code!=="XX"?code:null;
+  }
+
+  function normalizeVisitCountryHistory(payload){
+    if(!payload||typeof payload!=="object"||Array.isArray(payload))return null;
+    const status=payload.status==="zero"||payload.status==="partial"||payload.status==="complete"||payload.status==="unavailable"
+      ?payload.status
+      :null;
+    const days=integerAtLeast(payload.days,1);
+    const offset=integerAtLeast(payload.offset,0);
+    const limit=integerAtLeast(payload.limit,1);
+    if(!status||days===null||offset===null||limit===null||limit>50)return null;
+    const asOf=payload.as_of==null||payload.as_of===""?"":String(payload.as_of);
+    if(!asOf)return null;
+    if(status==="unavailable"){
+      if(payload.rows!=null||payload.total!=null)return null;
+      return {
+        status,
+        days,
+        offset,
+        limit,
+        asOf,
+        total:null,
+        rows:null,
+        hasMore:false,
+        nextOffset:offset,
+        rangeStart:payload.range_start?String(payload.range_start):"",
+        rangeEnd:payload.range_end?String(payload.range_end):"",
+        startedAt:payload.started_at||null
+      };
+    }
+    const total=integerAtLeast(payload.total,0);
+    if(total===null||!Array.isArray(payload.rows))return null;
+    const rows=[];
+    for(let i=0;i<payload.rows.length;i+=1){
+      const row=payload.rows[i];
+      if(!row||typeof row!=="object")return null;
+      if(Object.prototype.hasOwnProperty.call(row,"event_id")||Object.prototype.hasOwnProperty.call(row,"visitor_id")||Object.prototype.hasOwnProperty.call(row,"ip"))return null;
+      const country=historyCountryCode(row.country);
+      rows.push({
+        country,
+        label:countryLabel(country),
+        countedAt:row.counted_at||null,
+        stamp:formatIstanbulStamp(row.counted_at)
+      });
+    }
+    if(rows.length>limit||offset+rows.length>total)return null;
+    const declaredNext=integerAtLeast(payload.next_offset,0);
+    const nextOffset=declaredNext===null?offset+rows.length:declaredNext;
+    if(nextOffset<offset)return null;
+    return {
+      status,
+      days,
+      offset,
+      limit,
+      asOf,
+      total,
+      rows,
+      hasMore:nextOffset<total,
+      nextOffset,
+      rangeStart:payload.range_start?String(payload.range_start):"",
+      rangeEnd:payload.range_end?String(payload.range_end):"",
+      startedAt:payload.started_at||null
+    };
+  }
+
+  function visitCountryHistoryPageMatches(session, page, offset){
+    if(!session||session.mode!=="history"||!page)return false;
+    const days=integerAtLeast(session.days,1);
+    const wanted=integerAtLeast(offset,0);
+    const total=integerAtLeast(session.total,0);
+    if(days===null||wanted===null||total===null)return false;
+    if(page.days!==days||page.offset!==wanted||page.total!==total)return false;
+    if(!sameZeroSearchInstant(page.asOf, session.asOf))return false;
+    if(String(page.rangeStart||"")!==String(session.rangeStart||""))return false;
+    if(String(page.rangeEnd||"")!==String(session.rangeEnd||""))return false;
+    return true;
+  }
+
+  function missingVisitCountryHistoryRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_visit_country_history/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
   const api={
     QUERY_MAX,
     ALLOWED_EVENTS,
@@ -961,7 +1067,11 @@
     zeroSearchAppendMatches,
     continueZeroSearchSession,
     missingZeroSearchRpc,
-    missingSearchTermsRpc
+    missingSearchTermsRpc,
+    visitCountryHistoryRequest,
+    normalizeVisitCountryHistory,
+    visitCountryHistoryPageMatches,
+    missingVisitCountryHistoryRpc
   };
 
   if(typeof module==="object"&&module.exports)module.exports=api;

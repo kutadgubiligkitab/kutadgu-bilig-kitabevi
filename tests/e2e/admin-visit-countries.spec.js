@@ -804,7 +804,11 @@ async function installCountryAdmin(page) {
           }
           return chain({ data: [], error: null, count: 0 });
         },
-        rpc(name) {
+        rpc(name, args) {
+          if (name === "get_kutadgu_visit_country_history") {
+            if (typeof window.__kutadguHistoryHandler === "function") return window.__kutadguHistoryHandler(args);
+            return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+          }
           if (name !== "get_kutadgu_analytics") {
             return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
           }
@@ -962,3 +966,322 @@ test("session loss, account switch, and logout drop an in-flight country read", 
   await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("تۈركىيە");
   await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("ياپونىيە");
 });
+
+function installHistoryAdmin(page) {
+  return page.addInitScript(() => {
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguAdminPreviewBooks = [];
+    window.__kutadguExposeAnalyticsRender = true;
+    window.__kutadguHistoryMode = "ok";
+    window.__kutadguHistoryCalls = [];
+    function chain() {
+      const q = {};
+      ["select", "eq", "in", "or", "order", "range", "is", "limit", "gte", "lte", "neq"].forEach((method) => {
+        q[method] = () => q;
+      });
+      q.maybeSingle = async () => ({ data: null, error: null });
+      q.then = (resolve, reject) => Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject);
+      return q;
+    }
+    function analyticsPayload(days) {
+      if (Number(days) === 7) {
+        return {
+          page_views: 1,
+          book_views: 1,
+          cart_adds: 0,
+          whatsapp_clicks: 0,
+          top_books: [],
+          zero_searches: [],
+          visit_countries: {
+            status: "complete",
+            countries: [{ code: "JP", visits: 1 }],
+            unknown_visits: 0,
+            latest: [{ country: "JP", counted_at: "2026-10-08T08:00:00Z" }]
+          }
+        };
+      }
+      const countries = [];
+      for (let i = 0; i < 21; i += 1) countries.push({ code: String.fromCharCode(65 + i) + "A", visits: 40 - i });
+      countries.push({ code: "HK", visits: 3 });
+      return {
+        page_views: 4,
+        book_views: 1,
+        cart_adds: 0,
+        whatsapp_clicks: 0,
+        top_books: [],
+        zero_searches: [],
+        visit_countries: {
+          status: "complete",
+          countries,
+          unknown_visits: 1,
+          latest: [{ country: "HK", counted_at: "2026-10-08T09:30:00Z" }]
+        }
+      };
+    }
+    function historyBody(args) {
+      const days = Number(args && args.p_days) || 30;
+      const offset = Number(args && args.p_offset) || 0;
+      const limit = Number(args && args.p_limit) || 20;
+      let rows;
+      let asOf;
+      if (days === 7) {
+        rows = [{ country: "JP", counted_at: "2026-10-08T08:00:00Z" }];
+        asOf = "2026-10-09T08:00:00.000Z";
+      } else {
+        const base = Date.parse("2026-10-08T09:30:00Z");
+        rows = [{ country: null, counted_at: new Date(base).toISOString() }];
+        const same = new Date(base - 60000).toISOString();
+        rows.push({ country: "DE", counted_at: same });
+        rows.push({ country: "FR", counted_at: same });
+        for (let i = 3; i < 20; i += 1) {
+          rows.push({ country: "TR", counted_at: new Date(base - (i + 1) * 60000).toISOString() });
+        }
+        rows.push({ country: "SA", counted_at: new Date(base - 50 * 60000).toISOString() });
+        asOf = args && args.p_as_of ? String(args.p_as_of) : "2026-10-09T12:00:00.000Z";
+      }
+      const pageRows = rows.slice(offset, offset + limit);
+      return {
+        schema_version: 1,
+        status: "complete",
+        timezone: "Europe/Istanbul",
+        window_hours: 3,
+        days,
+        as_of: asOf,
+        offset,
+        limit,
+        next_offset: offset + pageRows.length,
+        total: rows.length,
+        page_count: pageRows.length,
+        has_more: offset + pageRows.length < rows.length,
+        range_start: days === 7 ? "2026-10-03" : "2026-09-10",
+        range_end: "2026-10-09",
+        rows: pageRows
+      };
+    }
+    window.__kutadguAnalyticsDb = {
+      from() { return chain(); },
+      rpc(name, args) {
+        if (name === "get_kutadgu_visit_country_history") {
+          window.__kutadguHistoryCalls.push(args || {});
+          if (window.__kutadguHistoryMode === "missing") {
+            return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+          }
+          if (window.__kutadguHistoryMode === "fail") {
+            return Promise.resolve({ data: null, error: { message: "خاتىرە ئوقۇلمىدى" } });
+          }
+          if (window.__kutadguHistoryHold) {
+            window.__kutadguHistoryHold = false;
+            return new Promise((resolve) => {
+              window.__kutadguReleaseHistory = () => resolve({ data: historyBody(args), error: null });
+            });
+          }
+          if (args && Number(args.p_offset) > 0 && !args.p_as_of) {
+            return Promise.resolve({ data: null, error: { message: "snapshot missing" } });
+          }
+          return Promise.resolve({ data: historyBody(args), error: null });
+        }
+        if (name !== "get_kutadgu_analytics") {
+          return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
+        }
+        return Promise.resolve({ data: analyticsPayload(args && args.p_days), error: null });
+      }
+    };
+  });
+}
+
+async function showHistory(page) {
+  const select = page.locator("#adminSectionSelect");
+  if (await select.isVisible()) await select.selectOption("insights");
+  else await page.locator('[data-admin-section="insights"]').click();
+  await page.locator("#analyticsVisitCountryToggle").click();
+  await page.locator("#reloadAnalytics").click();
+  await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("تاللانغان ئارىلىقتىكى زىيارەت خاتىرىسى");
+}
+
+for (const viewport of viewports) {
+  test(`counted-visit history pages at ${viewport.label}`, async ({ page }) => {
+    test.setTimeout(120000);
+    await page.setViewportSize(viewport);
+    await installHistoryAdmin(page);
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await showHistory(page);
+    const panel = page.locator("#analyticsVisitCountryPanel");
+    const latest = page.locator("#analyticsVisitCountryLatest");
+    const toggle = page.locator("#analyticsVisitCountryToggle");
+    await expect(panel).toBeVisible();
+    await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("ھەر بەتتە 20 قۇر");
+    await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("ئاخىرقى 20 نىڭلا كۆرۈنۈشى ئەمەس");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row")).toHaveCount(20);
+    expect(await page.locator("#analyticsVisitHistoryPage").evaluate((el) => getComputedStyle(el).direction)).toBe("ltr");
+    await expect(latest.locator(".admin-country-head")).toContainText("دۆلەت");
+    await expect(latest.locator(".admin-country-head")).toContainText("چېسلا");
+    await expect(latest.locator(".admin-country-head")).toContainText("ۋاقىت");
+    const order = await latest.locator(".admin-country-row").first().evaluate((row) => {
+      const cells = [...row.querySelectorAll("[role=cell]")].map((el) => {
+        const box = el.getBoundingClientRect();
+        const isolate = el.querySelector("bdi");
+        return { text: el.innerText.replace(/\s+/g, " ").trim(), left: box.left, dir: isolate ? isolate.dir : "" };
+      });
+      return cells;
+    });
+    expect(order.map((cell) => cell.text)).toEqual(["نامەلۇم", "2026-10-08", "12:30"]);
+    expect(order[0].left).toBeGreaterThan(order[1].left);
+    expect(order[1].left).toBeGreaterThan(order[2].left);
+    expect(order[1].dir).toBe("ltr");
+    expect(order[2].dir).toBe("ltr");
+    await expect(latest.locator(".admin-country-row").nth(1).locator(".admin-country-name")).toHaveText("گېرمانىيە");
+    await expect(latest.locator(".admin-country-row").nth(2).locator(".admin-country-name")).toHaveText("فرانسىيە");
+    const fit = await panel.evaluate((el) => ({
+      pageOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      inside: el.scrollWidth <= el.clientWidth + 2
+    }));
+    expect(fit.pageOverflow).toBe(true);
+    expect(fit.inside).toBe(true);
+    await panel.screenshot({
+      path: viewport.width === 390
+        ? "/opt/cursor/artifacts/country-history-390.png"
+        : "/opt/cursor/artifacts/country-history-1280.png"
+    });
+    await page.locator("#analyticsVisitHistoryNext").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row")).toHaveCount(1);
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+    const beforeSearch = await page.evaluate(() => window.__kutadguHistoryCalls.length);
+    await page.locator("#analyticsVisitCountrySearch").fill("HK");
+    await expect(page.locator("#analyticsVisitCountryTotals .admin-country-row .admin-country-name")).toHaveText("خوڭكوڭ");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+    expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(beforeSearch);
+    await page.locator("#analyticsVisitCountrySearch").fill("");
+    await page.locator("#analyticsVisitCountryNext").click();
+    await expect(page.locator("#analyticsVisitCountryPage")).toContainText("2 /");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+    await page.locator("#analyticsVisitHistoryPrev").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await expect(page.locator("#analyticsVisitCountryPage")).toContainText("2 /");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "fail"; });
+    await page.locator("#analyticsVisitHistoryNext").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row").first().locator(".admin-country-name")).toHaveText("نامەلۇم");
+    await expect(page.locator("#analyticsVisitCountryRetry")).toBeVisible();
+    await expect(latest).not.toContainText("سانىلىدىغان زىيارەت 0");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+    await page.locator("#analyticsVisitCountryRetry").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "fail"; });
+    await page.locator("#reloadAnalytics").click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("2 / 2 · جەمئىي 21");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("سەئۇدى ئەرەبىستان");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+    await page.locator("#analyticsVisitCountryRetry").click();
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "fail"; });
+    await page.locator("#analyticsRange").selectOption("7");
+    await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ياپونىيە");
+    await expect(latest).toContainText("خاتىرە ئوقۇلمىدى");
+    await expect(latest).not.toContainText("نامەلۇم");
+    await expect(latest).not.toContainText("سانىلىدىغان زىيارەت 0");
+    await expect(page.locator("#analyticsVisitHistoryPager")).toBeHidden();
+    await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+    await page.locator("#analyticsVisitCountryRetry").click();
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("ياپونىيە");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 1 · جەمئىي 1");
+    await expect(page.locator("#analyticsVisitHistoryNext")).toBeDisabled();
+    await page.locator("#analyticsRange").selectOption("30");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await page.evaluate(() => { window.__kutadguHistoryHold = true; });
+    await page.locator("#analyticsVisitHistoryNext").click();
+    await page.waitForFunction(() => typeof window.__kutadguReleaseHistory === "function");
+    const callsDuringHold = await page.evaluate(() => window.__kutadguHistoryCalls.length);
+    await expect(page.locator("#analyticsVisitHistoryNext")).toBeDisabled();
+    await page.locator("#analyticsVisitHistoryNext").click({ force: true });
+    expect(await page.evaluate(() => window.__kutadguHistoryCalls.length)).toBe(callsDuringHold);
+    await page.locator("#analyticsRange").selectOption("7");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("ياپونىيە");
+    await page.evaluate(() => window.__kutadguReleaseHistory());
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("ياپونىيە");
+    await expect(latest).not.toContainText("سەئۇدى");
+    await page.evaluate(() => { window.__kutadguHistoryMode = "missing"; });
+    await page.locator("#reloadAnalytics").click();
+    await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("ئاخىرقى 20 سانىلىدىغان زىيارەت");
+    await expect(page.locator("#analyticsVisitCountryLatestNote")).toContainText("تولۇق زىيارەت خاتىرىسى ئەمەس");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("ياپونىيە");
+    await expect(page.locator("#analyticsVisitHistoryPager")).toBeHidden();
+    await page.evaluate(() => { window.__kutadguHistoryMode = "ok"; });
+    await page.locator("#analyticsRange").selectOption("30");
+    await expect(page.locator("#analyticsVisitHistoryPage")).toHaveText("1 / 2 · جەمئىي 21");
+    await page.evaluate(() => { window.__kutadguHistoryHold = true; });
+    await page.locator("#analyticsVisitHistoryNext").click();
+    await page.waitForFunction(() => typeof window.__kutadguReleaseHistory === "function");
+    await page.evaluate(() => window.__kutadguLogoutAnalytics());
+    await expect(page.locator("#loginPanel")).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await page.evaluate(() => window.__kutadguReleaseHistory());
+    await expect(latest).not.toContainText("سەئۇدى");
+    await expect(latest).not.toContainText("نامەلۇم");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+}
+
+for (const viewport of viewports) {
+  test(`account change drops a stale history page at ${viewport.label}`, async ({ page }) => {
+    test.setTimeout(120000);
+    await page.setViewportSize(viewport);
+    await openCountryAdmin(page);
+    await page.evaluate(() => {
+      function payload(code, args) {
+        return {
+          status: "complete",
+          days: args && args.p_days || 30,
+          offset: 0,
+          limit: 20,
+          as_of: "2026-10-09T12:00:00.000Z",
+          total: 1,
+          next_offset: 1,
+          range_start: "2026-09-10",
+          range_end: "2026-10-09",
+          rows: [{ country: code, counted_at: "2026-10-08T10:00:00Z" }]
+        };
+      }
+      window.__kutadguHistoryHandler = (args) => {
+        if (window.__kutadguHistoryHold) {
+          window.__kutadguHistoryHold = false;
+          return new Promise((resolve) => {
+            window.__kutadguReleaseHistory = () => resolve({ data: payload("JP", args), error: null });
+          });
+        }
+        const id = window.__kutadguMockSession && window.__kutadguMockSession.user && window.__kutadguMockSession.user.id;
+        return Promise.resolve({ data: payload(id === "admin-b" ? "FR" : "DE", args), error: null });
+      };
+    });
+    await page.locator("#analyticsVisitCountryToggle").click();
+    await page.locator("#reloadAnalytics").click();
+    const latest = page.locator("#analyticsVisitCountryLatest");
+    await expect(latest.locator(".admin-country-row .admin-country-name")).toHaveText("گېرمانىيە");
+    await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("تاللانغان ئارىلىقتىكى زىيارەت خاتىرىسى");
+    await page.evaluate(() => { window.__kutadguHistoryHold = true; });
+    await page.locator("#reloadAnalytics").click();
+    await page.waitForFunction(() => typeof window.__kutadguReleaseHistory === "function");
+    await page.evaluate(() => {
+      window.__kutadguMockSession = {
+        access_token: "access-admin-b",
+        refresh_token: "refresh-admin-b",
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user: { id: "admin-b", email: "b@example.com" }
+      };
+    });
+    await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+    await showInsights(page);
+    await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("فرانسىيە");
+    await expect(latest).toContainText("فرانسىيە");
+    await expect(latest).not.toContainText("گېرمانىيە");
+    await page.evaluate(() => window.__kutadguReleaseHistory());
+    await expect(latest).toContainText("فرانسىيە");
+    await expect(latest).not.toContainText("ياپونىيە");
+    await expect(page.locator("#analyticsVisitCountryToggle")).toHaveAttribute("aria-expanded", "false");
+  });
+}
