@@ -356,9 +356,9 @@ test.describe("public book-card same-row cart alignment", () => {
         await page.goto("/", { waitUntil: "domcontentloaded" });
         await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
         await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-        await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card").count()).toBeGreaterThan(1);
+        await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(1);
         await applyMode(page, mode);
-        const items = await measure(page, "#premiumDiscoveryResults .premium-book-card", ".premium-card-cart");
+        const items = await measure(page, "#premiumDiscoveryResults .premium-book-card[data-premium-book-id]", ".premium-card-cart");
         expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
         await capture(page, "#premiumDiscoveryResults", `public_align_discovery_${width}_${mode}.png`, mode);
       });

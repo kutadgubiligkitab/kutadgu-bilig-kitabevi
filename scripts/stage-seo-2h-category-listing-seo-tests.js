@@ -712,6 +712,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/premium-discovery-cover-retry.spec.js",
     "tests/e2e/discovery-cover-space.spec.js",
     "tests/e2e/stage4b2-homepage-discovery.spec.js",
+    "tests/e2e/storefront-cards-1a-polish.spec.js",
+    "tests/e2e/compact-discovery-carousel-cards.spec.js",
     "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
     "scripts/stage106-isolated-verify.js",
     "STAGE107_BOOK_REVIEWS.sql",

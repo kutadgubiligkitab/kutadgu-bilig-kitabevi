@@ -155,8 +155,8 @@ test.describe("storefront cards 1A polish", () => {
       }
 
       await page.locator("#premiumDiscovery [data-premium-group='literature']").click();
-      await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card").count()).toBeGreaterThan(0);
-      const discovery = await metrics(page, "#premiumDiscoveryResults .premium-book-card", ".premium-card-link strong", ".premium-card-cart");
+      await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(0);
+      const discovery = await metrics(page, "#premiumDiscoveryResults .premium-book-card[data-premium-book-id]", ".premium-card-link strong", ".premium-card-cart");
       for (const item of discovery) {
         expect(item.objectFit, `discovery ${width}`).toBe("contain");
         expect(item.titleClamp === "2" || item.titleClamp === "2.0", `discovery clamp ${width}`).toBeTruthy();

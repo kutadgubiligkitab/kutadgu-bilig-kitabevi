@@ -64,7 +64,7 @@ function discoveryMetrics() {
       const c = child.getBoundingClientRect();
       return c.left >= p.left - slack && c.right <= p.right + slack && c.top >= p.top - slack && c.bottom <= p.bottom + slack;
     };
-    const card = document.querySelector("#premiumDiscoveryResults .premium-book-card");
+    const card = document.querySelector("#premiumDiscoveryResults .premium-book-card[data-premium-book-id]");
     if (!card) return { missing: true };
     const cover = card.querySelector(".premium-card-cover");
     const img = cover && cover.querySelector("img");
@@ -83,7 +83,7 @@ function discoveryMetrics() {
     const titleStyle = title ? getComputedStyle(title) : null;
     const cardStyle = getComputedStyle(card);
     const grid = document.querySelector("#premiumDiscoveryResults .premium-book-grid");
-    const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card")].map((node) => {
+    const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card[data-premium-book-id]")].map((node) => {
       const nodeCover = node.querySelector(".premium-card-cover");
       const nodeTitle = node.querySelector("strong");
       const nodeBadges = node.querySelector(".premium-card-badges");
@@ -166,7 +166,7 @@ test.describe("compact discovery and recommended cards", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
     await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-    await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card").count()).toBeGreaterThan(0);
+    await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(0);
   }
 
   test("A–E discovery cards stay compact with title clamp and contain cover", async ({ page }) => {
