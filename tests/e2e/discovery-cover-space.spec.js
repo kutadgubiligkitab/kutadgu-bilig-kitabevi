@@ -167,6 +167,8 @@ async function pendingState(page) {
       resultsH: Math.round(results.height),
       msgH: Math.round(mr.height),
       msgW: Math.round(mr.width),
+      msgTop: Math.round(mr.top),
+      msgBottom: Math.round(mr.bottom),
       coverW: Math.round(cr.width),
       coverH: Math.round(cr.height),
       msgColor: msgStyle.color,
@@ -235,6 +237,12 @@ test.describe("discovery cover space reservation", () => {
         await setTheme(page, theme);
         await page.locator("[data-premium-group='literature']").click();
         await expect.poll(async () => (await pendingState(page)).slots).toBe(8);
+        const groupHit = await page.locator("[data-premium-group='literature']").evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return !!hit && (hit === el || el.contains(hit));
+        });
+        expect(groupHit).toBe(true);
         await page.locator("#premiumDiscoveryResults").scrollIntoViewIfNeeded();
         const pending = await pendingState(page);
         expect(pending.missing).toBe(false);
@@ -246,6 +254,8 @@ test.describe("discovery cover space reservation", () => {
         expect(pending.msgColor).toBe(pending.tokenColor);
         expect(pending.messageAccessible).toBe(true);
         expect(pending.live).toBe("polite");
+        expect(pending.msgTop).toBeGreaterThanOrEqual(0);
+        expect(pending.msgBottom).toBeLessThanOrEqual(viewport.height);
         expect(pending.gridHidden).toBe("true");
         expect(pending.spinnerHidden).toBe("true");
         expect(pending.pendingH).toBe(pending.gridH);
@@ -264,12 +274,6 @@ test.describe("discovery cover space reservation", () => {
         expect(pending.coverW).toBeGreaterThan(40);
         expect(pending.coverH / pending.coverW).toBeGreaterThan(1.45);
         expect(pending.coverH / pending.coverW).toBeLessThan(1.55);
-        const groupHit = await page.locator("[data-premium-group='literature']").evaluate((el) => {
-          const rect = el.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return !!hit && (hit === el || el.contains(hit));
-        });
-        expect(groupHit).toBe(true);
 
         release();
         await expect(page.locator("#premiumDiscoveryResults [data-premium-book-id]")).toHaveCount(8);
