@@ -1,0 +1,31 @@
+/* Homepage discovery results only.
+   The pending grid reuses the existing card and 2:3 cover box.
+   The loading sentence sits on that grid without adding height. */
+#premiumDiscoveryResults .premium-discovery-pending{
+  position:relative;
+}
+#premiumDiscoveryResults .premium-discovery-pending > .premium-discovery-loading{
+  position:absolute;
+  z-index:3;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:8px;
+  width:max-content;
+  max-width:calc(100% - 24px);
+  height:auto;
+  margin:0;
+  padding:8px 12px;
+  overflow:visible;
+  pointer-events:none;
+  color:var(--site-text,#44352d);
+  background:var(--site-card,#fffdf9);
+  border:1px solid var(--site-border,#e8dccb);
+  border-radius:10px;
+  line-height:1.5;
+  text-align:center;
+}

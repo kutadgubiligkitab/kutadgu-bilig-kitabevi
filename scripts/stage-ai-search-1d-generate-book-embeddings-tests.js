@@ -10,7 +10,7 @@ const Embed = require("./ai-search-1d-generate-book-embeddings.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "0038744c226c391b9433a54d99ba1b6edf2a9b0c2cf8956e12439f0d434d885e"
+  "shop.js": "6425f2c1c222e47286e74f761fd6c98f8f683bdbb6258c04568ab01d6cf99053"
 };
 
 let failed = 0;

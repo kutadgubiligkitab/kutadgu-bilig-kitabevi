@@ -25,14 +25,14 @@ const NEW_HUBS = {
   taamlar: { label: "تائاملار" }
 };
 const FROZEN = {
-  "shop.js": "0038744c226c391b9433a54d99ba1b6edf2a9b0c2cf8956e12439f0d434d885e",
+  "shop.js": "6425f2c1c222e47286e74f761fd6c98f8f683bdbb6258c04568ab01d6cf99053",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "43512847e06e550495c67104358f039aa5cfeec24b68267f802b36e734bdb873",
-  "index.html": "fcd6fd504d1ef7bbe346c603de4476770df0bab4dd5231b4657d8652da109b97",
+  "index.html": "07a565e767b6078d13856797c9265c55d75f42e4659cb90586e719017fc7d54f",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -480,6 +480,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "book-staff.js",
     "admin-catalog-productivity.js",
     "premium-ux.js",
+    "discovery-cover-space.css",
     "scripts/audit-book-covers.js",
     "scripts/admin-catalog-productivity-tests.js",
     "scripts/security-hardening-2a-tests.js",
@@ -709,6 +710,10 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/catalog-credits.spec.js",
     "tests/e2e/catalog-credit-link-persistence.spec.js",
     "tests/e2e/premium-discovery-cover-retry.spec.js",
+    "tests/e2e/discovery-cover-space.spec.js",
+    "tests/e2e/stage4b2-homepage-discovery.spec.js",
+    "tests/e2e/storefront-cards-1a-polish.spec.js",
+    "tests/e2e/compact-discovery-carousel-cards.spec.js",
     "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
     "scripts/stage106-isolated-verify.js",
     "STAGE107_BOOK_REVIEWS.sql",
