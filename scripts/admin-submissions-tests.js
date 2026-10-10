@@ -213,7 +213,7 @@ test("pending submissions page 10 and keep the exact total off the page length",
   assert.match(adminJs, /const PENDING_SUBMISSION_PAGE_SIZE=10/);
   assert.match(adminHtml, /id="pendingSubmissionSearch"/);
   assert.match(adminHtml, /id="pendingSubmissionPager"/);
-  assert.match(adminHtml, /admin\.js\?v=102/);
+  assert.match(adminHtml, /admin\.js\?v=103/);
   const load = sliceFn(adminJs, "loadPendingSubmissions");
   assert.match(load, /PENDING_SUBMISSION_PAGE_SIZE/);
   assert.match(load, /\.range\(from,to\)/);
@@ -221,9 +221,13 @@ test("pending submissions page 10 and keep the exact total off the page length",
   assert.match(load, /\.eq\("submission_status","pending"\)/);
   assert.match(load, /\.order\("submitted_at",\{ascending:false,nullsFirst:false\}\)/);
   assert.match(load, /\.order\("id",\{ascending:false\}\)/);
-  assert.match(load, /pendingSubmissionLastPage\(pendingSubmissionTotal\)/);
+  assert.match(load, /exactPendingCount\(result\.count\)/);
+  assert.match(load, /pendingPageLength\(total,context\.page\)/);
+  assert.match(load, /pendingSubmissionLastPage\(total\)/);
   assert.match(load, /pendingSubmissionSearchFilter\(\)/);
   assert.doesNotMatch(load, /pendingSubmissions\.length/);
+  assert.doesNotMatch(load, /data\.length/);
+  assert.doesNotMatch(load, /pendingSubmissionTotal=matched\.length|pendingSubmissionTotal=data\.length/);
   const render = sliceFn(adminJs, "renderPendingSubmissions");
   assert.match(render, /pendingSubmissionCountLabel\(pendingSubmissionTotal\)/);
   assert.doesNotMatch(render, /pendingSubmissionCountLabel\(pendingSubmissions\.length\)/);
@@ -237,8 +241,21 @@ test("pending submissions page 10 and keep the exact total off the page length",
   assert.doesNotMatch(search, /translator|publisher|category|is_active|is_recommended/);
   const page = sliceFn(adminJs, "applyPendingSubmissionPage");
   assert.match(page, /PENDING_SUBMISSION_PAGE_SIZE/);
-  assert.match(page, /pendingSubmissionTotal=matched\.length/);
   assert.match(page, /\.slice\(from,from\+PENDING_SUBMISSION_PAGE_SIZE\)/);
+  assert.doesNotMatch(page, /pendingSubmissionTotal=matched\.length/);
+  const bind = sliceFn(adminJs, "bindPendingSubmissionActions");
+  const invalidateAt = bind.indexOf("pendingSubmissionRequest+=1");
+  const debounceAt = bind.indexOf("setTimeout(()=>loadPendingSubmissions(),250)");
+  assert.ok(invalidateAt >= 0 && debounceAt > invalidateAt);
+  const logout = sliceFn(adminJs, "logout");
+  const clearAt = logout.indexOf("clearPendingSubmissionPrivate()");
+  const signOutAt = logout.indexOf("signOut");
+  assert.ok(clearAt >= 0 && signOutAt > clearAt);
+  assert.match(sliceFn(adminJs, "enforceAdminIdleLock"), /clearPendingSubmissionPrivate\(\)/);
+  assert.match(sliceFn(adminJs, "showPendingReadFailure"), /id="pendingSubmissionRetry"/);
+  assert.match(adminJs, /تەستىق ساقلاۋاتقان: —/);
+  assert.match(adminJs, /بۇ ئىزدەشكە ماس كىتاب تېپىلمىدى\./);
+  assert.match(adminJs, /تەستىق كۈتۈۋاتقان كىتاب يوق\./);
 });
 
 test("pending Full Admin edit reuses the book modal and never publishes on save", () => {

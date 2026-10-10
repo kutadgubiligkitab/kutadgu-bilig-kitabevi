@@ -73,7 +73,10 @@ async function expectQueue(page, rows, total, label) {
   await expect(page.locator("#pendingSubmissionCount")).toHaveText(`تەستىق ساقلاۋاتقان: ${total}`);
   if (!total) {
     await expect(page.locator("#pendingSubmissionPager")).toBeHidden();
-    await expect(page.locator("#pendingSubmissionStatus")).toHaveText("تەستىق كۈتۈۋاتقان كىتاب يوق.");
+    const term = (await page.locator("#pendingSubmissionSearch").inputValue()).trim();
+    const copy = term ? "بۇ ئىزدەشكە ماس كىتاب تېپىلمىدى." : "تەستىق كۈتۈۋاتقان كىتاب يوق.";
+    await expect(page.locator("#pendingSubmissionStatus")).toHaveText(copy);
+    await expect(page.locator("#pendingSubmissionList")).toContainText(copy);
     return;
   }
   await expect(page.locator("#pendingSubmissionPager span")).toHaveText(label);
