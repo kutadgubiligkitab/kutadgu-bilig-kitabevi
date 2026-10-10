@@ -1432,9 +1432,14 @@ function dateText(value){
   return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available";
+const PENDING_SUBMISSION_PAGE_SIZE=10;
 let pendingSubmissions=[];
 let pendingSubmissionBusy=false;
 let pendingEditMode=false;
+let pendingSubmissionPage=0;
+let pendingSubmissionTotal=0;
+let pendingSubmissionRequest=0;
+let pendingSubmissionSearchTimer=0;
 function pendingSubmissionCountLabel(count){
   return `تەستىق ساقلاۋاتقان: ${Number(count)||0}`;
 }
@@ -1476,10 +1481,63 @@ function pendingGalleryUrls(b){
   });
   return out.slice(0,4);
 }
+function pendingSubmissionLastPage(total){
+  const count=Number(total)||0;
+  return Math.max(0,Math.ceil(count/PENDING_SUBMISSION_PAGE_SIZE)-1);
+}
+function pendingSubmissionTerm(){
+  return searchSafe($("#pendingSubmissionSearch")?.value||"");
+}
+function pendingSubmissionSearchFilter(){
+  const term=pendingSubmissionTerm();
+  if(!term)return "";
+  const parts=[
+    postgrestIlike("title",term),
+    postgrestIlike("author",term),
+    postgrestIlike("isbn",term)
+  ];
+  const digits=normalizeIsbn(term);
+  if(digits&&digits!==term)parts.push(postgrestIlike("isbn",digits));
+  return parts.join(",");
+}
+function pendingRowMatchesTerm(row,term){
+  const t=searchSafe(term).toLocaleLowerCase("en");
+  if(!t)return true;
+  const title=String(row&&row.title||"").toLocaleLowerCase("en");
+  const author=String(row&&row.author||"").toLocaleLowerCase("en");
+  const isbn=String(row&&row.isbn||"").toLocaleLowerCase("en");
+  if(title.includes(t)||author.includes(t)||isbn.includes(t))return true;
+  const digits=normalizeIsbn(term).toLocaleLowerCase("en");
+  if(!digits)return false;
+  const stored=normalizeIsbn(row&&row.isbn).toLocaleLowerCase("en");
+  return isbn.includes(digits)||stored.includes(digits);
+}
+function comparePendingSubmissions(a,b){
+  const ta=Date.parse(a&&a.submitted_at)||0;
+  const tb=Date.parse(b&&b.submitted_at)||0;
+  if(tb!==ta)return tb-ta;
+  return (Number(b&&b.id)||0)-(Number(a&&a.id)||0);
+}
+function pendingSubmissionStatusText(){
+  return pendingSubmissionTotal?`تەستىق كۈتۈۋاتقان ${pendingSubmissionTotal} كىتاب.`:"تەستىق كۈتۈۋاتقان كىتاب يوق.";
+}
+function renderPendingSubmissionPager(){
+  const host=$("#pendingSubmissionPager");
+  if(!host)return;
+  const pages=Math.max(1,Math.ceil(pendingSubmissionTotal/PENDING_SUBMISSION_PAGE_SIZE));
+  if(!pendingSubmissionTotal){host.hidden=true;host.innerHTML="";return}
+  host.hidden=false;
+  host.innerHTML=`<button type="button" data-pending-page="prev" ${pendingSubmissionPage<=0?"disabled":""}>‹</button>
+    <span>${pendingSubmissionPage+1} / ${pages} · جەمئىي ${pendingSubmissionTotal} كىتاب · ھەر بەتتە ${PENDING_SUBMISSION_PAGE_SIZE}</span>
+    <button type="button" data-pending-page="next" ${pendingSubmissionPage>=pages-1?"disabled":""}>›</button>`;
+  host.querySelector("[data-pending-page='prev']").onclick=()=>{if(pendingSubmissionPage>0){pendingSubmissionPage--;loadPendingSubmissions()}};
+  host.querySelector("[data-pending-page='next']").onclick=()=>{if(pendingSubmissionPage<pages-1){pendingSubmissionPage++;loadPendingSubmissions()}};
+}
 function renderPendingSubmissions(){
   const host=$("#pendingSubmissionList");
   const countEl=$("#pendingSubmissionCount");
-  if(countEl)countEl.textContent=pendingSubmissionCountLabel(pendingSubmissions.length);
+  if(countEl)countEl.textContent=pendingSubmissionCountLabel(pendingSubmissionTotal);
+  renderPendingSubmissionPager();
   if(!host)return;
   if(!pendingSubmissions.length){
     host.innerHTML='<div class="admin-empty">تەستىق كۈتۈۋاتقان كىتاب يوق.</div>';
@@ -1517,39 +1575,59 @@ function renderPendingSubmissions(){
     </article>`;
   }).join("");
 }
+function applyPendingSubmissionPage(rows){
+  const matched=(rows||[]).filter(b=>String(b&&b.submission_status||"")==="pending").filter(b=>pendingRowMatchesTerm(b,pendingSubmissionTerm())).sort(comparePendingSubmissions);
+  pendingSubmissionTotal=matched.length;
+  pendingSubmissionPage=Math.min(pendingSubmissionPage,pendingSubmissionLastPage(pendingSubmissionTotal));
+  const from=pendingSubmissionPage*PENDING_SUBMISSION_PAGE_SIZE;
+  pendingSubmissions=matched.slice(from,from+PENDING_SUBMISSION_PAGE_SIZE);
+}
 async function loadPendingSubmissions(){
   const statusEl=$("#pendingSubmissionStatus");
-  const countEl=$("#pendingSubmissionCount");
+  const req=++pendingSubmissionRequest;
   if(Array.isArray(window.__kutadguPendingSubmissionFixtures)){
-    pendingSubmissions=window.__kutadguPendingSubmissionFixtures.filter(b=>String(b&&b.submission_status||"")==="pending");
+    applyPendingSubmissionPage(window.__kutadguPendingSubmissionFixtures);
     renderPendingSubmissions();
-    status(statusEl,pendingSubmissions.length?`تەستىق كۈتۈۋاتقان ${pendingSubmissions.length} كىتاب.`:"تەستىق كۈتۈۋاتقان كىتاب يوق.","ok");
+    status(statusEl,pendingSubmissionStatusText(),"ok");
     return;
   }
   if(!db){
     pendingSubmissions=[];
+    pendingSubmissionTotal=0;
     renderPendingSubmissions();
     status($("#pendingSubmissionStatus"),"Database تېخى ئۇلانمىدى.","warn");
     return;
   }
   status(statusEl,"تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىۋاتىدۇ...");
   try{
-    const {data,error,count}=await db.from("books")
-      .select(PENDING_SUBMISSION_SELECT,{count:"exact"})
-      .eq("submission_status","pending")
-      .order("submitted_at",{ascending:false});
+    const from=pendingSubmissionPage*PENDING_SUBMISSION_PAGE_SIZE;
+    const to=from+PENDING_SUBMISSION_PAGE_SIZE-1;
+    let query=db.from("books").select(PENDING_SUBMISSION_SELECT,{count:"exact"}).eq("submission_status","pending");
+    const orFilter=pendingSubmissionSearchFilter();
+    if(orFilter)query=query.or(orFilter);
+    query=query.order("submitted_at",{ascending:false,nullsFirst:false}).order("id",{ascending:false}).range(from,to);
+    const {data,error,count}=await query;
+    if(req!==pendingSubmissionRequest)return;
     if(error){
       pendingSubmissions=[];
+      pendingSubmissionTotal=0;
       renderPendingSubmissions();
       status(statusEl,formatStaffSubmissionError(error),"error");
       return;
     }
+    pendingSubmissionTotal=count!=null?count:(data||[]).length;
+    const maxPage=pendingSubmissionLastPage(pendingSubmissionTotal);
+    if(pendingSubmissionPage>maxPage){
+      pendingSubmissionPage=maxPage;
+      return loadPendingSubmissions();
+    }
     pendingSubmissions=data||[];
-    if(countEl)countEl.textContent=pendingSubmissionCountLabel(count!=null?count:pendingSubmissions.length);
     renderPendingSubmissions();
-    status(statusEl,pendingSubmissions.length?`تەستىق كۈتۈۋاتقان ${pendingSubmissions.length} كىتاب.`:"تەستىق كۈتۈۋاتقان كىتاب يوق.","ok");
+    status(statusEl,pendingSubmissionStatusText(),"ok");
   }catch(err){
+    if(req!==pendingSubmissionRequest)return;
     pendingSubmissions=[];
+    pendingSubmissionTotal=0;
     renderPendingSubmissions();
     status(statusEl,formatStaffSubmissionError(err),"error");
   }
@@ -1602,6 +1680,8 @@ async function reviewStaffSubmission(bookId,action){
       return;
     }
     pendingSubmissions=pendingSubmissions.filter(b=>String(b.id)!==id);
+    pendingSubmissionTotal=Math.max(0,pendingSubmissionTotal-1);
+    pendingSubmissionPage=Math.min(pendingSubmissionPage,pendingSubmissionLastPage(pendingSubmissionTotal));
     renderPendingSubmissions();
     status($("#pendingSubmissionStatus"),approve?"كىتاب تەستىقلاندى ۋە ئاممىۋى بولدى.":"تەكلىپ رەت قىلىندى ۋە ئاكتىپ ئەمەس ھالەتتە قالدى.","ok");
     try{if(window.KutadguAdminApprovals&&typeof window.KutadguAdminApprovals.refresh==="function")window.KutadguAdminApprovals.refresh()}catch(ignore){}
@@ -1613,6 +1693,15 @@ async function reviewStaffSubmission(bookId,action){
   }
 }
 function bindPendingSubmissionActions(){
+  const search=$("#pendingSubmissionSearch");
+  if(search&&search.dataset.bound!=="1"){
+    search.dataset.bound="1";
+    search.addEventListener("input",()=>{
+      pendingSubmissionPage=0;
+      clearTimeout(pendingSubmissionSearchTimer);
+      pendingSubmissionSearchTimer=setTimeout(()=>loadPendingSubmissions(),250);
+    });
+  }
   const host=$("#pendingSubmissionList");
   if(!host||host.dataset.bound==="1")return;
   host.dataset.bound="1";

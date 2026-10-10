@@ -209,6 +209,38 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
   assert.doesNotMatch(adminHtml, /is_kutadgu_book_staff/);
 });
 
+test("pending submissions page 10 and keep the exact total off the page length", () => {
+  assert.match(adminJs, /const PENDING_SUBMISSION_PAGE_SIZE=10/);
+  assert.match(adminHtml, /id="pendingSubmissionSearch"/);
+  assert.match(adminHtml, /id="pendingSubmissionPager"/);
+  assert.match(adminHtml, /admin\.js\?v=102/);
+  const load = sliceFn(adminJs, "loadPendingSubmissions");
+  assert.match(load, /PENDING_SUBMISSION_PAGE_SIZE/);
+  assert.match(load, /\.range\(from,to\)/);
+  assert.match(load, /count:"exact"/);
+  assert.match(load, /\.eq\("submission_status","pending"\)/);
+  assert.match(load, /\.order\("submitted_at",\{ascending:false,nullsFirst:false\}\)/);
+  assert.match(load, /\.order\("id",\{ascending:false\}\)/);
+  assert.match(load, /pendingSubmissionLastPage\(pendingSubmissionTotal\)/);
+  assert.match(load, /pendingSubmissionSearchFilter\(\)/);
+  assert.doesNotMatch(load, /pendingSubmissions\.length/);
+  const render = sliceFn(adminJs, "renderPendingSubmissions");
+  assert.match(render, /pendingSubmissionCountLabel\(pendingSubmissionTotal\)/);
+  assert.doesNotMatch(render, /pendingSubmissionCountLabel\(pendingSubmissions\.length\)/);
+  const pager = sliceFn(adminJs, "renderPendingSubmissionPager");
+  assert.match(pager, /ھەر بەتتە \$\{PENDING_SUBMISSION_PAGE_SIZE\}/);
+  assert.match(pager, /جەمئىي \$\{pendingSubmissionTotal\}/);
+  const search = sliceFn(adminJs, "pendingSubmissionSearchFilter");
+  assert.match(search, /postgrestIlike\("title",term\)/);
+  assert.match(search, /postgrestIlike\("author",term\)/);
+  assert.match(search, /postgrestIlike\("isbn",term\)/);
+  assert.doesNotMatch(search, /translator|publisher|category|is_active|is_recommended/);
+  const page = sliceFn(adminJs, "applyPendingSubmissionPage");
+  assert.match(page, /PENDING_SUBMISSION_PAGE_SIZE/);
+  assert.match(page, /pendingSubmissionTotal=matched\.length/);
+  assert.match(page, /\.slice\(from,from\+PENDING_SUBMISSION_PAGE_SIZE\)/);
+});
+
 test("pending Full Admin edit reuses the book modal and never publishes on save", () => {
   assert.match(adminHtml, /id="pendingEditHelp"/);
   assert.match(adminHtml, /تۈزىتىپ ساقلىسىڭىز، كىتاب يەنىلا تەستىق كۈتۈپ تۇرىدۇ/);

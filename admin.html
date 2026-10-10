@@ -384,9 +384,11 @@
       <section class="admin-card" id="submissionsCard" data-admin-section-panel="submissions" hidden>
         <h2>📥 تەستىق ساقلاۋاتقان كىتابلار</h2>
         <p class="admin-help">پەقەت كىتاب قوشۇش خادىمى يوللىغان ۋە تېخى تەستىقلانمىغان كىتابلار. خاتا يەرلىرىنى تەھرىرلەپ ساقلىغاندىن كېيىن كىتاب يەنىلا تەستىق كۈتۈش ھالىتىدە تۇرىدۇ. تەستىقلاش ياكى رەت قىلىش ئايرىم مەشغۇلات.</p>
+        <input id="pendingSubmissionSearch" class="admin-search" type="search" placeholder="نام، ئاپتور ياكى ISBN..." autocomplete="off" aria-label="تەستىق كۈتۈۋاتقان كىتاب ئىزدەش">
         <p id="pendingSubmissionCount" class="admin-help" role="status">تەستىق ساقلاۋاتقان: 0</p>
         <div id="pendingSubmissionStatus" class="admin-status">تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىدۇ.</div>
         <div id="pendingSubmissionList" class="admin-submission-list"></div>
+        <div id="pendingSubmissionPager" class="admin-pager" hidden></div>
       </section>
 
       <section class="admin-card" id="bookReviewsCard" data-admin-section-panel="reviews" hidden>
@@ -1087,7 +1089,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=101"></script>
+  <script defer src="admin.js?v=102"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
