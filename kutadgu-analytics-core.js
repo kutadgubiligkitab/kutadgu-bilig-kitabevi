@@ -260,6 +260,12 @@
     return "drop";
   }
 
+  function workerAnalyticsResult(status){
+    const code=Number(status);
+    if(code===409||(code>=200&&code<300))return "stored";
+    return "direct";
+  }
+
   function nextActionSeq(storage){
     if(!storage||typeof storage.getItem!=="function"||typeof storage.setItem!=="function")return null;
     try{
@@ -399,6 +405,50 @@
     return {kind:"aggregate_ratio",funnel:Object.assign({kind:"aggregate_ratio",accurate_user_action_order:false},counts)};
   }
 
+  function countedVisitMetric(day){
+    if(!day||typeof day!=="object")return {text:"—",status:"unavailable",visits:null};
+    const status=day.status==="zero"||day.status==="partial"||day.status==="complete"||day.status==="unavailable"
+      ?day.status
+      :"unavailable";
+    if(status==="zero")return {text:"0",status:"zero",visits:0};
+    if(status==="complete"||status==="partial"){
+      const n=Number(day.visits);
+      if(!Number.isFinite(n))return {text:"—",status:"unavailable",visits:null};
+      return {text:String(n),status,visits:n};
+    }
+    return {text:"—",status:"unavailable",visits:null};
+  }
+
+  function describeCountedVisits(block,now){
+    const src=block&&typeof block==="object"?block:null;
+    const end=istanbulDate(now||new Date());
+    const axis=lastSevenEnding(end);
+    const empty=()=>({
+      version:0,
+      timezone:"Europe/Istanbul",
+      windowHours:3,
+      today:{text:"—",status:"unavailable",visits:null},
+      yesterday:{text:"—",status:"unavailable",visits:null},
+      period:{text:"—",status:"unavailable",visits:null},
+      daily:axis.map(date=>({date,status:"unavailable",visits:null}))
+    });
+    if(!src)return empty();
+    const by=new Map((Array.isArray(src.daily)?src.daily:[]).map(row=>[row&&row.date,row]));
+    return {
+      version:Number(src.version)||1,
+      timezone:"Europe/Istanbul",
+      windowHours:Number(src.window_hours)||3,
+      today:countedVisitMetric(src.today),
+      yesterday:countedVisitMetric(src.yesterday),
+      period:countedVisitMetric(src.period),
+      daily:axis.map(date=>{
+        if(!by.has(date))return {date,status:"unavailable",visits:null};
+        const metric=countedVisitMetric(by.get(date));
+        return {date,status:metric.status,visits:metric.visits};
+      })
+    };
+  }
+
   function describeAnalytics(summary,now){
     const src=summary&&typeof summary==="object"?summary:{};
     const schema=Number(src.schema_version)===2?2:1;
@@ -434,6 +484,8 @@
         period,
         daily:chartDays(src,now)
       },
+      countedVisits:describeCountedVisits(src.counted_visits,now),
+      visitCountries:describeVisitCountries(src.visit_countries),
       funnel:describeFunnel(src),
       arrival:src.arrival_funnel&&typeof src.arrival_funnel==="object"
         ?describeFunnel({funnel:src.arrival_funnel}).funnel
@@ -580,6 +632,107 @@
     const fromArray=meta&&Array.isArray(meta.book_ids);
     const source=fromArray?meta.book_ids:[event&&event.book_id];
     return [...new Set(source.map(value=>String(value==null?"":value).trim()).filter(Boolean))];
+  }
+
+  const COUNTRY_LABELS={
+    TR:"تۈركىيە",
+    CN:"جۇڭگو",
+    DE:"گېرمانىيە",
+    US:"ئامېرىكا",
+    GB:"بۈيۈك بىرىتانىيە",
+    FR:"فرانسىيە",
+    KZ:"قازاقىستان",
+    KG:"قىرغىزىستان",
+    UZ:"ئۆزبېكىستان",
+    SE:"شىۋېتسىيە",
+    NL:"گوللاندىيە",
+    JP:"ياپونىيە",
+    RU:"رۇسىيە",
+    CA:"كانادا",
+    AU:"ئاۋسترالىيە",
+    AZ:"ئەزەربەيجان",
+    TM:"تۈركمەنىستان",
+    TJ:"تاجىكىستان",
+    SA:"سەئۇدى ئەرەبىستان",
+    IT:"ئىتالىيە",
+    ES:"ئىسپانىيە",
+    CH:"شىۋېتسارىيە",
+    AT:"ئاۋسترىيە",
+    BE:"بېلگىيە",
+    NO:"نورۋېگىيە",
+    DK:"دانىيە",
+    FI:"فىنلاندىيە",
+    UA:"ئۇكرائىنا",
+    IN:"ھىندىستان",
+    PK:"پاكىستان",
+    IR:"ئىران",
+    IQ:"ئىراق",
+    EG:"مىسىر",
+    MN:"موڭغۇلىيە",
+    QA:"قاتار",
+    KW:"كۇۋەيت",
+    HK:"خوڭكوڭ"
+  };
+
+  function countryLabel(code){
+    if(code==null||code==="")return "نامەلۇم";
+    const raw=String(code).trim().toUpperCase();
+    if(!/^[A-Z]{2}$/.test(raw)||raw==="XX")return "نامەلۇم";
+    if(COUNTRY_LABELS[raw])return COUNTRY_LABELS[raw];
+    try{
+      if(typeof Intl!=="undefined"&&typeof Intl.DisplayNames==="function"){
+        const name=new Intl.DisplayNames(["ug"],{type:"region"}).of(raw);
+        if(name&&name!==raw&&/[^\u0000-\u007f]/.test(name))return name;
+      }
+    }catch(err){}
+    return raw;
+  }
+
+  function describeVisitCountries(block){
+    const unavailable={
+      status:"unavailable",
+      countries:null,
+      unknownVisits:null,
+      latest:null,
+      rows:null,
+      startedAt:null
+    };
+    if(!block||typeof block!=="object")return unavailable;
+    const status=block.status==="zero"||block.status==="partial"||block.status==="complete"||block.status==="unavailable"
+      ?block.status
+      :"unavailable";
+    if(status==="unavailable")return Object.assign({},unavailable,{startedAt:block.started_at||null});
+    const countries=(Array.isArray(block.countries)?block.countries:[]).map(row=>{
+      const code=row&&row.code!=null?String(row.code).trim().toUpperCase():"";
+      const visits=Number(row&&row.visits);
+      if(!/^[A-Z]{2}$/.test(code)||code==="XX"||!Number.isFinite(visits))return null;
+      return {code,visits,label:countryLabel(code)};
+    }).filter(Boolean);
+    const unknown=Number(block.unknown_visits);
+    const rows=countries.map(row=>({code:row.code,visits:row.visits,label:row.label}));
+    if(Number.isFinite(unknown)&&unknown>0)rows.push({code:null,visits:unknown,label:"نامەلۇم"});
+    rows.sort((a,b)=>{
+      if(b.visits!==a.visits)return b.visits-a.visits;
+      if((a.code==null)!==(b.code==null))return a.code==null?1:-1;
+      return String(a.code||"").localeCompare(String(b.code||""));
+    });
+    const latest=(Array.isArray(block.latest)?block.latest:[]).slice(0,20).map(row=>{
+      const code=row&&row.country!=null&&String(row.country).trim()!==""?String(row.country).trim().toUpperCase():null;
+      return {
+        country:code&&/^[A-Z]{2}$/.test(code)&&code!=="XX"?code:null,
+        label:countryLabel(code),
+        countedAt:row&&row.counted_at||null,
+        stamp:formatIstanbulStamp(row&&row.counted_at)
+      };
+    });
+    return {
+      status,
+      countries,
+      unknownVisits:Number.isFinite(unknown)?unknown:null,
+      latest,
+      rows,
+      startedAt:block.started_at||null
+    };
   }
 
   function formatIstanbulStamp(value){
@@ -745,6 +898,132 @@
     return /get_kutadgu_zero_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
   }
 
+  function missingSearchTermsRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_searches/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
+  function historySnapshotId(value){
+    const text=value==null?"":String(value).trim().toLowerCase();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(text)?text:null;
+  }
+
+  function visitCountryHistoryRequest(options){
+    const limit=integerAtLeast(options&&options.limit,1);
+    if(limit===null||limit>50)return null;
+    if(options&&options.kind==="page"){
+      const session=options.session;
+      const days=integerAtLeast(session&&session.days,1);
+      const offset=integerAtLeast(options.offset,0);
+      const asOf=session&&session.asOf!=null?String(session.asOf):"";
+      const snapshotId=historySnapshotId(session&&session.snapshotId);
+      if(days===null||offset===null||!asOf||!snapshotId)return null;
+      return {p_days:days,p_offset:offset,p_limit:limit,p_as_of:asOf,p_snapshot:snapshotId};
+    }
+    const selected=integerAtLeast(options&&options.selectedDays,1);
+    if(selected===null)return null;
+    return {p_days:selected,p_offset:0,p_limit:limit};
+  }
+
+  function historyCountryCode(value){
+    if(value==null||String(value).trim()==="")return null;
+    const code=String(value).trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code)&&code!=="XX"?code:null;
+  }
+
+  function normalizeVisitCountryHistory(payload){
+    if(!payload||typeof payload!=="object"||Array.isArray(payload))return null;
+    if(Object.prototype.hasOwnProperty.call(payload,"db_snapshot")||Object.prototype.hasOwnProperty.call(payload,"xmin")||Object.prototype.hasOwnProperty.call(payload,"event_id")||Object.prototype.hasOwnProperty.call(payload,"visitor_id"))return null;
+    const snapshotId=historySnapshotId(payload.snapshot_id);
+    if(!snapshotId)return null;
+    const status=payload.status==="zero"||payload.status==="partial"||payload.status==="complete"||payload.status==="unavailable"
+      ?payload.status
+      :null;
+    const days=integerAtLeast(payload.days,1);
+    const offset=integerAtLeast(payload.offset,0);
+    const limit=integerAtLeast(payload.limit,1);
+    if(!status||days===null||offset===null||limit===null||limit>50)return null;
+    const asOf=payload.as_of==null||payload.as_of===""?"":String(payload.as_of);
+    if(!asOf)return null;
+    if(status==="unavailable"){
+      if(payload.rows!=null||payload.total!=null)return null;
+      return {
+        status,
+        days,
+        offset,
+        limit,
+        asOf,
+        snapshotId,
+        total:null,
+        rows:null,
+        hasMore:false,
+        nextOffset:offset,
+        rangeStart:payload.range_start?String(payload.range_start):"",
+        rangeEnd:payload.range_end?String(payload.range_end):"",
+        startedAt:payload.started_at||null
+      };
+    }
+    const total=integerAtLeast(payload.total,0);
+    if(total===null||!Array.isArray(payload.rows))return null;
+    const rows=[];
+    for(let i=0;i<payload.rows.length;i+=1){
+      const row=payload.rows[i];
+      if(!row||typeof row!=="object")return null;
+      if(Object.prototype.hasOwnProperty.call(row,"event_id")||Object.prototype.hasOwnProperty.call(row,"visitor_id")||Object.prototype.hasOwnProperty.call(row,"ip"))return null;
+      const country=historyCountryCode(row.country);
+      rows.push({
+        country,
+        label:countryLabel(country),
+        countedAt:row.counted_at||null,
+        stamp:formatIstanbulStamp(row.counted_at)
+      });
+    }
+    if(rows.length>limit||offset+rows.length>total)return null;
+    const declaredNext=integerAtLeast(payload.next_offset,0);
+    const nextOffset=declaredNext===null?offset+rows.length:declaredNext;
+    if(nextOffset<offset)return null;
+    return {
+      status,
+      days,
+      offset,
+      limit,
+      asOf,
+      snapshotId,
+      total,
+      rows,
+      hasMore:nextOffset<total,
+      nextOffset,
+      rangeStart:payload.range_start?String(payload.range_start):"",
+      rangeEnd:payload.range_end?String(payload.range_end):"",
+      startedAt:payload.started_at||null
+    };
+  }
+
+  function visitCountryHistoryPageMatches(session, page, offset){
+    if(!session||session.mode!=="history"||!page)return false;
+    const days=integerAtLeast(session.days,1);
+    const wanted=integerAtLeast(offset,0);
+    const total=integerAtLeast(session.total,0);
+    if(days===null||wanted===null||total===null)return false;
+    if(page.days!==days||page.offset!==wanted||page.total!==total)return false;
+    if(!sameZeroSearchInstant(page.asOf, session.asOf))return false;
+    if(historySnapshotId(page.snapshotId)!==historySnapshotId(session.snapshotId))return false;
+    if(String(page.rangeStart||"")!==String(session.rangeStart||""))return false;
+    if(String(page.rangeEnd||"")!==String(session.rangeEnd||""))return false;
+    return true;
+  }
+
+  function missingVisitCountryHistoryRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_visit_country_history/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
   const api={
     QUERY_MAX,
     ALLOWED_EVENTS,
@@ -770,6 +1049,9 @@
     shouldRecordRemote,
     OPTIONAL_COLUMN_LIMIT,
     retryDecision,
+    workerAnalyticsResult,
+    countryLabel,
+    describeVisitCountries,
     istanbulDate,
     istanbulRange,
     addCalendarDays,
@@ -778,6 +1060,7 @@
     visitorMetric,
     chartDays,
     describeFunnel,
+    describeCountedVisits,
     describeAnalytics,
     createAnalyticsLoadGate,
     classifyVisitorDay,
@@ -795,7 +1078,12 @@
     zeroSearchPageRequest,
     zeroSearchAppendMatches,
     continueZeroSearchSession,
-    missingZeroSearchRpc
+    missingZeroSearchRpc,
+    missingSearchTermsRpc,
+    visitCountryHistoryRequest,
+    normalizeVisitCountryHistory,
+    visitCountryHistoryPageMatches,
+    missingVisitCountryHistoryRpc
   };
 
   if(typeof module==="object"&&module.exports)module.exports=api;

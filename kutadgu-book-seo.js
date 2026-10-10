@@ -265,7 +265,9 @@
     "dini",
     "children",
     "dictionary",
-    "grammar"
+    "grammar",
+    "iqtisad",
+    "taamlar"
   ];
 
   function isTrustedCategorySlug(value) {

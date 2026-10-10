@@ -7,7 +7,10 @@
   const key=String(cfg.anonKey||cfg.publishableKey||"");
   const enabled=()=>window.KUTADGU_APP_CONFIG?.featureFlags?.analyticsHooks!==false;
   const Core=()=>window.KutadguAnalyticsCore;
-  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:false,occurred_at:false,action_seq:false};
+  // host, occurred_at, and action_seq are not columns on the live table.
+  // PostgREST 14.5 answers PGRST204 and stores nothing until they are omitted.
+  // STAGE100 would add them and is not applied. visitor_id and event_id exist.
+  const omitCols={legacy_id:false,meta:false,visitor_id:false,event_id:false,host:true,occurred_at:true,action_seq:true};
   function safeStorage(kind){
     try{return kind==="local"?localStorage:sessionStorage}catch(err){return null}
   }
@@ -61,11 +64,38 @@
       session_id:clean(ctx.sessionId,100)||null
     };
   }
+  function workerDecision(status){
+    const core=Core();
+    if(core&&core.workerAnalyticsResult)return core.workerAnalyticsResult(status);
+    const code=Number(status);
+    if(code===409||(code>=200&&code<300))return "stored";
+    return "direct";
+  }
+  async function postViaWorker(body){
+    let response;
+    try{
+      response=await fetch("/api/analytics-event",{
+        method:"POST",
+        keepalive:true,
+        cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      });
+    }catch(err){
+      return "direct";
+    }
+    return workerDecision(response&&response.status);
+  }
   async function postRow(row,progress){
     const state=progress&&typeof progress==="object"?progress:{schema:0,network:0};
     const optionalLimit=Object.keys(omitCols).length;
     if(!row||!url||!key||state.schema>optionalLimit||state.network>1)return;
     const body=stripOptional(row);
+    ["country","ip","client_ip","cf_country"].forEach(col=>{delete body[col]});
+    if(!state.workerTried){
+      state.workerTried=true;
+      if(await postViaWorker(body)==="stored")return;
+    }
     const hasEvent=!!body.event_id;
     const decide=(status,missing)=>{
       const core=Core();
@@ -86,7 +116,9 @@
           apikey:key,
           Authorization:"Bearer "+key,
           "Content-Type":"application/json",
-          Prefer:hasEvent?"return=minimal,resolution=ignore-duplicates":"return=minimal"
+          // A repeated event_id hits the unique index and returns 409, which is stored.
+          // Asking PostgREST to ignore duplicates makes it SELECT the insert, and anon cannot.
+          Prefer:"return=minimal"
         },
         body:JSON.stringify(body)
       });

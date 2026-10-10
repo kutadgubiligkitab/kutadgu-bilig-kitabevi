@@ -286,7 +286,8 @@ test("cold /book/415 shares one view_stats read and still loads a different rela
       }
     });
     assert.strictEqual(urls.filter((url) => url.includes("in.(301,302)")).length, 1);
-    assert.strictEqual(related[0].querySelector(".book-view-count-compact").textContent, "👁 20");
+    assert.strictEqual(related[0].querySelector(".book-view-count-compact"), null);
+    assert.strictEqual(related[1].querySelector(".book-view-count-compact").textContent, "👁 21");
   } finally {
     global.document = prevDocument;
     global.location = prevLocation;

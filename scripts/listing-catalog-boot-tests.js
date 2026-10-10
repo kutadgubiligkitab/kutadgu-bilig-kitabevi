@@ -11,7 +11,7 @@ const LISTING_PAGES = [
   "romanlar.html","universal.html","children.html","dini.html","derslik.html","terbiye.html",
   "tibb.html","dastanlar.html","sheirlar.html","hekayiler.html","uyghur-adabiyati.html",
   "dunya-edebiyati.html","adabiyat-roman.html","tarikhiy-romanlar.html","adabiyat.html","books.html",
-  "dictionary.html","grammar.html"
+  "dictionary.html","grammar.html","iqtisad.html","taamlar.html"
 ];
 let failed = 0;
 function test(name, fn) {
@@ -45,7 +45,7 @@ test("every live listing page first-paints skeletons without demo cards", () => 
       assert.match(html, /class="books-grid" data-catalog-source=""/, file);
       assert.doesNotMatch(html, /data-catalog-source="[^"]+"/, file);
     }
-    assert.match(html, /shop\.js\?v=138/, file);
+    assert.match(html, /shop\.js\?v=147/, file);
     assert.match(html, /aria-busy="true"/, file);
     assert.match(grid, /book-card is-skeleton/, file);
     assert.match(grid, /listing-skel-cover/, file);

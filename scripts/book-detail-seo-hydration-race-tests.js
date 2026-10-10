@@ -136,6 +136,12 @@ async function run() {
   await test("shop.js defers decorateDetail SEO until numeric page-book hydration finishes", () => {
     const hydrate = sliceBetween(shop, "let pageBookHydrationDone=false;", "function resolveStoredBookId(id){");
     assert.match(hydrate, /finally\{\s*pageBookHydrationDone=true;/);
+    assert.match(hydrate, /settleBoot\(promise\)/);
+    assert.match(hydrate, /accept:\(\)=>seq===pageBookBoot\.seq/);
+    assert.match(hydrate, /signal:controller\.signal/);
+    assert.match(shop, /if\(!isBookDetailDocument\(\)\)await settleBoot\(savedWork\)/);
+    assert.match(shop, /pageBookAuthority==="pending"\|\|pageBookAuthority==="unavailable"/);
+    assert.match(shop, /data-detail-boot/);
     const decorate = sliceBetween(shop, "function decorateDetail(){", "function bindDynamicActions(");
     assert.match(decorate, /shouldDeferNumericCleanDetailSeo/);
     assert.match(decorate, /pageBookHydrationDone/);
@@ -218,8 +224,8 @@ async function run() {
     assert.ok(!/meta[^>]*name=["']robots["']/i.test(bookShell));
     assert.ok(!/rel=["']canonical["']/i.test(bookShell));
     assert.ok(!bookShell.includes("noindex"));
-    assert.match(bookShell, /kutadgu-book-seo\.js\?v=5/);
-    assert.match(bookShell, /shop\.js\?v=143/);
+    assert.match(bookShell, /kutadgu-book-seo\.js\?v=6/);
+    assert.match(bookShell, /shop\.js\?v=147/);
     assert.match(shop, /applyUnresolvedDetailDocument/);
   });
 }

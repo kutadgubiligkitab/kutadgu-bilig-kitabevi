@@ -318,7 +318,7 @@ test("admin rendering keeps the RPC, the period count, and the failure copy", ()
   const html = read("admin.html");
   assert.ok(admin.includes('rpc("get_kutadgu_analytics"'));
   assert.ok(!admin.includes('from("analytics_events")'));
-  assert.ok(admin.includes("visitors.period"));
+  assert.ok(admin.includes("counted.period"));
   assert.ok(!/daily\.reduce|sumDaily/.test(admin));
   assert.ok(admin.includes("كۆرسىتىلگەن سانلار نۆلگە ئالماشتۇرۇلمىدى"));
   assert.ok(admin.includes("ordered_user_action"));
@@ -340,7 +340,8 @@ test("tracking keeps session and visitor apart and retries the same event id", (
   assert.ok(core.includes("kutadgu-analytics-session"));
   assert.ok(js.includes('core.visitorId(safeStorage("local"))'));
   assert.ok(js.includes("kutadgu-analytics-session"));
-  assert.ok(js.includes("resolution=ignore-duplicates"));
+  assert.ok(!js.includes("resolution=ignore-duplicates"));
+  assert.ok(js.includes('Prefer:"return=minimal"'));
   assert.ok(js.includes("idempotent:hasEvent"));
   assert.ok(js.includes("schemaAttempts:state.schema"));
   assert.ok(js.includes("networkAttempts:state.network"));
@@ -404,10 +405,10 @@ test("cache pins moved for the changed analytics files", () => {
   assert.match(html, /admin\.css\?v=48/);
   assert.match(html, /kutadgu-analytics-core\.js\?v=7/);
   assert.match(html, /admin\.js\?v=86/);
-  assert.match(home, /analytics\.js\?v=5/);
+  assert.match(home, /analytics\.js\?v=7/);
   assert.match(home, /kutadgu-analytics-core\.js\?v=5/);
-  assert.match(home, /shop\.js\?v=145/);
-  assert.match(shell, /src="\/analytics\.js\?v=5"/);
+  assert.match(home, /shop\.js\?v=147/);
+  assert.match(shell, /src="\/analytics\.js\?v=7"/);
 });
 
 function browserStorage() {
@@ -446,11 +447,17 @@ function loadAnalyticsVm(fetchImpl) {
 
 async function legacySchemaStoresFirstPageViewOnce() {
   const stored = [];
-  const legacyMissing = ["visitor_id", "event_id", "host", "occurred_at", "action_seq"];
+  const probed = ["visitor_id", "event_id"];
+  const withheld = ["host", "occurred_at", "action_seq"];
   let schemaErrors = 0;
+  let firstBody = null;
   const window = loadAnalyticsVm(async (_url, init) => {
     const body = JSON.parse(init.body);
-    const missing = legacyMissing.find((col) => Object.prototype.hasOwnProperty.call(body, col));
+    if (!firstBody) firstBody = body;
+    withheld.forEach((col) => {
+      if (Object.prototype.hasOwnProperty.call(body, col)) throw new Error("sent absent column " + col);
+    });
+    const missing = probed.find((col) => Object.prototype.hasOwnProperty.call(body, col));
     if (missing) {
       schemaErrors += 1;
       return { ok: false, status: 400, text: async () => "PGRST204 Could not find the '" + missing + "' column of 'analytics_events' in the schema cache" };
@@ -459,10 +466,12 @@ async function legacySchemaStoresFirstPageViewOnce() {
     return { ok: true, status: 201, text: async () => "" };
   });
   await window.KutadguAnalytics.track("page_view", {});
+  assert.ok(firstBody);
+  withheld.forEach((col) => assert.ok(!(col in firstBody), col));
   assert.strictEqual(stored.length, 1);
   assert.strictEqual(stored[0].event_name, "page_view");
-  assert.strictEqual(schemaErrors, legacyMissing.length);
-  legacyMissing.forEach((col) => assert.ok(!(col in stored[0]), col));
+  assert.strictEqual(schemaErrors, probed.length);
+  probed.concat(withheld).forEach((col) => assert.ok(!(col in stored[0]), col));
 }
 
 async function legacyLostResponseDoesNotDuplicate() {
@@ -491,10 +500,10 @@ async function eventIdRetryStaysOneRow() {
     const body = JSON.parse(init.body);
     if (!body.event_id) throw new Error("event_id missing");
     if (seen.has(body.event_id)) {
-      if (!String(init.headers.Prefer || "").includes("resolution=ignore-duplicates")) {
-        throw new Error("retry did not ignore duplicates");
+      if (String(init.headers.Prefer || "").includes("resolution=ignore-duplicates")) {
+        throw new Error("retry asked PostgREST to select the inserted row");
       }
-      return { ok: true, status: 201, text: async () => "" };
+      return { ok: false, status: 409, text: async () => "{\"code\":\"23505\"}" };
     }
     seen.add(body.event_id);
     stored.push(body);

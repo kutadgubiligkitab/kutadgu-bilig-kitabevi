@@ -91,6 +91,16 @@
       "permanent": true
     },
     {
+      "source": "/iqtisad.html",
+      "destination": "/iqtisad",
+      "permanent": true
+    },
+    {
+      "source": "/taamlar.html",
+      "destination": "/taamlar",
+      "permanent": true
+    },
+    {
       "source": "/books.html",
       "destination": "/books",
       "permanent": true
@@ -196,6 +206,14 @@
     {
       "source": "/grammar",
       "destination": "/api/category-listing?slug=grammar"
+    },
+    {
+      "source": "/iqtisad",
+      "destination": "/api/category-listing?slug=iqtisad"
+    },
+    {
+      "source": "/taamlar",
+      "destination": "/api/category-listing?slug=taamlar"
     },
     {
       "source": "/books",
@@ -448,7 +466,7 @@
   ],
   "functions": {
     "api/category-listing.js": {
-      "includeFiles": "{adabiyat,adabiyat-roman,children,dastanlar,derslik,dictionary,dini,dunya-edebiyati,grammar,hekayiler,romanlar,sheirlar,tarikhiy-romanlar,terbiye,tibb,universal,uyghur-adabiyati}.html"
+      "includeFiles": "{adabiyat,adabiyat-roman,children,dastanlar,derslik,dictionary,dini,dunya-edebiyati,grammar,hekayiler,iqtisad,romanlar,sheirlar,taamlar,tarikhiy-romanlar,terbiye,tibb,universal,uyghur-adabiyati}.html"
     }
   }
 }

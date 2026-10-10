@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=50">
+  <link rel="stylesheet" href="admin.css?v=53">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -448,15 +448,41 @@
             <button class="admin-secondary" id="reloadAnalytics" type="button">↻ يېڭىلاش</button>
           </div>
         </div>
-        <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp زاكاز چېكىش (مەقسەت، سېتىش ئەمەس). نەتىجىسىز ئىزدەش كىتاب تېپىلمىغان سۈرۈشتۈرۈشلەرنى كۆرسىتىدۇ. تىزىملىك ئاخىرقى ئىزدەلگەن ۋاقىت بويىچە، بەت-بەت. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
+        <p class="admin-help">كىتاب كۆرۈش، سېۋەتكە قوشۇش ۋە WhatsApp چېكىش (مەقسەت، سېتىش ئەمەس) دومىلىما ۋاقىت دائىرىسىدە. ئىزدەش سۆزلىرى ۋە نەتىجىسىز ئىزدەش Europe/Istanbul كۈن چېگرىسىدە، بەت-بەت. زىيارەت قېتىمى 3 سائەت قائىدىسىدە؛ ئىزدەش بۇ قائىدىگە كىرمەيدۇ. شەخسىي خېرىدار ئۇچۇرى ۋە <code>sales_count</code> بۇ يەردە ئۆزگەرمەيدۇ.</p>
         <p class="admin-help" id="analyticsMeta">Europe/Istanbul · يۈكلىنىۋاتىدۇ...</p>
         <div class="admin-stats admin-analytics-stats" id="analyticsVisitors">
-          <div class="admin-stat"><strong id="analyticsVisitorsToday">—</strong><span>بۈگۈنكى خاتىرىلەنگەن زىيارەتچى</span></div>
-          <div class="admin-stat"><strong id="analyticsVisitorsYesterday">—</strong><span>تۈنۈگۈنكى خاتىرىلەنگەن زىيارەتچى</span></div>
-          <div class="admin-stat"><strong id="analyticsVisitorsPeriod">—</strong><span>تاللانغان دائىرىدىكى ئوخشىمىغان زىيارەتچى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitorsToday">—</strong><span>بۈگۈنكى زىيارەت قېتىمى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitorsYesterday">—</strong><span>تۈنۈگۈنكى زىيارەت قېتىمى</span></div>
+          <div class="admin-stat"><strong id="analyticsVisitorsPeriod">—</strong><span>تاللانغان دائىرىدىكى زىيارەت قېتىمى</span></div>
         </div>
-        <div class="admin-analytics-chart" id="analyticsVisitorChart" aria-label="ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
-        <p class="admin-help" id="analyticsVisitorNote">زىيارەتچى = خاتىرىلەنگەن ئىختىيارىي تور كۆرگۈچ كىملىكى، دەلىللەنگەن ئادەم ئەمەس. بىر كۈندە كۆپ بەت ئاچقان زىيارەتچى بىر قېتىم سانىلىدۇ. كۈنلۈك زىيارەتچىنى قوشۇپ دەۋر سانى قىلىنمايدۇ. كىملىكى يوق كونا قۇرلار «يوق» دەپ كۆرسىتىلىدۇ، بەت كۆرۈشتىن قايتا ھېسابلانمايدۇ. بوت سۈزۈش تولۇق ئەمەس. ئاممىۋى بەتنى ئاچقان باشقۇرغۇچىمۇ سانىلىشى مۇمكىن. PostHog سانلىرى بۇ يەرگە قوشۇلمايدۇ.</p>
+        <div class="admin-analytics-chart" id="analyticsVisitorChart" aria-label="زىيارەت قېتىمى، ئاخىرقى 7 كۈن، Europe/Istanbul"></div>
+        <p class="admin-help" id="analyticsVisitorNote">زىيارەت قېتىمى بىر تور كۆرگۈچ كىملىكىنىڭ سانىلىدىغان ئېچىلىشى. ئالدىنقى سانىلىدىغان زىيارەتتىن 3 سائەت ئىچىدىكى قايتا ئېچىش، يېڭىلاش ۋە يېڭى بەتكۈچ قوشۇلمايدۇ، بۇ 3 سائەتنىمۇ ئۇزارتمايدۇ. دەل 3 سائەت ياكى ئۇنىڭدىن كېيىن كېيىنكى ئېچىش يەنە بىر قېتىم سانىلىدۇ. كېچە يېرىمى بۇ ۋاقىتنى ئۈزمەيدۇ. بۇ دەلىللەنگەن ئادەم ياكى ئوخشىمىغان زىيارەتچى سانى ئەمەس. كۈن چېگرىسى Europe/Istanbul. تاللانغان دائىرە كۈنلۈك سانىلغان قېتىملارنىڭ يىغىندىسى. سانىش باشلانغاندىن بۇرۇنقى ئارىلىق «—» بولىدۇ، قۇر يوقلىقى نۆل دېگەنلىك ئەمەس، بەت كۆرۈش ياكى session_id دىن قايتا ھېسابلانمايدۇ. قىسمەن ئارىلىقتا پەقەت خاتىرىلەنگەن قېتىم كۆرۈنىدۇ.</p>
+        <div id="analyticsVisitCountries">
+          <button type="button" class="admin-country-toggle" id="analyticsVisitCountryToggle" aria-expanded="false" aria-controls="analyticsVisitCountryPanel">🌍 زىيارەت دۆلەتلىرى</button>
+          <div id="analyticsVisitCountryPanel" class="admin-country-panel" hidden>
+            <p class="admin-help" id="analyticsVisitCountryNote">ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.</p>
+            <p class="admin-help" id="analyticsVisitCountryStatus">يۈكلىنىۋاتىدۇ...</p>
+            <label id="analyticsVisitCountryFilter" class="admin-country-filter" hidden>
+              <span>دۆلەت ئىزدەش</span>
+              <input id="analyticsVisitCountrySearch" type="search" autocomplete="off" enterkeyhint="search" placeholder="دۆلەت نامى ياكى كودى" aria-label="دۆلەت نامى ياكى كودى">
+            </label>
+            <div id="analyticsVisitCountryTotals" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
+            <div id="analyticsVisitCountryPager" class="admin-country-pager" hidden>
+              <button type="button" id="analyticsVisitCountryPrev">ئالدىنقى</button>
+              <span id="analyticsVisitCountryPage" dir="ltr"></span>
+              <button type="button" id="analyticsVisitCountryNext">كېيىنكى</button>
+            </div>
+            <h3 class="admin-country-latest-title" id="analyticsVisitCountryLatestTitle">ئاخىرقى 20 سانىلىدىغان زىيارەت</h3>
+            <p class="admin-help" id="analyticsVisitCountryLatestNote">بۇ ئاخىرقى 20 قېتىمنىڭ كۆرۈنۈشى. تولۇق زىيارەت خاتىرىسى ئەمەس.</p>
+            <div id="analyticsVisitCountryLatest" class="admin-country-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
+            <div id="analyticsVisitHistoryPager" class="admin-country-pager" hidden>
+              <button type="button" id="analyticsVisitHistoryPrev">ئالدىنقى</button>
+              <span id="analyticsVisitHistoryPage" dir="ltr"></span>
+              <button type="button" id="analyticsVisitHistoryNext">كېيىنكى</button>
+            </div>
+            <button type="button" class="admin-secondary" id="analyticsVisitCountryRetry" hidden>قايتا سىناش</button>
+          </div>
+        </div>
         <div class="admin-stats admin-analytics-stats">
           <div class="admin-stat"><strong id="analyticsBookViews">—</strong><span>كىتاب كۆرۈش</span></div>
           <div class="admin-stat"><strong id="analyticsCartAdds">—</strong><span>سېۋەتكە قوشۇش</span></div>
@@ -471,9 +497,9 @@
         </div>
         <div class="admin-analytics-grid">
           <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><div id="analyticsTopSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><p class="admin-help">سېۋەتكە قوشۇش ۋەقىسى. زاكاز ئەمەس.</p><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><p class="admin-help">چېكىش سانى. سېتىش ياكى زاكاز ئەمەس.</p><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
+          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><p class="admin-help">ھەر بىر تاماملانغان ئىزدەش بىر قېتىم. ئوخشاش سۆز 3 سائەت ئىچىدە قايتا ئىزدەلسە يەنە سانىلىدۇ. Europe/Istanbul كۈن چېگرىسى. سانى كۆپتىن ئازغىچە، بەت-بەت.</p><div id="analyticsSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
           <div><h3>🚫 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsZeroSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsZeroSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
         </div>
       </section>
@@ -1033,7 +1059,7 @@
 </div>
 
 <script defer src="supabase-config.js?v=22"></script>
-<script defer src="app-config.js?v=5"></script>
+<script defer src="app-config.js?v=6"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="gallery-images.js?v=2"></script>
 <script defer src="/vendor/supabase-js-2.45.4.umd.js"></script>
@@ -1047,7 +1073,7 @@
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
 <script defer src="catalog-credits.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=7"></script>
+<script defer src="kutadgu-analytics-core.js?v=13"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
@@ -1061,7 +1087,7 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=91"></script>
+  <script defer src="admin.js?v=101"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

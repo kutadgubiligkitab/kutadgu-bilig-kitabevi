@@ -55,7 +55,7 @@
 
   function shouldShowTotalViews(total) {
     var n = Number(total);
-    return Number.isFinite(n) && n >= THRESHOLD;
+    return Number.isFinite(n) && n > THRESHOLD;
   }
 
   function formatTotalViews(total) {
@@ -367,18 +367,30 @@
         rows.forEach(function (row) { byId[row.bookId] = row.total; });
       });
       var painted = Object.create(null);
+      var superseded = Object.create(null);
+      var generation = Object.create(null);
       flightIds.forEach(function (id) {
-        if (tokens[id] !== bookTokens[id]) return;
         var has = Object.prototype.hasOwnProperty.call(byId, id);
         var total = has ? byId[id] : null;
+        generation[id] = tokens[id];
+        if (tokens[id] !== bookTokens[id]) {
+          superseded[id] = true;
+          return;
+        }
         if (total != null) cacheSet(id, total, now);
         painted[id] = total;
       });
       releaseStatsFlight(flightIds, own, storeKey);
-      resolveFlight({ requests: requests.length, failed: false, byId: painted });
+      resolveFlight({ requests: requests.length, failed: false, byId: painted, superseded: superseded, generation: generation });
     }).catch(function () {
+      var superseded = Object.create(null);
+      var generation = Object.create(null);
+      flightIds.forEach(function (id) {
+        generation[id] = tokens[id];
+        if (tokens[id] !== bookTokens[id]) superseded[id] = true;
+      });
       releaseStatsFlight(flightIds, own, storeKey);
-      resolveFlight({ requests: requests.length, failed: true, byId: {} });
+      resolveFlight({ requests: requests.length, failed: true, byId: {}, superseded: superseded, generation: generation });
     });
     return own;
   }
@@ -639,6 +651,25 @@
     mountViewCount(info, total);
   }
 
+  function decideStatsTotal(id, result, token) {
+    if (result && result.superseded && result.superseded[id]) return { apply: false };
+    var generation = result && result.generation ? result.generation[id] : null;
+    var current = generation != null && generation === bookTokens[id];
+    if (!current && refreshTokens[id] !== token) return { apply: false };
+    var has = result && result.byId && Object.prototype.hasOwnProperty.call(result.byId, id);
+    return { apply: true, total: has ? result.byId[id] : null };
+  }
+
+  function paintCurrentStats(scope, result) {
+    if (!scope || !result || result.failed) return;
+    var byId = result.byId || {};
+    Object.keys(byId).forEach(function (id) {
+      if (result.superseded && result.superseded[id]) return;
+      if (result.generation && result.generation[id] !== bookTokens[id]) return;
+      paintId(scope, id, byId[id]);
+    });
+  }
+
   function refreshDisplayed(bookId, options) {
     var opts = options || {};
     var id = String(bookId || "").trim();
@@ -652,14 +683,14 @@
       now: Date.now(),
       isolated: true
     }).then(function (result) {
-      if (refreshTokens[id] !== token) return;
-      var total = result && result.byId && Object.prototype.hasOwnProperty.call(result.byId, id) ? result.byId[id] : null;
-      if (typeof document !== "undefined") paintId(document, id, total);
+      var decision = decideStatsTotal(id, result, token);
+      if (!decision.apply) return;
+      if (typeof document !== "undefined") paintId(document, id, decision.total);
       if (detailBookId() === id) {
-        if (total == null) {
+        if (decision.total == null) {
           var info = document.querySelector(".book-detail-info");
           if (info) hideViewCount(info);
-        } else paintFromStats(total);
+        } else paintFromStats(decision.total);
       }
     }).catch(function () {});
   }
@@ -695,20 +726,12 @@
       if (requests.length && typeof fetchImpl === "function") {
         own = readStats(missing, { config: opts.config, fetchImpl: fetchImpl, now: now });
         own.then(function (result) {
-          if (!result || result.failed) return;
-          var byId = result.byId || {};
-          Object.keys(byId).forEach(function (id) {
-            paintId(rootEl, id, byId[id]);
-          });
+          paintCurrentStats(rootEl, result);
         });
       }
       var waiters = joined.map(function (promise) {
         return promise.then(function (result) {
-          if (!result || result.failed) return;
-          var byId = result.byId || {};
-          Object.keys(byId).forEach(function (id) {
-            paintId(rootEl, id, byId[id]);
-          });
+          paintCurrentStats(rootEl, result);
         });
       });
       if (!own && !waiters.length) return Promise.resolve({ requests: 0, cards: cards.length });
@@ -742,18 +765,18 @@
     var requestedId = id;
     var token = (refreshTokens[requestedId] = (refreshTokens[requestedId] || 0) + 1);
     return readStats([requestedId], { config: root.KUTADGU_SUPABASE_CONFIG || {} }).then(function (result) {
-      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return;
-      var total = result && result.byId && Object.prototype.hasOwnProperty.call(result.byId, requestedId)
-        ? result.byId[requestedId]
-        : null;
+      if (detailBookId() !== requestedId) return;
+      var decision = decideStatsTotal(requestedId, result, token);
+      if (!decision.apply) return;
       var currentInfo = typeof document !== "undefined" ? document.querySelector(".book-detail-info") : null;
-      if (total == null) {
+      if (decision.total == null) {
         if (currentInfo) hideViewCount(currentInfo);
         return;
       }
-      paintFromStats(total);
+      paintFromStats(decision.total);
     }).catch(function () {
-      if (refreshTokens[requestedId] !== token || detailBookId() !== requestedId) return;
+      if (detailBookId() !== requestedId) return;
+      if (refreshTokens[requestedId] !== token) return;
       var failedInfo = typeof document !== "undefined" ? document.querySelector(".book-detail-info") : null;
       if (failedInfo) hideViewCount(failedInfo);
     });

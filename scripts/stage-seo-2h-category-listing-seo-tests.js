@@ -20,17 +20,21 @@ const LIT_CHILDREN = [
   "dunya-edebiyati"
 ];
 const FAKE_CLAIM = /دانە|ئېتىبار|ئەرزان|ھەقسىز يەتكۈزۈش|ئەڭ ئاۋات|ئەڭ كۆپ سېتىلغان|bestseller|#1|ranking/i;
+const NEW_HUBS = {
+  iqtisad: { label: "ئىقتىساد" },
+  taamlar: { label: "تائاملار" }
+};
 const FROZEN = {
-  "shop.js": "3a5bc2d64ef8763032be57124804618fe9b8fe29b4fa254a9dd107e1c57ab604",
+  "shop.js": "6425f2c1c222e47286e74f761fd6c98f8f683bdbb6258c04568ab01d6cf99053",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
-  "kutadgu-book-seo.js": "dad39497ede2371ea88db375a8c20047cdd3b7c0ba065e969e6917f175ec63b2",
+  "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "c8a42683b84777680450bd970eb3483213edc8e4ddc49d09b6e5c9c56c810d14",
-  "index.html": "8712f52b08faefc68ca02fe29261c4901a13242cd56154b8a8f6bdcc888a992a",
+  "book-shell.html": "43512847e06e550495c67104358f039aa5cfeec24b68267f802b36e734bdb873",
+  "index.html": "07a565e767b6078d13856797c9265c55d75f42e4659cb90586e719017fc7d54f",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
-  "vercel.json": "4d546bd4e9ab92e8466025a31bc12ba3834fbba1e7f107ad1b6e112a757d9452",
+  "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
 };
 
@@ -54,7 +58,18 @@ function read(rel) {
 }
 
 function gitShow(rel) {
-  return execSync(`git show origin/main:${rel}`, { cwd: root, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  try {
+    return execSync(`git show origin/main:${rel}`, {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+  } catch (err) {
+    const stderr = String((err && err.stderr) || (err && err.message) || "");
+    if (err && err.status === 128 && /exists on disk, but not in/.test(stderr)) return "";
+    throw err;
+  }
 }
 
 function attr(html, re) {
@@ -118,7 +133,9 @@ test("trusted public hubs match sitemap and SEO helper, and /books is a separate
     "dini",
     "children",
     "dictionary",
-    "grammar"
+    "grammar",
+    "iqtisad",
+    "taamlar"
   ]);
   assert.ok(!HUBS.includes("books"), "books stays a global listing, not a category hub slug");
   assert.ok(sitemap.PUBLIC_PAGE_PATHS.includes("/books"));
@@ -142,18 +159,26 @@ HUBS.forEach((slug) => {
     assert.ok(html.includes(ICON), "exact favicon tag");
     const title = attr(html, /<title>([\s\S]*?)<\/title>/);
     const oldTitle = attr(old, /<title>([\s\S]*?)<\/title>/);
-    if (slug === "adabiyat-roman") {
+    const description = attr(html, /<meta name="description" content="([^"]*)"/);
+    if (NEW_HUBS[slug]) {
+      assert.strictEqual(old, "");
+      assert.strictEqual(title, `${NEW_HUBS[slug].label} | قۇتادغۇبىلىك كىتابخانىسى`);
+      assert.strictEqual(description, `قۇتادغۇبىلىك كىتابخانىسىدىكى ${NEW_HUBS[slug].label} كىتابلىرىنى كۆرۈڭ ۋە WhatsApp ئارقىلىق زاكاز قىلىڭ.`);
+      const data = JSON.parse(jsonLd(html));
+      assert.strictEqual(data["@type"], "CollectionPage");
+      assert.strictEqual(data.name, NEW_HUBS[slug].label);
+      assert.strictEqual(data.url, `https://www.kutadgubilik.com/${slug}`);
+    } else if (slug === "adabiyat-roman") {
       assert.strictEqual(title, "ئەدەبىيات رومانلىرى - قۇتادغۇبىلىك كىتابخانىسى");
       assert.strictEqual(title, oldTitle);
       assert.notStrictEqual(title, attr(pages.romanlar, /<title>([\s\S]*?)<\/title>/));
+      assert.strictEqual(description, attr(old, /<meta name="description" content="([^"]*)"/));
+      assert.strictEqual(jsonLd(html), jsonLd(old));
     } else {
       assert.strictEqual(title, oldTitle);
+      assert.strictEqual(description, attr(old, /<meta name="description" content="([^"]*)"/));
+      assert.strictEqual(jsonLd(html), jsonLd(old));
     }
-    assert.strictEqual(
-      attr(html, /<meta name="description" content="([^"]*)"/),
-      attr(old, /<meta name="description" content="([^"]*)"/)
-    );
-    assert.strictEqual(jsonLd(html), jsonLd(old));
     assert.match(html, /"@type":"CollectionPage"/);
     assert.strictEqual(count(html, /class="category-hub-intro"/g), 1);
     assert.strictEqual(count(html, /class="category-hub-nav"/g), 1);
@@ -162,15 +187,20 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=138/);
-    assert.strictEqual(
-      attr(html, /data-catalog-source="([^"]*)"/),
-      attr(old, /data-catalog-source="([^"]*)"/)
-    );
-    assert.strictEqual(
-      attr(html, /data-catalog-sources="([^"]*)"/) || "",
-      attr(old, /data-catalog-sources="([^"]*)"/) || ""
-    );
+    assert.match(html, /shop\.js\?v=147/);
+    if (NEW_HUBS[slug]) {
+      assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), `${slug}.html`);
+      assert.strictEqual(attr(html, /data-catalog-sources="([^"]*)"/) || "", "");
+    } else {
+      assert.strictEqual(
+        attr(html, /data-catalog-source="([^"]*)"/),
+        attr(old, /data-catalog-source="([^"]*)"/)
+      );
+      assert.strictEqual(
+        attr(html, /data-catalog-sources="([^"]*)"/) || "",
+        attr(old, /data-catalog-sources="([^"]*)"/) || ""
+      );
+    }
     if (slug === "adabiyat") {
       assert.match(catalogAttrs(html), /data-adabiyat-hub="1"/);
       assert.match(
@@ -221,7 +251,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=138/);
+  assert.match(html, /shop\.js\?v=147/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
@@ -277,7 +307,9 @@ test("other category hubs keep a short homepage/category nav", () => {
     "dini",
     "children",
     "dictionary",
-    "grammar"
+    "grammar",
+    "iqtisad",
+    "taamlar"
   ].forEach((slug) => {
     assert.deepStrictEqual(navHrefs(pages[slug]), ["/", "/books"]);
   });
@@ -318,6 +350,13 @@ test("protected product files stay frozen and out of this diff", () => {
     "category-hub-seo.css",
     "kutadgu-ai-search.js",
     "scripts/stage-seo-2h-category-listing-seo-tests.js",
+    "scripts/economics-food-categories-tests.js",
+    "app-config.js",
+    "kutadgu-sitemap.js",
+    "sitemap-pages.xml",
+    "tests/e2e/homepage-compact.spec.js",
+    "home-category-appended-cards.css",
+    "home-category-tablet-grid.css",
     "package.json",
     "package-lock.json",
     "PROJECT-RECOVERY.md",
@@ -671,8 +710,8 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/catalog-credits.spec.js",
     "tests/e2e/catalog-credit-link-persistence.spec.js",
     "tests/e2e/premium-discovery-cover-retry.spec.js",
-    "tests/e2e/stage4b2-homepage-discovery.spec.js",
     "tests/e2e/discovery-cover-space.spec.js",
+    "tests/e2e/stage4b2-homepage-discovery.spec.js",
     "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql",
     "scripts/stage106-isolated-verify.js",
     "STAGE107_BOOK_REVIEWS.sql",
@@ -710,7 +749,42 @@ test("protected product files stay frozen and out of this diff", () => {
     "home-hero-content.js",
     "home-hero-slideshow.js",
     "scripts/home-hero-overlay-tests.js",
-    "tests/e2e/home-hero-overlay.spec.js"
+    "tests/e2e/home-hero-overlay.spec.js",
+    "STAGE114_THREE_HOUR_VISITS.sql",
+    "STAGE114_THREE_HOUR_VISITS_ROLLBACK.sql",
+    "scripts/stage114-isolated-postgres.sh",
+    "scripts/stage114-isolated-fixture.sql",
+    "scripts/stage114-isolated-assertions.sql",
+    "scripts/stage114-isolated-rollback-assertions.sql",
+    "scripts/stage114-isolated-reapply-assertions.sql",
+    "scripts/stage114-isolated-counter-failure.sql",
+    "scripts/stage114-isolated-counter-recovery.sql",
+    "scripts/three-hour-visits-tests.js",
+    "STAGE115_ANALYTICS_EVENT_ID.sql",
+    "scripts/analytics-insert-postgrest.sh",
+    "tests/e2e/admin-three-hour-visits.spec.js",
+    "STAGE116_ADMIN_ANALYTICS_LISTS.sql",
+    "STAGE116_ADMIN_ANALYTICS_LISTS_ROLLBACK.sql",
+    "scripts/admin-search-lists-tests.js",
+    "scripts/admin-search-lists-postgrest.sh",
+    "tests/e2e/admin-search-lists.spec.js",
+    "tests/e2e/book-detail-boot.spec.js",
+    "STAGE117_VISIT_COUNTRIES.sql",
+    "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql",
+    "cloudflare/analytics-visit-country.js",
+    "scripts/stage117-isolated-assertions.sql",
+    "scripts/stage117-isolated-coverage-failure.sql",
+    "scripts/stage117-isolated-coverage-recovery.sql",
+    "scripts/stage117-isolated-postgres.sh",
+    "scripts/stage117-isolated-postgrest.sh",
+    "scripts/visit-country-tests.js",
+    "tests/e2e/admin-visit-countries.spec.js",
+    "STAGE118_VISIT_COUNTRY_HISTORY.sql",
+    "STAGE118_VISIT_COUNTRY_HISTORY_ROLLBACK.sql",
+    "scripts/stage118-isolated-assertions.sql",
+    "scripts/stage118-isolated-postgres.sh",
+    "scripts/stage118-isolated-postgrest.sh",
+    "scripts/stage118-snapshot-race.sh"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

@@ -42,7 +42,9 @@ const CATEGORY_HUB_SLUGS = [
   "dini",
   "children",
   "dictionary",
-  "grammar"
+  "grammar",
+  "iqtisad",
+  "taamlar"
 ];
 
 const PUBLIC_INFO_SLUGS = [

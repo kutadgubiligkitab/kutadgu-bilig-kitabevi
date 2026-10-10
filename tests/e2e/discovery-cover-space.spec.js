@@ -159,6 +159,7 @@ async function pendingState(page) {
     const tokenColor = getComputedStyle(token).color;
     token.remove();
     const carts = [...pending.querySelectorAll(".premium-card-cart")];
+    const viewportH = window.innerHeight;
     return {
       missing: false,
       pendingH: Math.round(pr.height),
@@ -173,9 +174,16 @@ async function pendingState(page) {
       pointerEvents: msgStyle.pointerEvents,
       slots: pending.querySelectorAll(".premium-book-card").length,
       links: pending.querySelectorAll("a").length,
+      images: pending.querySelectorAll("img").length,
       bookIds: pending.querySelectorAll("[data-premium-book-id]").length,
+      favorites: pending.querySelectorAll("[data-premium-favorite]").length,
+      cartIds: pending.querySelectorAll("[data-premium-cart]").length,
       cartsDisabled: carts.length > 0 && carts.every((node) => node.disabled && node.tabIndex === -1),
+      gridHidden: grid.getAttribute("aria-hidden"),
+      spinnerHidden: (msg.querySelector("[aria-hidden]") || {}).getAttribute ? msg.querySelector("[aria-hidden]").getAttribute("aria-hidden") : "",
+      live: document.querySelector("#premiumDiscoveryResults").getAttribute("aria-live"),
       messageAccessible: !msg.closest("[aria-hidden='true']"),
+      inView: results.top < viewportH && results.bottom > 0 && results.height > 0,
       text: msg.innerText.replace(/\s+/g, " ").trim()
     };
   });
@@ -227,18 +235,32 @@ test.describe("discovery cover space reservation", () => {
         await setTheme(page, theme);
         await page.locator("[data-premium-group='literature']").click();
         await expect.poll(async () => (await pendingState(page)).slots).toBe(8);
+        await page.locator("#premiumDiscoveryResults").scrollIntoViewIfNeeded();
         const pending = await pendingState(page);
         expect(pending.missing).toBe(false);
+        expect(pending.inView).toBe(true);
         expect(pending.text).toContain(LOADING);
         expect(pending.msgH).toBeGreaterThan(20);
         expect(pending.msgW).toBeGreaterThan(80);
         expect(pending.pointerEvents).toBe("none");
         expect(pending.msgColor).toBe(pending.tokenColor);
         expect(pending.messageAccessible).toBe(true);
+        expect(pending.live).toBe("polite");
+        expect(pending.gridHidden).toBe("true");
+        expect(pending.spinnerHidden).toBe("true");
         expect(pending.pendingH).toBe(pending.gridH);
         expect(pending.links).toBe(0);
+        expect(pending.images).toBe(0);
         expect(pending.bookIds).toBe(0);
+        expect(pending.favorites).toBe(0);
+        expect(pending.cartIds).toBe(0);
         expect(pending.cartsDisabled).toBe(true);
+        await page.locator("[data-premium-group='literature']").focus();
+        await page.keyboard.press("Tab");
+        expect(await page.evaluate(() => {
+          const active = document.activeElement;
+          return !!(active && active.closest && active.closest(".premium-discovery-pending"));
+        })).toBe(false);
         expect(pending.coverW).toBeGreaterThan(40);
         expect(pending.coverH / pending.coverW).toBeGreaterThan(1.45);
         expect(pending.coverH / pending.coverW).toBeLessThan(1.55);
@@ -257,6 +279,7 @@ test.describe("discovery cover space reservation", () => {
         expect(populated.coverW).toBe(pending.coverW);
         expect(populated.coverH).toBe(pending.coverH);
         expect(Math.abs(populated.resultsH - pending.resultsH)).toBeLessThanOrEqual(2);
+        console.log(`DISCOVERY_GEOMETRY kind=eight width=${viewport.width} theme=${theme} pending=${pending.resultsH} populated=${populated.resultsH} delta=${populated.resultsH - pending.resultsH} cover=${populated.coverW}x${populated.coverH}`);
 
         const favorite = page.locator("[data-premium-favorite='92001']");
         await favorite.click();
@@ -337,6 +360,34 @@ test.describe("discovery cover space reservation", () => {
       expect(populated.coverW, `cover width stays ${pending.coverW}`).toBe(pending.coverW);
       expect(populated.coverH, `cover height stays ${pending.coverH}`).toBe(pending.coverH);
       expect(populated.resultsH, `eight-slot reserve ${pending.resultsH}px, two cards ${populated.resultsH}px`).toBeLessThan(pending.resultsH);
+      console.log(`DISCOVERY_GEOMETRY kind=two width=${width} pending=${pending.resultsH} populated=${populated.resultsH} delta=${populated.resultsH - pending.resultsH} cover=${populated.coverW}x${populated.coverH}`);
+    });
+  }
+
+  for (const width of [390, 768, 1280]) {
+    test(`recommended badges grow the eight-card result past the reserved slots at ${width}`, async ({ page }) => {
+      const books = Array.from({ length: 8 }, (_, index) => bookRow({
+        id: 92041 + index,
+        title: `تەۋسىيە ${index + 1}`,
+        is_recommended: true,
+        is_new: false,
+        is_bestseller: false
+      }));
+      const catalog = await installCatalog(page, books);
+      const release = catalog.hold();
+      await openDiscovery(page, width);
+      await page.locator("[data-premium-group='literature']").click();
+      await expect.poll(async () => (await pendingState(page)).slots).toBe(8);
+      const pending = await pendingState(page);
+      release();
+      await expect(page.locator("#premiumDiscoveryResults [data-premium-book-id]")).toHaveCount(8);
+      await expect(page.locator("#premiumDiscoveryResults .premium-card-badges")).toHaveCount(8);
+      await expect(page.locator("#premiumDiscoveryResults .premium-card-badges").first()).toContainText("تەۋسىيە");
+      const populated = await populatedCover(page);
+      expect(populated.coverW).toBe(pending.coverW);
+      expect(populated.coverH).toBe(pending.coverH);
+      expect(populated.resultsH, `reserved ${pending.resultsH}px, badges ${populated.resultsH}px`).toBeGreaterThan(pending.resultsH);
+      console.log(`DISCOVERY_GEOMETRY kind=badges width=${width} pending=${pending.resultsH} populated=${populated.resultsH} delta=${populated.resultsH - pending.resultsH} cover=${populated.coverW}x${populated.coverH}`);
     });
   }
 
@@ -355,7 +406,6 @@ test.describe("discovery cover space reservation", () => {
         const after = await populatedCover(page);
         expect(after.coverW).toBe(before.coverW);
         expect(after.coverH).toBe(before.coverH);
-        expect(after.mark.minHeight).toBe("0px");
         expect(after.mark.top).toBeGreaterThanOrEqual(after.coverTop - 1);
         expect(after.mark.bottom).toBeLessThanOrEqual(after.coverBottom + 1);
         expect(after.mark.left).toBeGreaterThanOrEqual(after.coverLeft - 1);

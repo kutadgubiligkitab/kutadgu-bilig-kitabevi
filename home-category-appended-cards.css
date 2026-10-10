@@ -1,0 +1,66 @@
+/* Homepage #bookCategories only. Desktop placement for cards 10–11, plus compact card sizing. */
+@media (min-width: 1101px) {
+  #bookCategories.home-main-section {
+    padding-top: 18px !important;
+    padding-bottom: 36px !important;
+  }
+
+  #bookCategories .home-category-heading {
+    max-width: min(1090px, 80%) !important;
+    margin-top: 14px !important;
+    margin-bottom: 10px !important;
+  }
+
+  #bookCategories .cards {
+    width: min(1090px, 80%) !important;
+    max-width: min(1090px, 80%) !important;
+    gap: 12px !important;
+    margin-inline: auto !important;
+  }
+
+  #bookCategories .cards .card {
+    min-height: 0 !important;
+    padding: 14px 12px !important;
+  }
+
+  #bookCategories .cards .card .icon {
+    font-size: 28px !important;
+    margin-bottom: 9px !important;
+  }
+
+  #bookCategories .cards .card:nth-child(10) {
+    grid-column: 3 / span 2 !important;
+  }
+
+  #bookCategories .cards .card:nth-child(11) {
+    grid-column: 5 / span 2 !important;
+  }
+}
+
+@media (max-width: 700px) {
+  #bookCategories .cards {
+    gap: 8px !important;
+  }
+
+  #bookCategories .cards .card {
+    min-height: 44px !important;
+    padding: 11px 8px !important;
+  }
+
+  #bookCategories .cards .card h3,
+  #bookCategories .cards .card p {
+    min-height: 0 !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+  }
+
+  #bookCategories .cards .card p {
+    display: block !important;
+  }
+
+  #bookCategories .cards .card:last-child {
+    width: calc((100% - 8px) / 2) !important;
+    max-width: calc((100% - 8px) / 2) !important;
+  }
+}

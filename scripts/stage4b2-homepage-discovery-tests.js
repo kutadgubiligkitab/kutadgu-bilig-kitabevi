@@ -185,7 +185,7 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
 test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload", () => {
   assert.match(shopJs, /premium-ux\.css\?v=10/);
   assert.match(shopJs, /premium-ux\.js\?v=14/);
-  assert.match(shopJs, /discovery-cover-space\.css\?v=2/);
+  assert.match(shopJs, /discovery-cover-space\.css\?v=1/);
   assert.match(shopJs, /stage4b2-homepage-discovery\.css\?v=1/);
   assert.match(shopJs, /data-kutadgu-stage4b2-homepage-discovery/);
   assert.match(shopJs, /premium-cart-row-alignment-safety\.css\?v=1/);
