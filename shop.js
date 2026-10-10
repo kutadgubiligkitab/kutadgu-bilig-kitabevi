@@ -5247,6 +5247,16 @@ function ensureStorefrontCoverPresentationCss(){
   }
   document.head.appendChild(el);
 }
+function ensureDiscoveryCoverSpaceCss(){
+  let el=document.querySelector("link[data-kutadgu-discovery-cover-space]");
+  if(!el){
+    el=document.createElement("link");
+    el.rel="stylesheet";
+    el.href="/discovery-cover-space.css?v=1";
+    el.setAttribute("data-kutadgu-discovery-cover-space","1");
+  }
+  document.head.appendChild(el);
+}
 function loadPremiumUX(){
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=10";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
@@ -5255,7 +5265,8 @@ function loadPremiumUX(){
   ensureStage4b2HomepageDiscoveryCss();
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
-  return loadAssetScript("/premium-ux.js?v=13","kutadguPremiumUxScript");
+  ensureDiscoveryCoverSpaceCss();
+  return loadAssetScript("/premium-ux.js?v=14","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){

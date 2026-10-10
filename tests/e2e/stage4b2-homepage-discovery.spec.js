@@ -164,7 +164,7 @@ function familyMetrics() {
       fav = card.querySelector(".home-carousel-fav");
       cover = card.querySelector(".home-carousel-cover");
     } else {
-      card = document.querySelector("#premiumDiscoveryResults .premium-book-card");
+      card = document.querySelector("#premiumDiscoveryResults .premium-book-card[data-premium-book-id]");
       if (!card) return { missing: true };
       title = card.querySelector(".premium-card-link strong");
       author = card.querySelector(".premium-card-link small");
@@ -268,7 +268,8 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
     await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-    await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card").count()).toBeGreaterThan(0);
+    await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(0);
+    await expect(page.locator("#premiumDiscoveryResults .premium-discovery-pending")).toHaveCount(0);
   }
 
   function expectType(geo, tokens, width) {
@@ -403,7 +404,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
 
   function premiumRowMetrics() {
     return () => {
-      const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card")];
+      const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card[data-premium-book-id]")];
       return cards.map((card) => {
         const cover = card.querySelector(".premium-card-cover");
         const img = cover && cover.querySelector("img");

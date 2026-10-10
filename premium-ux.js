@@ -155,6 +155,21 @@
   function discoveryLoadingMarkup(){
     return '<div class="catalog-loading-state premium-discovery-loading"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div>';
   }
+  function discoveryCoverSlot(){
+    return `<article class="premium-book-card">
+      <span class="premium-card-link">
+        <span class="premium-card-cover"></span>
+        <strong>\u00a0</strong>
+        <small>\u00a0</small>
+        <span class="premium-card-price">\u00a0</span>
+      </span>
+      <button type="button" class="premium-card-cart" disabled tabindex="-1">\u00a0</button>
+    </article>`;
+  }
+  function discoveryResultsLoadingMarkup(){
+    const cards=Array.from({length:DISCOVERY_PAGE_SIZE},discoveryCoverSlot).join("");
+    return `<div class="premium-discovery-pending"><div class="premium-book-grid" aria-hidden="true">${cards}</div><div class="premium-discovery-loading"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار يۈكلىنىۋاتىدۇ…</span></div></div>`;
+  }
   function discoveryEmptyMarkup(){
     return '<div class="premium-friendly-empty">بۇ تۈردە ھازىرچە كىتاب يوق. باشقا تۈرنى تاللاپ كۆرۈڭ.</div>';
   }
@@ -224,7 +239,7 @@
       section.querySelectorAll("[data-premium-group]").forEach(button=>button.classList.toggle("is-active",button.dataset.premiumGroup===group.id));
       subcategories.innerHTML=(group.categories||[]).map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
       subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
-      results.innerHTML=discoveryLoadingMarkup();
+      results.innerHTML=discoveryResultsLoadingMarkup();
       try{
         const names=category?[category]:(group.categories||[]);
         const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE);
