@@ -46,6 +46,9 @@ async function installInbox(page) {
     window.__errorRead = !!setup.errorRead;
     window.__errorCode = setup.errorCode || "08006";
     window.__sessionMode = setup.sessionMode || "";
+    window.__sessionHold = false;
+    window.__sessionPending = [];
+    window.__authListeners = [];
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguAnalyticsDb = {
       rpc() { return Promise.resolve({ data: null, error: null }); },
@@ -56,10 +59,19 @@ async function installInbox(page) {
     };
     window.__kutadguAdminFeedbackClient = {
       auth: {
-        getSession: async () => {
-          if (window.__sessionMode === "none") return { data: { session: null }, error: null };
-          const payload = btoa(JSON.stringify({ aal: window.__aal, sub: window.__sub })).replace(/=+$/g, "");
-          return { data: { session: { access_token: "h." + payload + ".s", user: { id: window.__sub } } }, error: null };
+        getSession: () => {
+          const shot = { aal: window.__aal, sub: window.__sub, mode: window.__sessionMode };
+          const respond = () => {
+            if (shot.mode === "none") return { data: { session: null }, error: null };
+            const payload = btoa(JSON.stringify({ aal: shot.aal, sub: shot.sub })).replace(/=+$/g, "");
+            return { data: { session: { access_token: "h." + payload + ".s", user: { id: shot.sub } } }, error: null };
+          };
+          if (window.__sessionHold) return new Promise((resolve) => { window.__sessionPending.push(() => resolve(respond())); });
+          return Promise.resolve(respond());
+        },
+        onAuthStateChange(cb) {
+          window.__authListeners.push(cb);
+          return { data: { subscription: { unsubscribe() {} } } };
         }
       },
       rpc(name, args) {
@@ -187,6 +199,49 @@ test("AAL downgrade and logout drop the inbox without keeping another context", 
   await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(2);
   await page.evaluate(() => { void window.__kutadguAdminTest.logout(); });
   await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(0);
+});
+
+test("admin identity changes and delayed session reads drop the other inbox", async ({ page }) => {
+  await installInbox(page);
+  await openInbox(page, 2);
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(2);
+  await page.evaluate(() => { window.__sessionHold = true; });
+  await page.locator("[data-admin-section='feedback']").click();
+  await page.waitForFunction(() => window.__sessionPending.length === 1);
+  await page.evaluate(() => {
+    window.__sub = "admin-b";
+    const payload = btoa(JSON.stringify({ aal: "aal2", sub: "admin-b" })).replace(/=+$/g, "");
+    window.__authListeners.forEach((cb) => cb("SIGNED_IN", { access_token: "h." + payload + ".s", user: { id: "admin-b" } }));
+  });
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__sessionHold = false;
+    window.__sessionPending.splice(0).forEach((release) => release());
+  });
+  await expect(page.locator("#websiteFeedbackList .admin-review-body")).toHaveCount(0);
+  await expect(page.locator("#websiteFeedbackStatus")).not.toContainText("ئالدىنقى نەتىجە");
+
+  await page.evaluate(() => { window.__sub = "admin-a"; window.__aal = "aal2"; });
+  await page.locator("[data-admin-section='feedback']").click();
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(2);
+  await page.evaluate(() => {
+    const payload = btoa(JSON.stringify({ aal: "aal1", sub: "admin-a" })).replace(/=+$/g, "");
+    window.__authListeners.forEach((cb) => cb("TOKEN_REFRESHED", { access_token: "h." + payload + ".s", user: { id: "admin-a" } }));
+  });
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(0);
+  await expect(page.locator("#websiteFeedbackStatus")).toContainText("AAL2");
+
+  await page.evaluate(() => { window.__aal = "aal2"; window.__hold = true; window.__errorRead = false; });
+  await page.locator("[data-admin-section='feedback']").click();
+  await page.waitForFunction(() => window.__pending.length === 1);
+  await page.evaluate(() => {
+    window.__sub = "admin-c";
+    const payload = btoa(JSON.stringify({ aal: "aal2", sub: "admin-c" })).replace(/=+$/g, "");
+    window.__authListeners.forEach((cb) => cb("SIGNED_IN", { access_token: "h." + payload + ".s", user: { id: "admin-c" } }));
+    window.__pending.splice(0).forEach((item) => item.resolve({ data: null, error: { message: "read", code: "08006" } }));
+  });
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(0);
+  await expect(page.locator("#websiteFeedbackStatus")).not.toContainText("ئالدىنقى نەتىجە");
 });
 
 test("admin inbox layout stays RTL on a narrow viewport and in dark mode", async ({ page }) => {

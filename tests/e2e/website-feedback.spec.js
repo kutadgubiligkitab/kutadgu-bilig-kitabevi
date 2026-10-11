@@ -154,9 +154,9 @@ test("logout, account switch, session loss, and suspension drop private drafts",
   await page.evaluate(() => { window.__mode = "hold"; });
   await page.locator("#feedbackSubmit").click();
   await page.evaluate(() => window.KutadguWebsiteFeedback.beginSignOut());
-  await page.locator("#feedbackBody").fill("يېڭى");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
   await page.evaluate(() => window.__pending.resolve({ data: { id: window.__pending.args.p_id, replayed: false }, error: null }));
-  await expect(page.locator("#feedbackBody")).toHaveValue("يېڭى");
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
   await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
 
   await page.evaluate(() => {
@@ -212,4 +212,266 @@ test("keyboard, narrow, desktop, and dark theme stay usable", async ({ page }) =
   const color = await page.locator(".back-link").evaluate((el) => getComputedStyle(el).color);
   expect(color).not.toBe("");
   await expect(page.locator("#feedbackSubmit")).toBeVisible();
+});
+
+function installRealMember(page) {
+  return page.addInitScript(() => {
+    window.__calls = [];
+    window.__profiles = {
+      "member-a": { id: "member-a", status: "active", full_name: "ئەزا أ" },
+      "member-b": { id: "member-b", status: "active", full_name: "ئەزا ب" }
+    };
+    window.__holdMerge = false;
+    window.__mergeWaiting = [];
+    window.__holdRpc = false;
+    window.__rpcPending = null;
+    window.__profileError = false;
+    window.__signOutMode = "";
+    window.__signOutCalls = 0;
+    window.__session = {
+      access_token: "token-member-a",
+      refresh_token: "refresh-member-a",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "member-a", email: "member-a@example.com" }
+    };
+    try {
+      const extra = JSON.parse(sessionStorage.getItem("kutadgu-feedback-member") || "{}");
+      (extra.omit || []).forEach((id) => { delete window.__profiles[id]; });
+      if (extra.profileError) window.__profileError = true;
+    } catch (error) {}
+    function chain(table) {
+      const state = { table: table, id: "" };
+      const builder = {
+        select() { return builder; },
+        eq(col, val) { state.id = val; return builder; },
+        in() { return builder; },
+        order() { return builder; },
+        update() { return builder; },
+        delete() { return builder; },
+        upsert() { return Promise.resolve({ data: null, error: null }); },
+        maybeSingle() {
+          if (state.table !== "profiles") return Promise.resolve({ data: null, error: null });
+          if (window.__profileError) return Promise.resolve({ data: null, error: { message: "profile down" } });
+          return Promise.resolve({ data: window.__profiles[state.id] || null, error: null });
+        },
+        then(ok, err) {
+          const finish = () => {
+            if (window.__holdMerge && (state.table === "member_favorites" || state.table === "member_cart_items")) {
+              return new Promise((resolve) => {
+                window.__mergeWaiting.push(() => resolve({ data: [], error: null }));
+              });
+            }
+            return Promise.resolve({ data: [], error: null });
+          };
+          return finish().then(ok, err);
+        }
+      };
+      return builder;
+    }
+    window.__memberDb = {
+      auth: {
+        onAuthStateChange(cb) {
+          window.__authCb = cb;
+          return { data: { subscription: { unsubscribe() {} } } };
+        },
+        getSession() { return Promise.resolve({ data: { session: window.__session }, error: null }); },
+        refreshSession() { return Promise.resolve({ data: { session: null }, error: { message: "no refresh" } }); },
+        signOut() {
+          window.__signOutCalls += 1;
+          if (window.__signOutMode === "reject") return Promise.reject(new Error("sign out rejected"));
+          if (window.__signOutMode === "delay") return new Promise((resolve) => { window.__signOutResolve = resolve; });
+          window.__session = null;
+          if (window.__authCb) window.__authCb("SIGNED_OUT", null);
+          return Promise.resolve({ error: null });
+        }
+      },
+      from: chain,
+      rpc(name, args) {
+        if (name !== "submit_website_feedback") return Promise.resolve({ data: null, error: null });
+        const entry = { name: name, args: args, authUser: window.__session && window.__session.user && window.__session.user.id };
+        window.__calls.push(entry);
+        if (window.__holdRpc) return new Promise((resolve) => { window.__rpcPending = { resolve: resolve, entry: entry }; });
+        return Promise.resolve({ data: { id: args.p_id, replayed: false }, error: null });
+      }
+    };
+    window.KUTADGU_SUPABASE_CONFIG = { url: "https://example.supabase.co", anonKey: "public-anon-test-key" };
+    const mockSdk = { createClient() { return window.__memberDb; } };
+    Object.defineProperty(window, "supabase", {
+      configurable: true,
+      get() { return mockSdk; },
+      set() {}
+    });
+  });
+}
+
+function sessionFor(id) {
+  return {
+    access_token: "token-" + id,
+    refresh_token: "refresh-" + id,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: { id: id, email: id + "@example.com" }
+  };
+}
+
+test("real member.js blocks submission until an eligible profile exists", async ({ page }) => {
+  await installRealMember(page);
+  await page.goto("/feedback", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => sessionStorage.setItem("kutadgu-feedback-member", JSON.stringify({ omit: ["member-a"] })));
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser());
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(0);
+  await page.evaluate((session) => {
+    window.__profiles["member-a"] = { id: "member-a", status: "active", full_name: "ئەزا أ" };
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+});
+
+test("an in-flight A submission cannot finish inside B's session", async ({ page }) => {
+  await installRealMember(page);
+  await page.goto("/feedback", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.locator("#feedbackBody").fill("A نىڭ مەخپىي پىكرى");
+  await page.evaluate(() => { window.__holdRpc = true; });
+  await page.locator("#feedbackSubmit").click();
+  await page.waitForFunction(() => window.__calls.length === 1);
+  await page.evaluate((session) => {
+    window.__holdMerge = true;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await page.waitForFunction(() => window.__mergeWaiting.length >= 1);
+  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe("member-a");
+  await page.evaluate((session) => {
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-b"));
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await page.evaluate(() => window.__rpcPending.resolve({ data: { id: window.__rpcPending.entry.args.p_id, replayed: false }, error: null }));
+  await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+  expect(await page.evaluate(() => window.__calls.length)).toBe(1);
+  expect(await page.evaluate(() => window.__calls[0].authUser)).toBe("member-a");
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__holdMerge = false;
+    window.__holdRpc = false;
+    window.__mergeWaiting.splice(0).forEach((release) => release());
+  });
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+  await page.locator("#feedbackBody").fill("B نىڭ پىكرى");
+  await page.locator("#feedbackSubmit").click();
+  await expect.poll(() => page.evaluate(() => window.__calls.length)).toBe(2);
+  expect(await page.evaluate(() => window.__calls[1].authUser)).toBe("member-b");
+  expect(await page.evaluate(() => window.__calls[1].args.p_body)).toBe("B نىڭ پىكرى");
+});
+
+test("real sign-out delay and rejection block feedback until the context returns", async ({ page }) => {
+  await installRealMember(page);
+  await page.goto("/feedback", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.locator("#feedbackBody").fill("چىقىشتىن بۇرۇن");
+  await page.evaluate(() => { window.__holdRpc = true; });
+  await page.locator("#feedbackSubmit").click();
+  await page.waitForFunction(() => window.__rpcPending);
+  await page.evaluate(() => {
+    window.__signOutMode = "delay";
+    window.__signOutPromise = window.KutadguMember.signOut();
+  });
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  expect(await page.evaluate(() => window.__signOutCalls)).toBe(1);
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(1);
+  await page.evaluate(() => window.__rpcPending.resolve({ data: { id: window.__rpcPending.entry.args.p_id, replayed: false }, error: null }));
+  await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+  await page.evaluate(() => { window.__signOutResolve({ error: null }); return window.__signOutPromise; });
+  await expect(page.locator("#feedbackStatus")).toHaveText("پىكىر يوللاش ئۈچۈن ھېسابىڭىزغا كىرىڭ ياكى يېڭى ئەزا بولۇڭ.");
+
+  await page.evaluate((session) => {
+    window.__signOutMode = "";
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.locator("#feedbackBody").fill("قايتا");
+  await page.evaluate(() => {
+    window.__holdRpc = true;
+    window.__signOutMode = "reject";
+  });
+  await page.locator("#feedbackSubmit").click();
+  await page.waitForFunction(() => window.__calls.length === 2);
+  await page.evaluate(async () => {
+    try { await window.KutadguMember.signOut(); } catch (error) { window.__signOutError = String(error && error.message || error); }
+  });
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe("member-a");
+  await page.evaluate(() => window.__rpcPending.resolve({ data: { id: window.__rpcPending.entry.args.p_id, replayed: false }, error: null }));
+  await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.evaluate(() => { window.__holdRpc = false; window.__signOutMode = ""; });
+  await page.locator("#feedbackBody").fill("يەنە A");
+  await page.locator("#feedbackSubmit").click();
+  await expect.poll(() => page.evaluate(() => window.__calls.length)).toBe(3);
+  expect(await page.evaluate(() => window.__calls[2].authUser)).toBe("member-a");
+});
+
+test("session loss, missing and failed profiles, suspension, and restoration", async ({ page }) => {
+  await installRealMember(page);
+  await page.goto("/feedback", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.locator("#feedbackBody").fill("يوقىلىدۇ");
+  await page.evaluate(() => {
+    window.__session = null;
+    window.__authCb("SIGNED_OUT", null);
+  });
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await expect(page.locator("#feedbackStatus")).toHaveText("پىكىر يوللاش ئۈچۈن ھېسابىڭىزغا كىرىڭ ياكى يېڭى ئەزا بولۇڭ.");
+
+  await page.evaluate((session) => {
+    window.__profiles["member-a"] = null;
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await expect(page.locator("#feedbackStatus")).toHaveText("ھېساب تەكشۈرۈلۈۋاتىدۇ.");
+  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe("member-a");
+
+  await page.evaluate((session) => {
+    window.__profileError = true;
+    window.__profiles["member-b"] = { id: "member-b", status: "active" };
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-b"));
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(0);
+
+  await page.evaluate((session) => {
+    window.__profileError = false;
+    window.__profiles["member-a"] = { id: "member-a", status: "suspended", full_name: "توختىتىلغان" };
+    window.__signOutMode = "";
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await expect(page.locator("#feedbackStatus")).toHaveText("بۇ ھېسابات توختىتىلغان. پىكىر يوللاشقا بولمايدۇ.");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+
+  await page.evaluate((session) => {
+    window.__profiles["member-b"] = { id: "member-b", status: "active", full_name: "ئەزا ب" };
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-b"));
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await expect(page.locator("#feedbackStatus")).not.toHaveText("بۇ ھېسابات توختىتىلغان. پىكىر يوللاشقا بولمايدۇ.");
+  await page.locator("#feedbackBody").fill("قايتا ئاكتىپ");
+  await page.locator("#feedbackSubmit").click();
+  await expect.poll(() => page.evaluate(() => window.__calls.length)).toBe(1);
+  expect(await page.evaluate(() => window.__calls[0].authUser)).toBe("member-b");
 });

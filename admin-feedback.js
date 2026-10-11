@@ -19,6 +19,9 @@
   var committed = null;
   var failed = null;
   var loading = false;
+  var bound = null;
+  var seenAdminId = "";
+  var authWatch = false;
 
   function dateText(value) {
     if (!value) return "—";
@@ -92,9 +95,35 @@
       return null;
     }
     if (!result || result.error || !result.data || !result.data.session) return null;
-    var session = result.data.session;
-    var id = session.user && session.user.id ? String(session.user.id) : "";
-    return { id: id, aal: jwtClaim(session.access_token, "aal") };
+    return readAuth(result.data.session);
+  }
+
+  function readAuth(session) {
+    var id = session && session.user && session.user.id ? String(session.user.id) : "";
+    return { id: id, aal: jwtClaim(session && session.access_token, "aal") };
+  }
+
+  function watchAuth() {
+    if (authWatch) return;
+    var db = client();
+    if (!db || !db.auth || typeof db.auth.onAuthStateChange !== "function") return;
+    authWatch = true;
+    db.auth.onAuthStateChange(function (event, session) {
+      var next = readAuth(session);
+      var authorized = event !== "SIGNED_OUT" && next.id && next.aal === "aal2";
+      if (!authorized) {
+        if (committed || seenAdminId || loading) {
+          clear();
+          setStatus(!next.id || event === "SIGNED_OUT" ? DENIED_MESSAGE : AAL2_MESSAGE);
+        }
+        return;
+      }
+      if (seenAdminId && next.id !== seenAdminId) {
+        clear();
+        return;
+      }
+      seenAdminId = next.id;
+    });
   }
 
   function clear() {
@@ -104,6 +133,8 @@
     committed = null;
     failed = null;
     loading = false;
+    bound = null;
+    seenAdminId = "";
     var list = listNode();
     if (list) list.replaceChildren();
     var pager = root.document && root.document.querySelector("#websiteFeedbackPager");
@@ -182,7 +213,12 @@
   }
 
   function retain(before, message) {
-    if (committed && committed.adminId === before.id && committed.aal === "aal2") {
+    if (seenAdminId && before && before.id !== seenAdminId) {
+      clear();
+      setStatus(DENIED_MESSAGE);
+      return;
+    }
+    if (committed && committed.adminId === before.id && committed.aal === "aal2" && before.aal === "aal2") {
       failed = { page: pageIndex, adminId: before.id, aal: "aal2" };
       paint(committed, message + RETAINED_NOTE);
       return;
@@ -192,6 +228,9 @@
   }
 
   async function load(page) {
+    watchAuth();
+    var fresh = !Number.isInteger(page);
+    if (fresh) bound = null;
     var started = epoch;
     var gen = ++requestGen;
     var requested = Number.isInteger(page) && page >= 0 ? page : 0;
@@ -203,6 +242,7 @@
       setStatus(before && before.id ? AAL2_MESSAGE : DENIED_MESSAGE);
       return;
     }
+    seenAdminId = before.id;
     loading = true;
     var retryButton = root.document && root.document.querySelector("#websiteFeedbackRetry");
     if (retryButton) retryButton.hidden = true;
@@ -210,7 +250,12 @@
     var db = client();
     var result;
     try {
-      result = await db.rpc("admin_website_feedback_page", { p_page: pageIndex });
+      var args = { p_page: pageIndex };
+      if (!fresh && bound && bound.at && bound.id) {
+        args.p_before = bound.at;
+        args.p_before_id = bound.id;
+      }
+      result = await db.rpc("admin_website_feedback_page", args);
     } catch (error) {
       result = { data: null, error: error };
     }
@@ -241,6 +286,7 @@
       rows: Array.isArray(payload.rows) ? payload.rows : []
     };
     pageIndex = view.page;
+    if (payload.bound_at && payload.bound_id) bound = { at: payload.bound_at, id: payload.bound_id };
     committed = { total: view.total, page: view.page, rows: view.rows, adminId: after.id, aal: "aal2" };
     failed = null;
     paint(view, "");
@@ -257,6 +303,7 @@
     var card = panel();
     var retryButton = doc.querySelector("#websiteFeedbackRetry");
     if (retryButton) retryButton.addEventListener("click", retry);
+    watchAuth();
     if (card && !card.hidden) load(0);
   }
 

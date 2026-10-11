@@ -6,7 +6,9 @@
 begin;
 
 drop function if exists public.submit_website_feedback(uuid, text);
+drop function if exists public.admin_website_feedback_page(integer, timestamptz, uuid);
 drop function if exists public.admin_website_feedback_page(integer);
 drop table if exists public.website_feedback;
+drop function if exists public.website_feedback_normalize(text);
 
 commit;

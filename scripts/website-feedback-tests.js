@@ -25,9 +25,9 @@ function read(rel) {
 }
 
 test("blank and whitespace-only text is rejected", () => {
-  ["", " ", "\n\t", " \n "].forEach((value) => {
+  ["", " ", "\n\t", " \n ", "\u000b", "\u00a0", "\u3000", "\ufeff", " \u00a0\u000b\t"].forEach((value) => {
     const result = feedback.normalizeBody(value);
-    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.ok, false, JSON.stringify(value));
     assert.strictEqual(result.reason, "empty");
     assert.strictEqual(feedback.validationMessage(result.reason), feedback.EMPTY_MESSAGE);
   });
@@ -36,13 +36,27 @@ test("blank and whitespace-only text is rejected", () => {
 test("the exact limit is accepted and one more character is rejected", () => {
   const exact = "پ".repeat(2000);
   const over = "پ".repeat(2001);
-  const ok = feedback.normalizeBody("  " + exact + "\n");
+  const ok = feedback.normalizeBody(" \u00a0" + exact + "\n\u000b");
   const bad = feedback.normalizeBody(over);
   assert.strictEqual(ok.ok, true);
   assert.strictEqual(ok.body, exact);
+  assert.strictEqual(feedback.characterLength(ok.body), 2000);
   assert.strictEqual(bad.ok, false);
   assert.strictEqual(bad.reason, "long");
   assert.strictEqual(feedback.validationMessage("long"), feedback.LONG_MESSAGE);
+  const emoji = "😀";
+  assert.strictEqual(emoji.length, 2);
+  assert.strictEqual(feedback.characterLength(emoji), 1);
+  const mixed = feedback.normalizeBody("پ".repeat(1999) + emoji);
+  const tooMany = feedback.normalizeBody(emoji.repeat(2000) + "پ");
+  assert.strictEqual(mixed.ok, true);
+  assert.strictEqual(feedback.characterLength(mixed.body), 2000);
+  assert.strictEqual(feedback.normalizeBody(emoji.repeat(2000)).ok, true);
+  assert.strictEqual(tooMany.ok, false);
+  assert.strictEqual(tooMany.reason, "long");
+  const kept = feedback.normalizeBody(" \u3000سەتر\nئىچكى \u00a0بوشلۇق\t");
+  assert.strictEqual(kept.ok, true);
+  assert.strictEqual(kept.body, "سەتر\nئىچكى \u00a0بوشلۇق");
 });
 
 test("the same payload keeps its receipt and a changed payload does not", () => {
@@ -52,6 +66,10 @@ test("the same payload keeps its receipt and a changed payload does not", () => 
   assert.strictEqual(same.id, first.id);
   assert.notStrictEqual(changed.id, first.id);
   assert.strictEqual(changed.body, "ئىككى");
+  const trimmed = feedback.normalizeBody(" \u00a0بىر\n").body;
+  const retry = feedback.nextReceipt(feedback.nextReceipt(null, trimmed), feedback.normalizeBody("\u000bبىر ").body);
+  assert.strictEqual(retry.id, feedback.nextReceipt(retry, trimmed).id);
+  assert.strictEqual(retry.body, "بىر");
 });
 
 test("a stale account or epoch does not match", () => {
@@ -76,6 +94,10 @@ test("sign-out clears the draft before the auth request", () => {
   const start = member.indexOf("async function signOut()");
   const body = member.slice(start, member.indexOf("async function resetPassword"));
   assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("auth.signOut"));
+  assert.ok(body.indexOf("rememberSignOutContext") < body.indexOf("abandonMemberShopSync"));
+  const rejected = body.slice(body.indexOf("catch(err){"), body.indexOf("if(pending)try{await pending}catch(e){}"));
+  assert.match(rejected, /restoreRejectedSignOut\(kept\)/);
+  assert.ok(body.indexOf("user=null;profile=null;blocked=false;") > body.indexOf("auth.signOut"));
   const signedOut = member.indexOf('event==="SIGNED_OUT"');
   assert.ok(member.indexOf("KutadguWebsiteFeedback.beginSignOut", signedOut) > signedOut);
 });
@@ -98,15 +120,21 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.match(page, /href="\/account\.html"/);
   assert.doesNotMatch(page, /account\.html\?/);
   assert.doesNotMatch(page, /analytics\.js/);
-  assert.match(page, /maxlength="2000"/);
-  assert.match(read("admin.html"), /admin-feedback\.js\?v=1/);
+  assert.match(page, /maxlength="4000"/);
+  assert.match(page, /member\.js\?v=29/);
+  assert.match(page, /feedback\.js\?v=2/);
+  assert.match(read("admin.html"), /admin-feedback\.js\?v=2/);
   assert.match(read("admin.html"), /admin\.js\?v=106/);
   assert.match(read("admin.html"), /admin-book-reviews\.js\?v=7/);
   assert.match(read("admin.html"), /admin\.css\?v=54/);
-  assert.match(read("index.html"), /shop\.js\?v=149/);
-  assert.match(read("books.html"), /shop\.js\?v=148/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=148/);
-  assert.match(read("cart.html"), /shop\.js\?v=142/);
+  assert.match(read("index.html"), /shop\.js\?v=150/);
+  assert.match(read("books.html"), /shop\.js\?v=150/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=150/);
+  assert.match(read("cart.html"), /shop\.js\?v=150/);
+  assert.match(read("account.html"), /member\.js\?v=29/);
+  assert.match(read("shop.js"), /member\.js\?v=29/);
+  assert.match(read("admin-feedback.js"), /p_before/);
+  assert.match(read("member.js"), /noteAuthUser/);
 });
 
 test("feedback stays out of the public sitemap", () => {

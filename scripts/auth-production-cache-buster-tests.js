@@ -7,8 +7,8 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const REQUIRED = {
   "supabase-config.js": "22",
-  "shop.js": "146",
-  "member.js": "28"
+  "shop.js": "150",
+  "member.js": "29"
 };
 const SCRIPT_SRC = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
 const SKIP_HTML = new Set([
@@ -71,14 +71,6 @@ test("production HTML script tags pin current auth isolation assets", () => {
       if (name === "member.js") memberPages += 1;
       const ver = scriptVersion(src);
       const page = rel.replace(/\\/g, "/");
-      if (name === "shop.js" && page === "cart.html") {
-        if (ver !== "141") stale.push(rel + " -> " + src);
-        continue;
-      }
-      if (name === "shop.js" && page === "book-shell.html") {
-        if (ver !== "142") stale.push(rel + " -> " + src);
-        continue;
-      }
       if (!ver) missingVersion.push(rel + " -> " + src);
       else if (ver !== REQUIRED[name]) stale.push(rel + " -> " + src);
     }
@@ -87,7 +79,7 @@ test("production HTML script tags pin current auth isolation assets", () => {
   assert.deepStrictEqual(missingVersion, [], missingVersion.join("\n"));
   assert.ok(shopPages >= 100, "expected shop.js on listing/detail pages, got " + shopPages);
   assert.ok(configPages >= 100, "expected supabase-config.js on storefront pages, got " + configPages);
-  assert.strictEqual(memberPages, 2, "account.html and book-staff.html should be the only direct member.js pages");
+  assert.strictEqual(memberPages, 3, "account, book-staff, and feedback are the direct member.js pages");
 });
 
 test("admin-quality-preview.html is excluded because it is a noindex Admin CSS preview without auth scripts", () => {
@@ -98,14 +90,16 @@ test("admin-quality-preview.html is excluded because it is a noindex Admin CSS p
   assert.doesNotMatch(html, /member\.js/);
 });
 
-test("dynamic Member loader and already-current pages stay on member.js v=28", () => {
+test("dynamic Member loader and already-current pages stay on member.js v=29", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
   const staff = fs.readFileSync(path.join(root, "book-staff.html"), "utf8");
-  assert.match(shop, /member\.js\?v=28/);
-  assert.doesNotMatch(shop, /member\.js\?v=(?:[0-9]|1\d|2[0-7])\b/);
-  assert.match(account, /member\.js\?v=28/);
-  assert.match(staff, /member\.js\?v=28/);
+  const feedback = fs.readFileSync(path.join(root, "feedback.html"), "utf8");
+  assert.match(shop, /member\.js\?v=29/);
+  assert.doesNotMatch(shop, /member\.js\?v=(?:[0-9]|1\d|2[0-8])\b/);
+  assert.match(account, /member\.js\?v=29/);
+  assert.match(staff, /member\.js\?v=29/);
+  assert.match(feedback, /member\.js\?v=29/);
 });
 
 if (failed) {

@@ -229,7 +229,7 @@ test.describe("account cross-tab logout privacy", () => {
       scripts: [...document.querySelectorAll("script[src]")].map((s) => s.getAttribute("src")),
       client: !!(window.KutadguMember && window.KutadguMember.getUser)
     }));
-    expect(info.scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=28"]);
+    expect(info.scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=29"]);
     expect(info.scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=7"]);
     expect(info.client).toBe(true);
   });

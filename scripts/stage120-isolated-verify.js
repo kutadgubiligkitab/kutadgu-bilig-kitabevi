@@ -19,6 +19,7 @@ const SUSPENDED = "66666666-6666-4666-8666-666666666666";
 const NOPROFILE = "77777777-7777-4777-8777-777777777777";
 const OTHER = "88888888-8888-4888-8888-888888888888";
 const failures = [];
+const feedbackJs = require(path.join(root, "feedback.js"));
 
 function check(name, ok, detail) {
   if (!ok) failures.push(name + (detail ? ": " + detail : ""));
@@ -112,9 +113,9 @@ async function submit(client, role, sub, id, body) {
   return result.rows[0].payload;
 }
 
-async function page(client, sub, aal, index) {
+async function page(client, sub, aal, index, before, beforeId) {
   const result = await asRole(client, "authenticated", sub, aal, () =>
-    client.query("select public.admin_website_feedback_page($1) as payload", [index])
+    client.query("select public.admin_website_feedback_page($1, $2, $3) as payload", [index, before || null, beforeId || null])
   );
   return result.rows[0].payload;
 }
@@ -172,6 +173,8 @@ async function postgrestProof(dbName) {
     });
     return { status: response.status, text: await response.text() };
   }
+  const service = await rpc("submit_website_feedback", { p_id: uuid(901), p_body: "service" }, jwt({ role: "service_role", sub: MEMBER }));
+  check("PostgREST service_role cannot submit", service.status !== 200, String(service.status) + " " + service.text.slice(0, 160));
   const anon = await rpc("submit_website_feedback", { p_id: uuid(900), p_body: "anon" }, jwt({ role: "anon" }));
   check("PostgREST anon cannot submit", anon.status !== 200, String(anon.status));
   const memberRead = await rpc("admin_website_feedback_page", { p_page: 0 }, jwt({ role: "authenticated", aal: "aal2", sub: MEMBER }));
@@ -232,6 +235,7 @@ async function main() {
     await client.query("do $$ begin create role service_role nologin; exception when duplicate_object then null; end $$");
     await client.query("grant anon, authenticated, service_role to postgres");
     await client.query("grant usage on schema public to anon, authenticated, service_role");
+    await client.query("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role");
     await client.query(fixtureSql());
     await client.query(readSql("STAGE120_WEBSITE_FEEDBACK.sql"));
     await client.query(readSql("STAGE120_WEBSITE_FEEDBACK.sql"));
@@ -245,18 +249,46 @@ async function main() {
         has_table_privilege('authenticated', 'public.website_feedback', 'select') as auth_select,
         has_table_privilege('authenticated', 'public.website_feedback', 'insert') as auth_insert,
         has_table_privilege('service_role', 'public.website_feedback', 'select') as service_select,
+        has_function_privilege('public', 'public.submit_website_feedback(uuid, text)', 'execute') as public_submit,
         has_function_privilege('anon', 'public.submit_website_feedback(uuid, text)', 'execute') as anon_submit,
         has_function_privilege('authenticated', 'public.submit_website_feedback(uuid, text)', 'execute') as auth_submit,
-        has_function_privilege('anon', 'public.admin_website_feedback_page(integer)', 'execute') as anon_page,
-        has_function_privilege('authenticated', 'public.admin_website_feedback_page(integer)', 'execute') as auth_page
+        has_function_privilege('service_role', 'public.submit_website_feedback(uuid, text)', 'execute') as service_submit,
+        has_function_privilege('public', 'public.admin_website_feedback_page(integer, timestamptz, uuid)', 'execute') as public_page,
+        has_function_privilege('anon', 'public.admin_website_feedback_page(integer, timestamptz, uuid)', 'execute') as anon_page,
+        has_function_privilege('authenticated', 'public.admin_website_feedback_page(integer, timestamptz, uuid)', 'execute') as auth_page,
+        has_function_privilege('service_role', 'public.admin_website_feedback_page(integer, timestamptz, uuid)', 'execute') as service_page,
+        has_function_privilege('public', 'public.website_feedback_normalize(text)', 'execute') as public_norm,
+        has_function_privilege('anon', 'public.website_feedback_normalize(text)', 'execute') as anon_norm,
+        has_function_privilege('authenticated', 'public.website_feedback_normalize(text)', 'execute') as auth_norm,
+        has_function_privilege('service_role', 'public.website_feedback_normalize(text)', 'execute') as service_norm
     `);
     const grant = grants.rows[0];
     check(
       "table grants stay closed and execute is authenticated only",
       grant.anon_select === false && grant.auth_select === false && grant.auth_insert === false && grant.service_select === false &&
-      grant.anon_submit === false && grant.auth_submit === true && grant.anon_page === false && grant.auth_page === true,
+      grant.public_submit === false && grant.anon_submit === false && grant.auth_submit === true && grant.service_submit === false &&
+      grant.public_page === false && grant.anon_page === false && grant.auth_page === true && grant.service_page === false &&
+      grant.public_norm === false && grant.anon_norm === false && grant.auth_norm === false && grant.service_norm === false,
       JSON.stringify(grant)
     );
+    await client.query("begin");
+    try {
+      await client.query("set local role service_role");
+      await client.query("select public.submit_website_feedback($1, $2)", [uuid(910), "ياخشى"]);
+      check("service_role cannot execute submit", false, "completed without an error");
+    } catch (error) {
+      check("service_role cannot execute submit", /42501|permission/i.test(String(error && error.message)), String(error && error.message));
+    }
+    await client.query("rollback");
+    await client.query("begin");
+    try {
+      await client.query("set local role service_role");
+      await client.query("select public.admin_website_feedback_page(0)");
+      check("service_role cannot execute the inbox", false, "completed without an error");
+    } catch (error) {
+      check("service_role cannot execute the inbox", /42501|permission/i.test(String(error && error.message)), String(error && error.message));
+    }
+    await client.query("rollback");
     const published = await client.query("select count(*)::int as n from pg_publication_tables where tablename = 'website_feedback'");
     check("feedback is not in a publication", published.rows[0].n === 0, String(published.rows[0].n));
 
@@ -269,6 +301,35 @@ async function main() {
 
     const exact = await submit(client, "authenticated", MEMBER, uuid(6), "پ".repeat(2000));
     check("exact 2000 characters are stored", exact && exact.replayed === false && exact.id === uuid(6));
+    const emoji = "😀";
+    const emojiExact = await submit(client, "authenticated", MEMBER, uuid(16), emoji.repeat(2000));
+    const emojiLen = await client.query("select char_length(body)::int as n, octet_length(body) as bytes from public.website_feedback where id = $1", [uuid(16)]);
+    check("2000 supplementary characters are one code point each", emojiExact && emojiExact.replayed === false && emojiLen.rows[0].n === 2000 && emojiLen.rows[0].bytes === 8000, JSON.stringify(emojiLen.rows[0]));
+    await expectError("2001 supplementary characters are rejected", () => submit(client, "authenticated", MEMBER, uuid(17), emoji.repeat(2001)), /22023|too long/i);
+    const mixed = await submit(client, "authenticated", MEMBER, uuid(18), "پ".repeat(1999) + emoji);
+    const mixedLen = await client.query("select char_length(body)::int as n from public.website_feedback where id = $1", [uuid(18)]);
+    check("mixed text counts code points", mixed && mixed.replayed === false && mixedLen.rows[0].n === 2000);
+    await expectError("mixed text over the code-point limit is rejected", () => submit(client, "authenticated", MEMBER, uuid(19), "پ".repeat(2000) + emoji), /22023|too long/i);
+    let blankSlot = 30;
+    for (const blank of ["\u000b", "\u00a0", "\u3000", "\ufeff", " \u00a0\u000b"]) {
+      await expectError("unicode whitespace is empty: " + blank.codePointAt(0).toString(16), () => submit(client, "authenticated", MEMBER, uuid(blankSlot), blank), /22023|empty|too long/i);
+      blankSlot += 1;
+    }
+    const spaced = " \u3000سەتر\nئىچكى \u00a0بوشلۇق\t";
+    const spacedId = uuid(21);
+    const spacedRow = await submit(client, "authenticated", MEMBER, spacedId, spaced);
+    const spacedStored = await client.query("select body from public.website_feedback where id = $1", [spacedId]);
+    const spacedJs = feedbackJs.normalizeBody(spaced);
+    check(
+      "client and server keep the same internal text",
+      spacedRow && spacedStored.rows[0].body === "سەتر\nئىچكى \u00a0بوشلۇق" && spacedJs.body === spacedStored.rows[0].body,
+      JSON.stringify(spacedStored.rows[0].body)
+    );
+    await expectError(
+      "direct nbsp-only insert fails the check",
+      () => client.query("insert into public.website_feedback (id, user_id, body) values ($1, $2, $3)", [uuid(22), MEMBER, "\u00a0"]),
+      /23514|check/i
+    );
     const markupId = uuid(7);
     const markup = "<script>alert(1)</script>";
     const storedMarkup = await submit(client, "authenticated", MEMBER, markupId, "  " + markup + "\n");
@@ -321,6 +382,35 @@ async function main() {
       raceCount.rows[0].n === 1 && raced.filter((row) => row && row.id === raceId).length === 2 && raced.some((row) => row.replayed === true),
       JSON.stringify(raced.map((row) => row && row.replayed))
     );
+    const mismatchId = uuid(11);
+    const mismatched = await Promise.allSettled([
+      submit(left, "authenticated", MEMBER, mismatchId, "بىرىنچى تەن"),
+      submit(right, "authenticated", MEMBER, mismatchId, "ئىككىنچى تەن")
+    ]);
+    const mismatchRow = await client.query("select body, user_id from public.website_feedback where id = $1", [mismatchId]);
+    check(
+      "overlapping mismatched payloads keep one body",
+      mismatchRow.rows.length === 1 && mismatchRow.rows[0].user_id === MEMBER &&
+      mismatched.filter((item) => item.status === "fulfilled").length === 1 &&
+      mismatched.filter((item) => item.status === "rejected").length === 1 &&
+      /23505|does not match/i.test(String(mismatched.find((item) => item.status === "rejected").reason && mismatched.find((item) => item.status === "rejected").reason.message)),
+      JSON.stringify({ body: mismatchRow.rows[0] && mismatchRow.rows[0].body, states: mismatched.map((item) => item.status) })
+    );
+    const senderId = uuid(12);
+    const senders = await Promise.allSettled([
+      submit(left, "authenticated", MEMBER, senderId, "ئوخشاش تېكىست"),
+      submit(right, "authenticated", OTHER, senderId, "ئوخشاش تېكىست")
+    ]);
+    const senderRow = await client.query("select user_id, body from public.website_feedback where id = $1", [senderId]);
+    const winner = senders.find((item) => item.status === "fulfilled");
+    check(
+      "overlapping different senders keep one owner",
+      senderRow.rows.length === 1 && winner && senderRow.rows[0].user_id === (winner.value && winner.value.id ? senderRow.rows[0].user_id : "") &&
+      (senderRow.rows[0].user_id === MEMBER || senderRow.rows[0].user_id === OTHER) &&
+      senderRow.rows[0].body === "ئوخشاش تېكىست" &&
+      senders.filter((item) => item.status === "rejected").length === 1,
+      JSON.stringify({ owner: senderRow.rows[0] && senderRow.rows[0].user_id, states: senders.map((item) => item.status) })
+    );
 
     await client.query("delete from public.website_feedback");
     for (let n = 1; n <= 11; n += 1) {
@@ -357,6 +447,44 @@ async function main() {
     const named = [...first.rows, ...second.rows].find((row) => row.id === uuid(105));
     check("named member label is the name", named && named.member_label === "ئەزا ئىسمى" && !JSON.stringify(named).includes("member-secret"));
     check("empty is not confused with this populated page", empty.total === 12);
+    const beforeReapply = await client.query("select id, user_id, body, created_at from public.website_feedback order by id");
+    await client.query(readSql("STAGE120_WEBSITE_FEEDBACK.sql"));
+    const afterReapply = await client.query("select id, user_id, body, created_at from public.website_feedback order by id");
+    check(
+      "reapply keeps existing feedback rows unchanged",
+      JSON.stringify(beforeReapply.rows) === JSON.stringify(afterReapply.rows) && beforeReapply.rows.length > 0,
+      String(beforeReapply.rows.length)
+    );
+    await client.query("delete from public.website_feedback");
+    for (let n = 1; n <= 20; n += 1) {
+      const id = uuid(400 + n);
+      await client.query(
+        "insert into public.website_feedback (id, user_id, body, created_at) values ($1, $2, $3, $4)",
+        [id, MEMBER, "بەت " + n, new Date(Date.UTC(2026, 2, 1, 0, 0, n)).toISOString()]
+      );
+    }
+    const walked = await page(client, ADMIN, "aal2", 0);
+    const page0Ids = walked.rows.map((row) => row.id);
+    const newestId = uuid(421);
+    await client.query(
+      "insert into public.website_feedback (id, user_id, body, created_at) values ($1, $2, $3, $4)",
+      [newestId, MEMBER, "يېڭى بەت", new Date(Date.UTC(2026, 2, 1, 0, 1, 0)).toISOString()]
+    );
+    const shifted = await page(client, ADMIN, "aal2", 1);
+    const shiftedIds = shifted.rows.map((row) => row.id);
+    const stable = await page(client, ADMIN, "aal2", 1, walked.bound_at, walked.bound_id);
+    const stableIds = stable.rows.map((row) => row.id);
+    const oldestId = uuid(401);
+    check(
+      "a newer row between pages duplicates and skips without a cursor",
+      shiftedIds.includes(page0Ids[page0Ids.length - 1]) && !shiftedIds.includes(oldestId),
+      JSON.stringify({ page0: page0Ids, shifted: shiftedIds })
+    );
+    check(
+      "the returned cursor keeps the same walk",
+      page0Ids.every((id) => !stableIds.includes(id)) && stableIds.includes(oldestId) && stable.total === 20 && !stableIds.includes(newestId),
+      JSON.stringify({ stable: stableIds, total: stable.total, bound: walked.bound_id })
+    );
     await client.query("delete from public.website_feedback");
     const none = await page(client, ADMIN, "aal2", 4);
     check("empty inbox is total 0 page 0", none.total === 0 && none.page === 0 && Array.isArray(none.rows) && none.rows.length === 0, JSON.stringify(none));
@@ -373,7 +501,7 @@ async function main() {
     const guardBefore = await client.query("select count(*)::int as n from public.unrelated_guard");
     await client.query(readSql("STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql"));
     const goneTable = await client.query("select to_regclass('public.website_feedback') as name");
-    const goneFn = await client.query("select to_regprocedure('public.submit_website_feedback(uuid, text)') as submit, to_regprocedure('public.admin_website_feedback_page(integer)') as page");
+    const goneFn = await client.query("select to_regprocedure('public.submit_website_feedback(uuid, text)') as submit, to_regprocedure('public.admin_website_feedback_page(integer, timestamptz, uuid)') as page, to_regprocedure('public.website_feedback_normalize(text)') as norm");
     const profilesAfter = await client.query("select count(*)::int as n from public.profiles");
     const guardAfter = await client.query("select count(*)::int as n from public.unrelated_guard");
     check("rollback drops the table and both functions", goneTable.rows[0].name == null && goneFn.rows[0].submit == null && goneFn.rows[0].page == null);
@@ -383,7 +511,7 @@ async function main() {
     check("reapply accepts a new submission", again && again.replayed === false);
 
     await client.query("do $$ begin create role authenticator login password 'postgrest-local' noinherit; exception when duplicate_object then null; end $$");
-    await client.query("grant anon, authenticated to authenticator");
+    await client.query("grant anon, authenticated, service_role to authenticator");
     await client.query("grant usage on schema public to authenticator");
     const hba = path.join(dir, "pg_hba.conf");
     if (fs.existsSync(hba)) {

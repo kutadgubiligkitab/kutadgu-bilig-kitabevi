@@ -34,8 +34,8 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
-test("homepage pins shop.js v=148 and premium-ux v=14", () => {
-  assert.match(indexHtml, /shop\.js\?v=148/);
+test("homepage pins shop.js v=150 and premium-ux v=14", () => {
+  assert.match(indexHtml, /shop\.js\?v=150/);
   assert.match(indexHtml, /analytics\.js\?v=8/);
   assert.match(indexHtml, /kutadgu-book-seo\.js\?v=6/);
   assert.doesNotMatch(indexHtml, /shop\.js\?v=145/);

@@ -1,6 +1,9 @@
 /*
   Members-only website feedback.
   The draft stays in memory. It is not written to storage, the address bar, or analytics.
+  The 2,000 limit counts Unicode code points, the same measure as PostgreSQL char_length.
+  Both ends drop ASCII whitespace and the common Unicode separators listed below.
+  Internal spaces and line breaks stay.
 */
 (function (root) {
   "use strict";
@@ -16,16 +19,32 @@
   var SUSPENDED_MESSAGE = "بۇ ھېسابات توختىتىلغان. پىكىر يوللاشقا بولمايدۇ.";
   var CHECKING_MESSAGE = "ھېساب تەكشۈرۈلۈۋاتىدۇ.";
   var INVITE_MESSAGE = "پىكىر يوللاش ئۈچۈن ھېسابىڭىزغا كىرىڭ ياكى يېڭى ئەزا بولۇڭ.";
+  var EDGE_SPACE = "[\\t\\n\\u000b\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]";
+  var TRIM_EDGES = new RegExp("^" + EDGE_SPACE + "+|" + EDGE_SPACE + "+$", "g");
 
   var receipt = null;
   var epoch = 0;
   var userId = "";
+  var authUserId = "";
   var sending = false;
+  var signingOut = false;
+  var contextReady = false;
+  var suspendedLock = false;
+
+  function characterLength(text) {
+    var count = 0;
+    for (var i = 0; i < text.length; i += 1) {
+      var code = text.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF) i += 1;
+      count += 1;
+    }
+    return count;
+  }
 
   function normalizeBody(value) {
-    var text = String(value == null ? "" : value).replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, "");
+    var text = String(value == null ? "" : value).replace(TRIM_EDGES, "");
     if (!text) return { ok: false, body: "", reason: "empty" };
-    if (text.length > LIMIT) return { ok: false, body: text, reason: "long" };
+    if (characterLength(text) > LIMIT) return { ok: false, body: text, reason: "long" };
     return { ok: true, body: text, reason: "" };
   }
 
@@ -51,6 +70,10 @@
 
   function sameIdentity(expectedEpoch, expectedUser, actualEpoch, actualUser) {
     return expectedEpoch === actualEpoch && expectedUser && expectedUser === actualUser;
+  }
+
+  function usingSeam() {
+    return !!root.__kutadguFeedbackMember;
   }
 
   function memberApi() {
@@ -89,7 +112,7 @@
   function updateCount() {
     var count = node("feedbackCount");
     var normalized = normalizeBody(currentBody());
-    var length = normalized.body.length;
+    var length = characterLength(normalized.body);
     if (count) count.textContent = groupedCount(length) + " / 2,000";
   }
 
@@ -103,14 +126,26 @@
     if (field) field.removeAttribute("aria-invalid");
   }
 
+  function hideForm() {
+    setHidden(node("feedbackInvite"), true);
+    setHidden(node("feedbackForm"), true);
+    setHidden(node("feedbackRetry"), true);
+  }
+
   function forgetPrivate() {
     epoch += 1;
     userId = "";
+    contextReady = false;
     clearDraft();
-    setStatus("");
+    if (!suspendedLock) setStatus("");
   }
 
   function showGuest() {
+    if (suspendedLock) {
+      hideForm();
+      setStatus(SUSPENDED_MESSAGE);
+      return;
+    }
     setHidden(node("feedbackInvite"), false);
     setHidden(node("feedbackForm"), true);
     setHidden(node("feedbackRetry"), true);
@@ -118,17 +153,51 @@
   }
 
   function showSuspended() {
-    forgetPrivate();
-    setHidden(node("feedbackInvite"), true);
-    setHidden(node("feedbackForm"), true);
-    setHidden(node("feedbackRetry"), true);
+    suspendedLock = true;
+    epoch += 1;
+    contextReady = false;
+    signingOut = true;
+    userId = "";
+    clearDraft();
+    hideForm();
     setStatus(SUSPENDED_MESSAGE);
   }
 
   function beginSignOut() {
     epoch += 1;
+    signingOut = true;
+    contextReady = false;
     clearDraft();
-    setStatus("");
+    hideForm();
+    if (suspendedLock) setStatus(SUSPENDED_MESSAGE);
+    else setStatus("");
+  }
+
+  function noteAuthUser(id) {
+    if (usingSeam()) return;
+    var next = id ? String(id) : "";
+    if (next && next === authUserId && contextReady && !signingOut && !suspendedLock) return;
+    var changed = next !== authUserId;
+    authUserId = next;
+    contextReady = false;
+    if (changed) epoch += 1;
+    if (!next) {
+      signingOut = true;
+      userId = "";
+      clearDraft();
+      hideForm();
+      if (suspendedLock) setStatus(SUSPENDED_MESSAGE);
+      else showGuest();
+      return;
+    }
+    signingOut = true;
+    if (userId !== next) {
+      userId = "";
+      clearDraft();
+    }
+    suspendedLock = false;
+    hideForm();
+    setStatus(CHECKING_MESSAGE);
   }
 
   function showForm() {
@@ -138,26 +207,55 @@
     if (button) button.disabled = sending;
   }
 
+  function established() {
+    if (suspendedLock || signingOut || !contextReady || !userId) return false;
+    if (!usingSeam() && authUserId !== userId) return false;
+    var api = memberApi();
+    var user = api && api.getUser ? api.getUser() : null;
+    var profile = api && api.getProfile ? api.getProfile() : null;
+    if (!user || !user.id || String(user.id) !== userId) return false;
+    if (api && api.isBlocked && api.isBlocked()) return false;
+    if (!profile || profile.status !== "active") return false;
+    return true;
+  }
+
   function applyMember(detail) {
     var api = memberApi();
-    var explicit = detail && typeof detail === "object";
+    var explicit = !!(detail && typeof detail === "object");
     var user = explicit ? detail.user : (api && api.getUser ? api.getUser() : null);
-    var blocked = explicit && detail.blocked != null ? detail.blocked : (api && api.isBlocked ? api.isBlocked() : false);
+    var blocked = explicit && detail.blocked != null ? !!detail.blocked : !!(api && api.isBlocked && api.isBlocked());
     var profile = explicit ? detail.profile : (api && api.getProfile ? api.getProfile() : null);
     var nextId = user && user.id ? String(user.id) : "";
+    if (!usingSeam() && authUserId && nextId && authUserId !== nextId) {
+      hideForm();
+      if (!suspendedLock) setStatus(CHECKING_MESSAGE);
+      return;
+    }
     if (!nextId) {
       forgetPrivate();
+      signingOut = false;
+      contextReady = false;
       showGuest();
       return;
     }
-    var previousId = userId;
-    if (previousId && previousId !== nextId) forgetPrivate();
-    var sameMember = previousId === nextId && previousId !== "";
-    userId = nextId;
+    if (userId && userId !== nextId) forgetPrivate();
     if (blocked || (profile && profile.status === "suspended")) {
       showSuspended();
       return;
     }
+    if (!profile || profile.status !== "active") {
+      contextReady = false;
+      hideForm();
+      setStatus(CHECKING_MESSAGE);
+      return;
+    }
+    if (!usingSeam() && !authUserId) authUserId = nextId;
+    if (!usingSeam() && authUserId !== nextId) return;
+    var sameMember = contextReady && userId === nextId;
+    suspendedLock = false;
+    signingOut = false;
+    contextReady = true;
+    userId = nextId;
     showForm();
     if (!sameMember && !sending) setStatus("");
   }
@@ -174,28 +272,35 @@
   function deniedOrSuspended() {
     var api = memberApi();
     var profile = api && api.getProfile ? api.getProfile() : null;
-    if ((api && api.isBlocked && api.isBlocked()) || (profile && profile.status === "suspended")) return SUSPENDED_MESSAGE;
+    if ((api && api.isBlocked && api.isBlocked()) || (profile && profile.status === "suspended") || suspendedLock) return SUSPENDED_MESSAGE;
     return DENIED_MESSAGE;
   }
 
   function finishSend(snapshot) {
-    if (!sameIdentity(snapshot.epoch, snapshot.userId, epoch, userId)) return;
+    var stale = snapshot.epoch !== epoch;
     sending = false;
     var button = node("feedbackSubmit");
-    if (button) button.disabled = false;
+    if (button) button.disabled = !established();
+    if (!stale) return;
+    var status = node("feedbackStatus");
+    if (established() && status && status.textContent === SENDING_MESSAGE) setStatus("");
+  }
+
+  function stillCurrent(snapshot) {
+    return sameIdentity(snapshot.epoch, snapshot.userId, epoch, userId) &&
+      established() &&
+      (!snapshot.authUserId || snapshot.authUserId === authUserId);
   }
 
   async function submitFeedback(event) {
     if (event && typeof event.preventDefault === "function") event.preventDefault();
-    if (sending) return;
-    var api = memberApi();
-    var user = api && api.getUser ? api.getUser() : null;
-    if (!user || !user.id || String(user.id) !== userId) {
-      showGuest();
-      return;
-    }
-    if (api && api.isBlocked && api.isBlocked()) {
-      showSuspended();
+    if (sending || signingOut || !established()) {
+      if (suspendedLock) showSuspended();
+      else if (!authUserId && !userId && !signingOut) showGuest();
+      else {
+        hideForm();
+        setStatus(CHECKING_MESSAGE);
+      }
       return;
     }
     var normalized = normalizeBody(currentBody());
@@ -207,9 +312,11 @@
       return;
     }
     if (field) field.removeAttribute("aria-invalid");
+    if (!established()) return;
     receipt = nextReceipt(receipt, normalized.body);
-    var snapshot = { epoch: epoch, userId: userId, id: receipt.id, body: normalized.body };
-    var client = api.getClient ? api.getClient() : null;
+    var snapshot = { epoch: epoch, userId: userId, authUserId: authUserId, id: receipt.id, body: normalized.body };
+    var api = memberApi();
+    var client = api && api.getClient ? api.getClient() : null;
     if (!client || typeof client.rpc !== "function") {
       setHidden(node("feedbackRetry"), false);
       setStatus(ERROR_MESSAGE);
@@ -220,12 +327,16 @@
     if (button) button.disabled = true;
     setHidden(node("feedbackRetry"), true);
     setStatus(SENDING_MESSAGE);
+    if (!established()) {
+      sending = false;
+      return;
+    }
     var result;
     try {
       result = await client.rpc("submit_website_feedback", { p_id: snapshot.id, p_body: snapshot.body });
     } catch (error) {
       finishSend(snapshot);
-      if (!sameIdentity(snapshot.epoch, snapshot.userId, epoch, userId)) return;
+      if (!stillCurrent(snapshot)) return;
       if (errorText(error) === SUSPENDED_MESSAGE) {
         showSuspended();
         return;
@@ -235,7 +346,7 @@
       return;
     }
     finishSend(snapshot);
-    if (!sameIdentity(snapshot.epoch, snapshot.userId, epoch, userId)) return;
+    if (!stillCurrent(snapshot)) return;
     if (!result || result.error) {
       var code = String(result && result.error && result.error.code || "");
       if (code === "23505" && receipt && receipt.id === snapshot.id) receipt = null;
@@ -294,6 +405,7 @@
     SUSPENDED_MESSAGE: SUSPENDED_MESSAGE,
     INVITE_MESSAGE: INVITE_MESSAGE,
     KEPT_DRAFT_MESSAGE: KEPT_DRAFT_MESSAGE,
+    characterLength: characterLength,
     normalizeBody: normalizeBody,
     validationMessage: validationMessage,
     nextReceipt: nextReceipt,
@@ -301,6 +413,7 @@
     submitFeedback: submitFeedback,
     forgetPrivate: forgetPrivate,
     beginSignOut: beginSignOut,
+    noteAuthUser: noteAuthUser,
     applyMember: applyMember
   };
 
