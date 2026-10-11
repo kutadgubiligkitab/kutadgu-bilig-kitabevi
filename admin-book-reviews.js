@@ -266,8 +266,37 @@
     return button;
   }
 
+  function listNode(kind) {
+    return document.querySelector(kind === "reviews" ? "#bookReviewModerationList" : "#bookReviewReplyList");
+  }
+
+  function listHasCopy(list, copy) {
+    const children = list.children;
+    for (let index = 0; index < children.length; index += 1) {
+      const child = children[index];
+      if (child.tagName === "P" && child.classList.contains("admin-help") && child.textContent === copy) return true;
+    }
+    return false;
+  }
+
+  function appendEmptyLine(kind, copy) {
+    const list = listNode(kind);
+    if (!list || !copy) return;
+    const item = kind === "reviews" ? ".admin-review-item" : ".admin-reply-item";
+    if (list.querySelector(item)) return;
+    const statusEl = kind === "reviews" ? statusNode() : replyStatusNode();
+    if (statusEl && statusEl.textContent === copy) return;
+    if (listHasCopy(list, copy)) return;
+    const empty = document.createElement("p");
+    empty.className = "admin-help";
+    empty.textContent = copy;
+    const pager = list.querySelector(".admin-review-pager");
+    if (pager) list.insertBefore(empty, pager);
+    else list.appendChild(empty);
+  }
+
   function renderKind(kind, requested) {
-    const list = document.querySelector(kind === "reviews" ? "#bookReviewModerationList" : "#bookReviewReplyList");
+    const list = listNode(kind);
     const statusEl = kind === "reviews" ? statusNode() : replyStatusNode();
     const saved = committed[kind];
     const problem = failed[kind];
@@ -282,10 +311,8 @@
     list.replaceChildren();
     const rows = showing && Array.isArray(showing.rows) ? showing.rows : [];
     if (!rows.length && !problem) {
-      const empty = document.createElement("p");
-      empty.className = "admin-help";
-      empty.textContent = emptyCopy(kind, requested.query);
-      list.appendChild(empty);
+      const copy = emptyCopy(kind, requested.query);
+      if (!(statusEl && statusEl.textContent === copy)) appendEmptyLine(kind, copy);
     }
     rows.forEach((row) => {
       const item = document.createElement("article");
@@ -770,6 +797,7 @@
           return;
         }
         setStatus(DELETED_MESSAGE);
+        appendEmptyLine("reviews", emptyCopy("reviews", committed.reviews ? committed.reviews.query : ""));
         refreshApprovals();
         return;
       }
@@ -800,6 +828,7 @@
           return;
         }
         setStatus(DELETED_MESSAGE);
+        appendEmptyLine("reviews", emptyCopy("reviews", committed.reviews ? committed.reviews.query : ""));
         refreshApprovals();
         return;
       }
@@ -954,6 +983,7 @@
         }
         const replyStatus = replyStatusNode();
         if (replyStatus) replyStatus.textContent = REPLY_DELETED_MESSAGE;
+        appendEmptyLine("replies", emptyCopy("replies", committed.replies ? committed.replies.query : ""));
         refreshApprovals();
         return;
       }
@@ -986,6 +1016,7 @@
         }
         const replyStatus = replyStatusNode();
         if (replyStatus) replyStatus.textContent = REPLY_DELETED_MESSAGE;
+        appendEmptyLine("replies", emptyCopy("replies", committed.replies ? committed.replies.query : ""));
         refreshApprovals();
         return;
       }
