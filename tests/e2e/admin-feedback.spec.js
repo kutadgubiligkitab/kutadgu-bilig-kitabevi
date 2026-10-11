@@ -19,14 +19,30 @@ function rows(count) {
 
 async function installInbox(page) {
   await page.addInitScript(() => {
-    function pack(list, pageIndex) {
+    function pack(list, args) {
       const sorted = list.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : (a.id < b.id ? 1 : -1)));
-      const total = sorted.length;
-      let pageNumber = Number(pageIndex);
+      const before = args && args.p_before;
+      const beforeId = args && args.p_before_id;
+      let bounded = sorted;
+      let boundAt = sorted[0] ? sorted[0].created_at : null;
+      let boundId = sorted[0] ? sorted[0].id : null;
+      if (before && beforeId) {
+        boundAt = before;
+        boundId = beforeId;
+        bounded = sorted.filter((row) => row.created_at < before || (row.created_at === before && row.id <= beforeId));
+      }
+      const total = bounded.length;
+      let pageNumber = Number(args && args.p_page);
       if (!Number.isInteger(pageNumber) || pageNumber < 0) pageNumber = 0;
       const last = total === 0 ? 0 : Math.floor((total - 1) / 10);
       if (pageNumber > last) pageNumber = last;
-      return { total: total, page: pageNumber, rows: sorted.slice(pageNumber * 10, pageNumber * 10 + 10) };
+      return {
+        total: total,
+        page: pageNumber,
+        rows: bounded.slice(pageNumber * 10, pageNumber * 10 + 10),
+        bound_at: boundAt,
+        bound_id: boundId
+      };
     }
     function readFixture() {
       try {
@@ -75,11 +91,11 @@ async function installInbox(page) {
         }
       },
       rpc(name, args) {
-        window.__calls.push({ name: name, page: args && args.p_page });
+        window.__calls.push({ name: name, page: args && args.p_page, args: args });
         if (window.__throwRead) return Promise.reject(new Error("boom"));
         if (window.__errorRead) return Promise.resolve({ data: null, error: { message: "read", code: window.__errorCode } });
         if (window.__hold) return new Promise((resolve) => { window.__pending.push({ resolve: resolve, args: args }); });
-        return Promise.resolve({ data: pack(window.__rows, args.p_page), error: null });
+        return Promise.resolve({ data: pack(window.__rows, args), error: null });
       }
     };
   });
@@ -242,6 +258,50 @@ test("admin identity changes and delayed session reads drop the other inbox", as
   });
   await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(0);
   await expect(page.locator("#websiteFeedbackStatus")).not.toContainText("ئالدىنقى نەتىجە");
+});
+
+test("a newer row between pages stays behind the returned cursor, including retry", async ({ page }) => {
+  await installInbox(page);
+  await openInbox(page, 11);
+  await expect(page.locator("#websiteFeedbackList .admin-review-body").first()).toHaveText("پىكىر 11");
+  const first = await page.evaluate(() => window.__calls[0].args);
+  expect(first.p_before).toBeUndefined();
+  expect(first.p_before_id).toBeUndefined();
+  const newest = rows(11)[10];
+  await page.evaluate((row) => {
+    window.__rows.push({
+      id: "12000000-0000-4000-8000-000000000099",
+      body: "يېڭى پىكىر",
+      created_at: "2026-03-01T00:00:00.000Z",
+      member_label: "يېڭى ئەزا"
+    });
+    window.__errorRead = true;
+    window.__cursorRow = row;
+  }, { created_at: newest.created_at, id: newest.id });
+  await page.locator("#websiteFeedbackPager").getByRole("button", { name: "كېيىنكى بەت" }).click();
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(10);
+  await expect(page.locator("#websiteFeedbackList")).not.toContainText("يېڭى پىكىر");
+  await expect(page.locator("#websiteFeedbackStatus")).toContainText("كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+  const failed = await page.evaluate(() => window.__calls[window.__calls.length - 1].args);
+  const bound = await page.evaluate(() => window.__cursorRow);
+  expect(failed.p_page).toBe(1);
+  expect(failed.p_before).toBe(bound.created_at);
+  expect(failed.p_before_id).toBe(bound.id);
+  await page.evaluate(() => { window.__errorRead = false; });
+  await page.locator("#websiteFeedbackRetry").click();
+  const retried = await page.evaluate(() => window.__calls[window.__calls.length - 1].args);
+  expect(retried.p_page).toBe(1);
+  expect(retried.p_before).toBe(bound.created_at);
+  expect(retried.p_before_id).toBe(bound.id);
+  await expect(page.locator("#websiteFeedbackList .admin-review-item")).toHaveCount(1);
+  await expect(page.locator("#websiteFeedbackList .admin-review-body")).toHaveText("<img src=x onerror=alert(1)>");
+  await expect(page.locator("#websiteFeedbackList")).not.toContainText("يېڭى پىكىر");
+  await page.locator("[data-admin-section='feedback']").click();
+  await expect(page.locator("#websiteFeedbackList .admin-review-body").first()).toHaveText("يېڭى پىكىر");
+  const fresh = await page.evaluate(() => window.__calls[window.__calls.length - 1].args);
+  expect(fresh.p_page).toBe(0);
+  expect(fresh.p_before).toBeUndefined();
+  expect(fresh.p_before_id).toBeUndefined();
 });
 
 test("admin inbox layout stays RTL on a narrow viewport and in dark mode", async ({ page }) => {

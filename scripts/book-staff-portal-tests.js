@@ -112,7 +112,7 @@ add("account.html Book Staff button is hidden UX only and links to /book-staff.h
   assert.match(accountJs, /catch\(e\)\{\}/);
   assert.doesNotMatch(accountJs, /is_kutadgu_admin/);
   assert.match(accountHtml, /account\.js\?v=7/);
-  assert.match(accountHtml, /member\.js\?v=29/);
+  assert.match(accountHtml, /member\.js\?v=30/);
   assert.match(accountHtml, /supabase-config\.js\?v=22/);
 });
 
@@ -120,7 +120,7 @@ add("staff page is private, separate from admin, and not in public chrome", () =
   assert.match(staffHtml, /noindex, nofollow/);
   assert.match(staffHtml, /book-staff\.js\?v=11/);
   assert.match(staffHtml, /admin-mfa\.js\?v=3/);
-  assert.match(staffHtml, /member\.js\?v=29/);
+  assert.match(staffHtml, /member\.js\?v=30/);
   assert.doesNotMatch(staffHtml, /admin\.html|admin\.js/);
   assert.doesNotMatch(staffHtml, /data-admin-section|Orders|Analytics|Pending review/);
   assert.match(staffHtml, /بۇ ھېسابقا كىتاب قوشۇش خادىمى ھوقۇقى بېرىلمىگەن/);
@@ -476,7 +476,7 @@ add("non-admin Admin routing cannot signOut a Book Staff member session", () => 
 
 add("Google OAuth account pins from PR 155 remain on account.html", () => {
   assert.match(accountHtml, /supabase-config\.js\?v=22/);
-  assert.match(accountHtml, /member\.js\?v=29/);
+  assert.match(accountHtml, /member\.js\?v=30/);
   assert.match(memberJs, /auth:memberAuthOptions\(\)/);
   assert.match(memberJs, /signOut\(\{scope:"local"\}\)/);
   assert.doesNotMatch(accountJs, /exchangeCodeForSession/);

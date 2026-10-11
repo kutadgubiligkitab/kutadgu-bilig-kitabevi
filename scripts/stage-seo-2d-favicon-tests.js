@@ -19,7 +19,7 @@ const LOGO = {
 };
 
 const FROZEN = {
-  "shop.js": "13f76c49d17289a1acc9a0a2e87e93496a070c6e7dfb4dd6e1465f9f0381d4a9",
+  "shop.js": "85c9148477e9b3067130c57fefd01c2ff4f867d9f09b6725c567e4cf202e185b",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",

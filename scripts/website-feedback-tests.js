@@ -89,17 +89,30 @@ test("member and admin clients do not persist or render feedback as HTML", () =>
   assert.match(member, /beginSignOut/);
 });
 
-test("sign-out clears the draft before the auth request", () => {
+test("sign-out clears the draft before the auth request and does not restore shop state", () => {
   const member = read("member.js");
+  const { execFileSync } = require("child_process");
+  const main = execFileSync("git", ["show", "origin/main:member.js"], { cwd: root, encoding: "utf8" });
+  assert.doesNotMatch(member, /rememberSignOutContext|restoreRejectedSignOut/);
   const start = member.indexOf("async function signOut()");
   const body = member.slice(start, member.indexOf("async function resetPassword"));
   assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("auth.signOut"));
-  assert.ok(body.indexOf("rememberSignOutContext") < body.indexOf("abandonMemberShopSync"));
-  const rejected = body.slice(body.indexOf("catch(err){"), body.indexOf("if(pending)try{await pending}catch(e){}"));
-  assert.match(rejected, /restoreRejectedSignOut\(kept\)/);
-  assert.ok(body.indexOf("user=null;profile=null;blocked=false;") > body.indexOf("auth.signOut"));
+  assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("abandonMemberShopSync"));
+  assert.match(body, /if\(db\)await db\.auth\.signOut\(\{scope:"local"\}\);/);
+  assert.doesNotMatch(body, /catch\(err\)/);
+  const mainStart = main.indexOf("async function signOut()");
+  const mainBody = main.slice(mainStart, main.indexOf("async function resetPassword"));
+  const stripped = body.replace(/\n  if\(window\.KutadguWebsiteFeedback&&typeof window\.KutadguWebsiteFeedback\.beginSignOut==="function"\)window\.KutadguWebsiteFeedback\.beginSignOut\(\);/, "");
+  assert.strictEqual(stripped, mainBody);
   const signedOut = member.indexOf('event==="SIGNED_OUT"');
   assert.ok(member.indexOf("KutadguWebsiteFeedback.beginSignOut", signedOut) > signedOut);
+  const hook = "\n        if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut===\"function\")window.KutadguWebsiteFeedback.beginSignOut();";
+  const authHook = member.slice(member.indexOf("db.auth.onAuthStateChange"), member.indexOf("const proven=await recoverProvenMemberSession"));
+  const mainAuth = main.slice(main.indexOf("db.auth.onAuthStateChange"), main.indexOf("const proven=await recoverProvenMemberSession"));
+  const authStripped = authHook
+    .replace(/\n      const feedbackApi=window\.KutadguWebsiteFeedback;\n      if\(feedbackApi&&typeof feedbackApi\.noteAuthUser==="function"\)\{\n        const provenAuth=event==="SIGNED_OUT"\?null:provenMemberSession\(session\);\n        feedbackApi\.noteAuthUser\(provenAuth&&provenAuth\.user&&provenAuth\.user\.id\?String\(provenAuth\.user\.id\):""\);\n      \}/, "")
+    .replace(hook, "");
+  assert.strictEqual(authStripped, mainAuth);
 });
 
 test("admin logout clears the inbox through the existing private-clear function", () => {
@@ -121,18 +134,18 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.doesNotMatch(page, /account\.html\?/);
   assert.doesNotMatch(page, /analytics\.js/);
   assert.match(page, /maxlength="4000"/);
-  assert.match(page, /member\.js\?v=29/);
-  assert.match(page, /feedback\.js\?v=2/);
+  assert.match(page, /member\.js\?v=30/);
+  assert.match(page, /feedback\.js\?v=3/);
   assert.match(read("admin.html"), /admin-feedback\.js\?v=2/);
   assert.match(read("admin.html"), /admin\.js\?v=106/);
   assert.match(read("admin.html"), /admin-book-reviews\.js\?v=7/);
   assert.match(read("admin.html"), /admin\.css\?v=54/);
-  assert.match(read("index.html"), /shop\.js\?v=150/);
-  assert.match(read("books.html"), /shop\.js\?v=150/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=150/);
-  assert.match(read("cart.html"), /shop\.js\?v=150/);
-  assert.match(read("account.html"), /member\.js\?v=29/);
-  assert.match(read("shop.js"), /member\.js\?v=29/);
+  assert.match(read("index.html"), /shop\.js\?v=151/);
+  assert.match(read("books.html"), /shop\.js\?v=151/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=151/);
+  assert.match(read("cart.html"), /shop\.js\?v=151/);
+  assert.match(read("account.html"), /member\.js\?v=30/);
+  assert.match(read("shop.js"), /member\.js\?v=30/);
   assert.match(read("admin-feedback.js"), /p_before/);
   assert.match(read("member.js"), /noteAuthUser/);
 });

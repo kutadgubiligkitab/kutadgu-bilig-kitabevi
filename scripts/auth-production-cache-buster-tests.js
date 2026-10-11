@@ -7,8 +7,8 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const REQUIRED = {
   "supabase-config.js": "22",
-  "shop.js": "150",
-  "member.js": "29"
+  "shop.js": "151",
+  "member.js": "30"
 };
 const SCRIPT_SRC = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
 const SKIP_HTML = new Set([
@@ -90,16 +90,16 @@ test("admin-quality-preview.html is excluded because it is a noindex Admin CSS p
   assert.doesNotMatch(html, /member\.js/);
 });
 
-test("dynamic Member loader and already-current pages stay on member.js v=29", () => {
+test("dynamic Member loader and already-current pages stay on member.js v=30", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
   const staff = fs.readFileSync(path.join(root, "book-staff.html"), "utf8");
   const feedback = fs.readFileSync(path.join(root, "feedback.html"), "utf8");
-  assert.match(shop, /member\.js\?v=29/);
+  assert.match(shop, /member\.js\?v=30/);
   assert.doesNotMatch(shop, /member\.js\?v=(?:[0-9]|1\d|2[0-8])\b/);
-  assert.match(account, /member\.js\?v=29/);
-  assert.match(staff, /member\.js\?v=29/);
-  assert.match(feedback, /member\.js\?v=29/);
+  assert.match(account, /member\.js\?v=30/);
+  assert.match(staff, /member\.js\?v=30/);
+  assert.match(feedback, /member\.js\?v=30/);
 });
 
 if (failed) {

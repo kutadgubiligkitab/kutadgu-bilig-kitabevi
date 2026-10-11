@@ -225,6 +225,7 @@ function installRealMember(page) {
     window.__mergeWaiting = [];
     window.__holdRpc = false;
     window.__rpcPending = null;
+    window.__rpcQueue = [];
     window.__profileError = false;
     window.__signOutMode = "";
     window.__signOutCalls = 0;
@@ -279,7 +280,13 @@ function installRealMember(page) {
         signOut() {
           window.__signOutCalls += 1;
           if (window.__signOutMode === "reject") return Promise.reject(new Error("sign out rejected"));
-          if (window.__signOutMode === "delay") return new Promise((resolve) => { window.__signOutResolve = resolve; });
+          if (window.__signOutMode === "error") return Promise.resolve({ error: { message: "sign out failed" } });
+          if (window.__signOutMode === "delay") {
+            return new Promise((resolve, reject) => {
+              window.__signOutResolve = resolve;
+              window.__signOutReject = reject;
+            });
+          }
           window.__session = null;
           if (window.__authCb) window.__authCb("SIGNED_OUT", null);
           return Promise.resolve({ error: null });
@@ -290,7 +297,13 @@ function installRealMember(page) {
         if (name !== "submit_website_feedback") return Promise.resolve({ data: null, error: null });
         const entry = { name: name, args: args, authUser: window.__session && window.__session.user && window.__session.user.id };
         window.__calls.push(entry);
-        if (window.__holdRpc) return new Promise((resolve) => { window.__rpcPending = { resolve: resolve, entry: entry }; });
+        if (window.__holdRpc) {
+          return new Promise((resolve, reject) => {
+            const pending = { resolve: resolve, reject: reject, entry: entry };
+            window.__rpcQueue.push(pending);
+            window.__rpcPending = pending;
+          });
+        }
         return Promise.resolve({ data: { id: args.p_id, replayed: false }, error: null });
       }
     };
@@ -371,7 +384,70 @@ test("an in-flight A submission cannot finish inside B's session", async ({ page
   expect(await page.evaluate(() => window.__calls[1].args.p_body)).toBe("B نىڭ پىكرى");
 });
 
-test("real sign-out delay and rejection block feedback until the context returns", async ({ page }) => {
+test("an older request cannot change the newer member's pending submission", async ({ page }) => {
+  await installRealMember(page);
+  await page.goto("/feedback", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+
+  async function holdPair(oldFailure) {
+    await page.evaluate((session) => {
+      window.__holdRpc = true;
+      window.__holdMerge = false;
+      window.__session = session;
+      window.__authCb("SIGNED_IN", session);
+    }, sessionFor("member-a"));
+    await page.waitForFunction(() => {
+      const user = window.KutadguMember.getUser();
+      const profile = window.KutadguMember.getProfile();
+      return user && user.id === "member-a" && profile && profile.status === "active";
+    });
+    await expect(page.locator("#feedbackForm")).toBeVisible();
+    await page.locator("#feedbackBody").fill("A نىڭ مەخپىي پىكرى");
+    await page.locator("#feedbackSubmit").click();
+    await page.waitForFunction(() => window.__rpcQueue.length === 1);
+    await page.evaluate((session) => {
+      window.__holdMerge = true;
+      window.__session = session;
+      window.__authCb("SIGNED_IN", session);
+    }, sessionFor("member-b"));
+    await page.waitForFunction(() => window.__mergeWaiting.length >= 1);
+    await page.evaluate(() => {
+      window.__holdMerge = false;
+      window.__mergeWaiting.splice(0).forEach((release) => release());
+    });
+    await expect(page.locator("#feedbackForm")).toBeVisible();
+    await expect(page.locator("#feedbackBody")).toHaveValue("");
+    await page.locator("#feedbackBody").fill("B نىڭ پىكرى");
+    await page.locator("#feedbackSubmit").click();
+    await page.waitForFunction(() => window.__rpcQueue.length === 2);
+    await expect(page.locator("#feedbackSubmit")).toBeDisabled();
+    await expect(page.locator("#feedbackStatus")).toHaveText("يوللىنىۋاتىدۇ…");
+    await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(await page.evaluate(() => window.__calls.length)).toBe(2);
+    await page.evaluate(oldFailure);
+    await expect(page.locator("#feedbackBody")).toHaveValue("B نىڭ پىكرى");
+    await expect(page.locator("#feedbackStatus")).toHaveText("يوللىنىۋاتىدۇ…");
+    await expect(page.locator("#feedbackSubmit")).toBeDisabled();
+    await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+    await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىر يوللانمىدى. قايتا سىناڭ.");
+    await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(await page.evaluate(() => window.__calls.length)).toBe(2);
+    expect(await page.evaluate(() => window.__calls[1].authUser)).toBe("member-b");
+    expect(await page.evaluate(() => window.__calls[1].args.p_body)).toBe("B نىڭ پىكرى");
+    await page.evaluate(() => {
+      const pending = window.__rpcQueue[1];
+      pending.resolve({ data: { id: pending.entry.args.p_id, replayed: false }, error: null });
+    });
+    await expect(page.locator("#feedbackStatus")).toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+    await expect(page.locator("#feedbackBody")).toHaveValue("");
+    await page.evaluate(() => { window.__calls = []; window.__rpcQueue = []; window.__holdRpc = false; });
+  }
+
+  await holdPair(() => window.__rpcQueue[0].reject(new Error("old request failed")));
+  await holdPair(() => window.__rpcQueue[0].resolve({ data: null, error: { message: "old request failed", code: "08006" } }));
+});
+
+test("real sign-out delay, rejection, and returned error keep feedback blocked", async ({ page }) => {
   await installRealMember(page);
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#feedbackForm")).toBeVisible();
@@ -399,26 +475,107 @@ test("real sign-out delay and rejection block feedback until the context returns
     window.__authCb("SIGNED_IN", session);
   }, sessionFor("member-a"));
   await expect(page.locator("#feedbackForm")).toBeVisible();
-  await page.locator("#feedbackBody").fill("قايتا");
   await page.evaluate(() => {
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "old-a", qty: 2 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["old-a"]));
     window.__holdRpc = true;
     window.__signOutMode = "reject";
   });
+  await page.locator("#feedbackBody").fill("قايتا");
   await page.locator("#feedbackSubmit").click();
   await page.waitForFunction(() => window.__calls.length === 2);
   await page.evaluate(async () => {
     try { await window.KutadguMember.signOut(); } catch (error) { window.__signOutError = String(error && error.message || error); }
   });
   await expect(page.locator("#feedbackBody")).toHaveValue("");
-  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe("member-a");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  expect(await page.evaluate(() => window.__signOutError)).toContain("sign out rejected");
+  expect(await page.evaluate(() => window.KutadguMember.getUser())).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1") || "")).not.toContain("old-a");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1") || "")).not.toContain("old-a");
   await page.evaluate(() => window.__rpcPending.resolve({ data: { id: window.__rpcPending.entry.args.p_id, replayed: false }, error: null }));
   await expect(page.locator("#feedbackStatus")).not.toHaveText("پىكىرىڭىز يوللاندى. رەھمەت.");
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(2);
+
+  await page.evaluate((session) => {
+    window.__signOutMode = "";
+    window.__holdRpc = false;
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
   await expect(page.locator("#feedbackForm")).toBeVisible();
-  await page.evaluate(() => { window.__holdRpc = false; window.__signOutMode = ""; });
   await page.locator("#feedbackBody").fill("يەنە A");
   await page.locator("#feedbackSubmit").click();
   await expect.poll(() => page.evaluate(() => window.__calls.length)).toBe(3);
   expect(await page.evaluate(() => window.__calls[2].authUser)).toBe("member-a");
+
+  await page.evaluate(() => {
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "old-a", qty: 2 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["old-a"]));
+    window.__signOutMode = "error";
+    window.__signOutResult = window.KutadguMember.signOut().then(
+      (value) => { window.__signOutValue = value == null ? "resolved" : "resolved"; },
+      (error) => { window.__signOutValue = String(error && error.message || error); }
+    );
+  });
+  await page.evaluate(() => window.__signOutResult);
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+  expect(await page.evaluate(() => window.__signOutValue)).toBe("resolved");
+  expect(await page.evaluate(() => window.KutadguMember.getUser())).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1") || "")).not.toContain("old-a");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1") || "")).not.toContain("old-a");
+  await page.evaluate(() => document.getElementById("feedbackForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+  expect(await page.evaluate(() => window.__calls.length)).toBe(3);
+
+  await page.evaluate((session) => {
+    window.__signOutMode = "";
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+  }, sessionFor("member-a"));
+  await expect(page.locator("#feedbackForm")).toBeVisible();
+  await page.evaluate(() => {
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "old-a", qty: 4 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["old-a"]));
+    window.__holdMerge = true;
+    window.__signOutMode = "delay";
+    window.__signOutPromise = window.KutadguMember.signOut();
+  });
+  await page.evaluate((session) => {
+    window.__session = session;
+    window.__authCb("SIGNED_IN", session);
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "bee", qty: 1 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["bee"]));
+  }, sessionFor("member-b"));
+  await page.waitForFunction(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id === "member-b");
+  await page.evaluate(() => window.__signOutReject(new Error("late rejection")));
+  await page.evaluate(() => window.__signOutPromise.catch(() => {}));
+  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe("member-b");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1"))).toContain("bee");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1"))).not.toContain("old-a");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1"))).toContain("bee");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1"))).not.toContain("old-a");
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
+
+  await page.evaluate(() => {
+    window.__holdMerge = false;
+    window.__mergeWaiting.splice(0).forEach((release) => release());
+    localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: "old-a", qty: 4 }]));
+    localStorage.setItem("kutadgu-favorites-v1", JSON.stringify(["old-a"]));
+    window.__signOutMode = "delay";
+    window.__signOutPromise = window.KutadguMember.signOut();
+  });
+  await page.evaluate(() => {
+    window.__session = null;
+    window.__authCb("SIGNED_OUT", null);
+  });
+  await page.evaluate(() => { window.__signOutResolve({ error: { message: "sign out failed" } }); return window.__signOutPromise; });
+  expect(await page.evaluate(() => window.KutadguMember.getUser())).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1") || "")).not.toContain("old-a");
+  expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1") || "")).not.toContain("old-a");
+  await expect(page.locator("#feedbackForm")).toBeHidden();
+  await expect(page.locator("#feedbackBody")).toHaveValue("");
 });
 
 test("session loss, missing and failed profiles, suspension, and restoration", async ({ page }) => {
