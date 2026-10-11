@@ -18,17 +18,35 @@
   const REPLY_REFRESH_APPROVED = "جاۋاب تەستىقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.";
   const REPLY_REFRESH_REJECTED = "جاۋاب رەت قىلىندى، لېكىن تىزىملىك يېڭىلانمىدى.";
   const REPLY_DELETE_REFRESH = "جاۋاب ئۆچۈرۈلدى. تىزىملىك يېڭىلانمىدى.";
+  const RETAINED_NOTE = " كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.";
   const HIDDEN_FIELD = "em" + "ail";
   let decisionLock = false;
   let decisionEpoch = 0;
-  let actionsFrozen = false;
-  let loadGeneration = 0;
-  let readEpoch = 0;
   let searchTimer = 0;
   let lockedQuery = "";
+  let sharedGeneration = 0;
+  let loadWave = 0;
+  let activeLoads = 0;
+  const listGeneration = { reviews: 0, replies: 0 };
+  const frozen = { reviews: false, replies: false };
   const view = { reviews: 0, replies: 0 };
   const committed = { reviews: null, replies: null };
   const failed = { reviews: null, replies: null };
+
+  function invalidateShared() {
+    sharedGeneration += 1;
+    listGeneration.reviews += 1;
+    listGeneration.replies += 1;
+  }
+
+  function beginList(kind) {
+    listGeneration[kind] += 1;
+    return { shared: sharedGeneration, kind: kind, list: listGeneration[kind] };
+  }
+
+  function invalidateKind(kind) {
+    listGeneration[kind] += 1;
+  }
 
   function reviewDeleteConfirm(row) {
     const title = row && row.book_title ? String(row.book_title) : ("كىتاب " + String(row && row.book_id || ""));
@@ -108,13 +126,19 @@
     return true;
   }
 
-  function stillCurrent(generation, requested) {
-    if (generation !== loadGeneration) return false;
+  function stillCurrent(token, requested) {
+    if (!token || token.shared !== sharedGeneration || token.list !== listGeneration[token.kind]) return false;
     if (!requested) return false;
     if (selectedStatus() !== requested.status) return false;
     if (searchValue() !== requested.query) return false;
     if (!surfaceOpen()) return false;
     return true;
+  }
+
+  function anyTokenCurrent(tokens, requested) {
+    if (tokens.reviews && stillCurrent(tokens.reviews, requested)) return true;
+    if (tokens.replies && stillCurrent(tokens.replies, requested)) return true;
+    return false;
   }
 
   function exactCount(value) {
@@ -185,6 +209,22 @@
     return trimmed ? REPLY_SEARCH_MISS : REPLY_EMPTY_MESSAGE;
   }
 
+  function failureCopy(kind, problem, saved) {
+    const base = kind === "reviews" ? READ_FAILED : REPLY_READ_FAILED;
+    if (saved && problem && (saved.status !== problem.status || saved.query !== problem.query)) return base + RETAINED_NOTE;
+    return base;
+  }
+
+  function rowNeedsDecision(row, kind) {
+    if (row && (row.status === "pending" || row.status === "approved" || row.status === "rejected")) return row.status === "pending";
+    const saved = committed[kind];
+    return !!(saved && saved.status === "pending");
+  }
+
+  function contextMatches(saved) {
+    return !!(saved && selectedStatus() === saved.status && searchValue() === saved.query);
+  }
+
   function rememberFailure(kind, requested, page) {
     failed[kind] = { status: requested.status, query: requested.query, page: page };
   }
@@ -198,6 +238,7 @@
       total: parsed.total,
       rows: parsed.rows.map((row) => Object.assign({}, row))
     };
+    frozen[kind] = false;
     failed[kind] = null;
   }
 
@@ -221,7 +262,7 @@
     const problem = failed[kind];
     const showing = saved;
     if (statusEl) {
-      if (problem) statusEl.textContent = kind === "reviews" ? READ_FAILED : REPLY_READ_FAILED;
+      if (problem) statusEl.textContent = failureCopy(kind, problem, saved);
       else if (!saved || !saved.total) statusEl.textContent = emptyCopy(kind, requested.query);
       else statusEl.textContent = "";
     }
@@ -261,7 +302,7 @@
       remove.type = "button";
       remove.className = "admin-review-delete";
       remove.textContent = "ئۆچۈرۈش";
-      if (row.status === "pending" || requested.status === "pending") {
+      if (rowNeedsDecision(row, kind)) {
         if (kind === "reviews") {
           approve.addEventListener("click", () => decide(row.id, "approved", approve, reject));
           reject.addEventListener("click", () => decide(row.id, "rejected", approve, reject));
@@ -274,7 +315,7 @@
       if (kind === "reviews") remove.addEventListener("click", () => removeReview(row, remove));
       else remove.addEventListener("click", () => removeReply(row, remove));
       actions.append(remove);
-      if (actionsFrozen) {
+      if (frozen[kind]) {
         approve.disabled = true;
         reject.disabled = true;
         remove.disabled = true;
@@ -298,38 +339,44 @@
       total.className = "admin-review-total";
       total.textContent = totalText(kind, showing.total, showing.page);
       const pages = pageCount(showing.total);
-      const prev = pagerButton("ئالدىنقى بەت", !showing.total || showing.page <= 0, () => {
-        const target = {};
-        target[kind] = showing.page - 1;
-        load(target);
+      const retainedMismatch = !contextMatches(showing);
+      const prev = pagerButton("ئالدىنقى بەت", retainedMismatch || !showing.total || showing.page <= 0, () => {
+        movePage(kind, showing.page - 1);
       });
-      const next = pagerButton("كېيىنكى بەت", !showing.total || showing.page >= pages - 1, () => {
-        const target = {};
-        target[kind] = showing.page + 1;
-        load(target);
+      const next = pagerButton("كېيىنكى بەت", retainedMismatch || !showing.total || showing.page >= pages - 1, () => {
+        movePage(kind, showing.page + 1);
       });
       bar.append(prev, total, next);
       list.appendChild(bar);
     }
   }
 
+  function movePage(kind, page) {
+    const saved = committed[kind];
+    if (!saved || decisionLock || searchTimer || !contextMatches(saved)) return;
+    if (!Number.isInteger(page) || page < 0) return;
+    const target = { only: kind };
+    target[kind] = page;
+    load(target);
+  }
+
   function retryRead(kind) {
     const snap = failed[kind];
     if (!snap || decisionLock) return;
     if (selectedStatus() !== snap.status || searchValue() !== snap.query) return;
-    const same = (entry) => !!(entry && entry.status === snap.status && entry.query === snap.query);
-    load({
-      reviews: same(failed.reviews) ? failed.reviews.page : view.reviews,
-      replies: same(failed.replies) ? failed.replies.page : view.replies
-    });
+    const target = { only: kind };
+    target[kind] = snap.page;
+    load(target);
   }
 
   function clearPrivateLists() {
-    loadGeneration += 1;
+    invalidateShared();
+    loadWave += 1;
+    activeLoads = 0;
     decisionEpoch += 1;
-    readEpoch += 1;
     decisionLock = false;
-    actionsFrozen = false;
+    frozen.reviews = false;
+    frozen.replies = false;
     clearTimeout(searchTimer);
     searchTimer = 0;
     lockedQuery = "";
@@ -373,7 +420,7 @@
     setStatus(AAL2_MESSAGE);
   }
 
-  async function readKind(db, kind, requested, page, generation, before) {
+  async function readKind(db, kind, requested, page, token, before) {
     const name = kind === "reviews" ? "admin_book_review_page" : "admin_book_review_reply_page";
     let result = null;
     let thrown = null;
@@ -382,15 +429,15 @@
     } catch (error) {
       thrown = error;
     }
-    if (!stillCurrent(generation, requested)) return { stale: true };
+    if (!stillCurrent(token, requested)) return { stale: true };
     let after = before;
     try {
       after = await sessionIdentity(db);
     } catch (error) {
-      if (!stillCurrent(generation, requested)) return { stale: true };
+      if (!stillCurrent(token, requested)) return { stale: true };
       return { failed: true };
     }
-    if (!stillCurrent(generation, requested)) return { stale: true };
+    if (!stillCurrent(token, requested)) return { stale: true };
     if (!sameIdentity(before, after)) return { auth: true };
     const error = thrown || (result && result.error);
     if (error) {
@@ -402,10 +449,48 @@
     return { parsed: parsed };
   }
 
+  function noteReadFailure(kind, token, requested, outcome) {
+    if (!stillCurrent(token, requested)) {
+      outcome.stale = true;
+      return;
+    }
+    rememberFailure(kind, requested, requested[kind]);
+    renderKind(kind, requested);
+    outcome[kind === "reviews" ? "reviewsOk" : "repliesOk"] = false;
+  }
+
+  async function settleKind(db, kind, requested, page, token, before, outcome) {
+    const row = await readKind(db, kind, requested, page, token, before);
+    if (!stillCurrent(token, requested)) {
+      outcome.stale = true;
+      return;
+    }
+    if (row && row.auth) {
+      dropForAuth();
+      outcome.stale = true;
+      return;
+    }
+    if (!row || row.stale) {
+      outcome.stale = true;
+      return;
+    }
+    if (row.parsed) {
+      rememberPage(kind, requested, row.parsed);
+      outcome[kind === "reviews" ? "reviewsOk" : "repliesOk"] = true;
+    } else {
+      rememberFailure(kind, requested, page);
+      outcome[kind === "reviews" ? "reviewsOk" : "repliesOk"] = false;
+    }
+    if (!stillCurrent(token, requested)) {
+      outcome.stale = true;
+      return;
+    }
+    renderKind(kind, requested);
+  }
+
   async function load(target) {
     const db = client();
-    const generation = ++loadGeneration;
-    const op = ++readEpoch;
+    const wave = loadWave;
     const requested = {
       status: selectedStatus(),
       query: searchValue(),
@@ -413,11 +498,15 @@
       replies: target && Number.isInteger(target.replies) ? target.replies : view.replies
     };
     const only = target && (target.only === "reviews" || target.only === "replies") ? target.only : "";
+    const tokens = {};
+    if (only !== "replies") tokens.reviews = beginList("reviews");
+    if (only !== "reviews") tokens.replies = beginList("replies");
     const outcome = { stale: false, reviewsOk: only === "replies", repliesOk: only === "reviews" };
+    activeLoads += 1;
     setLoading(true);
     try {
       if (!db || typeof db.rpc !== "function") {
-        if (stillCurrent(generation, requested)) setStatus("باشقۇرغۇچى كىرىشى كېرەك.");
+        if (anyTokenCurrent(tokens, requested)) setStatus("باشقۇرغۇچى كىرىشى كېرەك.");
         outcome.stale = true;
         return outcome;
       }
@@ -425,96 +514,71 @@
       try {
         before = await sessionIdentity(db);
       } catch (error) {
-        if (!stillCurrent(generation, requested)) {
+        if (!anyTokenCurrent(tokens, requested)) {
           outcome.stale = true;
           return outcome;
         }
-        if (only !== "replies") {
-          rememberFailure("reviews", requested, requested.reviews);
-          renderKind("reviews", requested);
-          outcome.reviewsOk = false;
-        }
-        if (only !== "reviews") {
-          rememberFailure("replies", requested, requested.replies);
-          renderKind("replies", requested);
-          outcome.repliesOk = false;
-        }
+        if (tokens.reviews) noteReadFailure("reviews", tokens.reviews, requested, outcome);
+        if (tokens.replies) noteReadFailure("replies", tokens.replies, requested, outcome);
         return outcome;
       }
-      if (!stillCurrent(generation, requested)) {
+      if (!anyTokenCurrent(tokens, requested)) {
         outcome.stale = true;
         return outcome;
       }
       if (before.aal !== "aal2") {
-        dropForAuth();
+        if (anyTokenCurrent(tokens, requested)) dropForAuth();
         outcome.stale = true;
         return outcome;
       }
       const jobs = [];
-      if (only !== "replies") jobs.push(readKind(db, "reviews", requested, requested.reviews, generation, before).then((row) => ({ kind: "reviews", row: row })));
-      if (only !== "reviews") jobs.push(readKind(db, "replies", requested, requested.replies, generation, before).then((row) => ({ kind: "replies", row: row })));
-      const settled = await Promise.all(jobs);
-      if (!stillCurrent(generation, requested)) {
-        outcome.stale = true;
-        return outcome;
-      }
-      let authLost = false;
-      settled.forEach((item) => {
-        if (item.row && item.row.auth) authLost = true;
-      });
-      if (authLost) {
-        dropForAuth();
-        outcome.stale = true;
-        return outcome;
-      }
-      if (!stillCurrent(generation, requested)) {
-        outcome.stale = true;
-        return outcome;
-      }
-      settled.forEach((item) => {
-        const row = item.row || {};
-        if (row.stale) {
-          outcome.stale = true;
-          return;
-        }
-        if (row.parsed) {
-          rememberPage(item.kind, requested, row.parsed);
-          outcome[item.kind === "reviews" ? "reviewsOk" : "repliesOk"] = true;
-        } else {
-          rememberFailure(item.kind, requested, requested[item.kind]);
-          outcome[item.kind === "reviews" ? "reviewsOk" : "repliesOk"] = false;
-        }
-      });
-      if (!stillCurrent(generation, requested)) {
-        outcome.stale = true;
-        return outcome;
-      }
-      if (!only && outcome.reviewsOk && outcome.repliesOk) actionsFrozen = false;
-      settled.forEach((item) => {
-        const row = item.row || {};
-        if (row.stale || !stillCurrent(generation, requested)) return;
-        renderKind(item.kind, requested);
-      });
+      if (tokens.reviews) jobs.push(settleKind(db, "reviews", requested, requested.reviews, tokens.reviews, before, outcome));
+      if (tokens.replies) jobs.push(settleKind(db, "replies", requested, requested.replies, tokens.replies, before, outcome));
+      await Promise.all(jobs);
       return outcome;
     } finally {
-      if (op === readEpoch) setLoading(false);
+      if (wave !== loadWave) return;
+      activeLoads = Math.max(0, activeLoads - 1);
+      if (activeLoads === 0) setLoading(false);
     }
   }
 
-  function releaseDecision(epoch, buttons) {
+  function releaseDecision(epoch, buttons, kind) {
     if (epoch !== decisionEpoch) return;
     decisionLock = false;
-    if (actionsFrozen) return;
+    if (frozen[kind]) return;
     buttons.forEach((button) => {
       if (button && button.isConnected) button.disabled = false;
     });
   }
 
-  function freezeMutationButtons() {
-    actionsFrozen = true;
-    document.querySelectorAll(".admin-review-actions button, .admin-reply-actions button").forEach((button) => {
+  function freezeLists(kinds) {
+    kinds.forEach((kind) => {
+      frozen[kind] = true;
+    });
+    const selector = [];
+    if (frozen.reviews) selector.push(".admin-review-actions button");
+    if (frozen.replies) selector.push(".admin-reply-actions button");
+    if (!selector.length) return;
+    document.querySelectorAll(selector.join(",")).forEach((button) => {
       button.disabled = true;
     });
+  }
+
+  function showRefreshFailure(affected, message) {
+    const requested = { status: selectedStatus(), query: searchValue() };
+    const kinds = affected === "both" ? ["reviews", "replies"] : [affected];
+    kinds.forEach((kind) => {
+      const saved = committed[kind];
+      const context = saved ? { status: saved.status, query: saved.query } : requested;
+      rememberFailure(kind, context, saved ? saved.page : view[kind]);
+    });
+    freezeLists(kinds);
+    kinds.forEach((kind) => renderKind(kind, requested));
+    if (affected === "replies") {
+      const replyStatus = replyStatusNode();
+      if (replyStatus) replyStatus.textContent = message;
+    } else setStatus(message);
   }
 
   function refreshApprovals() {
@@ -523,17 +587,36 @@
   }
 
   async function refreshAfterWrite(epoch, affected) {
-    const refreshed = await load();
+    const refreshed = affected === "both" ? await load() : await load({ only: affected });
     if (epoch !== decisionEpoch) return { stale: true };
     if (!refreshed || refreshed.stale) return { stale: true };
     const reviewsOk = affected === "replies" ? true : !!refreshed.reviewsOk;
     const repliesOk = affected === "reviews" ? true : !!refreshed.repliesOk;
-    if (!reviewsOk || !repliesOk) return { ok: false };
-    return { ok: true };
+    return { ok: reviewsOk && repliesOk, reviewsOk: !!refreshed.reviewsOk, repliesOk: !!refreshed.repliesOk };
+  }
+
+  async function sessionGate(epoch, before, db) {
+    if (epoch !== decisionEpoch) return "stale";
+    try {
+      const after = await sessionIdentity(db);
+      if (epoch !== decisionEpoch) return "stale";
+      if (!sameIdentity(before, after)) return "auth";
+      return "ok";
+    } catch (error) {
+      if (epoch !== decisionEpoch) return "stale";
+      return "failed";
+    }
+  }
+
+  function refreshFailureKinds(refreshed) {
+    const kinds = [];
+    if (!refreshed.reviewsOk) kinds.push("reviews");
+    if (!refreshed.repliesOk) kinds.push("replies");
+    return kinds;
   }
 
   async function decide(reviewId, decision, approve, reject) {
-    if (decisionLock || actionsFrozen) return;
+    if (decisionLock || frozen.reviews) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -544,6 +627,8 @@
     lockedQuery = searchValue();
     if (approve) approve.disabled = true;
     if (reject) reject.disabled = true;
+    const refreshMessage = decision === "rejected" ? REVIEW_REFRESH_REJECTED : REVIEW_REFRESH_APPROVED;
+    let confirmed = false;
     try {
       const before = await sessionIdentity(db);
       if (epoch !== decisionEpoch) return;
@@ -553,30 +638,46 @@
       }
       const result = await db.rpc("moderate_book_review", { review_id: reviewId, decision: decision });
       if (epoch !== decisionEpoch) return;
-      const after = await sessionIdentity(db);
-      if (epoch !== decisionEpoch) return;
-      if (!sameIdentity(before, after)) {
+      const error = result && result.error;
+      if (!error) {
+        confirmed = true;
+        invalidateKind("reviews");
+        const gate = await sessionGate(epoch, before, db);
+        if (gate === "stale") return;
+        if (gate === "auth") {
+          dropForAuth();
+          return;
+        }
+        if (gate === "failed") {
+          showRefreshFailure("reviews", refreshMessage);
+          return;
+        }
+        const refreshed = await refreshAfterWrite(epoch, "reviews");
+        if (refreshed.stale || epoch !== decisionEpoch) return;
+        if (!refreshed.ok) {
+          setStatus(refreshMessage);
+          freezeLists(refreshFailureKinds(refreshed));
+          return;
+        }
+        refreshApprovals();
+        return;
+      }
+      const gate = await sessionGate(epoch, before, db);
+      if (gate === "stale") return;
+      if (gate === "auth") {
         dropForAuth();
         return;
       }
-      const error = result && result.error;
-      if (error) {
-        setStatus(deniedError(error) ? AAL2_MESSAGE : DENIED_MESSAGE);
-        return;
-      }
-      const refreshed = await refreshAfterWrite(epoch, "reviews");
-      if (refreshed.stale || epoch !== decisionEpoch) return;
-      if (!refreshed.ok) {
-        setStatus(decision === "rejected" ? REVIEW_REFRESH_REJECTED : REVIEW_REFRESH_APPROVED);
-        freezeMutationButtons();
-        return;
-      }
-      refreshApprovals();
+      setStatus(deniedError(error) ? AAL2_MESSAGE : DENIED_MESSAGE);
     } catch (error) {
       if (epoch !== decisionEpoch) return;
+      if (confirmed) {
+        showRefreshFailure("reviews", refreshMessage);
+        return;
+      }
       setStatus(DENIED_MESSAGE);
     } finally {
-      releaseDecision(epoch, [approve, reject]);
+      releaseDecision(epoch, [approve, reject], "reviews");
     }
   }
 
@@ -587,7 +688,7 @@
   }
 
   async function removeReview(row, button) {
-    if (decisionLock || actionsFrozen) return;
+    if (decisionLock || frozen.reviews) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -604,7 +705,7 @@
       confirmed = false;
     }
     if (!confirmed) {
-      releaseDecision(epoch, [button]);
+      releaseDecision(epoch, [button], "reviews");
       return;
     }
     let announced = false;
@@ -623,24 +724,40 @@
         thrown = error;
       }
       if (epoch !== decisionEpoch) return;
-      const after = await sessionIdentity(db);
-      if (epoch !== decisionEpoch) return;
-      if (!sameIdentity(before, after)) {
-        dropForAuth();
-        return;
-      }
       const error = thrown || (result && result.error);
       if (!error) {
         announced = true;
+        invalidateKind("reviews");
+        invalidateKind("replies");
+        const gate = await sessionGate(epoch, before, db);
+        if (gate === "stale") return;
+        if (gate === "auth") {
+          dropForAuth();
+          return;
+        }
+        if (gate === "failed") {
+          showRefreshFailure("both", REVIEW_DELETE_REFRESH);
+          return;
+        }
         const refreshed = await refreshAfterWrite(epoch, "both");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
           setStatus(REVIEW_DELETE_REFRESH);
-          freezeMutationButtons();
+          freezeLists(refreshFailureKinds(refreshed));
           return;
         }
         setStatus(DELETED_MESSAGE);
         refreshApprovals();
+        return;
+      }
+      const gate = await sessionGate(epoch, before, db);
+      if (gate === "stale") return;
+      if (gate === "auth") {
+        dropForAuth();
+        return;
+      }
+      if (gate === "failed") {
+        setStatus(UNCERTAIN_MESSAGE);
         return;
       }
       if (String(error.code || "") === "42501" || deniedError(error)) {
@@ -651,11 +768,13 @@
       if (epoch !== decisionEpoch) return;
       if (exists === false) {
         announced = true;
+        invalidateKind("reviews");
+        invalidateKind("replies");
         const refreshed = await refreshAfterWrite(epoch, "both");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
           setStatus(REVIEW_DELETE_REFRESH);
-          freezeMutationButtons();
+          freezeLists(refreshFailureKinds(refreshed));
           return;
         }
         setStatus(DELETED_MESSAGE);
@@ -671,12 +790,12 @@
       if (epoch !== decisionEpoch) return;
       if (!announced) setStatus(UNCERTAIN_MESSAGE);
     } finally {
-      releaseDecision(epoch, [button]);
+      releaseDecision(epoch, [button], "reviews");
     }
   }
 
   async function decideReply(replyId, decision, approve, reject) {
-    if (decisionLock || actionsFrozen) return;
+    if (decisionLock || frozen.replies) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -687,6 +806,8 @@
     lockedQuery = searchValue();
     if (approve) approve.disabled = true;
     if (reject) reject.disabled = true;
+    const refreshMessage = decision === "rejected" ? REPLY_REFRESH_REJECTED : REPLY_REFRESH_APPROVED;
+    let confirmed = false;
     try {
       const before = await sessionIdentity(db);
       if (epoch !== decisionEpoch) return;
@@ -696,31 +817,47 @@
       }
       const result = await db.rpc("moderate_book_review_reply", { p_reply_id: replyId, decision: decision });
       if (epoch !== decisionEpoch) return;
-      const after = await sessionIdentity(db);
-      if (epoch !== decisionEpoch) return;
-      if (!sameIdentity(before, after)) {
+      const error = result && result.error;
+      if (!error) {
+        confirmed = true;
+        invalidateKind("replies");
+        const gate = await sessionGate(epoch, before, db);
+        if (gate === "stale") return;
+        if (gate === "auth") {
+          dropForAuth();
+          return;
+        }
+        if (gate === "failed") {
+          showRefreshFailure("replies", refreshMessage);
+          return;
+        }
+        const refreshed = await refreshAfterWrite(epoch, "replies");
+        if (refreshed.stale || epoch !== decisionEpoch) return;
+        if (!refreshed.ok) {
+          const replyStatus = replyStatusNode();
+          if (replyStatus) replyStatus.textContent = refreshMessage;
+          freezeLists(refreshFailureKinds(refreshed));
+          return;
+        }
+        refreshApprovals();
+        return;
+      }
+      const gate = await sessionGate(epoch, before, db);
+      if (gate === "stale") return;
+      if (gate === "auth") {
         dropForAuth();
         return;
       }
-      const error = result && result.error;
-      if (error) {
-        setStatus(deniedError(error) ? AAL2_MESSAGE : DENIED_MESSAGE);
-        return;
-      }
-      const refreshed = await refreshAfterWrite(epoch, "replies");
-      if (refreshed.stale || epoch !== decisionEpoch) return;
-      if (!refreshed.ok) {
-        const replyStatus = replyStatusNode();
-        if (replyStatus) replyStatus.textContent = decision === "rejected" ? REPLY_REFRESH_REJECTED : REPLY_REFRESH_APPROVED;
-        freezeMutationButtons();
-        return;
-      }
-      refreshApprovals();
+      setStatus(deniedError(error) ? AAL2_MESSAGE : DENIED_MESSAGE);
     } catch (error) {
       if (epoch !== decisionEpoch) return;
+      if (confirmed) {
+        showRefreshFailure("replies", refreshMessage);
+        return;
+      }
       setStatus(DENIED_MESSAGE);
     } finally {
-      releaseDecision(epoch, [approve, reject]);
+      releaseDecision(epoch, [approve, reject], "replies");
     }
   }
 
@@ -731,7 +868,7 @@
   }
 
   async function removeReply(row, button) {
-    if (decisionLock || actionsFrozen) return;
+    if (decisionLock || frozen.replies) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -748,7 +885,7 @@
       confirmed = false;
     }
     if (!confirmed) {
-      releaseDecision(epoch, [button]);
+      releaseDecision(epoch, [button], "replies");
       return;
     }
     let announced = false;
@@ -767,26 +904,41 @@
         thrown = error;
       }
       if (epoch !== decisionEpoch) return;
-      const after = await sessionIdentity(db);
-      if (epoch !== decisionEpoch) return;
-      if (!sameIdentity(before, after)) {
-        dropForAuth();
-        return;
-      }
       const error = thrown || (result && result.error);
       if (!error) {
         announced = true;
+        invalidateKind("replies");
+        const gate = await sessionGate(epoch, before, db);
+        if (gate === "stale") return;
+        if (gate === "auth") {
+          dropForAuth();
+          return;
+        }
+        if (gate === "failed") {
+          showRefreshFailure("replies", REPLY_DELETE_REFRESH);
+          return;
+        }
         const refreshed = await refreshAfterWrite(epoch, "replies");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
           const replyStatus = replyStatusNode();
           if (replyStatus) replyStatus.textContent = REPLY_DELETE_REFRESH;
-          freezeMutationButtons();
+          freezeLists(refreshFailureKinds(refreshed));
           return;
         }
         const replyStatus = replyStatusNode();
         if (replyStatus) replyStatus.textContent = REPLY_DELETED_MESSAGE;
         refreshApprovals();
+        return;
+      }
+      const gate = await sessionGate(epoch, before, db);
+      if (gate === "stale") return;
+      if (gate === "auth") {
+        dropForAuth();
+        return;
+      }
+      if (gate === "failed") {
+        setStatus(UNCERTAIN_MESSAGE);
         return;
       }
       if (String(error.code || "") === "42501" || deniedError(error)) {
@@ -797,12 +949,13 @@
       if (epoch !== decisionEpoch) return;
       if (exists === false) {
         announced = true;
+        invalidateKind("replies");
         const refreshed = await refreshAfterWrite(epoch, "replies");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
           const replyStatus = replyStatusNode();
           if (replyStatus) replyStatus.textContent = REPLY_DELETE_REFRESH;
-          freezeMutationButtons();
+          freezeLists(refreshFailureKinds(refreshed));
           return;
         }
         const replyStatus = replyStatusNode();
@@ -819,18 +972,22 @@
       if (epoch !== decisionEpoch) return;
       if (!announced) setStatus(UNCERTAIN_MESSAGE);
     } finally {
-      releaseDecision(epoch, [button]);
+      releaseDecision(epoch, [button], "replies");
     }
   }
 
-  function armSearch() {
-    loadGeneration += 1;
-    clearTimeout(searchTimer);
-    view.reviews = 0;
-    view.replies = 0;
+  function blockPager() {
     document.querySelectorAll(".admin-review-pager button").forEach((button) => {
       button.disabled = true;
     });
+  }
+
+  function armSearch() {
+    invalidateShared();
+    clearTimeout(searchTimer);
+    view.reviews = 0;
+    view.replies = 0;
+    blockPager();
     searchTimer = setTimeout(() => {
       searchTimer = 0;
       load();
@@ -847,11 +1004,12 @@
       group.querySelectorAll("button[data-review-status]").forEach((item) => {
         item.setAttribute("aria-pressed", item === button ? "true" : "false");
       });
-      loadGeneration += 1;
+      invalidateShared();
       clearTimeout(searchTimer);
       searchTimer = 0;
       view.reviews = 0;
       view.replies = 0;
+      blockPager();
       load();
     });
   }
@@ -874,7 +1032,7 @@
         input.value = lockedQuery;
         return;
       }
-      loadGeneration += 1;
+      invalidateShared();
       clearTimeout(searchTimer);
       searchTimer = 0;
       view.reviews = 0;
@@ -1041,14 +1199,14 @@
     if (typeof MutationObserver === "function" && card && card.dataset.reviewWatch !== "1") {
       card.dataset.reviewWatch = "1";
       const cardObserver = new MutationObserver(() => {
-        if (card.hidden) loadGeneration += 1;
+        if (card.hidden) invalidateShared();
       });
       cardObserver.observe(card, { attributes: true, attributeFilter: ["hidden"] });
     }
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         approvalState.generation += 1;
-        loadGeneration += 1;
+        invalidateShared();
         return;
       }
       if (approvalVisible()) refreshApprovalCounts();

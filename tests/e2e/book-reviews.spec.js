@@ -2206,7 +2206,7 @@ test("a failed moderation page keeps the last successful page and retries that p
   const failedReplyNext = await callsSince(page, "replies", beforeReplyFail);
   expect(failedReplyNext).toEqual([pageRequest("replies", "pending", 1)]);
   const reviewWhileReplyFailed = await callsSince(page, "reviews", beforeReviewRefresh);
-  expect(reviewWhileReplyFailed).toEqual([pageRequest("reviews", "pending", 1)]);
+  expect(reviewWhileReplyFailed).toEqual([]);
 
   await page.locator("#bookReviewReplyRetry").click();
   await expect(page.locator(".admin-reply-item")).toHaveCount(10);
@@ -2278,11 +2278,14 @@ test("a malformed review page keeps the current rows and retries the same page i
   await expect(page.locator(".admin-review-item")).toHaveCount(10);
   await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "malformed" }; });
   await page.locator(".admin-review-filters button[data-review-status='rejected']").click();
-  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
   await expect(page.locator("#bookReviewModerationStatus")).not.toHaveText("بۇ ھالەتتە ئىنكاس يوق.");
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
   await expect(page.locator("#bookReviewModerationList .admin-review-total")).toContainText("جەمئىي 105 ئىنكاس");
   await expect(page.locator(".admin-review-item")).toHaveCount(10);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeVisible();
   const before = await callCount(page, "reviews");
   await page.locator("#bookReviewRetry").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-rejected-1$/ })).toBeVisible();
