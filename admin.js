@@ -1623,6 +1623,7 @@ function clearPendingSubmissionPrivate(){
   if(countEl)countEl.textContent="تەستىق ساقلاۋاتقان: —";
   const statusEl=$("#pendingSubmissionStatus");
   if(statusEl){statusEl.className="admin-status";statusEl.replaceChildren()}
+  if(window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.clear==="function")window.KutadguAdminReviews.clear();
 }
 function showPendingReadFailure(context,message){
   if(!dashboardAuthorized())return;

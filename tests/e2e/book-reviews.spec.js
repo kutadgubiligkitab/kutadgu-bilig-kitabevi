@@ -237,11 +237,15 @@ test("admin approval stays behind AAL2", async ({ page }) => {
         return query;
       },
       rpc(name, args) {
-        if (name === "admin_list_book_reviews") {
-          return Promise.resolve({ data: rows.slice(), error: null });
+        if (name === "admin_book_review_page") {
+          const list = rows.filter((row) => row.status === (args && args.p_status));
+          return Promise.resolve({ data: { total: list.length, page: 0, rows: list.slice(0, 10) }, error: null });
         }
-        if (name === "admin_list_book_review_replies" || name === "admin_approval_counts") {
-          return Promise.resolve({ data: name === "admin_approval_counts" ? { submissions: 0, reviews: rows.length, replies: 0 } : [], error: null });
+        if (name === "admin_book_review_reply_page") {
+          return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
+        }
+        if (name === "admin_approval_counts") {
+          return Promise.resolve({ data: { submissions: 0, reviews: rows.length, replies: 0 }, error: null });
         }
         if (name === "admin_book_review_exists") {
           return Promise.resolve({ data: rows.some((row) => row.id === args.p_review_id), error: null });
@@ -615,11 +619,15 @@ test("moderation failure restores both buttons and a later click can succeed", a
         return query;
       },
       rpc(name, args) {
-        if (name === "admin_list_book_reviews") {
-          return Promise.resolve({ data: rows.slice(), error: null });
+        if (name === "admin_book_review_page") {
+          const list = rows.filter((row) => row.status === (args && args.p_status));
+          return Promise.resolve({ data: { total: list.length, page: 0, rows: list.slice(0, 10) }, error: null });
         }
-        if (name === "admin_list_book_review_replies" || name === "admin_approval_counts") {
-          return Promise.resolve({ data: name === "admin_approval_counts" ? { submissions: 0, reviews: rows.length, replies: 0 } : [], error: null });
+        if (name === "admin_book_review_reply_page") {
+          return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
+        }
+        if (name === "admin_approval_counts") {
+          return Promise.resolve({ data: { submissions: 0, reviews: rows.length, replies: 0 }, error: null });
         }
         if (name === "admin_book_review_exists") {
           return Promise.resolve({ data: rows.some((row) => row.id === args.p_review_id), error: null });
@@ -973,10 +981,12 @@ test("admin can delete one review after confirmation", async ({ page }) => {
     window.__kutadguBookReviewAdminClient = {
       auth: { getSession: async () => ({ data: { session: { access_token: token } }, error: null }) },
       rpc(name, args) {
-        if (name === "admin_list_book_reviews") return Promise.resolve({ data: rows.slice(), error: null });
-        if (name === "admin_list_book_review_replies" || name === "admin_approval_counts") {
-          return Promise.resolve({ data: name === "admin_approval_counts" ? { submissions: 0, reviews: rows.length, replies: 0 } : [], error: null });
+        if (name === "admin_book_review_page") {
+          const list = rows.filter((row) => row.status === (args && args.p_status));
+          return Promise.resolve({ data: { total: list.length, page: 0, rows: list.slice(0, 10) }, error: null });
         }
+        if (name === "admin_book_review_reply_page") return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
+        if (name === "admin_approval_counts") return Promise.resolve({ data: { submissions: 0, reviews: rows.length, replies: 0 }, error: null });
         if (name === "admin_book_review_exists") return Promise.resolve({ data: rows.some((row) => row.id === args.p_review_id), error: null });
         window.__reviewDecisions.push({ name: name, args: args });
         rows = [];
@@ -1018,8 +1028,8 @@ test("the admin bell shows approval totals, keeps a failed read, and drops a sta
     window.__kutadguBookReviewAdminClient = {
       auth: { getSession: async () => ({ data: { session: { access_token: "e30." + payload + ".sig" } }, error: null }) },
       rpc(name) {
-        if (name === "admin_list_book_reviews" || name === "admin_list_book_review_replies") {
-          return Promise.resolve({ data: [], error: null });
+        if (name === "admin_book_review_page" || name === "admin_book_review_reply_page") {
+          return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
         }
         if (name === "admin_approval_counts") {
           window.__approvalReads += 1;
@@ -1145,11 +1155,11 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   expect(oldCss).toContain(".admin-approval-panel{position:absolute");
   expect(oldCss).not.toContain(".admin-approval-panel[hidden]");
   const currentHtml = fs.readFileSync(path.join(__dirname, "../../admin.html"), "utf8");
-  expect(currentHtml).toContain("admin.css?v=53");
-  const oldDocument = currentHtml.replace("admin.css?v=53", "admin.css?v=49");
+  expect(currentHtml).toContain("admin.css?v=54");
+  const oldDocument = currentHtml.replace("admin.css?v=54", "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
-  expect(oldDocument).not.toContain("admin.css?v=53");
-  const hits = { v49: 0, v53: 0 };
+  expect(oldDocument).not.toContain("admin.css?v=54");
+  const hits = { v49: 0, v54: 0 };
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -1168,7 +1178,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
         res.end(oldCssBuffer);
         return;
       }
-      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "53") hits.v53 += 1;
+      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "54") hits.v54 += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
         port: 4173,
@@ -1198,12 +1208,12 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
     const panel = page.locator(".admin-approval-panel");
     await expect(bell).toContainText("3");
     expect(hits.v49).toBe(1);
-    expect(hits.v53).toBe(0);
+    expect(hits.v54).toBe(0);
     await expect(bell).toHaveAttribute("aria-expanded", "false");
     expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
     expect(await panel.getByRole("button", { name: "كىتاب تەستىقى 1" }).evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
     await page.goto(origin.origin + "/admin.html", { waitUntil: "domcontentloaded" });
-    expect(hits.v53).toBe(1);
+    expect(hits.v54).toBe(1);
     expect(hits.v49).toBe(1);
     await expect(bell).toContainText("3");
     await expect(bell).toHaveAttribute("aria-expanded", "false");
@@ -1233,8 +1243,8 @@ async function installApprovalBell(page, counts) {
     window.__kutadguBookReviewAdminClient = {
       auth: { getSession: async () => ({ data: { session: { access_token: "e30." + payload + ".sig" } }, error: null }) },
       rpc(name) {
-        if (name === "admin_list_book_reviews" || name === "admin_list_book_review_replies") {
-          return Promise.resolve({ data: [], error: null });
+        if (name === "admin_book_review_page" || name === "admin_book_review_reply_page") {
+          return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
         }
         if (name === "admin_approval_counts") return Promise.resolve({ data: payloadCounts, error: null });
         return Promise.resolve({ data: null, error: null });
@@ -1810,12 +1820,18 @@ test("moderation pages reach every status and name the deleted record", async ({
     });
     function pageOf(rows, args) {
       const status = args && args.p_status;
+      const query = String((args && args.p_query) || "").trim().toLocaleLowerCase("en");
       let list = rows.filter((row) => row.status === status);
-      list.sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1));
-      if (args && args.p_after) {
-        list = list.filter((row) => row.created_at > args.p_after || (row.created_at === args.p_after && row.id > args.p_after_id));
+      if (query) {
+        list = list.filter((row) => String(row.book_title || "").toLocaleLowerCase("en").indexOf(query) !== -1 || String(row.display_name || "").toLocaleLowerCase("en").indexOf(query) !== -1);
       }
-      return list.slice(0, 100);
+      list.sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1));
+      const total = list.length;
+      let page = Number(args && args.p_page);
+      if (!Number.isInteger(page) || page < 0) page = 0;
+      const last = total === 0 ? 0 : Math.floor((total - 1) / 10);
+      if (page > last) page = last;
+      return { total: total, page: page, rows: list.slice(page * 10, page * 10 + 10) };
     }
     window.__reviewDecisions = [];
     window.__kutadguSkipAdminAuth = true;
@@ -1825,8 +1841,8 @@ test("moderation pages reach every status and name the deleted record", async ({
         signOut: async () => ({ error: null })
       },
       rpc(name, args) {
-        if (name === "admin_list_book_reviews") return Promise.resolve({ data: pageOf(reviews, args), error: null });
-        if (name === "admin_list_book_review_replies") return Promise.resolve({ data: pageOf(replies, args), error: null });
+        if (name === "admin_book_review_page") return Promise.resolve({ data: pageOf(reviews, args), error: null });
+        if (name === "admin_book_review_reply_page") return Promise.resolve({ data: pageOf(replies, args), error: null });
         if (name === "admin_approval_counts") return Promise.resolve({ data: { submissions: 0, reviews: 0, replies: 0 }, error: null });
         if (name === "admin_book_review_exists" || name === "admin_book_review_reply_exists") return Promise.resolve({ data: false, error: null });
         window.__reviewDecisions.push({ name: name, args: args });
@@ -1844,13 +1860,22 @@ test("moderation pages reach every status and name the deleted record", async ({
   });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
-  await expect(page.locator(".admin-reply-item")).toHaveCount(100);
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
-  await page.locator("#bookReviewReplyList").getByRole("button", { name: "كېيىنكى بەت" }).click();
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toContainText("جەمئىي 105 ئىنكاس");
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toContainText("بەت 1 / 11");
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
+  for (let step = 0; step < 10; step += 1) {
+    await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
+  }
   await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toBeVisible();
-  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-105" })).toBeVisible();
+  await expect(page.locator(".admin-review-item")).toHaveCount(5);
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
+  await page.locator("#bookReviewReplyList").getByRole("button", { name: "كېيىنكى بەت" }).click();
+  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-11" })).toBeVisible();
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toBeVisible();
   let confirmText = "";
   page.once("dialog", (dialog) => {
     confirmText = dialog.message();
@@ -1861,15 +1886,21 @@ test("moderation pages reach every status and name the deleted record", async ({
   expect(confirmText).toContain("تارىخىمىزدىكى خاقانلار");
   expect(confirmText).toContain("باھا-pending-101");
   await page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" }).click();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-91$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toHaveCount(0);
   for (const status of ["approved", "rejected"]) {
     await page.locator(".admin-review-filters button[data-review-status='" + status + "']").click();
-    await expect(page.locator(".admin-review-item")).toHaveCount(100);
-    await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
+    await expect(page.locator(".admin-review-item")).toHaveCount(10);
+    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-1$") })).toBeVisible();
+    await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-91" })).toHaveCount(0);
+    for (let step = 0; step < 10; step += 1) {
+      await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
+    }
     await expect(page.locator(".admin-review-item", { hasText: "باھا-" + status + "-105" })).toBeVisible();
-    await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-1" })).toHaveCount(0);
+    await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+    await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-1$") })).toBeVisible();
     await page.locator("#bookReviewReplyList").getByRole("button", { name: "كېيىنكى بەت" }).click();
-    await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-" + status + "-105" })).toBeVisible();
+    await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-" + status + "-11" })).toBeVisible();
   }
   await page.evaluate(() => document.body.classList.add("dark-mode"));
   await page.setViewportSize({ width: 390, height: 800 });
@@ -1909,19 +1940,21 @@ test("late moderation responses stay on the requested filter and private lists c
           }
           return Promise.resolve({ data: { submissions: 1, reviews: 1, replies: 1 }, error: null });
         }
-        if (name === "admin_list_book_reviews") {
+        if (name === "admin_book_review_page") {
           if (window.__rejectReads) return Promise.reject(new Error("reviews rejected"));
           if (status === "pending" && window.__holdPending && !window.__pendingHeld) {
             window.__pendingHeld = true;
             return new Promise((resolve) => {
-              window.__releasePending = () => resolve({ data: reviews.pending, error: null });
+              window.__releasePending = () => resolve({ data: { total: reviews.pending.length, page: 0, rows: reviews.pending }, error: null });
             });
           }
-          return Promise.resolve({ data: reviews[status] || [], error: null });
+          const list = reviews[status] || [];
+          return Promise.resolve({ data: { total: list.length, page: 0, rows: list }, error: null });
         }
-        if (name === "admin_list_book_review_replies") {
+        if (name === "admin_book_review_reply_page") {
           if (window.__rejectReads) return Promise.reject(new Error("replies rejected"));
-          return Promise.resolve({ data: replies[status] || [], error: null });
+          const list = replies[status] || [];
+          return Promise.resolve({ data: { total: list.length, page: 0, rows: list }, error: null });
         }
         return Promise.resolve({ data: null, error: null });
       }
@@ -2012,12 +2045,18 @@ async function installPagedModeration(page) {
     });
     function pageOf(rows, args) {
       const status = args && args.p_status;
+      const query = String((args && args.p_query) || "").trim().toLocaleLowerCase("en");
       let list = rows.filter((row) => row.status === status);
-      list.sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1));
-      if (args && args.p_after) {
-        list = list.filter((row) => row.created_at > args.p_after || (row.created_at === args.p_after && row.id > args.p_after_id));
+      if (query) {
+        list = list.filter((row) => String(row.book_title || "").toLocaleLowerCase("en").indexOf(query) !== -1 || String(row.display_name || "").toLocaleLowerCase("en").indexOf(query) !== -1);
       }
-      return list.slice(0, 100).map((row) => Object.assign({}, row));
+      list.sort((a, b) => a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : (a.id < b.id ? -1 : 1));
+      const total = list.length;
+      let page = Number(args && args.p_page);
+      if (!Number.isInteger(page) || page < 0) page = 0;
+      const last = total === 0 ? 0 : Math.floor((total - 1) / 10);
+      if (page > last) page = last;
+      return { total: total, page: page, rows: list.slice(page * 10, page * 10 + 10).map((row) => Object.assign({}, row)) };
     }
     window.__listCalls = [];
     window.__kutadguSkipAdminAuth = true;
@@ -2027,17 +2066,17 @@ async function installPagedModeration(page) {
         signOut: async () => ({ error: null })
       },
       rpc(name, args) {
-        const kind = name === "admin_list_book_reviews" ? "reviews" : (name === "admin_list_book_review_replies" ? "replies" : "");
+        const kind = name === "admin_book_review_page" ? "reviews" : (name === "admin_book_review_reply_page" ? "replies" : "");
         if (!kind) {
           if (name === "admin_approval_counts") return Promise.resolve({ data: { submissions: 0, reviews: 0, replies: 0 }, error: null });
           return Promise.resolve({ data: null, error: null });
         }
         const snapshot = {
           p_status: args && args.p_status,
-          p_after: args ? args.p_after : null,
-          p_after_id: args ? args.p_after_id : null
+          p_query: args && args.p_query != null ? args.p_query : "",
+          p_page: args && args.p_page != null ? args.p_page : 0
         };
-        window.__listCalls.push({ kind: kind, status: snapshot.p_status, after: snapshot.p_after, afterId: snapshot.p_after_id });
+        window.__listCalls.push({ kind: kind, status: snapshot.p_status, query: snapshot.p_query, page: snapshot.p_page });
         if (kind === "reviews" && window.__delayReview) {
           window.__delayReview = false;
           return new Promise((resolve) => {
@@ -2048,25 +2087,17 @@ async function installPagedModeration(page) {
         if (fail && fail.kind === kind) {
           window.__pageFail = null;
           if (fail.mode === "reject") return Promise.reject(new Error("page rejected"));
+          if (fail.mode === "malformed") return Promise.resolve({ data: { total: "bad", page: 0, rows: [] }, error: null });
           return Promise.resolve({ data: null, error: { message: "page failed" } });
         }
-        const data = pageOf(kind === "reviews" ? reviews : replies, snapshot);
-        if (data.length === 100 && ((kind === "reviews" && window.__blankLastReviewId) || (kind === "replies" && window.__blankLastReplyId))) {
-          if (kind === "reviews") window.__blankLastReviewId = false;
-          else window.__blankLastReplyId = false;
-          data[data.length - 1].id = "";
-        }
-        return Promise.resolve({ data: data, error: null });
+        return Promise.resolve({ data: pageOf(kind === "reviews" ? reviews : replies, snapshot), error: null });
       }
     };
   });
 }
 
-function pageCursor(kind, status, number) {
-  return {
-    after: new Date(Date.UTC(2099, 0, 1, 0, 0, number)).toISOString(),
-    afterId: (kind === "reviews" ? "review-" : "reply-") + status + "-" + String(number).padStart(3, "0")
-  };
+function pageRequest(kind, status, pageIndex) {
+  return { kind: kind, status: status, query: "", page: pageIndex };
 }
 
 async function callsSince(page, kind, start) {
@@ -2078,7 +2109,7 @@ async function callCount(page, kind) {
   return page.evaluate((wanted) => (window.__listCalls || []).filter((row) => row.kind === wanted).length, kind);
 }
 
-test("a failed moderation page keeps the last successful page and retries that cursor", async ({ page }) => {
+test("a failed moderation page keeps the last successful page and retries that page", async ({ page }) => {
   test.setTimeout(90000);
   await installPagedModeration(page);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -2089,25 +2120,25 @@ test("a failed moderation page keeps the last successful page and retries that c
   const reviewPrev = reviewList.getByRole("button", { name: "ئالدىنقى بەت" });
   const replyNext = replyList.getByRole("button", { name: "كېيىنكى بەت" });
   const replyPrev = replyList.getByRole("button", { name: "ئالدىنقى بەت" });
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
-  await expect(page.locator(".admin-reply-item")).toHaveCount(100);
-  const pendingReviewCursor = pageCursor("reviews", "pending", 100);
-  const pendingReplyCursor = pageCursor("replies", "pending", 100);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
+  await expect(reviewPrev).toBeDisabled();
+  await expect(reviewNext).toBeEnabled();
 
   const beforeFailedNext = await callCount(page, "reviews");
   await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "error" }; });
   await reviewNext.click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-100$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await expect(reviewPrev).toHaveCount(0);
-  await expect(reviewNext).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-10$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
+  await expect(reviewPrev).toBeDisabled();
+  await expect(reviewNext).toBeEnabled();
   await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-101" })).toHaveCount(0);
+  await expect(page.locator("#bookReviewRetry")).toBeVisible();
   const failedNext = await callsSince(page, "reviews", beforeFailedNext);
-  expect(failedNext).toEqual([{ kind: "reviews", status: "pending", after: pendingReviewCursor.after, afterId: pendingReviewCursor.afterId }]);
+  expect(failedNext).toEqual([pageRequest("reviews", "pending", 1)]);
 
   for (const viewport of [
     { width: 1280, height: 900, dark: false },
@@ -2119,7 +2150,7 @@ test("a failed moderation page keeps the last successful page and retries that c
     await page.evaluate((dark) => document.body.classList.toggle("dark-mode", dark), viewport.dark);
     await expect(page.locator("#bookReviewModerationStatus")).toBeVisible();
     await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-    await expect(reviewNext).toBeVisible();
+    await expect(reviewNext).toBeEnabled();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     expect(overflow).toBe(false);
   }
@@ -2127,139 +2158,137 @@ test("a failed moderation page keeps the last successful page and retries that c
   await page.setViewportSize({ width: 1280, height: 900 });
 
   const beforeRetry = await callCount(page, "reviews");
-  await reviewNext.click();
+  await page.locator("#bookReviewRetry").click();
   const retried = await callsSince(page, "reviews", beforeRetry);
-  expect(retried).toEqual([{ kind: "reviews", status: "pending", after: pendingReviewCursor.after, afterId: pendingReviewCursor.afterId }]);
-  await expect(page.locator(".admin-review-item")).toHaveCount(5);
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-105$/ })).toBeVisible();
+  expect(retried).toEqual([pageRequest("reviews", "pending", 1)]);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-20$/ })).toBeVisible();
   await expect(page.locator("#bookReviewModerationList .admin-review-body", { hasText: /^باھا-pending-1$/ })).toHaveCount(0);
-  await expect(reviewPrev).toBeVisible();
-  await expect(reviewNext).toHaveCount(0);
+  await expect(reviewPrev).toBeEnabled();
+  await expect(reviewNext).toBeEnabled();
   const pageTwoBodies = await page.locator("#bookReviewModerationList .admin-review-body").allTextContents();
   expect(new Set(pageTwoBodies).size).toBe(pageTwoBodies.length);
-  expect(pageTwoBodies).toEqual(["باھا-pending-101", "باھا-pending-102", "باھا-pending-103", "باھا-pending-104", "باھا-pending-105"]);
+  expect(pageTwoBodies).toEqual(["باھا-pending-11", "باھا-pending-12", "باھا-pending-13", "باھا-pending-14", "باھا-pending-15", "باھا-pending-16", "باھا-pending-17", "باھا-pending-18", "باھا-pending-19", "باھا-pending-20"]);
 
   const beforeFailedPrev = await callCount(page, "reviews");
   await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "reject" }; });
   await reviewPrev.click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
   await expect(page.locator("#bookReviewModerationList .admin-review-body", { hasText: /^باھا-pending-1$/ })).toHaveCount(0);
-  await expect(reviewPrev).toBeVisible();
-  await expect(reviewNext).toHaveCount(0);
+  await expect(reviewPrev).toBeEnabled();
+  await expect(reviewNext).toBeEnabled();
   const failedPrev = await callsSince(page, "reviews", beforeFailedPrev);
-  expect(failedPrev).toEqual([{ kind: "reviews", status: "pending", after: null, afterId: null }]);
-  await reviewPrev.click();
+  expect(failedPrev).toEqual([pageRequest("reviews", "pending", 0)]);
+  await page.locator("#bookReviewRetry").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-100$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-10$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
   const pageOneBodies = await page.locator("#bookReviewModerationList .admin-review-body").allTextContents();
   expect(pageOneBodies.filter((body) => pageTwoBodies.includes(body))).toEqual([]);
-  expect(new Set(pageOneBodies.concat(pageTwoBodies)).size).toBe(105);
+  expect(new Set(pageOneBodies.concat(pageTwoBodies)).size).toBe(20);
 
   await reviewNext.click();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
   const beforeReplyFail = await callCount(page, "replies");
   const beforeReviewRefresh = await callCount(page, "reviews");
   await page.evaluate(() => { window.__pageFail = { kind: "replies", mode: "reject" }; });
   await replyNext.click();
   await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
-  await expect(page.locator(".admin-reply-item")).toHaveCount(100);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
   await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-101" })).toHaveCount(0);
-  await expect(replyPrev).toHaveCount(0);
-  await expect(replyNext).toBeVisible();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item")).toHaveCount(5);
+  await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-pending-11" })).toHaveCount(0);
+  await expect(replyPrev).toBeDisabled();
+  await expect(replyNext).toBeEnabled();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
   const failedReplyNext = await callsSince(page, "replies", beforeReplyFail);
-  expect(failedReplyNext).toEqual([{ kind: "replies", status: "pending", after: pendingReplyCursor.after, afterId: pendingReplyCursor.afterId }]);
+  expect(failedReplyNext).toEqual([pageRequest("replies", "pending", 1)]);
   const reviewWhileReplyFailed = await callsSince(page, "reviews", beforeReviewRefresh);
-  expect(reviewWhileReplyFailed).toEqual([{ kind: "reviews", status: "pending", after: pendingReviewCursor.after, afterId: pendingReviewCursor.afterId }]);
+  expect(reviewWhileReplyFailed).toEqual([pageRequest("reviews", "pending", 1)]);
 
-  await replyNext.click();
-  await expect(page.locator(".admin-reply-item")).toHaveCount(5);
-  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
-  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
+  await page.locator("#bookReviewReplyRetry").click();
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-11$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-20$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
   const replyPageTwo = await page.locator("#bookReviewReplyList .admin-review-body").allTextContents();
-  expect(replyPageTwo).toEqual(["جاۋاب-pending-101", "جاۋاب-pending-102", "جاۋاب-pending-103", "جاۋاب-pending-104", "جاۋاب-pending-105"]);
+  expect(replyPageTwo).toEqual(["جاۋاب-pending-11", "جاۋاب-pending-12", "جاۋاب-pending-13", "جاۋاب-pending-14", "جاۋاب-pending-15", "جاۋاب-pending-16", "جاۋاب-pending-17", "جاۋاب-pending-18", "جاۋاب-pending-19", "جاۋاب-pending-20"]);
 
   await page.evaluate(() => { window.__pageFail = { kind: "replies", mode: "error" }; });
   await replyPrev.click();
   await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
-  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-105$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-11$/ })).toBeVisible();
   await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toHaveCount(0);
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-101$/ })).toBeVisible();
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-11$/ })).toBeVisible();
   await replyPrev.click();
   await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-item")).toHaveCount(100);
-  await expect(page.locator(".admin-review-item")).toHaveCount(5);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
   const replyPageOne = await page.locator("#bookReviewReplyList .admin-review-body").allTextContents();
   expect(replyPageOne.filter((body) => replyPageTwo.includes(body))).toEqual([]);
-  expect(new Set(replyPageOne.concat(replyPageTwo)).size).toBe(105);
+  expect(new Set(replyPageOne.concat(replyPageTwo)).size).toBe(20);
 
   await reviewPrev.click();
   await replyNext.click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-11$/ })).toBeVisible();
   await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "error" }; });
   await reviewNext.click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-101$/ })).toBeVisible();
-  await expect(page.locator(".admin-reply-item")).toHaveCount(5);
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
+  await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-pending-11$/ })).toBeVisible();
+  await expect(page.locator(".admin-reply-item")).toHaveCount(10);
 
   for (const status of ["approved", "rejected"]) {
     await page.locator(".admin-review-filters button[data-review-status='" + status + "']").click();
-    await expect(page.locator(".admin-review-item")).toHaveCount(100);
-    await expect(page.locator(".admin-reply-item")).toHaveCount(100);
-    const reviewCursor = pageCursor("reviews", status, 100);
-    const replyCursor = pageCursor("replies", status, 100);
+    await expect(page.locator(".admin-review-item")).toHaveCount(10);
+    await expect(page.locator(".admin-reply-item")).toHaveCount(10);
     const reviewMark = await callCount(page, "reviews");
     await page.evaluate((mode) => { window.__pageFail = { kind: "reviews", mode: mode }; }, status === "approved" ? "error" : "reject");
     await reviewNext.click();
     await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
     await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-1$") })).toBeVisible();
-    await expect(page.locator(".admin-review-item", { hasText: "باھا-" + status + "-101" })).toHaveCount(0);
-    expect(await callsSince(page, "reviews", reviewMark)).toEqual([{ kind: "reviews", status: status, after: reviewCursor.after, afterId: reviewCursor.afterId }]);
+    await expect(page.locator(".admin-review-item", { hasText: "باھا-" + status + "-11" })).toHaveCount(0);
+    expect(await callsSince(page, "reviews", reviewMark)).toEqual([pageRequest("reviews", status, 1)]);
     await reviewNext.click();
-    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-101$") })).toBeVisible();
-    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-105$") })).toBeVisible();
-    await expect(page.locator(".admin-review-item")).toHaveCount(5);
+    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-11$") })).toBeVisible();
+    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-20$") })).toBeVisible();
+    await expect(page.locator(".admin-review-item")).toHaveCount(10);
     const replyMark = await callCount(page, "replies");
     await page.evaluate((mode) => { window.__pageFail = { kind: "replies", mode: mode }; }, status === "approved" ? "reject" : "error");
     await replyNext.click();
     await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى.");
     await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-1$") })).toBeVisible();
-    await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-" + status + "-101" })).toHaveCount(0);
-    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-105$") })).toBeVisible();
-    expect(await callsSince(page, "replies", replyMark)).toEqual([{ kind: "replies", status: status, after: replyCursor.after, afterId: replyCursor.afterId }]);
+    await expect(page.locator(".admin-reply-item", { hasText: "جاۋاب-" + status + "-11" })).toHaveCount(0);
+    await expect(page.locator(".admin-review-body", { hasText: new RegExp("^باھا-" + status + "-11$") })).toBeVisible();
+    expect(await callsSince(page, "replies", replyMark)).toEqual([pageRequest("replies", status, 1)]);
     await replyNext.click();
-    await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-105$") })).toBeVisible();
-    await expect(page.locator(".admin-reply-item")).toHaveCount(5);
-    await expect(page.locator(".admin-review-item")).toHaveCount(5);
+    await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: new RegExp("^جاۋاب-" + status + "-11$") })).toBeVisible();
+    await expect(page.locator(".admin-reply-item")).toHaveCount(10);
+    await expect(page.locator(".admin-review-item")).toHaveCount(10);
   }
 });
 
-test("a missing later cursor is not reloaded as the first page", async ({ page }) => {
+test("a malformed review page keeps the current rows and retries the same page index", async ({ page }) => {
   await installPagedModeration(page);
   await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
-  await page.evaluate(() => { window.__blankLastReviewId = true; });
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await page.evaluate(() => { window.__pageFail = { kind: "reviews", mode: "malformed" }; });
   await page.locator(".admin-review-filters button[data-review-status='rejected']").click();
-  await expect(page.locator(".admin-review-body", { hasText: /^باھا-rejected-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
-  const before = await callCount(page, "reviews");
-  await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
   await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
+  await expect(page.locator("#bookReviewModerationStatus")).not.toHaveText("بۇ ھالەتتە ئىنكاس يوق.");
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toContainText("جەمئىي 105 ئىنكاس");
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
+  const before = await callCount(page, "reviews");
+  await page.locator("#bookReviewRetry").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-rejected-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
-  expect(await callCount(page, "reviews")).toBe(before);
-  await page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" }).click();
-  expect(await callCount(page, "reviews")).toBe(before);
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-rejected-101" })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-rejected-11" })).toHaveCount(0);
+  expect(await callsSince(page, "reviews", before)).toEqual([pageRequest("reviews", "rejected", 0)]);
 });
 
 test("a delayed moderation page does not land after a filter change, idle lock, or sign-out", async ({ page }) => {
@@ -2273,15 +2302,15 @@ test("a delayed moderation page does not land after a filter change, idle lock, 
   await expect.poll(() => page.evaluate(() => typeof window.__releaseReview === "function")).toBe(true);
   await page.locator(".admin-review-filters button[data-review-status='approved']").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-approved-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
   await page.evaluate(() => window.__releaseReview());
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-approved-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
   await expect(page.locator("#bookReviewReplyList .admin-review-body", { hasText: /^جاۋاب-approved-1$/ })).toBeVisible();
   await page.locator(".admin-review-filters button[data-review-status='pending']").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-101" })).toHaveCount(0);
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
+  await expect(page.locator(".admin-review-item", { hasText: "باھا-pending-11" })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
 
   await page.evaluate(() => { window.__delayReview = true; });
   await reviewList.getByRole("button", { name: "كېيىنكى بەت" }).click();
@@ -2294,7 +2323,7 @@ test("a delayed moderation page does not land after a filter change, idle lock, 
   await expect(page.locator(".admin-reply-item")).toHaveCount(0);
   await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = true; });
   await page.locator(".admin-review-filters button[data-review-status='pending']").click();
-  await expect(page.locator(".admin-review-item")).toHaveCount(100);
+  await expect(page.locator(".admin-review-item")).toHaveCount(10);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 800 });
