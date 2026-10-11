@@ -5113,7 +5113,7 @@ function loadMemberSystem(){
   if(window.KutadguMember)return;
   if(document.querySelector('script[data-kutadgu-member-script],script[src*="member.js"]'))return;
   const script=document.createElement("script");
-        script.src="/member.js?v=29";script.async=false;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=30";script.async=false;script.dataset.kutadguMemberScript="1";
   (document.body||document.documentElement).appendChild(script);
 }
 function refreshAfterMemberSync(){

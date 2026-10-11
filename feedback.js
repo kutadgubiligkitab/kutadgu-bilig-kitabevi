@@ -24,6 +24,7 @@
 
   var receipt = null;
   var epoch = 0;
+  var sendSeq = 0;
   var userId = "";
   var authUserId = "";
   var sending = false;
@@ -116,6 +117,11 @@
     if (count) count.textContent = groupedCount(length) + " / 2,000";
   }
 
+  function invalidateSend() {
+    sendSeq += 1;
+    sending = false;
+  }
+
   function clearDraft() {
     receipt = null;
     sending = false;
@@ -133,6 +139,7 @@
   }
 
   function forgetPrivate() {
+    invalidateSend();
     epoch += 1;
     userId = "";
     contextReady = false;
@@ -153,6 +160,7 @@
   }
 
   function showSuspended() {
+    invalidateSend();
     suspendedLock = true;
     epoch += 1;
     contextReady = false;
@@ -164,6 +172,7 @@
   }
 
   function beginSignOut() {
+    invalidateSend();
     epoch += 1;
     signingOut = true;
     contextReady = false;
@@ -177,6 +186,7 @@
     if (usingSeam()) return;
     var next = id ? String(id) : "";
     if (next && next === authUserId && contextReady && !signingOut && !suspendedLock) return;
+    invalidateSend();
     var changed = next !== authUserId;
     authUserId = next;
     contextReady = false;
@@ -277,13 +287,11 @@
   }
 
   function finishSend(snapshot) {
-    var stale = snapshot.epoch !== epoch;
+    if (!snapshot || snapshot.sendSeq !== sendSeq) return false;
     sending = false;
     var button = node("feedbackSubmit");
     if (button) button.disabled = !established();
-    if (!stale) return;
-    var status = node("feedbackStatus");
-    if (established() && status && status.textContent === SENDING_MESSAGE) setStatus("");
+    return true;
   }
 
   function stillCurrent(snapshot) {
@@ -294,7 +302,8 @@
 
   async function submitFeedback(event) {
     if (event && typeof event.preventDefault === "function") event.preventDefault();
-    if (sending || signingOut || !established()) {
+    if (sending) return;
+    if (signingOut || !established()) {
       if (suspendedLock) showSuspended();
       else if (!authUserId && !userId && !signingOut) showGuest();
       else {
@@ -314,7 +323,8 @@
     if (field) field.removeAttribute("aria-invalid");
     if (!established()) return;
     receipt = nextReceipt(receipt, normalized.body);
-    var snapshot = { epoch: epoch, userId: userId, authUserId: authUserId, id: receipt.id, body: normalized.body };
+    sendSeq += 1;
+    var snapshot = { epoch: epoch, userId: userId, authUserId: authUserId, id: receipt.id, body: normalized.body, sendSeq: sendSeq };
     var api = memberApi();
     var client = api && api.getClient ? api.getClient() : null;
     if (!client || typeof client.rpc !== "function") {
@@ -328,14 +338,14 @@
     setHidden(node("feedbackRetry"), true);
     setStatus(SENDING_MESSAGE);
     if (!established()) {
-      sending = false;
+      finishSend(snapshot);
       return;
     }
     var result;
     try {
       result = await client.rpc("submit_website_feedback", { p_id: snapshot.id, p_body: snapshot.body });
     } catch (error) {
-      finishSend(snapshot);
+      if (!finishSend(snapshot)) return;
       if (!stillCurrent(snapshot)) return;
       if (errorText(error) === SUSPENDED_MESSAGE) {
         showSuspended();
@@ -345,7 +355,7 @@
       setStatus(errorText(error));
       return;
     }
-    finishSend(snapshot);
+    if (!finishSend(snapshot)) return;
     if (!stillCurrent(snapshot)) return;
     if (!result || result.error) {
       var code = String(result && result.error && result.error.code || "");

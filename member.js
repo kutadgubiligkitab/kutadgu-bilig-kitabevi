@@ -1012,52 +1012,15 @@ async function signInWithGoogle(){
   if(error)throw error;
   return data;
 }
-function rememberSignOutContext(){
-  let display=null;
-  try{display=localStorage.getItem(CART_DISPLAY_KEY)}catch(e){}
-  return {
-    user,profile,blocked,
-    ready:shopStateReadyUserId,
-    preMerge:preMergeSnapshot,
-    local:readLocalCartFav(),
-    display,
-    owner:readShopOwner(),
-    lock:readMergeLock()
-  };
-}
-function restoreRejectedSignOut(kept){
-  user=kept.user;
-  profile=kept.profile;
-  blocked=kept.blocked;
-  shopStateReadyUserId=kept.ready;
-  preMergeSnapshot=kept.preMerge;
-  try{
-    localStorage.setItem(CART_KEY,JSON.stringify(kept.local.cart));
-    localStorage.setItem(FAV_KEY,JSON.stringify(kept.local.fav));
-    if(kept.display==null)localStorage.removeItem(CART_DISPLAY_KEY);
-    else localStorage.setItem(CART_DISPLAY_KEY,kept.display);
-  }catch(e){}
-  writeShopOwner(kept.owner);
-  writeMergeLock(kept.lock);
-}
 async function signOut(){
   if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
-  const kept=rememberSignOutContext();
   const pending=abandonMemberShopSync();
   previewShopDebug("sign-out",{
     owner:idSuffix(readShopOwner()),
     localCart:Array.isArray(safeJson(CART_KEY,[]))?safeJson(CART_KEY,[]).length:0,
     liveUser:idSuffix(user&&user.id)
   });
-  if(db){
-    try{await db.auth.signOut({scope:"local"})}
-    catch(err){
-      restoreRejectedSignOut(kept);
-      if(pending)try{await pending}catch(e){}
-      renderButton();emit();
-      throw err;
-    }
-  }
+  if(db)await db.auth.signOut({scope:"local"});
   if(pending)try{await pending}catch(e){}
   user=null;profile=null;blocked=false;
   if(!user){
