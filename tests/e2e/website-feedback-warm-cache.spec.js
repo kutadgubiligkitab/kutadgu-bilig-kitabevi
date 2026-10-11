@@ -1,10 +1,25 @@
 const { execFileSync } = require("child_process");
 const { test, expect } = require("@playwright/test");
 
+const mainSha = "b6d0aa793f814934110e5d51dfb99b4236a7f5fd";
 const reviewed = "574ec9f33229e5f356be0afe3e32c647ecb9393f";
-const oldShopMain = execFileSync("git", ["show", "origin/main:shop.js"]);
-const oldShopReviewed = execFileSync("git", ["show", reviewed + ":shop.js"]);
-const oldMember = execFileSync("git", ["show", reviewed + ":member.js"]);
+
+function gitShow(spec) {
+  try {
+    return execFileSync("git", ["show", spec]);
+  } catch (error) {
+    const colon = spec.indexOf(":");
+    const rev = spec.slice(0, colon);
+    const file = spec.slice(colon + 1);
+    const sha = rev === "origin/main" ? mainSha : rev;
+    execFileSync("git", ["fetch", "--depth=1", "origin", sha], { stdio: "inherit" });
+    return execFileSync("git", ["show", sha + ":" + file]);
+  }
+}
+
+const oldShopMain = gitShow("origin/main:shop.js");
+const oldShopReviewed = gitShow(reviewed + ":shop.js");
+const oldMember = gitShow(reviewed + ":member.js");
 
 function fulfill(body) {
   return (route) => route.fulfill({
