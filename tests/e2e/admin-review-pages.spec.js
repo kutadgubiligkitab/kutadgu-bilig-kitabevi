@@ -793,3 +793,125 @@ test("a retained list cannot mutate or offer a retry that does nothing", async (
   await expect(page.locator(".admin-reply-actions button").first()).toBeDisabled();
   await page.evaluate(() => { if (window.__releaseReviewRead) window.__releaseReviewRead(); });
 });
+
+const REVIEW_EMPTY = "بۇ ھالەتتە ئىنكاس يوق.";
+const REPLY_EMPTY = "بۇ ھالەتتە جاۋاب يوق.";
+const REVIEW_SEARCH_EMPTY = "بۇ ئىزدەشكە ماس ئىنكاس تېپىلمىدى.";
+const REPLY_SEARCH_EMPTY = "بۇ ئىزدەشكە ماس جاۋاب تېپىلمىدى.";
+
+test("each empty review sentence is announced once", async ({ page }) => {
+  await installReviewPages(page, { reviews: rows(1, "باھا", "pending"), replies: rows(1, "جاۋاب", "pending") });
+  await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(1);
+  for (const viewport of [
+    { width: 390, height: 800 },
+    { width: 768, height: 900 },
+    { width: 1280, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(REPLY_EMPTY, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(REVIEW_SEARCH_EMPTY, { exact: true })).toHaveCount(0);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+    expect(overflow).toBe(false);
+  }
+
+  await page.locator("#bookReviewSearch").fill("يوقسۆز");
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveAttribute("role", "status");
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveAttribute("role", "status");
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText(REVIEW_SEARCH_EMPTY);
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText(REPLY_SEARCH_EMPTY);
+  await expect(page.getByText(REVIEW_SEARCH_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.getByText(REPLY_SEARCH_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.locator("#bookReviewModerationList > p.admin-help")).toHaveCount(0);
+  await expect(page.locator("#bookReviewReplyList > p.admin-help")).toHaveCount(0);
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toHaveText("جەمئىي 0 ئىنكاس");
+  await expect(page.locator("#bookReviewReplyList .admin-review-total")).toHaveText("جەمئىي 0 جاۋاب");
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewReplyList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewReplyList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+
+  await page.evaluate(() => { window.__reviewReadError = true; window.__replyReadError = true; });
+  await page.locator("#bookReviewSearch").fill("");
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(REVIEW_SEARCH_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toHaveText("جەمئىي 0 ئىنكاس");
+  await expect(page.locator("#bookReviewRetry")).toBeEnabled();
+  await page.evaluate(() => { window.__reviewReadError = false; window.__replyReadError = false; });
+  await page.locator("#bookReviewRetry").click();
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+  await page.evaluate(() => { window.__reviewReadError = true; });
+  await page.locator(".admin-review-filters button[data-review-status='pending']").click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى.");
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  await page.evaluate(() => { window.__reviewReadError = false; });
+  await page.locator(".admin-review-filters button[data-review-status='pending']").click();
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+
+  await page.evaluate(() => { window.__reviewReadError = true; window.__replyReadError = true; });
+  await page.locator(".admin-review-filters button[data-review-status='rejected']").click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاسلار يۈكلەنمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋابلار يۈكلەنمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(REPLY_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  await expect(page.locator(".admin-review-item").getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await expect(page.locator(".admin-reply-item").getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await page.evaluate(() => { window.__reviewReadError = false; window.__replyReadError = false; });
+  await page.locator(".admin-review-filters button[data-review-status='pending']").click();
+  await expect(page.locator(".admin-review-item").getByRole("button", { name: "تەستىقلاش" })).toBeEnabled();
+
+  await page.locator(".admin-review-filters button[data-review-status='approved']").click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText(REVIEW_EMPTY);
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText(REPLY_EMPTY);
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.getByText(REPLY_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.locator("#bookReviewModerationList > p.admin-help")).toHaveCount(0);
+  await expect(page.locator("#bookReviewReplyList > p.admin-help")).toHaveCount(0);
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toHaveText("جەمئىي 0 ئىنكاس");
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+
+  await page.locator(".admin-review-filters button[data-review-status='pending']").click();
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  await page.evaluate(() => { window.__armSessionAfterWrite("throw"); });
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس تەستىقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(0);
+  await expect(page.locator("#bookReviewRetry")).toBeEnabled();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  const writes = await page.evaluate(() => window.__reviewWrites.filter((row) => row.name === "moderate_book_review").length);
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate(() => window.__reviewWrites.filter((row) => row.name === "moderate_book_review").length)).toBe(writes);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator(".admin-review-item")).toHaveCount(1);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" }).click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس ئۆچۈرۈلدى.");
+  await expect(page.getByText(REVIEW_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.locator("#bookReviewModerationList > p.admin-help")).toHaveText(REVIEW_EMPTY);
+  await expect(page.locator("#bookReviewModerationList .admin-review-total")).toHaveText("جەمئىي 0 ئىنكاس");
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await expect(page.locator(".admin-review-item")).toHaveCount(0);
+  await expect(page.locator(".admin-reply-item")).toHaveCount(1);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" }).click();
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋاب ئۆچۈرۈلدى.");
+  await expect(page.getByText(REPLY_EMPTY, { exact: true })).toHaveCount(1);
+  await expect(page.locator("#bookReviewReplyList > p.admin-help")).toHaveText(REPLY_EMPTY);
+  await expect(page.locator("#bookReviewReplyList .admin-review-total")).toHaveText("جەمئىي 0 جاۋاب");
+  await expect(page.locator("#bookReviewReplyList").getByRole("button", { name: "ئالدىنقى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewReplyList").getByRole("button", { name: "كېيىنكى بەت" })).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس ئۆچۈرۈلدى.");
+});
