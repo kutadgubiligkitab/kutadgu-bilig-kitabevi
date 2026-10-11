@@ -29,6 +29,7 @@
   let activeLoads = 0;
   const listGeneration = { reviews: 0, replies: 0 };
   const frozen = { reviews: false, replies: false };
+  const protectedNote = { reviews: "", replies: "" };
   const view = { reviews: 0, replies: 0 };
   const committed = { reviews: null, replies: null };
   const failed = { reviews: null, replies: null };
@@ -225,6 +226,15 @@
     return !!(saved && selectedStatus() === saved.status && searchValue() === saved.query);
   }
 
+  function actionsLocked(kind) {
+    if (frozen[kind] || searchTimer) return true;
+    return !contextMatches(committed[kind]);
+  }
+
+  function mutationOpen(kind) {
+    return !actionsLocked(kind);
+  }
+
   function rememberFailure(kind, requested, page) {
     failed[kind] = { status: requested.status, query: requested.query, page: page };
   }
@@ -240,6 +250,7 @@
     };
     frozen[kind] = false;
     failed[kind] = null;
+    protectedNote[kind] = "";
   }
 
   function pagerButton(label, disabled, onClick) {
@@ -262,7 +273,8 @@
     const problem = failed[kind];
     const showing = saved;
     if (statusEl) {
-      if (problem) statusEl.textContent = failureCopy(kind, problem, saved);
+      if (protectedNote[kind]) statusEl.textContent = protectedNote[kind];
+      else if (problem) statusEl.textContent = failureCopy(kind, problem, saved);
       else if (!saved || !saved.total) statusEl.textContent = emptyCopy(kind, requested.query);
       else statusEl.textContent = "";
     }
@@ -315,7 +327,7 @@
       if (kind === "reviews") remove.addEventListener("click", () => removeReview(row, remove));
       else remove.addEventListener("click", () => removeReply(row, remove));
       actions.append(remove);
-      if (frozen[kind]) {
+      if (actionsLocked(kind)) {
         approve.disabled = true;
         reject.disabled = true;
         remove.disabled = true;
@@ -329,6 +341,7 @@
       retry.id = kind === "reviews" ? "bookReviewRetry" : "bookReviewReplyRetry";
       retry.className = "admin-secondary";
       retry.textContent = "قايتا سىناش";
+      retry.disabled = !!(searchTimer || selectedStatus() !== problem.status || searchValue() !== problem.query);
       retry.addEventListener("click", () => retryRead(kind));
       list.appendChild(retry);
     }
@@ -377,6 +390,8 @@
     decisionLock = false;
     frozen.reviews = false;
     frozen.replies = false;
+    protectedNote.reviews = "";
+    protectedNote.replies = "";
     clearTimeout(searchTimer);
     searchTimer = 0;
     lockedQuery = "";
@@ -546,7 +561,7 @@
   function releaseDecision(epoch, buttons, kind) {
     if (epoch !== decisionEpoch) return;
     decisionLock = false;
-    if (frozen[kind]) return;
+    if (actionsLocked(kind)) return;
     buttons.forEach((button) => {
       if (button && button.isConnected) button.disabled = false;
     });
@@ -563,6 +578,15 @@
     document.querySelectorAll(selector.join(",")).forEach((button) => {
       button.disabled = true;
     });
+  }
+
+  function protectConfirmed(kinds, message) {
+    kinds.forEach((kind) => {
+      frozen[kind] = true;
+      protectedNote[kind] = message;
+      invalidateKind(kind);
+    });
+    freezeLists(kinds);
   }
 
   function showRefreshFailure(affected, message) {
@@ -616,7 +640,7 @@
   }
 
   async function decide(reviewId, decision, approve, reject) {
-    if (decisionLock || frozen.reviews) return;
+    if (decisionLock || !mutationOpen("reviews")) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -641,7 +665,7 @@
       const error = result && result.error;
       if (!error) {
         confirmed = true;
-        invalidateKind("reviews");
+        protectConfirmed(["reviews"], refreshMessage);
         const gate = await sessionGate(epoch, before, db);
         if (gate === "stale") return;
         if (gate === "auth") {
@@ -672,7 +696,7 @@
     } catch (error) {
       if (epoch !== decisionEpoch) return;
       if (confirmed) {
-        showRefreshFailure("reviews", refreshMessage);
+        if (frozen.reviews) showRefreshFailure("reviews", refreshMessage);
         return;
       }
       setStatus(DENIED_MESSAGE);
@@ -688,7 +712,7 @@
   }
 
   async function removeReview(row, button) {
-    if (decisionLock || frozen.reviews) return;
+    if (decisionLock || !mutationOpen("reviews")) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -727,8 +751,7 @@
       const error = thrown || (result && result.error);
       if (!error) {
         announced = true;
-        invalidateKind("reviews");
-        invalidateKind("replies");
+        protectConfirmed(["reviews", "replies"], REVIEW_DELETE_REFRESH);
         const gate = await sessionGate(epoch, before, db);
         if (gate === "stale") return;
         if (gate === "auth") {
@@ -768,8 +791,7 @@
       if (epoch !== decisionEpoch) return;
       if (exists === false) {
         announced = true;
-        invalidateKind("reviews");
-        invalidateKind("replies");
+        protectConfirmed(["reviews", "replies"], REVIEW_DELETE_REFRESH);
         const refreshed = await refreshAfterWrite(epoch, "both");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
@@ -788,14 +810,18 @@
       setStatus(UNCERTAIN_MESSAGE);
     } catch (error) {
       if (epoch !== decisionEpoch) return;
-      if (!announced) setStatus(UNCERTAIN_MESSAGE);
+      if (announced) {
+        if (frozen.reviews || frozen.replies) showRefreshFailure("both", REVIEW_DELETE_REFRESH);
+        return;
+      }
+      setStatus(UNCERTAIN_MESSAGE);
     } finally {
       releaseDecision(epoch, [button], "reviews");
     }
   }
 
   async function decideReply(replyId, decision, approve, reject) {
-    if (decisionLock || frozen.replies) return;
+    if (decisionLock || !mutationOpen("replies")) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -820,7 +846,7 @@
       const error = result && result.error;
       if (!error) {
         confirmed = true;
-        invalidateKind("replies");
+        protectConfirmed(["replies"], refreshMessage);
         const gate = await sessionGate(epoch, before, db);
         if (gate === "stale") return;
         if (gate === "auth") {
@@ -852,7 +878,7 @@
     } catch (error) {
       if (epoch !== decisionEpoch) return;
       if (confirmed) {
-        showRefreshFailure("replies", refreshMessage);
+        if (frozen.replies) showRefreshFailure("replies", refreshMessage);
         return;
       }
       setStatus(DENIED_MESSAGE);
@@ -868,7 +894,7 @@
   }
 
   async function removeReply(row, button) {
-    if (decisionLock || frozen.replies) return;
+    if (decisionLock || !mutationOpen("replies")) return;
     const db = client();
     if (!db || typeof db.rpc !== "function") {
       setStatus(DENIED_MESSAGE);
@@ -907,7 +933,7 @@
       const error = thrown || (result && result.error);
       if (!error) {
         announced = true;
-        invalidateKind("replies");
+        protectConfirmed(["replies"], REPLY_DELETE_REFRESH);
         const gate = await sessionGate(epoch, before, db);
         if (gate === "stale") return;
         if (gate === "auth") {
@@ -949,7 +975,7 @@
       if (epoch !== decisionEpoch) return;
       if (exists === false) {
         announced = true;
-        invalidateKind("replies");
+        protectConfirmed(["replies"], REPLY_DELETE_REFRESH);
         const refreshed = await refreshAfterWrite(epoch, "replies");
         if (refreshed.stale || epoch !== decisionEpoch) return;
         if (!refreshed.ok) {
@@ -970,7 +996,11 @@
       setStatus(UNCERTAIN_MESSAGE);
     } catch (error) {
       if (epoch !== decisionEpoch) return;
-      if (!announced) setStatus(UNCERTAIN_MESSAGE);
+      if (announced) {
+        if (frozen.replies) showRefreshFailure("replies", REPLY_DELETE_REFRESH);
+        return;
+      }
+      setStatus(UNCERTAIN_MESSAGE);
     } finally {
       releaseDecision(epoch, [button], "replies");
     }
@@ -982,12 +1012,19 @@
     });
   }
 
+  function blockActions() {
+    document.querySelectorAll(".admin-review-actions button, .admin-reply-actions button, #bookReviewRetry, #bookReviewReplyRetry").forEach((button) => {
+      button.disabled = true;
+    });
+  }
+
   function armSearch() {
     invalidateShared();
     clearTimeout(searchTimer);
     view.reviews = 0;
     view.replies = 0;
     blockPager();
+    blockActions();
     searchTimer = setTimeout(() => {
       searchTimer = 0;
       load();
@@ -1010,6 +1047,7 @@
       view.reviews = 0;
       view.replies = 0;
       blockPager();
+      blockActions();
       load();
     });
   }
@@ -1037,6 +1075,8 @@
       searchTimer = 0;
       view.reviews = 0;
       view.replies = 0;
+      blockPager();
+      blockActions();
       load();
     });
   }

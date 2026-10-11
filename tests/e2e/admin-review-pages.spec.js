@@ -629,3 +629,167 @@ test("a confirmed write survives a rejected session read and is not sent again",
     expect(overflow).toBe(false);
   }
 });
+
+async function showReviewSurface(page) {
+  await page.evaluate(() => {
+    let state = "visible";
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    window.__setReviewVisibility = (value) => {
+      state = value;
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    window.__setReviewVisibility("hidden");
+    window.__setReviewVisibility("visible");
+  });
+}
+
+test("a superseded refresh keeps the confirmed review protected", async ({ page }) => {
+  await installReviewPages(page, { reviews: rows(4, "باھا", "pending"), replies: rows(3, "جاۋاب", "pending") });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  const reviewId = await page.locator(".admin-review-item").first().getAttribute("data-review-id");
+  await page.evaluate(() => { window.__reviewHold = true; });
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click();
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseReviewRead === "function")).toBe(true);
+  await page.evaluate(() => { window.__reviewReadFail = true; });
+  await showReviewSurface(page);
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس تەستىقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await page.evaluate(() => window.__releaseReviewRead());
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس تەستىقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await expect(page.locator("#bookReviewModerationStatus")).not.toHaveText("بۇ مەشغۇلاتقا ئىجازەت يوق.");
+  await expect(page.locator(".admin-review-item").first()).toHaveAttribute("data-review-id", reviewId);
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate(() => window.__reviewWrites.filter((row) => row.name === "moderate_book_review").length)).toBe(1);
+  await page.evaluate(() => { window.__reviewReadFail = false; });
+  const beforeRetry = (await pageReads(page, "admin_book_review_page")).length;
+  await page.locator("#bookReviewRetry").click();
+  expect((await pageReads(page, "admin_book_review_page")).slice(beforeRetry)).toEqual([{ status: "pending", query: "", page: 0 }]);
+  await expect(page.locator(".admin-review-item[data-review-id='" + reviewId + "']")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__reviewWrites.filter((row) => row.name === "moderate_book_review").length)).toBe(1);
+
+  const replyId = await page.locator(".admin-reply-item").first().getAttribute("data-reply-id");
+  await page.evaluate(() => { window.__replyHold = true; });
+  await page.locator(".admin-reply-item").first().getByRole("button", { name: "رەت قىلىش" }).click();
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseReplyRead === "function")).toBe(true);
+  await page.evaluate(() => { window.__replyReadError = true; });
+  await showReviewSurface(page);
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋاب رەت قىلىندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await page.evaluate(() => window.__releaseReplyRead());
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText("جاۋاب رەت قىلىندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "رەت قىلىش" })).toBeDisabled();
+  await page.locator(".admin-reply-item").first().getByRole("button", { name: "رەت قىلىش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate((id) => window.__reviewWrites.filter((row) => row.name === "moderate_book_review_reply" && row.args && row.args.p_reply_id === id).length, replyId)).toBe(1);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.evaluate(() => {
+    window.__replyReadError = false;
+    window.__reviewHold = true;
+    window.__replyHold = true;
+  });
+  const deleteId = await page.locator(".admin-review-item").first().getAttribute("data-review-id");
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" }).click();
+  await expect.poll(() => page.evaluate(() => typeof window.__releaseReviewRead === "function" && typeof window.__releaseReplyRead === "function")).toBe(true);
+  await page.evaluate(() => { window.__reviewReadError = true; window.__replyReadFail = true; });
+  await showReviewSurface(page);
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس ئۆچۈرۈلدى. تىزىملىك يېڭىلانمىدى.");
+  await page.evaluate(() => { window.__releaseReviewRead(); window.__releaseReplyRead(); });
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس ئۆچۈرۈلدى. تىزىملىك يېڭىلانمىدى.");
+  await expect(page.locator("#bookReviewModerationStatus")).not.toHaveText("ئۆچۈرۈش نەتىجىسى ئېنىق ئەمەس. قايتا سىناڭ.");
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" }).click({ force: true }).catch(() => {});
+  await page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate((id) => window.__reviewWrites.filter((row) => row.name === "delete_book_review" && row.args && row.args.p_review_id === id).length, deleteId)).toBe(1);
+  expect(await page.evaluate(() => window.__reviewWrites.filter((row) => row.name === "delete_book_review_reply").length)).toBe(0);
+
+  for (const viewport of [
+    { width: 390, height: 800 },
+    { width: 768, height: 900 },
+    { width: 1280, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+    expect(overflow).toBe(false);
+  }
+});
+
+test("a retained list cannot mutate or offer a retry that does nothing", async ({ page }) => {
+  const reviews = rows(12, "كۈتۈش", "pending").concat(rows(2, "تەستىق", "approved"));
+  const replies = rows(12, "جاۋاب", "pending").concat(rows(2, "جاۋاب-تەستىق", "approved"));
+  await installReviewPages(page, { reviews: reviews, replies: replies });
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/admin.html#reviews", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeEnabled();
+  await page.evaluate(() => { window.__reviewReadFail = true; window.__replyReadError = true; });
+  await page.locator(".admin-review-filters button[data-review-status='approved']").click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText(RETAINED_REVIEW);
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText(RETAINED_REPLY);
+  await expect(page.locator(".admin-review-body").first()).toContainText("كۈتۈش 1");
+  await expect(page.locator(".admin-reply-item").first()).toContainText("جاۋاب 1");
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  const writesBefore = await page.evaluate(() => window.__reviewWrites.length);
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click({ force: true }).catch(() => {});
+  await page.locator(".admin-reply-item").first().getByRole("button", { name: "رەت قىلىش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate(() => window.__reviewWrites.length)).toBe(writesBefore);
+  const reviewMark = (await pageReads(page, "admin_book_review_page")).length;
+  const replyMark = (await pageReads(page, "admin_book_review_reply_page")).length;
+  await page.locator("#bookReviewRetry").click();
+  await page.locator("#bookReviewReplyRetry").click();
+  expect((await pageReads(page, "admin_book_review_page")).slice(reviewMark)).toEqual([{ status: "approved", query: "", page: 0 }]);
+  expect((await pageReads(page, "admin_book_review_reply_page")).slice(replyMark)).toEqual([{ status: "approved", query: "", page: 0 }]);
+  expect(await page.evaluate(() => window.__reviewWrites.length)).toBe(writesBefore);
+
+  await page.evaluate(() => { window.__reviewReadFail = false; window.__replyReadError = false; });
+  await page.locator(".admin-review-filters button[data-review-status='pending']").click();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeEnabled();
+  await page.evaluate(() => { window.__reviewReadError = true; });
+  await page.locator("#bookReviewSearch").fill("يوقسۆز");
+  await expect(page.locator(".admin-review-actions button").first()).toBeDisabled();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText(RETAINED_REVIEW);
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate(() => window.__reviewWrites.length)).toBe(writesBefore);
+  const searchMark = (await pageReads(page, "admin_book_review_page")).length;
+  await page.locator("#bookReviewRetry").click();
+  expect((await pageReads(page, "admin_book_review_page")).slice(searchMark)).toEqual([{ status: "pending", query: "يوقسۆز", page: 0 }]);
+
+  await page.evaluate(() => { window.__reviewReadError = false; });
+  await page.locator("#bookReviewSearch").fill("");
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeEnabled();
+  await page.evaluate(() => { window.__replyReadFail = true; });
+  await page.locator("#bookReviewSearch").fill("باشقا");
+  await expect(page.locator("#bookReviewReplyStatus")).toHaveText(RETAINED_REPLY);
+  await expect(page.locator(".admin-reply-item").first().getByRole("button", { name: "ئۆچۈرۈش" })).toBeDisabled();
+  const replySearchMark = (await pageReads(page, "admin_book_review_reply_page")).length;
+  await page.locator("#bookReviewReplyRetry").click();
+  expect((await pageReads(page, "admin_book_review_reply_page")).slice(replySearchMark)).toEqual([{ status: "pending", query: "باشقا", page: 0 }]);
+  expect(await page.evaluate(() => window.__reviewWrites.length)).toBe(writesBefore);
+
+  await page.evaluate(() => { window.__replyReadFail = false; });
+  await page.locator("#bookReviewSearch").fill("");
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeEnabled();
+  const reviewId = await page.locator(".admin-review-item").first().getAttribute("data-review-id");
+  await page.evaluate(() => { window.__armSessionAfterWrite("throw"); });
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click();
+  await expect(page.locator("#bookReviewModerationStatus")).toHaveText("ئىنكاس تەستىقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
+  await page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" }).click({ force: true }).catch(() => {});
+  expect(await page.evaluate((id) => window.__reviewWrites.filter((row) => row.name === "moderate_book_review" && row.args && row.args.review_id === id).length, reviewId)).toBe(1);
+  await page.evaluate(() => { window.__armSessionAfterWrite(""); });
+  await page.locator("#bookReviewRetry").click();
+  await expect(page.locator(".admin-review-item[data-review-id='" + reviewId + "']")).toHaveCount(0);
+  expect(await page.evaluate((id) => window.__reviewWrites.filter((row) => row.name === "moderate_book_review" && row.args && row.args.review_id === id).length, reviewId)).toBe(1);
+
+  await page.evaluate(() => { window.__reviewHold = true; });
+  await page.locator("#bookReviewSearch").fill("ك");
+  await expect(page.locator(".admin-review-actions button").first()).toBeDisabled();
+  await expect(page.locator(".admin-reply-actions button").first()).toBeDisabled();
+  await page.evaluate(() => { if (window.__releaseReviewRead) window.__releaseReviewRead(); });
+});

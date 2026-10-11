@@ -62,7 +62,7 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.doesNotMatch(admin, /innerHTML|email/);
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
-  assert.match(adminHtml, /admin-book-reviews\.js\?v=5/);
+  assert.match(adminHtml, /admin-book-reviews\.js\?v=6/);
   assert.match(adminHtml, /admin\.css\?v=54/);
   assert.match(admin, /PAGE_SIZE = 10/);
   assert.match(admin, /admin_book_review_page/);

@@ -2285,7 +2285,7 @@ test("a malformed review page keeps the current rows and retries the same page i
   await expect(page.locator("#bookReviewModerationList .admin-review-total")).toContainText("جەمئىي 105 ئىنكاس");
   await expect(page.locator(".admin-review-item")).toHaveCount(10);
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-pending-1$/ })).toBeVisible();
-  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeVisible();
+  await expect(page.locator(".admin-review-item").first().getByRole("button", { name: "تەستىقلاش" })).toBeDisabled();
   const before = await callCount(page, "reviews");
   await page.locator("#bookReviewRetry").click();
   await expect(page.locator(".admin-review-body", { hasText: /^باھا-rejected-1$/ })).toBeVisible();
