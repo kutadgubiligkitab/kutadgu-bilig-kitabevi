@@ -62,7 +62,8 @@ test("ADMIN_SECTIONS includes submissions and existing sections", () => {
 });
 
 test("pending loader queries submission_status pending only", () => {
-  const fn = sliceFn(adminJs, "loadPendingSubmissions");
+  const fn = sliceFn(adminJs, "pendingBooksPageQuery");
+  assert.match(sliceFn(adminJs, "loadPendingSubmissions"), /pendingBooksPageQuery\(from,to\)/);
   assert.match(fn, /PENDING_SUBMISSION_SELECT/);
   assert.match(adminJs, /const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available"/);
   assert.match(fn, /\.from\("books"\)/);
@@ -207,6 +208,70 @@ test("this PR does not add SQL; storefront auth isolation may touch index.html a
   }
   assert.doesNotMatch(adminJs, /submit_book_for_approval/);
   assert.doesNotMatch(adminHtml, /is_kutadgu_book_staff/);
+});
+
+test("pending submissions page 10 and keep the exact total off the page length", () => {
+  assert.match(adminJs, /const PENDING_SUBMISSION_PAGE_SIZE=10/);
+  assert.match(adminHtml, /id="pendingSubmissionSearch"/);
+  assert.match(adminHtml, /id="pendingSubmissionPager"/);
+  assert.match(adminHtml, /admin\.js\?v=104/);
+  const query = sliceFn(adminJs, "pendingBooksPageQuery");
+  assert.match(query, /\.range\(from,to\)/);
+  assert.match(query, /count:"exact"/);
+  assert.match(query, /\.eq\("submission_status","pending"\)/);
+  assert.match(query, /\.order\("submitted_at",\{ascending:false,nullsFirst:false\}\)/);
+  assert.match(query, /\.order\("id",\{ascending:false\}\)/);
+  assert.match(query, /pendingSubmissionSearchFilter\(\)/);
+  const load = sliceFn(adminJs, "loadPendingSubmissions");
+  assert.match(load, /PENDING_SUBMISSION_PAGE_SIZE/);
+  assert.match(load, /pendingBooksPageQuery\(from,to\)/);
+  assert.match(load, /exactPendingCount\(result\.count\)/);
+  assert.match(load, /pendingPageLength\(total,context\.page\)/);
+  assert.match(load, /pendingSubmissionLastPage\(total\)/);
+  assert.match(load, /pendingRangeUnsatisfiable\(result\)/);
+  assert.match(load, /dashboardAuthorized\(\)/);
+  const range = sliceFn(adminJs, "pendingRangeUnsatisfiable");
+  assert.match(range, /PGRST103/);
+  assert.match(range, /status!==416/);
+  assert.match(range, /an offset of \\d\+ was requested, but there are only \\d\+ rows/);
+  const recover = sliceFn(adminJs, "recoverPendingSubmissionRange");
+  assert.match(recover, /pendingBooksPageQuery\(0,0\)/);
+  assert.match(recover, /exactPendingCount\(probe\.count\)/);
+  assert.doesNotMatch(recover, /loadPendingSubmissions\(/);
+  assert.match(sliceFn(adminJs, "clearPendingSubmissionPrivate"), /pendingSubmissionEpoch\+=1/);
+  assert.match(sliceFn(adminJs, "reviewStaffSubmission"), /pendingWriteStillCurrent\(epoch,origin\)/);
+  assert.match(sliceFn(adminJs, "saveBook"), /pendingWriteStillCurrent\(epoch,origin\)/);
+  assert.doesNotMatch(load, /pendingSubmissions\.length/);
+  assert.doesNotMatch(load, /data\.length/);
+  assert.doesNotMatch(load, /pendingSubmissionTotal=matched\.length|pendingSubmissionTotal=data\.length/);
+  const render = sliceFn(adminJs, "renderPendingSubmissions");
+  assert.match(render, /pendingSubmissionCountLabel\(pendingSubmissionTotal\)/);
+  assert.doesNotMatch(render, /pendingSubmissionCountLabel\(pendingSubmissions\.length\)/);
+  const pager = sliceFn(adminJs, "renderPendingSubmissionPager");
+  assert.match(pager, /ھەر بەتتە \$\{PENDING_SUBMISSION_PAGE_SIZE\}/);
+  assert.match(pager, /جەمئىي \$\{pendingSubmissionTotal\}/);
+  const search = sliceFn(adminJs, "pendingSubmissionSearchFilter");
+  assert.match(search, /postgrestIlike\("title",term\)/);
+  assert.match(search, /postgrestIlike\("author",term\)/);
+  assert.match(search, /postgrestIlike\("isbn",term\)/);
+  assert.doesNotMatch(search, /translator|publisher|category|is_active|is_recommended/);
+  const page = sliceFn(adminJs, "applyPendingSubmissionPage");
+  assert.match(page, /PENDING_SUBMISSION_PAGE_SIZE/);
+  assert.match(page, /\.slice\(from,from\+PENDING_SUBMISSION_PAGE_SIZE\)/);
+  assert.doesNotMatch(page, /pendingSubmissionTotal=matched\.length/);
+  const bind = sliceFn(adminJs, "bindPendingSubmissionActions");
+  const invalidateAt = bind.indexOf("pendingSubmissionRequest+=1");
+  const debounceAt = bind.indexOf("setTimeout(()=>loadPendingSubmissions(),250)");
+  assert.ok(invalidateAt >= 0 && debounceAt > invalidateAt);
+  const logout = sliceFn(adminJs, "logout");
+  const clearAt = logout.indexOf("clearPendingSubmissionPrivate()");
+  const signOutAt = logout.indexOf("signOut");
+  assert.ok(clearAt >= 0 && signOutAt > clearAt);
+  assert.match(sliceFn(adminJs, "enforceAdminIdleLock"), /clearPendingSubmissionPrivate\(\)/);
+  assert.match(sliceFn(adminJs, "showPendingReadFailure"), /id="pendingSubmissionRetry"/);
+  assert.match(adminJs, /تەستىق ساقلاۋاتقان: —/);
+  assert.match(adminJs, /بۇ ئىزدەشكە ماس كىتاب تېپىلمىدى\./);
+  assert.match(adminJs, /تەستىق كۈتۈۋاتقان كىتاب يوق\./);
 });
 
 test("pending Full Admin edit reuses the book modal and never publishes on save", () => {

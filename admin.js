@@ -1053,6 +1053,7 @@ function showIdleLock(){
   if(otp)otp.focus();
 }
 function enforceAdminIdleLock(){
+  clearPendingSubmissionPrivate();
   const api=idleApi();
   if(api&&typeof api.markLocked==="function")api.markLocked();
   showIdleLock();
@@ -1123,6 +1124,7 @@ async function routeSession(){
       return;
     }
     if(inspect.decision&&inspect.decision.gate){
+      clearPendingSubmissionPrivate();
       $("#adminLogout").hidden=true;
       show("mfaGatePanel");
       const otp=$("#mfaGateOtp");
@@ -1160,6 +1162,7 @@ async function routeSession(){
     abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
+    clearPendingSubmissionPrivate();
     clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
@@ -1175,17 +1178,22 @@ async function routeSession(){
     abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
+    clearPendingSubmissionPrivate();
     clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
     return;
   }
-  if(user&&session.user&&user.id!==session.user.id)abandonAnalyticsContext();
+  if(user&&session.user&&user.id!==session.user.id){
+    abandonAnalyticsContext();
+    clearPendingSubmissionPrivate();
+  }
   const ok=await checkAdmin(session.user);
   if(!ok){
     abandonAnalyticsContext();
     user=null;
     clearAdminSuggestionState();
+    clearPendingSubmissionPrivate();
     clearMemberPrivate();
     show("loginPanel");
     $("#adminLogout").hidden=true;
@@ -1205,6 +1213,7 @@ async function routeSession(){
     return;
   }
   if(inspect.decision&&inspect.decision.gate){
+    clearPendingSubmissionPrivate();
     $("#adminLogout").hidden=true;
     show("mfaGatePanel");
     const otp=$("#mfaGateOtp");
@@ -1432,9 +1441,17 @@ function dateText(value){
   return `${d.getFullYear()}-يىلى ${d.getMonth()+1}-ئاينىڭ ${d.getDate()}-كۈنى، ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 const PENDING_SUBMISSION_SELECT="id,title,author,translator,category,source,price,original_price,stock,isbn,publisher,publish_year,pages,cover_type,book_size,dimensions,is_color_print,interior_print_type,image_url,gallery_images,description,submitted_by,submitted_at,submission_status,is_active,is_available";
+const PENDING_SUBMISSION_PAGE_SIZE=10;
 let pendingSubmissions=[];
 let pendingSubmissionBusy=false;
 let pendingEditMode=false;
+let pendingSubmissionPage=0;
+let pendingSubmissionTotal=0;
+let pendingSubmissionRequest=0;
+let pendingSubmissionEpoch=0;
+let pendingSubmissionSearchTimer=0;
+let pendingSubmissionCommitted=null;
+let pendingSubmissionFailed=null;
 function pendingSubmissionCountLabel(count){
   return `تەستىق ساقلاۋاتقان: ${Number(count)||0}`;
 }
@@ -1476,13 +1493,254 @@ function pendingGalleryUrls(b){
   });
   return out.slice(0,4);
 }
+function pendingSubmissionLastPage(total){
+  const count=Number(total)||0;
+  return Math.max(0,Math.ceil(count/PENDING_SUBMISSION_PAGE_SIZE)-1);
+}
+function pendingSubmissionRawTerm(){
+  const search=$("#pendingSubmissionSearch");
+  return search?String(search.value||""):"";
+}
+function pendingSubmissionTerm(){
+  return searchSafe(pendingSubmissionRawTerm());
+}
+function exactPendingCount(count){
+  if(typeof count==="number"&&Number.isInteger(count)&&count>=0)return count;
+  if(typeof count==="string"&&/^(0|[1-9]\d*)$/.test(count))return Number(count);
+  return null;
+}
+function pendingPageLength(count,page){
+  const from=page*PENDING_SUBMISSION_PAGE_SIZE;
+  if(from>=count)return 0;
+  return Math.min(PENDING_SUBMISSION_PAGE_SIZE,count-from);
+}
+function pendingSubmittedAt(row){
+  if(!row||row.submitted_at==null||row.submitted_at==="")return null;
+  const parsed=Date.parse(row.submitted_at);
+  return Number.isNaN(parsed)?null:parsed;
+}
+function pendingSubmissionSearchFilter(){
+  const term=pendingSubmissionTerm();
+  if(!term)return "";
+  const parts=[
+    postgrestIlike("title",term),
+    postgrestIlike("author",term),
+    postgrestIlike("isbn",term)
+  ];
+  const digits=normalizeIsbn(term);
+  if(digits&&digits!==term)parts.push(postgrestIlike("isbn",digits));
+  return parts.join(",");
+}
+function pendingRowMatchesTerm(row,term){
+  const t=searchSafe(term).toLocaleLowerCase("en");
+  if(!t)return true;
+  const title=String(row&&row.title||"").toLocaleLowerCase("en");
+  const author=String(row&&row.author||"").toLocaleLowerCase("en");
+  const isbn=String(row&&row.isbn||"").toLocaleLowerCase("en");
+  if(title.includes(t)||author.includes(t)||isbn.includes(t))return true;
+  const digits=normalizeIsbn(term).toLocaleLowerCase("en");
+  if(!digits)return false;
+  const stored=normalizeIsbn(row&&row.isbn).toLocaleLowerCase("en");
+  return isbn.includes(digits)||stored.includes(digits);
+}
+function comparePendingSubmissions(a,b){
+  const ta=pendingSubmittedAt(a);
+  const tb=pendingSubmittedAt(b);
+  if(ta==null&&tb==null)return (Number(b&&b.id)||0)-(Number(a&&a.id)||0);
+  if(ta==null)return 1;
+  if(tb==null)return -1;
+  if(tb!==ta)return tb-ta;
+  return (Number(b&&b.id)||0)-(Number(a&&a.id)||0);
+}
+function pendingSubmissionEmptyCopy(term){
+  return searchSafe(term)?"بۇ ئىزدەشكە ماس كىتاب تېپىلمىدى.":"تەستىق كۈتۈۋاتقان كىتاب يوق.";
+}
+function pendingSubmissionStatusText(){
+  if(!pendingSubmissionTotal)return pendingSubmissionEmptyCopy(pendingSubmissionCommitted&&pendingSubmissionCommitted.term);
+  return `تەستىق كۈتۈۋاتقان ${pendingSubmissionTotal} كىتاب.`;
+}
+function pendingReadContext(){
+  return {page:pendingSubmissionPage,rawTerm:pendingSubmissionRawTerm(),term:pendingSubmissionTerm()};
+}
+function pendingReadCurrent(generation,context){
+  if(generation!==pendingSubmissionRequest)return false;
+  if(!context)return false;
+  if(pendingSubmissionRawTerm()!==context.rawTerm)return false;
+  if(pendingSubmissionPage!==context.page)return false;
+  return true;
+}
+function samePendingIdentity(before,after){
+  return !!(before&&after&&before.id&&after.id===before.id&&before.aal==="aal2"&&after.aal==="aal2");
+}
+function pendingListEffectsCurrent(epoch){
+  return epoch===pendingSubmissionEpoch&&dashboardAuthorized();
+}
+async function pendingWriteStillCurrent(epoch,origin){
+  if(!pendingListEffectsCurrent(epoch))return false;
+  if(!(origin&&origin.id&&origin.aal==="aal2"))return true;
+  let now={id:"",aal:""};
+  try{now=await readMemberAdmin()}catch(err){now={id:"",aal:""}}
+  if(!pendingListEffectsCurrent(epoch))return false;
+  return samePendingIdentity(origin,now);
+}
+function pendingRangeUnsatisfiable(result){
+  const error=result&&result.error;
+  if(!error||String(error.code||"")!=="PGRST103")return false;
+  const status=Number(result.status!=null?result.status:error.status);
+  if(status!==416)return false;
+  const details=String(error.details||"");
+  if(!/an offset of \d+ was requested, but there are only \d+ rows\./i.test(details))return false;
+  return /requested range not satisfiable/i.test(String(error.message||""));
+}
+function pendingBooksPageQuery(from,to){
+  let query=db.from("books").select(PENDING_SUBMISSION_SELECT,{count:"exact"}).eq("submission_status","pending");
+  const orFilter=pendingSubmissionSearchFilter();
+  if(orFilter)query=query.or(orFilter);
+  return query.order("submitted_at",{ascending:false,nullsFirst:false}).order("id",{ascending:false}).range(from,to);
+}
+function failPendingAuth(){
+  clearPendingSubmissionPrivate();
+  showPendingReadFailure({page:0,rawTerm:"",term:""},aal2RequiredOrderUpdateMessage());
+  return {ok:false,stale:true,reason:"aal"};
+}
+function clearPendingSubmissionPrivate(){
+  pendingSubmissionEpoch+=1;
+  pendingSubmissionRequest+=1;
+  clearTimeout(pendingSubmissionSearchTimer);
+  pendingSubmissionSearchTimer=0;
+  pendingSubmissionPage=0;
+  pendingSubmissionTotal=0;
+  pendingSubmissions=[];
+  pendingSubmissionCommitted=null;
+  pendingSubmissionFailed=null;
+  const search=$("#pendingSubmissionSearch");
+  if(search)search.value="";
+  const host=$("#pendingSubmissionList");
+  if(host)host.replaceChildren();
+  const pager=$("#pendingSubmissionPager");
+  if(pager){pager.hidden=true;pager.replaceChildren()}
+  const countEl=$("#pendingSubmissionCount");
+  if(countEl)countEl.textContent="تەستىق ساقلاۋاتقان: —";
+  const statusEl=$("#pendingSubmissionStatus");
+  if(statusEl){statusEl.className="admin-status";statusEl.replaceChildren()}
+}
+function showPendingReadFailure(context,message){
+  if(!dashboardAuthorized())return;
+  pendingSubmissionFailed=context||pendingReadContext();
+  if(pendingSubmissionCommitted){
+    pendingSubmissionPage=pendingSubmissionCommitted.page;
+    pendingSubmissionTotal=pendingSubmissionCommitted.total;
+    pendingSubmissions=(pendingSubmissionCommitted.rows||[]).map(row=>({...row}));
+    renderPendingSubmissions();
+  }else{
+    pendingSubmissions=[];
+    pendingSubmissionTotal=0;
+    const host=$("#pendingSubmissionList");
+    if(host)host.replaceChildren();
+    const pager=$("#pendingSubmissionPager");
+    if(pager){pager.hidden=true;pager.replaceChildren()}
+    const countEl=$("#pendingSubmissionCount");
+    if(countEl)countEl.textContent="تەستىق ساقلاۋاتقان: —";
+  }
+  const statusEl=$("#pendingSubmissionStatus");
+  if(!statusEl)return;
+  statusEl.className="admin-status error";
+  statusEl.replaceChildren();
+  const line=document.createElement("span");
+  line.textContent=message||"تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.";
+  const button=document.createElement("button");
+  button.type="button";
+  button.id="pendingSubmissionRetry";
+  button.className="admin-secondary";
+  button.textContent="قايتا سىناش";
+  button.addEventListener("click",()=>{
+    const failed=pendingSubmissionFailed||context||{page:0,rawTerm:""};
+    const search=$("#pendingSubmissionSearch");
+    if(search)search.value=failed.rawTerm||"";
+    pendingSubmissionPage=Number(failed.page)||0;
+    loadPendingSubmissions();
+  });
+  statusEl.append(line,document.createTextNode(" "),button);
+  const list=$("#pendingSubmissionList");
+  if(list&&!list.querySelector(".admin-submission-row")){
+    list.replaceChildren();
+    const empty=document.createElement("div");
+    empty.className="admin-empty";
+    empty.textContent=message||"تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.";
+    list.appendChild(empty);
+  }
+}
+function commitPendingSubmissionPage(context,rows,total){
+  if(!dashboardAuthorized())return false;
+  pendingSubmissionPage=context.page;
+  pendingSubmissionTotal=total;
+  pendingSubmissions=rows.map(row=>({...row}));
+  pendingSubmissionCommitted={
+    page:context.page,
+    term:context.term,
+    rawTerm:context.rawTerm,
+    total,
+    rows:pendingSubmissions.map(row=>({...row})),
+    adminId:context.adminId||"",
+    aal:context.aal||""
+  };
+  pendingSubmissionFailed=null;
+  renderPendingSubmissions();
+  status($("#pendingSubmissionStatus"),pendingSubmissionStatusText(),"ok");
+  return true;
+}
+function forgetPendingSubmissionRow(id){
+  const before=pendingSubmissions.length;
+  pendingSubmissions=pendingSubmissions.filter(row=>String(row.id)!==String(id));
+  if(pendingSubmissions.length===before)return;
+  pendingSubmissionTotal=Math.max(0,pendingSubmissionTotal-1);
+  pendingSubmissionPage=Math.min(pendingSubmissionPage,pendingSubmissionLastPage(pendingSubmissionTotal));
+  if(pendingSubmissionCommitted){
+    pendingSubmissionCommitted={
+      ...pendingSubmissionCommitted,
+      page:pendingSubmissionPage,
+      total:pendingSubmissionTotal,
+      rows:pendingSubmissions.map(row=>({...row}))
+    };
+  }
+  renderPendingSubmissions();
+}
+function renderPendingSubmissionPager(){
+  const host=$("#pendingSubmissionPager");
+  if(!host)return;
+  const pages=Math.max(1,Math.ceil(pendingSubmissionTotal/PENDING_SUBMISSION_PAGE_SIZE));
+  if(!pendingSubmissionTotal){host.hidden=true;host.innerHTML="";return}
+  host.hidden=false;
+  host.innerHTML=`<button type="button" data-pending-page="prev" ${pendingSubmissionPage<=0?"disabled":""}>‹</button>
+    <span>${pendingSubmissionPage+1} / ${pages} · جەمئىي ${pendingSubmissionTotal} كىتاب · ھەر بەتتە ${PENDING_SUBMISSION_PAGE_SIZE}</span>
+    <button type="button" data-pending-page="next" ${pendingSubmissionPage>=pages-1?"disabled":""}>›</button>`;
+  host.querySelector("[data-pending-page='prev']").onclick=()=>{
+    const committed=pendingSubmissionCommitted;
+    if(!committed||committed.page<=0)return;
+    pendingSubmissionPage=committed.page-1;
+    pendingSubmissionRequest+=1;
+    loadPendingSubmissions();
+  };
+  host.querySelector("[data-pending-page='next']").onclick=()=>{
+    const committed=pendingSubmissionCommitted;
+    if(!committed||committed.page>=pages-1)return;
+    pendingSubmissionPage=committed.page+1;
+    pendingSubmissionRequest+=1;
+    loadPendingSubmissions();
+  };
+}
 function renderPendingSubmissions(){
   const host=$("#pendingSubmissionList");
   const countEl=$("#pendingSubmissionCount");
-  if(countEl)countEl.textContent=pendingSubmissionCountLabel(pendingSubmissions.length);
+  if(countEl)countEl.textContent=pendingSubmissionCountLabel(pendingSubmissionTotal);
+  renderPendingSubmissionPager();
   if(!host)return;
   if(!pendingSubmissions.length){
-    host.innerHTML='<div class="admin-empty">تەستىق كۈتۈۋاتقان كىتاب يوق.</div>';
+    if(pendingSubmissionFailed){
+      host.replaceChildren();
+      return;
+    }
+    host.innerHTML=`<div class="admin-empty">${esc(pendingSubmissionEmptyCopy(pendingSubmissionCommitted&&pendingSubmissionCommitted.term))}</div>`;
     return;
   }
   host.innerHTML=pendingSubmissions.map(b=>{
@@ -1517,42 +1775,146 @@ function renderPendingSubmissions(){
     </article>`;
   }).join("");
 }
+function applyPendingSubmissionPage(rows,context){
+  const term=context?context.term:pendingSubmissionTerm();
+  const matched=(rows||[]).filter(b=>String(b&&b.submission_status||"")==="pending").filter(b=>pendingRowMatchesTerm(b,term)).sort(comparePendingSubmissions);
+  const total=matched.length;
+  const page=Math.min(context?context.page:pendingSubmissionPage,pendingSubmissionLastPage(total));
+  const from=page*PENDING_SUBMISSION_PAGE_SIZE;
+  return {page,total,rows:matched.slice(from,from+PENDING_SUBMISSION_PAGE_SIZE)};
+}
+async function recoverPendingSubmissionRange(generation,context,before){
+  async function stillCurrent(){
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return false;
+    const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return false;
+    if(!samePendingIdentity(before,after)){
+      failPendingAuth();
+      return false;
+    }
+    return true;
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  let probe;
+  try{
+    probe=await pendingBooksPageQuery(0,0);
+  }catch(err){
+    if(!await stillCurrent())return {ok:false,stale:true};
+    showPendingReadFailure(context,formatStaffSubmissionError(err));
+    return {ok:false,error:err,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!probe||probe.error||pendingRangeUnsatisfiable(probe)){
+    const error=probe&&probe.error;
+    if(isAal2OrderUpdateError(error))return failPendingAuth();
+    showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
+    return {ok:false,error,reason:"range"};
+  }
+  const total=exactPendingCount(probe.count);
+  const probeRows=Array.isArray(probe.data)?probe.data:null;
+  const expectedProbe=total===0?0:1;
+  if(total==null||!probeRows||probeRows.length!==expectedProbe){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنىڭ ئېنىق سانى كەلمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(total===0){
+    if(!commitPendingSubmissionPage({...context,page:0},[],0))return {ok:false,stale:true};
+    return {ok:true,total:0};
+  }
+  const last=pendingSubmissionLastPage(total);
+  if(last>=context.page){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  const from=last*PENDING_SUBMISSION_PAGE_SIZE;
+  const to=from+PENDING_SUBMISSION_PAGE_SIZE-1;
+  let pageResult;
+  try{
+    pageResult=await pendingBooksPageQuery(from,to);
+  }catch(err){
+    if(!await stillCurrent())return {ok:false,stale:true};
+    showPendingReadFailure(context,formatStaffSubmissionError(err));
+    return {ok:false,error:err,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!pageResult||pageResult.error||pendingRangeUnsatisfiable(pageResult)){
+    const error=pageResult&&pageResult.error;
+    if(isAal2OrderUpdateError(error))return failPendingAuth();
+    showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
+    return {ok:false,error,reason:"range"};
+  }
+  const pageTotal=exactPendingCount(pageResult.count);
+  const rows=Array.isArray(pageResult.data)?pageResult.data:null;
+  if(pageTotal==null||pageTotal!==total||!rows||rows.length!==pendingPageLength(pageTotal,last)){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنىڭ ئېنىق سانى كەلمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!commitPendingSubmissionPage({...context,page:last},rows,pageTotal))return {ok:false,stale:true};
+  return {ok:true,total:pageTotal};
+}
 async function loadPendingSubmissions(){
   const statusEl=$("#pendingSubmissionStatus");
-  const countEl=$("#pendingSubmissionCount");
+  const generation=++pendingSubmissionRequest;
+  const context=pendingReadContext();
+  if(!dashboardAuthorized())return {ok:false,stale:true,reason:"auth"};
   if(Array.isArray(window.__kutadguPendingSubmissionFixtures)){
-    pendingSubmissions=window.__kutadguPendingSubmissionFixtures.filter(b=>String(b&&b.submission_status||"")==="pending");
-    renderPendingSubmissions();
-    status(statusEl,pendingSubmissions.length?`تەستىق كۈتۈۋاتقان ${pendingSubmissions.length} كىتاب.`:"تەستىق كۈتۈۋاتقان كىتاب يوق.","ok");
-    return;
+    if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+    const page=applyPendingSubmissionPage(window.__kutadguPendingSubmissionFixtures,context);
+    if(!commitPendingSubmissionPage({...context,page:page.page},page.rows,page.total))return {ok:false,stale:true};
+    return {ok:true,total:page.total};
   }
-  if(!db){
-    pendingSubmissions=[];
-    renderPendingSubmissions();
-    status($("#pendingSubmissionStatus"),"Database تېخى ئۇلانمىدى.","warn");
-    return;
+  if(!db||typeof db.from!=="function"){
+    if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+    showPendingReadFailure(context,"Database تېخى ئۇلانمىدى.");
+    return {ok:false,reason:"no_db"};
   }
+  let before={id:"",aal:""};
+  try{before=await readMemberAdmin()}catch(err){before={id:"",aal:""}}
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+  if(!before.id||before.aal!=="aal2")return failPendingAuth();
+  context.adminId=before.id;
+  context.aal=before.aal;
   status(statusEl,"تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىۋاتىدۇ...");
+  const from=context.page*PENDING_SUBMISSION_PAGE_SIZE;
+  const to=from+PENDING_SUBMISSION_PAGE_SIZE-1;
+  let result;
   try{
-    const {data,error,count}=await db.from("books")
-      .select(PENDING_SUBMISSION_SELECT,{count:"exact"})
-      .eq("submission_status","pending")
-      .order("submitted_at",{ascending:false});
-    if(error){
-      pendingSubmissions=[];
-      renderPendingSubmissions();
-      status(statusEl,formatStaffSubmissionError(error),"error");
-      return;
-    }
-    pendingSubmissions=data||[];
-    if(countEl)countEl.textContent=pendingSubmissionCountLabel(count!=null?count:pendingSubmissions.length);
-    renderPendingSubmissions();
-    status(statusEl,pendingSubmissions.length?`تەستىق كۈتۈۋاتقان ${pendingSubmissions.length} كىتاب.`:"تەستىق كۈتۈۋاتقان كىتاب يوق.","ok");
+    result=await pendingBooksPageQuery(from,to);
   }catch(err){
-    pendingSubmissions=[];
-    renderPendingSubmissions();
-    status(statusEl,formatStaffSubmissionError(err),"error");
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+    const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+    if(!samePendingIdentity(before,after))return failPendingAuth();
+    showPendingReadFailure(context,formatStaffSubmissionError(err));
+    return {ok:false,error:err};
   }
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+  const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+  if(!samePendingIdentity(before,after))return failPendingAuth();
+  if(!result||result.error){
+    const error=result&&result.error;
+    if(isAal2OrderUpdateError(error))return failPendingAuth();
+    if(pendingRangeUnsatisfiable(result)&&context.page>0)return recoverPendingSubmissionRange(generation,context,before);
+    showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
+    return {ok:false,error};
+  }
+  const total=exactPendingCount(result.count);
+  const rows=Array.isArray(result.data)?result.data:null;
+  if(total==null||!rows||rows.length!==pendingPageLength(total,context.page)){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنىڭ ئېنىق سانى كەلمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"count"};
+  }
+  const maxPage=pendingSubmissionLastPage(total);
+  if(context.page>maxPage){
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
+    pendingSubmissionPage=maxPage;
+    return loadPendingSubmissions();
+  }
+  if(!commitPendingSubmissionPage(context,rows,total))return {ok:false,stale:true};
+  return {ok:true,total};
 }
 async function fingerprintRemoteCover(imageUrl,excludeId){
   const url=String(imageUrl||"").trim();
@@ -1579,14 +1941,17 @@ async function reviewStaffSubmission(bookId,action){
     ?confirm("بۇ كىتابنى تەستىقلاپ ئاممىۋى قىلامسىز؟\nتەستىقلانغاندىن كېيىن تور بەتتە كۆرۈنىدۇ.")
     :confirm("بۇ تەكلىپنى رەت قىلامسىز؟\nكىتاب ئاكتىپ بولمايدۇ ۋە رەت قىلىندى دەپ بەلگىلىنىدۇ.");
   if(!confirmed)return;
+  const epoch=pendingSubmissionEpoch;
   pendingSubmissionBusy=true;
   status($("#pendingSubmissionStatus"),approve?"تەستىقلىنىۋاتىدۇ...":"رەت قىلىنىۋاتىدۇ...");
+  const origin=await readMemberAdmin().catch(()=>({id:"",aal:""}));
   const rpcName=approve?"approve_staff_book_submission":"reject_staff_book_submission";
   try{
     let error=null;
     if(typeof window.__kutadguAdminReviewStaff==="function"){
       ({error}=await window.__kutadguAdminReviewStaff(Number(id),approve));
     }else if(!db){
+      if(!await pendingWriteStillCurrent(epoch,origin))return;
       status($("#pendingSubmissionStatus"),"Database تېخى ئۇلانمىدى.","error");
       return;
     }else{
@@ -1598,21 +1963,41 @@ async function reviewStaffSubmission(bookId,action){
       ({error}=await db.rpc(rpcName,{p_book_id:Number(id)}));
     }
     if(error){
+      if(!await pendingWriteStillCurrent(epoch,origin))return;
       status($("#pendingSubmissionStatus"),formatStaffSubmissionError(error),"error");
       return;
     }
-    pendingSubmissions=pendingSubmissions.filter(b=>String(b.id)!==id);
-    renderPendingSubmissions();
-    status($("#pendingSubmissionStatus"),approve?"كىتاب تەستىقلاندى ۋە ئاممىۋى بولدى.":"تەكلىپ رەت قىلىندى ۋە ئاكتىپ ئەمەس ھالەتتە قالدى.","ok");
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
+    pendingSubmissionRequest+=1;
+    forgetPendingSubmissionRow(id);
+    const successText=approve?"كىتاب تەستىقلاندى ۋە ئاممىۋى بولدى.":"تەكلىپ رەت قىلىندى ۋە ئاكتىپ ئەمەس ھالەتتە قالدى.";
+    status($("#pendingSubmissionStatus"),successText,"ok");
     try{if(window.KutadguAdminApprovals&&typeof window.KutadguAdminApprovals.refresh==="function")window.KutadguAdminApprovals.refresh()}catch(ignore){}
-    try{await Promise.all([loadPendingSubmissions(),loadBooks(),loadStats()])}catch(err){}
+    let refresh={ok:false};
+    try{refresh=await loadPendingSubmissions()}catch(err){refresh={ok:false,error:err}}
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
+    try{await Promise.all([loadBooks(),loadStats()])}catch(err){}
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
+    if(refresh&&refresh.stale)return;
+    if(!refresh||refresh.ok===false)showPendingReadFailure(pendingReadContext(),successText+" تىزىملىك يېڭىلانمىدى.");
   }catch(err){
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
     status($("#pendingSubmissionStatus"),formatStaffSubmissionError(err),"error");
   }finally{
     pendingSubmissionBusy=false;
   }
 }
 function bindPendingSubmissionActions(){
+  const search=$("#pendingSubmissionSearch");
+  if(search&&search.dataset.bound!=="1"){
+    search.dataset.bound="1";
+    search.addEventListener("input",()=>{
+      pendingSubmissionPage=0;
+      pendingSubmissionRequest+=1;
+      clearTimeout(pendingSubmissionSearchTimer);
+      pendingSubmissionSearchTimer=setTimeout(()=>loadPendingSubmissions(),250);
+    });
+  }
   const host=$("#pendingSubmissionList");
   if(!host||host.dataset.bound==="1")return;
   host.dataset.bound="1";
@@ -1624,6 +2009,12 @@ function bindPendingSubmissionActions(){
     else if(approve)reviewStaffSubmission(approve.getAttribute("data-approve-submission"),"approve");
     else if(reject)reviewStaffSubmission(reject.getAttribute("data-reject-submission"),"reject");
   });
+  const lock=$("#idleLockPanel");
+  if(lock&&lock.dataset.pendingLockBound!=="1"&&typeof MutationObserver==="function"){
+    lock.dataset.pendingLockBound="1";
+    const observer=new MutationObserver(()=>{if(!lock.hidden)clearPendingSubmissionPrivate()});
+    observer.observe(lock,{attributes:true,attributeFilter:["hidden"]});
+  }
 }
 function isPendingSubmissionRow(row){
   return String(row&&row.submission_status||"")==="pending";
@@ -4682,22 +5073,45 @@ async function saveBook(e){
         delete pendingPayload.translator;
         delete pendingPayload.publisher;
       }
-      const pendingResult=SaveGuard.withTimeout
-        ?await SaveGuard.withTimeout((signal)=>persistPendingSubmission(editingBookId,pendingPayload,signal),SaveGuard.BOOK_WRITE_MS,"write")
-        :await persistPendingSubmission(editingBookId,pendingPayload);
-      if(attempt!==saveAttempt)return;
+      const epoch=pendingSubmissionEpoch;
+      const origin=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+      let pendingResult;
+      try{
+        pendingResult=SaveGuard.withTimeout
+          ?await SaveGuard.withTimeout((signal)=>persistPendingSubmission(editingBookId,pendingPayload,signal),SaveGuard.BOOK_WRITE_MS,"write")
+          :await persistPendingSubmission(editingBookId,pendingPayload);
+      }catch(writeErr){
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
+        throw writeErr;
+      }
+      if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
       if(pendingResult&&pendingResult.error)throw pendingResult.error;
       await finishContributorWrite(editingBookId,creditPlan);
+      if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
+      pendingSubmissionRequest+=1;
+      const savedRow=pendingSubmissions.find(row=>String(row.id)===String(editingBookId));
+      if(savedRow){
+        Object.assign(savedRow,pendingPayload);
+        if(!pendingRowMatchesTerm(savedRow,pendingSubmissionTerm()))forgetPendingSubmissionRow(editingBookId);
+        else if(pendingSubmissionCommitted){
+          pendingSubmissionCommitted={...pendingSubmissionCommitted,rows:pendingSubmissions.map(row=>({...row}))};
+          renderPendingSubmissions();
+        }
+      }
       setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
       modal(false);
       showAdminSection("submissions",{skipLoad:true});
       releaseSaveUi();
       try{
-        if(SaveGuard.withTimeout)await SaveGuard.withTimeout(()=>loadPendingSubmissions(),SaveGuard.CATALOG_REFRESH_MS,"refresh");
-        else await loadPendingSubmissions();
-        if(attempt===saveAttempt)status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلىنىپ بولدى.","ok");
+        const refresh=SaveGuard.withTimeout
+          ?await SaveGuard.withTimeout(()=>loadPendingSubmissions(),SaveGuard.CATALOG_REFRESH_MS,"refresh")
+          :await loadPendingSubmissions();
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin)||(refresh&&refresh.stale))return;
+        if(refresh&&refresh.ok===false)showPendingReadFailure(pendingReadContext(),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+        else status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلىنىپ بولدى.","ok");
       }catch(refreshErr){
-        if(attempt===saveAttempt)status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.","warn");
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
+        showPendingReadFailure(pendingReadContext(),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
       }
       return;
     }
@@ -6529,6 +6943,7 @@ function bindMfaGate(){
     onNoFactor:()=>routeSession(),
     onLogout:()=>logout(),
     onSessionInvalid:()=>{
+      clearPendingSubmissionPrivate();
       user=null;
       show("loginPanel");
       $("#adminLogout").hidden=true;
@@ -6573,6 +6988,7 @@ async function login(e){
   await routeSession();
 }
 async function logout(){
+  clearPendingSubmissionPrivate();
   const api=idleApi();
   if(api.clearState)api.clearState();
   abandonAnalyticsContext();
@@ -7546,6 +7962,6 @@ if(window.__kutadguExposeAnalyticsRender){
 }
 
 window.__kutadguAdminTest={
-  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
+  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,logout,clearPendingSubmissionPrivate,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
 };
 })();

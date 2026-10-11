@@ -786,7 +786,9 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage118-isolated-assertions.sql",
     "scripts/stage118-isolated-postgres.sh",
     "scripts/stage118-isolated-postgrest.sh",
-    "scripts/stage118-snapshot-race.sh"
+    "scripts/stage118-snapshot-race.sh",
+    "tests/e2e/admin-pending-submissions-page.spec.js",
+    "tests/e2e/admin-pending-submissions-query.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
