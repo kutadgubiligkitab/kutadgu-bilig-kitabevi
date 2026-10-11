@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=53">
+  <link rel="stylesheet" href="admin.css?v=54">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -394,6 +394,8 @@
       <section class="admin-card" id="bookReviewsCard" data-admin-section-panel="reviews" hidden>
         <h2>📝 كىتاب ئىنكاسلىرى</h2>
         <p class="admin-help">كۈتۈۋاتقان ئىنكاس تەستىقلانغاندىن كېيىن كىتاب بېتىدە كۆرۈنىدۇ. رەت قىلىنغان ئىنكاس كۆرۈنمەيدۇ.</p>
+        <label class="admin-review-search-label" for="bookReviewSearch">كىتاب نامى ياكى يازغۇچى ئىسمى</label>
+        <input id="bookReviewSearch" class="admin-review-search" type="search" maxlength="200" autocomplete="off" enterkeyhint="search">
         <div class="admin-review-filters" role="group" aria-label="ئىنكاس ھالىتى">
           <button type="button" data-review-status="pending" aria-pressed="true">كۈتۈۋاتقان</button>
           <button type="button" data-review-status="approved" aria-pressed="false">تەستىقلانغان</button>
@@ -1088,8 +1090,8 @@
 <script defer src="kutadgu-book-entry-suggest.js?v=2"></script>
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
-  <script defer src="admin-book-reviews.js?v=3"></script>
-  <script defer src="admin.js?v=104"></script>
+  <script defer src="admin-book-reviews.js?v=6"></script>
+  <script defer src="admin.js?v=105"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

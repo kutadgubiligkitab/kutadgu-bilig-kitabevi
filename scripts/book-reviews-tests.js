@@ -62,8 +62,13 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.doesNotMatch(admin, /innerHTML|email/);
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
-  assert.match(adminHtml, /admin-book-reviews\.js\?v=3/);
-  assert.match(adminHtml, /admin\.css\?v=50/);
+  assert.match(adminHtml, /admin-book-reviews\.js\?v=6/);
+  assert.match(adminHtml, /admin\.css\?v=54/);
+  assert.match(admin, /PAGE_SIZE = 10/);
+  assert.match(admin, /admin_book_review_page/);
+  assert.match(admin, /admin_book_review_reply_page/);
+  assert.match(adminHtml, /id="bookReviewSearch"/);
+  assert.match(adminHtml, /كىتاب نامى ياكى يازغۇچى ئىسمى/);
   assert.doesNotMatch(adminHtml, /admin\.css\?v=49/);
   assert.match(adminCss, /\.admin-top-actions a,\.admin-top-actions button\{[^}]*color:#fff/);
   assert.match(adminCss, /\.admin-top-actions \.admin-approval-panel\[hidden\]\{display:none\}/);
@@ -94,6 +99,33 @@ test("review SQL keeps anonymous reads off the admin helper", () => {
   assert.match(sql, /revoke all on function public\.my_book_review_status\(bigint\) from public, anon/);
   assert.match(sql, /grant execute on function public\.my_book_review_status\(bigint\) to authenticated/);
   assert.doesNotMatch(sql, /p\.email|profiles\.email/);
+});
+
+test("review search pages stay additive and do not return private profile fields", () => {
+  const sql = fs.readFileSync(path.join(root, "STAGE119_ADMIN_REVIEW_PAGES.sql"), "utf8");
+  const rollback = fs.readFileSync(path.join(root, "STAGE119_ADMIN_REVIEW_PAGES_ROLLBACK.sql"), "utf8");
+  const adminJs = fs.readFileSync(path.join(root, "admin.js"), "utf8");
+  assert.match(sql, /function public\.admin_book_review_page/);
+  assert.match(sql, /function public\.admin_book_review_reply_page/);
+  assert.match(sql, /function public\.admin_review_search_pattern/);
+  assert.match(sql, /limit 10/);
+  assert.match(sql, /jsonb_build_object\('total'/);
+  assert.match(sql, /is_kutadgu_admin\(\)/);
+  assert.match(sql, /aal2/);
+  assert.match(sql, /escape E'\\\\'/);
+  assert.match(sql, /revoke all on function public\.admin_review_search_pattern\(text\) from public, anon, authenticated/);
+  assert.match(sql, /grant execute on function public\.admin_book_review_page\(text, text, integer\) to authenticated/);
+  assert.match(sql, /grant execute on function public\.admin_book_review_reply_page\(text, text, integer\) to authenticated/);
+  assert.doesNotMatch(sql, /user_id|'email'|profiles\.email|p\.email/);
+  assert.doesNotMatch(sql, /drop table|delete from public\.book_reviews|delete from public\.book_review_replies/i);
+  assert.match(rollback, /drop function if exists public\.admin_book_review_page\(text, text, integer\)/);
+  assert.match(rollback, /drop function if exists public\.admin_book_review_reply_page\(text, text, integer\)/);
+  assert.match(rollback, /drop function if exists public\.admin_review_search_pattern\(text\)/);
+  assert.doesNotMatch(rollback, /drop table|book_reviews|admin_list_book_reviews/i);
+  assert.match(adminJs, /KutadguAdminReviews\.clear\(\)/);
+  assert.match(admin, /قايتا سىناش/);
+  assert.match(admin, /جەمئىي /);
+  assert.doesNotMatch(admin, /admin_list_book_reviews|admin_list_book_review_replies/);
 });
 
 test("paged moderation and the public reply target stay narrow", () => {

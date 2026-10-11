@@ -788,7 +788,11 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/stage118-isolated-postgrest.sh",
     "scripts/stage118-snapshot-race.sh",
     "tests/e2e/admin-pending-submissions-page.spec.js",
-    "tests/e2e/admin-pending-submissions-query.spec.js"
+    "tests/e2e/admin-pending-submissions-query.spec.js",
+    "STAGE119_ADMIN_REVIEW_PAGES.sql",
+    "STAGE119_ADMIN_REVIEW_PAGES_ROLLBACK.sql",
+    "scripts/stage119-isolated-verify.js",
+    "tests/e2e/admin-review-pages.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

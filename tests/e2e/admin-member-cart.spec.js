@@ -73,7 +73,7 @@ async function installAdmin(page, carts, members) {
       auth: { getSession: async () => window.__kutadguMemberCartAdminClient.auth.getSession() },
       rpc(name) {
         if (name === "admin_approval_counts") return Promise.resolve({ data: { submissions: 1, reviews: 0, replies: 0 }, error: null });
-        if (name === "admin_list_book_reviews" || name === "admin_list_book_review_replies") return Promise.resolve({ data: [], error: null });
+        if (name === "admin_book_review_page" || name === "admin_book_review_reply_page") return Promise.resolve({ data: { total: 0, page: 0, rows: [] }, error: null });
         return Promise.resolve({ data: null, error: null });
       }
     };
