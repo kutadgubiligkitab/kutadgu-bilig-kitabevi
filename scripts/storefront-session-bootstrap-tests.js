@@ -176,11 +176,11 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=148/);
+  assert.match(indexHtml, /shop\.js\?v=151/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
-  assert.match(cartHtml, /shop\.js\?v=138/);
+  assert.match(cartHtml, /shop\.js\?v=151/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
-  assert.match(accountHtml, /member\.js\?v=28/);
+  assert.match(accountHtml, /member\.js\?v=30/);
   assert.doesNotMatch(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
 });
@@ -221,7 +221,7 @@ test("shop.js does not await member boot before catalog first paint", () => {
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
   assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
-  assert.match(shop, /member\.js\?v=28/);
+  assert.match(shop, /member\.js\?v=30/);
   assert.match(shop, /script\[src\*="member\.js"\]/);
 });
 
@@ -688,9 +688,13 @@ test("mobile toast sits above the bottom nav via shared CSS variables", () => {
 test("logout still abandons member shop state and account page still loads member.js once", () => {
   assert.match(member, /if\(event==="SIGNED_OUT"\)\{\s*abandonMemberShopSync\(\);/);
   assert.match(member, /recoveredIdentityId="signed-out"/);
-  assert.match(member, /async function signOut\(\)\{\s*const pending=abandonMemberShopSync\(\);/);
+  assert.match(member, /async function signOut\(\)\{[\s\S]*?const pending=abandonMemberShopSync\(\);/);
+  const signOutBody = member.slice(member.indexOf("async function signOut()"), member.indexOf("async function resetPassword"));
+  assert.ok(signOutBody.indexOf("beginSignOut") < signOutBody.indexOf("const pending=abandonMemberShopSync()"));
+  assert.doesNotMatch(signOutBody, /rememberSignOutContext|restoreRejectedSignOut/);
+  assert.match(signOutBody, /if\(db\)await db\.auth\.signOut\(\{scope:"local"\}\);/);
   const accountScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(accountScripts, ["member.js?v=28"]);
+  assert.deepStrictEqual(accountScripts, ["member.js?v=30"]);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {

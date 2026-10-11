@@ -441,7 +441,8 @@ jobs.push(test("G robots.txt keeps sitemap URL and does not Disallow noindex HTM
     "cart.html",
     "favorites.html",
     "my-books.html",
-    "book-staff.html"
+    "book-staff.html",
+    "feedback.html"
   ];
   assert.ok(robots.includes("User-agent: *"));
   assert.ok(robots.includes("Allow: /"));

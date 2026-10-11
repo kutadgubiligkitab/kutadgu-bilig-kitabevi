@@ -1013,6 +1013,7 @@ async function signInWithGoogle(){
   return data;
 }
 async function signOut(){
+  if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
   const pending=abandonMemberShopSync();
   previewShopDebug("sign-out",{
     owner:idSuffix(readShopOwner()),
@@ -1125,10 +1126,16 @@ async function init(){
       auth:memberAuthOptions()
     });
     db.auth.onAuthStateChange((event,session)=>{
+      const feedbackApi=window.KutadguWebsiteFeedback;
+      if(feedbackApi&&typeof feedbackApi.noteAuthUser==="function"){
+        const provenAuth=event==="SIGNED_OUT"?null:provenMemberSession(session);
+        feedbackApi.noteAuthUser(provenAuth&&provenAuth.user&&provenAuth.user.id?String(provenAuth.user.id):"");
+      }
       if(event==="SIGNED_OUT"){
         abandonMemberShopSync();
         recoveredIdentityId="signed-out";
         user=null;profile=null;blocked=false;
+        if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
       }
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED"){
         if(recoveredIdentityId==="signed-out")return;

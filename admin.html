@@ -69,6 +69,7 @@
           <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="reviews">📝 كىتاب ئىنكاسلىرى</button>
+          <button type="button" class="admin-nav-item" data-admin-section="feedback">💬 پىكىرلەر</button>
           <button type="button" class="admin-nav-item" data-admin-section="overview">📊 ئومۇمىي كۆرۈنۈش</button>
           <button type="button" class="admin-nav-item" data-admin-section="storefront">📢 توربەت مەزمۇنى</button>
           <button type="button" class="admin-nav-item" data-admin-section="import-covers">📥 ئىمپورت ۋە مۇقاۋا</button>
@@ -84,6 +85,7 @@
               <option value="books">📚 كىتابلار</option>
               <option value="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</option>
               <option value="reviews">📝 كىتاب ئىنكاسلىرى</option>
+              <option value="feedback">💬 پىكىرلەر</option>
               <option value="overview">📊 ئومۇمىي كۆرۈنۈش</option>
               <option value="storefront">📢 توربەت مەزمۇنى</option>
               <option value="import-covers">📥 ئىمپورت ۋە مۇقاۋا</option>
@@ -406,6 +408,15 @@
         <h3 class="admin-help">جاۋابلار</h3>
         <div id="bookReviewReplyStatus" class="admin-status" role="status"></div>
         <div id="bookReviewReplyList"></div>
+      </section>
+
+      <section class="admin-card" id="websiteFeedbackCard" data-admin-section-panel="feedback" hidden>
+        <h2>💬 پىكىرلەر</h2>
+        <p class="admin-help">ئەزالار يوللىغان توربەت پىكرى. بۇ تىزىملىك پەقەت باشقۇرغۇچىغا كۆرۈنىدۇ.</p>
+        <div id="websiteFeedbackStatus" class="admin-status" role="status"></div>
+        <div id="websiteFeedbackList"></div>
+        <button id="websiteFeedbackRetry" class="admin-secondary" type="button" hidden>قايتا سىناش</button>
+        <div id="websiteFeedbackPager" class="admin-review-pager" hidden></div>
       </section>
 
       <div data-admin-section-panel="import-covers" hidden>
@@ -1091,7 +1102,8 @@
 <script defer src="admin-save-guard.js?v=1"></script>
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
-  <script defer src="admin.js?v=105"></script>
+  <script defer src="admin-feedback.js?v=2"></script>
+  <script defer src="admin.js?v=106"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
