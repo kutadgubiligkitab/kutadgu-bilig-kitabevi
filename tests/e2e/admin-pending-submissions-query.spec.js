@@ -134,12 +134,45 @@ async function install(page, rows, mode) {
       const data = JSON.parse(JSON.stringify(matched.slice(from, to + 1)));
       let count = matched.length;
       const mode = window.__pendingMode;
+      const claim = window.__pendingRangeClaim == null ? matched.length : window.__pendingRangeClaim;
+      function rangeError(offset) {
+        return {
+          data: null,
+          error: {
+            message: "Requested range not satisfiable",
+            code: "PGRST103",
+            details: "An offset of " + offset + " was requested, but there are only " + claim + " rows.",
+            hint: null
+          },
+          count: null,
+          status: 416,
+          statusText: "Range Not Satisfiable"
+        };
+      }
+      const past = from > 0 && from >= matched.length;
+      if ((mode === "range" || mode === "range-probe-fail" || mode === "range-last-fail") && past) return rangeError(from);
+      if (mode === "range-last-fail" && from > 0) return rangeError(from);
+      if (mode === "range-probe-fail" && from === 0) return { data: data, error: null, count: null, status: 200, statusText: "OK" };
+      if (mode === "limit") {
+        return {
+          data: null,
+          error: {
+            message: "Requested range not satisfiable",
+            code: "PGRST103",
+            details: "Limit should be greater than or equal to zero.",
+            hint: null
+          },
+          count: null,
+          status: 416,
+          statusText: "Range Not Satisfiable"
+        };
+      }
       if (mode === "count-missing") count = null;
       else if (mode === "count-invalid") count = "nope";
       else if (mode === "count-mismatch") count = 5;
       else if (mode === "count-string") count = String(matched.length);
       if (mode === "error") return { data: null, error: { message: "pending read failed", code: "500" }, count: null };
-      return { data: data, error: null, count: count };
+      return { data: data, error: null, count: count, status: 200, statusText: "OK" };
     }
     function settle(q) {
       let result;
@@ -784,6 +817,461 @@ test.describe("pending submission query builder", () => {
     await expect(page.locator("#pendingSubmissionStatus")).toHaveText(SEARCH_MISS);
     expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(1);
     expect(await page.evaluate(() => window.__pendingWrites[0].type)).toBe("edit");
+    await expectNoOverflow(page);
+  });
+
+  test("a late approve, reject, or edit does not read or restore private state", async ({ page }) => {
+    const alerts = [];
+    page.on("dialog", (dialog) => {
+      if (dialog.type() === "alert") alerts.push(dialog.message());
+      dialog.accept();
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openPending(page, books(21));
+    await expectQueue(page, 10, 21, pageLabel(1, 3, 21));
+    await page.evaluate(() => {
+      const orig = window.__kutadguAdminReviewStaff;
+      window.__kutadguAdminReviewStaff = (id, approve) => new Promise((resolve, reject) => {
+        window.__pendingReleaseReview = (kind) => {
+          if (kind === "reject") {
+            reject(new Error("review rejected"));
+            return;
+          }
+          if (kind === "error") {
+            resolve({ error: { message: "staff nope", code: "42501" } });
+            return;
+          }
+          Promise.resolve(orig(id, approve)).then(resolve, reject);
+        };
+      });
+    });
+
+    async function callCount() {
+      return page.evaluate(() => window.__pendingCalls.length);
+    }
+    async function cleared() {
+      await expect(page.locator(".admin-submission-row")).toHaveCount(0);
+      await expect(page.locator("#pendingSubmissionCount")).toHaveText("تەستىق ساقلاۋاتقان: —");
+      await expect(page.locator("#pendingSubmissionSearch")).toHaveValue("");
+      await expect(page.locator("#pendingSubmissionRetry")).toHaveCount(0);
+      await expect(page.locator("#pendingSubmissionPager")).toBeHidden();
+      await expect(page.locator("#pendingSubmissionList")).not.toContainText("تەستىق كىتاب");
+    }
+
+    await page.locator("[data-approve-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    const callsAtLock = await callCount();
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await cleared();
+    await page.evaluate(() => window.__pendingReleaseReview("ok"));
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(1);
+    expect(await page.evaluate(() => window.__pendingWrites[0].type)).toBe("approve");
+    expect(await callCount()).toBe(callsAtLock);
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("كىتاب تەستىقلاندى");
+    await page.evaluate(async () => { await window.__kutadguAdminTest.loadPendingSubmissions(); });
+    expect(await callCount()).toBe(callsAtLock);
+
+    await page.evaluate(() => {
+      document.querySelector("#idleLockPanel").hidden = true;
+      window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" };
+      window.__pendingSessionOff = false;
+    });
+    await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await reloadPending(page);
+    await expectQueue(page, 10, 20, pageLabel(1, 2, 20));
+    await expect(page.locator(".admin-submission-title").first()).toHaveText("تەستىق كىتاب 20");
+
+    await page.locator("[data-approve-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    await page.evaluate(() => { window.__pendingAdmin = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", aal: "aal2" }; });
+    await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+    await expect(page.locator(".admin-submission-row")).toHaveCount(10);
+    const callsAfterSwitch = await callCount();
+    await page.evaluate(() => window.__pendingReleaseReview("ok"));
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(2);
+    expect(await callCount()).toBe(callsAfterSwitch);
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("كىتاب تەستىقلاندى");
+    await expect(page.locator(".admin-submission-row")).toHaveCount(10);
+    await page.evaluate(() => { window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" }; });
+
+    await page.locator("[data-reject-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    await page.evaluate(() => {
+      window.__pendingSignOutImpl = () => new Promise((resolve) => {
+        window.__pendingFinishSignOut = () => {
+          window.__pendingSessionOff = true;
+          resolve({ error: null });
+        };
+      });
+    });
+    const callsAtLogout = await callCount();
+    const loggingOut = page.locator("#adminLogout").click();
+    await cleared();
+    await page.evaluate(() => window.__pendingReleaseReview("ok"));
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(3);
+    expect(await callCount()).toBe(callsAtLogout);
+    await cleared();
+    await page.evaluate(() => window.__pendingFinishSignOut());
+    await loggingOut;
+    await expect(page.locator("#loginPanel")).toBeVisible();
+    await cleared();
+
+    await page.evaluate(() => {
+      window.__pendingSessionOff = false;
+      window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" };
+      window.__pendingSignOutImpl = () => Promise.reject(new Error("signout failed"));
+    });
+    await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-row")).toHaveCount(10);
+    await page.locator("[data-approve-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    const callsAtRejectSignOut = await callCount();
+    const failedLogout = page.locator("#adminLogout").click();
+    await cleared();
+    await page.evaluate(() => window.__pendingReleaseReview("error"));
+    await failedLogout;
+    await expect(page.locator("#loginPanel")).toBeVisible();
+    expect(await callCount()).toBe(callsAtRejectSignOut);
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(3);
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("staff nope");
+
+    await page.evaluate(() => {
+      window.__pendingSessionOff = false;
+      window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" };
+      window.__pendingSignOutImpl = null;
+    });
+    await page.evaluate(() => window.__kutadguAdminTest.routeSession());
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-row")).toHaveCount(10);
+    const visibleBeforeAal = await page.locator(".admin-submission-title").first().innerText();
+    await page.locator("[data-approve-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    await page.evaluate(() => { window.__pendingAdmin.aal = "aal1"; });
+    const callsAtAal = await callCount();
+    await page.evaluate(() => window.__pendingReleaseReview("ok"));
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(4);
+    expect(await callCount()).toBe(callsAtAal);
+    await expect(page.locator(".admin-submission-title").first()).toHaveText(visibleBeforeAal);
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("كىتاب تەستىقلاندى");
+
+    await page.evaluate(() => { window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" }; });
+    await reloadPending(page);
+    await page.locator("[data-reject-submission]").first().click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseReview === "function")).toBe(true);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await cleared();
+    await page.evaluate(() => window.__pendingReleaseReview("reject"));
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(4);
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("review rejected");
+    expect(alerts.filter((msg) => !msg.includes("STAGE106_CATALOG_CREDITS"))).toEqual([]);
+
+    const editable = book(4, {
+      id: 9401,
+      title: "ئىزدەلگەن نام",
+      image_url: "https://fxlojnqwyojqjskfggmh.supabase.co/storage/v1/object/public/book-covers/staff/demo/cover.jpg"
+    });
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = true; });
+    await page.evaluate((rows) => { window.__pendingRows = rows; }, [editable]);
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-title")).toHaveText("ئىزدەلگەن نام");
+    await page.evaluate(() => {
+      const orig = window.__kutadguAdminPersistPending;
+      window.__pendingPersistOrig = orig;
+      window.__kutadguAdminPersistPending = (id, payload) => new Promise((resolve, reject) => {
+        window.__pendingReleaseEdit = (kind) => {
+          if (kind === "reject") {
+            reject(new Error("edit rejected"));
+            return;
+          }
+          if (kind === "error") {
+            resolve({ error: { message: "edit nope", code: "P0001" } });
+            return;
+          }
+          Promise.resolve(orig(id, payload)).then(resolve, reject);
+        };
+      });
+    });
+    await page.locator("[data-edit-submission]").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookTitle").fill("باشقا نام");
+    const callsAtEdit = await callCount();
+    await page.locator("#bookSaveBtn").click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseEdit === "function")).toBe(true);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await cleared();
+    await page.evaluate(() => window.__pendingReleaseEdit("ok"));
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(5);
+    expect(await page.evaluate(() => window.__pendingWrites[4].type)).toBe("edit");
+    expect(await callCount()).toBe(callsAtEdit);
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("ئۆزگەرتىشلەر");
+    expect(alerts.filter((msg) => !msg.includes("STAGE106_CATALOG_CREDITS"))).toEqual([]);
+
+    await page.evaluate(() => {
+      document.querySelector("#idleLockPanel").hidden = true;
+      document.querySelector("#bookModal").hidden = true;
+    });
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-title")).toHaveText("باشقا نام");
+    await page.locator("[data-edit-submission]").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.locator("#bookTitle").fill("يەنە بىر نام");
+    await page.locator("#bookSaveBtn").click();
+    await expect.poll(() => page.evaluate(() => typeof window.__pendingReleaseEdit === "function")).toBe(true);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await page.evaluate(() => window.__pendingReleaseEdit("error"));
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(5);
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("edit nope");
+    expect(alerts.filter((msg) => !msg.includes("STAGE106_CATALOG_CREDITS"))).toEqual([]);
+    await page.evaluate(() => {
+      document.querySelector("#idleLockPanel").hidden = true;
+      document.querySelector("#bookModal").hidden = true;
+      window.__kutadguAdminPersistPending = window.__pendingPersistOrig;
+    });
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-title")).toHaveText("باشقا نام");
+    await page.locator("[data-edit-submission]").click();
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await page.evaluate(() => {
+      const guard = window.KutadguAdminSaveGuard;
+      const orig = guard.withTimeout.bind(guard);
+      guard.withTimeout = (work, ms, step) => {
+        if (step === "refresh") {
+          const job = Promise.resolve().then(() => work());
+          job.catch(() => {});
+          return new Promise((resolve, reject) => {
+            window.__pendingFireRefreshTimeout = () => {
+              const err = new Error("مەشغۇلات ۋاقتى ئېشىپ كەتتى.");
+              err.code = "save-timeout";
+              err.name = "TimeoutError";
+              err.step = "refresh";
+              reject(err);
+            };
+          });
+        }
+        return orig(work, ms, step);
+      };
+      window.__pendingHold = true;
+      window.__pendingQueue = [];
+    });
+    await page.locator("#bookTitle").fill("ۋاقىت نامى");
+    const callsAtTimeout = await callCount();
+    await page.locator("#bookSaveBtn").click();
+    await expect.poll(() => page.evaluate(() => window.__pendingWrites.length)).toBe(6);
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    expect(await callCount()).toBe(callsAtTimeout + 1);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await cleared();
+    await page.evaluate(() => window.__pendingFireRefreshTimeout());
+    await cleared();
+    await expect(page.locator("#pendingSubmissionStatus")).not.toContainText("تىزىملىك يېڭىلانمىدى");
+    await page.evaluate(() => {
+      const release = window.__pendingQueue.shift();
+      if (release) release();
+    });
+    expect(await callCount()).toBe(callsAtTimeout + 1);
+    await cleared();
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(6);
+    expect(alerts.filter((msg) => !msg.includes("STAGE106_CATALOG_CREDITS"))).toEqual([]);
+    await expectNoOverflow(page);
+  });
+
+  test("an unsatisfiable pending page recovers from HTTP 416 without inventing a total", async ({ page }) => {
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.setViewportSize({ width: 768, height: 900 });
+    await openPending(page, books(21));
+    await page.locator("[data-pending-page='next']").click();
+    await page.locator("[data-pending-page='next']").click();
+    await expectQueue(page, 1, 21, pageLabel(3, 3, 21));
+    await expect(page.locator(".admin-submission-title")).toHaveText("تەستىق كىتاب 01");
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range";
+      window.__pendingRangeClaim = 1;
+    }, books(20));
+    const before = await page.evaluate(() => window.__pendingCalls.length);
+    await reloadPending(page);
+    await expectQueue(page, 10, 20, pageLabel(2, 2, 20));
+    await expect(page.locator(".admin-submission-title").first()).toHaveText("تەستىق كىتاب 10");
+    const recovered = await page.evaluate((start) => window.__pendingCalls.slice(start).map((call) => call.range), before);
+    expect(recovered).toEqual([[20, 29], [0, 0], [10, 19]]);
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(0);
+
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "ok";
+      window.__pendingRangeClaim = null;
+      window.__kutadguAdminTest.clearPendingSubmissionPrivate();
+      window.__kutadguAdminTest.loadPendingSubmissions();
+    }, books(11));
+    await expectQueue(page, 10, 11, pageLabel(1, 2, 11));
+    await page.locator("[data-pending-page='next']").click();
+    await expectQueue(page, 1, 11, pageLabel(2, 2, 11));
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range";
+      window.__pendingRangeClaim = null;
+    }, books(10));
+    const beforeTen = await page.evaluate(() => window.__pendingCalls.length);
+    await reloadPending(page);
+    await expectQueue(page, 10, 10, pageLabel(1, 1, 10));
+    const tenRanges = await page.evaluate((start) => window.__pendingCalls.slice(start).map((call) => call.range), beforeTen);
+    expect(tenRanges).toEqual([[10, 19], [0, 0], [0, 9]]);
+
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "ok";
+    }, books(11));
+    await reloadPending(page);
+    await page.locator("[data-pending-page='next']").click();
+    await expectQueue(page, 1, 11, pageLabel(2, 2, 11));
+    await page.evaluate(() => {
+      window.__pendingRows = [];
+      window.__pendingMode = "range";
+      window.__pendingRangeClaim = null;
+    });
+    const beforeEmpty = await page.evaluate(() => window.__pendingCalls.length);
+    await reloadPending(page);
+    await expectQueue(page, 0, 0);
+    const emptyRanges = await page.evaluate((start) => window.__pendingCalls.slice(start).map((call) => call.range), beforeEmpty);
+    expect(emptyRanges).toEqual([[10, 19], [0, 0]]);
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(0);
+    await expectNoOverflow(page);
+  });
+
+  test("range recovery stops when the follow-up read fails and retry stays read-only", async ({ page }) => {
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.setViewportSize({ width: 390, height: 800 });
+    await openPending(page, books(21));
+    await page.locator("[data-pending-page='next']").click();
+    await page.locator("[data-pending-page='next']").click();
+    await expectQueue(page, 1, 21, pageLabel(3, 3, 21));
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range-probe-fail";
+    }, books(20));
+    const beforeFail = await page.evaluate(() => window.__pendingCalls.length);
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-row")).toHaveCount(1);
+    await expect(page.locator(".admin-submission-title")).toHaveText("تەستىق كىتاب 01");
+    await expect(page.locator("#pendingSubmissionCount")).toHaveText("تەستىق ساقلاۋاتقان: 21");
+    await expect(page.locator("#pendingSubmissionPager span")).toHaveText(pageLabel(3, 3, 21));
+    await expect(page.locator("#pendingSubmissionStatus")).toContainText(COUNT_GAP);
+    await expect(page.locator("#pendingSubmissionList")).not.toContainText(EMPTY_QUEUE);
+    const failedRanges = await page.evaluate((start) => window.__pendingCalls.slice(start).map((call) => call.range), beforeFail);
+    expect(failedRanges).toEqual([[20, 29], [0, 0]]);
+
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range-last-fail";
+    }, books(20));
+    const beforeLast = await page.evaluate(() => window.__pendingCalls.length);
+    await page.locator("#pendingSubmissionRetry").click();
+    await expect(page.locator(".admin-submission-title")).toHaveText("تەستىق كىتاب 01");
+    await expect(page.locator("#pendingSubmissionCount")).toHaveText("تەستىق ساقلاۋاتقان: 21");
+    const lastRanges = await page.evaluate((start) => window.__pendingCalls.slice(start).map((call) => call.range), beforeLast);
+    expect(lastRanges).toEqual([[20, 29], [0, 0], [10, 19]]);
+    expect(await page.evaluate(() => window.__pendingQueue.length)).toBe(0);
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(0);
+
+    await page.evaluate(() => { window.__pendingMode = "range"; window.__pendingRangeClaim = 1; });
+    await page.locator("#pendingSubmissionRetry").click();
+    await expectQueue(page, 10, 20, pageLabel(2, 2, 20));
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(0);
+
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "ok";
+      window.__pendingHold = false;
+      window.__kutadguAdminTest.clearPendingSubmissionPrivate();
+      window.__kutadguAdminTest.loadPendingSubmissions();
+    }, books(21));
+    await expectQueue(page, 10, 21, pageLabel(1, 3, 21));
+    await page.evaluate(() => { window.__pendingHold = true; window.__pendingQueue = []; });
+    await page.locator("[data-pending-page='next']").click();
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await page.locator("[data-pending-page='next']").click();
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await expectQueue(page, 1, 21, pageLabel(3, 3, 21));
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range";
+      window.__pendingHold = true;
+      window.__pendingQueue = [];
+    }, books(20));
+    await reloadPending(page);
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await page.locator("#pendingSubmissionSearch").fill("تەستىق كىتاب 15");
+    const callsAtSearch = await page.evaluate(() => window.__pendingCalls.length);
+    await releaseNext(page);
+    await expect(page.locator(".admin-submission-title")).toHaveText("تەستىق كىتاب 01");
+    await expect(page.locator("#pendingSubmissionPager span")).toHaveText(pageLabel(3, 3, 21));
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    expect(await page.evaluate(() => window.__pendingCalls.length)).toBeGreaterThan(callsAtSearch);
+    await releaseNext(page);
+    await expect(page.locator(".admin-submission-title")).toHaveText("تەستىق كىتاب 15");
+    await expect(page.locator("#pendingSubmissionPager span")).toHaveText(pageLabel(1, 1, 1));
+
+    await page.locator("#pendingSubmissionSearch").fill("");
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await page.evaluate(() => { window.__pendingMode = "ok"; window.__pendingRows = window.__pendingRows; });
+    await releaseNext(page);
+    await expectQueue(page, 10, 20, pageLabel(1, 2, 20));
+    await page.evaluate(() => {
+      window.__pendingMode = "limit";
+      window.__pendingHold = false;
+    });
+    const beforeLimit = await page.evaluate(() => window.__pendingCalls.length);
+    await reloadPending(page);
+    await expect(page.locator(".admin-submission-row")).toHaveCount(10);
+    await expect(page.locator("#pendingSubmissionCount")).toHaveText("تەستىق ساقلاۋاتقان: 20");
+    await expect(page.locator("#pendingSubmissionRetry")).toBeVisible();
+    expect(await page.evaluate((start) => window.__pendingCalls.length - start, beforeLimit)).toBe(1);
+
+    await page.evaluate((rows) => {
+      window.__pendingRows = rows;
+      window.__pendingMode = "range";
+      window.__pendingHold = true;
+      window.__pendingQueue = [];
+    }, books(11));
+    await page.locator("#pendingSubmissionRetry").click();
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await page.locator("[data-pending-page='next']").click();
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await expectQueue(page, 1, 11, pageLabel(2, 2, 11));
+    await page.evaluate(() => {
+      window.__pendingRows = [];
+      window.__pendingMode = "range";
+      window.__pendingHold = true;
+      window.__pendingQueue = [];
+    });
+    await reloadPending(page);
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    await releaseNext(page);
+    await expect.poll(() => page.evaluate(() => window.__pendingQueue.length)).toBe(1);
+    const callsAtLock = await page.evaluate(() => window.__pendingCalls.length);
+    await page.evaluate(() => { document.querySelector("#idleLockPanel").hidden = false; });
+    await expect(page.locator(".admin-submission-row")).toHaveCount(0);
+    await releaseNext(page);
+    expect(await page.evaluate(() => window.__pendingCalls.length)).toBe(callsAtLock);
+    await expect(page.locator(".admin-submission-row")).toHaveCount(0);
+    await expect(page.locator("#pendingSubmissionCount")).toHaveText("تەستىق ساقلاۋاتقان: —");
+    await expect(page.locator("#pendingSubmissionRetry")).toHaveCount(0);
+    await expect(page.locator("#pendingSubmissionList")).not.toContainText(EMPTY_QUEUE);
+    expect(await page.evaluate(() => window.__pendingWrites.length)).toBe(0);
     await expectNoOverflow(page);
   });
 });

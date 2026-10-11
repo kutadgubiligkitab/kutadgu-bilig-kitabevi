@@ -1448,6 +1448,7 @@ let pendingEditMode=false;
 let pendingSubmissionPage=0;
 let pendingSubmissionTotal=0;
 let pendingSubmissionRequest=0;
+let pendingSubmissionEpoch=0;
 let pendingSubmissionSearchTimer=0;
 let pendingSubmissionCommitted=null;
 let pendingSubmissionFailed=null;
@@ -1571,12 +1572,39 @@ function pendingReadCurrent(generation,context){
 function samePendingIdentity(before,after){
   return !!(before&&after&&before.id&&after.id===before.id&&before.aal==="aal2"&&after.aal==="aal2");
 }
+function pendingListEffectsCurrent(epoch){
+  return epoch===pendingSubmissionEpoch&&dashboardAuthorized();
+}
+async function pendingWriteStillCurrent(epoch,origin){
+  if(!pendingListEffectsCurrent(epoch))return false;
+  if(!(origin&&origin.id&&origin.aal==="aal2"))return true;
+  let now={id:"",aal:""};
+  try{now=await readMemberAdmin()}catch(err){now={id:"",aal:""}}
+  if(!pendingListEffectsCurrent(epoch))return false;
+  return samePendingIdentity(origin,now);
+}
+function pendingRangeUnsatisfiable(result){
+  const error=result&&result.error;
+  if(!error||String(error.code||"")!=="PGRST103")return false;
+  const status=Number(result.status!=null?result.status:error.status);
+  if(status!==416)return false;
+  const details=String(error.details||"");
+  if(!/an offset of \d+ was requested, but there are only \d+ rows\./i.test(details))return false;
+  return /requested range not satisfiable/i.test(String(error.message||""));
+}
+function pendingBooksPageQuery(from,to){
+  let query=db.from("books").select(PENDING_SUBMISSION_SELECT,{count:"exact"}).eq("submission_status","pending");
+  const orFilter=pendingSubmissionSearchFilter();
+  if(orFilter)query=query.or(orFilter);
+  return query.order("submitted_at",{ascending:false,nullsFirst:false}).order("id",{ascending:false}).range(from,to);
+}
 function failPendingAuth(){
   clearPendingSubmissionPrivate();
   showPendingReadFailure({page:0,rawTerm:"",term:""},aal2RequiredOrderUpdateMessage());
   return {ok:false,stale:true,reason:"aal"};
 }
 function clearPendingSubmissionPrivate(){
+  pendingSubmissionEpoch+=1;
   pendingSubmissionRequest+=1;
   clearTimeout(pendingSubmissionSearchTimer);
   pendingSubmissionSearchTimer=0;
@@ -1597,6 +1625,7 @@ function clearPendingSubmissionPrivate(){
   if(statusEl){statusEl.className="admin-status";statusEl.replaceChildren()}
 }
 function showPendingReadFailure(context,message){
+  if(!dashboardAuthorized())return;
   pendingSubmissionFailed=context||pendingReadContext();
   if(pendingSubmissionCommitted){
     pendingSubmissionPage=pendingSubmissionCommitted.page;
@@ -1642,6 +1671,7 @@ function showPendingReadFailure(context,message){
   }
 }
 function commitPendingSubmissionPage(context,rows,total){
+  if(!dashboardAuthorized())return false;
   pendingSubmissionPage=context.page;
   pendingSubmissionTotal=total;
   pendingSubmissions=rows.map(row=>({...row}));
@@ -1657,6 +1687,7 @@ function commitPendingSubmissionPage(context,rows,total){
   pendingSubmissionFailed=null;
   renderPendingSubmissions();
   status($("#pendingSubmissionStatus"),pendingSubmissionStatusText(),"ok");
+  return true;
 }
 function forgetPendingSubmissionRow(id){
   const before=pendingSubmissions.length;
@@ -1752,14 +1783,86 @@ function applyPendingSubmissionPage(rows,context){
   const from=page*PENDING_SUBMISSION_PAGE_SIZE;
   return {page,total,rows:matched.slice(from,from+PENDING_SUBMISSION_PAGE_SIZE)};
 }
+async function recoverPendingSubmissionRange(generation,context,before){
+  async function stillCurrent(){
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return false;
+    const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return false;
+    if(!samePendingIdentity(before,after)){
+      failPendingAuth();
+      return false;
+    }
+    return true;
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  let probe;
+  try{
+    probe=await pendingBooksPageQuery(0,0);
+  }catch(err){
+    if(!await stillCurrent())return {ok:false,stale:true};
+    showPendingReadFailure(context,formatStaffSubmissionError(err));
+    return {ok:false,error:err,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!probe||probe.error||pendingRangeUnsatisfiable(probe)){
+    const error=probe&&probe.error;
+    if(isAal2OrderUpdateError(error))return failPendingAuth();
+    showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
+    return {ok:false,error,reason:"range"};
+  }
+  const total=exactPendingCount(probe.count);
+  const probeRows=Array.isArray(probe.data)?probe.data:null;
+  const expectedProbe=total===0?0:1;
+  if(total==null||!probeRows||probeRows.length!==expectedProbe){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنىڭ ئېنىق سانى كەلمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(total===0){
+    if(!commitPendingSubmissionPage({...context,page:0},[],0))return {ok:false,stale:true};
+    return {ok:true,total:0};
+  }
+  const last=pendingSubmissionLastPage(total);
+  if(last>=context.page){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  const from=last*PENDING_SUBMISSION_PAGE_SIZE;
+  const to=from+PENDING_SUBMISSION_PAGE_SIZE-1;
+  let pageResult;
+  try{
+    pageResult=await pendingBooksPageQuery(from,to);
+  }catch(err){
+    if(!await stillCurrent())return {ok:false,stale:true};
+    showPendingReadFailure(context,formatStaffSubmissionError(err));
+    return {ok:false,error:err,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!pageResult||pageResult.error||pendingRangeUnsatisfiable(pageResult)){
+    const error=pageResult&&pageResult.error;
+    if(isAal2OrderUpdateError(error))return failPendingAuth();
+    showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
+    return {ok:false,error,reason:"range"};
+  }
+  const pageTotal=exactPendingCount(pageResult.count);
+  const rows=Array.isArray(pageResult.data)?pageResult.data:null;
+  if(pageTotal==null||pageTotal!==total||!rows||rows.length!==pendingPageLength(pageTotal,last)){
+    showPendingReadFailure(context,"تەستىق كۈتۈۋاتقان كىتابلارنىڭ ئېنىق سانى كەلمىدى. كۆرۈنۈپ تۇرغان تىزىملىك ئالدىنقى نەتىجە.");
+    return {ok:false,reason:"range"};
+  }
+  if(!await stillCurrent())return {ok:false,stale:true};
+  if(!commitPendingSubmissionPage({...context,page:last},rows,pageTotal))return {ok:false,stale:true};
+  return {ok:true,total:pageTotal};
+}
 async function loadPendingSubmissions(){
   const statusEl=$("#pendingSubmissionStatus");
   const generation=++pendingSubmissionRequest;
   const context=pendingReadContext();
+  if(!dashboardAuthorized())return {ok:false,stale:true,reason:"auth"};
   if(Array.isArray(window.__kutadguPendingSubmissionFixtures)){
     if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
     const page=applyPendingSubmissionPage(window.__kutadguPendingSubmissionFixtures,context);
-    commitPendingSubmissionPage({...context,page:page.page},page.rows,page.total);
+    if(!commitPendingSubmissionPage({...context,page:page.page},page.rows,page.total))return {ok:false,stale:true};
     return {ok:true,total:page.total};
   }
   if(!db||typeof db.from!=="function"){
@@ -1769,35 +1872,32 @@ async function loadPendingSubmissions(){
   }
   let before={id:"",aal:""};
   try{before=await readMemberAdmin()}catch(err){before={id:"",aal:""}}
-  if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
   if(!before.id||before.aal!=="aal2")return failPendingAuth();
   context.adminId=before.id;
   context.aal=before.aal;
   status(statusEl,"تەستىق كۈتۈۋاتقان كىتابلار يۈكلىنىۋاتىدۇ...");
   const from=context.page*PENDING_SUBMISSION_PAGE_SIZE;
   const to=from+PENDING_SUBMISSION_PAGE_SIZE-1;
-  let query=db.from("books").select(PENDING_SUBMISSION_SELECT,{count:"exact"}).eq("submission_status","pending");
-  const orFilter=pendingSubmissionSearchFilter();
-  if(orFilter)query=query.or(orFilter);
-  query=query.order("submitted_at",{ascending:false,nullsFirst:false}).order("id",{ascending:false}).range(from,to);
   let result;
   try{
-    result=await query;
+    result=await pendingBooksPageQuery(from,to);
   }catch(err){
-    if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
     const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
-    if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
     if(!samePendingIdentity(before,after))return failPendingAuth();
     showPendingReadFailure(context,formatStaffSubmissionError(err));
     return {ok:false,error:err};
   }
-  if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
   const after=await readMemberAdmin().catch(()=>({id:"",aal:""}));
-  if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+  if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
   if(!samePendingIdentity(before,after))return failPendingAuth();
   if(!result||result.error){
     const error=result&&result.error;
     if(isAal2OrderUpdateError(error))return failPendingAuth();
+    if(pendingRangeUnsatisfiable(result)&&context.page>0)return recoverPendingSubmissionRange(generation,context,before);
     showPendingReadFailure(context,formatStaffSubmissionError(error||new Error("تەستىق كۈتۈۋاتقان كىتابلارنى ئوقۇش مەغلۇپ بولدى.")));
     return {ok:false,error};
   }
@@ -1809,11 +1909,11 @@ async function loadPendingSubmissions(){
   }
   const maxPage=pendingSubmissionLastPage(total);
   if(context.page>maxPage){
-    if(!pendingReadCurrent(generation,context))return {ok:false,stale:true};
+    if(!pendingReadCurrent(generation,context)||!dashboardAuthorized())return {ok:false,stale:true};
     pendingSubmissionPage=maxPage;
     return loadPendingSubmissions();
   }
-  commitPendingSubmissionPage(context,rows,total);
+  if(!commitPendingSubmissionPage(context,rows,total))return {ok:false,stale:true};
   return {ok:true,total};
 }
 async function fingerprintRemoteCover(imageUrl,excludeId){
@@ -1841,14 +1941,17 @@ async function reviewStaffSubmission(bookId,action){
     ?confirm("بۇ كىتابنى تەستىقلاپ ئاممىۋى قىلامسىز؟\nتەستىقلانغاندىن كېيىن تور بەتتە كۆرۈنىدۇ.")
     :confirm("بۇ تەكلىپنى رەت قىلامسىز؟\nكىتاب ئاكتىپ بولمايدۇ ۋە رەت قىلىندى دەپ بەلگىلىنىدۇ.");
   if(!confirmed)return;
+  const epoch=pendingSubmissionEpoch;
   pendingSubmissionBusy=true;
   status($("#pendingSubmissionStatus"),approve?"تەستىقلىنىۋاتىدۇ...":"رەت قىلىنىۋاتىدۇ...");
+  const origin=await readMemberAdmin().catch(()=>({id:"",aal:""}));
   const rpcName=approve?"approve_staff_book_submission":"reject_staff_book_submission";
   try{
     let error=null;
     if(typeof window.__kutadguAdminReviewStaff==="function"){
       ({error}=await window.__kutadguAdminReviewStaff(Number(id),approve));
     }else if(!db){
+      if(!await pendingWriteStillCurrent(epoch,origin))return;
       status($("#pendingSubmissionStatus"),"Database تېخى ئۇلانمىدى.","error");
       return;
     }else{
@@ -1860,9 +1963,11 @@ async function reviewStaffSubmission(bookId,action){
       ({error}=await db.rpc(rpcName,{p_book_id:Number(id)}));
     }
     if(error){
+      if(!await pendingWriteStillCurrent(epoch,origin))return;
       status($("#pendingSubmissionStatus"),formatStaffSubmissionError(error),"error");
       return;
     }
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
     pendingSubmissionRequest+=1;
     forgetPendingSubmissionRow(id);
     const successText=approve?"كىتاب تەستىقلاندى ۋە ئاممىۋى بولدى.":"تەكلىپ رەت قىلىندى ۋە ئاكتىپ ئەمەس ھالەتتە قالدى.";
@@ -1870,10 +1975,13 @@ async function reviewStaffSubmission(bookId,action){
     try{if(window.KutadguAdminApprovals&&typeof window.KutadguAdminApprovals.refresh==="function")window.KutadguAdminApprovals.refresh()}catch(ignore){}
     let refresh={ok:false};
     try{refresh=await loadPendingSubmissions()}catch(err){refresh={ok:false,error:err}}
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
     try{await Promise.all([loadBooks(),loadStats()])}catch(err){}
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
     if(refresh&&refresh.stale)return;
     if(!refresh||refresh.ok===false)showPendingReadFailure(pendingReadContext(),successText+" تىزىملىك يېڭىلانمىدى.");
   }catch(err){
+    if(!await pendingWriteStillCurrent(epoch,origin))return;
     status($("#pendingSubmissionStatus"),formatStaffSubmissionError(err),"error");
   }finally{
     pendingSubmissionBusy=false;
@@ -4965,12 +5073,21 @@ async function saveBook(e){
         delete pendingPayload.translator;
         delete pendingPayload.publisher;
       }
-      const pendingResult=SaveGuard.withTimeout
-        ?await SaveGuard.withTimeout((signal)=>persistPendingSubmission(editingBookId,pendingPayload,signal),SaveGuard.BOOK_WRITE_MS,"write")
-        :await persistPendingSubmission(editingBookId,pendingPayload);
-      if(attempt!==saveAttempt)return;
+      const epoch=pendingSubmissionEpoch;
+      const origin=await readMemberAdmin().catch(()=>({id:"",aal:""}));
+      let pendingResult;
+      try{
+        pendingResult=SaveGuard.withTimeout
+          ?await SaveGuard.withTimeout((signal)=>persistPendingSubmission(editingBookId,pendingPayload,signal),SaveGuard.BOOK_WRITE_MS,"write")
+          :await persistPendingSubmission(editingBookId,pendingPayload);
+      }catch(writeErr){
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
+        throw writeErr;
+      }
+      if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
       if(pendingResult&&pendingResult.error)throw pendingResult.error;
       await finishContributorWrite(editingBookId,creditPlan);
+      if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
       pendingSubmissionRequest+=1;
       const savedRow=pendingSubmissions.find(row=>String(row.id)===String(editingBookId));
       if(savedRow){
@@ -4989,11 +5106,12 @@ async function saveBook(e){
         const refresh=SaveGuard.withTimeout
           ?await SaveGuard.withTimeout(()=>loadPendingSubmissions(),SaveGuard.CATALOG_REFRESH_MS,"refresh")
           :await loadPendingSubmissions();
-        if(attempt!==saveAttempt||(refresh&&refresh.stale))return;
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin)||(refresh&&refresh.stale))return;
         if(refresh&&refresh.ok===false)showPendingReadFailure(pendingReadContext(),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
         else status($("#pendingSubmissionStatus"),"ئۆزگەرتىشلەر ساقلىنىپ بولدى.","ok");
       }catch(refreshErr){
-        if(attempt===saveAttempt)showPendingReadFailure(pendingReadContext(),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
+        if(attempt!==saveAttempt||!await pendingWriteStillCurrent(epoch,origin))return;
+        showPendingReadFailure(pendingReadContext(),"ئۆزگەرتىشلەر ساقلاندى، لېكىن تىزىملىك يېڭىلانمىدى.");
       }
       return;
     }
