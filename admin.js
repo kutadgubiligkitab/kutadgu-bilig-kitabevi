@@ -221,7 +221,7 @@ function show(id){
     if(el)el.hidden=x!==id;
   });
 }
-const ADMIN_SECTIONS=["overview","books","submissions","reviews","storefront","import-covers","insights","customers","orders","system"];
+const ADMIN_SECTIONS=["overview","books","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"];
 const DEFAULT_ADMIN_SECTION="books";
 let applyingAdminSection=false;
 function parseAdminSectionHash(hash){
@@ -253,6 +253,7 @@ function showAdminSection(sectionId,opts){
     if(id==="orders")loadAdminOrders();
     if(id==="submissions")loadPendingSubmissions();
     if(id==="reviews"&&window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.load==="function")window.KutadguAdminReviews.load();
+    if(id==="feedback"&&window.KutadguAdminFeedback&&typeof window.KutadguAdminFeedback.load==="function")window.KutadguAdminFeedback.load();
     if(id==="system")loadBookStaffAccounts();
   }
   if(options.updateHash===false||!dashboardAuthorized())return;
@@ -1624,6 +1625,7 @@ function clearPendingSubmissionPrivate(){
   const statusEl=$("#pendingSubmissionStatus");
   if(statusEl){statusEl.className="admin-status";statusEl.replaceChildren()}
   if(window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.clear==="function")window.KutadguAdminReviews.clear();
+  if(window.KutadguAdminFeedback&&typeof window.KutadguAdminFeedback.clear==="function")window.KutadguAdminFeedback.clear();
 }
 function showPendingReadFailure(context,message){
   if(!dashboardAuthorized())return;

@@ -150,7 +150,7 @@ test("existing Admin sections and pending submissions remain intact", () => {
   });
   assert.match(
     adminJs,
-    /const ADMIN_SECTIONS=\["overview","books","submissions","reviews","storefront","import-covers","insights","customers","orders","system"\]/
+    /const ADMIN_SECTIONS=\["overview","books","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"\]/
   );
   assert.match(adminHtml, /id="submissionsCard"[^>]*data-admin-section-panel="submissions"/);
   assert.match(adminJs, /approve_staff_book_submission/);

@@ -1013,6 +1013,7 @@ async function signInWithGoogle(){
   return data;
 }
 async function signOut(){
+  if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
   const pending=abandonMemberShopSync();
   previewShopDebug("sign-out",{
     owner:idSuffix(readShopOwner()),
@@ -1129,6 +1130,7 @@ async function init(){
         abandonMemberShopSync();
         recoveredIdentityId="signed-out";
         user=null;profile=null;blocked=false;
+        if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
       }
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED"){
         if(recoveredIdentityId==="signed-out")return;

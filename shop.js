@@ -4475,6 +4475,7 @@ function siteFooterHtml(){
       ${phoneHref?`<a href="${phoneHref}">تېلېفون</a>`:""}
       ${ig?`<a href="${ig}" target="_blank" rel="noopener noreferrer">Instagram</a>`:""}
       ${maps?`<a href="${maps}" target="_blank" rel="noopener noreferrer">خەرىتە</a>`:""}
+      <a href="/feedback">پىكىر ۋە تەكلىپ</a>
       <a href="/order-info">زاكاز قانداق بولىدۇ</a>
       <a href="/privacy">مەخپىيەتلىك</a>
       <a href="/returns">قايتۇرۇش / ئالماشتۇرۇش</a>

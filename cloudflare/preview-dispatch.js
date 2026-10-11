@@ -45,7 +45,8 @@ const HTML_REDIRECTS = Object.freeze({
   "/order-info.html": "/order-info",
   "/privacy.html": "/privacy",
   "/returns.html": "/returns",
-  "/delete-account.html": "/delete-account"
+  "/delete-account.html": "/delete-account",
+  "/feedback.html": "/feedback"
 });
 
 const CLEAN_REWRITES = Object.freeze({
@@ -53,7 +54,8 @@ const CLEAN_REWRITES = Object.freeze({
   "/order-info": "/order-info.html",
   "/privacy": "/privacy.html",
   "/returns": "/returns.html",
-  "/delete-account": "/delete-account.html"
+  "/delete-account": "/delete-account.html",
+  "/feedback": "/feedback.html"
 });
 
 const CATEGORY_SLUGS = new Set(sitemap.CATEGORY_HUB_SLUGS);

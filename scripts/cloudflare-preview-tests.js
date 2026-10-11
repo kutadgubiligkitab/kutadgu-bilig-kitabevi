@@ -244,6 +244,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
     "/privacy",
     "/returns",
     "/delete-account",
+    "/feedback",
     "/adabiyat",
     "/romanlar",
     "/tarikhiy-romanlar",
