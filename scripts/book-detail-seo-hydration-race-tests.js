@@ -225,7 +225,7 @@ async function run() {
     assert.ok(!/rel=["']canonical["']/i.test(bookShell));
     assert.ok(!bookShell.includes("noindex"));
     assert.match(bookShell, /kutadgu-book-seo\.js\?v=6/);
-    assert.match(bookShell, /shop\.js\?v=154/);
+    assert.match(bookShell, /shop\.js\?v=155/);
     assert.match(shop, /applyUnresolvedDetailDocument/);
   });
 }
