@@ -12,6 +12,13 @@
 <link rel="stylesheet" href="covers.css?v=2" data-kutadgu-covers="1">
 
   <link rel="stylesheet" href="mobile.css?v=24">
+  <style>
+    #guestCartInvite{direction:rtl;text-align:right;overflow-wrap:anywhere}
+    #guestCartInvite p{margin:0 0 4px}
+    #guestCartInvite a{display:inline-flex;align-items:center;min-height:44px;padding:0 2px;text-decoration:underline;text-underline-offset:3px}
+    #guestCartInvite a:focus-visible{outline:2px solid var(--site-brown,#70503d);outline-offset:3px;border-radius:6px}
+    body.dark-mode #guestCartInvite a:focus-visible{outline-color:var(--site-text)}
+  </style>
 </head>
 <body>
 
@@ -30,16 +37,16 @@
     </div>
     <aside class="cart-layout-aside" id="cartAside" hidden>
     <div id="cartSummaryHost"></div>
+    <div class="checkout-member-note" id="guestCartInvite" hidden>
+        <p>سېۋەتتىكى كىتابلارنى ھېسابىڭىزدا ساقلاڭ</p>
+        <a href="account.html#signup">ئەزا بولۇش</a>
+    </div>
     <section class="checkout-card" id="checkoutCard">
         <div class="checkout-heading">
             <div>
                 <h2>زاكاز ئۇچۇرلىرى</h2>
                 <p>ئۇچۇرنى تولدۇرۇپ WhatsApp قا يوللاڭ. توشۇش ھەققى سۆھبەتتە بېكىتىلىدۇ.</p>
             </div>
-        </div>
-
-        <div class="checkout-member-note">
-            ئەزا ئىختىيارىي. <a href="account.html">ھېسابىڭىزغا كىرسىڭىز</a> تارىخ، سېۋەت ۋە ئادرېس ساقلىنىدۇ. ئەزا بولمايمۇ WhatsApp بىلەن زاكاز قىلالايسىز.
         </div>
 
         <form id="checkoutForm" class="checkout-form">
@@ -120,7 +127,7 @@
 
 <script defer src="theme.js?v=5"></script>
 <script defer src="supabase-config.js?v=22"></script><script defer src="catalog.js?v=1"></script><script defer src="kutadgu-analytics-core.js?v=5"></script><script defer src="/posthog-config.js?v=1"></script><script defer src="/posthog-analytics.js?v=1"></script><script defer src="analytics.js?v=8"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=6"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=4"></script><script defer src="kutadgu-search-rank.js?v=1"></script><script defer src="kutadgu-shared-cart.js?v=3"></script><script defer src="shop.js?v=154"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=2"></script><script defer src="kutadgu-book-seo.js?v=6"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=4"></script><script defer src="kutadgu-search-rank.js?v=1"></script><script defer src="kutadgu-shared-cart.js?v=3"></script><script defer src="shop.js?v=155"></script>
   <script defer src="mobile.js?v=9"></script>
 </body>
 </html>

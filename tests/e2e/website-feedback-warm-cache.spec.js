@@ -28,6 +28,8 @@ const cartShareShop = gitShow("0848e8063ecccae61b7b74f3e84cc85cb9d6366a:shop.js"
 const releasedOrderShop = gitShow("435bd6c11b722c59c718903224b4912bc8e79372:shop.js");
 const cartShareMember = gitShow("0848e8063ecccae61b7b74f3e84cc85cb9d6366a:member.js");
 const oldFeedback = gitShow(previous + ":feedback.js");
+const releasedCompactShop = gitShow("2401309be7e5d0c6e70bd83392952a1bacf62b51:shop.js");
+const releasedAccount = gitShow("2401309be7e5d0c6e70bd83392952a1bacf62b51:account.js");
 
 function fulfill(body) {
   return (route) => route.fulfill({
@@ -46,6 +48,8 @@ async function warmOldAssets(page) {
   await page.route(/\/shop\.js\?v=151(?:&|$)/, fulfill(releasedShop));
   await page.route(/\/shop\.js\?v=152(?:&|$)/, fulfill(cartShareShop));
   await page.route(/\/shop\.js\?v=153(?:&|$)/, fulfill(releasedOrderShop));
+  await page.route(/\/shop\.js\?v=154(?:&|$)/, fulfill(releasedCompactShop));
+  await page.route(/\/account\.js\?v=7(?:&|$)/, fulfill(releasedAccount));
   await page.route(/\/member\.js\?v=28(?:&|$)/, fulfill(oldMember));
   await page.route(/\/member\.js\?v=29(?:&|$)/, fulfill(oldMemberPrevious));
   await page.route(/\/member\.js\?v=30(?:&|$)/, fulfill(cartShareMember));
@@ -58,7 +62,9 @@ async function warmOldAssets(page) {
     await fetch("/shop.js?v=151");
     await fetch("/shop.js?v=152");
     await fetch("/shop.js?v=153");
+    await fetch("/shop.js?v=154");
     await fetch("/shop.js?v=142");
+    await fetch("/account.js?v=7");
     await fetch("/member.js?v=28");
     await fetch("/member.js?v=29");
     await fetch("/member.js?v=30");
@@ -83,6 +89,11 @@ async function warmOldAssets(page) {
   const cachedReleasedOrder = await page.evaluate(async () => (await fetch("/shop.js?v=153")).text());
   expect(cachedReleasedOrder).toContain("دانە ×");
   expect(cachedReleasedOrder).not.toContain("دانە ·");
+  const cachedCompactShop = await page.evaluate(async () => (await fetch("/shop.js?v=154")).text());
+  const cachedAccount = await page.evaluate(async () => (await fetch("/account.js?v=7")).text());
+  expect(cachedCompactShop).toContain("دانە ·");
+  expect(cachedCompactShop).not.toContain("guestCartInviteDecision");
+  expect(cachedAccount).not.toContain("signupEntryRequested");
   expect(cachedMemberCartShare).not.toContain("noteCartShareSignOut");
   expect(cachedFeedback).not.toContain("sendSeq");
 }
@@ -91,7 +102,7 @@ async function expectFreshShop(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const src = await page.locator("script[src*='shop.js']").first().getAttribute("src");
-  expect(src).toContain("shop.js?v=154");
+  expect(src).toContain("shop.js?v=155");
   const live = await page.evaluate(async (url) => (await fetch(url)).text(), src);
   expect(live).toContain('href="/feedback"');
   expect(live).toContain("member.js?v=31");
@@ -99,6 +110,7 @@ async function expectFreshShop(page, path) {
   expect(live).toContain("noteCartShareAuth");
   expect(live).toContain("دانە ·");
   expect(live).toContain("*جەمئىي كىتاب سانى:");
+  expect(live).toContain("guestCartInviteDecision");
   expect(live).not.toContain("دانە ×");
 }
 
@@ -115,9 +127,14 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   expect(memberBody).toContain("noteAuthUser");
   expect(memberBody).toContain("noteCartShareSignOut");
   expect(memberBody).not.toContain("restoreRejectedSignOut");
+  const accountSrc = await page.locator("script[src*='account.js']").getAttribute("src");
+  expect(accountSrc).toContain("account.js?v=8");
+  const accountBody = await page.evaluate(async (url) => (await fetch(url)).text(), accountSrc);
+  expect(accountBody).toContain("signupEntryRequested");
+  expect(accountBody).toContain('"#signup"');
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("پىكىر ۋە تەكلىپ");
-  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=154/);
+  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=155/);
   await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", /member\.js\?v=31/);
   await expect(page.locator("script[src*='feedback.js']")).toHaveAttribute("src", /feedback\.js\?v=3/);
   const feedbackBody = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='feedback.js']").src)).text());

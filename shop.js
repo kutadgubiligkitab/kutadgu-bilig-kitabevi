@@ -2075,6 +2075,7 @@ function add(id,qty=1){
     toast("كىتاب سېۋەتكە قوشۇلدى 🛒");
     trackEvent("add_to_cart",{bookId:storeId,legacyId:b.legacyId||"",qty:Math.max(1,Number(qty)||1)});
     noteStorefrontEngagement("cart",storeId);
+    if(document.querySelector("#cartItems"))cartPage();
   }
 }
 function remove(id){
@@ -3871,12 +3872,67 @@ function renderMyBooks(){
   draw(active,false);
 }
 
+function guestCartInviteDecision(state){
+  if(!state||state.eventSeen!==true||state.authError===true)return false;
+  if(state.sessionBootDone!==true||state.configured!==true)return false;
+  if(state.user||state.profile||state.blocked||state.holdsAccount)return false;
+  if(state.bootstrapPending||state.persistedUserId)return false;
+  if(state.owner!==SHOP_OWNER_GUEST)return false;
+  const count=Number(state.cartLength);
+  return Number.isFinite(count)&&count>0;
+}
+let memberIdentity={eventSeen:false,authError:false,holdsAccount:false};
+function guestCartInviteState(){
+  const member=window.KutadguMember;
+  let user=null,profile=null,blocked=false,boot=false,configured=false;
+  try{
+    boot=!!(member&&typeof member.sessionBootDone==="function"&&member.sessionBootDone()===true);
+    configured=!!(member&&typeof member.configured==="function"&&member.configured()===true);
+    user=member&&member.getUser?member.getUser():null;
+    profile=member&&member.getProfile?member.getProfile():null;
+    blocked=!!(member&&member.isBlocked&&member.isBlocked());
+  }catch(e){
+    return {eventSeen:memberIdentity.eventSeen,authError:true,sessionBootDone:false,configured:false,user:null,profile:null,blocked:false,holdsAccount:true,bootstrapPending:true,persistedUserId:"",owner:"",cartLength:0};
+  }
+  let persisted="";
+  try{persisted=peekPersistedShopUserId()}catch(e){persisted=""}
+  let pending=true;
+  try{pending=identityBootstrapPending()}catch(e){pending=true}
+  return {
+    eventSeen:memberIdentity.eventSeen,
+    authError:memberIdentity.authError,
+    sessionBootDone:boot,
+    configured,
+    user:user||null,
+    profile:profile||null,
+    blocked,
+    holdsAccount:memberIdentity.holdsAccount,
+    bootstrapPending:pending,
+    persistedUserId:persisted?String(persisted):"",
+    owner:readShopOwner(),
+    cartLength:cart().length
+  };
+}
+function syncGuestCartInvite(){
+  const note=document.querySelector("#guestCartInvite");
+  if(!note)return;
+  const show=guestCartInviteDecision(guestCartInviteState());
+  note.hidden=!show;
+}
+function noteMemberIdentity(event){
+  const detail=event&&event.detail||{};
+  memberIdentity.eventSeen=true;
+  if(detail.error)memberIdentity.authError=true;
+  memberIdentity.holdsAccount=!!(detail.user||detail.profile||detail.blocked);
+  syncGuestCartInvite();
+}
 function cartPage(){
   let host=document.querySelector("#cartItems");if(!host)return;
   const preview=cartHydrationPending();
   if(preview&&!cartHasUsableDisplayPreview()){
     showCartBootSkeleton(cart().length);
     updateBadge();
+    syncGuestCartInvite();
     return;
   }
   if(preview){
@@ -3907,6 +3963,7 @@ function cartPage(){
     if(aside)aside.hidden=true;
     if(checkout)checkout.hidden=true;
     updateBadge();
+    syncGuestCartInvite();
     return;
   }
 
@@ -3987,6 +4044,7 @@ function cartPage(){
 
   setupCheckout();
   updateBadge();
+  syncGuestCartInvite();
 }
 
 function changeQty(id,d){
@@ -5537,7 +5595,8 @@ function bindShopMemberListeners(){
   if(document.documentElement.dataset.kutadguShopListeners==="1")return;
   document.documentElement.dataset.kutadguShopListeners="1";
   document.addEventListener("kutadgu-member-state-synced",refreshAfterMemberSync);
-  document.addEventListener("kutadgu-member-change",()=>{
+  document.addEventListener("kutadgu-member-change",(event)=>{
+    noteMemberIdentity(event);
     noteCartShareIdentity();
     replayPendingShopIntents();
     loadMemberProfileIntoCheckout();

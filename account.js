@@ -65,6 +65,14 @@ function setupPasswordToggles(){
 function showPanel(id){
   ["accountLoading","accountSetup","authPanel","memberPanel"].forEach(name=>{const el=$("#"+name);if(el)el.hidden=name!==id});
 }
+let authTabChosen=false;
+let initialAuthPainted=false;
+function signupEntryRequested(){
+  try{
+    if(typeof location==="undefined"||!location)return false;
+    return String(location.hash||"")==="#signup";
+  }catch(e){return false}
+}
 function switchTab(tab){
   document.querySelectorAll("[data-auth-tab]").forEach(btn=>{
     const active=btn.dataset.authTab===tab;btn.classList.toggle("is-active",active);btn.setAttribute("aria-selected",active?"true":"false");
@@ -122,7 +130,14 @@ function clearPrivateAccountUi(){
 function showUnauthenticatedAccount(){
   invalidateAccountRenders();
   clearPrivateAccountUi();
-  switchTab("login");
+  if(!initialAuthPainted){
+    initialAuthPainted=true;
+    switchTab(signupEntryRequested()?"signup":"login");
+  }else if(!authTabChosen&&signupEntryRequested()){
+    switchTab("signup");
+  }else{
+    switchTab("login");
+  }
   showPanel("authPanel");
 }
 function showBlockedAccount(){
@@ -158,6 +173,7 @@ async function renderMember(){
   const token=beginAccountRender();
   const member=api(),user=member.getUser(),profile=member.getProfile();
   if(!token.uid||!user){showUnauthenticatedAccount();return}
+  authTabChosen=true;
   if(!isCurrentAccountRender(token))return;
   showPanel("memberPanel");
   $("#memberWelcome").textContent=profile?.full_name||"ھېسابىم";
@@ -188,7 +204,7 @@ function onMemberChange(){
 }
 async function init(){
   setupPasswordToggles();
-  document.querySelectorAll("[data-auth-tab]").forEach(btn=>btn.onclick=()=>switchTab(btn.dataset.authTab));
+  document.querySelectorAll("[data-auth-tab]").forEach(btn=>btn.onclick=()=>{authTabChosen=true;switchTab(btn.dataset.authTab)});
   document.addEventListener("kutadgu-member-change",onMemberChange);
   try{
     await api().ready;
@@ -231,7 +247,7 @@ async function init(){
     try{
       const data=await api().signUp({email:$("#signupEmail").value.trim(),password:p1,fullName:$("#signupName").value.trim()});
       if(data.session)await renderMember();
-      else{switchTab("login");$("#loginEmail").value=$("#signupEmail").value.trim();showStatus($("#authStatus"),"✅ ئەزالىق قۇرۇلدى. ئېلخەتتىكى جەزملەشتۈرۈش ئۇلانمىسىنى بېسىپ ئاندىن كىرىڭ.","ok")}
+      else{authTabChosen=true;switchTab("login");$("#loginEmail").value=$("#signupEmail").value.trim();showStatus($("#authStatus"),"✅ ئەزالىق قۇرۇلدى. ئېلخەتتىكى جەزملەشتۈرۈش ئۇلانمىسىنى بېسىپ ئاندىن كىرىڭ.","ok")}
     }catch(err){showStatus($("#authStatus"),"ئەزالىق ئېچىش مەغلۇپ بولدى: "+(err.message||err),"error")}
     finally{setBusy(form,false)}
   });
