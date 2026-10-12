@@ -4081,6 +4081,16 @@ function currentOrderSignature(customer){
   return JSON.stringify({cart:cart(),customer});
 }
 
+function orderMessageAmount(n,alwaysDecimals){
+  const value=Number(n);
+  const cents=Math.round((Number.isFinite(value)?value:0)*100);
+  const places=alwaysDecimals||cents%100!==0?2:0;
+  const text=(cents/100).toLocaleString("tr-TR",{minimumFractionDigits:places,maximumFractionDigits:places});
+  return `${text} ₺`;
+}
+function orderItemAmount(n){return orderMessageAmount(n,false)}
+function orderGrandAmount(n){return orderMessageAmount(n,true)}
+
 function buildOrderText(requireCustomer=true){
   if(cartHydrationPending()){toast("كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ.");return null}
   let items=cartLines().map(line=>({...line,b:find(line.id)||null}));
@@ -4115,22 +4125,22 @@ function buildOrderText(requireCustomer=true){
   ];
 
   items.forEach((x,i)=>{
-    lines.push(`${i+1}. ${x.b.title} — ${x.qty} دانە × ${money(x.b.price)} = ${money((x.b.price||0)*x.qty)}`);
+    lines.push(`${i+1}. ${x.b.title} — ${x.qty} دانە · ${orderItemAmount((Number(x.b.price)||0)*x.qty)}`);
   });
 
   lines.push(
     "",
-    `جەمئىي كىتاب سانى: ${totalQty}`,
-    `جەمئىي: ${money(total)}`,
+    `*جەمئىي كىتاب سانى: ${totalQty} — جەمئىي: ${orderGrandAmount(total)}*`,
     "",
     "خېرىدار ئۇچۇرى:",
     `ئىسمى: ${c.name||"-"}`,
     `تېلېفون: ${c.phone||"-"}`,
     `شەھەر / رايون: ${c.city||"-"}`,
     `ئادرېس: ${c.address||"-"}`,
-    `يەتكۈزۈش: ${c.delivery||"-"}`,
-    `ئىزاھات: ${c.note||"-"}`
+    `يەتكۈزۈش: ${c.delivery||"-"}`
   );
+  const note=String(c.note==null?"":c.note).trim();
+  if(note)lines.push(`ئىزاھات: ${note}`);
 
   return {
     text:lines.join("\n"),
