@@ -4320,11 +4320,20 @@ let cartShareBusySeq=0;
 let cartShareIdentityKey="";
 let cartShareAuthBound=false;
 let cartShareAuthBinding=false;
+let cartShareSdkKnown=false;
+let cartShareSdkId="";
+let cartShareSdkEpoch=0;
+let cartShareAttempts=0;
+let cartShareRetryTimer=0;
 let cartShareState={ownerId:"",allowed:false,ready:false,pending:false};
 function cartShareMember(){return window.KutadguMember||null}
 function cartShareOwner(){
   const member=cartShareMember();
   const user=member&&member.getUser&&member.getUser();
+  return user&&user.id?String(user.id):"";
+}
+function cartShareSessionId(session){
+  const user=session&&session.user;
   return user&&user.id?String(user.id):"";
 }
 function cartShareBlocked(){
@@ -4336,12 +4345,32 @@ function cartShareProfileStatus(){
   const profile=member&&member.getProfile&&member.getProfile();
   return profile&&profile.status?String(profile.status):"";
 }
+function cartShareAgrees(ownerId){
+  return !!(cartShareSdkKnown&&ownerId&&cartShareSdkId===ownerId&&cartShareOwner()===ownerId&&!cartShareBlocked()&&cartShareProfileStatus()==="active");
+}
 function cartShareVisible(){
   const id=cartShareOwner();
-  return !!(id&&cartShareState.ready&&cartShareState.allowed&&cartShareState.ownerId===id&&!cartShareBlocked()&&cartShareProfileStatus()==="active");
+  return !!(cartShareAgrees(id)&&cartShareState.ready&&cartShareState.allowed&&cartShareState.ownerId===id);
 }
 function cartShareStill(seq,ownerId){
-  return cartShareSeq===seq&&cartShareOwner()===ownerId&&!cartShareBlocked()&&cartShareProfileStatus()==="active";
+  return cartShareSeq===seq&&cartShareAgrees(ownerId);
+}
+function clearCartShareRetry(){
+  if(!cartShareRetryTimer)return;
+  clearTimeout(cartShareRetryTimer);
+  cartShareRetryTimer=0;
+}
+function closeCartShare(nextId){
+  cartShareSdkKnown=true;
+  cartShareSdkId=nextId?String(nextId):"";
+  cartShareSeq+=1;
+  cartShareBusy=false;
+  cartShareBusySeq=0;
+  cartShareIdentityKey="";
+  cartShareAttempts=0;
+  clearCartShareRetry();
+  cartShareState={ownerId:"",allowed:false,ready:false,pending:false};
+  syncCartShareButton();
 }
 function syncCartShareButton(){
   const actions=document.querySelector(".cart-summary-actions");
@@ -4369,41 +4398,97 @@ function bindCartShareAuth(){
   if(!db||!db.auth||typeof db.auth.onAuthStateChange!=="function")return;
   cartShareAuthBinding=true;
   cartShareAuthBound=true;
-  db.auth.onAuthStateChange(()=>{
-    if(cartShareAuthBinding)return;
-    noteCartShareIdentity();
+  db.auth.onAuthStateChange((event,session)=>{
+    noteCartShareAuth(event,session);
   });
   cartShareAuthBinding=false;
+  if(typeof db.auth.getSession!=="function")return;
+  const epoch=cartShareSdkEpoch;
+  db.auth.getSession().then(result=>{
+    if(epoch!==cartShareSdkEpoch||(result&&result.error))return;
+    const session=result&&result.data&&result.data.session;
+    noteCartShareAuth(session?"INITIAL_SESSION":"SIGNED_OUT",session||null);
+  }).catch(()=>{});
+}
+function noteCartShareAuth(event,session){
+  const nextId=event==="SIGNED_OUT"||!session?"":cartShareSessionId(session);
+  if(!cartShareSdkKnown||nextId!==cartShareSdkId){
+    cartShareSdkEpoch+=1;
+    closeCartShare(nextId);
+  }
+  noteCartShareIdentity();
+}
+function noteCartShareSignOut(){
+  cartShareSdkEpoch+=1;
+  closeCartShare("");
+}
+function scheduleCartShareRetry(seq,id){
+  if(cartShareAttempts>=3)return;
+  clearCartShareRetry();
+  const delay=cartShareAttempts<=1?400:1200;
+  cartShareRetryTimer=setTimeout(()=>{
+    cartShareRetryTimer=0;
+    if(cartShareSeq!==seq||!cartShareAgrees(id)||cartShareState.pending||cartShareState.ready)return;
+    refreshCartSharePermission();
+  },delay);
+}
+function refreshCartSharePermission(){
+  const id=cartShareOwner();
+  if(!cartShareAgrees(id)||cartShareState.pending||cartShareState.ready||cartShareAttempts>=3)return;
+  const member=cartShareMember();
+  const db=member&&member.getClient&&member.getClient();
+  if(!db||typeof db.rpc!=="function")return;
+  const seq=cartShareSeq;
+  cartShareAttempts+=1;
+  cartShareState={ownerId:id,allowed:false,ready:false,pending:true};
+  db.rpc("my_cart_share_permission").then(result=>{
+    if(!cartShareStill(seq,id))return;
+    if(!result||result.error){
+      cartShareState={ownerId:id,allowed:false,ready:false,pending:false};
+      scheduleCartShareRetry(seq,id);
+      return;
+    }
+    cartShareState={ownerId:id,allowed:result.data===true,ready:true,pending:false};
+    clearCartShareRetry();
+    syncCartShareButton();
+  }).catch(()=>{
+    if(!cartShareStill(seq,id))return;
+    cartShareState={ownerId:id,allowed:false,ready:false,pending:false};
+    scheduleCartShareRetry(seq,id);
+  });
 }
 function noteCartShareIdentity(){
   bindCartShareAuth();
   const id=cartShareOwner();
   const status=cartShareProfileStatus();
   const blocked=cartShareBlocked();
+  if(!cartShareSdkKnown||cartShareSdkId!==id){
+    if(cartShareState.ready||cartShareState.pending||cartShareState.ownerId||cartShareState.allowed){
+      cartShareSeq+=1;
+      cartShareBusy=false;
+      cartShareBusySeq=0;
+      cartShareIdentityKey="";
+      cartShareAttempts=0;
+      clearCartShareRetry();
+      cartShareState={ownerId:"",allowed:false,ready:false,pending:false};
+      syncCartShareButton();
+    }
+    return;
+  }
   const key=id+"\n"+status+"\n"+(blocked?"1":"0");
-  if(key===cartShareIdentityKey&&(cartShareState.ready||cartShareState.pending))return;
-  cartShareIdentityKey=key;
-  cartShareSeq+=1;
-  cartShareBusy=false;
-  cartShareBusySeq=0;
-  cartShareState={ownerId:id,allowed:false,ready:false,pending:false};
-  syncCartShareButton();
+  if(key===cartShareIdentityKey&&(cartShareState.ready||cartShareState.pending||cartShareAttempts>0))return;
+  if(key!==cartShareIdentityKey){
+    cartShareIdentityKey=key;
+    cartShareAttempts=0;
+    cartShareSeq+=1;
+    cartShareBusy=false;
+    cartShareBusySeq=0;
+    clearCartShareRetry();
+    cartShareState={ownerId:id,allowed:false,ready:false,pending:false};
+    syncCartShareButton();
+  }
   if(!id||blocked||status!=="active")return;
-  const member=cartShareMember();
-  const db=member&&member.getClient&&member.getClient();
-  if(!db||typeof db.rpc!=="function")return;
-  const seq=cartShareSeq;
-  cartShareState.pending=true;
-  db.rpc("my_cart_share_permission").then(result=>{
-    if(!cartShareStill(seq,id))return;
-    const allowed=!!(result&&result.data===true&&!result.error);
-    cartShareState={ownerId:id,allowed,ready:true,pending:false};
-    syncCartShareButton();
-  }).catch(()=>{
-    if(!cartShareStill(seq,id))return;
-    cartShareState={ownerId:id,allowed:false,ready:true,pending:false};
-    syncCartShareButton();
-  });
+  refreshCartSharePermission();
 }
 async function shareCartLink(){
   if(cartShareBusy)return;
@@ -4447,7 +4532,15 @@ async function shareCartLink(){
     }
     const permission=await db.rpc("my_cart_share_permission");
     if(!cartShareStill(shareSeq,shareOwner))return;
-    if(!permission||permission.error||permission.data!==true){
+    if(!permission||permission.error){
+      if(cartShareStill(shareSeq,shareOwner)){
+        cartShareState={ownerId:shareOwner,allowed:false,ready:false,pending:false};
+        scheduleCartShareRetry(shareSeq,shareOwner);
+        toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
+      }
+      return;
+    }
+    if(permission.data!==true){
       cartShareState={ownerId:shareOwner,allowed:false,ready:true,pending:false};
       syncCartShareButton();
       toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
@@ -4455,8 +4548,10 @@ async function shareCartLink(){
     }
     const sessionResult=await db.auth.getSession();
     if(!cartShareStill(shareSeq,shareOwner))return;
-    const token=sessionResult&&sessionResult.data&&sessionResult.data.session&&sessionResult.data.session.access_token;
-    if(!token||String(token).split(".").length!==3){
+    const session=sessionResult&&!sessionResult.error&&sessionResult.data&&sessionResult.data.session;
+    const sessionUser=session&&session.user&&session.user.id?String(session.user.id):"";
+    const token=session&&session.access_token;
+    if(sessionResult&&sessionResult.error||!sessionUser||sessionUser!==shareOwner||sessionUser!==cartShareSdkId||!token||String(token).split(".").length!==3){
       toast("سېۋەت ئۇلانمىسىنى ھازىرچە ھەمبەھىرلىيەلمىدۇق");
       return;
     }
@@ -5249,7 +5344,7 @@ function loadMemberSystem(){
   if(window.KutadguMember)return;
   if(document.querySelector('script[data-kutadgu-member-script],script[src*="member.js"]'))return;
   const script=document.createElement("script");
-        script.src="/member.js?v=30";script.async=false;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=31";script.async=false;script.dataset.kutadguMemberScript="1";
   (document.body||document.documentElement).appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -5501,5 +5596,5 @@ async function boot(){
   ensurePublicBookCardRowAlignmentCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery};
+window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery};
 })();

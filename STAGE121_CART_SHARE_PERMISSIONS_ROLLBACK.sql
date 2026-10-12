@@ -4,7 +4,8 @@
 -- Does not drop public.shared_cart_links, create_shared_cart_link, profiles,
 -- admin helpers, feedback, reviews, or analytics.
 -- Existing short links remain readable. New authenticated creation stops
--- because create_member_shared_cart_link is gone.
+-- because create_member_shared_cart_link is gone. That function stores
+-- database now() plus 30 days and rejects a longer caller timestamp.
 -- Reapplying STAGE121 after this rollback starts again from global off and
 -- no grants. Link rows are not restored or deleted by either file.
 

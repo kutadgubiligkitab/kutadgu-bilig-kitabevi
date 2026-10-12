@@ -1014,6 +1014,7 @@ async function signInWithGoogle(){
 }
 async function signOut(){
   if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
+  if(window.kutadguShop&&typeof window.kutadguShop.noteCartShareSignOut==="function")window.kutadguShop.noteCartShareSignOut();
   const pending=abandonMemberShopSync();
   previewShopDebug("sign-out",{
     owner:idSuffix(readShopOwner()),

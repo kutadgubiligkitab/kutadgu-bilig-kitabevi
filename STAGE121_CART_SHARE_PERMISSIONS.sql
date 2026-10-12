@@ -248,10 +248,16 @@ begin
 
   perform pg_catalog.pg_advisory_xact_lock(841050105);
 
+  -- Caller p_expires_at is checked and then discarded. Null, past, and
+  -- non-future values return invalid. A value more than 30 days and 5
+  -- minutes ahead, including infinity, also returns invalid and stores
+  -- nothing. An accepted value is replaced by the database clock plus
+  -- 30 days, so the stored row cannot outlive that lifetime.
   if p_code is null
     or p_code !~ '^[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$'
     or p_expires_at is null
     or p_expires_at <= now()
+    or p_expires_at > now() + interval '30 days 5 minutes'
     or not public.shared_cart_items_valid(p_items) then
     return 'invalid';
   end if;
@@ -276,7 +282,7 @@ begin
    where expires_at <= now();
 
   insert into public.shared_cart_links (code, items, expires_at)
-  values (p_code, p_items, p_expires_at);
+  values (p_code, p_items, now() + interval '30 days');
 
   return 'ok';
 exception
