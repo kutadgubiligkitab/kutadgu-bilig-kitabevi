@@ -48,6 +48,10 @@ function lookup(table) {
 }
 
 const secret = "shared-cart-test-secret";
+const callerToken = "header.payload.signature";
+function withCaller(options) {
+  return Object.assign({ authorization: "Bearer " + callerToken }, options || {});
+}
 
 test("8-character secure code format", () => {
   const original = Math.random;
@@ -106,7 +110,18 @@ test("qty clamp and reject behavior", () => {
 
 test("PII is not persisted", async () => {
   let stored = null;
-  const result = await links.handleSharedCartApi({
+  let calledWithoutAuth = false;
+  const missing = await links.handleSharedCartApi({
+    method: "POST",
+    pathname: "/api/shared-cart",
+    body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
+    env: { SUPABASE_SECRET_KEY: secret },
+    fetchImpl: async () => { calledWithoutAuth = true; return { status: 200, text: async () => "\"ok\"" }; }
+  });
+  assert.strictEqual(missing.status, 401);
+  assert.deepStrictEqual(missing.body, { ok: false, error: "denied" });
+  assert.strictEqual(calledWithoutAuth, false);
+  const result = await links.handleSharedCartApi(withCaller({
     method: "POST",
     pathname: "/api/shared-cart",
     body: JSON.stringify({
@@ -133,11 +148,14 @@ test("PII is not persisted", async () => {
     generateCode: () => "Ab3K7xQ2",
     fetchImpl: async (url, init) => {
       stored = JSON.parse(init.body);
-      assert.match(url, /\/rpc\/create_shared_cart_link$/);
-      assert.strictEqual(init.headers.Authorization, "Bearer " + secret);
+      assert.match(url, /\/rpc\/create_member_shared_cart_link$/);
+      assert.strictEqual(init.headers.Authorization, "Bearer " + callerToken);
+      assert.strictEqual(init.headers.apikey, links.PUBLIC_API_KEY);
+      assert.ok(!String(init.headers.Authorization).includes(secret));
+      assert.ok(!String(init.headers.apikey).includes(secret));
       return { status: 200, text: async () => "\"ok\"" };
     }
-  });
+  }));
   assert.strictEqual(result.status, 200);
   assert.deepStrictEqual(result.body, {
     ok: true,
@@ -325,7 +343,7 @@ test("no public Supabase access", () => {
 });
 
 test("server errors stay generic and hide the secret", async () => {
-  const result = await links.handleSharedCartApi({
+  const result = await links.handleSharedCartApi(withCaller({
     method: "POST",
     pathname: "/api/shared-cart",
     body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
@@ -334,7 +352,7 @@ test("server errors stay generic and hide the secret", async () => {
     fetchImpl: async () => {
       throw new Error("upstream failed " + secret);
     }
-  });
+  }));
   assert.strictEqual(result.status, 503);
   assert.deepStrictEqual(result.body, { ok: false, error: "unavailable" });
   assert.ok(!JSON.stringify(result.body).includes(secret));
@@ -356,7 +374,7 @@ test("POST /api/shared-cart through preview.dispatch reaches the handler", async
   const response = await preview.dispatch(
     new Request("http://127.0.0.1:8787/api/shared-cart", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + callerToken },
       body: JSON.stringify({ items: [{ id: "246", qty: 1 }] })
     }),
     { SUPABASE_SECRET_KEY: secret },
@@ -372,7 +390,7 @@ test("POST /api/shared-cart through preview.dispatch reaches the handler", async
   assert.strictEqual(response.status, 200);
   assert.strictEqual(body.ok, true);
   assert.match(body.url, /^https:\/\/www\.kutadgubilik\.com\/c\/[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$/);
-  assert.match(seen[0], /\/rpc\/create_shared_cart_link$/);
+  assert.match(seen[0], /\/rpc\/create_member_shared_cart_link$/);
 });
 
 test("GET create endpoint and POST read endpoint are 405", async () => {
@@ -426,23 +444,23 @@ test("rate limit allows a count below the threshold and rejects the overflow", a
   assert.match(creator, /day_count >= 1000/);
   assert.ok(creator.indexOf("DELETE FROM public.shared_cart_links") > creator.lastIndexOf("RETURN 'rate_limited'"));
   assert.match(creator, /DELETE FROM public\.shared_cart_links\s+WHERE expires_at <= now\(\)/);
-  const allowed = await links.handleSharedCartApi({
+  const allowed = await links.handleSharedCartApi(withCaller({
     method: "POST",
     pathname: "/api/shared-cart",
     body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
     env: { SUPABASE_SECRET_KEY: secret },
     generateCode: () => "Ab3K7xQ2",
     fetchImpl: async () => rpcOk()
-  });
+  }));
   assert.strictEqual(allowed.status, 200);
-  const limited = await links.handleSharedCartApi({
+  const limited = await links.handleSharedCartApi(withCaller({
     method: "POST",
     pathname: "/api/shared-cart",
     body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
     env: { SUPABASE_SECRET_KEY: secret },
     generateCode: () => "Ab3K7xQ2",
     fetchImpl: async () => ({ status: 200, text: async () => "\"rate_limited\"" })
-  });
+  }));
   assert.strictEqual(limited.status, 429);
   assert.deepStrictEqual(limited.body, { ok: false, error: "rate_limited" });
   assert.ok(!JSON.stringify(limited.body).includes(secret));
@@ -544,7 +562,7 @@ test("a streamed body is cancelled once it crosses 8192 bytes", async () => {
 
 test("dark light and mobile cart layout stay unchanged", () => {
   assert.match(cartHtml, /shop\.css\?v=55/);
-  assert.match(cartHtml, /shop\.js\?v=151/);
+  assert.match(cartHtml, /shop\.js\?v=152/);
   assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");

@@ -638,7 +638,7 @@ test("storefront pages keep cart markup pin shop.js v=113",()=>{
   const member=require("fs").readFileSync(require("path").join(__dirname,"..","member.js"),"utf8");
   const shop=require("fs").readFileSync(require("path").join(__dirname,"..","shop.js"),"utf8");
   const account=require("fs").readFileSync(require("path").join(__dirname,"..","account.html"),"utf8");
-  assert.match(html,/shop\.js\?v=151/);
+  assert.match(html,/shop\.js\?v=152/);
   assert.match(html,/kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(html,/shop\.js\?v=138/);
   assert.match(html,/shop\.css\?v=55/);
@@ -653,8 +653,8 @@ test("storefront pages keep cart markup pin shop.js v=113",()=>{
   assert.doesNotMatch(html,/1\) تولدۇرۇڭ/);
   assert.doesNotMatch(html,/cart-order-steps"[^>]*>[^<]*WhatsApp/);
   assert.match(html,/href="index.html#books"/);
-  assert.match(fav,/shop\.js\?v=151/);
-  assert.match(home,/shop\.js\?v=151/);
+  assert.match(fav,/shop\.js\?v=152/);
+  assert.match(home,/shop\.js\?v=152/);
   assert.match(shop,/member\.js\?v=30/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);

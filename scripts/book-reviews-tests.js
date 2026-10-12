@@ -63,7 +63,7 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.match(adminHtml, /data-admin-section="reviews"/);
   assert.match(adminHtml, /data-admin-section-panel="reviews"/);
   assert.match(adminHtml, /admin-book-reviews\.js\?v=7/);
-  assert.match(adminHtml, /admin\.css\?v=54/);
+  assert.match(adminHtml, /admin\.css\?v=55/);
   assert.match(admin, /PAGE_SIZE = 10/);
   assert.match(admin, /admin_book_review_page/);
   assert.match(admin, /admin_book_review_reply_page/);
@@ -78,7 +78,7 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.match(admin, /data-review-status/);
   assert.match(shell, /book-reviews\.js\?v=5/);
   assert.match(shell, /book-reviews\.css\?v=4/);
-  assert.match(shell, /shop\.js\?v=151/);
+  assert.match(shell, /shop\.js\?v=152/);
 });
 
 test("review SQL keeps anonymous reads off the admin helper", () => {
