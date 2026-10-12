@@ -9,7 +9,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 
 const FROZEN = {
-  "shop.js": "b149300cafa7bbf0fabb228d51795a57b78158f68659b81780e80bb4324a8c27",
+  "shop.js": "9d832a1c249bf92cc48358a3292372d6890b36b732ead01c7a90c6fa4bf9adfb",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",

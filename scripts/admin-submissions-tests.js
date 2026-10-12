@@ -214,7 +214,7 @@ test("pending submissions page 10 and keep the exact total off the page length",
   assert.match(adminJs, /const PENDING_SUBMISSION_PAGE_SIZE=10/);
   assert.match(adminHtml, /id="pendingSubmissionSearch"/);
   assert.match(adminHtml, /id="pendingSubmissionPager"/);
-  assert.match(adminHtml, /admin\.js\?v=107/);
+  assert.match(adminHtml, /admin\.js\?v=108/);
   const query = sliceFn(adminJs, "pendingBooksPageQuery");
   assert.match(query, /\.range\(from,to\)/);
   assert.match(query, /count:"exact"/);

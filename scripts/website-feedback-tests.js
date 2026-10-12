@@ -96,13 +96,19 @@ test("sign-out clears the draft before the auth request and does not restore sho
   assert.doesNotMatch(member, /rememberSignOutContext|restoreRejectedSignOut/);
   const start = member.indexOf("async function signOut()");
   const body = member.slice(start, member.indexOf("async function resetPassword"));
+  assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("noteCartShareSignOut"));
+  assert.ok(body.indexOf("noteCartShareSignOut") < body.indexOf("abandonMemberShopSync"));
+  assert.ok(body.indexOf("noteCartShareSignOut") < body.indexOf("auth.signOut"));
   assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("auth.signOut"));
   assert.ok(body.indexOf("KutadguWebsiteFeedback.beginSignOut") < body.indexOf("abandonMemberShopSync"));
   assert.match(body, /if\(db\)await db\.auth\.signOut\(\{scope:"local"\}\);/);
   assert.doesNotMatch(body, /catch\(err\)/);
+  assert.doesNotMatch(body, /rememberSignOutContext|restoreRejectedSignOut/);
   const mainStart = main.indexOf("async function signOut()");
   const mainBody = main.slice(mainStart, main.indexOf("async function resetPassword"));
-  const stripped = body.replace(/\n  if\(window\.KutadguWebsiteFeedback&&typeof window\.KutadguWebsiteFeedback\.beginSignOut==="function"\)window\.KutadguWebsiteFeedback\.beginSignOut\(\);/, "");
+  const stripped = body
+    .replace(/\n  if\(window\.KutadguWebsiteFeedback&&typeof window\.KutadguWebsiteFeedback\.beginSignOut==="function"\)window\.KutadguWebsiteFeedback\.beginSignOut\(\);/, "")
+    .replace(/\n  if\(window\.kutadguShop&&typeof window\.kutadguShop\.noteCartShareSignOut==="function"\)window\.kutadguShop\.noteCartShareSignOut\(\);/, "");
   assert.strictEqual(stripped, mainBody);
   const signedOut = member.indexOf('event==="SIGNED_OUT"');
   assert.ok(member.indexOf("KutadguWebsiteFeedback.beginSignOut", signedOut) > signedOut);
@@ -134,18 +140,18 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.doesNotMatch(page, /account\.html\?/);
   assert.doesNotMatch(page, /analytics\.js/);
   assert.match(page, /maxlength="4000"/);
-  assert.match(page, /member\.js\?v=30/);
+  assert.match(page, /member\.js\?v=31/);
   assert.match(page, /feedback\.js\?v=3/);
   assert.match(read("admin.html"), /admin-feedback\.js\?v=2/);
-  assert.match(read("admin.html"), /admin\.js\?v=107/);
+  assert.match(read("admin.html"), /admin\.js\?v=108/);
   assert.match(read("admin.html"), /admin-book-reviews\.js\?v=7/);
   assert.match(read("admin.html"), /admin\.css\?v=56/);
-  assert.match(read("index.html"), /shop\.js\?v=152/);
-  assert.match(read("books.html"), /shop\.js\?v=152/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=152/);
-  assert.match(read("cart.html"), /shop\.js\?v=152/);
-  assert.match(read("account.html"), /member\.js\?v=30/);
-  assert.match(read("shop.js"), /member\.js\?v=30/);
+  assert.match(read("index.html"), /shop\.js\?v=153/);
+  assert.match(read("books.html"), /shop\.js\?v=153/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=153/);
+  assert.match(read("cart.html"), /shop\.js\?v=153/);
+  assert.match(read("account.html"), /member\.js\?v=31/);
+  assert.match(read("shop.js"), /member\.js\?v=31/);
   assert.match(read("admin-feedback.js"), /p_before/);
   assert.match(read("member.js"), /noteAuthUser/);
 });

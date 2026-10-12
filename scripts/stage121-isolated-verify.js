@@ -18,7 +18,10 @@ const NOPROFILE = "77777777-7777-4777-8777-777777777777";
 const FUTURE = "99999999-9999-4999-8999-999999999999";
 const failures = [];
 const items = JSON.stringify([{ id: "246", qty: 1 }]);
-const expires = "2099-01-01T00:00:00.000Z";
+function acceptedExpiry() {
+  return new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
+}
+const distantExpiry = "2099-01-01T00:00:00.000Z";
 
 function check(name, ok, detail) {
   if (!ok) failures.push(name + (detail ? ": " + detail : ""));
@@ -98,9 +101,9 @@ async function permission(client, sub) {
   return result.rows[0].allowed;
 }
 
-async function createLink(client, sub, code) {
+async function createLink(client, sub, code, expiry) {
   const result = await asRole(client, "authenticated", sub, "aal1", () =>
-    client.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", [code, items, expires])
+    client.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", [code, items, expiry === undefined ? acceptedExpiry() : expiry])
   );
   return result.rows[0].result;
 }
@@ -118,7 +121,7 @@ function jwt(claims) {
   return data + "." + crypto.createHmac("sha256", secret).update(data).digest("base64url");
 }
 
-async function postgrestProof(dbName) {
+async function postgrestProof(dbName, client) {
   const bin = process.env.POSTGREST_BIN || "/tmp/postgrest";
   if (!fs.existsSync(bin)) {
     check("PostgREST binary is available", false, bin);
@@ -154,9 +157,9 @@ async function postgrestProof(dbName) {
     });
     return { status: response.status, text: await response.text() };
   }
-  const missing = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: expires }, "");
+  const missing = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: acceptedExpiry() }, "");
   check("PostgREST missing token cannot create", missing.status !== 200, String(missing.status));
-  const forged = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: expires }, "aaa.bbb.ccc");
+  const forged = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: acceptedExpiry() }, "aaa.bbb.ccc");
   check("PostgREST forged token cannot create", forged.status !== 200, String(forged.status));
   const expiredBody = Buffer.from(JSON.stringify({
     role: "authenticated",
@@ -168,11 +171,11 @@ async function postgrestProof(dbName) {
   const expired = expiredData + "." + crypto.createHmac("sha256", "01234567890123456789012345678901").update(expiredData).digest("base64url");
   const expiredCall = await rpc("my_cart_share_permission", {}, expired);
   check("PostgREST expired token cannot read permission", expiredCall.status !== 200, String(expiredCall.status));
-  const anon = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: expires }, jwt({ role: "anon" }));
+  const anon = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: acceptedExpiry() }, jwt({ role: "anon" }));
   check("PostgREST anon cannot create", anon.status !== 200, String(anon.status));
-  const service = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: expires }, jwt({ role: "service_role", sub: MEMBER }));
+  const service = await rpc("create_member_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: acceptedExpiry() }, jwt({ role: "service_role", sub: MEMBER }));
   check("PostgREST service_role cannot call the member creator", service.status !== 200, String(service.status));
-  const oldCreator = await rpc("create_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: expires }, jwt({ role: "authenticated", sub: MEMBER }));
+  const oldCreator = await rpc("create_shared_cart_link", { p_code: "Ab3K7xQ2", p_items: [{ id: "246", qty: 1 }], p_expires_at: acceptedExpiry() }, jwt({ role: "authenticated", sub: MEMBER }));
   check("PostgREST authenticated cannot call the service creator", oldCreator.status !== 200, String(oldCreator.status));
   const self = await rpc("admin_set_cart_share_grant", { p_user_id: MEMBER, p_granted: true }, jwt({ role: "authenticated", aal: "aal2", sub: MEMBER }));
   check("PostgREST member cannot grant sharing", self.status !== 200, String(self.status));
@@ -184,6 +187,37 @@ async function postgrestProof(dbName) {
     headers: { Authorization: "Bearer " + jwt({ role: "authenticated", aal: "aal2", sub: ADMIN }), Accept: "application/json" }
   });
   check("PostgREST cannot select the grant table", table.status !== 200, String(table.status));
+  const links = require(path.join(root, "kutadgu-shared-cart-links.js"));
+  const memberGrant = await rpc("admin_set_cart_share_grant", { p_user_id: MEMBER, p_granted: true }, jwt({ role: "authenticated", aal: "aal2", sub: ADMIN }));
+  check("PostgREST admin grant is ready for the worker handler", memberGrant.status === 200, String(memberGrant.status) + " " + memberGrant.text.slice(0, 120));
+  const caller = jwt({ role: "authenticated", sub: MEMBER });
+  async function forwardFetch(url, init) {
+    const path = String(url).replace(/^https?:\/\/[^/]+/, "").replace(/^\/rest\/v1/, "");
+    const target = "http://127.0.0.1:" + port + path;
+    return fetch(target, { method: init && init.method, headers: init && init.headers, body: init && init.body });
+  }
+  const created = await links.handleSharedCartApi({
+    method: "POST",
+    pathname: "/api/shared-cart",
+    authorization: "Bearer " + caller,
+    body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
+    fetchImpl: forwardFetch,
+    generateCode: () => "WrkAaa22"
+  });
+  const createdRow = await client.query("select expires_at <= now() + interval '30 days' as capped, expires_at > now() + interval '30 days' - interval '1 minute' as fresh from public.shared_cart_links where code = 'WrkAaa22'");
+  check("worker handler creates with the caller JWT and a 30-day row", created.status === 200 && created.body && created.body.ok === true && createdRow.rows.length === 1 && createdRow.rows[0].capped === true && createdRow.rows[0].fresh === true, JSON.stringify(created.body || created.status));
+  const revokeMember = await rpc("admin_set_cart_share_grant", { p_user_id: MEMBER, p_granted: false }, jwt({ role: "authenticated", aal: "aal2", sub: ADMIN }));
+  check("PostgREST admin revoke is ready for the worker handler", revokeMember.status === 200, String(revokeMember.status));
+  const deniedCreate = await links.handleSharedCartApi({
+    method: "POST",
+    pathname: "/api/shared-cart",
+    authorization: "Bearer " + caller,
+    body: JSON.stringify({ items: [{ id: "246", qty: 1 }] }),
+    fetchImpl: forwardFetch,
+    generateCode: () => "WrkBbb22"
+  });
+  const deniedRow = await client.query("select count(*)::integer as count from public.shared_cart_links where code = 'WrkBbb22'");
+  check("worker handler denies creation after revoke", deniedCreate.status === 403 && deniedCreate.body && deniedCreate.body.error === "denied" && deniedRow.rows[0].count === 0, JSON.stringify(deniedCreate.body || deniedCreate.status));
   child.kill();
   await new Promise((resolve) => child.once("exit", resolve));
 }
@@ -280,8 +314,17 @@ async function main() {
     );
     check("individual grant allows the member", await permission(client, MEMBER) === true);
     check("individual grant creates one link", await createLink(client, MEMBER, "GrantAaa") === "ok" && await linkCount(client) === 1);
-    const stored = await client.query("select items, code from public.shared_cart_links where code = 'GrantAaa'");
+    const stored = await client.query("select items, code, expires_at <= now() + interval '30 days' as capped, expires_at > now() + interval '30 days' - interval '1 minute' as fresh from public.shared_cart_links where code = 'GrantAaa'");
     check("link row has no account identity", stored.rows.length === 1 && JSON.stringify(stored.rows[0]).indexOf(MEMBER) === -1);
+    check("stored lifetime is the database clock plus 30 days", stored.rows[0].capped === true && stored.rows[0].fresh === true);
+    const beforeDistant = await linkCount(client);
+    check("a distant caller expiry is rejected", await createLink(client, MEMBER, "FarAa2x9", distantExpiry) === "invalid" && await linkCount(client) === beforeDistant);
+    const infinity = await asRole(client, "authenticated", MEMBER, "aal1", () =>
+      client.query("select public.create_member_shared_cart_link('InfinitA', $1::jsonb, 'infinity'::timestamptz) as result", [items])
+    );
+    check("infinity does not extend the lifetime", infinity.rows[0].result === "invalid" && await linkCount(client) === beforeDistant);
+    check("an already expired caller timestamp is rejected", await createLink(client, MEMBER, "PastAaa2", "2000-01-01T00:00:00.000Z") === "invalid" && await linkCount(client) === beforeDistant);
+    check("a null caller timestamp is rejected", await createLink(client, MEMBER, "NullAaa2", null) === "invalid" && await linkCount(client) === beforeDistant);
     await asRole(client, "authenticated", ADMIN, "aal2", () =>
       client.query("select public.admin_set_cart_share_grant($1, false)", [MEMBER])
     );
@@ -329,10 +372,11 @@ async function main() {
     ), /42501|permission denied/);
     await client.query("alter table public.profiles add column if not exists phone text, add column if not exists country text, add column if not exists city text, add column if not exists address text");
     await client.query("grant select (id, full_name, phone, country, city, address), update (full_name, phone, country, city, address) on public.profiles to authenticated");
-    await asRole(client, "authenticated", MEMBER, "aal1", () =>
-      client.query("update public.profiles set full_name = 'Changed' where id = $1", [MEMBER])
+    await asRole(client, "authenticated", FUTURE, "aal1", () =>
+      client.query("update public.profiles set full_name = 'Changed' where id = $1", [FUTURE])
     );
-    check("profile edit does not grant sharing", (await client.query("select count(*)::integer as count from public.cart_share_grants where user_id = $1 and granted", [MEMBER])).rows[0].count === 1);
+    const ungrantedEdit = await client.query("select count(*)::integer as count from public.cart_share_grants where user_id = $1 and granted", [FUTURE]);
+    check("profile edit of an ungranted member does not enable sharing", ungrantedEdit.rows[0].count === 0 && await permission(client, FUTURE) === false && await createLink(client, FUTURE, "EditAaaa") === "denied");
 
     const selfBefore = await permission(client, ADMIN);
     check("admin starts without an effective grant", selfBefore === false);
@@ -350,7 +394,7 @@ async function main() {
     await left.query("select pg_catalog.pg_advisory_xact_lock(841211211)");
     let revokeSettled = false;
     const revokeCreate = asRole(right, "authenticated", MEMBER, "aal1", () =>
-      right.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", ["RaceAaaa", items, expires])
+      right.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", ["RaceAaaa", items, acceptedExpiry()])
     ).then((value) => { revokeSettled = true; return value; });
     await new Promise((resolve) => setTimeout(resolve, 400));
     check("create waits while the permission lock is held", revokeSettled === false);
@@ -365,7 +409,7 @@ async function main() {
     await left.query("select pg_catalog.pg_advisory_xact_lock(841211211)");
     let globalSettled = false;
     const waitingGlobalCreate = asRole(right, "authenticated", FUTURE, "aal1", () =>
-      right.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", ["RaceBbbb", items, expires])
+      right.query("select public.create_member_shared_cart_link($1, $2::jsonb, $3::timestamptz) as result", ["RaceBbbb", items, acceptedExpiry()])
     ).then((value) => { globalSettled = true; return value; });
     await new Promise((resolve) => setTimeout(resolve, 400));
     check("a second create also waits for the permission lock", globalSettled === false);
@@ -390,7 +434,7 @@ async function main() {
     }
     check("the rate cap denies without another row", await createLink(client, MEMBER, "RateAaaa") === "rate_limited");
     await client.query("delete from public.shared_cart_links where code like 'Z%'");
-    await client.query("insert into public.shared_cart_links (code, items, expires_at) values ('Dupxcode', $1::jsonb, $2::timestamptz)", [items, expires]);
+    await client.query("insert into public.shared_cart_links (code, items, expires_at) values ('Dupxcode', $1::jsonb, now() + interval '30 days')", [items]);
     check("a code collision returns conflict", await createLink(client, MEMBER, "Dupxcode") === "conflict");
 
     const beforeReapply = await client.query("select global_enabled from public.cart_share_settings");
@@ -413,7 +457,7 @@ async function main() {
     await client.query("do $$ begin create role authenticator login password 'postgrest-local' noinherit; exception when duplicate_object then null; end $$");
     await client.query("grant anon, authenticated, service_role to authenticator");
     await client.query("grant usage on schema public to authenticator");
-    await postgrestProof("stage121");
+    await postgrestProof("stage121", client);
   } finally {
     if (left) await left.end().catch(() => {});
     if (right) await right.end().catch(() => {});

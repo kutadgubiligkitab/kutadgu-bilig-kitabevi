@@ -72,6 +72,10 @@ test("permission SQL checks eligibility inside the create transaction", () => {
   assert.match(creator, /return 'denied'/);
   const insert = creator.slice(creator.indexOf("insert into public.shared_cart_links"));
   assert.match(insert, /insert into public\.shared_cart_links \(code, items, expires_at\)/);
+  assert.match(insert, /now\(\) \+ interval '30 days'/);
+  assert.doesNotMatch(insert, /p_expires_at\)/);
+  assert.match(creator, /interval '30 days 5 minutes'/);
+  assert.match(creator, /replaced by the database clock plus/);
   assert.doesNotMatch(insert, /user_id|account/);
   assert.match(sql, /grant execute on function public\.create_member_shared_cart_link\(text, jsonb, timestamptz\) to authenticated/);
   assert.match(sql, /revoke all on function public\.create_member_shared_cart_link\(text, jsonb, timestamptz\) from public, anon, authenticated, service_role/);
@@ -109,20 +113,33 @@ test("historical cart, directory, and feedback SQL stay untouched by this featur
   assert.match(stage113, /p\.id is distinct from auth\.uid\(\)/);
   assert.doesNotMatch(stage113, /cart_share/);
   assert.doesNotMatch(stage120, /cart_share/);
-  assert.doesNotMatch(member, /my_cart_share_permission|cart_share/);
+  assert.doesNotMatch(member, /my_cart_share_permission|cart_share_grants|create_member_shared_cart_link/);
+  const signOut = sliceBetween(member, "async function signOut()", "async function resetPassword");
+  assert.ok(signOut.indexOf("KutadguWebsiteFeedback.beginSignOut") < signOut.indexOf("noteCartShareSignOut"));
+  assert.ok(signOut.indexOf("noteCartShareSignOut") < signOut.indexOf("abandonMemberShopSync"));
+  assert.ok(signOut.indexOf("noteCartShareSignOut") < signOut.indexOf("auth.signOut"));
+  assert.doesNotMatch(signOut, /rememberSignOutContext|restoreRejectedSignOut|localStorage|getSession/);
+  const authHook = member.slice(member.indexOf("db.auth.onAuthStateChange"), member.indexOf("const proven=await recoverProvenMemberSession"));
+  assert.doesNotMatch(authHook, /noteCartShare/);
 });
 
 test("shop hides the action until the current account is confirmed", () => {
   const share = sliceBetween(shop, "async function shareCartLink()", "async function importSharedCartFromQuery()");
-  const identity = sliceBetween(shop, "function noteCartShareIdentity()", "async function shareCartLink()");
+  const identity = sliceBetween(shop, "function noteCartShareAuth(", "async function shareCartLink()");
   assert.match(shop, /cartShareVisible\(\)\?`<button type="button" class="checkout-secondary" id="shareCart">/);
   assert.match(identity, /db\.rpc\("my_cart_share_permission"\)/);
+  assert.match(identity, /noteCartShareAuth/);
+  assert.match(identity, /scheduleCartShareRetry/);
+  assert.match(identity, /cartShareAttempts>=3/);
   assert.match(identity, /if\(!cartShareStill\(seq,id\)\)return/);
   assert.match(identity, /cartShareSeq\+=1/);
   assert.match(identity, /cartShareBusy=false/);
   assert.match(share, /if\(cartShareBusy\)return/);
   assert.match(share, /Authorization:"Bearer "\+token/);
   assert.match(share, /permission\.data!==true/);
+  assert.match(share, /sessionResult\.error/);
+  assert.match(share, /sessionUser!==shareOwner/);
+  assert.match(share, /sessionUser!==cartShareSdkId/);
   assert.match(share, /response\.status===401\|\|response\.status===403/);
   assert.match(share, /if\(cartShareBusySeq===shareSeq\)\{cartShareBusy=false;cartShareBusySeq=0\}/);
   assert.match(share, /if\(!cartShareStill\(shareSeq,shareOwner\)\)return/);
@@ -134,7 +151,7 @@ test("shop hides the action until the current account is confirmed", () => {
   assert.match(cartHtml, /id="copyOrder"/);
   assert.match(cartHtml, /id="shareOrder"/);
   assert.doesNotMatch(cartHtml, /id="shareCart"/);
-  assert.match(cartHtml, /shop\.js\?v=152/);
+  assert.match(cartHtml, /shop\.js\?v=153/);
 });
 
 test("admin reads one batched permission payload and ignores a stale write", () => {
@@ -147,12 +164,17 @@ test("admin reads one batched permission payload and ignores a stale write", () 
   assert.match(admin, /ساقلانغان ئالاھىدە ئىجازەت/);
   assert.match(admin, /if\(state\.globalEnabled\)return `<span class="admin-member-share-saved"/);
   assert.match(globalWrite, /after\.aal!=="aal2"/);
-  assert.match(globalWrite, /cartShareAdmin\.pendingKey!=="global"/);
+  assert.match(globalWrite, /cartShareAdmin\.pendingKey="global"/);
+  assert.ok(globalWrite.indexOf('cartShareAdmin.pendingKey="global"') < globalWrite.indexOf("await readMemberAdmin()"));
+  assert.match(globalWrite, /cartShareWriteCurrent\(op,"global"\)/);
+  assert.match(sliceBetween(admin, "function cartShareWriteCurrent", "async function reloadCartShareAfterWrite"), /pendingKey===key/);
+  assert.match(load, /cartShareAdmin\.readOp!==readOp/);
+  assert.ok(load.indexOf("cartShareReadSeq") < load.indexOf('db.rpc("admin_cart_share_state"'));
   assert.match(grantWrite, /payload\.user_id/);
   assert.match(grantWrite, /key==="self"&&userId!==before\.id/);
   assert.match(adminHtml, /id="cartShareControls"/);
   assert.match(adminHtml, /id="cartShareGlobal"/);
-  assert.match(adminHtml, /admin\.js\?v=107/);
+  assert.match(adminHtml, /admin\.js\?v=108/);
   assert.match(adminHtml, /admin\.css\?v=56/);
   const members = sliceBetween(adminHtml, 'id="memberManagement"', 'id="adminMemberList"');
   assert.ok(members.indexOf("cartShareControls") > 0);

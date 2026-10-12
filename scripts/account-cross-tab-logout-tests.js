@@ -38,7 +38,7 @@ function sliceBetween(src, startNeedle, endNeedle) {
 test("account.html pins a single member.js and one account.js", () => {
   const memberScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
   const accountScripts = accountHtml.match(/account\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(memberScripts, ["member.js?v=30"]);
+  assert.deepStrictEqual(memberScripts, ["member.js?v=31"]);
   assert.deepStrictEqual(accountScripts, ["account.js?v=7"]);
   assert.doesNotMatch(accountHtml, /<script[^>]+src="member\.js[^"]*"[^>]*>[\s\S]*<script[^>]+src="member\.js/);
 });

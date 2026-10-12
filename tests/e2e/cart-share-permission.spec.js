@@ -186,15 +186,18 @@ async function installAdmin(page) {
     };
     window.__kutadguAnalyticsDb = {
       auth: {
-        getSession: async () => ({
-          data: {
-            session: window.__memberDirectoryUser ? {
-              access_token: token(window.__memberDirectoryAal, window.__memberDirectoryUser),
-              user: { id: window.__memberDirectoryUser }
-            } : null
-          },
-          error: null
-        })
+        getSession: async () => {
+          if (window.__adminAuthGate) await window.__adminAuthGate;
+          return {
+            data: {
+              session: window.__memberDirectoryUser ? {
+                access_token: token(window.__memberDirectoryAal, window.__memberDirectoryUser),
+                user: { id: window.__memberDirectoryUser }
+              } : null
+            },
+            error: null
+          };
+        }
       },
       rpc(name, args) {
         window.__memberDirectoryCalls.push({ name: name, args: args });
@@ -203,18 +206,27 @@ async function installAdmin(page) {
         }
         if (name === "set_member_status") return Promise.resolve({ data: null, error: null });
         if (name === "admin_cart_share_state") {
-          if (window.__cartShare.failRead) return Promise.resolve({ data: null, error: { message: "read failed" } });
-          const ids = Array.isArray(args.p_user_ids) ? args.p_user_ids : [];
-          return Promise.resolve({
-            data: {
-              global_enabled: window.__cartShare.global === true,
-              self_id: window.__memberDirectoryUser,
-              self_granted: window.__cartShare.grants[window.__memberDirectoryUser] === true,
-              self_eligible: true,
-              grants: ids.map((id) => ({ id: id, granted: window.__cartShare.grants[id] === true }))
-            },
-            error: null
-          });
+          const build = () => {
+            if (window.__cartShare.failRead) return { data: null, error: { message: "read failed" } };
+            const ids = Array.isArray(args.p_user_ids) ? args.p_user_ids : [];
+            return {
+              data: {
+                global_enabled: window.__cartShare.global === true,
+                self_id: window.__memberDirectoryUser,
+                self_granted: window.__cartShare.grants[window.__memberDirectoryUser] === true,
+                self_eligible: true,
+                grants: ids.map((id) => ({ id: id, granted: window.__cartShare.grants[id] === true }))
+              },
+              error: null
+            };
+          };
+          if (window.__cartShare.holdRead) {
+            return new Promise((resolve) => {
+              window.__cartShareReadQueue = window.__cartShareReadQueue || [];
+              window.__cartShareReadQueue.push(() => resolve(build()));
+            });
+          }
+          return Promise.resolve(build());
         }
         if (name === "admin_set_cart_share_global" || name === "admin_set_cart_share_grant") {
           const apply = () => {
@@ -370,7 +382,6 @@ test("a delayed permission for account A does not enable account B or survive lo
   await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
   await expect.poll(() => jobs.length).toBeGreaterThan(0);
   await expect(page.locator("#shareCart")).toHaveCount(0);
-  const beforeSwitch = jobs.length;
   await page.evaluate((nextId) => {
     const member = window.KutadguMember;
     member.getUser = () => ({ id: nextId });
@@ -378,11 +389,9 @@ test("a delayed permission for account A does not enable account B or survive lo
     member.isBlocked = () => false;
     document.dispatchEvent(new Event("kutadgu-member-change"));
   }, MEMBER_B);
-  await expect.poll(() => jobs.length).toBeGreaterThan(beforeSwitch);
-  for (let index = 0; index < beforeSwitch; index += 1) jobs[index](true);
-  await page.waitForTimeout(500);
   await expect(page.locator("#shareCart")).toHaveCount(0);
-  for (let index = beforeSwitch; index < jobs.length; index += 1) jobs[index](false);
+  for (const release of jobs) release(true);
+  await page.waitForTimeout(500);
   await expect(page.locator("#shareCart")).toHaveCount(0);
   await page.evaluate(() => {
     const member = window.KutadguMember;
@@ -451,11 +460,489 @@ test("admin cart-share controls batch the page, keep grants, and drop a stale AA
   await expect(page.locator("#cartShareGlobal")).toBeVisible();
 });
 
+function sessionFor(userId) {
+  return {
+    access_token: "header.payload." + userId.slice(0, 8),
+    refresh_token: "refresh.token.value",
+    token_type: "bearer",
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: { id: userId, aud: "authenticated", role: "authenticated", email: userId.slice(0, 8) + "@example.com" }
+  };
+}
+
+async function installControlledMember(page, userId) {
+  await page.addInitScript(({ ownerId }) => {
+    const listeners = [];
+    function rowsFor(table) {
+      if (table === "profiles") {
+        const id = window.__session && window.__session.user && window.__session.user.id;
+        return id ? [{ id: id, full_name: "Test Member", status: "active", email: "member@example.com" }] : [];
+      }
+      if (table === "member_cart_items") {
+        const id = window.__session && window.__session.user && window.__session.user.id;
+        return [{ user_id: id, book_id: "91001", quantity: 1 }];
+      }
+      if (table === "books") return [{ id: 91001, legacy_id: null }];
+      return [];
+    }
+    function answerQuery(table) {
+      const data = rowsFor(table);
+      return Promise.resolve({ data: data, error: null });
+    }
+    function chain(table) {
+      const api = {
+        select() { return api; },
+        eq() { return api; },
+        in() { return api; },
+        order() { return api; },
+        limit() { return api; },
+        upsert() { return Promise.resolve({ data: null, error: null }); },
+        update() { return api; },
+        delete() { return api; },
+        insert() { return Promise.resolve({ data: null, error: null }); },
+        maybeSingle() { return answerQuery(table).then((result) => ({ data: result.data[0] || null, error: null })); },
+        single() { return answerQuery(table).then((result) => ({ data: result.data[0] || null, error: null })); },
+        then(resolve, reject) { return answerQuery(table).then(resolve, reject); }
+      };
+      return api;
+    }
+    window.__authListeners = listeners;
+    window.__posts = [];
+    window.__session = null;
+    window.__emitAuth = (event, session) => {
+      if (session) window.__session = session;
+      if (event === "SIGNED_OUT") window.__session = null;
+      listeners.forEach((listener) => listener(event, session || null));
+    };
+    window.supabase = {
+      createClient() {
+        return {
+          auth: {
+            onAuthStateChange(callback) {
+              listeners.push(callback);
+              return { data: { subscription: { unsubscribe() {} } } };
+            },
+            async getSession() {
+              if (window.__sessionOverride) return window.__sessionOverride;
+              if (window.__sessionError) return { data: { session: null }, error: window.__sessionError };
+              if (window.__sessionThrow) throw window.__sessionThrow;
+              return { data: { session: window.__session }, error: null };
+            },
+            async refreshSession() {
+              return { data: { session: window.__session }, error: null };
+            },
+            async signOut() {
+              if (window.__signOutGate) await window.__signOutGate;
+              if (window.__signOutError) throw window.__signOutError;
+              window.__session = null;
+              listeners.forEach((listener) => listener("SIGNED_OUT", null));
+              return { error: null };
+            }
+          },
+          rpc(name) {
+            if (name !== "my_cart_share_permission") return Promise.resolve({ data: null, error: null });
+            if (window.__permissionFailsLeft > 0) {
+              window.__permissionFailsLeft -= 1;
+              return Promise.resolve({ data: null, error: { message: "temporary" } });
+            }
+            if (window.__permissionHold) {
+              return new Promise((resolve, reject) => {
+                window.__permissionWaits = window.__permissionWaits || [];
+                window.__permissionWaits.push({ resolve, reject });
+              });
+            }
+            if (window.__permissionMode === "deny") return Promise.resolve({ data: false, error: null });
+            return Promise.resolve({ data: true, error: null });
+          },
+          from(table) { return chain(table); }
+        };
+      }
+    };
+    window.__bootSession = {
+      access_token: "header.payload.signature",
+      refresh_token: "refresh.token.value",
+      token_type: "bearer",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: ownerId, aud: "authenticated", role: "authenticated", email: "member@example.com" }
+    };
+  }, { ownerId: userId });
+}
+
+async function openControlledCart(page) {
+  await page.route("**/rest/v1/books**", (route) => {
+    const method = route.request().method();
+    if (method === "HEAD") {
+      return route.fulfill({
+        status: 206,
+        contentType: "application/json",
+        headers: { "content-range": "0-0/1" },
+        body: ""
+      });
+    }
+    return route.fulfill({
+      status: 206,
+      contentType: "application/json",
+      headers: { "content-range": "0-0/1" },
+      body: JSON.stringify([bookRow()])
+    });
+  });
+  await page.route("**/api/shared-cart", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const record = {
+      authorization: route.request().headers().authorization || "",
+      body: route.request().postData() || ""
+    };
+    await page.evaluate((entry) => { window.__posts.push(entry); }, record);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, code: "Abcdefg2", url: "https://www.kutadgubilik.com/c/Abcdefg2" })
+    });
+  });
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+}
+
+test("sdk identity B closes sharing while the member facade still exposes A", async ({ page }) => {
+  const posts = [];
+  await H.installReadSafeNetwork(page);
+  await seedCart(page, MEMBER_A);
+  await installControlledMember(page, MEMBER_A);
+  await page.route("**/api/shared-cart", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    posts.push({ authorization: route.request().headers().authorization || "" });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, code: "Abcdefg2", url: "https://www.kutadgubilik.com/c/Abcdefg2" })
+    });
+  });
+  await page.route("**/rest/v1/books**", (route) => route.fulfill({
+    status: 206,
+    contentType: "application/json",
+    headers: { "content-range": "0-0/1" },
+    body: JSON.stringify([bookRow()])
+  }));
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  const raced = await page.evaluate(async (nextSession) => {
+    window.__permissionHold = true;
+    document.querySelector("#shareCart").click();
+    for (let i = 0; i < 20 && !(window.__permissionWaits && window.__permissionWaits.length); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const held = (window.__permissionWaits || []).length;
+    window.__emitAuth("SIGNED_IN", nextSession);
+    const during = {
+      listeners: window.__authListeners.length,
+      facade: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+      visible: !!document.querySelector("#shareCart")
+    };
+    const waiter = window.__permissionWaits[0];
+    if (waiter) waiter.resolve({ data: true, error: null });
+    window.__sessionOverride = { data: { session: nextSession }, error: null };
+    for (let i = 0; i < 30; i += 1) await Promise.resolve();
+    return {
+      held: held,
+      during: during,
+      facadeAfterRelease: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+      visibleAfterRelease: !!document.querySelector("#shareCart"),
+      toast: document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : ""
+    };
+  }, sessionFor(MEMBER_B));
+  expect(raced.held).toBeGreaterThan(0);
+  expect(raced.during.listeners).toBeGreaterThan(1);
+  expect(raced.during.facade).toBe(MEMBER_A);
+  expect(raced.during.visible).toBe(false);
+  expect(raced.facadeAfterRelease).toBe(MEMBER_A);
+  expect(raced.visibleAfterRelease).toBe(false);
+  expect(raced.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(posts).toEqual([]);
+  await page.waitForTimeout(50);
+  const afterQueue = await page.evaluate(() => ({
+    facade: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+    toast: document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : ""
+  }));
+  expect(afterQueue.facade).toBe(MEMBER_B);
+  expect(afterQueue.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(posts).toEqual([]);
+  expect(await page.locator(".shop-toast").count()).toBe(0);
+});
+
+test("an owned operation rejects another account session and a late result", async ({ page }) => {
+  const posts = [];
+  await H.installReadSafeNetwork(page);
+  await seedCart(page, MEMBER_A);
+  await installControlledMember(page, MEMBER_A);
+  await page.route("**/api/shared-cart", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    posts.push({ authorization: route.request().headers().authorization || "", release: release });
+    await gate;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, code: "Abcdefg2", url: "https://www.kutadgubilik.com/c/Abcdefg2" })
+    });
+  });
+  await page.route("**/rest/v1/books**", (route) => route.fulfill({
+    status: 206,
+    contentType: "application/json",
+    headers: { "content-range": "0-0/1" },
+    body: JSON.stringify([bookRow()])
+  }));
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  const mismatched = await page.evaluate(async (nextSession) => {
+    window.__permissionHold = true;
+    document.querySelector("#shareCart").click();
+    for (let i = 0; i < 20 && !(window.__permissionWaits && window.__permissionWaits.length); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const waiter = window.__permissionWaits.shift();
+    window.__sessionOverride = { data: { session: nextSession }, error: null };
+    waiter.resolve({ data: true, error: null });
+    for (let i = 0; i < 40; i += 1) await Promise.resolve();
+    return document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : "";
+  }, sessionFor(MEMBER_B));
+  expect(mismatched).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(posts).toEqual([]);
+  await page.evaluate((ownSession) => {
+    window.__sessionOverride = null;
+    window.__permissionHold = false;
+    window.__permissionWaits = [];
+    window.__session = ownSession;
+    window.__emitAuth("SIGNED_IN", ownSession);
+  }, sessionFor(MEMBER_B));
+  await expect.poll(() => page.evaluate(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id)).toBe(MEMBER_B);
+  await expect(page.locator("#shareCart")).toBeVisible();
+  await page.evaluate(() => {
+    window.__permissionHold = true;
+    window.__permissionWaits = [];
+    document.querySelector("#shareCart").click();
+  });
+  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(1);
+  await page.evaluate((previousSession) => {
+    window.__session = previousSession;
+    window.__emitAuth("SIGNED_IN", previousSession);
+  }, sessionFor(MEMBER_A));
+  await expect.poll(() => page.evaluate(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id)).toBe(MEMBER_A);
+  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(2);
+  await page.evaluate(() => { window.__permissionWaits[1].resolve({ data: true, error: null }); });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
+  await page.evaluate(() => {
+    const older = window.__permissionWaits[0];
+    older.resolve({ data: true, error: null });
+    older.resolve({ data: null, error: { message: "late" } });
+    older.reject(new Error("late"));
+  });
+  await page.waitForTimeout(50);
+  expect(posts).toEqual([]);
+  await expect(page.locator(".shop-toast")).not.toContainText(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(await page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
+  await page.evaluate(() => {
+    window.__permissionHold = false;
+    window.__permissionWaits[2].resolve({ data: true, error: null });
+  });
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].authorization).toContain(MEMBER_A.slice(0, 8));
+  posts[0].release();
+});
+
+test("sign-out closes sharing before auth.signOut finishes or fails", async ({ page }) => {
+  await H.installReadSafeNetwork(page);
+  await seedCart(page, MEMBER_A);
+  await installControlledMember(page, MEMBER_A);
+  await page.route("**/rest/v1/books**", (route) => route.fulfill({
+    status: 206,
+    contentType: "application/json",
+    headers: { "content-range": "0-0/1" },
+    body: JSON.stringify([bookRow()])
+  }));
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  const delayed = await page.evaluate(async () => {
+    let release;
+    let settled = false;
+    window.__signOutGate = new Promise((resolve) => { release = resolve; });
+    const pending = window.KutadguMember.signOut();
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    const during = {
+      gateHeld: !!window.__signOutGate,
+      settled: settled,
+      facade: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+      visible: !!document.querySelector("#shareCart"),
+      toast: document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : ""
+    };
+    release();
+    await pending.catch(() => {});
+    return {
+      during: during,
+      afterFacade: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+      afterVisible: !!document.querySelector("#shareCart")
+    };
+  });
+  expect(delayed.during.gateHeld).toBe(true);
+  expect(delayed.during.settled).toBe(false);
+  expect(delayed.during.facade).toBeFalsy();
+  expect(delayed.during.visible).toBe(false);
+  expect(delayed.during.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(delayed.afterFacade).toBeFalsy();
+  expect(delayed.afterVisible).toBe(false);
+
+  await page.evaluate(() => {
+    window.__signOutGate = null;
+    window.__signOutError = null;
+    window.__session = window.__bootSession;
+    window.__emitAuth("SIGNED_IN", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  const failed = await page.evaluate(async () => {
+    window.__signOutError = new Error("sign-out failed");
+    let threw = false;
+    try { await window.KutadguMember.signOut(); } catch (error) { threw = true; }
+    return {
+      threw: threw,
+      facade: window.KutadguMember.getUser() && window.KutadguMember.getUser().id,
+      session: window.__session && window.__session.user && window.__session.user.id,
+      visible: !!document.querySelector("#shareCart"),
+      toast: document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : ""
+    };
+  });
+  expect(failed.threw).toBe(true);
+  expect(failed.facade).toBeFalsy();
+  expect(failed.session).toBe(MEMBER_A);
+  expect(failed.visible).toBe(false);
+  expect(failed.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  await expect(page.locator("#checkoutCard")).toBeHidden();
+  await expect(page.locator("#shareCart")).toHaveCount(0);
+  await expect(page.locator("#whatsappOrder")).toHaveCount(1);
+  await page.evaluate((bookId) => {
+    window.kutadguShop.add(bookId, 1);
+    document.dispatchEvent(new Event("kutadgu-member-change"));
+  }, BOOK_ID);
+  await expect(page.locator("#whatsappOrder")).toBeVisible();
+  await expect(page.locator("#prepareOrder")).toBeVisible();
+  await expect(page.locator("#shareCart")).toHaveCount(0);
+});
+
+test("a temporary permission failure is retried for the same account", async ({ page }) => {
+  await H.installReadSafeNetwork(page);
+  await seedCart(page, MEMBER_A);
+  await installControlledMember(page, MEMBER_A);
+  await page.addInitScript(() => { window.__permissionFailsLeft = 1; });
+  await page.route("**/rest/v1/books**", (route) => route.fulfill({
+    status: 206,
+    contentType: "application/json",
+    headers: { "content-range": "0-0/1" },
+    body: JSON.stringify([bookRow()])
+  }));
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__permissionFailsLeft = 1;
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toHaveCount(0);
+  await expect(page.locator("#shareCart")).toBeVisible({ timeout: 5000 });
+  await expect(page.locator("#whatsappOrder")).toBeVisible();
+});
+
+test("admin cart-share writes keep the earliest operation through preflight", async ({ page }) => {
+  await installAdmin(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openMembers(page);
+  await page.evaluate(() => {
+    let release;
+    window.__adminAuthGate = new Promise((resolve) => { release = resolve; });
+    window.__releaseAdminAuth = () => {
+      const done = release;
+      window.__adminAuthGate = null;
+      done();
+    };
+  });
+  await page.evaluate(() => {
+    document.querySelector("#cartShareGlobal").click();
+    document.querySelector("[data-cart-share]").click();
+    document.querySelector("#cartShareGlobal").click();
+  });
+  const during = await page.evaluate(() => window.__memberDirectoryCalls.filter((call) => call.name === "admin_set_cart_share_global" || call.name === "admin_set_cart_share_grant").length);
+  expect(during).toBe(0);
+  await page.evaluate(() => window.__releaseAdminAuth());
+  await expect.poll(() => page.evaluate(() => window.__memberDirectoryCalls.filter((call) => call.name === "admin_set_cart_share_global" || call.name === "admin_set_cart_share_grant").length)).toBe(1);
+  await expect(page.locator("#cartShareStatus")).toContainText("ئومۇمىي ئىجازەت ئوچۇق");
+  const onlyGlobal = await page.evaluate(() => window.__memberDirectoryCalls.filter((call) => call.name === "admin_set_cart_share_global" || call.name === "admin_set_cart_share_grant").map((call) => call.name));
+  expect(onlyGlobal).toEqual(["admin_set_cart_share_global"]);
+
+  await page.evaluate(() => {
+    window.__cartShare.failRead = true;
+  });
+  await page.locator("#reloadMembers").click();
+  await expect(page.locator("#cartShareRetry")).toBeVisible();
+  await page.evaluate(() => {
+    window.__cartShare.failRead = false;
+    window.__cartShare.holdRead = true;
+    window.__cartShareReadQueue = [];
+    document.querySelector("#cartShareRetry").click();
+    document.querySelector("#cartShareRetry").click();
+  });
+  await expect.poll(() => page.evaluate(() => (window.__cartShareReadQueue || []).length)).toBe(2);
+  await page.evaluate(() => {
+    const queue = window.__cartShareReadQueue;
+    window.__cartShare.global = false;
+    queue[1]();
+    window.__cartShare.global = true;
+    queue[0]();
+  });
+  await expect(page.locator("#cartShareStatus")).toContainText("ئومۇمىي ئىجازەت تاقاق");
+  await expect(page.locator("#cartShareStatus")).not.toContainText("ئومۇمىي ئىجازەت ئوچۇق");
+
+  await page.evaluate(() => {
+    window.__cartShare.holdRead = false;
+    let release;
+    window.__adminAuthGate = new Promise((resolve) => { release = resolve; });
+    window.__releaseAdminAuth = () => {
+      const done = release;
+      window.__adminAuthGate = null;
+      done();
+    };
+    window.__writesAtChange = window.__memberDirectoryCalls.filter((call) => call.name === "admin_set_cart_share_global").length;
+    document.querySelector("#cartShareGlobal").click();
+  });
+  await page.locator("#adminMemberPager").getByRole("button", { name: "كېيىنكى" }).click();
+  await page.evaluate(() => {
+    window.__memberDirectoryUser = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    window.__memberDirectoryAal = "aal1";
+    window.__releaseAdminAuth();
+  });
+  await expect.poll(() => page.evaluate(() => window.__memberDirectoryCalls.filter((call) => call.name === "admin_set_cart_share_global").length)).toBe(await page.evaluate(() => window.__writesAtChange));
+  await expect(page.locator("#cartShareStatus")).not.toContainText("ئومۇمىي ئىجازەت ئوچۇق");
+});
+
 test("ordinary navigation requests the current shop pin", async ({ page }) => {
   await H.installReadSafeNetwork(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=152/);
+  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=153/);
   const body = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
   expect(body).toContain("my_cart_share_permission");
   expect(body).not.toContain("shop.js?v=151");
