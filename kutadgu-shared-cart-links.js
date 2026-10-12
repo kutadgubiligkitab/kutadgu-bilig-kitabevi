@@ -2,6 +2,7 @@
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const CANONICAL_ORIGIN = "https://www.kutadgubilik.com";
+const PUBLIC_API_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8}$/;
 const SHORT_PAGE_RE = /^\/c\/([ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789]{8})$/;
@@ -150,7 +151,7 @@ function rpcResult(payload) {
       value = trimmed;
     }
   }
-  if (value === "ok" || value === "conflict" || value === "rate_limited" || value === "invalid") return value;
+  if (value === "ok" || value === "conflict" || value === "rate_limited" || value === "invalid" || value === "denied") return value;
   return "";
 }
 
@@ -230,13 +231,26 @@ async function readBoundedCreateBody(request) {
   return { ok: true, body: new TextDecoder("utf-8").decode(merged) };
 }
 
-async function createLink(env, fetchImpl, row) {
-  const key = serverKey(env);
-  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/create_shared_cart_link", {
+function callerBearer(authorization) {
+  const value = String(authorization || "").trim();
+  if (!/^Bearer\s+\S+$/i.test(value)) return "";
+  const token = value.replace(/^Bearer\s+/i, "").trim();
+  if (!token || token.length > 8192 || /\s/.test(token)) return "";
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts.some((part) => !part || part.length > 4096)) return "";
+  return token;
+}
+
+function denied(status) {
+  return jsonResult(status === 403 ? 403 : 401, { ok: false, error: "denied" });
+}
+
+async function createLink(fetchImpl, token, row) {
+  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/create_member_shared_cart_link", {
     method: "POST",
     headers: {
-      apikey: key,
-      Authorization: "Bearer " + key,
+      apikey: PUBLIC_API_KEY,
+      Authorization: "Bearer " + token,
       "Content-Type": "application/json",
       Accept: "application/json"
     },
@@ -276,11 +290,12 @@ async function readLink(env, fetchImpl, code) {
 }
 
 async function handleCreate(options, normalized) {
-  const env = options.env;
   const fetchImpl = options.fetchImpl;
   const generate = options.generateCode || generateShortCode;
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
-  if (!serverKey(env) || typeof fetchImpl !== "function") return unavailable();
+  const token = callerBearer(options.authorization);
+  if (!token) return denied();
+  if (!PUBLIC_API_KEY || typeof fetchImpl !== "function") return unavailable();
   for (let attempt = 0; attempt < INSERT_ATTEMPTS; attempt += 1) {
     let code = "";
     try {
@@ -293,7 +308,7 @@ async function handleCreate(options, normalized) {
     if (!sharedCartItemsValid(row.items)) return invalid("invalid");
     let created = null;
     try {
-      created = await createLink(env, fetchImpl, row);
+      created = await createLink(fetchImpl, token, row);
     } catch (err) {
       return unavailable();
     }
@@ -306,6 +321,8 @@ async function handleCreate(options, normalized) {
       return jsonResult(429, { ok: false, error: "rate_limited" });
     }
     if (created && created.status === 200 && outcome === "invalid") return invalid("invalid");
+    if (created && created.status === 200 && outcome === "denied") return denied(403);
+    if (created && (created.status === 401 || created.status === 403)) return denied(403);
     return unavailable();
   }
   return unavailable();
@@ -373,7 +390,9 @@ module.exports = {
   CREATE_DAY_LIMIT,
   CREATE_WINDOW_HOURS,
   readBoundedCreateBody,
+  PUBLIC_API_KEY,
   generateShortCode,
+  callerBearer,
   canonicalShortUrl,
   normalizeCreateItems,
   normalizeStoredItems,
