@@ -523,6 +523,7 @@ async function installControlledMember(page, userId) {
               return { data: { subscription: { unsubscribe() {} } } };
             },
             async getSession() {
+              window.__sessionReads = (window.__sessionReads || 0) + 1;
               if (window.__sessionOverride) return window.__sessionOverride;
               if (window.__sessionError) return { data: { session: null }, error: window.__sessionError };
               if (window.__sessionThrow) throw window.__sessionThrow;
@@ -676,7 +677,133 @@ test("sdk identity B closes sharing while the member facade still exposes A", as
   expect(await page.locator(".shop-toast").count()).toBe(0);
 });
 
-test("an owned operation rejects another account session and a late result", async ({ page }) => {
+function sharedCartSuccess() {
+  return { ok: true, code: "Abcdefg2", url: "https://www.kutadgubilik.com/c/Abcdefg2" };
+}
+
+async function installShareProbes(page) {
+  await page.addInitScript(() => {
+    window.__copyCalls = [];
+    window.__shareCalls = [];
+    window.__execCopies = [];
+    window.__afterJson = 0;
+    window.__armShareProbes = () => {
+      const clipboard = {
+        writeText(text) {
+          window.__copyCalls.push(String(text || ""));
+          return Promise.resolve();
+        }
+      };
+      try {
+        Object.defineProperty(navigator, "clipboard", { configurable: true, writable: true, value: clipboard });
+      } catch (error) {
+        navigator.clipboard = clipboard;
+      }
+      const nativeExec = document.execCommand ? document.execCommand.bind(document) : null;
+      document.execCommand = (command) => {
+        if (command === "copy") {
+          window.__execCopies.push("copy");
+          return true;
+        }
+        return nativeExec ? nativeExec(command) : false;
+      };
+      const share = (data) => {
+        window.__shareCalls.push(data && data.url ? String(data.url) : "");
+        return Promise.resolve();
+      };
+      try {
+        Object.defineProperty(navigator, "share", { configurable: true, writable: true, value: share });
+      } catch (error) {
+        navigator.share = share;
+      }
+    };
+    window.__armShareProbes();
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      return nativeFetch(input, init).then((response) => {
+        if (String(url).indexOf("/api/shared-cart") === -1) return response;
+        const originalJson = response.json.bind(response);
+        response.json = () => originalJson().then((data) => {
+          queueMicrotask(() => {
+            queueMicrotask(() => { window.__afterJson += 1; });
+          });
+          return data;
+        });
+        return response;
+      });
+    };
+  });
+}
+
+async function routeHeldCreates(page, posts) {
+  await page.route("**/api/shared-cart", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    posts.push({
+      authorization: route.request().headers().authorization || "",
+      body: route.request().postData() || "",
+      release
+    });
+    const outcome = await gate;
+    return route.fulfill({
+      status: outcome.status,
+      contentType: "application/json",
+      body: JSON.stringify(outcome.body)
+    });
+  });
+}
+
+async function routeCanonicalBook(page) {
+  await page.route("**/rest/v1/books**", (route) => {
+    const method = route.request().method();
+    if (method === "HEAD") {
+      return route.fulfill({
+        status: 206,
+        contentType: "application/json",
+        headers: { "content-range": "0-0/1" },
+        body: ""
+      });
+    }
+    return route.fulfill({
+      status: 206,
+      contentType: "application/json",
+      headers: { "content-range": "0-0/1" },
+      body: JSON.stringify([bookRow()])
+    });
+  });
+}
+
+async function bootControlledShare(page, posts) {
+  await H.installReadSafeNetwork(page);
+  await seedCart(page, MEMBER_A);
+  await installControlledMember(page, MEMBER_A);
+  await installShareProbes(page);
+  await routeHeldCreates(page, posts);
+  await routeCanonicalBook(page);
+  await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__armShareProbes();
+    window.__session = window.__bootSession;
+    window.__emitAuth("INITIAL_SESSION", window.__bootSession);
+  });
+  await expect(page.locator("#shareCart")).toBeVisible();
+  expect(await page.evaluate(() => window.__authListeners.length)).toBeGreaterThan(1);
+}
+
+async function toastText(page) {
+  return page.evaluate(() => {
+    const toast = document.querySelector(".shop-toast");
+    return toast ? toast.textContent : "";
+  });
+}
+
+async function shareActionCount(page) {
+  return page.evaluate(() => window.__copyCalls.length + window.__shareCalls.length + window.__execCopies.length);
+}
+
+test("an owned operation rejects another account session", async ({ page }) => {
   const posts = [];
   await H.installReadSafeNetwork(page);
   await seedCart(page, MEMBER_A);
@@ -719,48 +846,178 @@ test("an owned operation rejects another account session and a late result", asy
   }, sessionFor(MEMBER_B));
   expect(mismatched).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
   expect(posts).toEqual([]);
-  await page.evaluate((ownSession) => {
-    window.__sessionOverride = null;
-    window.__permissionHold = false;
-    window.__permissionWaits = [];
-    window.__session = ownSession;
-    window.__emitAuth("SIGNED_IN", ownSession);
+  expect(await toastText(page)).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(await page.locator(".shop-toast").count()).toBe(0);
+});
+
+for (const [mode, label] of [
+  ["success", "a late successful permission"],
+  ["error", "a late returned permission error"],
+  ["reject", "a late rejected permission"]
+]) {
+  test(label + " cannot share the older account or release the newer operation", async ({ page }) => {
+    const posts = [];
+    await bootControlledShare(page, posts);
+    await page.evaluate(() => {
+      window.__permissionHold = true;
+      window.__permissionWaits = [];
+      document.querySelector("#shareCart").click();
+    });
+    await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(1);
+    await page.evaluate((nextSession) => {
+      window.__emitAuth("SIGNED_IN", nextSession);
+    }, sessionFor(MEMBER_B));
+    await expect.poll(() => page.evaluate(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id)).toBe(MEMBER_B);
+    await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(2);
+    expect(await page.evaluate(() => window.__authListeners.length)).toBeGreaterThan(1);
+    await page.evaluate(() => { window.__permissionWaits[1].resolve({ data: true, error: null }); });
+    await expect(page.locator("#shareCart")).toBeVisible();
+    await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+    await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
+    await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+    expect(await page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
+    expect(await page.evaluate(() => window.__permissionWaits[0] !== window.__permissionWaits[2])).toBe(true);
+    expect(posts).toEqual([]);
+    const settled = await page.evaluate(async (settlement) => {
+      const beforeReads = window.__sessionReads || 0;
+      const beforeActions = window.__copyCalls.length + window.__shareCalls.length + window.__execCopies.length;
+      const older = window.__permissionWaits[0];
+      if (settlement === "success") older.resolve({ data: true, error: null });
+      else if (settlement === "error") older.resolve({ data: null, error: { message: "late" } });
+      else older.reject(new Error("late"));
+      await Promise.resolve();
+      await Promise.resolve();
+      const toast = document.querySelector(".shop-toast");
+      return {
+        beforeReads,
+        afterReads: window.__sessionReads || 0,
+        beforeActions,
+        afterActions: window.__copyCalls.length + window.__shareCalls.length + window.__execCopies.length,
+        waits: window.__permissionWaits.length,
+        visible: !!document.querySelector("#shareCart"),
+        toast: toast ? toast.textContent : ""
+      };
+    }, mode);
+    expect(settled.afterReads).toBe(settled.beforeReads);
+    expect(settled.afterActions).toBe(settled.beforeActions);
+    expect(settled.waits).toBe(3);
+    expect(settled.visible).toBe(true);
+    expect(settled.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى|ھەمبەھىرلىيەلمىدۇق/);
+    expect(posts).toEqual([]);
+    await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+    expect(await page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
+    expect(posts).toEqual([]);
+    await expect(page.locator("#whatsappOrder")).toBeVisible();
+    await page.evaluate(() => { window.__permissionWaits[2].resolve({ data: true, error: null }); });
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0].authorization).toContain(MEMBER_B.slice(0, 8));
+    expect(posts[0].authorization).not.toContain(MEMBER_A.slice(0, 8));
+    expect(posts[0].body).toContain(BOOK_ID);
+    await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+    expect(posts).toHaveLength(1);
+    const heldActions = await shareActionCount(page);
+    posts[0].release({ status: 200, body: sharedCartSuccess() });
+    await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(1);
+    await expect.poll(() => toastText(page)).toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+    expect(posts).toHaveLength(1);
+    expect(await shareActionCount(page)).toBe(heldActions + 1);
+    const shared = await page.evaluate(() => window.__copyCalls.concat(window.__shareCalls));
+    expect(shared.some((url) => String(url).indexOf("/c/Abcdefg2") !== -1)).toBe(true);
+    await expect(page.locator("#whatsappOrder")).toBeVisible();
+  });
+}
+
+test("a held cart creation delays its own success, ignores an overlap, and retries one error", async ({ page }) => {
+  const posts = [];
+  await bootControlledShare(page, posts);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].authorization).toBe("Bearer " + TOKEN);
+  expect(posts[0].body).toContain(BOOK_ID);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(1);
+  posts[0].release({ status: 200, body: sharedCartSuccess() });
+  await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(1);
+  await expect.poll(() => toastText(page)).toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(await shareActionCount(page)).toBe(1);
+  expect(posts).toHaveLength(1);
+
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  await expect.poll(() => posts.length).toBe(2);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(2);
+  expect(posts[1].authorization).toBe("Bearer " + TOKEN);
+  posts[1].release({ status: 503, body: { ok: false, error: "unavailable" } });
+  await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(2);
+  await expect.poll(() => toastText(page)).toContain("ھەمبەھىرلىيەلمىدۇق");
+  await expect(page.locator("#shareCart")).toBeVisible();
+  expect(await shareActionCount(page)).toBe(1);
+  expect(posts).toHaveLength(2);
+
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  await expect.poll(() => posts.length).toBe(3);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(3);
+  posts[2].release({ status: 200, body: sharedCartSuccess() });
+  await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(3);
+  await expect.poll(() => toastText(page)).toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(await shareActionCount(page)).toBe(2);
+  expect(posts).toHaveLength(3);
+  await expect(page.locator("#whatsappOrder")).toBeVisible();
+  await expect(page.locator("#prepareOrder")).toBeVisible();
+});
+
+test("a held cart creation from the previous account cannot complete after the SDK account changes", async ({ page }) => {
+  const posts = [];
+  await bootControlledShare(page, posts);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].authorization).toBe("Bearer " + TOKEN);
+  expect(posts[0].body).toContain(BOOK_ID);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(1);
+  await page.evaluate((nextSession) => {
+    window.__emitAuth("SIGNED_IN", nextSession);
   }, sessionFor(MEMBER_B));
   await expect.poll(() => page.evaluate(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id)).toBe(MEMBER_B);
   await expect(page.locator("#shareCart")).toBeVisible();
-  await page.evaluate(() => {
-    window.__permissionHold = true;
-    window.__permissionWaits = [];
-    document.querySelector("#shareCart").click();
-  });
-  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(1);
-  await page.evaluate((previousSession) => {
-    window.__session = previousSession;
-    window.__emitAuth("SIGNED_IN", previousSession);
-  }, sessionFor(MEMBER_A));
-  await expect.poll(() => page.evaluate(() => window.KutadguMember.getUser() && window.KutadguMember.getUser().id)).toBe(MEMBER_A);
-  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(2);
-  await page.evaluate(() => { window.__permissionWaits[1].resolve({ data: true, error: null }); });
-  await expect(page.locator("#shareCart")).toBeVisible();
+  expect(await shareActionCount(page)).toBe(0);
+  expect(await toastText(page)).toBe("");
   await page.evaluate(() => { document.querySelector("#shareCart").click(); });
-  await expect.poll(() => page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
-  await page.evaluate(() => {
-    const older = window.__permissionWaits[0];
-    older.resolve({ data: true, error: null });
-    older.resolve({ data: null, error: { message: "late" } });
-    older.reject(new Error("late"));
+  await expect.poll(() => posts.length).toBe(2);
+  expect(posts[1].authorization).toContain(MEMBER_B.slice(0, 8));
+  expect(posts[1].authorization).not.toContain(MEMBER_A.slice(0, 8));
+  expect(posts[1].body).toContain(BOOK_ID);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(2);
+  posts[0].release({ status: 200, body: sharedCartSuccess() });
+  await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(1);
+  const stale = await page.evaluate(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    const toast = document.querySelector(".shop-toast");
+    return {
+      toast: toast ? toast.textContent : "",
+      actions: window.__copyCalls.length + window.__shareCalls.length + window.__execCopies.length,
+      visible: !!document.querySelector("#shareCart")
+    };
   });
-  await page.waitForTimeout(50);
-  expect(posts).toEqual([]);
-  await expect(page.locator(".shop-toast")).not.toContainText(/كۆچۈر|ھەمبەھىرلەندى/);
-  expect(await page.evaluate(() => (window.__permissionWaits || []).length)).toBe(3);
-  await page.evaluate(() => {
-    window.__permissionHold = false;
-    window.__permissionWaits[2].resolve({ data: true, error: null });
-  });
-  await expect.poll(() => posts.length).toBe(1);
-  expect(posts[0].authorization).toContain(MEMBER_A.slice(0, 8));
-  posts[0].release();
+  expect(stale.toast).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(stale.actions).toBe(0);
+  expect(stale.visible).toBe(true);
+  expect(posts).toHaveLength(2);
+  await page.evaluate(() => { document.querySelector("#shareCart").click(); });
+  expect(posts).toHaveLength(2);
+  posts[1].release({ status: 200, body: sharedCartSuccess() });
+  await expect.poll(() => page.evaluate(() => window.__afterJson)).toBe(2);
+  await expect.poll(() => toastText(page)).toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
+  expect(await shareActionCount(page)).toBe(1);
+  expect(posts).toHaveLength(2);
+  const shared = await page.evaluate(() => window.__copyCalls.concat(window.__shareCalls));
+  expect(shared).toEqual(["https://www.kutadgubilik.com/c/Abcdefg2"]);
+  await expect(page.locator("#whatsappOrder")).toBeVisible();
+  await expect(page.locator("#prepareOrder")).toBeVisible();
 });
 
 test("sign-out closes sharing before auth.signOut finishes or fails", async ({ page }) => {
