@@ -807,6 +807,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "taamlar.html",
     "scripts/cart-share-permission-tests.js",
     "scripts/stage121-isolated-verify.js",
+    "docs/cart-share-stage121-verify.txt",
     "tests/e2e/cart-share-permission.spec.js",
     "tests/e2e/admin-feedback.spec.js"
   ]);
