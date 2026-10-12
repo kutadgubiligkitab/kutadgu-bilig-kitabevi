@@ -811,6 +811,7 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/cart-share-permission.spec.js",
     "scripts/guest-cart-invite-tests.js",
     "tests/e2e/guest-cart-invite.spec.js",
+    "tests/e2e/guest-cart-invite-persistence.spec.js",
     "scripts/compact-order-message-tests.js",
     "tests/e2e/compact-order-message.spec.js",
     "tests/e2e/admin-feedback.spec.js"
