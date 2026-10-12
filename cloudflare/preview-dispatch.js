@@ -393,6 +393,7 @@ async function handleSharedCartApiRoute(request, env, deps) {
     method,
     pathname,
     body,
+    authorization: request.headers && request.headers.get ? (request.headers.get("authorization") || "") : "",
     env,
     fetchImpl: deps && deps.fetchImpl
   });

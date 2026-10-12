@@ -18,11 +18,14 @@ function gitShow(spec) {
   }
 }
 
-const oldShopMain = gitShow("origin/main:shop.js");
+const oldShopMain = gitShow(mainSha + ":shop.js");
+const releasedShop = gitShow("2eff3e230b814cc7b0ddc08012b28482c67dccbe:shop.js");
 const oldShopReviewed = gitShow(reviewed + ":shop.js");
 const oldShopPrevious = gitShow(previous + ":shop.js");
 const oldMember = gitShow(reviewed + ":member.js");
 const oldMemberPrevious = gitShow(previous + ":member.js");
+const cartShareShop = gitShow("0848e8063ecccae61b7b74f3e84cc85cb9d6366a:shop.js");
+const cartShareMember = gitShow("0848e8063ecccae61b7b74f3e84cc85cb9d6366a:member.js");
 const oldFeedback = gitShow(previous + ":feedback.js");
 
 function fulfill(body) {
@@ -39,29 +42,42 @@ async function warmOldAssets(page) {
   await page.route(/\/shop\.js\?v=142(?:&|$)/, fulfill(oldShopMain));
   await page.route(/\/shop\.js\?v=149(?:&|$)/, fulfill(oldShopReviewed));
   await page.route(/\/shop\.js\?v=150(?:&|$)/, fulfill(oldShopPrevious));
+  await page.route(/\/shop\.js\?v=151(?:&|$)/, fulfill(releasedShop));
+  await page.route(/\/shop\.js\?v=152(?:&|$)/, fulfill(cartShareShop));
   await page.route(/\/member\.js\?v=28(?:&|$)/, fulfill(oldMember));
   await page.route(/\/member\.js\?v=29(?:&|$)/, fulfill(oldMemberPrevious));
+  await page.route(/\/member\.js\?v=30(?:&|$)/, fulfill(cartShareMember));
   await page.route(/\/feedback\.js\?v=2(?:&|$)/, fulfill(oldFeedback));
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await page.evaluate(async () => {
     await fetch("/shop.js?v=148");
     await fetch("/shop.js?v=149");
     await fetch("/shop.js?v=150");
+    await fetch("/shop.js?v=151");
+    await fetch("/shop.js?v=152");
     await fetch("/shop.js?v=142");
     await fetch("/member.js?v=28");
     await fetch("/member.js?v=29");
+    await fetch("/member.js?v=30");
     await fetch("/feedback.js?v=2");
   });
   const cachedMember = await page.evaluate(async () => (await fetch("/member.js?v=28")).text());
   const cachedMemberPrevious = await page.evaluate(async () => (await fetch("/member.js?v=29")).text());
   const cachedShop = await page.evaluate(async () => (await fetch("/shop.js?v=148")).text());
   const cachedShopPrevious = await page.evaluate(async () => (await fetch("/shop.js?v=150")).text());
+  const cachedShopReleased = await page.evaluate(async () => (await fetch("/shop.js?v=151")).text());
   const cachedFeedback = await page.evaluate(async () => (await fetch("/feedback.js?v=2")).text());
   expect(cachedMember).toContain("beginSignOut");
   expect(cachedMember).not.toContain("noteAuthUser");
   expect(cachedMemberPrevious).toContain("restoreRejectedSignOut");
   expect(cachedShop).not.toContain('href="/feedback"');
   expect(cachedShopPrevious).toContain("member.js?v=29");
+  const cachedShopCartShare = await page.evaluate(async () => (await fetch("/shop.js?v=152")).text());
+  const cachedMemberCartShare = await page.evaluate(async () => (await fetch("/member.js?v=30")).text());
+  expect(cachedShopReleased).not.toContain("my_cart_share_permission");
+  expect(cachedShopCartShare).toContain("my_cart_share_permission");
+  expect(cachedShopCartShare).not.toContain("noteCartShareAuth");
+  expect(cachedMemberCartShare).not.toContain("noteCartShareSignOut");
   expect(cachedFeedback).not.toContain("sendSeq");
 }
 
@@ -69,10 +85,12 @@ async function expectFreshShop(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const src = await page.locator("script[src*='shop.js']").first().getAttribute("src");
-  expect(src).toContain("shop.js?v=151");
+  expect(src).toContain("shop.js?v=153");
   const live = await page.evaluate(async (url) => (await fetch(url)).text(), src);
   expect(live).toContain('href="/feedback"');
-  expect(live).toContain("member.js?v=30");
+  expect(live).toContain("member.js?v=31");
+  expect(live).toContain("my_cart_share_permission");
+  expect(live).toContain("noteCartShareAuth");
 }
 
 test("warm copies of the old shop and member URLs do not serve the new pages", async ({ page }) => {
@@ -83,14 +101,15 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   await page.goto("/account.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const memberSrc = await page.locator("script[src*='member.js']").getAttribute("src");
-  expect(memberSrc).toContain("member.js?v=30");
+  expect(memberSrc).toContain("member.js?v=31");
   const memberBody = await page.evaluate(async (url) => (await fetch(url)).text(), memberSrc);
   expect(memberBody).toContain("noteAuthUser");
+  expect(memberBody).toContain("noteCartShareSignOut");
   expect(memberBody).not.toContain("restoreRejectedSignOut");
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("پىكىر ۋە تەكلىپ");
-  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=151/);
-  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", /member\.js\?v=30/);
+  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=153/);
+  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", /member\.js\?v=31/);
   await expect(page.locator("script[src*='feedback.js']")).toHaveAttribute("src", /feedback\.js\?v=3/);
   const feedbackBody = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='feedback.js']").src)).text());
   expect(feedbackBody).toContain("noteAuthUser");

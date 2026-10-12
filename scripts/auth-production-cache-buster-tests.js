@@ -90,16 +90,16 @@ test("admin-quality-preview.html is excluded because it is a noindex Admin CSS p
   assert.doesNotMatch(html, /member\.js/);
 });
 
-test("dynamic Member loader and already-current pages stay on member.js v=30", () => {
+test("dynamic Member loader and already-current pages stay on member.js v=31", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
   const staff = fs.readFileSync(path.join(root, "book-staff.html"), "utf8");
   const feedback = fs.readFileSync(path.join(root, "feedback.html"), "utf8");
-  assert.match(shop, /member\.js\?v=30/);
+  assert.match(shop, /member\.js\?v=31/);
   assert.doesNotMatch(shop, /member\.js\?v=(?:[0-9]|1\d|2[0-8])\b/);
-  assert.match(account, /member\.js\?v=30/);
-  assert.match(staff, /member\.js\?v=30/);
-  assert.match(feedback, /member\.js\?v=30/);
+  assert.match(account, /member\.js\?v=31/);
+  assert.match(staff, /member\.js\?v=31/);
+  assert.match(feedback, /member\.js\?v=31/);
 });
 
 if (failed) {

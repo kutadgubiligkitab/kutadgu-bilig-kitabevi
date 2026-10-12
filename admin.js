@@ -2423,6 +2423,7 @@ function clearMemberPrivate(){
   setMemberNotice("");
   resetMemberDirectoryStats();
   if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList([]);
+  resetCartShareAdmin();
 }
 function discardUnownedMemberDirectory(admin){
   const committed=memberDirectoryCommitted;
@@ -2574,7 +2575,14 @@ async function loadMembers(request){
   rows.forEach(row=>{if(row&&row.id)profileById.set(row.id,{id:row.id,full_name:row.full_name,email:row.email})});
   applyMemberDirectoryStats(payload&&payload.stats);
   setMemberNotice("");
+  cartShareAdmin.loaded=false;
+  cartShareAdmin.error=false;
+  cartShareAdmin.grants=new Map();
+  cartShareAdmin.pendingKey="";
+  cartShareAdmin.writeOp=0;
+  cartShareAdmin.pageGeneration=generation;
   renderMembers();
+  loadCartShareState(rows.map(row=>row&&row.id).filter(Boolean),generation,after);
   return {ok:true,total};
 }
 const COUNTED_ORDER_STATUSES=new Set(["confirmed","processing","shipped","completed"]);
@@ -2605,8 +2613,285 @@ function memberOrderSummary(memberId){
     total:orderStatsRevenue(list)
   };
 }
+let cartShareWriteSeq=0;
+let cartShareReadSeq=0;
+let cartShareAdmin={
+  pageGeneration:0,
+  loaded:false,
+  error:false,
+  globalEnabled:false,
+  selfId:"",
+  selfGranted:false,
+  selfEligible:false,
+  grants:new Map(),
+  pendingKey:"",
+  writeOp:0,
+  readOp:0
+};
+function resetCartShareAdmin(){
+  cartShareAdmin={
+    pageGeneration:0,
+    loaded:false,
+    error:false,
+    globalEnabled:false,
+    selfId:"",
+    selfGranted:false,
+    selfEligible:false,
+    grants:new Map(),
+    pendingKey:"",
+    writeOp:0,
+    readOp:0
+  };
+  renderCartShareControls();
+}
+function cartShareSavedLabel(granted){
+  return granted?"ساقلانغان ئالاھىدە ئىجازەت: ئوچۇق":"ساقلانغان ئالاھىدە ئىجازەت: تاقاق";
+}
+function renderCartShareControls(){
+  const status=$("#cartShareStatus");
+  const button=$("#cartShareGlobal");
+  const self=$("#cartShareSelf");
+  if(!status||!button||!self)return;
+  const state=cartShareAdmin;
+  button.disabled=!state.loaded||!!state.error||!!state.pendingKey;
+  button.setAttribute("aria-pressed",state.globalEnabled?"true":"false");
+  button.textContent=state.globalEnabled?"بارلىق ئەزالارغا سېۋەت ئۇلانمىسىنى تاقاش":"بارلىق ئەزالارغا سېۋەت ئۇلانمىسىنى ئېچىش";
+  if(!state.loaded&&!state.error)status.textContent="سېۋەت ئۇلانمىسى ئىجازىتى يۈكلىنىۋاتىدۇ...";
+  else if(state.error)status.textContent="سېۋەت ئۇلانمىسى ئىجازىتىنى ئوقۇيالمىدۇق. قايتا سىناڭ.";
+  else if(state.globalEnabled)status.textContent="ئومۇمىي ئىجازەت ئوچۇق. ھازىر ۋە كېيىن قوشۇلىدىغان نورمال ئەزالار سېۋەت ئۇلانمىسى ياسىيالايدۇ. توختىتىلغان ھېساب ۋە مېھمانلار ياسىيالمايدۇ. ساقلانغان ئالاھىدە ئىجازەتلەر ئۆزگەرمەيدۇ.";
+  else status.textContent="ئومۇمىي ئىجازەت تاقاق. پەقەت ئايرىم ئېچىلغان نورمال ئەزالار سېۋەت ئۇلانمىسى ياسىيالايدۇ.";
+  self.replaceChildren();
+  if(!state.loaded||state.error){
+    if(state.error){
+      const retry=document.createElement("button");
+      retry.type="button";
+      retry.id="cartShareRetry";
+      retry.textContent="قايتا سىناش";
+      retry.addEventListener("click",()=>{retryCartShareState()});
+      self.appendChild(retry);
+    }
+    return;
+  }
+  if(state.globalEnabled){
+    const saved=document.createElement("p");
+    saved.className="admin-member-share-saved";
+    const extra=state.selfEligible?"":" بۇ ھېساب نورمال ئەمەس، ئومۇمىي ئىجازەتمۇ ئۇنى ئاچمايدۇ.";
+    saved.textContent="مېنىڭ ھېسابىم: "+cartShareSavedLabel(state.selfGranted)+extra;
+    self.appendChild(saved);
+    return;
+  }
+  if(!state.selfEligible){
+    const note=document.createElement("p");
+    note.className="admin-member-share-saved";
+    note.textContent="بۇ ھېساب نورمال ئەمەس. ساقلانغان ئىجازەت سېۋەت ئۇلانمىسى ياساشقا يەتمەيدۇ.";
+    self.appendChild(note);
+  }
+  const mine=document.createElement("button");
+  mine.type="button";
+  mine.id="cartShareSelfToggle";
+  mine.setAttribute("aria-pressed",state.selfGranted?"true":"false");
+  mine.disabled=!!state.pendingKey;
+  mine.textContent=state.pendingKey==="self"?"ساقلاۋاتىدۇ...":("مېنىڭ ھېسابىمغا سېۋەت ئۇلانمىسى: "+(state.selfGranted?"تاقاش":"ئېچىش"));
+  mine.addEventListener("click",()=>{setCartShareGrant(state.selfId,!state.selfGranted,"self")});
+  self.appendChild(mine);
+}
+function cartShareRowControl(member){
+  const state=cartShareAdmin;
+  if(state.error)return `<span class="admin-member-share-saved">سېۋەت ئۇلانمىسى ئوقۇلمىدى</span>`;
+  if(!state.loaded)return `<span class="admin-member-share-saved">سېۋەت ئۇلانمىسى يۈكلىنىۋاتىدۇ</span>`;
+  const granted=state.grants.get(member.id)===true;
+  if(state.globalEnabled)return `<span class="admin-member-share-saved">${esc(cartShareSavedLabel(granted))}</span>`;
+  const pending=state.pendingKey===member.id;
+  const label=pending?"ساقلاۋاتىدۇ...":(granted?"سېۋەت ئۇلانمىسى: تاقاش":"سېۋەت ئۇلانمىسى: ئېچىش");
+  return `<button type="button" data-cart-share="${esc(member.id)}" data-next-granted="${granted?"0":"1"}" aria-pressed="${granted?"true":"false"}"${pending||state.pendingKey?" disabled":""}>${esc(label)}</button>`;
+}
+function cartSharePayload(result){
+  const data=result&&result.data;
+  if(typeof data==="string"){
+    try{return JSON.parse(data)}catch(err){return null}
+  }
+  return data&&typeof data==="object"?data:null;
+}
+async function loadCartShareState(ids,generation,before){
+  const readOp=++cartShareReadSeq;
+  cartShareAdmin.readOp=readOp;
+  cartShareAdmin.writeOp=0;
+  cartShareAdmin.pageGeneration=generation;
+  cartShareAdmin.loaded=false;
+  cartShareAdmin.error=false;
+  cartShareAdmin.pendingKey="";
+  cartShareAdmin.grants=new Map();
+  renderCartShareControls();
+  if(!db||typeof db.rpc!=="function"||!before||!before.id||before.aal!=="aal2"){
+    if(cartShareAdmin.readOp!==readOp)return;
+    cartShareAdmin.error=true;
+    renderCartShareControls();
+    renderMembers();
+    return;
+  }
+  let result;
+  try{
+    result=await db.rpc("admin_cart_share_state",{p_user_ids:(ids||[]).slice(0,20)});
+  }catch(err){
+    result={error:err};
+  }
+  if(cartShareAdmin.readOp!==readOp||generation!==memberDirectoryGeneration)return;
+  const after=await readMemberAdmin();
+  if(cartShareAdmin.readOp!==readOp||generation!==memberDirectoryGeneration)return;
+  if(!memberSurfaceOpen()||!after.id||after.id!==before.id||after.aal!=="aal2"){
+    if(cartShareAdmin.readOp===readOp)resetCartShareAdmin();
+    return;
+  }
+  const payload=cartSharePayload(result);
+  const grantsOk=payload&&Array.isArray(payload.grants);
+  if(cartShareAdmin.readOp!==readOp||generation!==memberDirectoryGeneration)return;
+  if(!result||result.error||!payload||typeof payload.global_enabled!=="boolean"||String(payload.self_id||"")!==after.id||!grantsOk){
+    cartShareAdmin.error=true;
+    cartShareAdmin.loaded=false;
+    cartShareAdmin.pendingKey="";
+    cartShareAdmin.writeOp=0;
+    renderCartShareControls();
+    renderMembers();
+    return;
+  }
+  const grants=new Map();
+  payload.grants.forEach(row=>{if(row&&row.id)grants.set(String(row.id),row.granted===true)});
+  if(cartShareAdmin.readOp!==readOp||generation!==memberDirectoryGeneration)return;
+  cartShareAdmin={
+    pageGeneration:generation,
+    loaded:true,
+    error:false,
+    globalEnabled:payload.global_enabled===true,
+    selfId:String(payload.self_id),
+    selfGranted:payload.self_granted===true,
+    selfEligible:payload.self_eligible===true,
+    grants,
+    pendingKey:"",
+    writeOp:0,
+    readOp
+  };
+  renderCartShareControls();
+  renderMembers();
+}
+function retryCartShareState(){
+  const generation=memberDirectoryGeneration;
+  const ids=(members||[]).map(member=>member&&member.id).filter(Boolean);
+  readMemberAdmin().then(before=>{
+    if(generation!==memberDirectoryGeneration||!before.id||before.aal!=="aal2")return;
+    loadCartShareState(ids,generation,before);
+  }).catch(()=>{});
+}
+function cartShareWriteCurrent(op,key){
+  return cartShareAdmin.writeOp===op&&cartShareAdmin.pendingKey===key;
+}
+async function reloadCartShareAfterWrite(op,key,generation,admin){
+  if(!cartShareWriteCurrent(op,key)||generation!==memberDirectoryGeneration)return;
+  const ids=(members||[]).map(member=>member&&member.id).filter(Boolean);
+  const status=$("#cartShareStatus");
+  if(status)status.textContent="سېۋەت ئۇلانمىسى ئىجازىتى ساقلانمىدى. قايتا سىناڭ.";
+  await loadCartShareState(ids,generation,admin);
+  if(cartShareAdmin.error){
+    const failed=$("#cartShareStatus");
+    if(failed)failed.textContent="سېۋەت ئۇلانمىسى ئىجازىتى ساقلانمىدى. قايتا سىناڭ.";
+  }
+}
+async function setCartShareGlobal(nextEnabled){
+  if(!cartShareAdmin.loaded||cartShareAdmin.error||cartShareAdmin.pendingKey)return;
+  const op=++cartShareWriteSeq;
+  cartShareAdmin.writeOp=op;
+  cartShareAdmin.pendingKey="global";
+  const generation=memberDirectoryGeneration;
+  const expectedId=cartShareAdmin.selfId;
+  renderCartShareControls();
+  renderMembers();
+  const before=await readMemberAdmin();
+  if(!cartShareWriteCurrent(op,"global")||generation!==memberDirectoryGeneration)return;
+  if(!before.id||before.id!==expectedId||before.aal!=="aal2"){
+    if(cartShareWriteCurrent(op,"global")){
+      resetCartShareAdmin();
+      showMemberFailure(memberDirectoryCommitted||memberDirectoryContext(0),"بۇ مەشغۇلات ئۈچۈن 2-باسقۇچلۇق دەلىللەش (AAL2) كېرەك. قايتا كىرىپ قايتا سىناڭ.");
+    }
+    return;
+  }
+  let result;
+  try{
+    result=await db.rpc("admin_set_cart_share_global",{p_enabled:!!nextEnabled});
+  }catch(err){
+    result={error:err};
+  }
+  if(!cartShareWriteCurrent(op,"global")||generation!==memberDirectoryGeneration)return;
+  const after=await readMemberAdmin();
+  if(!cartShareWriteCurrent(op,"global")||generation!==memberDirectoryGeneration)return;
+  if(!after.id||after.id!==before.id||after.aal!=="aal2"){
+    if(cartShareWriteCurrent(op,"global"))resetCartShareAdmin();
+    return;
+  }
+  const payload=cartSharePayload(result);
+  if(!result||result.error||!payload||typeof payload.global_enabled!=="boolean"){
+    await reloadCartShareAfterWrite(op,"global",generation,after);
+    return;
+  }
+  if(!cartShareWriteCurrent(op,"global")||generation!==memberDirectoryGeneration)return;
+  cartShareAdmin.globalEnabled=payload.global_enabled===true;
+  cartShareAdmin.pendingKey="";
+  cartShareAdmin.writeOp=0;
+  renderCartShareControls();
+  renderMembers();
+}
+async function setCartShareGrant(userId,nextGranted,pendingKey){
+  const key=pendingKey||userId;
+  if(!userId||!cartShareAdmin.loaded||cartShareAdmin.error||cartShareAdmin.pendingKey||cartShareAdmin.globalEnabled)return;
+  const op=++cartShareWriteSeq;
+  cartShareAdmin.writeOp=op;
+  cartShareAdmin.pendingKey=key;
+  const generation=memberDirectoryGeneration;
+  const expectedId=cartShareAdmin.selfId;
+  renderCartShareControls();
+  renderMembers();
+  const before=await readMemberAdmin();
+  if(!cartShareWriteCurrent(op,key)||generation!==memberDirectoryGeneration)return;
+  if(!before.id||before.id!==expectedId||before.aal!=="aal2"){
+    if(cartShareWriteCurrent(op,key))resetCartShareAdmin();
+    return;
+  }
+  if(key==="self"&&userId!==before.id){
+    if(cartShareWriteCurrent(op,key)){
+      cartShareAdmin.pendingKey="";
+      cartShareAdmin.writeOp=0;
+      renderCartShareControls();
+      renderMembers();
+    }
+    return;
+  }
+  let result;
+  try{
+    result=await db.rpc("admin_set_cart_share_grant",{p_user_id:userId,p_granted:!!nextGranted});
+  }catch(err){
+    result={error:err};
+  }
+  if(!cartShareWriteCurrent(op,key)||generation!==memberDirectoryGeneration)return;
+  const after=await readMemberAdmin();
+  if(!cartShareWriteCurrent(op,key)||generation!==memberDirectoryGeneration)return;
+  if(!after.id||after.id!==before.id||after.aal!=="aal2"){
+    if(cartShareWriteCurrent(op,key))resetCartShareAdmin();
+    return;
+  }
+  const payload=cartSharePayload(result);
+  if(!result||result.error||!payload||String(payload.user_id||"")!==String(userId)||typeof payload.granted!=="boolean"){
+    await reloadCartShareAfterWrite(op,key,generation,after);
+    return;
+  }
+  if(!cartShareWriteCurrent(op,key)||generation!==memberDirectoryGeneration)return;
+  if(key==="self")cartShareAdmin.selfGranted=payload.granted===true;
+  cartShareAdmin.grants.set(String(userId),payload.granted===true);
+  cartShareAdmin.pendingKey="";
+  cartShareAdmin.writeOp=0;
+  renderCartShareControls();
+  renderMembers();
+}
 function renderMembers(){
   const host=$("#adminMemberList");if(!host)return;
+  renderCartShareControls();
   const filtered=members;
   if(!filtered.length){
     host.innerHTML='<div class="admin-empty">ماس خېرىدار تېپىلمىدى.</div>';
@@ -2632,12 +2917,14 @@ function renderMembers(){
       <div class="admin-member-side">
         <span class="admin-member-badge ${suspended?"is-suspended":""}">${suspended?"⛔ توختىتىلغان":"✅ نورمال"}</span>
         <button type="button" data-member-cart="${esc(m.id)}">سېۋەتنى كۆرۈش</button>
+        ${cartShareRowControl(m)}
         <button type="button" class="${suspended?"":"member-suspend"}" data-member-status="${esc(m.id)}" data-next-status="${suspended?"active":"suspended"}">${suspended?"♻️ قايتا ئېچىش":"⛔ توختىتىش"}</button>
       </div>
       <div class="admin-member-last-page">ئاخىرقى بەت: ${esc(m.last_page||"—")}</div>
     </article>`;
   }).join("");
   host.querySelectorAll("[data-member-status]").forEach(btn=>btn.onclick=()=>toggleMemberStatus(btn.dataset.memberStatus,btn.dataset.nextStatus));
+  host.querySelectorAll("[data-cart-share]").forEach(btn=>btn.addEventListener("click",()=>setCartShareGrant(btn.dataset.cartShare,btn.dataset.nextGranted==="1",btn.dataset.cartShare)));
   renderMemberPager();
   if(window.KutadguAdminMemberCart&&typeof window.KutadguAdminMemberCart.syncList==="function")window.KutadguAdminMemberCart.syncList(filtered.map(m=>m.id));
 }
@@ -2818,6 +3105,11 @@ function bindMemberDirectory(){
   ["memberStatusFilter","memberCartFilter"].forEach(id=>{
     const el=$("#"+id);
     if(el)el.addEventListener("change",()=>loadMembers({context:memberDirectoryContext(0)}));
+  });
+  const cartShareGlobal=$("#cartShareGlobal");
+  if(cartShareGlobal)cartShareGlobal.addEventListener("click",()=>{
+    if(!cartShareAdmin.loaded||cartShareAdmin.pendingKey)return;
+    setCartShareGlobal(!cartShareAdmin.globalEnabled);
   });
   const lock=$("#idleLockPanel");
   if(lock&&typeof MutationObserver==="function"){

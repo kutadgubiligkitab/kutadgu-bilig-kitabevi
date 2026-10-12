@@ -524,6 +524,13 @@ button{cursor:pointer}
 .admin-member-side{display:grid;justify-items:end;gap:8px}
 .admin-member-badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#edf7ef;color:#386943;font-size:11px;font-weight:800}
 .admin-member-badge.is-suspended{background:#fff0ed;color:#943c33}
+.admin-member-share{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 4px;padding:2px 8px;border:1px solid #e8dccb;border-radius:12px;background:#fbf8f2}
+.admin-member-share .admin-help{margin:0;flex:1 1 12em;line-height:1.35}
+.admin-member-share #cartShareSelf:empty{display:none}
+.admin-member-share button,.admin-member-side button[data-cart-share]{justify-self:start;border:1px solid #dccdb9;border-radius:8px;padding:8px 10px;background:#fff;color:#44352d}
+.admin-member-share button{padding:4px 8px}
+.admin-member-share button:disabled,.admin-member-side button[data-cart-share]:disabled{opacity:.7}
+.admin-member-share-saved{color:#6d5848;font-size:14px}
 .admin-member-side button{border:1px solid #dccdb9;border-radius:8px;padding:8px 10px;background:#fbf8f2;color:#44352d}
 .admin-member-side button.member-suspend{border-color:#d6a29b;color:#933e35;background:#fff5f3}
 .admin-member-last-page{grid-column:1/-1;font-size:11px;color:#988478;overflow-wrap:anywhere}

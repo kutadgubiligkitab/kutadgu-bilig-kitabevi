@@ -1,0 +1,92 @@
+Stage 121 isolated cart-share verification
+Tested SHA: b4f575a9dbceecc2abd0fe9b538411cc56a4cf8d
+Command: node scripts/stage121-isolated-verify.js
+UTC: 2026-10-12T07:18:00Z
+Exit status: 0
+Pass: 81
+Fail: 0
+Database: disposable local PostgreSQL and PostgREST. No production database was contacted.
+The local JWT signing secret and database password are omitted.
+
+PASS repeat migration is safe
+PASS permission tables force RLS
+PASS permission tables have no API grants — 0
+PASS anon cannot execute public.my_cart_share_permission()
+PASS service_role cannot execute public.my_cart_share_permission()
+PASS public cannot execute public.my_cart_share_permission()
+PASS authenticated can execute public.my_cart_share_permission()
+PASS anon cannot execute public.admin_cart_share_state(uuid[])
+PASS service_role cannot execute public.admin_cart_share_state(uuid[])
+PASS public cannot execute public.admin_cart_share_state(uuid[])
+PASS authenticated can execute public.admin_cart_share_state(uuid[])
+PASS anon cannot execute public.admin_set_cart_share_global(boolean)
+PASS service_role cannot execute public.admin_set_cart_share_global(boolean)
+PASS public cannot execute public.admin_set_cart_share_global(boolean)
+PASS authenticated can execute public.admin_set_cart_share_global(boolean)
+PASS anon cannot execute public.admin_set_cart_share_grant(uuid, boolean)
+PASS service_role cannot execute public.admin_set_cart_share_grant(uuid, boolean)
+PASS public cannot execute public.admin_set_cart_share_grant(uuid, boolean)
+PASS authenticated can execute public.admin_set_cart_share_grant(uuid, boolean)
+PASS anon cannot execute public.create_member_shared_cart_link(text, jsonb, timestamptz)
+PASS service_role cannot execute public.create_member_shared_cart_link(text, jsonb, timestamptz)
+PASS public cannot execute public.create_member_shared_cart_link(text, jsonb, timestamptz)
+PASS authenticated can execute public.create_member_shared_cart_link(text, jsonb, timestamptz)
+PASS authenticated still cannot execute create_shared_cart_link
+PASS privileged functions are security definer with a fixed search_path
+PASS default member permission is false
+PASS default admin is not auto-granted
+PASS suspended permission is false
+PASS missing profile permission is false
+PASS default create stores nothing
+PASS individual grant allows the member
+PASS individual grant creates one link
+PASS link row has no account identity
+PASS stored lifetime is the database clock plus 30 days
+PASS a distant caller expiry is rejected
+PASS infinity does not extend the lifetime
+PASS an already expired caller timestamp is rejected
+PASS a null caller timestamp is rejected
+PASS revoke denies and stores nothing more
+PASS saved grant remains false
+PASS global toggles do not rewrite grants
+PASS global mode allows an active member without a grant — {"flag":true,"permission":true,"create":"ok"}
+PASS global mode still denies a suspended profile
+PASS global mode still denies a missing profile
+PASS global mode allows a future active member
+PASS global off returns to the saved false grant
+PASS the saved individual grant works again
+PASS admin AAL1 cannot read state — 42501 Admin permission required
+PASS member cannot grant sharing — 42501 Admin permission required
+PASS member cannot write the grant table — 42501 permission denied for table cart_share_grants
+PASS profile edit of an ungranted member does not enable sharing
+PASS admin starts without an effective grant
+PASS batched state includes self and the page
+PASS the signed-in admin can grant their own account
+PASS create waits while the permission lock is held
+PASS a concurrent revoke denies the waiting create
+PASS the waiting create did not insert
+PASS a second create also waits for the permission lock
+PASS global mode turned on under the lock allows the waiting create
+PASS that global change left the individual grant false
+PASS the rate cap denies without another row
+PASS a code collision returns conflict
+PASS reapply preserves the global flag, grants, and links
+PASS rollback drops permissions and keeps links
+PASS reapply after rollback starts from global off
+PASS reapply after rollback does not invent grants
+PASS PostgREST starts for cart share
+PASS PostgREST missing token cannot create — 401
+PASS PostgREST forged token cannot create — 401
+PASS PostgREST expired token cannot read permission — 401
+PASS PostgREST anon cannot create — 401
+PASS PostgREST service_role cannot call the member creator — 403
+PASS PostgREST authenticated cannot call the service creator — 403
+PASS PostgREST member cannot grant sharing — 403
+PASS PostgREST admin AAL1 cannot read cart-share state — 403
+PASS PostgREST admin AAL2 can grant the signed-in admin — 200
+PASS PostgREST cannot select the grant table — 403
+PASS PostgREST admin grant is ready for the worker handler — 200 {"granted": true, "user_id": "11111111-1111-4111-8111-111111111111"}
+PASS worker handler creates with the caller JWT and a 30-day row — {"ok":true,"code":"WrkAaa22","url":"https://www.kutadgubilik.com/c/WrkAaa22"}
+PASS PostgREST admin revoke is ready for the worker handler — 200
+PASS worker handler denies creation after revoke — {"ok":false,"error":"denied"}
+stage121 isolated verify ok
