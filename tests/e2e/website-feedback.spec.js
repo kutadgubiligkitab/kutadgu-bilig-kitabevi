@@ -272,7 +272,11 @@ function installRealMember(page) {
     window.__memberDb = {
       auth: {
         onAuthStateChange(cb) {
-          window.__authCb = cb;
+          window.__authListeners = window.__authListeners || [];
+          window.__authListeners.push(cb);
+          window.__authCb = (event, session) => {
+            window.__authListeners.slice().forEach((listener) => listener(event, session));
+          };
           return { data: { subscription: { unsubscribe() {} } } };
         },
         getSession() { return Promise.resolve({ data: { session: window.__session }, error: null }); },
