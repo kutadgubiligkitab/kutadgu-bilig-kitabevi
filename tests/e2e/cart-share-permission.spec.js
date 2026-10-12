@@ -844,10 +844,10 @@ test("an owned operation rejects another account session", async ({ page }) => {
     for (let i = 0; i < 40; i += 1) await Promise.resolve();
     return document.querySelector(".shop-toast") ? document.querySelector(".shop-toast").textContent : "";
   }, sessionFor(MEMBER_B));
+  expect(mismatched).toContain("ھەمبەھىرلىيەلمىدۇق");
   expect(mismatched).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
   expect(posts).toEqual([]);
-  expect(await toastText(page)).not.toMatch(/كۆچۈر|ھەمبەھىرلەندى/);
-  expect(await page.locator(".shop-toast").count()).toBe(0);
+  expect(await page.locator(".shop-toast").count()).toBe(1);
 });
 
 for (const [mode, label] of [
