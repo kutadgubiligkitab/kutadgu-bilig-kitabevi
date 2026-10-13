@@ -3667,13 +3667,11 @@ async function writeGiftOfferRow(savedId,snapshot){
   return {ok:true,enabled:data[0].enabled===true,updatedAt:data[0].updated_at||null,present:true};
 }
 async function persistGiftOfferAfterBookSave(savedId,snapshot){
+  if(snapshot&&snapshot.status==="new"&&!snapshot.want)return {ok:true,skipped:true};
+  if(!snapshot||(snapshot.status!=="ready"&&snapshot.status!=="new"))return {ok:true,skipped:true};
   if(savedId==null||String(savedId)==="")return {ok:false,message:GIFT_PARTIAL};
-  if(snapshot.status==="new"){
-    if(!snapshot.want)return {ok:true,skipped:true};
-    return writeGiftOfferRow(savedId,snapshot);
-  }
-  if(snapshot.status!=="ready"||snapshot.enabled==null)return {ok:false,message:GIFT_PARTIAL};
-  if(String(snapshot.bookId)!==String(savedId))return {ok:false,message:GIFT_PARTIAL};
+  if(snapshot.status==="new")return writeGiftOfferRow(savedId,snapshot);
+  if(snapshot.enabled==null||String(snapshot.bookId)!==String(savedId))return {ok:false,message:GIFT_PARTIAL};
   if(snapshot.present&&snapshot.enabled===snapshot.want)return {ok:true,skipped:true};
   if(!snapshot.present&&!snapshot.want)return {ok:true,skipped:true};
   return writeGiftOfferRow(savedId,snapshot);

@@ -4,8 +4,10 @@
 // Throwaway Postgres proof for gift-book offers.
 // Does not open the live Supabase project and does not write production rows.
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { spawn } = require("child_process");
 const { pathToFileURL } = require("url");
 
 const root = path.join(__dirname, "..");
@@ -111,6 +113,118 @@ async function expectError(name, fn, pattern) {
     const message = String(error && (error.code + " " + error.message) || error);
     check(name, pattern.test(message), message.slice(0, 220));
   }
+}
+
+function jwt(claims) {
+  const secret = "01234567890123456789012345678901";
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(Object.assign({ exp: Math.floor(Date.now() / 1000) + 3600 }, claims))).toString("base64url");
+  const data = header + "." + body;
+  return data + "." + crypto.createHmac("sha256", secret).update(data).digest("base64url");
+}
+
+async function postgrestProof(pgPort, client, id) {
+  const bin = process.env.POSTGREST_BIN || "/tmp/postgrest";
+  if (!fs.existsSync(bin)) {
+    check("PostgREST binary is available", false, bin);
+    return;
+  }
+  await client.query("do $$ begin create role authenticator login password 'postgrest-local' noinherit; exception when duplicate_object then null; end $$");
+  await client.query("grant anon, authenticated, service_role to authenticator");
+  await client.query("grant usage on schema public to authenticator");
+  const httpPort = Number(process.env.STAGE122_POSTGREST_PORT || 34122);
+  const conf = "/tmp/stage122-postgrest.conf";
+  fs.writeFileSync(conf, [
+    'db-uri = "postgres://authenticator:postgrest-local@127.0.0.1:' + pgPort + '/stage122"',
+    'db-schemas = "public"',
+    'db-extra-search-path = "public, auth"',
+    'db-anon-role = "anon"',
+    'jwt-secret = "01234567890123456789012345678901"',
+    "server-port = " + httpPort
+  ].join("\n"));
+  const child = spawn(bin, [conf], { stdio: ["ignore", "pipe", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+  let ready = false;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      const probe = await fetch("http://127.0.0.1:" + httpPort + "/");
+      if (probe.status < 500) { ready = true; break; }
+    } catch (error) {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  check("PostgREST starts for gift offers", ready, ready ? "" : stderr.slice(-300));
+  if (!ready) { child.kill(); return; }
+  const rootUrl = "http://127.0.0.1:" + httpPort;
+  async function http(method, resource, token, body, prefer) {
+    const headers = { Accept: "application/json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (prefer) headers.Prefer = prefer;
+    const response = await fetch(rootUrl + resource, {
+      method: method,
+      headers: headers,
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    const text = await response.text();
+    return { status: response.status, text: text };
+  }
+  const anonDenied = await http("GET", "/gift_book_offers?select=*", "");
+  check("PostgREST anonymous request is denied", anonDenied.status === 401, String(anonDenied.status) + " " + anonDenied.text.slice(0, 180));
+  check("PostgREST anonymous denial does not leak offers", !/available|unconfigured|disabled/.test(anonDenied.text), anonDenied.text.slice(0, 180));
+  const anonJwt = await http("GET", "/gift_book_offers?select=book_id,enabled,updated_at", jwt({ role: "anon" }));
+  check("PostgREST anon role cannot read offers", anonJwt.status === 401 && !/"book_id"/.test(anonJwt.text), String(anonJwt.status) + " " + anonJwt.text.slice(0, 160));
+
+  const memberToken = jwt({ role: "authenticated", sub: MEMBER, aal: "aal1" });
+  const memberSelect = "/gift_book_offers?select=book_id,enabled,updated_at,books(id,title,author,image_url,stock,stock_status,is_active,submission_status)&enabled=eq.true";
+  const member = await http("GET", memberSelect, memberToken);
+  let memberRows = [];
+  try { memberRows = JSON.parse(member.text); } catch (error) { memberRows = []; }
+  const memberIds = Array.isArray(memberRows) ? memberRows.map((row) => Number(row.book_id)).sort((a, b) => a - b) : [];
+  const expectedIds = [Number(id.available), Number(id.unconfigured)].sort((a, b) => a - b);
+  check("PostgREST active member reads enabled requestable offers",
+    member.status === 200 && memberIds.join(",") === expectedIds.join(",") && memberRows.every((row) => row.enabled === true && row.books && row.books.title),
+    String(member.status) + " " + member.text.slice(0, 400));
+  const suspended = await http("GET", memberSelect, jwt({ role: "authenticated", sub: SUSPENDED, aal: "aal1" }));
+  check("PostgREST suspended profile reads no offers", suspended.status === 200 && suspended.text === "[]", suspended.text.slice(0, 180));
+  const missing = await http("GET", memberSelect, jwt({ role: "authenticated", sub: NOPROFILE, aal: "aal1" }));
+  check("PostgREST missing profile reads no offers", missing.status === 200 && missing.text === "[]", missing.text.slice(0, 180));
+
+  const anonBooks = await http("GET", "/books?select=*", "");
+  let bookRows = [];
+  try { bookRows = JSON.parse(anonBooks.text); } catch (error) { bookRows = null; }
+  const bookKeys = bookRows && bookRows[0] ? Object.keys(bookRows[0]).sort() : [];
+  check("PostgREST anonymous books select stays the public columns",
+    anonBooks.status === 200 && Array.isArray(bookRows) && bookRows.some((row) => row.title === "available") && bookRows.every((row) => row.title !== "pending" && row.title !== "inactive") && bookKeys.indexOf("enabled") === -1 && bookKeys.every((key) => key.indexOf("gift") === -1),
+    String(anonBooks.status) + " keys " + bookKeys.join(","));
+
+  const beforeWrites = await client.query("select count(*)::integer as count from public.gift_book_offers");
+  const memberWrite = await http("POST", "/gift_book_offers?select=book_id,enabled,updated_at", memberToken, { book_id: id.available, enabled: true }, "return=representation");
+  const adminAal1 = await http("POST", "/gift_book_offers?select=book_id,enabled,updated_at", jwt({ role: "authenticated", sub: ADMIN, aal: "aal1" }), { book_id: id.zero, enabled: true }, "return=representation");
+  const afterDenied = await client.query("select count(*)::integer as count from public.gift_book_offers");
+  check("PostgREST member AAL1 cannot write an offer", memberWrite.status >= 400 && !/"enabled":true/.test(memberWrite.text), String(memberWrite.status) + " " + memberWrite.text.slice(0, 180));
+  check("PostgREST admin AAL1 cannot write an offer", adminAal1.status >= 400 && afterDenied.rows[0].count === beforeWrites.rows[0].count, String(adminAal1.status) + " " + adminAal1.text.slice(0, 180));
+
+  const fresh = await client.query("insert into public.books (title, stock, stock_status, is_active, submission_status) values ('http gift', 2, 'in_stock', true, 'approved') returning id");
+  const adminToken = jwt({ role: "authenticated", sub: ADMIN, aal: "aal2" });
+  const created = await http("POST", "/gift_book_offers?select=book_id,enabled,updated_at", adminToken, { book_id: fresh.rows[0].id, enabled: true }, "return=representation");
+  let createdRows = [];
+  try { createdRows = JSON.parse(created.text); } catch (error) { createdRows = []; }
+  check("PostgREST admin AAL2 can enable an offer", created.status === 201 && createdRows[0] && createdRows[0].enabled === true && createdRows[0].updated_at, String(created.status) + " " + created.text.slice(0, 220));
+  const currentOffer = await http("GET", "/gift_book_offers?select=book_id,enabled,updated_at&book_id=eq." + id.available, adminToken);
+  let currentRows = [];
+  try { currentRows = JSON.parse(currentOffer.text); } catch (error) { currentRows = []; }
+  const stamp = currentRows[0] && currentRows[0].updated_at;
+  const disabled = await http("PATCH", "/gift_book_offers?book_id=eq." + id.available + "&updated_at=eq." + encodeURIComponent(stamp) + "&select=book_id,enabled,updated_at", adminToken, { enabled: false }, "return=representation");
+  let disabledRows = [];
+  try { disabledRows = JSON.parse(disabled.text); } catch (error) { disabledRows = []; }
+  check("PostgREST admin AAL2 can disable an offer", disabled.status === 200 && disabledRows[0] && disabledRows[0].enabled === false, String(disabled.status) + " " + disabled.text.slice(0, 220));
+  const stale = await http("PATCH", "/gift_book_offers?book_id=eq." + id.available + "&updated_at=eq." + encodeURIComponent("2000-01-01T00:00:00Z") + "&select=book_id,enabled,updated_at", adminToken, { enabled: true }, "return=representation");
+  const still = await client.query("select enabled from public.gift_book_offers where book_id = $1", [id.available]);
+  check("PostgREST stale updated_at changes no offer row", stale.status === 200 && stale.text === "[]" && still.rows[0].enabled === false, String(stale.status) + " " + stale.text.slice(0, 180));
+
+  child.kill();
+  await new Promise((resolve) => child.once("exit", resolve));
 }
 
 async function visibleOffers(client, sub, aal) {
@@ -258,6 +372,8 @@ async function main() {
     check("stale updated_at does not overwrite the offer", conflict.rows.length === 0);
     const current = await client.query("select enabled, updated_at from public.gift_book_offers where book_id = $1", [id.available]);
     check("offer stays enabled after the stale update", current.rows[0].enabled === true && String(current.rows[0].updated_at) === String(stamped));
+
+    await postgrestProof(port, client, id);
 
     await client.query(readSql("STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql"));
     const gone = await client.query("select to_regclass('public.gift_book_offers') as name");

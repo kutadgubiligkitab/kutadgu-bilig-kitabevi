@@ -117,7 +117,20 @@ async function installMemberBoundary(page, gates) {
       }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(rows) });
     }
+    if (/\/rest\/v1\/books/.test(url) && /[?&]id=in\./.test(url)) {
+      if (gates.holdPublicBooks) await gates.holdPublicBooks;
+      const ids = decodeURIComponent((url.match(/id=in\.\(([^)]*)\)/) || [])[1] || "").split(",").filter(Boolean);
+      const rows = (gates.publicBooks || []).filter((book) => ids.includes(String(book.id)));
+      const last = Math.max(0, rows.length - 1);
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "content-range": rows.length ? `0-${last}/${rows.length}` : "*/0" },
+        body: JSON.stringify(rows)
+      });
+    }
     if (/\/rest\/v1\/books/.test(url) && /[?&]id=eq\./.test(url)) {
+      if (gates.holdBookRead) await gates.holdBookRead;
       const id = decodeURIComponent((url.match(/id=eq\.([^&]+)/) || [])[1] || "");
       const rows = typeof gates.offers === "function" ? gates.offers() : (gates.offers || []);
       const hit = rows.find((row) => String(row.book_id) === id);
@@ -400,6 +413,265 @@ test.describe("members-only physical gift books", () => {
     await expect(page.locator("#homeCarouselTrack")).toContainText("ئىككىنچى سوۋغا");
   });
 
+  async function expectGiftCard(page, id) {
+    await expect(page.locator(".home-carousel-gift-label").first()).toHaveText("ھەقسىز قەغەز سوۋغا");
+    await expect(page.locator(`[data-gift-request='${id}']`)).toHaveCount(1);
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]")).toHaveCount(0);
+    await expect(page.locator(".home-carousel-price")).toHaveCount(0);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("باھا تېخى بېكىتىلمىگەن");
+  }
+
+  test("gift cards stay gifts after a two-row resize", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.KUTADGU_APP_CONFIG = Object.assign({}, window.KUTADGU_APP_CONFIG, { carousel: { desktopRows: 2 } });
+    });
+    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: [offerRow(giftBook(91001, "ھەقسىز سوۋغا كىتاب"), true)] };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expectGiftCard(page, "91001");
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expectGiftCard(page, "91001");
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+  });
+
+  test("gift cards stay gifts after a one-row resize", async ({ page }) => {
+    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: [offerRow(giftBook(91001, "ھەقسىز سوۋغا كىتاب"), true)] };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expectGiftCard(page, "91001");
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expectGiftCard(page, "91001");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectGiftCard(page, "91001");
+  });
+
+  test("a two-row resize keeps gift messages", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.KUTADGU_APP_CONFIG = Object.assign({}, window.KUTADGU_APP_CONFIG, { carousel: { desktopRows: 2 } });
+    });
+    const gates = { giftReads: 0, offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)] };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]")).toHaveCount(0);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("يوشۇرۇن سوۋغا");
+  });
+
+  test("a two-row resize keeps empty, error, loading, and unavailable gift states", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.KUTADGU_APP_CONFIG = Object.assign({}, window.KUTADGU_APP_CONFIG, { carousel: { desktopRows: 2 } });
+    });
+    const book = giftBook(91001, "سوۋغا كىتاب");
+    const offers = [offerRow(book, true)];
+    const held = hold();
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: () => offers,
+      failGifts: true,
+      holdGifts: held.promise,
+      holdGiftRead: 3
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-state='error']")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("[data-gift-state='error']")).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]")).toHaveCount(0);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    gates.failGifts = false;
+    offers.splice(0, offers.length);
+    await page.locator("[data-gift-retry]").click();
+    await expect(page.locator("[data-gift-state='empty']")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("[data-gift-state='empty']")).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    offers.push(offerRow(book, true));
+    const reads = gates.giftReads;
+    await page.locator("[data-gift-retry]").click();
+    await expect.poll(() => gates.giftReads).toBeGreaterThan(reads);
+    await expect(page.locator(".is-skeleton").first()).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator(".is-skeleton").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]")).toHaveCount(0);
+    await expect(page.locator(".home-carousel-gift-label")).toHaveCount(0);
+    held.release();
+    await expect(page.locator("[data-gift-request='91001']")).toBeVisible();
+    offers[0] = offerRow(giftBook(91001, "سوۋغا كىتاب", { stock: 0 }), true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator("[data-gift-request='91001']").click();
+    await expect(page.locator("[data-gift-state='unavailable']")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("[data-gift-state='unavailable']")).toBeVisible();
+    expect(await page.evaluate(() => window.__giftOpens)).toEqual([]);
+  });
+
+  function publicGiftBook(id, title, price) {
+    return {
+      id: id,
+      title: title,
+      author: "سىناق ئاپتور",
+      price: price,
+      stock: 4,
+      stock_status: "in_stock",
+      is_active: true,
+      submission_status: "approved",
+      image_url: "/kutadgu-logo.png"
+    };
+  }
+
+  test("a gift heart favorites the public book and leaves paid cards unchanged", async ({ page }) => {
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: [offerRow(giftBook(95077, "سوۋغا كۆرۈنۈشى"), true)],
+      publicBooks: [publicGiftBook(95077, "ئاممىۋى كىتاب", 180)]
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, passIdIn: true });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expectGiftCard(page, "95077");
+    await expect.poll(() => page.evaluate(() => {
+      const found = window.kutadguShop.find("95077");
+      return found ? { title: found.title, price: found.price } : null;
+    })).toEqual({ title: "ئاممىۋى كىتاب", price: 180 });
+    await page.locator("[data-fav-id='95077']").click();
+    await expect.poll(() => page.evaluate(() => window.kutadguShop.favorites())).toEqual(["95077"]);
+    const stored = await page.evaluate(() => ({
+      owner: localStorage.getItem("kutadgu-shop-owner-v1"),
+      dump: JSON.stringify(localStorage)
+    }));
+    expect(stored.owner).toBe(MEMBER);
+    expect(stored.dump).toContain("95077");
+    expect(stored.dump).not.toContain("gift_book_offers");
+    expect(stored.dump).not.toContain("سوۋغا كۆرۈنۈشى");
+    await page.locator("[data-fav-id='95077']").click();
+    await expect.poll(() => page.evaluate(() => window.kutadguShop.favorites())).toEqual([]);
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await expect(page.locator(".home-carousel-price").first()).toContainText("25");
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]").first()).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("باھا تېخى بېكىتىلمىگەن");
+    expect(await page.evaluate(() => window.kutadguShop.find("95077").price)).toBe(180);
+  });
+
+  test("a delayed gift favorite is dropped on logout and on an account switch", async ({ page }) => {
+    const held = hold();
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: () => [offerRow(giftBook(95077, "سوۋغا كۆرۈنۈشى"), true)],
+      publicBooks: [publicGiftBook(95077, "ئاممىۋى كىتاب", 180)],
+      holdPublicBooks: held.promise
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, passIdIn: true });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-fav-id='95077']")).toBeVisible();
+    expect(await page.evaluate(() => window.kutadguShop.find("95077") || null)).toBeNull();
+    await page.locator("[data-fav-id='95077']").click();
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.kutadguShop.favorites())).toEqual([]);
+    await page.evaluate(() => window.KutadguMember.signOut());
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    held.release();
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.kutadguShop.favorites())).toEqual([]);
+    expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1"))).toBe("[]");
+  });
+
+  test("a delayed gift favorite does not move to the next account", async ({ page }) => {
+    const held = hold();
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: () => [offerRow(giftBook(95077, "سوۋغا كۆرۈنۈشى"), true)],
+      publicBooks: [publicGiftBook(95077, "ئاممىۋى كىتاب", 180)],
+      holdPublicBooks: held.promise
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, passIdIn: true });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-fav-id='95077']")).toBeVisible();
+    await page.locator("[data-fav-id='95077']").click();
+    gates.session = sessionFor(OTHER);
+    gates.offers = () => [offerRow(giftBook(95078, "باشقا سوۋغا"), true)];
+    gates.publicBooks = [publicGiftBook(95078, "باشقا ئاممىۋى", 90)];
+    await page.evaluate(async (next) => {
+      const client = window.KutadguMember.getClient();
+      await client.auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
+    }, gates.session);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("باشقا سوۋغا");
+    held.release();
+    await page.waitForTimeout(500);
+    const fav = await page.evaluate(() => window.kutadguShop.favorites());
+    expect(fav).not.toContain("95077");
+    expect(await page.evaluate(() => localStorage.getItem("kutadgu-shop-owner-v1"))).toBe(OTHER);
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await expect(page.locator(".home-carousel-price").first()).toContainText("25");
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]").first()).toBeVisible();
+  });
+
+  test("a held gift recheck does not open WhatsApp after logout", async ({ page }) => {
+    const held = hold();
+    const book = giftBook(91001, "سوۋغا كىتاب");
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      holdGifts: held.promise,
+      holdBookRead: held.promise,
+      holdGiftRead: 3,
+      offers: [offerRow(book, true)]
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='91001']")).toBeVisible();
+    const click = page.locator("[data-gift-request='91001']").click();
+    await expect.poll(() => gates.giftReads).toBeGreaterThanOrEqual(3);
+    await page.evaluate(() => window.KutadguMember.signOut());
+    held.release();
+    await click;
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    expect(await page.evaluate(() => window.__giftOpens)).toEqual([]);
+  });
+
+  test("a held gift recheck does not open WhatsApp after stock exhaustion", async ({ page }) => {
+    const held = hold();
+    const offers = [offerRow(giftBook(91001, "سوۋغا كىتاب"), true)];
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      holdGifts: held.promise,
+      holdBookRead: held.promise,
+      holdGiftRead: 3,
+      offers: () => offers
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='91001']")).toBeVisible();
+    const click = page.locator("[data-gift-request='91001']").click();
+    await expect.poll(() => gates.giftReads).toBeGreaterThanOrEqual(3);
+    offers[0] = offerRow(giftBook(91001, "سوۋغا كىتاب", { stock: 0 }), true);
+    held.release();
+    await click;
+    await expect(page.locator("[data-gift-state='unavailable']")).toBeVisible();
+    expect(await page.evaluate(() => window.__giftOpens)).toEqual([]);
+  });
+
   test("gift tab fits both themes and a narrow viewport", async ({ page }) => {
     const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: [offerRow(giftBook(91001, "ھەقسىز سوۋغا كىتاب"), true)] };
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
@@ -480,10 +752,10 @@ test.describe("admin gift selection", () => {
     await expect(page.locator("#bookGiftStatus")).toContainText("سوۋغا تەڭشىكى ئوقۇلمىدى");
     await expect(page.locator("#bookIsGift")).toBeDisabled();
     await page.locator("#bookSaveBtn").click();
-    await expect(page.locator("#bookSaveStatus")).toContainText("كىتاب ساقلاندى، لېكىن سوۋغا تەڭشىكى يېزىلمىدى");
-    await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookModal")).toBeHidden();
     const failedWrites = await page.evaluate(() => window.__giftWrites.slice());
     expect(failedWrites).toEqual([]);
+    expect(await page.evaluate(() => window.__kutadguBookSaves.length)).toBeGreaterThan(0);
 
     await page.evaluate((token) => {
       window.__kutadguAnalyticsDb.auth.getSession = async () => ({ data: { session: { user: { id: "admin" }, access_token: token } } });

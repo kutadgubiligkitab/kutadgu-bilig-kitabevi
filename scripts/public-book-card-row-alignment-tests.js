@@ -134,7 +134,7 @@ test("protected safety files stay byte-identical to origin/main", () => {
 function paidCarouselCard(src) {
   const cut = src.indexOf("\n  function giftCard(b,i=0){");
   const body = cut >= 0 ? src.slice(0, cut) : src;
-  return body.replace("    if(cardKind===\"gift\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
+  return body.replace("    if(mode===\"gifts\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
 }
 
 test("card generators stay unchanged from origin/main", () => {

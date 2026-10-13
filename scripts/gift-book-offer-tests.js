@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /سوۋغا كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=156/);
+  assert.match(index, /shop\.js\?v=157/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -132,7 +132,7 @@ test("homepage tab and shop read path stay on the member client", () => {
 test("admin gift writes stay outside the book payload", () => {
   assert.match(adminHtml, /id="bookIsGift"/);
   assert.match(adminHtml, /ھەقسىز قەغەز سوۋغا/);
-  assert.match(adminHtml, /admin\.js\?v=109/);
+  assert.match(adminHtml, /admin\.js\?v=110/);
   const row = sliceBetween(admin, "const row={", "if(coverHash&&coverVisualHash");
   assert.match(row, /is_recommended/);
   assert.doesNotMatch(row, /gift|bookIsGift/);

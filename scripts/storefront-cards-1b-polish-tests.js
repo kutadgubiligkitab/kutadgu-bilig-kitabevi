@@ -50,7 +50,7 @@ function normalizePremiumCoverCard(src) {
 function paidCarouselCard(src) {
   const cut = src.indexOf("\n  function giftCard(b,i=0){");
   const body = cut >= 0 ? src.slice(0, cut) : src;
-  return body.replace("    if(cardKind===\"gift\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
+  return body.replace("    if(mode===\"gifts\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
 }
 
 function stripCards1bCartLabel(src) {
@@ -112,7 +112,7 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=156/);
+  assert.match(indexHtml, /shop\.js\?v=157/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
 });
 

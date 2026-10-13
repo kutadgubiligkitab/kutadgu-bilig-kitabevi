@@ -2095,7 +2095,8 @@ function favHas(id){
   return favs().some(x=>Legacy.sameBookIdentity?Legacy.sameBookIdentity(x,want,resolveStoredBookId,aliases):canonicalId(x)===want);
 }
 function toggleFav(id){
-  const b=find(id);if(!b)return;
+  const b=find(id);
+  if(!b){queueGiftFavorite(id);return}
   const storeId=b.id;
   recoverOrphanedOwnerForGuestWrite();
   if(!shopOwnerAllowsLocalDisplay()){
@@ -5215,8 +5216,48 @@ function giftMemberClient(){
   return client;
 }
 let giftEpoch=0,giftAbort=null,giftOwnerId="",giftOwnerKey="",giftPaintToken=0;
+let giftHydration={epoch:0,owner:"",ids:new Set(),pending:new Map(),flight:null};
+function dropPendingGiftFavorites(epoch){
+  if(epoch==null){giftHydration.pending.clear();return}
+  for(const [id,item] of [...giftHydration.pending]){
+    if(item.epoch===epoch)giftHydration.pending.delete(id);
+  }
+}
+function queueGiftFavorite(id){
+  const key=String(id||"");
+  if(!giftHydration.ids.has(key))return false;
+  if(giftHydration.epoch!==giftEpoch||giftHydration.owner!==giftOwnerId)return false;
+  const current=giftHydration.pending.get(key);
+  const toggles=current&&current.epoch===giftEpoch&&current.owner===giftOwnerId?current.toggles+1:1;
+  giftHydration.pending.set(key,{epoch:giftEpoch,owner:giftOwnerId,toggles});
+  return true;
+}
+function scheduleGiftFavoriteHydration(ids,epoch,owner){
+  const unique=[...new Set((Array.isArray(ids)?ids:[]).map(id=>String(id||"")).filter(id=>/^\d+$/.test(id)))];
+  giftHydration.epoch=epoch;
+  giftHydration.owner=owner;
+  giftHydration.ids=new Set(unique);
+  if(!unique.length)return;
+  const flight=(async()=>{
+    try{await hydrateBooksByIds(unique)}catch(e){}
+    if(flight!==giftHydration.flight)return;
+    if(epoch!==giftEpoch||owner!==giftOwnerId){dropPendingGiftFavorites(epoch);return}
+    for(const id of unique){
+      const item=giftHydration.pending.get(id);
+      if(!item||item.epoch!==epoch||item.owner!==owner||item.toggles%2!==1){
+        if(item&&item.epoch===epoch)giftHydration.pending.delete(id);
+        continue;
+      }
+      giftHydration.pending.delete(id);
+      if(find(id))toggleFav(id);
+    }
+  })();
+  giftHydration.flight=flight;
+}
 function invalidateGiftReads(){
   giftEpoch++;
+  dropPendingGiftFavorites();
+  giftHydration.ids=new Set();
   if(giftAbort){try{giftAbort.abort()}catch(e){}giftAbort=null}
 }
 async function loadGiftOffers(epoch){
@@ -5283,7 +5324,7 @@ async function setupHomeCarousel(){
   let reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches===true;
   const gap=10;
   let mode=enabledModes[0],list=[],index=0,timer=null,touchX=null,dualLayout=false;
-  let modeRequestId=0,modeController=null,cardKind="catalog";
+  let modeRequestId=0,modeController=null,giftSurfaceReady=false;
   const modeCache=new Map();
   host.style.setProperty("--carousel-duration",`${Number(carousel.animationDuration)||600}ms`);
   host.style.setProperty("--carousel-stagger",`${Number(carousel.staggerDelay)||90}ms`);
@@ -5315,7 +5356,7 @@ async function setupHomeCarousel(){
     return value;
   }
   function card(b,i=0){
-    if(cardKind==="gift")return giftCard(b,i);
+    if(mode==="gifts")return giftCard(b,i);
     const loading=i<4?"eager":"lazy";
     const fetchpriority=i<2?"high":"";
     const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
@@ -5358,6 +5399,7 @@ async function setupHomeCarousel(){
   }
   function paintGiftMessage(kind){
     stop();
+    giftSurfaceReady=false;
     list=[];
     dotsHost.innerHTML="";
     host.removeAttribute("aria-busy");
@@ -5368,7 +5410,9 @@ async function setupHomeCarousel(){
     const epoch=giftEpoch;
     const owner=giftOwnerId;
     const decision=giftViewerDecision(giftViewerState());
+    giftSurfaceReady=false;
     if(decision!=="member"){paintGiftMessage(decision);return}
+    list=[];
     if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
     host.setAttribute("aria-busy","true");
     let result;
@@ -5380,8 +5424,10 @@ async function setupHomeCarousel(){
     if(token!==giftPaintToken||epoch!==giftEpoch||owner!==giftOwnerId||mode!=="gifts")return;
     if(!result.ok){paintGiftMessage("error");return}
     if(!result.items.length){paintGiftMessage("empty");return}
-    cardKind="gift";
-    try{list=result.items;draw(false)}finally{cardKind="catalog"}
+    list=result.items;
+    giftSurfaceReady=true;
+    draw(false);
+    scheduleGiftFavoriteHydration(list.map(book=>book.id),epoch,owner);
     restart();
   }
   async function requestGiftFromButton(button){
@@ -5401,6 +5447,7 @@ async function setupHomeCarousel(){
       if(!verified.ok){
         if(verified.reason==="unavailable"){
           stop();
+          giftSurfaceReady=false;
           list=[];
           dotsHost.innerHTML="";
           host.removeAttribute("aria-busy");
@@ -5458,6 +5505,7 @@ async function setupHomeCarousel(){
     dotsHost.querySelectorAll(".home-carousel-dot").forEach((dot,i)=>dot.classList.toggle("is-active",i===dotIndex));
   }
   function draw(rotate=false){
+    if(mode==="gifts"&&!giftSurfaceReady)return;
     const vis=visibleCount();
     const canRotate=rotate&&mode==="recommended"&&list.length>8;
     index=canRotate?(new Date().getDate()%Math.min(3,maxIndex()+1)):0;
@@ -5482,6 +5530,7 @@ async function setupHomeCarousel(){
   async function setMode(nextMode){
     mode=(enabledModes.includes(nextMode)||nextMode==="gifts")?nextMode:(enabledModes[0]||nextMode);
     tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
+    if(mode!=="gifts")giftSurfaceReady=false;
     if(mode==="gifts"){await renderGiftSurface();return}
     const requestedMode=mode;
     if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
@@ -5606,6 +5655,7 @@ async function setupHomeCarousel(){
     if(!hadOwner)return false;
     invalidateGiftReads();
     if(mode==="gifts"){
+      giftSurfaceReady=false;
       list=[];
       host.innerHTML="";
       host.removeAttribute("aria-busy");

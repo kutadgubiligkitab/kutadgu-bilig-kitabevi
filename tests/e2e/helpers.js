@@ -497,7 +497,8 @@ async function installCarouselCatalogStub(page, flags) {
     bestseller: flags.failBestseller === true
   };
   const holdNewest = flags.holdNewest === true;
-  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest }) => {
+  const passIdIn = flags.passIdIn === true;
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest, passIdIn }) => {
     window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
     let catalog = [];
     Object.defineProperty(window, "KITAP_CATALOG", {
@@ -578,6 +579,7 @@ async function installCarouselCatalogStub(page, flags) {
       const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
       if (!url.includes("/rest/v1/books")) return origFetch(input, init);
       if (/[?&]id=eq\./.test(url)) return origFetch(input, init);
+      if (passIdIn && /[?&]id=in\./.test(url)) return origFetch(input, init);
       if (method === "HEAD" && url.includes("sales_count=gt.0")) {
         return new Response(null, { status: 200, headers: { "content-range": `0-0/${bestseller ? 3 : 0}` } });
       }
@@ -611,7 +613,7 @@ async function installCarouselCatalogStub(page, flags) {
       }
       return jsonResponse([]);
     };
-  }, { recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest });
+  }, { recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest, passIdIn });
 }
 
 async function installAnnouncementFixtures(page, opts) {

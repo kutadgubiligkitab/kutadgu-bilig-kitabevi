@@ -120,7 +120,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=156/);
+  assert.match(indexHtml, /shop\.js\?v=157/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
@@ -133,7 +133,7 @@ test("shop.js loads polish CSS last after public row-alignment overlay", () => {
 function paidCarouselCard(src) {
   const cut = src.indexOf("\n  function giftCard(b,i=0){");
   const body = cut >= 0 ? src.slice(0, cut) : src;
-  return body.replace("    if(cardKind===\"gift\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
+  return body.replace("    if(mode===\"gifts\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
 }
 
 function stripCards1bCartLabel(src) {
