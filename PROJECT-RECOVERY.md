@@ -4,6 +4,12 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
+## Admin gift label — draft, not deployed
+
+The checkbox beside `#bookIsGift` reads `🎁 ھەدىيەلىك كىتاب`. The storefront tab stays `🎁 ھەدىيەلىك كىتابلار`, and the gift-card label stays `ھەقسىز قەغەز سوۋغا`. `#bookSaveDiag` stays in the book editor, hidden and empty. `logSavePlan` still sends `console.info("[kutadgu-admin-save]", …)` with mode, editingBookId, and operation. Save planning, identity checks, update and insert guards, and error handling are unchanged. `admin.html` requests `admin.js?v=111`. `admin.css?v=56`, `shop.js?v=160`, and `member.js?v=31` stay.
+
+Draft branch `cursor/admin-gift-label-e3d6` carries this correction. It is not deployed and does not move the runtime baseline. Production remains the PR #286 merge `f13b7852dc9cc9e02dffaadef08ef2f787160cff`, Worker `kutadgu-cloudflare-production` version `2b6ef12d-a003-438c-8bd2-9661da5dff51`, deployment `06cd5c0e-c8f7-49b0-8c3a-31da58780b17`. `origin/main` at the start of this work is documentation merge `f914b266ac7f15c67ff626fd1cb4db9efb65e2ba`. No SQL was applied.
+
 ## Gift-tab wording — released PR #286
 
 PR #286 was marked ready and merged through the normal merge path at 2026-10-13T21:21:35Z by `app/cursor`. No admin override was used. The approved head stayed `17b6ec4ba3d37ae862f970d9ddf3cd98937cb391`. The tested application commit is `9b25bee5e469cc6bc7c86e0dc75a3aa1351e6893`. The merge commit is `f13b7852dc9cc9e02dffaadef08ef2f787160cff`. Its parents are `5f8ec0a82bb73a393ba4ef526fbfcf23d3564265` and `17b6ec4ba3d37ae862f970d9ddf3cd98937cb391`. Its tree is `2fff8bba82bb570e6a106ca4efa65296517fdf5e`, the same as the approved head. The only difference between the tested application commit and that tree is this handoff. Stage 10 run [38467580655](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/38467580655), job `115538223980`, succeeded on the approved head and completed at 2026-10-13T21:19:44Z. This session confirmed that success status and did not reread the full job log, so a pass count is not recorded here. No second run was started.

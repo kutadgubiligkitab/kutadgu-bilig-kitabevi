@@ -3342,8 +3342,8 @@ function logSavePlan(plan){
   console.info("[kutadgu-admin-save]",safe);
   const diag=$("#bookSaveDiag");
   if(diag){
-    diag.hidden=false;
-    diag.textContent=`mode=${safe.mode} editingBookId=${safe.editingBookId||"—"} operation=${safe.operation}`;
+    diag.hidden=true;
+    diag.textContent="";
   }
 }
 function planCurrentSave(){
