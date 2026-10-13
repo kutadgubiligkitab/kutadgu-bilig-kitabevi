@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "قۇتادغۇبىلىك كىتابخانىسى",
+  "short_name": "قۇتادغۇبىلىك كىتابخانىسى",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "ug",
+  "dir": "rtl",
+  "background_color": "#f6f0e5",
+  "theme_color": "#4b3327",
+  "icons": [
+    {
+      "src": "/kutadgu-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png"
+    }
+  ]
+}
