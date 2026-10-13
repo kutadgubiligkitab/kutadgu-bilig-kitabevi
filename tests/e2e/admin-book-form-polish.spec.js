@@ -167,7 +167,6 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     await page.locator("#bookAuthor").fill("ئاپتور");
     await page.locator("#bookPrice").fill("12");
     await page.locator("#bookSource").selectOption("universal.html");
-    await page.locator("#bookStock").fill("1");
     const dialogs = [];
     page.on("dialog", (dialog) => dialogs.push(dialog.message()));
     await page.evaluate(() => {
