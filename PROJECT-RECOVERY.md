@@ -4,6 +4,12 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
+## Gift-tab wording — draft, not deployed
+
+The homepage gift tab label is `🎁 ھەدىيەلىك كىتابلار`. The guest invitation paragraph in `giftStateMarkup` is `ھەدىيەلىك كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ.` The signup link stays `ئەزا بولۇش` and its destination stays `account.html#signup`. Blocked, empty, error, unavailable, unresolved, and gift-card wording stay as they are. Eligibility, protected reads, stock, free physical-book inquiries, paid prices, cart, favorites, tab selection, request-generation guards, and `placeGiftSurface` are unchanged.
+
+Draft branch `cursor/gift-tab-wording-e3d6` carries this wording. The storefront pin is `shop.js?v=160`. SHA-256 is `shop.js` `f1cc49396f62f59ca531b2e299583276d4484ace9d4c4698c7682ee8651fc547` (272879 bytes), `index.html` `d2b5df0639c7dfd991c4ad47f12a5d4bdbb9bd0aaf2140d480691cf3300e6eb5` (29695 bytes), and `book-shell.html` `15f94bbedb319517b5688f2545f823328bc7a31e8f6deb8a314f54fe583a1490` (12886 bytes). `admin.js?v=110` and `member.js?v=31` stay. This draft is not deployed. It does not move the runtime baseline table below. `origin/main` at this work is merge `5f8ec0a82bb73a393ba4ef526fbfcf23d3564265`. Draft PR #284 remains separate and is not merged here. No SQL was applied.
+
 ## Gift-tab message clipping — draft hotfix, not deployed
 
 A non-card gift surface reused the previous carousel translation. `placeGiftSurface` stops autoplay, clears the gift list, sets the index and loop pad to zero, leaves the single-row class, and sets the track transform to `translateX(0)` with no transition before it paints. Guest, blocked, unresolved, empty, error, unavailable, the loading skeleton, and a gift-tab account-switch clear use that helper. Populated gift and public tabs still go through `draw()`. No CSS rule was added. Public scrolling, gift cards, favorites, pagination generations, manual tabs, logout, eligibility, stock, paid prices, and WhatsApp are unchanged.

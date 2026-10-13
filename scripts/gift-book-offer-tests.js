@@ -108,9 +108,9 @@ test("requestable gifts follow active, approved, and stock rules", () => {
 
 test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
-  assert.match(index, /سوۋغا كىتابلار/);
+  assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=159/);
+  assert.match(index, /shop\.js\?v=160/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");

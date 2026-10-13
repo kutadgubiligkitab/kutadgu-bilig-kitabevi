@@ -779,7 +779,7 @@ test.describe("members-only physical gift books", () => {
     await showRecommendedPage(page);
     await advanceUntilRecommendedAppend(page);
     await page.locator('[data-carousel-mode="gifts"]').click();
-    await expect(page.locator("[data-gift-state='guest']")).toContainText("ھەقسىز قەغەز سوۋغا كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ");
+    await expect(page.locator("[data-gift-state='guest']")).toContainText("ھەدىيەلىك كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ");
     await releaseRecommendedAppend(page);
     await page.waitForTimeout(500);
     await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
