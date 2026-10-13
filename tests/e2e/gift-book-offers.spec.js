@@ -1187,6 +1187,13 @@ function adminToken(aal) {
   return "e30." + body + ".sig";
 }
 
+async function expectHiddenSaveDiag(page) {
+  const diag = page.locator("#bookSaveDiag");
+  await expect(diag).toBeHidden();
+  await expect(diag).toHaveText("");
+  await expect(page.locator("label:has(#bookIsGift) > span")).toHaveText("🎁 ھەدىيەلىك كىتاب");
+}
+
 test.describe("admin gift selection", () => {
   test("aal1 cannot write, a failed read is not saved as off, and a new book can skip the offer", async ({ page }) => {
     const writes = [];
@@ -1233,6 +1240,7 @@ test.describe("admin gift selection", () => {
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => window.__kutadguAdminTest.openEdit(7));
     await expect(page.locator("#bookModal")).toBeVisible();
+    await expectHiddenSaveDiag(page);
     await expect(page.locator("#bookGiftStatus")).toContainText("سوۋغا تەڭشىكى ئوقۇلمىدى");
     await expect(page.locator("#bookIsGift")).toBeDisabled();
     await page.locator("#bookSaveBtn").click();
@@ -1263,6 +1271,7 @@ test.describe("admin gift selection", () => {
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookSaveStatus")).toContainText("كىتاب ساقلاندى، لېكىن سوۋغا تەڭشىكى يېزىلمىدى");
     await expect(page.locator("#bookModal")).toBeVisible();
+    await expectHiddenSaveDiag(page);
   });
 
   test("new unchecked books do not write an offer, and a failed offer write stays partial", async ({ page }) => {
@@ -1286,6 +1295,7 @@ test.describe("admin gift selection", () => {
     page.on("dialog", (dialog) => dialog.accept());
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await page.locator("#newBookBtn").click();
+    await expectHiddenSaveDiag(page);
     await page.locator("#bookTitle").fill("يېڭى كىتاب");
     await page.locator("#bookAuthor").fill("يېڭى ئاپتور");
     await page.locator("#bookPrice").fill("12");
@@ -1305,6 +1315,7 @@ test.describe("admin gift selection", () => {
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookSaveStatus")).toContainText("ئىككىنچى دەلىللەش");
     await expect(page.locator("#bookModal")).toBeVisible();
+    await expectHiddenSaveDiag(page);
     expect(await page.evaluate(() => window.__giftWrites.slice())).toEqual([]);
   });
 
@@ -1336,6 +1347,7 @@ test.describe("admin gift selection", () => {
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => window.__kutadguAdminTest.openEdit(7));
     await expect(page.locator("#bookGiftStatus")).toContainText("يۈكلىنىۋاتىدۇ");
+    await expectHiddenSaveDiag(page);
     await page.evaluate(() => window.__kutadguAdminTest.openEdit(8));
     await expect(page.locator("#bookTitle")).toHaveValue("ئىككىنچى");
     await expect(page.locator("#bookIsGift")).not.toBeChecked();
@@ -1343,6 +1355,7 @@ test.describe("admin gift selection", () => {
     await page.waitForTimeout(300);
     await expect(page.locator("#bookTitle")).toHaveValue("ئىككىنچى");
     await expect(page.locator("#bookIsGift")).not.toBeChecked();
+    await expectHiddenSaveDiag(page);
   });
 
 });

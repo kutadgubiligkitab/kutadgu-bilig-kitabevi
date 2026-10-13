@@ -131,8 +131,15 @@ test("homepage tab and shop read path stay on the member client", () => {
 
 test("admin gift writes stay outside the book payload", () => {
   assert.match(adminHtml, /id="bookIsGift"/);
-  assert.match(adminHtml, /ھەقسىز قەغەز سوۋغا/);
-  assert.match(adminHtml, /admin\.js\?v=110/);
+  assert.match(adminHtml, /<input id="bookIsGift" type="checkbox"><span>🎁 ھەدىيەلىك كىتاب<\/span>/);
+  assert.doesNotMatch(adminHtml, /id="bookIsGift"[\s\S]{0,80}ھەقسىز قەغەز سوۋغا/);
+  assert.match(adminHtml, /admin\.js\?v=111/);
+  const planLog = sliceBetween(admin, "function logSavePlan(plan){", "function planCurrentSave");
+  assert.match(planLog, /console\.info\("\[kutadgu-admin-save\]",safe\)/);
+  assert.match(planLog, /diag\.hidden=true/);
+  assert.match(planLog, /diag\.textContent=""/);
+  assert.doesNotMatch(planLog, /diag\.hidden=false/);
+  assert.doesNotMatch(planLog, /mode=\$\{safe\.mode\}/);
   const row = sliceBetween(admin, "const row={", "if(coverHash&&coverVisualHash");
   assert.match(row, /is_recommended/);
   assert.doesNotMatch(row, /gift|bookIsGift/);

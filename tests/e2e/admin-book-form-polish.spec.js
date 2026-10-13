@@ -78,6 +78,8 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     await expect(page.locator("#bookTitleSimilarWarning")).toBeAttached();
     await expect(page.locator("#createDuplicateWarning")).toBeAttached();
     await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
+    await expect(page.locator("label:has(#bookIsGift) > span")).toHaveText("🎁 ھەدىيەلىك كىتاب");
     const visible = await page.locator("#bookForm").innerText();
     expect(visible).not.toMatch(/\bNULL\b/);
     expect(visible).not.toMatch(/Completed sales only/);
@@ -121,6 +123,9 @@ test.describe("Stage Admin 1L book form visual polish", () => {
         await loc.scrollIntoViewIfNeeded();
         await expect(loc).toBeVisible();
       }
+      await expect(page.locator("label:has(#bookIsGift) > span")).toHaveText("🎁 ھەدىيەلىك كىتاب");
+      await expect(page.locator("#bookSaveDiag")).toBeHidden();
+      await expect(page.locator("#bookSaveDiag")).toHaveText("");
       await expect(page.locator("#bookCoverPickBtn")).toBeVisible();
       await expect(page.locator("#bookGalleryPickBtn")).toBeAttached();
       await assertNoOverflow(page);
@@ -152,5 +157,50 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     expect(save.operation).toBe("INSERT");
     expect(save.payload.title).toBe("پۈتۈنلەي يېڭى نام");
     expect(save.payload.author).toBe("ئابدۇللا ھاجى روزى");
+    await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
+  });
+
+  test("missing edit identity stops, and a rejected save keeps the diagnostic hidden", async ({ page }) => {
+    await openCreateModal(page);
+    await page.locator("#bookTitle").fill("يېڭى نام");
+    await page.locator("#bookAuthor").fill("ئاپتور");
+    await page.locator("#bookPrice").fill("12");
+    await page.locator("#bookSource").selectOption("universal.html");
+    const dialogs = [];
+    page.on("dialog", (dialog) => dialogs.push(dialog.message()));
+    await page.evaluate(() => {
+      window.__saveLogs = [];
+      const original = console.info.bind(console);
+      console.info = function () {
+        window.__saveLogs.push(Array.from(arguments));
+        return original.apply(console, arguments);
+      };
+      document.querySelector("#bookForm").dataset.saveMode = "edit";
+      document.querySelector("#bookId").value = "";
+    });
+    await page.locator("#bookSaveBtn").click();
+    await expect.poll(() => dialogs.some((message) => message.includes("تەھرىرلەش ئۈچۈن كىتاب ID تېپىلمىدى"))).toBe(true);
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
+    expect(await page.evaluate(() => window.__kutadguBookSaves.length)).toBe(0);
+    const stopped = await page.evaluate(() => window.__saveLogs.filter((row) => row[0] === "[kutadgu-admin-save]"));
+    expect(stopped.some((row) => row[1] && row[1].operation === "STOP")).toBe(true);
+
+    await page.evaluate(() => {
+      document.querySelector("#bookForm").dataset.saveMode = "create";
+      window.__kutadguAdminPersistBook = async () => ({ error: { message: "يېزىش رەت قىلىندى" }, data: null });
+    });
+    await page.locator("#bookCover").setInputFiles(STUB);
+    await page.locator("#bookSaveBtn").click();
+    await expect.poll(() => dialogs.some((message) => message.includes("ساقلاش مەغلۇپ بولدى") && message.includes("يېزىش رەت قىلىندى"))).toBe(true);
+    await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookSaveStatus")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
+    await expect(page.locator("label:has(#bookIsGift) > span")).toHaveText("🎁 ھەدىيەلىك كىتاب");
+    const formText = await page.locator("#bookForm").innerText();
+    expect(formText).not.toMatch(/editingBookId|operation=/);
   });
 });

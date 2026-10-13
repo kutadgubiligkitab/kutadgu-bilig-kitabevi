@@ -119,6 +119,8 @@ test.describe("Stage Admin 1J pending book edit", () => {
 
     await page.locator("[data-edit-submission]").click();
     await expect(page.locator("#bookModal")).toBeVisible();
+    await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
     await expect(page.locator("#bookModalTitle")).toHaveText("كىتاب ئۇچۇرلىرىنى تەكشۈرۈش");
     await expect(page.locator("#pendingEditHelp")).toBeVisible();
     await expect(page.locator("#bookSaveBtn")).toHaveText("ئۆزگەرتىشلەرنى ساقلاش");
@@ -154,6 +156,8 @@ test.describe("Stage Admin 1J pending book edit", () => {
     await page.locator("#bookTitle").fill("تۈزىتىلگەن كىتاب نامى");
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookModal")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toBeHidden();
+    await expect(page.locator("#bookSaveDiag")).toHaveText("");
     await expect(page.locator("#pendingSubmissionStatus")).toContainText("ئۆزگەرتىشلەر ساقلىنىپ بولدى");
     await expect(page.locator(".admin-submission-title")).toHaveText("تۈزىتىلگەن كىتاب نامى");
     await expect(page.locator(".admin-submission-status")).toHaveText("تەستىق كۈتۈۋاتىدۇ");
