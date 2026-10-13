@@ -5391,7 +5391,7 @@ async function setupHomeCarousel(){
     </article>`;
   }
   function giftStateMarkup(kind){
-    if(kind==="guest")return '<div class="empty-state shop-section-empty" data-gift-state="guest"><p>ھەقسىز قەغەز سوۋغا كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ.</p><p><a href="account.html#signup">ئەزا بولۇش</a></p></div>';
+    if(kind==="guest")return '<div class="empty-state shop-section-empty" data-gift-state="guest"><p>ھەدىيەلىك كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ.</p><p><a href="account.html#signup">ئەزا بولۇش</a></p></div>';
     if(kind==="blocked")return '<div class="empty-state shop-section-empty" data-gift-state="blocked">بۇ ھېساب ۋاقتىنچە توختىتىلغان. سوۋغا كىتابلار كۆرۈنمەيدۇ.</div>';
     if(kind==="empty")return '<div class="empty-state shop-section-empty" data-gift-state="empty">ھازىر سوۋغا قىلىنىدىغان كىتاب يوق.</div>';
     if(kind==="error")return '<div class="empty-state shop-section-empty" data-gift-state="error"><p>سوۋغا كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><p><button type="button" data-gift-retry="1">قايتا سىناش</button></p></div>';
