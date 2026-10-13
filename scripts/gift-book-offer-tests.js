@@ -164,6 +164,7 @@ test("stage 122 migration is a separate offer table and does not rewrite books p
   assert.doesNotMatch(migration, /drop policy[^;]*on public\.books|alter table public\.books/i);
   assert.match(rollback, /drop table if exists public\.gift_book_offers/);
   assert.match(rollback, /drop function if exists public\.gift_book_is_requestable\(bigint\)/);
+  assert.ok(rollback.indexOf("drop table if exists public.gift_book_offers") < rollback.indexOf("drop function if exists public.gift_book_is_requestable(bigint)"));
   assert.doesNotMatch(rollback, /drop table if exists public\.books|drop policy[^;]*books/i);
 });
 

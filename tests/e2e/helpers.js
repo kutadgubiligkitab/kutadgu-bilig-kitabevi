@@ -577,6 +577,7 @@ async function installCarouselCatalogStub(page, flags) {
       const url = String(typeof input === "string" ? input : input && input.url || "");
       const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
       if (!url.includes("/rest/v1/books")) return origFetch(input, init);
+      if (/[?&]id=eq\./.test(url)) return origFetch(input, init);
       if (method === "HEAD" && url.includes("sales_count=gt.0")) {
         return new Response(null, { status: 200, headers: { "content-range": `0-0/${bestseller ? 3 : 0}` } });
       }

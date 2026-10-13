@@ -6,9 +6,20 @@ const MEMBER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const STUB = path.join(__dirname, "..", "fixtures", "ci-book-cover-stub.png");
 
+function jwtFor(userId) {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    aud: "authenticated",
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })).toString("base64url");
+  return header + "." + payload + ".sig";
+}
+
 function sessionFor(userId) {
   return {
-    access_token: "test-access-" + userId.slice(0, 8),
+    access_token: jwtFor(userId),
     refresh_token: "test-refresh-" + userId.slice(0, 8),
     token_type: "bearer",
     expires_in: 3600,
@@ -64,12 +75,13 @@ async function installMemberBoundary(page, gates) {
       window.__giftOpens.push(String(url || ""));
       return { opener: null, closed: false };
     };
-    if (seed.session) localStorage.setItem("kutadgu-member-auth-v1", JSON.stringify(seed.session));
+    const stored = seed.storedSession || seed.session;
+    if (stored) localStorage.setItem("kutadgu-member-auth-v1", JSON.stringify(stored));
     else localStorage.removeItem("kutadgu-member-auth-v1");
     localStorage.setItem("kutadgu-shop-owner-v1", seed.owner || "guest");
     localStorage.setItem("kutadgu-cart-v1", "[]");
     localStorage.setItem("kutadgu-favorites-v1", "[]");
-  }, { session: gates.session || null, owner: gates.owner || "guest" });
+  }, { session: gates.session || null, storedSession: gates.storedSession || null, owner: gates.owner || "guest" });
   await page.route("**://*.supabase.co/**", async (route) => {
     const url = route.request().url();
     const method = route.request().method();
@@ -94,7 +106,8 @@ async function installMemberBoundary(page, gates) {
       if (gates.failGifts) {
         return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "gift read failed", code: "gift_read_failed" }) });
       }
-      if (gates.holdGifts && gates.giftReads === 1) await gates.holdGifts;
+      const holdThisRead = gates.holdGiftRead == null ? gates.giftReads === 1 : gates.giftReads === gates.holdGiftRead;
+      if (gates.holdGifts && holdThisRead) await gates.holdGifts;
       if (gates.rejectGifts) return route.abort("failed");
       const rows = typeof gates.offers === "function" ? gates.offers() : (gates.offers || []);
       if (url.includes("book_id=eq.")) {
@@ -218,23 +231,51 @@ test.describe("members-only physical gift books", () => {
     expect(gates.giftReads).toBeGreaterThan(reads);
   });
 
-  test("unresolved authentication does not fetch gifts", async ({ page }) => {
+  test("unresolved and failed authentication do not fetch gifts", async ({ page }) => {
     const held = hold();
-    const gates = { giftReads: 0, holdAuth: held.promise, offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)] };
+    const stale = sessionFor(MEMBER);
+    stale.expires_at = Math.floor(Date.now() / 1000) - 120;
+    const gates = {
+      giftReads: 0,
+      holdAuth: held.promise,
+      storedSession: stale,
+      offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)]
+    };
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
     await installMemberBoundary(page, gates);
     await openHome(page, 1280);
+    await expect.poll(() => page.evaluate(() => document.querySelector("#homeCarouselViewport")?.dataset.kutadguCarouselReady || "")).toBe("1");
     await page.locator('[data-carousel-mode="gifts"]').click();
     await expect(page.locator("[data-gift-state='unresolved']")).toBeVisible();
     expect(gates.giftReads).toBe(0);
     await expect(page.locator("#homeCarouselTrack")).not.toContainText("يوشۇرۇن سوۋغا");
     held.release();
-    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    await expect(page.locator("[data-gift-state='unresolved'], [data-gift-state='guest']")).toBeVisible();
+    await expect(page.locator("[data-gift-state='empty']")).toHaveCount(0);
     await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("يوشۇرۇن سوۋغا");
     expect(gates.giftReads).toBe(0);
   });
 
-  test("suspended and missing profiles do not reveal offers", async ({ page }) => {
+  test("a missing profile stays unresolved and does not reveal offers", async ({ page }) => {
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      missingProfile: true,
+      offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)]
+    };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='unresolved']")).toBeVisible();
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("يوشۇرۇن سوۋغا");
+    expect(gates.giftReads).toBe(0);
+  });
+
+  test("a suspended profile does not reveal offers", async ({ page }) => {
     const gates = {
       giftReads: 0,
       session: sessionFor(MEMBER),
@@ -255,17 +296,26 @@ test.describe("members-only physical gift books", () => {
   test("logout and a late response cannot restore gift cards", async ({ page }) => {
     const held = hold();
     const book = giftBook(91001, "كېچىككەن سوۋغا");
-    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, holdGifts: held.promise, offers: [offerRow(book, true)] };
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      holdGifts: held.promise,
+      holdGiftRead: 3,
+      offers: [offerRow(book, true)]
+    };
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false });
     await installMemberBoundary(page, gates);
     await openHome(page, 1280);
-    await expect.poll(() => gates.giftReads).toBeGreaterThan(0);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("كېچىككەن سوۋغا");
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect.poll(() => gates.giftReads).toBeGreaterThanOrEqual(2);
     await page.evaluate(() => window.KutadguMember.signOut());
     await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
-    held.release();
-    await page.waitForTimeout(500);
     await expect(page.locator("#homeCarouselTrack")).not.toContainText("كېچىككەن سوۋغا");
-    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    held.release();
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("كېچىككەن سوۋغا");
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
   });
 
   test("a manual tab choice beats a late gift response", async ({ page }) => {
@@ -445,7 +495,7 @@ test.describe("admin gift selection", () => {
     await page.locator("#bookSaveBtn").click();
     await expect(page.locator("#bookModal")).toBeHidden();
     const saved = await page.evaluate(() => window.__giftWrites.slice());
-    expect(saved).toEqual([{ id: 7, want: true }]);
+    expect(saved.map((row) => ({ id: String(row.id), want: row.want }))).toEqual([{ id: "7", want: true }]);
     expect((await page.evaluate(() => window.__kutadguBookSaves.at(-1).payload)).price).toBe(20);
     expect(await page.evaluate(() => Object.prototype.hasOwnProperty.call(window.__kutadguBookSaves.at(-1).payload, "enabled"))).toBe(false);
     await page.evaluate(() => {

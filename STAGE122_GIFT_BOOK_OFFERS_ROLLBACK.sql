@@ -5,9 +5,10 @@
 
 begin;
 
-drop trigger if exists gift_book_offers_touch on public.gift_book_offers;
+-- Drop the table first. Its policies depend on gift_book_is_requestable,
+-- and dropping the table removes those policies and the touch trigger.
+drop table if exists public.gift_book_offers;
 drop function if exists public.gift_book_is_requestable(bigint);
 drop function if exists public.gift_book_offers_touch();
-drop table if exists public.gift_book_offers;
 
 commit;

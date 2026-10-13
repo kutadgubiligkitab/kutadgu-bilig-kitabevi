@@ -174,7 +174,7 @@ test("admin reads one batched permission payload and ignores a stale write", () 
   assert.match(grantWrite, /key==="self"&&userId!==before\.id/);
   assert.match(adminHtml, /id="cartShareControls"/);
   assert.match(adminHtml, /id="cartShareGlobal"/);
-  assert.match(adminHtml, /admin\.js\?v=108/);
+  assert.match(adminHtml, /admin\.js\?v=109/);
   assert.match(adminHtml, /admin\.css\?v=56/);
   const members = sliceBetween(adminHtml, 'id="memberManagement"', 'id="adminMemberList"');
   assert.ok(members.indexOf("cartShareControls") > 0);

@@ -37,6 +37,9 @@ function fixtureSql() {
     create or replace function auth.uid() returns uuid language sql stable as $$
       select nullif(auth.jwt()->>'sub', '')::uuid;
     $$;
+    grant usage on schema auth to anon, authenticated, service_role;
+    grant execute on function auth.jwt() to anon, authenticated, service_role;
+    grant execute on function auth.uid() to anon, authenticated, service_role;
     create table if not exists public.admin_users (
       user_id uuid primary key references auth.users(id) on delete cascade
     );
@@ -241,12 +244,11 @@ async function main() {
       adminRows.some((row) => Number(row.book_id) === Number(id.disabled) && row.enabled === false) && adminRows.length === 8,
       "count " + adminRows.length);
 
-    const created = await asRole(client, "authenticated", ADMIN, "aal2", async () => {
-      const book = await client.query("insert into public.books (title, stock, is_active, submission_status) values ('new gift', 2, true, 'approved') returning id");
-      const offer = await client.query("insert into public.gift_book_offers (book_id, enabled) values ($1, true) returning book_id, enabled", [book.rows[0].id]);
-      return offer.rows[0];
-    });
-    check("admin aal2 can insert an offer", created && created.enabled === true, JSON.stringify(created));
+    const extraBook = await client.query("insert into public.books (title, stock, is_active, submission_status) values ('new gift', 2, true, 'approved') returning id");
+    const created = await asRole(client, "authenticated", ADMIN, "aal2", () =>
+      client.query("insert into public.gift_book_offers (book_id, enabled) values ($1, true) returning book_id, enabled", [extraBook.rows[0].id])
+    );
+    check("admin aal2 can insert an offer", created.rows[0] && created.rows[0].enabled === true, JSON.stringify(created.rows[0]));
 
     const stale = await client.query("select updated_at from public.gift_book_offers where book_id = $1", [id.available]);
     const stamped = stale.rows[0].updated_at;

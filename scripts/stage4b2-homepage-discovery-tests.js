@@ -138,6 +138,12 @@ test("protected CSS and premium-ux.js stay byte-identical to origin/main", () =>
   }
 });
 
+function paidCarouselCard(src) {
+  const cut = src.indexOf("\n  function giftCard(b,i=0){");
+  const body = cut >= 0 ? src.slice(0, cut) : src;
+  return body.replace("    if(cardKind===\"gift\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
+}
+
 function stripCards1bCartLabel(src) {
   return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
 }
@@ -154,7 +160,11 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
   assert.match(cartBtn, /replace\(\/\\s\+\/g,""\)==="🛒"/);
   const carousel = sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>");
   const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(stripCards1bCartLabel(carousel), stripCards1bCartLabel(mainCarousel));
+  assert.strictEqual(stripCards1bCartLabel(paidCarouselCard(carousel)), stripCards1bCartLabel(paidCarouselCard(mainCarousel)));
+  assert.match(carousel, /function giftCard\(b,i=0\)/);
+  const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
+  assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
+  assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
   const mainCompact = gitShowMain("premium-ux.js");
@@ -221,7 +231,7 @@ test("this slice does not change SQL Admin auth or order surfaces", () => {
     "scripts/stage101-isolated-rollback-assertions.sql",
     "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql",
     "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql",
-    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql","STAGE106_CATALOG_CREDITS.sql","STAGE106_CATALOG_CREDIT_CORRECTIONS.sql","STAGE106_CATALOG_CREDITS_ROLLBACK.sql","STAGE107_BOOK_REVIEWS.sql","STAGE107_BOOK_REVIEWS_ROLLBACK.sql","STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql","STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql","STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql","STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql","STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql","STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql","STAGE111_BOOK_REVIEW_PAGES.sql","STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql","STAGE120_WEBSITE_FEEDBACK.sql","STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql","STAGE121_CART_SHARE_PERMISSIONS.sql","STAGE121_CART_SHARE_PERMISSIONS_ROLLBACK.sql"].includes(file)) ||
+    "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql","STAGE106_CATALOG_CREDITS.sql","STAGE106_CATALOG_CREDIT_CORRECTIONS.sql","STAGE106_CATALOG_CREDITS_ROLLBACK.sql","STAGE107_BOOK_REVIEWS.sql","STAGE107_BOOK_REVIEWS_ROLLBACK.sql","STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql","STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql","STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql","STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql","STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql","STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql","STAGE111_BOOK_REVIEW_PAGES.sql","STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql","STAGE120_WEBSITE_FEEDBACK.sql","STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql","STAGE121_CART_SHARE_PERMISSIONS.sql","STAGE121_CART_SHARE_PERMISSIONS_ROLLBACK.sql","STAGE122_GIFT_BOOK_OFFERS.sql","STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql"].includes(file)) ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|detail-cover-mobile-safety|covers\.css|theme\.css|stage4b-public-cards\.css/.test(file)
