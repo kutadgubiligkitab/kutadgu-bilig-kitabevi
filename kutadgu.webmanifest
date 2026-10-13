@@ -12,7 +12,7 @@
   "icons": [
     {
       "src": "/kutadgu-logo.png",
-      "sizes": "1254x1254",
+      "sizes": "any",
       "type": "image/png"
     }
   ]

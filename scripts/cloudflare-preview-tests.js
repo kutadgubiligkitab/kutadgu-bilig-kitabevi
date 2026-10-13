@@ -1231,7 +1231,9 @@ jobs.push(test("web app manifest stays a same-origin asset", async () => {
   assert.strictEqual(parsed.start_url, "/");
   assert.strictEqual(parsed.scope, "/");
   assert.strictEqual(parsed.display, "standalone");
-  assert.strictEqual(parsed.icons[0].sizes, "1254x1254");
+  assert.strictEqual(parsed.icons[0].sizes, "any");
+  assert.strictEqual(parsed.icons[0].type, "image/png");
+  assert.strictEqual(parsed.icons[0].src, "/kutadgu-logo.png");
 }));
 
 Promise.all(jobs).then(() => {

@@ -30,10 +30,10 @@ assert.strictEqual(Object.prototype.hasOwnProperty.call(manifest, "orientation")
 assert.strictEqual(manifest.icons.length, 1);
 assert.deepStrictEqual(manifest.icons[0], {
   src: "/kutadgu-logo.png",
-  sizes: "1254x1254",
+  sizes: "any",
   type: "image/png"
 });
-assert.ok(!/maskable|serviceWorker|beforeinstallprompt/i.test(JSON.stringify(manifest)));
+assert.ok(!/192x192|512x512|maskable|serviceWorker|beforeinstallprompt/i.test(JSON.stringify(manifest)));
 
 assert.strictEqual(png.toString("ascii", 12, 16), "IHDR");
 assert.strictEqual(png.readUInt32BE(16), 1254);

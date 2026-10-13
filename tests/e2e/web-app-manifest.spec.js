@@ -58,7 +58,7 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
   expect(data.dir).toBe("rtl");
   expect(data.icons).toEqual([{
     src: "/kutadgu-logo.png",
-    sizes: "1254x1254",
+    sizes: "any",
     type: "image/png"
   }]);
   const app = parsed.manifest;
@@ -70,7 +70,7 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
   expect(app.orientation).toBe("DEFAULT");
   expect(app.icons).toEqual([{
     url: new URL("/kutadgu-logo.png", page.url()).href,
-    sizes: "1254x1254",
+    sizes: "0x0",
     type: "image/png"
   }]);
   const icon = await page.evaluate(async () => {
