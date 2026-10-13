@@ -24,7 +24,7 @@ const FORM_IDS = [
   "bookPrice", "bookStock", "bookSalesCount",
   "bookPublisher", "bookPublishYear", "bookPages", "bookCoverType", "bookSize",
   "bookCoverPickBtn", "bookGalleryPickBtn",
-  "bookIsActive", "bookIsNew", "bookIsRecommended",
+  "bookIsActive", "bookIsNew", "bookIsRecommended", "bookIsGift",
   "bookSaveBtn", "cancelBookEdit"
 ];
 
@@ -92,10 +92,10 @@ test.describe("Stage Admin 1L book form visual polish", () => {
   test("sticky save bar does not cover the last visibility fields", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 700 });
     await openCreateModal(page);
-    const last = page.locator("#bookIsRecommended");
+    const last = page.locator("#bookIsGift");
     await last.scrollIntoViewIfNeeded();
     const gap = await page.evaluate(() => {
-      const field = document.querySelector("#bookIsRecommended");
+      const field = document.querySelector("#bookIsGift");
       const footer = document.querySelector(".admin-book-form-footer");
       const fr = field.getBoundingClientRect();
       const bar = footer.getBoundingClientRect();
@@ -116,7 +116,7 @@ test.describe("Stage Admin 1L book form visual polish", () => {
     for (const width of [390, 768, 1366]) {
       await page.setViewportSize({ width, height: 800 });
       await openCreateModal(page);
-      for (const id of ["bookTitle", "bookPrice", "bookPublisher", "bookCoverPickBtn", "bookIsRecommended"]) {
+      for (const id of ["bookTitle", "bookPrice", "bookPublisher", "bookCoverPickBtn", "bookIsRecommended", "bookIsGift"]) {
         const loc = page.locator("#" + id);
         await loc.scrollIntoViewIfNeeded();
         await expect(loc).toBeVisible();

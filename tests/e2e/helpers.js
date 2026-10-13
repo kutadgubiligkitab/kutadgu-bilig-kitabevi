@@ -497,7 +497,12 @@ async function installCarouselCatalogStub(page, flags) {
     bestseller: flags.failBestseller === true
   };
   const holdNewest = flags.holdNewest === true;
-  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest }) => {
+  const passIdIn = flags.passIdIn === true;
+  const pageRecommended = flags.pageRecommended === true;
+  const holdRecommendedAppend = flags.holdRecommendedAppend === true;
+  const recommendedTotal = Math.max(1, Number(flags.recommendedTotal) || 24);
+  const recommendedStartId = Number(flags.recommendedStartId) || 97000;
+  await page.addInitScript(({ recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest, passIdIn, pageRecommended, holdRecommendedAppend, recommendedTotal, recommendedStartId }) => {
     window.__kutadguPositiveSalesCount = bestseller ? 3 : 0;
     let catalog = [];
     Object.defineProperty(window, "KITAP_CATALOG", {
@@ -516,14 +521,14 @@ async function installCarouselCatalogStub(page, flags) {
       }
     });
     const origFetch = window.fetch.bind(window);
-    const jsonResponse = (rows, head) => {
+    const jsonResponse = (rows, head, contentRange) => {
       const list = Array.isArray(rows) ? rows : [];
       const last = Math.max(0, list.length - 1);
       return new Response(head ? null : JSON.stringify(list), {
         status: 200,
         headers: {
           "content-type": "application/json",
-          "content-range": list.length ? `0-${last}/${list.length}` : "*/0"
+          "content-range": contentRange || (list.length ? `0-${last}/${list.length}` : "*/0")
         }
       });
     };
@@ -569,6 +574,35 @@ async function installCarouselCatalogStub(page, flags) {
       }
       await Promise.race([window.__carouselNewestHold, aborted]);
     };
+    const requestRange = (init) => {
+      const headers = (init && init.headers) || {};
+      const raw = typeof headers.get === "function"
+        ? (headers.get("Range") || headers.get("range") || "")
+        : (headers.Range || headers.range || "");
+      const match = String(raw).match(/(\d+)\s*-\s*(\d+)/);
+      if (!match) return { from: 0, to: Math.max(0, recommendedTotal - 1) };
+      return { from: Number(match[1]), to: Number(match[2]) };
+    };
+    const holdRecommendedAppendQuery = async (init, from) => {
+      if (!holdRecommendedAppend || from <= 0) return;
+      window.__carouselRecommendedHeld = true;
+      window.__carouselRecommendedHold = window.__carouselRecommendedHold || new Promise((resolve) => {
+        window.__releaseCarouselRecommended = resolve;
+      });
+      const aborted = waitIfAborted(init);
+      if (!aborted) {
+        await window.__carouselRecommendedHold;
+        return;
+      }
+      await Promise.race([window.__carouselRecommendedHold, aborted]);
+    };
+    const recommendedPages = pageRecommended
+      ? Array.from({ length: recommendedTotal }, (_, i) => stubBook({
+        is_recommended: true,
+        id: recommendedStartId + i,
+        title: `Paid ${recommendedStartId + i}`
+      }))
+      : [];
     const failJson = () => new Response(JSON.stringify({ message: "homepage-state-stub-error" }), {
       status: 500,
       headers: { "content-type": "application/json" }
@@ -577,6 +611,8 @@ async function installCarouselCatalogStub(page, flags) {
       const url = String(typeof input === "string" ? input : input && input.url || "");
       const method = String((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
       if (!url.includes("/rest/v1/books")) return origFetch(input, init);
+      if (/[?&]id=eq\./.test(url)) return origFetch(input, init);
+      if (passIdIn && /[?&]id=in\./.test(url)) return origFetch(input, init);
       if (method === "HEAD" && url.includes("sales_count=gt.0")) {
         return new Response(null, { status: 200, headers: { "content-range": `0-0/${bestseller ? 3 : 0}` } });
       }
@@ -586,7 +622,16 @@ async function installCarouselCatalogStub(page, flags) {
       if (url.includes("is_active=eq.false")) return jsonResponse([]);
       if (url.includes("is_recommended=eq.true")) {
         if (failModes.recommended) return failJson();
-        return jsonResponse(recommended ? stubBooks({ is_recommended: true, id: 91001, title: "Recommended Stub" }) : []);
+        if (!recommended) return jsonResponse([]);
+        if (pageRecommended) {
+          const range = requestRange(init);
+          await holdRecommendedAppendQuery(init, range.from);
+          const slice = recommendedPages.slice(range.from, range.to + 1);
+          const end = range.from + Math.max(0, slice.length - 1);
+          const contentRange = slice.length ? `${range.from}-${end}/${recommendedPages.length}` : `*/${recommendedPages.length}`;
+          return jsonResponse(slice, false, contentRange);
+        }
+        return jsonResponse(stubBooks({ is_recommended: true, id: 91001, title: "Recommended Stub" }));
       }
       if (url.includes("is_new=eq.true")) {
         await holdNewestQuery(init);
@@ -610,7 +655,7 @@ async function installCarouselCatalogStub(page, flags) {
       }
       return jsonResponse([]);
     };
-  }, { recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest });
+  }, { recommended, newest, bestseller, bookCount, featuredCount, failFeatured, failModes, holdNewest, passIdIn, pageRecommended, holdRecommendedAppend, recommendedTotal, recommendedStartId });
 }
 
 async function installAnnouncementFixtures(page, opts) {

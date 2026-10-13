@@ -3587,6 +3587,101 @@ async function loadEditorCredits(book,token){
     if(publisher.length&&$("#bookPublisher"))$("#bookPublisher").value=publisher[0].name;
   }
 }
+const GIFT_PARTIAL="كىتاب ساقلاندى، لېكىن سوۋغا تەڭشىكى يېزىلمىدى.";
+const GIFT_CONFLICT="كىتاب ساقلاندى، لېكىن سوۋغا تەڭشىكى يېڭىراق تاللاش بىلەن توقۇنۇشتى. قايتا ئېچىپ تەكشۈرۈڭ.";
+const GIFT_AAL="كىتاب ساقلاندى، لېكىن سوۋغا تەڭشىكى ئىككىنچى دەلىللەشنى تەلەپ قىلىدۇ.";
+let giftOfferSeq=0;
+let giftOfferState={status:"new",enabled:false,updatedAt:null,bookId:"",seq:0,present:false};
+function setGiftOfferNote(text){
+  const el=$("#bookGiftStatus");
+  if(!el)return;
+  el.hidden=!text;
+  el.textContent=text||"";
+}
+function resetGiftOfferForCreate(){
+  giftOfferState={status:"new",enabled:false,updatedAt:null,bookId:"",seq:++giftOfferSeq,present:false};
+  const box=$("#bookIsGift");
+  if(box){box.checked=false;box.indeterminate=false;box.disabled=false}
+  setGiftOfferNote("");
+}
+function captureGiftOfferSnapshot(){
+  const box=$("#bookIsGift");
+  return {
+    status:giftOfferState.status,
+    enabled:giftOfferState.enabled===true,
+    updatedAt:giftOfferState.updatedAt||null,
+    present:giftOfferState.present===true,
+    bookId:giftOfferState.bookId,
+    seq:giftOfferState.seq,
+    want:!!(box&&box.checked)
+  };
+}
+async function fetchGiftOffer(bookId){
+  if(typeof window.__kutadguAdminFetchGiftOffer==="function")return window.__kutadguAdminFetchGiftOffer(bookId);
+  if(!db||typeof db.from!=="function")return {ok:false,error:new Error("no client")};
+  const {data,error}=await db.from("gift_book_offers").select("book_id,enabled,updated_at").eq("book_id",bookId).maybeSingle();
+  if(error)return {ok:false,error};
+  if(!data)return {ok:true,present:false,enabled:false,updatedAt:null};
+  return {ok:true,present:true,enabled:data.enabled===true,updatedAt:data.updated_at||null};
+}
+function beginGiftOfferLoad(bookId){
+  const seq=++giftOfferSeq;
+  const id=String(bookId);
+  giftOfferState={status:"loading",enabled:null,updatedAt:null,bookId:id,seq,present:false};
+  const box=$("#bookIsGift");
+  if(box){box.checked=false;box.indeterminate=true;box.disabled=true}
+  setGiftOfferNote("سوۋغا تەڭشىكى يۈكلىنىۋاتىدۇ...");
+  loadGiftOfferIntoForm(id,seq);
+}
+async function loadGiftOfferIntoForm(bookId,seq){
+  let result;
+  try{result=await fetchGiftOffer(bookId)}
+  catch(err){result={ok:false,error:err}}
+  if(seq!==giftOfferSeq||String(giftOfferState.bookId)!==String(bookId))return;
+  const box=$("#bookIsGift");
+  if(!result||result.ok!==true){
+    giftOfferState={status:"failed",enabled:null,updatedAt:null,bookId:String(bookId),seq,present:false};
+    if(box){box.checked=false;box.indeterminate=true;box.disabled=true}
+    setGiftOfferNote("سوۋغا تەڭشىكى ئوقۇلمىدى. بۇ ساقلاش سوۋغىنى ئۆچۈرمەيدۇ.");
+    return;
+  }
+  giftOfferState={status:"ready",enabled:result.enabled===true,updatedAt:result.updatedAt||null,bookId:String(bookId),seq,present:result.present===true};
+  if(box){box.disabled=false;box.indeterminate=false;box.checked=result.enabled===true}
+  setGiftOfferNote("");
+}
+async function writeGiftOfferRow(savedId,snapshot){
+  const admin=await readMemberAdmin();
+  if(!admin||admin.aal!=="aal2")return {ok:false,message:GIFT_AAL};
+  if(typeof window.__kutadguAdminPersistGiftOffer==="function")return window.__kutadguAdminPersistGiftOffer(savedId,snapshot);
+  if(!db||typeof db.from!=="function")return {ok:false,message:GIFT_PARTIAL};
+  if(!snapshot.present&&snapshot.want){
+    const {data,error}=await db.from("gift_book_offers").insert({book_id:savedId,enabled:true}).select("book_id,enabled,updated_at");
+    if(error)return {ok:false,message:String(error.code||"")==="23505"?GIFT_CONFLICT:GIFT_PARTIAL};
+    const row=Array.isArray(data)?data[0]:null;
+    return {ok:true,enabled:true,updatedAt:row&&row.updated_at||null,present:true};
+  }
+  if(!snapshot.updatedAt)return {ok:false,message:GIFT_PARTIAL};
+  const {data,error}=await db.from("gift_book_offers").update({enabled:snapshot.want===true}).eq("book_id",savedId).eq("updated_at",snapshot.updatedAt).select("book_id,enabled,updated_at");
+  if(error)return {ok:false,message:GIFT_PARTIAL};
+  if(!Array.isArray(data)||!data.length)return {ok:false,message:GIFT_CONFLICT};
+  return {ok:true,enabled:data[0].enabled===true,updatedAt:data[0].updated_at||null,present:true};
+}
+async function persistGiftOfferAfterBookSave(savedId,snapshot){
+  if(snapshot&&snapshot.status==="new"&&!snapshot.want)return {ok:true,skipped:true};
+  if(!snapshot||(snapshot.status!=="ready"&&snapshot.status!=="new"))return {ok:true,skipped:true};
+  if(savedId==null||String(savedId)==="")return {ok:false,message:GIFT_PARTIAL};
+  if(snapshot.status==="new")return writeGiftOfferRow(savedId,snapshot);
+  if(snapshot.enabled==null||String(snapshot.bookId)!==String(savedId))return {ok:false,message:GIFT_PARTIAL};
+  if(snapshot.present&&snapshot.enabled===snapshot.want)return {ok:true,skipped:true};
+  if(!snapshot.present&&!snapshot.want)return {ok:true,skipped:true};
+  return writeGiftOfferRow(savedId,snapshot);
+}
+function applyGiftOfferWriteResult(result,snapshot){
+  if(!result||result.skipped||snapshot.seq!==giftOfferState.seq)return;
+  giftOfferState={status:"ready",enabled:result.enabled===true,updatedAt:result.updatedAt||null,bookId:String(giftOfferState.bookId||snapshot.bookId||""),seq:snapshot.seq,present:true};
+  const box=$("#bookIsGift");
+  if(box){box.checked=result.enabled===true;box.indeterminate=false;box.disabled=false}
+}
 function clearForm(){
   const editor=creditEditorState();
   if(editor)editor.openCreate();
@@ -3601,6 +3696,7 @@ function clearForm(){
   $("#bookIsActive").checked=true;
   $("#bookIsNew").checked=false;
   $("#bookIsRecommended").checked=false;
+  resetGiftOfferForCreate();
   $("#bookIsbn").value="";
   setStockInputValue($("#bookStock"),null);
   setStockStatusSelect($("#bookStockStatus"),"");
@@ -3682,6 +3778,7 @@ async function openEdit(id){
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
   $("#bookIsRecommended").checked=b.is_recommended===true;
+  beginGiftOfferLoad(b.id);
   const coverPreview=Safe.isSafeCoverUrl&&Safe.isSafeCoverUrl(b.image_url)?b.image_url:"";
   $("#bookCoverPreview").src=coverPreview;
   $("#bookCoverPreview").style.visibility=coverPreview?"visible":"hidden";
@@ -5410,6 +5507,7 @@ async function saveBook(e){
       }
       return;
     }
+    const giftSnapshot=captureGiftOfferSnapshot();
     let payload=writeBookRow(row,{mode:isEdit?"update":"insert",omitId:!isEdit});
     if(isEdit&&Write.stripIdentityFields)payload=Write.stripIdentityFields(payload);
     let persistResult=null;
@@ -5521,6 +5619,14 @@ async function saveBook(e){
       publisher:(creditPlan.legacy&&creditPlan.legacy.publisher)||row.publisher,
       isbn:isbnColumn?isbn:(row.isbn||"")
     },persistSavedId(persistResult,isEdit?editingBookId:""));
+    const giftResult=await persistGiftOfferAfterBookSave(savedId,giftSnapshot);
+    if(attempt!==saveAttempt)return;
+    if(!giftResult||giftResult.ok!==true){
+      setSaveStatus(giftResult&&giftResult.message||GIFT_PARTIAL);
+      releaseSaveUi();
+      return;
+    }
+    applyGiftOfferWriteResult(giftResult,giftSnapshot);
     setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
     modal(false);
     releaseSaveUi();

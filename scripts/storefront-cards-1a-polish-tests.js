@@ -120,7 +120,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=155/);
+  assert.match(indexHtml, /shop\.js\?v=158/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
@@ -129,6 +129,12 @@ test("shop.js loads polish CSS last after public row-alignment overlay", () => {
   const publicAt = loadPremium.lastIndexOf("ensurePublicBookCardRowAlignmentCss()");
   assert.ok(publicAt >= 0);
 });
+
+function paidCarouselCard(src) {
+  const cut = src.indexOf("\n  function giftCard(b,i=0){");
+  const body = cut >= 0 ? src.slice(0, cut) : src;
+  return body.replace("    if(mode===\"gifts\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
+}
 
 function stripCards1bCartLabel(src) {
   return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
@@ -146,7 +152,11 @@ test("card generators and Search 1A rank helper stay unchanged except Cards 1B c
   assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   const carousel = sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>");
   const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(stripCards1bCartLabel(carousel), stripCards1bCartLabel(mainCarousel));
+  assert.strictEqual(stripCards1bCartLabel(paidCarouselCard(carousel)), stripCards1bCartLabel(paidCarouselCard(mainCarousel)));
+  assert.match(carousel, /function giftCard\(b,i=0\)/);
+  const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
+  assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
+  assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   assert.match(shop, /usesSearchRelevance/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
@@ -175,7 +185,7 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
   });
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
-    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql" && file !== "scripts/stage101-isolated-assertions.sql" && file !== "scripts/stage101-isolated-rollback-assertions.sql" && file !== "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql" && file !== "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql" && file !== "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql" && file !== "STAGE106_CATALOG_CREDITS.sql" && file !== "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql" && file !== "STAGE106_CATALOG_CREDITS_ROLLBACK.sql" && file !== "STAGE107_BOOK_REVIEWS.sql" && file !== "STAGE107_BOOK_REVIEWS_ROLLBACK.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS_ROLLBACK.sql" && file !== "STAGE117_VISIT_COUNTRIES.sql" && file !== "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql" && file !== "scripts/stage117-isolated-assertions.sql" && file !== "scripts/stage117-isolated-coverage-failure.sql" && file !== "scripts/stage117-isolated-coverage-recovery.sql") ||
+    (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql" && file !== "scripts/stage101-isolated-assertions.sql" && file !== "scripts/stage101-isolated-rollback-assertions.sql" && file !== "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql" && file !== "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql" && file !== "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql" && file !== "STAGE106_CATALOG_CREDITS.sql" && file !== "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql" && file !== "STAGE106_CATALOG_CREDITS_ROLLBACK.sql" && file !== "STAGE107_BOOK_REVIEWS.sql" && file !== "STAGE107_BOOK_REVIEWS_ROLLBACK.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS_ROLLBACK.sql" && file !== "STAGE122_GIFT_BOOK_OFFERS.sql" && file !== "STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql" && file !== "STAGE117_VISIT_COUNTRIES.sql" && file !== "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql" && file !== "scripts/stage117-isolated-assertions.sql" && file !== "scripts/stage117-isolated-coverage-failure.sql" && file !== "scripts/stage117-isolated-coverage-recovery.sql") ||
     /(^|\/)supabase\//i.test(file) ||
     /(^|\/)premium-ux\.css$/i.test(file) ||
     /listing-card-safety|detail-similar-card-safety|recently-viewed-card-safety|covers\.css|theme\.css|catalog\.js$/.test(file)
