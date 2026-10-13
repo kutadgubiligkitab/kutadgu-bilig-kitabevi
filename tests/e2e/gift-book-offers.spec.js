@@ -698,6 +698,258 @@ test.describe("members-only physical gift books", () => {
     const dir = await page.locator("html").getAttribute("dir");
     expect(dir).toBe("rtl");
   });
+
+  function paidCarouselFlags(extra) {
+    return Object.assign({
+      recommended: true,
+      newest: false,
+      bestseller: false,
+      pageRecommended: true,
+      holdRecommendedAppend: true,
+      recommendedTotal: 24,
+      recommendedStartId: 97000
+    }, extra || {});
+  }
+
+  async function attrValues(page, selector, name) {
+    return page.locator(selector).evaluateAll((nodes, attr) => {
+      return [...new Set(nodes.map((node) => node.getAttribute(attr)).filter(Boolean))];
+    }, name);
+  }
+
+  async function advanceUntilRecommendedAppend(page) {
+    await page.locator("#newBooksCarousel").hover();
+    for (let step = 0; step < 4; step += 1) {
+      await page.locator("#carouselNext").click();
+      await page.waitForTimeout(40);
+    }
+    await page.locator("#carouselNext").click();
+    await page.locator("#newBooksCarousel").dispatchEvent("mouseenter");
+    await expect.poll(() => page.evaluate(() => window.__carouselRecommendedHeld === true)).toBe(true);
+  }
+
+  async function releaseRecommendedAppend(page) {
+    await page.evaluate(() => {
+      if (typeof window.__releaseCarouselRecommended === "function") window.__releaseCarouselRecommended();
+    });
+  }
+
+  async function showRecommendedPage(page) {
+    await page.locator("#newBooksCarousel").hover();
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-cart-id='97000']")).toBeVisible();
+    await expect(page.locator("[data-cart-id='97007']")).toBeVisible();
+    await expect(page.locator("[data-cart-id='97008']")).toHaveCount(0);
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+  }
+
+  test("a held recommended page does not replace the populated gift tab", async ({ page }) => {
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: [offerRow(giftBook(95077, "سوۋغا 95077"), true)]
+    };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual(["95077"]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("سوۋغا 95077");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 97008");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 97000");
+  });
+
+  test("a held recommended page leaves the guest gift invitation in place", async ({ page }) => {
+    const gates = { giftReads: 0, session: null, owner: "guest", offers: [offerRow(giftBook(95077, "سوۋغا 95077"), true)] };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='guest']")).toContainText("ھەقسىز قەغەز سوۋغا كىتابلارنى كۆرۈش ئۈچۈن ئەزا بولۇڭ");
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("a held recommended page leaves the empty gift state in place", async ({ page }) => {
+    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: [] };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='empty']")).toContainText("ھازىر سوۋغا قىلىنىدىغان كىتاب يوق");
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-gift-state='empty']")).toBeVisible();
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("a held recommended page leaves a gift read error in place", async ({ page }) => {
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      failGifts: true,
+      offers: [offerRow(giftBook(95077, "سوۋغا 95077"), true)]
+    };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-state='error']")).toBeVisible();
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='error']")).toContainText("سوۋغا كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-gift-state='error']")).toBeVisible();
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+    await expect(page.locator("[data-gift-request='95077']")).toHaveCount(0);
+  });
+
+  test("logout during a held recommended page cannot restore obsolete cards", async ({ page }) => {
+    const gates = {
+      giftReads: 0,
+      session: sessionFor(MEMBER),
+      owner: MEMBER,
+      offers: [offerRow(giftBook(95077, "سوۋغا 95077"), true)]
+    };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    await page.evaluate(() => window.KutadguMember.signOut());
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    await expect(page.locator("[data-gift-request='95077']")).toHaveCount(0);
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-gift-state='guest']")).toBeVisible();
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("سوۋغا 95077");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("an account switch during a held recommended page cannot restore obsolete cards", async ({ page }) => {
+    const first = [offerRow(giftBook(95077, "سوۋغا 95077"), true)];
+    const second = [offerRow(giftBook(95078, "سوۋغا 95078"), true)];
+    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: () => first };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-request='95077']")).toBeVisible();
+    gates.offers = () => second;
+    gates.session = sessionFor(OTHER);
+    await page.evaluate(async (next) => {
+      const client = window.KutadguMember.getClient();
+      await client.auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
+    }, gates.session);
+    await expect(page.locator("[data-gift-request='95078']")).toBeVisible();
+    await expect(page.locator("[data-gift-request='95077']")).toHaveCount(0);
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="gifts"]')).toHaveClass(/is-active/);
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual(["95078"]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("سوۋغا 95078");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("سوۋغا 95077");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("a held recommended page does not overwrite another public tab", async ({ page }) => {
+    const gates = { giftReads: 0, session: null, owner: "guest", offers: [] };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags({ newest: true }));
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-cart-id='92001']")).toBeVisible();
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual(["92001"]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Newest Stub");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("a held recommended page does not overwrite a cached public tab", async ({ page }) => {
+    const gates = { giftReads: 0, session: null, owner: "guest", offers: [] };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags({ newest: true }));
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await page.locator("#newBooksCarousel").hover();
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator("[data-cart-id='92001']")).toBeVisible();
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await page.locator('[data-carousel-mode="newest"]').click();
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    await expect(page.locator("[data-cart-id='92001']")).toBeVisible();
+    await expect(page.locator("[data-cart-id='97008']")).toHaveCount(0);
+    await releaseRecommendedAppend(page);
+    await page.waitForTimeout(500);
+    await expect(page.locator('[data-carousel-mode="newest"]')).toHaveClass(/is-active/);
+    expect(await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id")).toEqual(["92001"]);
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 970");
+  });
+
+  test("same-tab recommended pagination still appends paid books", async ({ page }) => {
+    const gates = { giftReads: 0, session: null, owner: "guest", offers: [] };
+    await H.installCarouselCatalogStub(page, paidCarouselFlags());
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await showRecommendedPage(page);
+    await advanceUntilRecommendedAppend(page);
+    await releaseRecommendedAppend(page);
+    await page.locator("#newBooksCarousel").dispatchEvent("mouseenter");
+    await expect.poll(async () => {
+      const ids = await attrValues(page, "#homeCarouselTrack [data-cart-id]", "data-cart-id");
+      return ids.slice().sort();
+    }).toEqual(Array.from({ length: 16 }, (_, i) => String(97000 + i)));
+    expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await expect(page.locator(".home-carousel-price").first()).toContainText("25");
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Paid 97000");
+    await expect(page.locator("#homeCarouselTrack")).toContainText("Paid 97015");
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 97016");
+    await expect(page.locator(".home-carousel-gift-label")).toHaveCount(0);
+  });
 });
 
 function adminToken(aal) {
