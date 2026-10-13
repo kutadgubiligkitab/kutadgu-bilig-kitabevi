@@ -89,6 +89,7 @@ async function installMemberBoundary(page, gates) {
     if (/\/auth\/v1\//.test(url)) {
       if (gates.holdAuth) await gates.holdAuth;
       if (url.includes("/logout")) {
+        if (gates.holdLogout) await gates.holdLogout;
         gates.session = null;
         gates.userId = "";
         return route.fulfill({ status: 204, body: "" });
@@ -950,6 +951,235 @@ test.describe("members-only physical gift books", () => {
     await expect(page.locator("#homeCarouselTrack")).not.toContainText("Paid 97016");
     await expect(page.locator(".home-carousel-gift-label")).toHaveCount(0);
   });
+
+  async function carouselShift(page) {
+    return page.evaluate(() => {
+      const track = document.querySelector("#homeCarouselTrack");
+      const row = track && track.querySelector(".home-carousel-row");
+      const node = row || track;
+      return node ? getComputedStyle(node).transform : "";
+    });
+  }
+
+  async function moveCarousel(page, options) {
+    await page.locator("#newBooksCarousel").hover();
+    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    if (options && options.dual) {
+      await expect(page.locator("#homeCarouselTrack.is-dual-row .home-carousel-row")).toHaveCount(2);
+    }
+    const start = await carouselShift(page);
+    await page.locator("#carouselNext").click();
+    await expect.poll(() => carouselShift(page)).not.toBe(start);
+    await page.locator("#carouselPrev").click();
+    await expect.poll(() => carouselShift(page)).toBe(start);
+    await page.locator("#carouselNext").click();
+    await expect.poll(() => carouselShift(page)).not.toBe(start);
+    const moved = await carouselShift(page);
+    expect(moved).not.toBe("none");
+    expect(moved).not.toBe("matrix(1, 0, 0, 1, 0, 0)");
+    return moved;
+  }
+
+  async function surfaceGeometry(page, selector) {
+    return page.evaluate((sel) => {
+      const clip = document.querySelector("#homeCarouselViewport");
+      const track = document.querySelector("#homeCarouselTrack");
+      const view = clip.getBoundingClientRect();
+      const nodes = [...document.querySelectorAll(sel)];
+      let node = nodes[0] || null;
+      let best = -1;
+      nodes.forEach((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(rect.right, view.right) - Math.max(rect.left, view.left));
+        if (overlap > best) {
+          best = overlap;
+          node = candidate;
+        }
+      });
+      const rect = node ? node.getBoundingClientRect() : { x: 0, y: 0, width: 0, height: 0, left: 0, right: 0, top: 0, bottom: 0 };
+      const left = Math.max(rect.left, view.left);
+      const right = Math.min(rect.right, view.right);
+      const top = Math.max(rect.top, view.top);
+      const bottom = Math.min(rect.bottom, view.bottom);
+      const x = rect.left + Math.min(Math.max(rect.width / 2, 8), Math.max(rect.width - 8, 0));
+      const y = rect.top + Math.min(Math.max(rect.height / 2, 8), Math.max(rect.height - 8, 0));
+      const hit = document.elementFromPoint(x, y);
+      const insideClip = !!(clip && hit && (hit === clip || clip.contains(hit)));
+      return {
+        count: nodes.length,
+        transform: track ? getComputedStyle(track).transform : "",
+        message: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        viewport: { x: view.x, y: view.y, width: view.width, height: view.height },
+        overlapW: Math.max(0, right - left),
+        overlapH: Math.max(0, bottom - top),
+        hit: !!(node && insideClip && (hit === node || node.contains(hit) || hit.contains(node))),
+        point: { x, y }
+      };
+    }, selector);
+  }
+
+  async function expectInsideCarousel(page, testInfo, selector, shot) {
+    const action = page.locator(selector).locator("a, button").first();
+    const target = (await action.count()) ? action : page.locator(selector);
+    await page.locator(selector).first().scrollIntoViewIfNeeded();
+    const geometry = await surfaceGeometry(page, selector);
+    await page.screenshot({ path: testInfo.outputPath(shot + ".png") });
+    expect(geometry.overlapW, JSON.stringify(geometry)).toBeGreaterThan(24);
+    expect(geometry.overlapH, JSON.stringify(geometry)).toBeGreaterThan(24);
+    expect(geometry.hit, JSON.stringify(geometry)).toBe(true);
+    if (await action.count()) {
+      await target.focus();
+      await expect(target).toBeFocused();
+    }
+    return geometry;
+  }
+
+  test("a moved recommended track keeps the guest invitation inside the carousel", async ({ page }, testInfo) => {
+    await page.addInitScript(() => localStorage.setItem("kutadgu-theme", "light"));
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, pageRecommended: true, recommendedTotal: 12 });
+    await installMemberBoundary(page, { giftReads: 0, offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)] });
+    await openHome(page, 1280);
+    await moveCarousel(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='guest']")).toContainText("ئەزا بولۇش");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='guest']", "guest-1280-light");
+    await page.locator("[data-gift-state='guest'] a").press("Enter");
+    await expect(page).toHaveURL(/account\.html#signup/);
+    await expect(page.locator("#signupForm")).toBeVisible();
+    await expect(page.locator("#loginForm")).toBeHidden();
+    await expect(page.locator("#signupEmail")).toHaveValue("");
+  });
+
+  test("a moved narrow dark track keeps the guest invitation inside the carousel", async ({ page }, testInfo) => {
+    await page.addInitScript(() => localStorage.setItem("kutadgu-theme", "dark"));
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, pageRecommended: true, recommendedTotal: 12 });
+    await installMemberBoundary(page, { giftReads: 0, offers: [] });
+    await openHome(page, 390);
+    await page.setViewportSize({ width: 390, height: 800 });
+    await moveCarousel(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    const geometry = await expectInsideCarousel(page, testInfo, "[data-gift-state='guest']", "guest-390-dark");
+    expect(await page.locator("body").evaluate((el) => el.classList.contains("dark-mode"))).toBe(true);
+    expect(geometry.viewport.width).toBeLessThan(400);
+  });
+
+  test("a moved track keeps empty, error, loading, and unavailable gift surfaces inside the carousel", async ({ page }, testInfo) => {
+    const book = giftBook(95077, "سوۋغا كىتاب");
+    const offers = [offerRow(book, true), offerRow(giftBook(95078, "ئىككىنچى سوۋغا"), true), offerRow(giftBook(95079, "ئۈچىنچى سوۋغا"), true), offerRow(giftBook(95080, "تۆتىنچى سوۋغا"), true), offerRow(giftBook(95081, "بەشىنچى سوۋغا"), true), offerRow(giftBook(95082, "ئالتىنچى سوۋغا"), true)];
+    const held = hold();
+    const gates = { giftReads: 0, session: sessionFor(MEMBER), owner: MEMBER, offers: () => offers };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: true, bestseller: false, pageRecommended: true, recommendedTotal: 12 });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator("[data-gift-request='95077']")).not.toHaveCount(0);
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await moveCarousel(page);
+    gates.holdGifts = held.promise;
+    gates.holdGiftRead = gates.giftReads + 1;
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("#homeCarouselTrack .is-skeleton").first()).toBeVisible();
+    await expectInsideCarousel(page, testInfo, "#homeCarouselTrack .is-skeleton", "gift-loading-1280");
+    held.release();
+    await expect(page.locator("[data-gift-request='95077']").first()).toBeVisible();
+    await moveCarousel(page);
+    offers.forEach((row) => { row.enabled = false; });
+    await page.evaluate(() => {
+      const view = document.querySelector("#homeCarouselViewport").getBoundingClientRect();
+      const button = [...document.querySelectorAll("[data-gift-request]")].find((item) => {
+        const rect = item.getBoundingClientRect();
+        return rect.left < view.right && rect.right > view.left && rect.top < view.bottom && rect.bottom > view.top;
+      });
+      if (button) button.click();
+    });
+    await expect(page.locator("[data-gift-state='unavailable']")).toContainText("بۇ سوۋغا ھازىر ئىشلەتكىلى بولمايدۇ");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='unavailable']", "gift-unavailable-1280");
+    offers.splice(0, offers.length);
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]").first()).toBeVisible();
+    await moveCarousel(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='empty']")).toContainText("ھازىر سوۋغا قىلىنىدىغان كىتاب يوق");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='empty']", "gift-empty-1280");
+    gates.failGifts = true;
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    await moveCarousel(page);
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='error']")).toContainText("سوۋغا كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='error']", "gift-error-1280");
+    gates.failGifts = false;
+    gates.holdGifts = null;
+    offers.push(offerRow(book, true));
+    await page.locator("[data-gift-retry]").press("Enter");
+    await expect(page.locator("[data-gift-request='95077']").first()).toBeVisible();
+    const card = await surfaceGeometry(page, "[data-gift-request='95077']");
+    expect(card.overlapW, JSON.stringify(card)).toBeGreaterThan(24);
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    const paid = await surfaceGeometry(page, "#homeCarouselTrack [data-cart-id]");
+    expect(paid.overlapW, JSON.stringify(paid)).toBeGreaterThan(24);
+    expect(await page.locator("#homeCarouselTrack .home-carousel-price").count()).toBeGreaterThan(0);
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]").first()).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator("#homeCarouselTrack [data-cart-id]").first()).toBeVisible();
+  });
+
+  test("a moved two-row track keeps the blocked gift message and later cards inside the carousel", async ({ page }, testInfo) => {
+    await page.addInitScript(() => {
+      window.KUTADGU_APP_CONFIG = Object.assign({}, window.KUTADGU_APP_CONFIG, {
+        carousel: { desktopRows: 2, desktopCardsPerRow: 2 }
+      });
+      localStorage.setItem("kutadgu-theme", "dark");
+    });
+    const logoutHold = hold();
+    const gates = { giftReads: 0, offers: [offerRow(giftBook(91001, "يوشۇرۇن سوۋغا"), true)] };
+    await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, pageRecommended: true, recommendedTotal: 12 });
+    await installMemberBoundary(page, gates);
+    await openHome(page, 1280);
+    await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
+    await moveCarousel(page, { dual: true });
+    gates.holdLogout = logoutHold.promise;
+    gates.profileStatus = "suspended";
+    gates.session = sessionFor(MEMBER);
+    gates.owner = MEMBER;
+    await page.evaluate((next) => {
+      window.KutadguMember.getClient().auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
+    }, gates.session);
+    await expect(page.locator(".member-account-button.is-blocked")).toContainText("توختىتىلغان");
+    await page.locator('[data-carousel-mode="gifts"]').click();
+    await expect(page.locator("[data-gift-state='blocked']")).toContainText("بۇ ھېساب ۋاقتىنچە توختىتىلغان");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='blocked']", "gift-blocked-two-row");
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='blocked']", "gift-blocked-390-dark");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    logoutHold.release();
+    gates.holdLogout = null;
+    await expect(page.locator("[data-gift-state='guest']")).toContainText("ئەزا بولۇش");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='guest']", "gift-guest-after-blocked");
+    gates.missingProfile = true;
+    gates.session = sessionFor(OTHER);
+    await page.evaluate(async (next) => {
+      const client = window.KutadguMember.getClient();
+      await client.auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
+    }, gates.session);
+    await expect(page.locator("[data-gift-state='unresolved']")).toContainText("ھېساب ھالىتى تېخى جەزملەشمىدى");
+    await expectInsideCarousel(page, testInfo, "[data-gift-state='unresolved']", "gift-unresolved-two-row");
+    gates.missingProfile = false;
+    gates.profileStatus = "active";
+    gates.session = sessionFor(MEMBER);
+    await page.evaluate(async (next) => {
+      const client = window.KutadguMember.getClient();
+      await client.auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
+    }, gates.session);
+    await expect(page.locator("[data-gift-request='91001']").first()).toBeVisible();
+    const gift = await surfaceGeometry(page, "[data-gift-request='91001']");
+    expect(gift.overlapW, JSON.stringify(gift)).toBeGreaterThan(24);
+    await page.screenshot({ path: testInfo.outputPath("gift-card-two-row.png") });
+    await page.setViewportSize({ width: 390, height: 800 });
+    await expect(page.locator("[data-gift-request='91001']").first()).toBeVisible();
+    await page.locator('[data-carousel-mode="recommended"]').click();
+    const paid = await surfaceGeometry(page, "#homeCarouselTrack [data-cart-id]");
+    expect(paid.overlapW, JSON.stringify(paid)).toBeGreaterThan(24);
+  });
 });
 
 function adminToken(aal) {
@@ -1114,4 +1344,5 @@ test.describe("admin gift selection", () => {
     await expect(page.locator("#bookTitle")).toHaveValue("ئىككىنچى");
     await expect(page.locator("#bookIsGift")).not.toBeChecked();
   });
+
 });
