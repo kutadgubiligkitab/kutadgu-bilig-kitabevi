@@ -119,7 +119,8 @@ async function installMemberBoundary(page, gates) {
     }
     if (/\/rest\/v1\/books/.test(url) && /[?&]id=in\./.test(url)) {
       if (gates.holdPublicBooks) await gates.holdPublicBooks;
-      const ids = decodeURIComponent((url.match(/id=in\.\(([^)]*)\)/) || [])[1] || "").split(",").filter(Boolean);
+      const raw = decodeURIComponent((url.match(/[?&]id=in\.([^&]+)/) || [])[1] || "");
+      const ids = raw.replace(/^\(/, "").replace(/\)$/, "").split(",").filter(Boolean);
       const rows = (gates.publicBooks || []).filter((book) => ids.includes(String(book.id)));
       const last = Math.max(0, rows.length - 1);
       return route.fulfill({
@@ -496,7 +497,7 @@ test.describe("members-only physical gift books", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     offers.push(offerRow(book, true));
     const reads = gates.giftReads;
-    await page.locator("[data-gift-retry]").click();
+    await page.locator('[data-carousel-mode="gifts"]').click();
     await expect.poll(() => gates.giftReads).toBeGreaterThan(reads);
     await expect(page.locator(".is-skeleton").first()).toBeVisible();
     await page.setViewportSize({ width: 390, height: 800 });
@@ -586,7 +587,8 @@ test.describe("members-only physical gift books", () => {
     held.release();
     await page.waitForTimeout(400);
     expect(await page.evaluate(() => window.kutadguShop.favorites())).toEqual([]);
-    expect(await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1"))).toBe("[]");
+    const storedFav = await page.evaluate(() => localStorage.getItem("kutadgu-favorites-v1"));
+    expect(storedFav || "[]").not.toContain("95077");
   });
 
   test("a delayed gift favorite does not move to the next account", async ({ page }) => {

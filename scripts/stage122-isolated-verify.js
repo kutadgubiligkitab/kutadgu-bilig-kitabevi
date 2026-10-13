@@ -181,10 +181,11 @@ async function postgrestProof(pgPort, client, id) {
   let memberRows = [];
   try { memberRows = JSON.parse(member.text); } catch (error) { memberRows = []; }
   const memberIds = Array.isArray(memberRows) ? memberRows.map((row) => Number(row.book_id)).sort((a, b) => a - b) : [];
-  const expectedIds = [Number(id.available), Number(id.unconfigured)].sort((a, b) => a - b);
+  const expectedIds = [Number(id.available), Number(id.unconfigured), Number(id["new gift"])].sort((a, b) => a - b);
+  const memberDetail = "status " + member.status + " ids " + memberIds.join(",") + " expected " + expectedIds.join(",") + " books " + (Array.isArray(memberRows) ? memberRows.map((row) => row.books && row.books.title).join("|") : "unparsed");
   check("PostgREST active member reads enabled requestable offers",
     member.status === 200 && memberIds.join(",") === expectedIds.join(",") && memberRows.every((row) => row.enabled === true && row.books && row.books.title),
-    String(member.status) + " " + member.text.slice(0, 400));
+    memberDetail);
   const suspended = await http("GET", memberSelect, jwt({ role: "authenticated", sub: SUSPENDED, aal: "aal1" }));
   check("PostgREST suspended profile reads no offers", suspended.status === 200 && suspended.text === "[]", suspended.text.slice(0, 180));
   const missing = await http("GET", memberSelect, jwt({ role: "authenticated", sub: NOPROFILE, aal: "aal1" }));
@@ -359,6 +360,7 @@ async function main() {
       "count " + adminRows.length);
 
     const extraBook = await client.query("insert into public.books (title, stock, is_active, submission_status) values ('new gift', 2, true, 'approved') returning id");
+    id["new gift"] = extraBook.rows[0].id;
     const created = await asRole(client, "authenticated", ADMIN, "aal2", () =>
       client.query("insert into public.gift_book_offers (book_id, enabled) values ($1, true) returning book_id, enabled", [extraBook.rows[0].id])
     );
