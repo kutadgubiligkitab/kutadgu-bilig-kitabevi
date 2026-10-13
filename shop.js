@@ -5397,23 +5397,36 @@ async function setupHomeCarousel(){
     if(kind==="error")return '<div class="empty-state shop-section-empty" data-gift-state="error"><p>سوۋغا كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><p><button type="button" data-gift-retry="1">قايتا سىناش</button></p></div>';
     return '<div class="empty-state shop-section-empty" data-gift-state="unresolved">ھېساب ھالىتى تېخى جەزملەشمىدى. سوۋغا تىزىملىكى كۆرسىتىلمەيدۇ.</div>';
   }
-  function paintGiftMessage(kind){
+  function placeGiftSurface(html){
     stop();
     giftSurfaceReady=false;
     list=[];
+    index=0;
+    loopPad=0;
     dotsHost.innerHTML="";
     host.removeAttribute("aria-busy");
-    host.innerHTML=giftStateMarkup(kind);
+    host.classList.remove("is-dual-row");
+    host.classList.add("is-single-row");
+    host.style.transition="none";
+    host.style.transform="translateX(0)";
+    host.querySelectorAll(".home-carousel-row").forEach(row=>{
+      row.style.transition="none";
+      row.style.transform="translateX(0)";
+    });
+    void host.offsetWidth;
+    host.style.transition="";
+    host.innerHTML=html;
+  }
+  function paintGiftMessage(kind){
+    placeGiftSurface(giftStateMarkup(kind));
   }
   async function renderGiftSurface(){
     const token=++giftPaintToken;
     const epoch=giftEpoch;
     const owner=giftOwnerId;
     const decision=giftViewerDecision(giftViewerState());
-    giftSurfaceReady=false;
     if(decision!=="member"){paintGiftMessage(decision);return}
-    list=[];
-    if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
+    placeGiftSurface(homeCarouselSkeletonMarkup(4));
     host.setAttribute("aria-busy","true");
     let result;
     try{result=await loadGiftOffers(epoch)}
@@ -5446,12 +5459,7 @@ async function setupHomeCarousel(){
       if(epoch!==giftEpoch||owner!==giftOwnerId||mode!=="gifts")return;
       if(!verified.ok){
         if(verified.reason==="unavailable"){
-          stop();
-          giftSurfaceReady=false;
-          list=[];
-          dotsHost.innerHTML="";
-          host.removeAttribute("aria-busy");
-          host.innerHTML='<div class="empty-state shop-section-empty" data-gift-state="unavailable">بۇ سوۋغا ھازىر ئىشلەتكىلى بولمايدۇ.</div>';
+          placeGiftSurface('<div class="empty-state shop-section-empty" data-gift-state="unavailable">بۇ سوۋغا ھازىر ئىشلەتكىلى بولمايدۇ.</div>');
         }else paintGiftMessage("error");
         return;
       }
@@ -5674,10 +5682,7 @@ async function setupHomeCarousel(){
     invalidateCarouselRequests();
     invalidateGiftReads();
     if(mode==="gifts"){
-      giftSurfaceReady=false;
-      list=[];
-      host.innerHTML="";
-      host.removeAttribute("aria-busy");
+      placeGiftSurface("");
       renderGiftSurface();
     }
     return true;
