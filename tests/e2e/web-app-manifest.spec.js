@@ -7,6 +7,30 @@ async function themeIsDark(page) {
   return page.locator("body").evaluate((el) => el.classList.contains("dark-mode"));
 }
 
+async function setTheme(page, dark) {
+  if ((await themeIsDark(page)) === dark) return;
+  let button = page.locator(".theme-button:visible, .theme-toggle:visible").first();
+  if (!(await button.count())) {
+    await page.locator(".mobile-menu-toggle:visible").first().click();
+    button = page.locator(".theme-button:visible, .theme-toggle:visible").first();
+  }
+  await button.click();
+  await expect.poll(() => themeIsDark(page)).toBe(dark);
+}
+
+async function closeMobileMenu(page) {
+  const menu = page.locator("#mobileSiteMenu.is-open");
+  if (!(await menu.count())) return;
+  await page.locator(".mobile-menu-toggle").first().click();
+  await expect(menu).toHaveCount(0);
+}
+
+async function clickVisibleHref(page, href) {
+  const link = page.locator(`a[href="${href}"]:visible`).first();
+  await expect(link).toBeVisible();
+  await link.click();
+}
+
 async function noHorizontalOverflow(page) {
   const box = await page.locator("body").evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
@@ -16,6 +40,7 @@ async function noHorizontalOverflow(page) {
 }
 
 test("ordinary tab parses the manifest and keeps storefront navigation online", async ({ page }) => {
+  test.setTimeout(150000);
   await H.installReadSafeNetwork(page);
   const parsed = await page.goto("/", { waitUntil: "domcontentloaded" }).then(async () => {
     const client = await page.context().newCDPSession(page);
@@ -36,10 +61,18 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
     sizes: "1254x1254",
     type: "image/png"
   }]);
-  if (parsed.parsed) {
-    expect(parsed.parsed.name).toBe(NAME);
-    expect(String(parsed.parsed.display || "")).toMatch(/standalone/i);
-  }
+  const app = parsed.manifest;
+  expect(app.name).toBe(NAME);
+  expect(app.id).toBe(new URL("/", page.url()).href);
+  expect(app.startUrl).toBe(new URL("/", page.url()).href);
+  expect(app.scope).toBe(new URL("/", page.url()).href);
+  expect(app.display).toBe("kStandalone");
+  expect(app.orientation).toBe("DEFAULT");
+  expect(app.icons).toEqual([{
+    url: new URL("/kutadgu-logo.png", page.url()).href,
+    sizes: "1254x1254",
+    type: "image/png"
+  }]);
   const icon = await page.evaluate(async () => {
     const response = await fetch("/kutadgu-logo.png");
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -84,21 +117,26 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
     await H.openFresh(page, "/");
     expect(await themeIsDark(page)).toBe(false);
     await noHorizontalOverflow(page);
-    await page.locator("#themeButton").click();
-    await expect.poll(() => themeIsDark(page)).toBe(true);
+    await setTheme(page, true);
+    await closeMobileMenu(page);
     await noHorizontalOverflow(page);
-    await page.locator("#themeButton").click();
-    await expect.poll(() => themeIsDark(page)).toBe(false);
+    await setTheme(page, false);
+    await closeMobileMenu(page);
 
-    const book = page.locator('a[href^="/book/"]').first();
+    const book = page.locator("#homeFeaturedBooks a[href^='/book/']:visible").first();
     await expect(book).toBeVisible();
     await book.click();
     await expect(page).toHaveURL(/\/book\/\d+/);
-    await page.locator('a[href="/cart.html"]').first().click();
+    const add = page.locator(".detail-main-cart").first();
+    await expect(add).toBeEnabled();
+    await add.click();
+    await clickVisibleHref(page, "/cart.html");
     await expect(page).toHaveURL(/\/cart\.html$/);
+    await expect(page.locator("#cartItems")).toBeVisible();
     await expect(page.locator("#whatsappOrder")).toBeVisible();
-    await page.locator('a[href="/favorites.html"]').first().click();
+    await clickVisibleHref(page, "/favorites.html");
     await expect(page).toHaveURL(/\/favorites\.html$/);
+    await expect(page.locator("main, #favorites, h1").first()).toBeVisible();
     await page.goto("/account.html#signup", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#loginForm")).toBeHidden();
