@@ -738,8 +738,8 @@ test.describe("members-only physical gift books", () => {
     await page.locator("#newBooksCarousel").hover();
     await page.locator('[data-carousel-mode="recommended"]').click();
     await expect(page.locator('[data-carousel-mode="recommended"]')).toHaveClass(/is-active/);
-    await expect(page.locator("[data-cart-id='97000']")).toBeVisible();
-    await expect(page.locator("[data-cart-id='97007']")).toBeVisible();
+    await expect(page.locator("[data-cart-id='97000']").first()).toBeVisible();
+    await expect(page.locator("[data-cart-id='97007']").first()).toBeVisible();
     await expect(page.locator("[data-cart-id='97008']")).toHaveCount(0);
     expect(await attrValues(page, "#homeCarouselTrack [data-gift-request]", "data-gift-request")).toEqual([]);
   }

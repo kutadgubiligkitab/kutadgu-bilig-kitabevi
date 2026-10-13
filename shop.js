@@ -5527,7 +5527,15 @@ async function setupHomeCarousel(){
     host.removeAttribute("aria-busy");
     if(fadeFromSkel)host.classList.add("home-catalog-fade");
   }
+  function invalidateCarouselRequests(){
+    modeRequestId+=1;
+    if(modeController){
+      modeController.abort();
+      modeController=null;
+    }
+  }
   async function setMode(nextMode){
+    invalidateCarouselRequests();
     mode=(enabledModes.includes(nextMode)||nextMode==="gifts")?nextMode:(enabledModes[0]||nextMode);
     tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
     if(mode!=="gifts")giftSurfaceReady=false;
@@ -5559,14 +5567,24 @@ async function setupHomeCarousel(){
   async function next(){
     if(!list.length)return;
     const vis=visibleCount();
-    const cached=modeCache.get(mode);
+    const requestedMode=mode;
+    const generation=modeRequestId;
+    const cached=modeCache.get(requestedMode);
+    let appliedGeneration=generation;
     if(!isDual()&&index>=list.length-vis&&cached?.hasMore&&cached.items.length<24){
       try{
         const keep=index;
-        const loaded=await loadMode(mode,true);
+        const loaded=await loadMode(requestedMode,true);
+        if(mode!==requestedMode||modeRequestId!==generation+1)return;
         list=loaded.items;draw();index=Math.min(keep,Math.max(0,list.length-1));move(false);
-      }catch(error){if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error)}
+        appliedGeneration=generation+1;
+      }catch(error){
+        if(mode!==requestedMode||modeRequestId!==generation+1)return;
+        if(error?.name!=="AbortError")console.warn("More carousel books could not be loaded.",error);
+        appliedGeneration=generation+1;
+      }
     }
+    if(mode!==requestedMode||modeRequestId!==appliedGeneration)return;
     if(isDual()){index=index>=maxIndex()?0:index+1;move(true);return}
     if(list.length<=vis){index=0;move(true);return}
     index+=1;move(true);
@@ -5653,6 +5671,7 @@ async function setupHomeCarousel(){
     giftOwnerKey=nextKey;
     giftOwnerId=nextId;
     if(!hadOwner)return false;
+    invalidateCarouselRequests();
     invalidateGiftReads();
     if(mode==="gifts"){
       giftSurfaceReady=false;
