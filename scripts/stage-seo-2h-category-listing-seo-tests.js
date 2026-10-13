@@ -25,14 +25,14 @@ const NEW_HUBS = {
   taamlar: { label: "تائاملار" }
 };
 const FROZEN = {
-  "shop.js": "0cd57b09893596843aeb71bb794e2ea71504df4310c138fc7deacba95299d52b",
+  "shop.js": "e14304588d5b46e0aca3f883df9558e71e12b1ebe18ade48bda7f12bd857e960",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "3d60c83fa82647928090cd4a156decaffa0e2afaf2b4431571e9787fe0d35562",
-  "index.html": "76620f9e42fc0305fc156597d1b2c52305ef85201c7529c6b2d96dd1587eadbe",
+  "book-shell.html": "790aa7ef157a8fac784613c1f3f5c1476345c8f79a41800a5a3c01f7ea6579e7",
+  "index.html": "5809ed54f865898bcc6142710f5aba8cd5a90b8387b1a5ce09a56f4182fce16b",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -187,7 +187,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=155/);
+    assert.match(html, /shop\.js\?v=156/);
     if (NEW_HUBS[slug]) {
       assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), `${slug}.html`);
       assert.strictEqual(attr(html, /data-catalog-sources="([^"]*)"/) || "", "");
@@ -251,7 +251,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=155/);
+  assert.match(html, /shop\.js\?v=156/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
@@ -814,7 +814,12 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/guest-cart-invite-persistence.spec.js",
     "scripts/compact-order-message-tests.js",
     "tests/e2e/compact-order-message.spec.js",
-    "tests/e2e/admin-feedback.spec.js"
+    "tests/e2e/admin-feedback.spec.js",
+    "STAGE122_GIFT_BOOK_OFFERS.sql",
+    "STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql",
+    "scripts/gift-book-offer-tests.js",
+    "scripts/stage122-isolated-verify.js",
+    "tests/e2e/gift-book-offers.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));
