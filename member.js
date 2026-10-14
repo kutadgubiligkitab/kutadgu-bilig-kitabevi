@@ -10,7 +10,7 @@ const SHOP_OWNER_KEY="kutadgu-shop-owner-v1";
 const SHOP_OWNER_GUEST="guest";
 const SHOP_OWNER_STALE="stale";
 const SDK_URL="/vendor/supabase-js-2.45.4.umd.js";
-let db=null,user=null,profile=null,blocked=false,suspensionNotice=false,initError=null;
+let db=null,user=null,profile=null,blocked=false,initError=null;
 let applyChain=Promise.resolve(),lastLoginRecordedAt=0;
 let sessionBootDone=false,recoveredIdentityId="";
 let readyResolve;
@@ -953,8 +953,7 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
   const nextId=nextUser&&nextUser.id?String(nextUser.id):"";
   const prevId=user&&user.id?String(user.id):"";
   if(nextId!==prevId)resetMemberShopSyncState();
-  if(nextUser)suspensionNotice=false;
-  user=nextUser;profile=null;blocked=!nextUser&&suspensionNotice;
+  user=nextUser;profile=null;blocked=false;
   if(user&&sync)beginPreMergeShopSnapshot(user.id);
   previewShopDebug("apply-session",{
     user:idSuffix(user&&user.id),
@@ -969,7 +968,7 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
     try{
       await fetchProfile();
       if(profile?.status==="suspended"){
-        suspensionNotice=true;blocked=true;renderButton();emit();await db.auth.signOut({scope:"local"});user=null;blocked=true;renderButton();return;
+        blocked=true;renderButton();emit();await db.auth.signOut({scope:"local"});user=null;return;
       }
       if(trackLogin&&Date.now()-lastLoginRecordedAt>5000){
         await db.rpc("record_member_login");lastLoginRecordedAt=Date.now();
@@ -1161,7 +1160,7 @@ async function init(){
       if(event==="SIGNED_OUT"){
         abandonMemberShopSync();
         recoveredIdentityId="signed-out";
-        user=null;profile=null;if(!suspensionNotice)blocked=false;
+        user=null;profile=null;blocked=false;
         if(window.KutadguWebsiteFeedback&&typeof window.KutadguWebsiteFeedback.beginSignOut==="function")window.KutadguWebsiteFeedback.beginSignOut();
       }
       if(event==="INITIAL_SESSION"||event==="TOKEN_REFRESHED"||event==="USER_UPDATED"){

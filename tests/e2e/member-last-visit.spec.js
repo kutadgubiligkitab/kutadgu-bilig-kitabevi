@@ -105,8 +105,24 @@ test("rejected authentication and a suspended member do not keep a visit", async
   expect(await visitKey(page, USER)).toBeNull();
 
   const suspended = await install(page, OTHER, "email", "suspended");
+  await page.addInitScript(() => {
+    window.__kutadguSawSuspendedNotice = false;
+    const watch = () => {
+      document.querySelectorAll("a,button").forEach((node) => {
+        if (String(node.textContent || "").includes("ھېساب توختىتىلغان")) window.__kutadguSawSuspendedNotice = true;
+      });
+    };
+    const start = () => {
+      if (start.done) return;
+      start.done = true;
+      watch();
+      new MutationObserver(watch).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+    else start();
+  });
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText("ھېساب توختىتىلغان")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__kutadguSawSuspendedNotice === true)).toBe(true);
   expect(suspended.visits.length).toBe(0);
   expect(await visitKey(page, OTHER)).toBeNull();
 });
