@@ -173,7 +173,7 @@ test("Google OAuth uses PKCE and same-origin account helper", () => {
   assert.match(member, /signOut\(\{scope:"local"\}\)/);
   assert.doesNotMatch(member, /exchangeCodeForSession/);
   assert.doesNotMatch(read("account.js"), /exchangeCodeForSession/);
-  assert.match(account, /member\.js\?v=31/);
+  assert.match(account, /member\.js\?v=32/);
   assert.doesNotMatch(account, /member\.js\?v=25/);
   assert.match(read("shop.js"), /member\.js\?v=31/);
   assert.doesNotMatch(read("shop.js"), /member\.js\?v=25/);

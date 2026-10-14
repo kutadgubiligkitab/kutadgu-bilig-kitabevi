@@ -104,10 +104,11 @@ test("password signup posts no country and keeps confirmation, rejection, and se
   await expect(page.locator("#authStatus")).not.toContainText("ئەزالىق ئېچىش مەغلۇپ");
   expect(await page.evaluate(() => window.__oauthPosts || [])).toEqual([]);
 
-  await page.goto("/account.html#signup", { waitUntil: "domcontentloaded" });
+  await page.locator("#memberLogout").click();
+  await expect(page.locator("#loginForm")).toBeVisible();
+  await page.goto("/account.html?retry=1#signup", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#signupForm")).toBeVisible();
   await page.evaluate(() => { window.__signupMode = "reject"; });
-  await page.locator("[data-auth-tab='signup']").click();
   await fillSignup(page, "weak@example.com");
   await expect(page.locator("#authStatus")).toContainText("مەغلۇپ بولدى");
   await expect(page.locator("#signupForm")).toBeVisible();
@@ -128,7 +129,7 @@ test("signup confirmation and an existing login stay stable in both themes and a
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 800 : 900 });
     for (const dark of [false, true]) {
-      await page.goto("/account.html#signup", { waitUntil: "domcontentloaded" });
+      await page.goto("/account.html?pass=" + width + "-" + (dark ? "dark" : "light") + "#signup", { waitUntil: "domcontentloaded" });
       await page.evaluate((isDark) => {
         document.body.classList.toggle("dark-mode", isDark);
       }, dark);

@@ -110,6 +110,35 @@ async function mockBooks(page) {
   });
 }
 
+function answerSignup(route, gates) {
+  if (gates.abortSignup) return route.abort("failed");
+  if (gates.failSignup) {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "signup_failed", message: "signup failed" })
+    });
+  }
+  if (gates.signupMode === "confirm") {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: gates.userId,
+        aud: "authenticated",
+        email: gates.email,
+        role: "authenticated",
+        identities: [{ provider: "email", user_id: gates.userId }]
+      })
+    });
+  }
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(sessionFor(gates.userId, gates.email))
+  });
+}
+
 async function installBoundary(page, gates) {
   const leaks = [];
   let cloudCart = (gates.cloudCart || []).map((row) => ({
@@ -132,38 +161,16 @@ async function installBoundary(page, gates) {
     }
     return route.fallback();
   });
+  await page.route("**/api/member-signup", async (route) => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    return answerSignup(route, gates);
+  });
   await page.route("**/auth/v1/**", async (route) => {
     const request = route.request();
     const method = request.method();
     const url = request.url();
     if (method === "OPTIONS") return route.fulfill({ status: 204, body: "" });
-    if (url.includes("/signup")) {
-      if (gates.abortSignup) return route.abort("failed");
-      if (gates.failSignup) {
-        return route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ code: "signup_failed", message: "signup failed" })
-        });
-      }
-      if (gates.signupMode === "confirm") {
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: gates.userId,
-            aud: "authenticated",
-            email: gates.email,
-            role: "authenticated"
-          })
-        });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(sessionFor(gates.userId, gates.email))
-      });
-    }
+    if (url.includes("/signup")) return answerSignup(route, gates);
     if (url.includes("/token")) {
       return route.fulfill({
         status: 200,

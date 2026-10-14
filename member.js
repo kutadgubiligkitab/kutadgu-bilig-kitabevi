@@ -1010,7 +1010,19 @@ async function postMemberSignup({email,password,fullName}){
     error.status=response.status;
     return {data:null,error};
   }
-  return {data:payload||{},error:null};
+  return {data:signupData(payload),error:null};
+}
+function signupData(payload){
+  if(!payload||typeof payload!=="object")return {user:null,session:null};
+  if(payload.session&&typeof payload.session==="object"){
+    return {user:payload.user||payload.session.user||null,session:payload.session};
+  }
+  if(typeof payload.access_token==="string"&&payload.access_token){
+    return {user:payload.user||null,session:payload};
+  }
+  if(payload.user&&typeof payload.user==="object")return {user:payload.user,session:null};
+  if(payload.id)return {user:payload,session:null};
+  return {user:null,session:null};
 }
 async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");

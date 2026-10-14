@@ -295,7 +295,7 @@ async function main() {
     const fresh = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     await client.query("insert into auth.users (id, created_at) values ($1, clock_timestamp())", [fresh]);
     await client.query(
-      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'signup-country@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad')",
+      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'fresh-signup@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad')",
       [fresh]
     );
     await asRole(client, "service_role", null, "aal1", () => client.query(
@@ -338,7 +338,7 @@ async function main() {
     const codeSearch = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
       "select public.admin_member_directory_page('TR', 'all', 'all', 0) as payload"
     ));
-    check("signup country is not a directory search field", codeSearch.rows[0].payload.total === 0);
+    check("signup country is not a directory search field", codeSearch.rows[0].payload.total === 0, JSON.stringify(codeSearch.rows[0].payload.rows.map((row) => [row.email, row.country, row.signup_country])));
     await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY_ROLLBACK.sql"));
     const dropped = await client.query("select to_regclass('public.member_signup_country') as name");
     const recorder = await client.query("select proname from pg_proc where proname = 'record_member_signup_country'");

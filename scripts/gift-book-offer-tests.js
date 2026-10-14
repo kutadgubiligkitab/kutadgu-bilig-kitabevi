@@ -133,7 +133,7 @@ test("admin gift writes stay outside the book payload", () => {
   assert.match(adminHtml, /id="bookIsGift"/);
   assert.match(adminHtml, /<input id="bookIsGift" type="checkbox"><span>🎁 ھەدىيەلىك كىتاب<\/span>/);
   assert.doesNotMatch(adminHtml, /id="bookIsGift"[\s\S]{0,80}ھەقسىز قەغەز سوۋغا/);
-  assert.match(adminHtml, /admin\.js\?v=111/);
+  assert.match(adminHtml, /admin\.js\?v=112/);
   const planLog = sliceBetween(admin, "function logSavePlan(plan){", "function planCurrentSave");
   assert.match(planLog, /console\.info\("\[kutadgu-admin-save\]",safe\)/);
   assert.match(planLog, /diag\.hidden=true/);

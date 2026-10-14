@@ -180,7 +180,7 @@ test("storefront pages still load shop.js without statically loading member.js",
   assert.doesNotMatch(indexHtml, /src="member\.js/);
   assert.match(cartHtml, /shop\.js\?v=160/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
-  assert.match(accountHtml, /member\.js\?v=31/);
+  assert.match(accountHtml, /member\.js\?v=32/);
   assert.doesNotMatch(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
 });

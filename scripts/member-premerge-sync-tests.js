@@ -354,7 +354,7 @@ test("member.js pin is v=26", () => {
   const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   const account = fs.readFileSync(path.join(root, "account.html"), "utf8");
   assert.match(shop, /member\.js\?v=31/);
-  assert.match(account, /member\.js\?v=31/);
+  assert.match(account, /member\.js\?v=32/);
   assert.doesNotMatch(shop, /member\.js\?v=25/);
   assert.doesNotMatch(account, /member\.js\?v=25/);
 });
