@@ -164,11 +164,14 @@ async function recordVisit(){
   if(!userId||now-last<60000)return;
   const page=`${location.pathname.split("/").pop()||"index.html"}${location.search||""}`;
   let token="";
+  let sessionUserId="";
   try{
-    const session=await db.auth.getSession();
-    token=session&&session.data&&session.data.session&&session.data.session.access_token||"";
+    const sessionResult=await db.auth.getSession();
+    const current=sessionResult&&sessionResult.data&&sessionResult.data.session;
+    token=current&&current.access_token||"";
+    sessionUserId=current&&current.user&&current.user.id?String(current.user.id):"";
   }catch(err){return}
-  if(!token||!user||String(user.id)!==userId)return;
+  if(!token||!sessionUserId||sessionUserId!==userId||!user||String(user.id)!==userId)return;
   let response;
   try{
     response=await fetch("/api/member-visit",{

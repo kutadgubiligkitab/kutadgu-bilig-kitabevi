@@ -111,6 +111,91 @@ test("rejected authentication and a suspended member do not keep a visit", async
   expect(await visitKey(page, OTHER)).toBeNull();
 });
 
+function unsignedToken(userId) {
+  const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })).toString("base64url");
+  return header + "." + payload + ".sig";
+}
+
+test("a delayed getSession cannot send another account token for the pending member", async ({ page }) => {
+  const gate = await install(page, USER, "email", "active");
+  const otherToken = unsignedToken(OTHER);
+  await page.addInitScript((captured) => {
+    window.__visitGate = { holdWhenUser: captured, used: false, held: false, release: null };
+    let current;
+    const wrap = (client) => {
+      const original = client.auth.getSession.bind(client.auth);
+      client.auth.getSession = async (...args) => {
+        const live = window.KutadguMember && window.KutadguMember.getUser && window.KutadguMember.getUser();
+        const liveId = live && live.id ? String(live.id) : "";
+        const fromVisit = String(new Error().stack || "").includes("recordVisit");
+        if (fromVisit && window.__visitGate.holdWhenUser && liveId === window.__visitGate.holdWhenUser && !window.__visitGate.used) {
+          window.__visitGate.used = true;
+          window.__visitGate.held = true;
+          await new Promise((resolve) => { window.__visitGate.release = resolve; });
+        }
+        return original(...args);
+      };
+      return client;
+    };
+    Object.defineProperty(window, "supabase", {
+      configurable: true,
+      get() { return current; },
+      set(value) {
+        current = value;
+        if (value && typeof value.createClient === "function" && !value.__visitWrapped) {
+          const create = value.createClient.bind(value);
+          value.createClient = (...args) => wrap(create(...args));
+          value.__visitWrapped = true;
+        }
+      }
+    });
+  }, USER);
+  await page.route("**/auth/v1/user**", async (route) => {
+    const authorization = String(route.request().headers().authorization || "");
+    const id = authorization.includes(otherToken) ? OTHER : USER;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id,
+        aud: "authenticated",
+        role: "authenticated",
+        email: id.slice(0, 8) + "@example.com",
+        app_metadata: { provider: "email" }
+      })
+    });
+  });
+  await page.goto("/account.html", { waitUntil: "domcontentloaded" });
+  await expect.poll(() => page.evaluate(() => window.__visitGate && window.__visitGate.held)).toBe(true);
+  expect(gate.visits.length).toBe(0);
+  expect(await page.evaluate(() => window.KutadguMember.getUser().id)).toBe(USER);
+  const switched = await page.evaluate(async ({ token, refresh, id }) => {
+    const client = window.KutadguMember.getClient();
+    const result = await client.auth.setSession({ access_token: token, refresh_token: refresh });
+    return {
+      error: result.error && result.error.message || "",
+      sessionUser: result.data && result.data.session && result.data.session.user && result.data.session.user.id || "",
+      appUser: window.KutadguMember.getUser() && window.KutadguMember.getUser().id || ""
+    };
+  }, { token: otherToken, refresh: "refresh-" + OTHER, id: OTHER });
+  expect(switched.error).toBe("");
+  expect(switched.sessionUser).toBe(OTHER);
+  expect(switched.appUser).toBe(USER);
+  expect(gate.visits.length).toBe(0);
+  await page.evaluate(() => window.__visitGate.release());
+  await expect.poll(() => visitKey(page, USER)).toBeNull();
+  await expect.poll(() => gate.visits.length).toBe(1);
+  expect(gate.visits[0].authorization).toBe(otherToken);
+  expect(gate.visits[0].body).toEqual({ page_path: "account.html" });
+  expect(await visitKey(page, USER)).toBeNull();
+  await expect.poll(() => visitKey(page, OTHER)).toBeTruthy();
+});
+
 test("logout and an account switch keep each visit on its own key", async ({ page }) => {
   const gate = await install(page, USER, "email", "active");
   gate.state.mode = "hold";

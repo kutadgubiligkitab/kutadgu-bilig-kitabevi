@@ -96,7 +96,7 @@ test.describe("auth oauth vs recovery", () => {
       [...document.querySelectorAll("script[src]")].map((s) => s.getAttribute("src"))
     );
     expect(scripts.filter((src) => /supabase-config\.js/.test(src))).toEqual(["supabase-config.js?v=22"]);
-    expect(scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=33"]);
+    expect(scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=34"]);
     expect(scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=8"]);
     expect(scripts.join("\n")).not.toMatch(/supabase-config\.js\?v=16/);
     expect(scripts.join("\n")).not.toMatch(/member\.js\?v=25/);

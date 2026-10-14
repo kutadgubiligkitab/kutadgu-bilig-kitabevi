@@ -93,7 +93,14 @@ async function recordVisit(env, fetchImpl, userId, page, country, observedAt) {
   });
 }
 
+function observationTime(deps) {
+  const now = deps && typeof deps.now === "function" ? deps.now() : new Date();
+  const date = now instanceof Date ? now : new Date(now);
+  return date.toISOString();
+}
+
 async function handleMemberVisit(request, env, deps) {
+  const observedAt = observationTime(deps);
   const method = String((request && request.method) || "GET").toUpperCase();
   if (method !== "POST") return emptyResult(405);
   const limited = await readBoundedBody(request);
@@ -112,8 +119,6 @@ async function handleMemberVisit(request, env, deps) {
   }
   if (!userId) return emptyResult(401);
   const country = visitCountry.trustedCountry(request && request.cf);
-  const now = deps && typeof deps.now === "function" ? deps.now() : new Date();
-  const observedAt = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
   let stored;
   try {
     stored = await recordVisit(env, fetchImpl, userId, page, country, observedAt);

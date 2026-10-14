@@ -33,6 +33,8 @@ declare
   v_country text;
   v_page text;
   v_existing timestamptz;
+  v_seen timestamptz;
+  v_latest timestamptz;
 begin
   if p_user_id is null or p_observed_at is null then
     return;
@@ -60,7 +62,17 @@ begin
   where user_id = p_user_id
   for update;
 
-  if not found or v_existing < p_observed_at then
+  select last_seen_at into v_seen
+  from public.profiles
+  where id = p_user_id
+  for update;
+
+  v_latest := v_existing;
+  if v_seen is not null and (v_latest is null or v_seen > v_latest) then
+    v_latest := v_seen;
+  end if;
+
+  if v_latest is null or v_latest < p_observed_at then
     insert into public.member_last_visit (user_id, country, observed_at)
     values (p_user_id, v_country, p_observed_at)
     on conflict (user_id) do update
@@ -86,7 +98,77 @@ $$;
 revoke all on function public.record_member_last_visit(uuid, text, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.record_member_last_visit(uuid, text, text, timestamptz) to service_role;
 
+-- Cached clients still call record_member_visit(text). A newer legacy visit has no
+-- country evidence, so it clears the displayed country. An older call only counts.
+
+create or replace function public.record_member_visit(page_path text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid;
+  v_now timestamptz;
+  v_page text;
+  v_existing timestamptz;
+  v_seen timestamptz;
+  v_latest timestamptz;
+begin
+  v_user := auth.uid();
+  if v_user is null then
+    raise exception 'Authentication required';
+  end if;
+  if not exists (select 1 from auth.users u where u.id = v_user) then
+    return;
+  end if;
+  v_now := now();
+  v_page := left(coalesce(page_path, ''), 500);
+  perform pg_advisory_xact_lock(842124, hashtext(v_user::text));
+
+  select observed_at into v_existing
+  from public.member_last_visit
+  where user_id = v_user
+  for update;
+
+  select last_seen_at into v_seen
+  from public.profiles
+  where id = v_user
+  for update;
+
+  v_latest := v_existing;
+  if v_seen is not null and (v_latest is null or v_seen > v_latest) then
+    v_latest := v_seen;
+  end if;
+
+  if v_latest is null or v_latest < v_now then
+    insert into public.member_last_visit (user_id, country, observed_at)
+    values (v_user, null, v_now)
+    on conflict (user_id) do update
+      set country = null,
+          observed_at = excluded.observed_at;
+    insert into public.profiles (id, email, last_seen_at, visit_count, last_page)
+    select v_user, coalesce(u.email, ''), v_now, 1, v_page
+    from auth.users u
+    where u.id = v_user
+    on conflict (id) do update
+      set last_seen_at = excluded.last_seen_at,
+          visit_count = public.profiles.visit_count + 1,
+          last_page = excluded.last_page,
+          updated_at = v_now;
+  else
+    update public.profiles
+      set visit_count = public.profiles.visit_count + 1
+      where id = v_user;
+  end if;
+end;
+$$;
+
+revoke all on function public.record_member_visit(text) from public, anon;
+grant execute on function public.record_member_visit(text) to authenticated;
+
 -- Paged admin member directory. The last-visit fields are not searchable.
+-- A country is shown only when that visit is still the latest profile activity.
 
 create or replace function public.admin_member_directory_page(
   p_query text,
@@ -169,8 +251,16 @@ begin
       p.last_seen_at,
       p.visit_count,
       p.last_page,
-      lv.country as last_visit_country,
-      lv.observed_at as last_visit_observed_at,
+      case
+        when lv.observed_at is not null and (p.last_seen_at is null or lv.observed_at >= p.last_seen_at)
+        then lv.country
+        else null
+      end as last_visit_country,
+      case
+        when lv.observed_at is not null and (p.last_seen_at is null or lv.observed_at >= p.last_seen_at)
+        then lv.observed_at
+        else null
+      end as last_visit_observed_at,
       coalesce(s.order_count, 0)::integer as order_count,
       coalesce(s.order_total, 0)::numeric as order_total
     from page_ids i

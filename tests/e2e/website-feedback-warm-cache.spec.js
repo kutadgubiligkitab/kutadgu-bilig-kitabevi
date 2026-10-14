@@ -114,10 +114,10 @@ async function expectFreshShop(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const src = await page.locator("script[src*='shop.js']").first().getAttribute("src");
-  expect(src).toContain("shop.js?v=161");
+  expect(src).toContain("shop.js?v=162");
   const live = await page.evaluate(async (url) => (await fetch(url)).text(), src);
   expect(live).toContain('href="/feedback"');
-  expect(live).toContain("member.js?v=33");
+  expect(live).toContain("member.js?v=34");
   expect(live).toContain("my_cart_share_permission");
   expect(live).toContain("noteCartShareAuth");
   expect(live).toContain("دانە ·");
@@ -135,7 +135,7 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   await page.goto("/account.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const memberSrc = await page.locator("script[src*='member.js']").getAttribute("src");
-  expect(memberSrc).toContain("member.js?v=33");
+  expect(memberSrc).toContain("member.js?v=34");
   const memberBody = await page.evaluate(async (url) => (await fetch(url)).text(), memberSrc);
   expect(memberBody).toContain("noteAuthUser");
   expect(memberBody).toContain("noteCartShareSignOut");
@@ -147,8 +147,8 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   expect(accountBody).toContain('"#signup"');
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("پىكىر ۋە تەكلىپ");
-  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=161/);
-  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", "member.js?v=33");
+  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=162/);
+  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", "member.js?v=34");
   const feedbackMember = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='member.js']").src)).text());
   const warmedProductionMember = await page.evaluate(async () => (await fetch("/member.js?v=31")).text());
   expect(feedbackMember).toContain('"/api/member-visit"');

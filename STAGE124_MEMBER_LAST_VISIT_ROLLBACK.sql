@@ -3,6 +3,24 @@
 
 begin;
 
+create or replace function public.record_member_visit(page_path text default '')
+returns void language plpgsql security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  insert into public.profiles (id,email,last_seen_at,visit_count,last_page)
+  select auth.uid(),coalesce(u.email,''),now(),1,left(coalesce(page_path,''),500)
+  from auth.users u where u.id = auth.uid()
+  on conflict (id) do update
+  set last_seen_at = now(),
+      visit_count = public.profiles.visit_count + 1,
+      last_page = left(coalesce(page_path,''),500),
+      updated_at = now();
+end;
+$$;
+revoke all on function public.record_member_visit(text) from public;
+grant execute on function public.record_member_visit(text) to authenticated;
+
 create or replace function public.admin_member_directory_page(
   p_query text,
   p_status text,

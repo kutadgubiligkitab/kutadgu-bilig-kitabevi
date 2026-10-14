@@ -133,6 +133,54 @@ async function test(name, fn) {
     assert.strictEqual(recorded(missing.calls).length, 0);
   });
 
+  await test("an earlier request that finishes after authentication keeps its entry time", async () => {
+    const calls = [];
+    let releaseFirst;
+    const held = new Promise((resolve) => { releaseFirst = resolve; });
+    let markAuthEntered;
+    const authEntered = new Promise((resolve) => { markAuthEntered = resolve; });
+    const clock = { at: new Date("2026-10-14T12:00:00.000Z") };
+    let authCount = 0;
+    const fetchImpl = async (url, init) => {
+      calls.push({ url: String(url), init, body: init && init.body ? JSON.parse(init.body) : null });
+      if (String(url).includes("/auth/v1/user")) {
+        authCount += 1;
+        if (authCount === 1) {
+          markAuthEntered();
+          await held;
+        }
+        return { status: 200, text: async () => JSON.stringify(userPayload(USER, "email")) };
+      }
+      return { status: 204, text: async () => "" };
+    };
+    const env = { SUPABASE_SECRET_KEY: "server-secret" };
+    const first = visit.handleMemberVisit(
+      requestFor({ page_path: "earlier.html" }, { country: "US" }, { authorization: "Bearer first-token" }),
+      env,
+      { fetchImpl, now: () => new Date(clock.at.getTime()) }
+    );
+    await authEntered;
+    clock.at = new Date("2026-10-14T12:05:00.000Z");
+    const second = await visit.handleMemberVisit(
+      requestFor({ page_path: "later.html" }, { country: "TR" }, { authorization: "Bearer second-token" }),
+      env,
+      { fetchImpl, now: () => new Date(clock.at.getTime()) }
+    );
+    releaseFirst();
+    const firstResult = await first;
+    assert.strictEqual(firstResult.status, 204);
+    assert.strictEqual(second.status, 204);
+    const rows = recorded(calls);
+    const earlier = rows.find((row) => row.body.p_page === "earlier.html");
+    const later = rows.find((row) => row.body.p_page === "later.html");
+    assert.ok(earlier && later);
+    assert.strictEqual(earlier.body.p_observed_at, "2026-10-14T12:00:00.000Z");
+    assert.strictEqual(earlier.body.p_country, "US");
+    assert.strictEqual(later.body.p_observed_at, "2026-10-14T12:05:00.000Z");
+    assert.strictEqual(later.body.p_country, "TR");
+    assert.ok(earlier.body.p_observed_at < later.body.p_observed_at);
+  });
+
   await test("a failed write is not retried inside the worker", async () => {
     const failedWrite = await runVisit(
       { page_path: "cart.html" },

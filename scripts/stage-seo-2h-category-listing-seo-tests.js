@@ -25,14 +25,14 @@ const NEW_HUBS = {
   taamlar: { label: "تائاملار" }
 };
 const FROZEN = {
-  "shop.js": "504197097cc7b736cd1a99079faa427cb141029fa9defb5ed9aedc02f6ba62bf",
+  "shop.js": "722449c2e636900a242e08b3b0b995e4970926b32b75a9aa65ceaf0560f4e457",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "e336cdeb44545592f3a4325bd83ff4204341e0f565e298c5c4c576d70c3c15a8",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "0753a7d15e67e6aa969e9d5e5ec0bf52335a67a13ff476a0747fa00f853b41b7",
-  "index.html": "fd8738632bf14fe406fc944940290423b3067b1d07d5c93d78b90a3f77fff5ef",
+  "book-shell.html": "f9e69184ce67bfe2e9f9221b6ebf0d1f52a4a0a897bf5bf4b299bd235fd0f8e9",
+  "index.html": "ad5034a7e48d550196f08258562b3eee33a94bba5190e20e4786eb2ea5940bbd",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -187,7 +187,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=161/);
+    assert.match(html, /shop\.js\?v=162/);
     if (NEW_HUBS[slug]) {
       assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), `${slug}.html`);
       assert.strictEqual(attr(html, /data-catalog-sources="([^"]*)"/) || "", "");
@@ -251,7 +251,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=161/);
+  assert.match(html, /shop\.js\?v=162/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");
