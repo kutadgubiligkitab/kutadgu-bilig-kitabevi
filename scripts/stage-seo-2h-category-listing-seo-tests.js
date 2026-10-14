@@ -32,7 +32,7 @@ const FROZEN = {
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
   "book-shell.html": "15f94bbedb319517b5688f2545f823328bc7a31e8f6deb8a314f54fe583a1490",
-  "index.html": "d2b5df0639c7dfd991c4ad47f12a5d4bdbb9bd0aaf2140d480691cf3300e6eb5",
+  "index.html": "ac9f21ed661b6acd6f70efb70fc3ebcab2b3b0530db36ac97db88a5974b81be2",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "b423a3edf3d199d8b3703dade4dc355b3124a3a9b0e93ab1e724acd69c6b63a7",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -819,7 +819,10 @@ test("protected product files stay frozen and out of this diff", () => {
     "STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql",
     "scripts/gift-book-offer-tests.js",
     "scripts/stage122-isolated-verify.js",
-    "tests/e2e/gift-book-offers.spec.js"
+    "tests/e2e/gift-book-offers.spec.js",
+    "kutadgu.webmanifest",
+    "scripts/web-app-manifest-tests.js",
+    "tests/e2e/web-app-manifest.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

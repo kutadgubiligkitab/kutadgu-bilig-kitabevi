@@ -1201,6 +1201,41 @@ jobs.push(test("app link files are public and other dot paths stay denied", asyn
   assert.ok(!html.includes(sha));
 }));
 
+jobs.push(test("web app manifest stays a same-origin asset", async () => {
+  const classified = preview.classifyPath("/kutadgu.webmanifest", "");
+  assert.strictEqual(classified.kind, "asset");
+  assert.strictEqual(classified.file, "/kutadgu.webmanifest");
+  assert.notStrictEqual(preview.classifyPath("/.well-known/assetlinks.json", "").kind, "asset");
+  const manifestBody = fs.readFileSync(path.join(root, "kutadgu.webmanifest"));
+  const deps = baseDeps(async () => {
+    throw new Error("manifest does not call upstream");
+  });
+  const readFromDisk = deps.readAsset;
+  deps.readAsset = async function readManifestAsset(filePath) {
+    if (filePath === "/kutadgu.webmanifest") {
+      return new Response(manifestBody, {
+        status: 200,
+        headers: { "Content-Type": "application/manifest+json" }
+      });
+    }
+    return readFromDisk(filePath);
+  };
+  const response = await preview.dispatch(request("http://127.0.0.1:8787/kutadgu.webmanifest"), {}, deps);
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(response.headers.get("content-type"), "application/manifest+json");
+  assert.strictEqual(response.headers.get("location"), null);
+  const text = await response.text();
+  assert.ok(!/^\s*</.test(text));
+  const parsed = JSON.parse(text);
+  assert.strictEqual(parsed.name, "قۇتادغۇبىلىك كىتابخانىسى");
+  assert.strictEqual(parsed.start_url, "/");
+  assert.strictEqual(parsed.scope, "/");
+  assert.strictEqual(parsed.display, "standalone");
+  assert.strictEqual(parsed.icons[0].sizes, "any");
+  assert.strictEqual(parsed.icons[0].type, "image/png");
+  assert.strictEqual(parsed.icons[0].src, "/kutadgu-logo.png");
+}));
+
 Promise.all(jobs).then(() => {
   if (failed) {
     console.error("\n" + failed + " cloudflare preview test(s) failed");
