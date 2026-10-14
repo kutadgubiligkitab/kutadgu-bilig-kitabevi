@@ -138,7 +138,6 @@ function classifyPath(pathname, search) {
   if (path === "/api/shared-cart") return { kind: "shared-cart-create" };
   if (path === "/api/analytics-event") return { kind: "analytics-event" };
   if (path === "/api/member-signup") return { kind: "member-signup" };
-  if (path === "/api/member-signup-country") return { kind: "member-signup-country" };
   const shortRead = sharedCartLinks.READ_PATH_RE.exec(path);
   if (shortRead) return { kind: "shared-cart-read", code: shortRead[1] };
   return { kind: "asset", file: path === "/" ? "/index.html" : path };
@@ -470,7 +469,7 @@ function appLinkResponse(request, env, route) {
 }
 
 function methodAllowed(kind, method) {
-  if (kind === "shared-cart-create" || kind === "analytics-event" || kind === "member-signup" || kind === "member-signup-country") {
+  if (kind === "shared-cart-create" || kind === "analytics-event" || kind === "member-signup") {
     return method === "POST";
   }
   if (kind === "shared-cart-read" || kind === "shared-cart-page" || kind === "app-link") return method === "GET" || method === "HEAD";
@@ -547,10 +546,8 @@ async function dispatch(request, env, deps) {
       "Cache-Control": "private, no-store"
     }, undefined, hostOf(request));
   }
-  if (route.kind === "member-signup" || route.kind === "member-signup-country") {
-    const result = route.kind === "member-signup"
-      ? await memberSignup.handleMemberSignup(request, env, source)
-      : await memberSignup.handleMemberSignupCountry(request, env, source);
+  if (route.kind === "member-signup") {
+    const result = await memberSignup.handleMemberSignup(request, env, source);
     const payload = result.status === 204 ? null : result.body;
     return textResponse(result.status, payload, env, {
       "Content-Type": result.contentType || "application/json; charset=utf-8",

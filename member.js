@@ -947,7 +947,6 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
   });
   renderButton();emit();
   if(user){
-    noteRecentGoogleSignupCountry(session);
     try{
       await fetchProfile();
       if(profile?.status==="suspended"){
@@ -972,61 +971,36 @@ function queueSession(session,options){
   });
   return applyChain;
 }
-function noteRecentGoogleSignupCountry(session){
+function memberAuthFetch(input,init){
   try{
-    const proven=provenMemberSession(session);
-    const current=proven&&proven.user;
-    if(!current)return;
-    const created=Date.parse(current.created_at||"");
-    if(!Number.isFinite(created)||Math.abs(Date.now()-created)>180000)return;
-    const identities=Array.isArray(current.identities)?current.identities:[];
-    const providers=identities.map(item=>String(item&&item.provider||"").toLowerCase());
-    if(providers.indexOf("google")<0||providers.indexOf("email")>=0)return;
-    const token=String(proven.access_token||"").trim();
-    if(!token)return;
-    fetch("/api/member-signup-country",{
-      method:"POST",
-      headers:{Authorization:"Bearer "+token,Accept:"application/json"},
-      body:"{}"
-    }).catch(()=>{});
+    const raw=typeof input==="string"?input:(input&&typeof input.url==="string"?input.url:"");
+    const url=new URL(raw,location.href);
+    const method=String((init&&init.method)||(input&&typeof input!=="string"&&input.method)||"GET").toUpperCase();
+    if(method==="POST"&&/\/auth\/v1\/signup\/?$/.test(url.pathname)){
+      const next=new URL("/api/member-signup",location.origin);
+      const redirect=url.searchParams.get("redirect_to");
+      if(redirect)next.searchParams.set("redirect_to",redirect);
+      return fetch(next.href,{
+        method:"POST",
+        headers:new Headers(init&&init.headers||undefined),
+        body:init?init.body:undefined,
+        credentials:init&&init.credentials,
+        signal:init&&init.signal
+      });
+    }
   }catch(err){}
-}
-async function postMemberSignup({email,password,fullName}){
-  let response;
-  try{
-    response=await fetch("/api/member-signup",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Accept":"application/json"},
-      body:JSON.stringify({email,password,full_name:fullName||""})
-    });
-  }catch(err){
-    return {data:null,error:new Error("ئەزالىق مۇلازىمىتىگە ئۇلانغىلى بولمىدى")};
-  }
-  let payload=null;
-  try{payload=await response.json()}catch(err){payload=null}
-  if(!response.ok){
-    const message=payload&&(payload.msg||payload.message||payload.error_description)||"ئەزالىق ئېچىش مەغلۇپ بولدى";
-    const error=new Error(String(message));
-    error.status=response.status;
-    return {data:null,error};
-  }
-  return {data:signupData(payload),error:null};
-}
-function signupData(payload){
-  if(!payload||typeof payload!=="object")return {user:null,session:null};
-  if(payload.session&&typeof payload.session==="object"){
-    return {user:payload.user||payload.session.user||null,session:payload.session};
-  }
-  if(typeof payload.access_token==="string"&&payload.access_token){
-    return {user:payload.user||null,session:payload};
-  }
-  if(payload.user&&typeof payload.user==="object")return {user:payload.user,session:null};
-  if(payload.id)return {user:payload,session:null};
-  return {user:null,session:null};
+  return fetch(input,init);
 }
 async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const result=await postMemberSignup({email,password,fullName});
+  const result=await db.auth.signUp({
+    email,
+    password,
+    options:{
+      data:{full_name:fullName||""},
+      emailRedirectTo:new URL("account.html",location.href).href
+    }
+  });
   if(result.error)throw result.error;
   if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:true});
   return result.data;
@@ -1177,7 +1151,8 @@ async function init(){
     const cfg=liveConfig();
     if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
     db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
-      auth:memberAuthOptions()
+      auth:memberAuthOptions(),
+      global:{fetch:memberAuthFetch}
     });
     db.auth.onAuthStateChange((event,session)=>{
       const feedbackApi=window.KutadguWebsiteFeedback;

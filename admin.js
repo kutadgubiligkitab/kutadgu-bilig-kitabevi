@@ -2892,7 +2892,9 @@ async function setCartShareGrant(userId,nextGranted,pendingKey){
 function signupCountryText(code){
   const core=window.KutadguAnalyticsCore;
   if(!core||typeof core.countryLabel!=="function")return "نامەلۇم";
-  return core.countryLabel(code);
+  const label=String(core.countryLabel(code)||"");
+  if(!label||label==="نامەلۇم"||/^[A-Za-z]{2}$/.test(label))return "نامەلۇم";
+  return label;
 }
 function memberLastPageText(value){
   const helper=window.KutadguMemberPageLabel;

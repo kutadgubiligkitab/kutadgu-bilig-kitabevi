@@ -316,6 +316,14 @@ async function main() {
     ));
     const stored = await client.query("select user_id::text, country from public.member_signup_country order by 1");
     check("only the new signup keeps its first country", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country === "TR", JSON.stringify(stored.rows));
+    const minuteOld = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await client.query("insert into auth.users (id, created_at) values ($1, clock_timestamp() - interval '1 minute')", [minuteOld]);
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'US')",
+      [minuteOld]
+    ));
+    const minuteRow = await client.query("select country from public.member_signup_country where user_id = $1", [minuteOld]);
+    check("a one-minute-old account does not gain a later country", minuteRow.rows.length === 0);
     await expectError("authenticated cannot write signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
       "select public.record_member_signup_country($1::uuid, 'FR')",
       [fresh]

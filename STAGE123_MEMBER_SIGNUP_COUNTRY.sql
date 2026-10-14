@@ -33,9 +33,12 @@ begin
   select u.created_at into v_created
   from auth.users u
   where u.id = p_user_id;
+  -- Account age is not proof that this call created the user. The Worker
+  -- calls this only for a signup response with an email identity created
+  -- by that response. This window only refuses a stale id.
   if v_created is null
-     or v_created < now() - interval '3 minutes'
-     or v_created > now() + interval '2 minutes' then
+     or v_created < now() - interval '15 seconds'
+     or v_created > now() + interval '10 seconds' then
     return;
   end if;
   insert into public.member_signup_country (user_id, country)

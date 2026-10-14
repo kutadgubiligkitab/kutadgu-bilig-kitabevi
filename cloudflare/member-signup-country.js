@@ -5,9 +5,11 @@ const visitCountry = require("./analytics-visit-country.js");
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const PUBLIC_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const MAX_BODY_BYTES = 4096;
-const SIGNUP_WINDOW_MS = 3 * 60 * 1000;
-const CLOCK_SKEW_MS = 2 * 60 * 1000;
+const CREATION_WINDOW_MS = 15 * 1000;
+const CREATION_SKEW_MS = 10 * 1000;
+const RECORD_TIMEOUT_MS = 1500;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const CHALLENGE_RE = /^[A-Za-z0-9_-]{43,128}$/;
 
 function emptyResult(status) {
   return {
@@ -57,6 +59,43 @@ function accountRedirect(request) {
   return url.origin + "/account.html";
 }
 
+function requestedRedirect(request) {
+  const fallback = accountRedirect(request);
+  let requestUrl;
+  try {
+    requestUrl = new URL(request && request.url ? request.url : "https://www.kutadgubilik.com/api/member-signup");
+  } catch (err) {
+    return fallback;
+  }
+  const raw = requestUrl.searchParams.get("redirect_to");
+  if (!raw) return fallback;
+  let target;
+  try {
+    target = new URL(raw);
+  } catch (err) {
+    return fallback;
+  }
+  if (target.username || target.password) return fallback;
+  if (target.pathname !== "/account.html" || target.search || target.hash) return fallback;
+  if (target.protocol !== "https:" && target.protocol !== "http:") return fallback;
+  const host = String(target.hostname || "").toLowerCase().replace(/\.$/, "");
+  if (host === "www.kutadgubilik.com" || host === "kutadgubilik.com") {
+    return "https://www.kutadgubilik.com/account.html";
+  }
+  if (target.origin !== requestUrl.origin) return fallback;
+  return target.origin + "/account.html";
+}
+
+function captchaToken(parsed) {
+  const meta = parsed && parsed.gotrue_meta_security;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return { ok: true, token: "" };
+  if (!Object.prototype.hasOwnProperty.call(meta, "captcha_token")) return { ok: true, token: "" };
+  const token = meta.captcha_token;
+  if (token == null || token === "") return { ok: true, token: "" };
+  if (typeof token !== "string" || token.length > 2048) return { ok: false, token: "" };
+  return { ok: true, token };
+}
+
 function signupFields(text) {
   let parsed;
   try {
@@ -67,9 +106,22 @@ function signupFields(text) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const email = typeof parsed.email === "string" ? parsed.email.trim() : "";
   const password = typeof parsed.password === "string" ? parsed.password : "";
-  const fullName = typeof parsed.full_name === "string" ? parsed.full_name.trim().slice(0, 120) : "";
+  const data = parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data) ? parsed.data : {};
+  const fullName = typeof data.full_name === "string" ? data.full_name.trim().slice(0, 120) : "";
   if (!email || email.length > 320 || !password || password.length > 200) return null;
-  return { email, password, fullName };
+  const method = parsed.code_challenge_method;
+  const challenge = parsed.code_challenge;
+  if (method !== "s256" || typeof challenge !== "string" || !CHALLENGE_RE.test(challenge)) return null;
+  const captcha = captchaToken(parsed);
+  if (!captcha.ok) return null;
+  return {
+    email,
+    password,
+    fullName,
+    codeChallenge: challenge,
+    codeChallengeMethod: "s256",
+    captcha: captcha.token
+  };
 }
 
 function scrubSecret(text, secret) {
@@ -79,11 +131,19 @@ function scrubSecret(text, secret) {
   return body.split(hidden).join("");
 }
 
-function recent(createdAt, now) {
+function createdByThisRequest(createdAt, now) {
   const created = Date.parse(createdAt || "");
   if (!Number.isFinite(created)) return false;
   const delta = now - created;
-  return delta >= -CLOCK_SKEW_MS && delta <= SIGNUP_WINDOW_MS;
+  return delta >= -CREATION_SKEW_MS && delta <= CREATION_WINDOW_MS;
+}
+
+function signupUser(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  if (payload.user && typeof payload.user === "object" && !Array.isArray(payload.user)) return payload.user;
+  if (payload.access_token || payload.refresh_token) return null;
+  if (typeof payload.id === "string" && payload.id) return payload;
+  return null;
 }
 
 function freshEmailUserId(user, now) {
@@ -94,28 +154,18 @@ function freshEmailUserId(user, now) {
   const emailIdentity = user.identities.some((item) => {
     const provider = String(item && item.provider || "").toLowerCase();
     const owner = String(item && item.user_id || "").trim().toLowerCase();
-    return provider === "email" && (!owner || owner === id);
+    return provider === "email" && owner === id;
   });
   if (!emailIdentity) return "";
-  if (!recent(user.created_at, now)) return "";
+  if (!createdByThisRequest(user.created_at, now)) return "";
   return id;
 }
 
-function freshGoogleUserId(user, now) {
-  if (!user || typeof user !== "object") return "";
-  const id = String(user.id || "").trim().toLowerCase();
-  if (!UUID_RE.test(id)) return "";
-  if (!Array.isArray(user.identities) || user.identities.length === 0) return "";
-  const providers = user.identities.map((item) => String(item && item.provider || "").toLowerCase());
-  if (providers.indexOf("google") === -1 || providers.indexOf("email") !== -1) return "";
-  const bound = user.identities.some((item) => {
-    if (String(item && item.provider || "").toLowerCase() !== "google") return false;
-    const owner = String(item && item.user_id || "").trim().toLowerCase();
-    return !owner || owner === id;
-  });
-  if (!bound) return "";
-  if (!recent(user.created_at, now)) return "";
-  return id;
+function connectingIp(request) {
+  const value = headerValue(request, "cf-connecting-ip").trim();
+  if (!value || value.length > 64) return "";
+  if (!/^[0-9A-Fa-f:.]+$/.test(value)) return "";
+  return value;
 }
 
 function serverKey(env) {
@@ -138,6 +188,19 @@ async function recordCountry(env, fetchImpl, userId, country) {
   });
 }
 
+async function recordCountryLimited(env, fetchImpl, userId, country) {
+  let timer;
+  const pending = recordCountry(env, fetchImpl, userId, country).then(
+    () => null,
+    (err) => err
+  );
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(new Error("signup-country-timeout")), RECORD_TIMEOUT_MS);
+  });
+  await Promise.race([pending, timeout]);
+  clearTimeout(timer);
+}
+
 async function handleMemberSignup(request, env, deps) {
   const method = String((request && request.method) || "GET").toUpperCase();
   if (method !== "POST") return emptyResult(405);
@@ -147,22 +210,32 @@ async function handleMemberSignup(request, env, deps) {
   if (!fields) return emptyResult(400);
   const fetchImpl = deps && deps.fetchImpl;
   if (typeof fetchImpl !== "function") return emptyResult(503);
-  const redirect = accountRedirect(request);
+  const redirect = requestedRedirect(request);
+  const upstream = {
+    email: fields.email,
+    password: fields.password,
+    data: { full_name: fields.fullName },
+    code_challenge: fields.codeChallenge,
+    code_challenge_method: fields.codeChallengeMethod
+  };
+  if (fields.captcha) upstream.gotrue_meta_security = { captcha_token: fields.captcha };
+  const headers = {
+    apikey: PUBLIC_KEY,
+    Authorization: "Bearer " + PUBLIC_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  };
+  const ip = connectingIp(request);
+  if (ip) {
+    headers["X-Forwarded-For"] = ip;
+    headers["X-Real-IP"] = ip;
+  }
   let response;
   try {
     response = await fetchImpl(SUPABASE_URL + "/auth/v1/signup?redirect_to=" + encodeURIComponent(redirect), {
       method: "POST",
-      headers: {
-        apikey: PUBLIC_KEY,
-        Authorization: "Bearer " + PUBLIC_KEY,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email: fields.email,
-        password: fields.password,
-        data: { full_name: fields.fullName }
-      })
+      headers,
+      body: JSON.stringify(upstream)
     });
   } catch (err) {
     return emptyResult(503);
@@ -175,12 +248,12 @@ async function handleMemberSignup(request, env, deps) {
     payload = null;
   }
   const status = Number(response.status) || 502;
-  if (status >= 200 && status < 300 && payload && payload.user) {
-    const userId = freshEmailUserId(payload.user, nowMs(deps));
+  if (status >= 200 && status < 300) {
+    const userId = freshEmailUserId(signupUser(payload), nowMs(deps));
     const country = trustedCountry(request);
     if (userId && country) {
       try {
-        await recordCountry(env, fetchImpl, userId, country);
+        await recordCountryLimited(env, fetchImpl, userId, country);
       } catch (err) {
         /* The account exists. A missed country stays Unknown. */
       }
@@ -193,56 +266,16 @@ async function handleMemberSignup(request, env, deps) {
   };
 }
 
-async function handleMemberSignupCountry(request, env, deps) {
-  const method = String((request && request.method) || "GET").toUpperCase();
-  if (method !== "POST") return emptyResult(405);
-  const limited = await readBoundedBody(request);
-  if (!limited.ok) return emptyResult(limited.status || 413);
-  const header = headerValue(request, "authorization");
-  const match = /^Bearer\s+(\S+)$/i.exec(header);
-  if (!match || match[1].length < 20 || match[1].length > 8192) return emptyResult(401);
-  const fetchImpl = deps && deps.fetchImpl;
-  if (typeof fetchImpl !== "function" || !serverKey(env)) return emptyResult(503);
-  const country = trustedCountry(request);
-  if (!country) return emptyResult(204);
-  let response;
-  try {
-    response = await fetchImpl(SUPABASE_URL + "/auth/v1/user", {
-      method: "GET",
-      headers: {
-        apikey: PUBLIC_KEY,
-        Authorization: "Bearer " + match[1],
-        Accept: "application/json"
-      }
-    });
-  } catch (err) {
-    return emptyResult(503);
-  }
-  if (!response || response.status < 200 || response.status >= 300) return emptyResult(401);
-  let user = null;
-  try {
-    user = JSON.parse(typeof response.text === "function" ? await response.text() : "");
-  } catch (err) {
-    user = null;
-  }
-  const userId = freshGoogleUserId(user, nowMs(deps));
-  if (!userId) return emptyResult(204);
-  try {
-    await recordCountry(env, fetchImpl, userId, country);
-  } catch (err) {
-    return emptyResult(204);
-  }
-  return emptyResult(204);
-}
-
 module.exports = {
   SUPABASE_URL,
   MAX_BODY_BYTES,
-  SIGNUP_WINDOW_MS,
+  CREATION_WINDOW_MS,
+  CREATION_SKEW_MS,
+  RECORD_TIMEOUT_MS,
   accountRedirect,
+  requestedRedirect,
   signupFields,
+  signupUser,
   freshEmailUserId,
-  freshGoogleUserId,
-  handleMemberSignup,
-  handleMemberSignupCountry
+  handleMemberSignup
 };

@@ -45,7 +45,7 @@ function members() {
       created_at: "2024-01-01T00:00:00.000Z",
       visit_count: 3,
       last_page: "<script>alert(1)</script>",
-      signup_country: "XX",
+      signup_country: "QQ",
       order_count: 0,
       order_total: 0
     }
@@ -116,6 +116,7 @@ test("member rows show signup country and Uyghur page names without raw tracking
   await expect(rows.nth(1)).toContainText("ئاخىرقى بەت: كىتاب تەپسىلاتى");
   await expect(rows.nth(1)).toContainText("ئامېرىكا");
   await expect(rows.nth(2)).toContainText("ئەزا بولغان دۆلەت: نامەلۇم");
+  await expect(rows.nth(2)).not.toContainText("QQ");
   await expect(rows.nth(2)).toContainText("ئاخىرقى بەت: نامەلۇم");
   await expect(rows.nth(2)).toContainText("https://evil.example");
   await expect(rows.nth(2)).not.toContainText("<script>");

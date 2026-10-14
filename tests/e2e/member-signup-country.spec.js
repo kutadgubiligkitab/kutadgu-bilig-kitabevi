@@ -1,17 +1,45 @@
 const { test, expect } = require("./playwright-test");
 
 const PASSWORD = "correct-horse";
+const USER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function directUser(email, mode) {
+  return {
+    id: USER,
+    aud: "authenticated",
+    email,
+    role: "authenticated",
+    created_at: new Date().toISOString(),
+    identities: mode === "duplicate" ? [] : [{ provider: "email", user_id: USER }]
+  };
+}
+
+function sessionBody(email) {
+  return {
+    access_token: "test-access-aaaaaaaa",
+    refresh_token: "test-refresh-aaaaaaaa",
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: directUser(email, "session")
+  };
+}
 
 async function install(page) {
   const seen = [];
   await page.addInitScript(() => {
     window.__signupPosts = [];
+    window.__signupUrls = [];
   });
   await page.route("**/*supabase.co/**", (route) => route.abort());
   await page.route("**/api/member-signup", async (route) => {
     const body = route.request().postDataJSON();
+    const url = route.request().url();
     seen.push(body);
-    await page.evaluate((posted) => { window.__signupPosts.push(posted); }, body);
+    await page.evaluate((posted) => {
+      window.__signupPosts.push(posted.body);
+      window.__signupUrls.push(posted.url);
+    }, { body, url });
     const mode = await page.evaluate(() => window.__signupMode || "confirm");
     if (mode === "reject") {
       return route.fulfill({
@@ -23,39 +51,24 @@ async function install(page) {
     if (mode === "fail") {
       return route.fulfill({ status: 503, contentType: "application/json", body: "" });
     }
+    if (mode === "malformed") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true })
+      });
+    }
     if (mode === "session") {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          user: {
-            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            created_at: new Date().toISOString(),
-            identities: [{ provider: "email", user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }]
-          },
-          session: {
-            access_token: "header.payload.signature-token",
-            expires_at: Math.floor(Date.now() / 1000) + 3600,
-            user: {
-              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              email: body.email,
-              created_at: "2020-01-01T00:00:00.000Z",
-              identities: [{ provider: "email" }]
-            }
-          }
-        })
+        body: JSON.stringify(sessionBody(body.email))
       });
     }
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        user: {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          identities: mode === "duplicate" ? [] : [{ provider: "email" }]
-        },
-        session: null
-      })
+      body: JSON.stringify(directUser(body.email, mode))
     });
   });
   await page.route("**/api/member-signup-country", async (route) => {
@@ -92,16 +105,51 @@ test("password signup posts no country and keeps confirmation, rejection, and se
   const posts = await page.evaluate(() => window.__signupPosts);
   expect(posts).toHaveLength(1);
   expect(posts[0].email).toBe("new@example.com");
-  expect(posts[0].full_name).toBe("يېڭى ئەزا");
+  expect(posts[0].data.full_name).toBe("يېڭى ئەزا");
+  expect(posts[0].full_name).toBeUndefined();
+  expect(posts[0].code_challenge_method).toBe("s256");
+  expect(posts[0].code_challenge).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
   expect(posts[0].country).toBeUndefined();
   expect(posts[0].user_id).toBeUndefined();
   expect(JSON.stringify(posts[0])).not.toContain("cf-ipcountry");
+  const urls = await page.evaluate(() => window.__signupUrls);
+  expect(urls[0]).toContain("/api/member-signup");
+  expect(decodeURIComponent(urls[0])).toContain("/account.html");
+  const confirmAuth = await page.evaluate(async () => {
+    const client = window.KutadguMember.getClient();
+    const session = await client.auth.getSession();
+    return {
+      session: session.data.session,
+      stored: localStorage.getItem("kutadgu-member-auth-v1"),
+      verifier: localStorage.getItem("kutadgu-member-auth-v1-code-verifier")
+    };
+  });
+  expect(confirmAuth.session).toBeNull();
+  expect(confirmAuth.stored).toBeNull();
+  expect(confirmAuth.verifier).toBeTruthy();
 
   await page.evaluate(() => { window.__signupMode = "session"; window.__oauthPosts = []; });
   await page.locator("[data-auth-tab='signup']").click();
   await fillSignup(page, "session@example.com");
   await expect(page.locator("#memberPanel")).toBeVisible();
   await expect(page.locator("#authStatus")).not.toContainText("ئەزالىق ئېچىش مەغلۇپ");
+  const sessionAuth = await page.evaluate(async () => {
+    const client = window.KutadguMember.getClient();
+    const session = await client.auth.getSession();
+    return {
+      token: session.data.session && session.data.session.access_token,
+      userId: session.data.session && session.data.session.user && session.data.session.user.id,
+      stored: localStorage.getItem("kutadgu-member-auth-v1")
+    };
+  });
+  expect(sessionAuth.token).toBe("test-access-aaaaaaaa");
+  expect(sessionAuth.userId).toBe(USER);
+  expect(sessionAuth.stored).toContain("test-access-aaaaaaaa");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction((id) => {
+    const member = window.KutadguMember;
+    return !!(member && member.sessionBootDone && member.sessionBootDone() && member.getUser && member.getUser() && member.getUser().id === id);
+  }, USER);
   expect(await page.evaluate(() => window.__oauthPosts || [])).toEqual([]);
 
   await page.locator("#memberLogout").click();
