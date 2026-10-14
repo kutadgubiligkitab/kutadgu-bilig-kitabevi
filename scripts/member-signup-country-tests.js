@@ -9,7 +9,6 @@ const preview = require("../cloudflare/preview-dispatch.js");
 const NOW = Date.parse("2026-10-14T12:00:00.000Z");
 const FRESH = new Date(NOW - 1000).toISOString();
 const MINUTE = new Date(NOW - 60 * 1000).toISOString();
-const OLD = new Date(NOW - 24 * 60 * 60 * 1000).toISOString();
 const USER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const CHALLENGE = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
@@ -36,7 +35,7 @@ function sdkBody(extra) {
   return Object.assign({
     email: "new@example.com",
     password: "correct-horse",
-    data: { full_name: "يېڭى ئەزا", country: "FR" },
+    data: { full_name: "يېڭى ئەزا", country: "FR", kutadgu_signup_nonce: "client-supplied-nonce" },
     code_challenge: CHALLENGE,
     code_challenge_method: "s256",
     gotrue_meta_security: { captcha_token: "captcha-token" },
@@ -55,15 +54,42 @@ function emailUser(extra) {
   }, extra || {});
 }
 
+function echoUser(sent, extra) {
+  const nonce = sent && sent.data && sent.data[signup.NONCE_KEY];
+  const options = extra || {};
+  const id = options.id || USER;
+  const created = options.created_at || FRESH;
+  const identityCreated = options.identity_created_at || created;
+  const metaNonce = Object.prototype.hasOwnProperty.call(options, "metaNonce") ? options.metaNonce : nonce;
+  const identityNonce = Object.prototype.hasOwnProperty.call(options, "identityNonce") ? options.identityNonce : nonce;
+  const identities = Object.prototype.hasOwnProperty.call(options, "identities")
+    ? options.identities
+    : [{
+      provider: options.provider || "email",
+      user_id: Object.prototype.hasOwnProperty.call(options, "identity_user_id") ? options.identity_user_id : id,
+      created_at: identityCreated,
+      identity_data: { [signup.NONCE_KEY]: identityNonce, email: sent.email }
+    }];
+  return {
+    id,
+    aud: "authenticated",
+    email: sent.email,
+    created_at: created,
+    user_metadata: { full_name: sent.data.full_name, [signup.NONCE_KEY]: metaNonce },
+    identities
+  };
+}
+
 async function runSignup(body, cf, auth, options) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
     if (String(url).includes("/auth/v1/signup")) {
       if (auth && auth.throwBefore) throw new Error("network");
+      const payload = typeof auth.payload === "function" ? auth.payload(JSON.parse(init.body)) : auth.payload;
       return {
         status: auth.status,
-        text: async () => JSON.stringify(auth.payload)
+        text: async () => JSON.stringify(payload)
       };
     }
     if (auth && auth.recordDelayMs) {
@@ -105,7 +131,7 @@ const jobs = [];
 jobs.push(test("a new email signup records Cloudflare country for that user only", async () => {
   const { result, calls } = await runSignup(sdkBody(), { country: "tr" }, {
     status: 200,
-    payload: { user: emailUser(), session: null }
+    payload: (sent) => ({ user: echoUser(sent), session: null })
   }, { headers: { "cf-ipcountry": "US", "x-forwarded-for": "198.51.100.8", "cf-connecting-ip": "203.0.113.9" } });
   assert.strictEqual(result.status, 200);
   const record = recorded(calls);
@@ -118,6 +144,9 @@ jobs.push(test("a new email signup records Cloudflare country for that user only
   assert.strictEqual(sent.user_id, undefined);
   assert.strictEqual(sent.data.full_name, "يېڭى ئەزا");
   assert.strictEqual(sent.data.country, undefined);
+  assert.notStrictEqual(sent.data.kutadgu_signup_nonce, "client-supplied-nonce");
+  assert.match(sent.data.kutadgu_signup_nonce, /^[0-9a-f]{64}$/);
+  assert.strictEqual(record[0].body.p_nonce, sent.data.kutadgu_signup_nonce);
   assert.strictEqual(sent.code_challenge, CHALLENGE);
   assert.strictEqual(sent.code_challenge_method, "s256");
   assert.strictEqual(sent.gotrue_meta_security.captcha_token, "captcha-token");
@@ -131,40 +160,41 @@ jobs.push(test("a new email signup records Cloudflare country for that user only
 jobs.push(test("a direct GoTrue user response records the signup country", async () => {
   const { result, calls } = await runSignup(sdkBody({ data: { full_name: "" }, gotrue_meta_security: {} }), { country: "DE" }, {
     status: 200,
-    payload: emailUser()
+    payload: (sent) => echoUser(sent)
   });
   assert.strictEqual(result.status, 200);
   assert.strictEqual(JSON.parse(result.body).id, USER);
   assert.strictEqual(JSON.parse(result.body).user, undefined);
   assert.strictEqual(recorded(calls).length, 1);
   assert.strictEqual(calls[1].body.p_country, "DE");
+  assert.strictEqual(calls[1].body.p_nonce, calls[0].body.data.kutadgu_signup_nonce);
   assert.strictEqual(calls[0].body.gotrue_meta_security, undefined);
 }));
 
 jobs.push(test("a raw session response records from its user and keeps the tokens", async () => {
-  const payload = {
-    access_token: "session-token",
-    refresh_token: "refresh-token",
-    expires_in: 3600,
-    token_type: "bearer",
-    user: emailUser()
-  };
   const { result, calls } = await runSignup(sdkBody(), { country: "KG" }, {
     status: 200,
-    payload,
+    payload: (sent) => ({
+      access_token: "session-token",
+      refresh_token: "refresh-token",
+      expires_in: 3600,
+      token_type: "bearer",
+      user: echoUser(sent)
+    }),
     recordStatus: 500
   });
   assert.strictEqual(result.status, 200);
   assert.strictEqual(JSON.parse(result.body).access_token, "session-token");
   assert.strictEqual(JSON.parse(result.body).refresh_token, "refresh-token");
   assert.strictEqual(recorded(calls).length, 1);
+  assert.strictEqual(calls[1].body.p_nonce, calls[0].body.data.kutadgu_signup_nonce);
 }));
 
 jobs.push(test("a hung country write still returns the signup body", async () => {
   const started = Date.now();
   const { result, calls } = await runSignup(sdkBody(), { country: "TR" }, {
     status: 200,
-    payload: emailUser(),
+    payload: (sent) => echoUser(sent),
     recordDelayMs: 5000
   });
   const elapsed = Date.now() - started;
@@ -177,7 +207,7 @@ jobs.push(test("a hung country write still returns the signup body", async () =>
 jobs.push(test("a thrown country write still returns the signup body", async () => {
   const { result } = await runSignup(sdkBody(), { country: "TR" }, {
     status: 200,
-    payload: emailUser(),
+    payload: (sent) => echoUser(sent),
     recordThrow: true
   });
   assert.strictEqual(result.status, 200);
@@ -185,53 +215,80 @@ jobs.push(test("a thrown country write still returns the signup body", async () 
 }));
 
 jobs.push(test("rejection, duplicates, retries, malformed success, and missing country do not record", async () => {
+  const prior = "11".repeat(32);
   const cases = [
     [{ status: 422, payload: { msg: "weak" } }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ identities: [] }) }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ identities: [{ provider: "email", user_id: "" }] }) }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ identities: [{ provider: "email", user_id: OTHER }] }) }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ created_at: MINUTE }) }, { country: "US" }],
-    [{ status: 200, payload: emailUser({ created_at: OLD }) }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ created_at: new Date(NOW - 20000).toISOString() }) }, { country: "TR" }],
-    [{ status: 200, payload: emailUser({ created_at: new Date(NOW + 30000).toISOString() }) }, { country: "TR" }],
-    [{ status: 200, payload: { user: emailUser(), session: null } }, { country: "XX" }],
-    [{ status: 200, payload: { user: emailUser(), session: { access_token: "t" } } }, {}],
+    [{ status: 200, payload: (sent) => echoUser(sent, { identities: [] }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { identity_user_id: "" }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { identity_user_id: OTHER }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { provider: "google" }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { metaNonce: prior, identityNonce: prior, created_at: new Date(NOW - 5000).toISOString() }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { metaNonce: prior, identityNonce: prior, created_at: FRESH }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { id: OTHER, identities: [], created_at: new Date(NOW).toISOString() }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { created_at: new Date(NOW - 5000).toISOString(), identity_created_at: new Date(NOW).toISOString() }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => echoUser(sent, { identity_created_at: new Date(Date.parse(FRESH) + 2500).toISOString() }) }, { country: "TR" }],
+    [{ status: 200, payload: (sent) => ({ user: echoUser(sent), session: null }) }, { country: "XX" }],
+    [{ status: 200, payload: (sent) => ({ user: echoUser(sent), session: { access_token: "t" } }) }, {}],
     [{ status: 200, payload: { ok: true } }, { country: "TR" }],
     [{ status: 200, payload: { user: null } }, { country: "TR" }],
     [{ status: 200, payload: { id: USER, access_token: "orphan", identities: [{ provider: "email", user_id: USER }], created_at: FRESH } }, { country: "TR" }]
   ];
-  for (const [auth, cf] of cases) {
+  for (let index = 0; index < cases.length; index += 1) {
+    const [auth, cf] = cases[index];
     const { result, calls } = await runSignup(sdkBody(), cf, auth);
-    assert.strictEqual(result.status, auth.status, JSON.stringify(auth.payload));
-    assert.strictEqual(recorded(calls).length, 0, JSON.stringify(auth.payload));
+    assert.strictEqual(result.status, auth.status, "status " + index);
+    assert.strictEqual(recorded(calls).length, 0, "recorded " + index);
     if (auth.payload && auth.payload.ok === true) assert.strictEqual(JSON.parse(result.body).ok, true);
   }
 }));
 
-jobs.push(test("a user created a few seconds ago still records", async () => {
-  const { calls } = await runSignup(sdkBody(), { country: "NL" }, {
+jobs.push(test("a slow new-user response still records when the creation nonce matches", async () => {
+  const slow = await runSignup(sdkBody(), { country: "NL" }, {
     status: 200,
-    payload: emailUser({ created_at: new Date(NOW - 12000).toISOString() })
+    payload: (sent) => echoUser(sent, { created_at: new Date(NOW - 12000).toISOString() })
   });
-  assert.strictEqual(recorded(calls).length, 1);
-  const future = await runSignup(sdkBody(), { country: "NL" }, {
+  assert.strictEqual(recorded(slow.calls).length, 1);
+  assert.strictEqual(recorded(slow.calls)[0].body.p_nonce, slow.calls[0].body.data.kutadgu_signup_nonce);
+  const aligned = await runSignup(sdkBody(), { country: "NL" }, {
     status: 200,
-    payload: emailUser({ created_at: new Date(NOW + 5000).toISOString() })
+    payload: (sent) => echoUser(sent, { identity_created_at: new Date(Date.parse(FRESH) + 1500).toISOString() })
   });
-  assert.strictEqual(recorded(future.calls).length, 1);
+  assert.strictEqual(recorded(aligned.calls).length, 1);
 }));
 
-jobs.push(test("missing or plain PKCE and an oversized captcha do not call GoTrue", async () => {
+jobs.push(test("plain PKCE is forwarded and S256 is kept", async () => {
+  const plainChallenge = "abc.def~" + "a".repeat(36);
+  const plain = await runSignup(sdkBody({
+    code_challenge_method: "plain",
+    code_challenge: plainChallenge
+  }), { country: "TR" }, {
+    status: 200,
+    payload: (sent) => echoUser(sent)
+  });
+  assert.strictEqual(plain.result.status, 200);
+  assert.strictEqual(plain.calls[0].body.code_challenge_method, "plain");
+  assert.strictEqual(plain.calls[0].body.code_challenge, plainChallenge);
+  assert.strictEqual(recorded(plain.calls).length, 1);
+  const upper = await runSignup(sdkBody({ code_challenge_method: "S256" }), { country: "TR" }, {
+    status: 200,
+    payload: (sent) => ({ user: echoUser(sent), session: null })
+  });
+  assert.strictEqual(upper.calls[0].body.code_challenge_method, "s256");
+  assert.strictEqual(recorded(upper.calls).length, 1);
+}));
+
+jobs.push(test("missing PKCE, an unknown method, and an oversized captcha do not call GoTrue", async () => {
   const missing = sdkBody();
   delete missing.code_challenge;
   delete missing.code_challenge_method;
-  const plain = sdkBody({ code_challenge_method: "plain" });
+  const implicit = sdkBody({ code_challenge_method: "implicit" });
+  const short = sdkBody({ code_challenge: "too-short" });
   const huge = sdkBody();
   huge.gotrue_meta_security = { captcha_token: "x".repeat(2049) };
-  for (const body of [missing, plain, huge]) {
+  for (const body of [missing, implicit, short, huge]) {
     const { result, calls } = await runSignup(body, { country: "TR" }, {
       status: 200,
-      payload: emailUser()
+      payload: (sent) => echoUser(sent)
     });
     assert.strictEqual(result.status, 400);
     assert.strictEqual(calls.length, 0);

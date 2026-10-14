@@ -1,15 +1,17 @@
 "use strict";
 
+const crypto = require("crypto");
 const visitCountry = require("./analytics-visit-country.js");
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const PUBLIC_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const MAX_BODY_BYTES = 4096;
-const CREATION_WINDOW_MS = 15 * 1000;
-const CREATION_SKEW_MS = 10 * 1000;
 const RECORD_TIMEOUT_MS = 1500;
+const SAME_INSERT_MS = 2000;
+const NONCE_KEY = "kutadgu_signup_nonce";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const CHALLENGE_RE = /^[A-Za-z0-9_-]{43,128}$/;
+const NONCE_RE = /^[0-9a-f]{64}$/;
+const CHALLENGE_RE = /^[A-Za-z0-9._~-]{43,128}$/;
 
 function emptyResult(status) {
   return {
@@ -17,11 +19,6 @@ function emptyResult(status) {
     body: "",
     contentType: "application/json; charset=utf-8"
   };
-}
-
-function nowMs(deps) {
-  if (deps && typeof deps.now === "function") return Number(deps.now());
-  return Date.now();
 }
 
 function trustedCountry(request) {
@@ -109,9 +106,9 @@ function signupFields(text) {
   const data = parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data) ? parsed.data : {};
   const fullName = typeof data.full_name === "string" ? data.full_name.trim().slice(0, 120) : "";
   if (!email || email.length > 320 || !password || password.length > 200) return null;
-  const method = parsed.code_challenge_method;
+  const method = String(parsed.code_challenge_method || "").toLowerCase();
   const challenge = parsed.code_challenge;
-  if (method !== "s256" || typeof challenge !== "string" || !CHALLENGE_RE.test(challenge)) return null;
+  if ((method !== "s256" && method !== "plain") || typeof challenge !== "string" || !CHALLENGE_RE.test(challenge)) return null;
   const captcha = captchaToken(parsed);
   if (!captcha.ok) return null;
   return {
@@ -119,7 +116,7 @@ function signupFields(text) {
     password,
     fullName,
     codeChallenge: challenge,
-    codeChallengeMethod: "s256",
+    codeChallengeMethod: method,
     captcha: captcha.token
   };
 }
@@ -131,11 +128,23 @@ function scrubSecret(text, secret) {
   return body.split(hidden).join("");
 }
 
-function createdByThisRequest(createdAt, now) {
-  const created = Date.parse(createdAt || "");
-  if (!Number.isFinite(created)) return false;
-  const delta = now - created;
-  return delta >= -CREATION_SKEW_MS && delta <= CREATION_WINDOW_MS;
+function creationNonce() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function markerValue(source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return "";
+  const value = source[NONCE_KEY];
+  return typeof value === "string" && NONCE_RE.test(value) ? value : "";
+}
+
+function emailIdentity(user, id) {
+  if (!user || !Array.isArray(user.identities)) return null;
+  return user.identities.find((item) => {
+    const provider = String(item && item.provider || "").toLowerCase();
+    const owner = String(item && item.user_id || "").trim().toLowerCase();
+    return provider === "email" && owner === id;
+  }) || null;
 }
 
 function signupUser(payload) {
@@ -146,18 +155,17 @@ function signupUser(payload) {
   return null;
 }
 
-function freshEmailUserId(user, now) {
-  if (!user || typeof user !== "object") return "";
+function freshEmailUserId(user, nonce) {
+  if (!user || typeof user !== "object" || !NONCE_RE.test(String(nonce || ""))) return "";
   const id = String(user.id || "").trim().toLowerCase();
   if (!UUID_RE.test(id)) return "";
-  if (!Array.isArray(user.identities) || user.identities.length === 0) return "";
-  const emailIdentity = user.identities.some((item) => {
-    const provider = String(item && item.provider || "").toLowerCase();
-    const owner = String(item && item.user_id || "").trim().toLowerCase();
-    return provider === "email" && owner === id;
-  });
-  if (!emailIdentity) return "";
-  if (!createdByThisRequest(user.created_at, now)) return "";
+  const identity = emailIdentity(user, id);
+  if (!identity) return "";
+  if (markerValue(user.user_metadata) !== nonce || markerValue(identity.identity_data) !== nonce) return "";
+  const userCreated = Date.parse(user.created_at || "");
+  const identityCreated = Date.parse(identity.created_at || "");
+  if (!Number.isFinite(userCreated) || !Number.isFinite(identityCreated)) return "";
+  if (Math.abs(userCreated - identityCreated) > SAME_INSERT_MS) return "";
   return id;
 }
 
@@ -172,9 +180,9 @@ function serverKey(env) {
   return String((env && env.SUPABASE_SECRET_KEY) || "").trim();
 }
 
-async function recordCountry(env, fetchImpl, userId, country) {
+async function recordCountry(env, fetchImpl, userId, country, nonce) {
   const key = serverKey(env);
-  if (!key || !userId || !country) return;
+  if (!key || !userId || !country || !NONCE_RE.test(String(nonce || ""))) return;
   await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/record_member_signup_country", {
     method: "POST",
     headers: {
@@ -184,13 +192,13 @@ async function recordCountry(env, fetchImpl, userId, country) {
       "Content-Type": "application/json",
       Prefer: "return=minimal"
     },
-    body: JSON.stringify({ p_user_id: userId, p_country: country })
+    body: JSON.stringify({ p_user_id: userId, p_country: country, p_nonce: nonce })
   });
 }
 
-async function recordCountryLimited(env, fetchImpl, userId, country) {
+async function recordCountryLimited(env, fetchImpl, userId, country, nonce) {
   let timer;
-  const pending = recordCountry(env, fetchImpl, userId, country).then(
+  const pending = recordCountry(env, fetchImpl, userId, country, nonce).then(
     () => null,
     (err) => err
   );
@@ -211,10 +219,11 @@ async function handleMemberSignup(request, env, deps) {
   const fetchImpl = deps && deps.fetchImpl;
   if (typeof fetchImpl !== "function") return emptyResult(503);
   const redirect = requestedRedirect(request);
+  const nonce = creationNonce();
   const upstream = {
     email: fields.email,
     password: fields.password,
-    data: { full_name: fields.fullName },
+    data: { full_name: fields.fullName, [NONCE_KEY]: nonce },
     code_challenge: fields.codeChallenge,
     code_challenge_method: fields.codeChallengeMethod
   };
@@ -249,11 +258,11 @@ async function handleMemberSignup(request, env, deps) {
   }
   const status = Number(response.status) || 502;
   if (status >= 200 && status < 300) {
-    const userId = freshEmailUserId(signupUser(payload), nowMs(deps));
+    const userId = freshEmailUserId(signupUser(payload), nonce);
     const country = trustedCountry(request);
     if (userId && country) {
       try {
-        await recordCountryLimited(env, fetchImpl, userId, country);
+        await recordCountryLimited(env, fetchImpl, userId, country, nonce);
       } catch (err) {
         /* The account exists. A missed country stays Unknown. */
       }
@@ -269,8 +278,8 @@ async function handleMemberSignup(request, env, deps) {
 module.exports = {
   SUPABASE_URL,
   MAX_BODY_BYTES,
-  CREATION_WINDOW_MS,
-  CREATION_SKEW_MS,
+  NONCE_KEY,
+  SAME_INSERT_MS,
   RECORD_TIMEOUT_MS,
   accountRedirect,
   requestedRedirect,

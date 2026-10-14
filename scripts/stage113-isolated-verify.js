@@ -290,43 +290,113 @@ async function main() {
     await client.query("grant service_role to postgres");
     await client.query("grant usage on schema public to service_role");
     await client.query("alter table auth.users add column if not exists created_at timestamptz");
+    await client.query("alter table auth.users add column if not exists raw_user_meta_data jsonb");
     await client.query("update auth.users set created_at = timestamptz '2020-01-01+00' where created_at is null");
+    await client.query(`
+      create table if not exists auth.identities (
+        id uuid primary key default gen_random_uuid(),
+        user_id uuid not null references auth.users(id) on delete cascade,
+        provider text not null,
+        identity_data jsonb not null default '{}'::jsonb,
+        created_at timestamptz
+      )
+    `);
     await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY.sql"));
     const fresh = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    await client.query("insert into auth.users (id, created_at) values ($1, clock_timestamp())", [fresh]);
+    const freshNonce = "ab".repeat(32);
+    await client.query(
+      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp(), jsonb_build_object('kutadgu_signup_nonce', $2::text))",
+      [fresh, freshNonce]
+    );
+    await client.query(
+      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
+      [fresh]
+    );
     await client.query(
       "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'fresh-signup@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad')",
       [fresh]
     );
     await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'tr')",
-      [fresh]
+      "select public.record_member_signup_country($1::uuid, 'tr', $2::text)",
+      [fresh, freshNonce]
     ));
     await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'US')",
-      [fresh]
+      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
+      [fresh, freshNonce]
     ));
     await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'DE')",
-      [MEMBER]
+      "select public.record_member_signup_country($1::uuid, 'DE', $2::text)",
+      [MEMBER, freshNonce]
     ));
     await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'XX')",
-      [fresh]
+      "select public.record_member_signup_country($1::uuid, 'XX', $2::text)",
+      [fresh, freshNonce]
     ));
     const stored = await client.query("select user_id::text, country from public.member_signup_country order by 1");
     check("only the new signup keeps its first country", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country === "TR", JSON.stringify(stored.rows));
-    const minuteOld = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-    await client.query("insert into auth.users (id, created_at) values ($1, clock_timestamp() - interval '1 minute')", [minuteOld]);
+    const recent = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const recentNonce = "11".repeat(32);
+    const otherNonce = "22".repeat(32);
+    await client.query(
+      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '5 seconds', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
+      [recent, recentNonce]
+    );
+    await client.query(
+      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
+      [recent]
+    );
     await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'US')",
+      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
+      [recent, otherNonce]
+    ));
+    const recentRow = await client.query("select country from public.member_signup_country where user_id = $1", [recent]);
+    check("a five-second-old account does not take a different signup nonce", recentRow.rows.length === 0);
+    const repaired = "99999999-9999-4999-8999-999999999999";
+    const repairNonce = "33".repeat(32);
+    await client.query(
+      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '5 seconds', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
+      [repaired, repairNonce]
+    );
+    await client.query(
+      "insert into auth.identities (user_id, provider, identity_data, created_at) values ($1, 'email', jsonb_build_object('kutadgu_signup_nonce', $2::text), clock_timestamp())",
+      [repaired, repairNonce]
+    );
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'FR', $2::text)",
+      [repaired, repairNonce]
+    ));
+    const repairedRow = await client.query("select country from public.member_signup_country where user_id = $1", [repaired]);
+    check("an identity created later than the user does not count as signup", repairedRow.rows.length === 0);
+    const confirmed = "88888888-8888-4888-8888-888888888888";
+    const confirmedNonce = "44".repeat(32);
+    await client.query(
+      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp(), jsonb_build_object('kutadgu_signup_nonce', $2::text))",
+      [confirmed, confirmedNonce]
+    );
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'DE', $2::text)",
+      [confirmed, confirmedNonce]
+    ));
+    const confirmedRow = await client.query("select country from public.member_signup_country where user_id = $1", [confirmed]);
+    check("metadata without an email identity does not record a country", confirmedRow.rows.length === 0);
+    const minuteOld = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await client.query(
+      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '1 minute', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
+      [minuteOld, freshNonce]
+    );
+    await client.query(
+      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
       [minuteOld]
+    );
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
+      [minuteOld, otherNonce]
     ));
     const minuteRow = await client.query("select country from public.member_signup_country where user_id = $1", [minuteOld]);
     check("a one-minute-old account does not gain a later country", minuteRow.rows.length === 0);
     await expectError("authenticated cannot write signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'FR')",
-      [fresh]
+      "select public.record_member_signup_country($1::uuid, 'FR', $2::text)",
+      [fresh, freshNonce]
     )), /permission denied/i);
     await expectError("anonymous cannot read signup country", () => asRole(client, "anon", null, "aal1", () => client.query(
       "select * from public.member_signup_country"

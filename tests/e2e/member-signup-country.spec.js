@@ -200,3 +200,222 @@ test("signup confirmation and an existing login stay stable in both themes and a
   const oauth = await page.evaluate(() => window.__oauthPosts || []);
   expect(oauth).toEqual([]);
 });
+
+const WORKER_USER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const signupHandler = require("../../cloudflare/member-signup-country.js");
+
+function createdAccount(email, nonce, createdAt) {
+  const created = createdAt || new Date().toISOString();
+  return {
+    id: WORKER_USER,
+    aud: "authenticated",
+    email,
+    created_at: created,
+    user_metadata: { full_name: "يېڭى ئەزا", kutadgu_signup_nonce: nonce },
+    identities: [{
+      provider: "email",
+      user_id: WORKER_USER,
+      created_at: created,
+      identity_data: { email, kutadgu_signup_nonce: nonce }
+    }]
+  };
+}
+
+function workerRequest(route) {
+  const raw = route.request();
+  const headers = raw.headers();
+  return {
+    method: raw.method(),
+    url: raw.url(),
+    headers: {
+      get(name) {
+        return headers[String(name || "").toLowerCase()] || "";
+      }
+    },
+    text: async () => raw.postData() || "",
+    cf: { country: "TR" }
+  };
+}
+
+function authFixture(mode, sent) {
+  const nonce = sent.data && sent.data.kutadgu_signup_nonce;
+  const email = sent.email;
+  if (mode === "session") {
+    const user = createdAccount(email, nonce);
+    return {
+      status: 200,
+      body: {
+        access_token: "test-access-aaaaaaaa",
+        refresh_token: "test-refresh-aaaaaaaa",
+        token_type: "bearer",
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        user
+      }
+    };
+  }
+  if (mode === "existing") {
+    const created = new Date(Date.now() - 5000).toISOString();
+    const stored = "11".repeat(32);
+    return { status: 200, body: createdAccount(email, stored, created) };
+  }
+  if (mode === "duplicate") {
+    return {
+      status: 200,
+      body: {
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        aud: "authenticated",
+        email,
+        created_at: new Date().toISOString(),
+        user_metadata: { kutadgu_signup_nonce: nonce },
+        identities: []
+      }
+    };
+  }
+  return { status: 200, body: createdAccount(email, nonce) };
+}
+
+async function installWorker(page, state) {
+  const upstream = [];
+  await page.route("**/*supabase.co/**", (route) => {
+    if (route.request().url().includes("/logout")) return route.fulfill({ status: 204, body: "" });
+    return route.abort();
+  });
+  await page.route("**/api/member-signup**", async (route) => {
+    const result = await signupHandler.handleMemberSignup(
+      workerRequest(route),
+      { SUPABASE_SECRET_KEY: "server-secret" },
+      {
+        fetchImpl: async (url, init) => {
+          const target = String(url);
+          if (target.includes("supabase.co") && !target.includes("/auth/v1/signup") && !target.includes("/rest/v1/rpc/record_member_signup_country")) {
+            throw new Error("production auth host was contacted: " + target);
+          }
+          const body = init && init.body ? JSON.parse(init.body) : null;
+          if (target.includes("/auth/v1/signup")) {
+            upstream.push(body);
+            const fixture = authFixture(state.mode, body);
+            return { status: fixture.status, text: async () => JSON.stringify(fixture.body) };
+          }
+          if (target.includes("/rest/v1/rpc/record_member_signup_country")) {
+            state.records.push(body);
+            return { status: 204, text: async () => "" };
+          }
+          throw new Error("unexpected signup worker request: " + target);
+        }
+      }
+    );
+    await route.fulfill({
+      status: result.status,
+      contentType: result.contentType,
+      body: result.body
+    });
+  });
+  return upstream;
+}
+
+async function authStorage(page) {
+  return page.evaluate(async () => {
+    const client = window.KutadguMember.getClient();
+    const session = await client.auth.getSession();
+    return {
+      token: session.data.session && session.data.session.access_token,
+      stored: localStorage.getItem("kutadgu-member-auth-v1"),
+      verifier: localStorage.getItem("kutadgu-member-auth-v1-code-verifier")
+    };
+  });
+}
+
+test("the bundled SDK signup reaches Auth through the Worker with S256 and plain PKCE", async ({ page }) => {
+  const state = { mode: "confirm", records: [] };
+  const upstream = await installWorker(page, state);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openSignup(page);
+  await fillSignup(page, "worker-new@example.com");
+  await expect(page.locator("#authStatus")).toContainText("ئەزالىق قۇرۇلدى");
+  expect(upstream).toHaveLength(1);
+  expect(upstream[0].code_challenge_method).toBe("s256");
+  expect(upstream[0].code_challenge).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+  expect(upstream[0].data.kutadgu_signup_nonce).toMatch(/^[0-9a-f]{64}$/);
+  expect(upstream[0].data.country).toBeUndefined();
+  expect(state.records).toEqual([{
+    p_user_id: WORKER_USER,
+    p_country: "TR",
+    p_nonce: upstream[0].data.kutadgu_signup_nonce
+  }]);
+  const confirmAuth = await authStorage(page);
+  expect(confirmAuth.token).toBeFalsy();
+  expect(confirmAuth.stored).toBeNull();
+  expect(confirmAuth.verifier).toBeTruthy();
+
+  state.mode = "session";
+  await page.locator("[data-auth-tab='signup']").click();
+  await fillSignup(page, "worker-session@example.com");
+  await expect(page.locator("#memberPanel")).toBeVisible();
+  const sessionAuth = await authStorage(page);
+  expect(sessionAuth.token).toBe("test-access-aaaaaaaa");
+  expect(sessionAuth.stored).toContain("test-access-aaaaaaaa");
+  expect(upstream[1].code_challenge_method).toBe("s256");
+  expect(state.records).toHaveLength(2);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction((id) => {
+    const member = window.KutadguMember;
+    return !!(member && member.sessionBootDone && member.sessionBootDone() && member.getUser && member.getUser() && member.getUser().id === id);
+  }, WORKER_USER);
+
+  await page.locator("#memberLogout").click();
+  await expect(page.locator("#loginForm")).toBeVisible();
+  await page.goto("/account.html#signup", { waitUntil: "domcontentloaded" });
+  const beforeExisting = state.records.length;
+  state.mode = "existing";
+  await fillSignup(page, "worker-existing@example.com");
+  await expect(page.locator("#authStatus")).toContainText("ئەزالىق قۇرۇلدى");
+  expect(state.records).toHaveLength(beforeExisting);
+  expect(upstream.at(-1).data.kutadgu_signup_nonce).not.toBe("11".repeat(32));
+
+  state.mode = "duplicate";
+  await page.locator("[data-auth-tab='signup']").click();
+  await fillSignup(page, "worker-duplicate@example.com");
+  await expect(page.locator("#authStatus")).toContainText("ئەزالىق قۇرۇلدى");
+  expect(state.records).toHaveLength(beforeExisting);
+  expect(upstream.at(-1).code_challenge_method).toBe("s256");
+});
+
+test("the bundled SDK plain PKCE fallback still signs up through the Worker", async ({ page }) => {
+  await page.addInitScript(() => {
+    const random = window.crypto.getRandomValues.bind(window.crypto);
+    Object.defineProperty(window, "crypto", {
+      configurable: true,
+      value: { getRandomValues: random }
+    });
+  });
+  const state = { mode: "confirm", records: [] };
+  const upstream = await installWorker(page, state);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openSignup(page);
+  await fillSignup(page, "worker-plain@example.com");
+  await expect(page.locator("#authStatus")).toContainText("ئەزالىق قۇرۇلدى");
+  expect(upstream).toHaveLength(1);
+  expect(upstream[0].code_challenge_method).toBe("plain");
+  expect(upstream[0].code_challenge).toMatch(/^[0-9a-f]{112}$/);
+  expect(state.records).toHaveLength(1);
+  expect(state.records[0].p_nonce).toBe(upstream[0].data.kutadgu_signup_nonce);
+  expect(state.records[0].p_country).toBe("TR");
+  const confirmAuth = await authStorage(page);
+  expect(confirmAuth.token).toBeFalsy();
+  expect(confirmAuth.verifier).toBe(upstream[0].code_challenge);
+
+  state.mode = "session";
+  await page.locator("[data-auth-tab='signup']").click();
+  await fillSignup(page, "worker-plain-session@example.com");
+  await expect(page.locator("#memberPanel")).toBeVisible();
+  const sessionAuth = await authStorage(page);
+  expect(sessionAuth.token).toBe("test-access-aaaaaaaa");
+  expect(sessionAuth.stored).toContain("test-access-aaaaaaaa");
+  expect(upstream[1].code_challenge_method).toBe("plain");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction((id) => {
+    const member = window.KutadguMember;
+    return !!(member && member.sessionBootDone && member.sessionBootDone() && member.getUser && member.getUser() && member.getUser().id === id);
+  }, WORKER_USER);
+});

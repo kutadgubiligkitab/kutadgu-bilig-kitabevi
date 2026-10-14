@@ -142,6 +142,7 @@ $$;
 revoke all on function public.admin_member_directory_page(text, text, text, integer) from public, anon;
 grant execute on function public.admin_member_directory_page(text, text, text, integer) to authenticated;
 
+drop function if exists public.record_member_signup_country(uuid, text, text);
 drop function if exists public.record_member_signup_country(uuid, text);
 drop table if exists public.member_signup_country;
 
