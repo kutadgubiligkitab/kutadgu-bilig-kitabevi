@@ -1,11 +1,7 @@
--- Restores the Stage 113 directory read and removes signup-country storage.
+-- Removes last-visit storage and restores the Stage 113 directory read.
 -- Does not drop profiles or the directory function.
 
 begin;
-
--- Paged admin member directory. Search, suspension, and saved-cart filters
--- run before the 20-row page. Does not add a table, a policy, or a write grant.
--- Apply after profiles, orders, member_cart_items, and is_kutadgu_admin().
 
 create or replace function public.admin_member_directory_page(
   p_query text,
@@ -142,8 +138,7 @@ $$;
 revoke all on function public.admin_member_directory_page(text, text, text, integer) from public, anon;
 grant execute on function public.admin_member_directory_page(text, text, text, integer) to authenticated;
 
-drop function if exists public.record_member_signup_country(uuid, text, text);
-drop function if exists public.record_member_signup_country(uuid, text);
-drop table if exists public.member_signup_country;
+drop function if exists public.record_member_last_visit(uuid, text, text, timestamptz);
+drop table if exists public.member_last_visit;
 
 commit;

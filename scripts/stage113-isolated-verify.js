@@ -289,141 +289,92 @@ async function main() {
     await client.query("do $$ begin create role service_role nologin; exception when duplicate_object then null; end $$");
     await client.query("grant service_role to postgres");
     await client.query("grant usage on schema public to service_role");
-    await client.query("alter table auth.users add column if not exists created_at timestamptz");
-    await client.query("alter table auth.users add column if not exists raw_user_meta_data jsonb");
-    await client.query("update auth.users set created_at = timestamptz '2020-01-01+00' where created_at is null");
-    await client.query(`
-      create table if not exists auth.identities (
-        id uuid primary key default gen_random_uuid(),
-        user_id uuid not null references auth.users(id) on delete cascade,
-        provider text not null,
-        identity_data jsonb not null default '{}'::jsonb,
-        created_at timestamptz
-      )
-    `);
-    await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY.sql"));
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
     const fresh = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    const freshNonce = "ab".repeat(32);
+    const suspendedMember = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await client.query("alter table auth.users add column if not exists email text");
+    await client.query("insert into auth.users (id) values ($1), ($2)", [fresh, suspendedMember]);
     await client.query(
-      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp(), jsonb_build_object('kutadgu_signup_nonce', $2::text))",
-      [fresh, freshNonce]
+      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'fresh-visit@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad'), ($2, 'suspended-visit@example.com', 'توختىتىلغان', 'تۈركىيە', 'suspended', 4, 'index.html')",
+      [fresh, suspendedMember]
     );
-    await client.query(
-      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
+    async function recordVisit(userId, page, country, at) {
+      return asRole(client, "service_role", null, "aal1", () => client.query(
+        "select public.record_member_last_visit($1::uuid, $2::text, $3::text, $4::timestamptz)",
+        [userId, page, country, at]
+      ));
+    }
+    await recordVisit(fresh, "cart.html?utm_source=ad", "tr", "2026-10-14T12:00:00Z");
+    await recordVisit(fresh, "account.html", "DE", "2026-10-14T12:05:00Z");
+    await recordVisit(fresh, "old.html", "FR", "2026-10-14T11:00:00Z");
+    await recordVisit(fresh, "unknown.html", "XX", "2026-10-14T12:06:00Z");
+    await recordVisit(suspendedMember, "index.html", "US", "2026-10-14T12:07:00Z");
+    const stored = await client.query(
+      "select user_id::text, country, observed_at from public.member_last_visit order by 1"
+    );
+    check("the newer visit replaces the country and an older visit does not", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country == null && new Date(stored.rows[0].observed_at).toISOString() === "2026-10-14T12:06:00.000Z", JSON.stringify(stored.rows));
+    const profile = await client.query(
+      "select country, visit_count::int, last_page, last_seen_at from public.profiles where id = $1",
       [fresh]
     );
-    await client.query(
-      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'fresh-signup@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad')",
+    check("profile country stays editable and the latest page matches the accepted visit", profile.rows[0].country === "ئۆزگەرتىلگەن" && profile.rows[0].visit_count === 4 && profile.rows[0].last_page === "unknown.html" && new Date(profile.rows[0].last_seen_at).toISOString() === "2026-10-14T12:06:00.000Z", JSON.stringify(profile.rows[0]));
+    const held = await client.query("select visit_count::int as visit_count from public.profiles where id = $1", [suspendedMember]);
+    const suspendedVisit = await client.query("select 1 from public.member_last_visit where user_id = $1", [suspendedMember]);
+    check("a suspended member does not gain a visit country", held.rows[0].visit_count === 4 && suspendedVisit.rows.length === 0);
+    const other = new pg.Client({ connectionString: "postgresql://postgres:postgres@127.0.0.1:55463/stage113" });
+    await other.connect();
+    try {
+      await Promise.all([
+        client.query("select public.record_member_last_visit($1::uuid, 'late.html', 'TR', timestamptz '2026-10-14 12:10:00+00')", [fresh]),
+        other.query("select public.record_member_last_visit($1::uuid, 'early.html', 'US', timestamptz '2026-10-14 12:08:00+00')", [fresh])
+      ]);
+    } finally {
+      await other.end().catch(() => {});
+    }
+    const raced = await client.query("select country, observed_at, (select last_page from public.profiles where id = $1) as last_page, (select visit_count::int from public.profiles where id = $1) as visit_count from public.member_last_visit where user_id = $1", [fresh]);
+    check("overlapping visits keep the later observation", raced.rows[0].country === "TR" && raced.rows[0].last_page === "late.html" && raced.rows[0].visit_count === 6 && new Date(raced.rows[0].observed_at).toISOString() === "2026-10-14T12:10:00.000Z", JSON.stringify(raced.rows[0]));
+    await expectError("authenticated cannot write last visit country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select public.record_member_last_visit($1::uuid, 'hack.html', 'FR', clock_timestamp())",
       [fresh]
-    );
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'tr', $2::text)",
-      [fresh, freshNonce]
-    ));
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
-      [fresh, freshNonce]
-    ));
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'DE', $2::text)",
-      [MEMBER, freshNonce]
-    ));
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'XX', $2::text)",
-      [fresh, freshNonce]
-    ));
-    const stored = await client.query("select user_id::text, country from public.member_signup_country order by 1");
-    check("only the new signup keeps its first country", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country === "TR", JSON.stringify(stored.rows));
-    const recent = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-    const recentNonce = "11".repeat(32);
-    const otherNonce = "22".repeat(32);
-    await client.query(
-      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '5 seconds', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
-      [recent, recentNonce]
-    );
-    await client.query(
-      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
-      [recent]
-    );
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
-      [recent, otherNonce]
-    ));
-    const recentRow = await client.query("select country from public.member_signup_country where user_id = $1", [recent]);
-    check("a five-second-old account does not take a different signup nonce", recentRow.rows.length === 0);
-    const repaired = "99999999-9999-4999-8999-999999999999";
-    const repairNonce = "33".repeat(32);
-    await client.query(
-      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '5 seconds', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
-      [repaired, repairNonce]
-    );
-    await client.query(
-      "insert into auth.identities (user_id, provider, identity_data, created_at) values ($1, 'email', jsonb_build_object('kutadgu_signup_nonce', $2::text), clock_timestamp())",
-      [repaired, repairNonce]
-    );
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'FR', $2::text)",
-      [repaired, repairNonce]
-    ));
-    const repairedRow = await client.query("select country from public.member_signup_country where user_id = $1", [repaired]);
-    check("an identity created later than the user does not count as signup", repairedRow.rows.length === 0);
-    const confirmed = "88888888-8888-4888-8888-888888888888";
-    const confirmedNonce = "44".repeat(32);
-    await client.query(
-      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp(), jsonb_build_object('kutadgu_signup_nonce', $2::text))",
-      [confirmed, confirmedNonce]
-    );
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'DE', $2::text)",
-      [confirmed, confirmedNonce]
-    ));
-    const confirmedRow = await client.query("select country from public.member_signup_country where user_id = $1", [confirmed]);
-    check("metadata without an email identity does not record a country", confirmedRow.rows.length === 0);
-    const minuteOld = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-    await client.query(
-      "insert into auth.users (id, created_at, raw_user_meta_data) values ($1, clock_timestamp() - interval '1 minute', jsonb_build_object('kutadgu_signup_nonce', $2::text))",
-      [minuteOld, freshNonce]
-    );
-    await client.query(
-      "insert into auth.identities (user_id, provider, identity_data, created_at) select id, 'email', raw_user_meta_data, created_at from auth.users where id = $1",
-      [minuteOld]
-    );
-    await asRole(client, "service_role", null, "aal1", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'US', $2::text)",
-      [minuteOld, otherNonce]
-    ));
-    const minuteRow = await client.query("select country from public.member_signup_country where user_id = $1", [minuteOld]);
-    check("a one-minute-old account does not gain a later country", minuteRow.rows.length === 0);
-    await expectError("authenticated cannot write signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
-      "select public.record_member_signup_country($1::uuid, 'FR', $2::text)",
-      [fresh, freshNonce]
     )), /permission denied/i);
-    await expectError("anonymous cannot read signup country", () => asRole(client, "anon", null, "aal1", () => client.query(
-      "select * from public.member_signup_country"
+    await expectError("anonymous cannot read last visit country", () => asRole(client, "anon", null, "aal1", () => client.query(
+      "select * from public.member_last_visit"
     )), /permission denied/i);
-    await expectError("a member cannot read signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
-      "select * from public.member_signup_country"
+    await expectError("a member cannot read last visit country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select * from public.member_last_visit"
     )), /permission denied/i);
     const shown = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
       "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
     ));
     const shownRow = shown.rows[0].payload.rows[0];
-    check("admin AAL2 reads signup country separately from the profile country", shown.rows[0].payload.total === 1 && shownRow.signup_country === "TR" && shownRow.country === "ئۆزگەرتىلگەن" && shownRow.last_page === "cart.html?utm_source=ad");
+    check("admin AAL2 reads the latest visit separately from the profile country", shown.rows[0].payload.total === 1 && shownRow.last_visit_country === "TR" && shownRow.country === "ئۆزگەرتىلگەن" && shownRow.last_page === "late.html");
     const historical = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
       "select public.admin_member_directory_page('ئىزدەش', 'all', 'all', 0) as payload"
     ));
-    check("a historical member has no signup country", historical.rows[0].payload.rows[0].signup_country == null);
+    check("a historical member has no last visit country", historical.rows[0].payload.rows[0].last_visit_country == null && historical.rows[0].payload.rows[0].last_visit_observed_at == null);
     const codeSearch = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
       "select public.admin_member_directory_page('TR', 'all', 'all', 0) as payload"
     ));
-    check("signup country is not a directory search field", codeSearch.rows[0].payload.total === 0, JSON.stringify(codeSearch.rows[0].payload.rows.map((row) => [row.email, row.country, row.signup_country])));
-    await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY_ROLLBACK.sql"));
-    const dropped = await client.query("select to_regclass('public.member_signup_country') as name");
-    const recorder = await client.query("select proname from pg_proc where proname = 'record_member_signup_country'");
+    check("last visit country is not a directory search field", codeSearch.rows[0].payload.total === 0, JSON.stringify(codeSearch.rows[0].payload.rows.map((row) => [row.email, row.country, row.last_visit_country])));
+    const paged = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('', 'all', 'all', 1) as payload"
+    ));
+    check("directory paging still returns the second page", paged.rows[0].payload.page === 1 && paged.rows[0].payload.rows.length === 20);
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT_ROLLBACK.sql"));
+    const dropped = await client.query("select to_regclass('public.member_last_visit') as name");
+    const recorder = await client.query("select proname from pg_proc where proname = 'record_member_last_visit'");
     const restoredPage = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
       "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
     ));
-    check("rollback removes the table and restores the previous directory row", dropped.rows[0].name == null && recorder.rows.length === 0 && !Object.prototype.hasOwnProperty.call(restoredPage.rows[0].payload.rows[0], "signup_country"));
+    check("rollback removes the table and restores the previous directory row", dropped.rows[0].name == null && recorder.rows.length === 0 && !Object.prototype.hasOwnProperty.call(restoredPage.rows[0].payload.rows[0], "last_visit_country"));
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
+    await recordVisit(fresh, "reapply.html", "DE", "2026-10-14T13:00:00Z");
+    const reapplied = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    check("reapply records a new last visit", reapplied.rows[0].payload.rows[0].last_visit_country === "DE" && reapplied.rows[0].payload.rows[0].last_page === "reapply.html");
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT_ROLLBACK.sql"));
 
     await client.query(readSql("STAGE113_ADMIN_MEMBER_DIRECTORY_ROLLBACK.sql"));
     const gone = await client.query("select proname from pg_proc where proname = 'admin_member_directory_page'");

@@ -2889,12 +2889,18 @@ async function setCartShareGrant(userId,nextGranted,pendingKey){
   renderCartShareControls();
   renderMembers();
 }
-function signupCountryText(code){
+function lastVisitCountryText(code){
   const core=window.KutadguAnalyticsCore;
   if(!core||typeof core.countryLabel!=="function")return "نامەلۇم";
   const label=String(core.countryLabel(code)||"");
   if(!label||label==="نامەلۇم"||/^[A-Za-z]{2}$/.test(label))return "نامەلۇم";
   return label;
+}
+function lastVisitCountryLine(member){
+  const country=lastVisitCountryText(member&&member.last_visit_country);
+  const observed=member&&member.last_visit_observed_at?dateText(member.last_visit_observed_at):"";
+  if(!observed||observed==="—")return "ئاخىرقى زىيارەت دۆلىتى: نامەلۇم";
+  return `ئاخىرقى زىيارەت دۆلىتى: ${country} · ${observed}`;
 }
 function memberLastPageText(value){
   const helper=window.KutadguMemberPageLabel;
@@ -2932,7 +2938,7 @@ function renderMembers(){
         ${cartShareRowControl(m)}
         <button type="button" class="${suspended?"":"member-suspend"}" data-member-status="${esc(m.id)}" data-next-status="${suspended?"active":"suspended"}">${suspended?"♻️ قايتا ئېچىش":"⛔ توختىتىش"}</button>
       </div>
-      <div class="admin-member-last-page">ئەزا بولغان دۆلەت: ${esc(signupCountryText(m.signup_country))}</div>
+      <div class="admin-member-last-page">${esc(lastVisitCountryLine(m))}</div>
       <div class="admin-member-last-page">ئاخىرقى بەت: ${esc(memberLastPageText(m.last_page))}</div>
     </article>`;
   }).join("");

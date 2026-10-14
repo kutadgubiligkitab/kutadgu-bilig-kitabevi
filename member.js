@@ -158,12 +158,27 @@ async function fetchProfile(){
 }
 async function recordVisit(){
   if(!db||!user||blocked)return;
-  const key=`kutadgu-last-visit-${user.id}`;
+  const userId=String(user.id||"");
+  const key=`kutadgu-last-visit-${userId}`;
   const now=Date.now(),last=Number(localStorage.getItem(key)||0);
-  if(now-last<60000)return;
+  if(!userId||now-last<60000)return;
   const page=`${location.pathname.split("/").pop()||"index.html"}${location.search||""}`;
-  const {error}=await db.rpc("record_member_visit",{page_path:page});
-  if(!error)localStorage.setItem(key,String(now));
+  let token="";
+  try{
+    const session=await db.auth.getSession();
+    token=session&&session.data&&session.data.session&&session.data.session.access_token||"";
+  }catch(err){return}
+  if(!token||!user||String(user.id)!==userId)return;
+  let response;
+  try{
+    response=await fetch("/api/member-visit",{
+      method:"POST",
+      headers:{Authorization:"Bearer "+token,"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({page_path:page}),
+      credentials:"same-origin"
+    });
+  }catch(err){return}
+  if(response&&response.ok)localStorage.setItem(key,String(now));
 }
 function memberLog(level,step,detail){
   const payload={step,detail:detail&&detail.message?String(detail.message):detail};
@@ -971,26 +986,6 @@ function queueSession(session,options){
   });
   return applyChain;
 }
-function memberAuthFetch(input,init){
-  try{
-    const raw=typeof input==="string"?input:(input&&typeof input.url==="string"?input.url:"");
-    const url=new URL(raw,location.href);
-    const method=String((init&&init.method)||(input&&typeof input!=="string"&&input.method)||"GET").toUpperCase();
-    if(method==="POST"&&/\/auth\/v1\/signup\/?$/.test(url.pathname)){
-      const next=new URL("/api/member-signup",location.origin);
-      const redirect=url.searchParams.get("redirect_to");
-      if(redirect)next.searchParams.set("redirect_to",redirect);
-      return fetch(next.href,{
-        method:"POST",
-        headers:new Headers(init&&init.headers||undefined),
-        body:init?init.body:undefined,
-        credentials:init&&init.credentials,
-        signal:init&&init.signal
-      });
-    }
-  }catch(err){}
-  return fetch(input,init);
-}
 async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
   const result=await db.auth.signUp({
@@ -1151,8 +1146,7 @@ async function init(){
     const cfg=liveConfig();
     if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
     db=window.supabase.createClient(cfg.url,cfg.anonKey||cfg.publishableKey,{
-      auth:memberAuthOptions(),
-      global:{fetch:memberAuthFetch}
+      auth:memberAuthOptions()
     });
     db.auth.onAuthStateChange((event,session)=>{
       const feedbackApi=window.KutadguWebsiteFeedback;

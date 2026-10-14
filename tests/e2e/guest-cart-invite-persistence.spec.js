@@ -188,9 +188,13 @@ async function installBoundary(page, gates) {
     }
     return route.fallback();
   });
-  await page.route("**/api/member-signup**", async (route) => {
-    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
-    return answerSignup(route, gates);
+  gates.visitPosts = [];
+  await page.route("**/api/member-visit", async (route) => {
+    gates.visitPosts.push({
+      body: route.request().postDataJSON(),
+      authorization: String(route.request().headers().authorization || "").replace(/^Bearer\s+/i, "")
+    });
+    return route.fulfill({ status: 204, body: "" });
   });
   await page.route("**/auth/v1/**", async (route) => {
     const request = route.request();
@@ -410,6 +414,13 @@ test.describe("guest cart invitation persistence through member.js", () => {
     expect(posted && posted.code_challenge).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
     expect(posted && posted.data && posted.data.full_name).toBe("يېڭى ئەزا");
     expect(posted && posted.country).toBeUndefined();
+    expect(gates.visitPosts.length).toBeGreaterThan(0);
+    gates.visitPosts.forEach((visit) => {
+      expect(visit.body.country).toBeUndefined();
+      expect(visit.body.user_id).toBeUndefined();
+      expect(visit.body.page_path).toBeTruthy();
+      expect(visit.authorization).toBe(expectedBearer(USER));
+    });
     const auth = await page.evaluate(async () => {
       const client = window.KutadguMember.getClient();
       const session = await client.auth.getSession();

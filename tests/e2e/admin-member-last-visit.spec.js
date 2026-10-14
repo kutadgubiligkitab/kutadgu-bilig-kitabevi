@@ -15,7 +15,8 @@ function members() {
       created_at: "2026-10-14T00:00:00.000Z",
       visit_count: 1,
       last_page: "cart.html?utm_source=ad&fbclid=1#top",
-      signup_country: "TR",
+      last_visit_country: "DE",
+      last_visit_observed_at: "2026-10-14T15:04:00.000Z",
       order_count: 0,
       order_total: 0
     },
@@ -30,7 +31,8 @@ function members() {
       created_at: "2020-01-01T00:00:00.000Z",
       visit_count: 2,
       last_page: "/book/42",
-      signup_country: null,
+      last_visit_country: null,
+      last_visit_observed_at: null,
       order_count: 0,
       order_total: 0
     },
@@ -45,7 +47,8 @@ function members() {
       created_at: "2024-01-01T00:00:00.000Z",
       visit_count: 3,
       last_page: "<script>alert(1)</script>",
-      signup_country: "QQ",
+      last_visit_country: "QQ",
+      last_visit_observed_at: "2026-10-14T15:04:00.000Z",
       order_count: 0,
       order_total: 0
     }
@@ -101,21 +104,22 @@ async function openDirectory(page) {
   await expect(page.locator(".admin-member-row")).toHaveCount(3);
 }
 
-test("member rows show signup country and Uyghur page names without raw tracking text", async ({ page }) => {
+test("member rows show the latest visit country and Uyghur page names", async ({ page }) => {
   await install(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await openDirectory(page);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   const rows = page.locator(".admin-member-row");
-  await expect(rows.nth(0)).toContainText("ئەزا بولغان دۆلەت: تۈركىيە");
+  await expect(rows.nth(0)).toContainText("ئاخىرقى زىيارەت دۆلىتى: گېرمانىيە · 2026-يىلى 10-ئاينىڭ 14-كۈنى، 15:04");
   await expect(rows.nth(0)).toContainText("ئاخىرقى بەت: سېۋەت");
   await expect(rows.nth(0)).toContainText("تۈركىيە");
+  await expect(rows.nth(0)).not.toContainText("ئەزا بولغان دۆلەت");
   await expect(rows.nth(0)).not.toContainText("utm_source");
   await expect(rows.nth(0)).not.toContainText("cart.html");
-  await expect(rows.nth(1)).toContainText("ئەزا بولغان دۆلەت: نامەلۇم");
+  await expect(rows.nth(1)).toContainText("ئاخىرقى زىيارەت دۆلىتى: نامەلۇم");
   await expect(rows.nth(1)).toContainText("ئاخىرقى بەت: كىتاب تەپسىلاتى");
   await expect(rows.nth(1)).toContainText("ئامېرىكا");
-  await expect(rows.nth(2)).toContainText("ئەزا بولغان دۆلەت: نامەلۇم");
+  await expect(rows.nth(2)).toContainText("ئاخىرقى زىيارەت دۆلىتى: نامەلۇم · 2026-يىلى 10-ئاينىڭ 14-كۈنى، 15:04");
   await expect(rows.nth(2)).not.toContainText("QQ");
   await expect(rows.nth(2)).toContainText("ئاخىرقى بەت: نامەلۇم");
   await expect(rows.nth(2)).toContainText("https://evil.example");
@@ -135,7 +139,7 @@ test("the same labels stay inside the row on a narrow viewport and a dark color 
   await openDirectory(page);
   await page.evaluate(() => { document.body.classList.add("dark-mode"); });
   const row = page.locator(".admin-member-row").first();
-  await expect(row).toContainText("ئەزا بولغان دۆلەت: تۈركىيە");
+  await expect(row).toContainText("ئاخىرقى زىيارەت دۆلىتى: گېرمانىيە");
   await expect(row).toContainText("ئاخىرقى بەت: سېۋەت");
   const box = await row.boundingBox();
   expect(box.width).toBeLessThanOrEqual(390);
