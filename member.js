@@ -947,6 +947,7 @@ async function applySession(session,{trackLogin=false,sync=false}={}){
   });
   renderButton();emit();
   if(user){
+    noteRecentGoogleSignupCountry(session);
     try{
       await fetchProfile();
       if(profile?.status==="suspended"){
@@ -971,9 +972,49 @@ function queueSession(session,options){
   });
   return applyChain;
 }
+function noteRecentGoogleSignupCountry(session){
+  try{
+    const proven=provenMemberSession(session);
+    const current=proven&&proven.user;
+    if(!current)return;
+    const created=Date.parse(current.created_at||"");
+    if(!Number.isFinite(created)||Math.abs(Date.now()-created)>180000)return;
+    const identities=Array.isArray(current.identities)?current.identities:[];
+    const providers=identities.map(item=>String(item&&item.provider||"").toLowerCase());
+    if(providers.indexOf("google")<0||providers.indexOf("email")>=0)return;
+    const token=String(proven.access_token||"").trim();
+    if(!token)return;
+    fetch("/api/member-signup-country",{
+      method:"POST",
+      headers:{Authorization:"Bearer "+token,Accept:"application/json"},
+      body:"{}"
+    }).catch(()=>{});
+  }catch(err){}
+}
+async function postMemberSignup({email,password,fullName}){
+  let response;
+  try{
+    response=await fetch("/api/member-signup",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Accept":"application/json"},
+      body:JSON.stringify({email,password,full_name:fullName||""})
+    });
+  }catch(err){
+    return {data:null,error:new Error("ئەزالىق مۇلازىمىتىگە ئۇلانغىلى بولمىدى")};
+  }
+  let payload=null;
+  try{payload=await response.json()}catch(err){payload=null}
+  if(!response.ok){
+    const message=payload&&(payload.msg||payload.message||payload.error_description)||"ئەزالىق ئېچىش مەغلۇپ بولدى";
+    const error=new Error(String(message));
+    error.status=response.status;
+    return {data:null,error};
+  }
+  return {data:payload||{},error:null};
+}
 async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const result=await db.auth.signUp({email,password,options:{data:{full_name:fullName||""},emailRedirectTo:new URL("account.html",location.href).href}});
+  const result=await postMemberSignup({email,password,fullName});
   if(result.error)throw result.error;
   if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:true});
   return result.data;

@@ -129,7 +129,7 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   await page.goto("/account.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const memberSrc = await page.locator("script[src*='member.js']").getAttribute("src");
-  expect(memberSrc).toContain("member.js?v=31");
+  expect(memberSrc).toContain("member.js?v=32");
   const memberBody = await page.evaluate(async (url) => (await fetch(url)).text(), memberSrc);
   expect(memberBody).toContain("noteAuthUser");
   expect(memberBody).toContain("noteCartShareSignOut");

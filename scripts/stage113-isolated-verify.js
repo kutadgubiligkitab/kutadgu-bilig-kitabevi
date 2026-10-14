@@ -286,6 +286,67 @@ async function main() {
     const policies = await client.query("select polname from pg_policy where polrelid = 'public.member_cart_items'::regclass order by 1");
     check("cart policy remains the owner policy", policies.rows.length === 1 && policies.rows[0].polname === "cart owner access");
 
+    await client.query("do $$ begin create role service_role nologin; exception when duplicate_object then null; end $$");
+    await client.query("grant service_role to postgres");
+    await client.query("grant usage on schema public to service_role");
+    await client.query("alter table auth.users add column if not exists created_at timestamptz");
+    await client.query("update auth.users set created_at = timestamptz '2020-01-01+00' where created_at is null");
+    await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY.sql"));
+    const fresh = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    await client.query("insert into auth.users (id, created_at) values ($1, clock_timestamp())", [fresh]);
+    await client.query(
+      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'signup-country@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad')",
+      [fresh]
+    );
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'tr')",
+      [fresh]
+    ));
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'US')",
+      [fresh]
+    ));
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'DE')",
+      [MEMBER]
+    ));
+    await asRole(client, "service_role", null, "aal1", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'XX')",
+      [fresh]
+    ));
+    const stored = await client.query("select user_id::text, country from public.member_signup_country order by 1");
+    check("only the new signup keeps its first country", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country === "TR", JSON.stringify(stored.rows));
+    await expectError("authenticated cannot write signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select public.record_member_signup_country($1::uuid, 'FR')",
+      [fresh]
+    )), /permission denied/i);
+    await expectError("anonymous cannot read signup country", () => asRole(client, "anon", null, "aal1", () => client.query(
+      "select * from public.member_signup_country"
+    )), /permission denied/i);
+    await expectError("a member cannot read signup country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select * from public.member_signup_country"
+    )), /permission denied/i);
+    const shown = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    const shownRow = shown.rows[0].payload.rows[0];
+    check("admin AAL2 reads signup country separately from the profile country", shown.rows[0].payload.total === 1 && shownRow.signup_country === "TR" && shownRow.country === "ئۆزگەرتىلگەن" && shownRow.last_page === "cart.html?utm_source=ad");
+    const historical = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('ئىزدەش', 'all', 'all', 0) as payload"
+    ));
+    check("a historical member has no signup country", historical.rows[0].payload.rows[0].signup_country == null);
+    const codeSearch = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('TR', 'all', 'all', 0) as payload"
+    ));
+    check("signup country is not a directory search field", codeSearch.rows[0].payload.total === 0);
+    await client.query(readSql("STAGE123_MEMBER_SIGNUP_COUNTRY_ROLLBACK.sql"));
+    const dropped = await client.query("select to_regclass('public.member_signup_country') as name");
+    const recorder = await client.query("select proname from pg_proc where proname = 'record_member_signup_country'");
+    const restoredPage = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    check("rollback removes the table and restores the previous directory row", dropped.rows[0].name == null && recorder.rows.length === 0 && !Object.prototype.hasOwnProperty.call(restoredPage.rows[0].payload.rows[0], "signup_country"));
+
     await client.query(readSql("STAGE113_ADMIN_MEMBER_DIRECTORY_ROLLBACK.sql"));
     const gone = await client.query("select proname from pg_proc where proname = 'admin_member_directory_page'");
     check("rollback drops only the directory function", gone.rows.length === 0);

@@ -822,7 +822,15 @@ test("protected product files stay frozen and out of this diff", () => {
     "tests/e2e/gift-book-offers.spec.js",
     "kutadgu.webmanifest",
     "scripts/web-app-manifest-tests.js",
-    "tests/e2e/web-app-manifest.spec.js"
+    "tests/e2e/web-app-manifest.spec.js",
+    "cloudflare/member-signup-country.js",
+    "kutadgu-member-page-label.js",
+    "STAGE123_MEMBER_SIGNUP_COUNTRY.sql",
+    "STAGE123_MEMBER_SIGNUP_COUNTRY_ROLLBACK.sql",
+    "scripts/member-signup-country-tests.js",
+    "scripts/member-page-label-tests.js",
+    "tests/e2e/member-signup-country.spec.js",
+    "tests/e2e/admin-member-signup-country.spec.js"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

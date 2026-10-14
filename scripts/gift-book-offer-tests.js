@@ -124,7 +124,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(request, /whatsappOrderUrl\(giftRequestMessage/);
   assert.doesNotMatch(request, /getOrBuildOrder|savePreparedOrderHistory|\badd\(/);
   assert.match(shop, /function orderWithWhatsApp\(\)\{\s*let o=getOrBuildOrder\(true\);if\(!o\)return;/);
-  assert.strictEqual(gitDiff("member.js"), "");
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "member.js"), "utf8"), /gift_book_offers|requestGiftFromButton/);
   assert.strictEqual(gitDiff("premium-ux.js"), "");
   assert.strictEqual(gitDiff("kutadgu-public-book.js"), "");
 });

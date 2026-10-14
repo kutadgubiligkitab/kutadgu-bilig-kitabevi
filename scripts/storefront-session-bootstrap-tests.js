@@ -694,7 +694,7 @@ test("logout still abandons member shop state and account page still loads membe
   assert.doesNotMatch(signOutBody, /rememberSignOutContext|restoreRejectedSignOut/);
   assert.match(signOutBody, /if\(db\)await db\.auth\.signOut\(\{scope:"local"\}\);/);
   const accountScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(accountScripts, ["member.js?v=31"]);
+  assert.deepStrictEqual(accountScripts, ["member.js?v=32"]);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {
