@@ -31,8 +31,11 @@ async function install(page) {
     window.__signupPosts = [];
     window.__signupUrls = [];
   });
-  await page.route("**/*supabase.co/**", (route) => route.abort());
-  await page.route("**/api/member-signup", async (route) => {
+  await page.route("**/*supabase.co/**", (route) => {
+    if (route.request().url().includes("/logout")) return route.fulfill({ status: 204, body: "" });
+    return route.abort();
+  });
+  await page.route("**/api/member-signup**", async (route) => {
     const body = route.request().postDataJSON();
     const url = route.request().url();
     seen.push(body);

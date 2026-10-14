@@ -188,7 +188,7 @@ async function installBoundary(page, gates) {
     }
     return route.fallback();
   });
-  await page.route("**/api/member-signup", async (route) => {
+  await page.route("**/api/member-signup**", async (route) => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
     return answerSignup(route, gates);
   });
