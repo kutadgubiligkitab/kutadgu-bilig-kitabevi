@@ -365,7 +365,8 @@ test("the bundled SDK signup reaches Auth through the Worker with S256 and plain
 
   await page.locator("#memberLogout").click();
   await expect(page.locator("#loginForm")).toBeVisible();
-  await page.goto("/account.html#signup", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-auth-tab='signup']").click();
+  await expect(page.locator("#signupForm")).toBeVisible();
   const beforeExisting = state.records.length;
   state.mode = "existing";
   await fillSignup(page, "worker-existing@example.com");
@@ -403,7 +404,7 @@ test("the bundled SDK plain PKCE fallback still signs up through the Worker", as
   expect(state.records[0].p_country).toBe("TR");
   const confirmAuth = await authStorage(page);
   expect(confirmAuth.token).toBeFalsy();
-  expect(confirmAuth.verifier).toBe(upstream[0].code_challenge);
+  expect(JSON.parse(confirmAuth.verifier)).toBe(upstream[0].code_challenge);
 
   state.mode = "session";
   await page.locator("[data-auth-tab='signup']").click();
