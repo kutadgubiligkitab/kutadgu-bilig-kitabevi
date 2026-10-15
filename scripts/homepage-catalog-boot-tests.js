@@ -59,16 +59,16 @@ test("homepage collections drop static demo covers when Supabase is configured",
   assert.match(shop, /function isSampleDemoCover\(src\)/);
   assert.match(shop, /function homepageVisibleBooks\(result\)/);
   assert.match(shop, /remoteCatalog\.configured&&result&&result\.source==="static"/);
-  const featured = sliceBetween(shop, "async function renderHomeFeaturedBooks()", "function renderHomeSections()");
+  const featured = sliceBetween(shop, "async function renderHomeFeaturedBooks(options={})", "function renderHomeSections()");
   assert.match(featured, /homepageVisibleBooks\(result\)/);
-  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:20,sort:"new"\}\)/);
+  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:20,sort:"new"\}/);
   const carousel = sliceBetween(shop, "async function setupHomeCarousel()", "function loadMemberSystem");
   assert.match(carousel, /homepageVisibleBooks\(result\)/);
   assert.match(carousel, /homeCarouselSkeletonMarkup\(4\)/);
 });
 
 test("featured query error clears busy and skeleton classes without changing copy", () => {
-  const featured = sliceBetween(shop, "async function renderHomeFeaturedBooks()", "function renderHomeSections()");
+  const featured = sliceBetween(shop, "async function renderHomeFeaturedBooks(options={})", "function renderHomeSections()");
   assert.match(featured, /if\(token!==homeFeaturedRequestId\)return;/);
   assert.match(featured, /grid\.classList\.remove\("is-marquee","is-skeleton-grid"\)/);
   assert.match(featured, /grid\.removeAttribute\("aria-busy"\)/);

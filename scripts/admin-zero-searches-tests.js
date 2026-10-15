@@ -215,7 +215,7 @@ test("load more stays on the retained snapshot when the selector has moved", () 
 test("shop records the captured query only after a completed non-append search", () => {
   const shop = read("shop.js");
   const home = shop.slice(shop.indexOf("async function run(append=false)"), shop.indexOf("function dynamicListingCard"));
-  const catalog = shop.slice(shop.indexOf("async function apply(append=false)"), shop.indexOf("function myBooksData"));
+  const catalog = shop.slice(shop.indexOf("async function apply(append=false,options={})"), shop.indexOf("function myBooksData"));
   assert.strictEqual((home.match(/trackCompletedSearch\(state\.search,result\)/g) || []).length, 1);
   assert.strictEqual((catalog.match(/trackCompletedSearch\(state\.search,result\)/g) || []).length, 1);
   assert.ok(!home.includes("trackSearchQuery(text.value"));

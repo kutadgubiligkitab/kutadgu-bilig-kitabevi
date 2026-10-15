@@ -141,7 +141,7 @@ test("homepage sections keep ids and put books before category cards", () => {
 
 test("recently-added rows move in opposite directions without changing the catalog query", () => {
   const featured = shop.slice(shop.indexOf("async function renderHomeFeaturedBooks"), shop.indexOf("function renderHomeSections"));
-  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:20,sort:"new"\}\)/);
+  assert.match(featured, /queryCatalog\(\{offset:0,pageSize:20,sort:"new"\}/);
   assert.doesNotMatch(featured, /newOnly:true/);
   assert.match(featured, /splitFeaturedRows\(books\)/);
   assert.match(featured, /setupHomeFeaturedMarquee\(host\)/);
