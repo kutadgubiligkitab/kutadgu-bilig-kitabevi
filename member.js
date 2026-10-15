@@ -158,12 +158,30 @@ async function fetchProfile(){
 }
 async function recordVisit(){
   if(!db||!user||blocked)return;
-  const key=`kutadgu-last-visit-${user.id}`;
+  const userId=String(user.id||"");
+  const key=`kutadgu-last-visit-${userId}`;
   const now=Date.now(),last=Number(localStorage.getItem(key)||0);
-  if(now-last<60000)return;
+  if(!userId||now-last<60000)return;
   const page=`${location.pathname.split("/").pop()||"index.html"}${location.search||""}`;
-  const {error}=await db.rpc("record_member_visit",{page_path:page});
-  if(!error)localStorage.setItem(key,String(now));
+  let token="";
+  let sessionUserId="";
+  try{
+    const sessionResult=await db.auth.getSession();
+    const current=sessionResult&&sessionResult.data&&sessionResult.data.session;
+    token=current&&current.access_token||"";
+    sessionUserId=current&&current.user&&current.user.id?String(current.user.id):"";
+  }catch(err){return}
+  if(!token||!sessionUserId||sessionUserId!==userId||!user||String(user.id)!==userId)return;
+  let response;
+  try{
+    response=await fetch("/api/member-visit",{
+      method:"POST",
+      headers:{Authorization:"Bearer "+token,"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({page_path:page}),
+      credentials:"same-origin"
+    });
+  }catch(err){return}
+  if(response&&response.ok)localStorage.setItem(key,String(now));
 }
 function memberLog(level,step,detail){
   const payload={step,detail:detail&&detail.message?String(detail.message):detail};
@@ -973,7 +991,14 @@ function queueSession(session,options){
 }
 async function signUp({email,password,fullName}){
   if(!db)throw new Error("ئەزالىق مۇلازىمىتى تېخى تەييار ئەمەس");
-  const result=await db.auth.signUp({email,password,options:{data:{full_name:fullName||""},emailRedirectTo:new URL("account.html",location.href).href}});
+  const result=await db.auth.signUp({
+    email,
+    password,
+    options:{
+      data:{full_name:fullName||""},
+      emailRedirectTo:new URL("account.html",location.href).href
+    }
+  });
   if(result.error)throw result.error;
   if(result.data?.session)await queueSession(result.data.session,{trackLogin:true,sync:true});
   return result.data;

@@ -286,6 +286,187 @@ async function main() {
     const policies = await client.query("select polname from pg_policy where polrelid = 'public.member_cart_items'::regclass order by 1");
     check("cart policy remains the owner policy", policies.rows.length === 1 && policies.rows[0].polname === "cart owner access");
 
+    await client.query("do $$ begin create role service_role nologin; exception when duplicate_object then null; end $$");
+    await client.query("grant service_role to postgres");
+    await client.query("grant usage on schema public to service_role");
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
+    const fresh = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const suspendedMember = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await client.query("alter table auth.users add column if not exists email text");
+    await client.query("insert into auth.users (id) values ($1), ($2)", [fresh, suspendedMember]);
+    await client.query(
+      "insert into public.profiles (id, email, full_name, country, status, visit_count, last_page) values ($1, 'fresh-visit@example.com', 'يېڭى ئەزا', 'ئۆزگەرتىلگەن', 'active', 0, 'cart.html?utm_source=ad'), ($2, 'suspended-visit@example.com', 'توختىتىلغان', 'تۈركىيە', 'suspended', 4, 'index.html')",
+      [fresh, suspendedMember]
+    );
+    async function recordVisit(userId, page, country, at) {
+      return asRole(client, "service_role", null, "aal1", () => client.query(
+        "select public.record_member_last_visit($1::uuid, $2::text, $3::text, $4::timestamptz)",
+        [userId, page, country, at]
+      ));
+    }
+    await recordVisit(fresh, "cart.html?utm_source=ad", "tr", "2026-10-14T12:00:00Z");
+    await recordVisit(fresh, "account.html", "DE", "2026-10-14T12:05:00Z");
+    await recordVisit(fresh, "old.html", "FR", "2026-10-14T11:00:00Z");
+    await recordVisit(fresh, "unknown.html", "XX", "2026-10-14T12:06:00Z");
+    await recordVisit(suspendedMember, "index.html", "US", "2026-10-14T12:07:00Z");
+    const stored = await client.query(
+      "select user_id::text, country, observed_at from public.member_last_visit order by 1"
+    );
+    check("the newer visit replaces the country and an older visit does not", stored.rows.length === 1 && stored.rows[0].user_id === fresh && stored.rows[0].country == null && new Date(stored.rows[0].observed_at).toISOString() === "2026-10-14T12:06:00.000Z", JSON.stringify(stored.rows));
+    const profile = await client.query(
+      "select country, visit_count::int, last_page, last_seen_at from public.profiles where id = $1",
+      [fresh]
+    );
+    check("profile country stays editable and the latest page matches the accepted visit", profile.rows[0].country === "ئۆزگەرتىلگەن" && profile.rows[0].visit_count === 4 && profile.rows[0].last_page === "unknown.html" && new Date(profile.rows[0].last_seen_at).toISOString() === "2026-10-14T12:06:00.000Z", JSON.stringify(profile.rows[0]));
+    const held = await client.query("select visit_count::int as visit_count from public.profiles where id = $1", [suspendedMember]);
+    const suspendedVisit = await client.query("select 1 from public.member_last_visit where user_id = $1", [suspendedMember]);
+    check("a suspended member does not gain a visit country", held.rows[0].visit_count === 4 && suspendedVisit.rows.length === 0);
+    const other = new pg.Client({ connectionString: "postgresql://postgres:postgres@127.0.0.1:55463/stage113" });
+    await other.connect();
+    try {
+      await Promise.all([
+        client.query("select public.record_member_last_visit($1::uuid, 'late.html', 'TR', timestamptz '2026-10-14 12:10:00+00')", [fresh]),
+        other.query("select public.record_member_last_visit($1::uuid, 'early.html', 'US', timestamptz '2026-10-14 12:08:00+00')", [fresh])
+      ]);
+    } finally {
+      await other.end().catch(() => {});
+    }
+    const raced = await client.query("select country, observed_at, (select last_page from public.profiles where id = $1) as last_page, (select visit_count::int from public.profiles where id = $1) as visit_count from public.member_last_visit where user_id = $1", [fresh]);
+    check("overlapping visits keep the later observation", raced.rows[0].country === "TR" && raced.rows[0].last_page === "late.html" && raced.rows[0].visit_count === 6 && new Date(raced.rows[0].observed_at).toISOString() === "2026-10-14T12:10:00.000Z", JSON.stringify(raced.rows[0]));
+    await expectError("authenticated cannot write last visit country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select public.record_member_last_visit($1::uuid, 'hack.html', 'FR', clock_timestamp())",
+      [fresh]
+    )), /permission denied/i);
+    await expectError("anonymous cannot read last visit country", () => asRole(client, "anon", null, "aal1", () => client.query(
+      "select * from public.member_last_visit"
+    )), /permission denied/i);
+    await expectError("a member cannot read last visit country", () => asRole(client, "authenticated", fresh, "aal2", () => client.query(
+      "select * from public.member_last_visit"
+    )), /permission denied/i);
+    const shown = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    const shownRow = shown.rows[0].payload.rows[0];
+    check("admin AAL2 reads the latest visit separately from the profile country", shown.rows[0].payload.total === 1 && shownRow.last_visit_country === "TR" && shownRow.country === "ئۆزگەرتىلگەن" && shownRow.last_page === "late.html");
+    const historical = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('ئىزدەش', 'all', 'all', 0) as payload"
+    ));
+    check("a historical member has no last visit country", historical.rows[0].payload.rows[0].last_visit_country == null && historical.rows[0].payload.rows[0].last_visit_observed_at == null);
+    const codeSearch = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('TR', 'all', 'all', 0) as payload"
+    ));
+    check("last visit country is not a directory search field", codeSearch.rows[0].payload.total === 0, JSON.stringify(codeSearch.rows[0].payload.rows.map((row) => [row.email, row.country, row.last_visit_country])));
+
+    const orderMember = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const legacyFirst = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const overlapNew = "12121212-1212-4121-8121-121212121212";
+    const overlapLegacy = "13131313-1313-4131-8131-131313131313";
+    await client.query("insert into auth.users (id, email) values ($1, 'order@example.com'), ($2, 'legacy-first@example.com'), ($3, 'overlap-new@example.com'), ($4, 'overlap-legacy@example.com')", [orderMember, legacyFirst, overlapNew, overlapLegacy]);
+    await client.query(
+      "insert into public.profiles (id, email, full_name, country, status, visit_count) values ($1, 'order@example.com', 'تەرتىپ ئەزا', 'تۈركىيە', 'active', 0), ($2, 'legacy-first@example.com', 'كونا يېڭى', 'تۈركىيە', 'active', 0), ($3, 'overlap-new@example.com', 'بىللە يېڭى', 'تۈركىيە', 'active', 0), ($4, 'overlap-legacy@example.com', 'بىللە كونا', 'تۈركىيە', 'active', 0)",
+      [orderMember, legacyFirst, overlapNew, overlapLegacy]
+    );
+    async function legacyVisit(conn, userId, page) {
+      return asRole(conn, "authenticated", userId, "aal1", () => conn.query(
+        "select public.record_member_visit($1::text)",
+        [page]
+      ));
+    }
+    async function storedVisit(userId) {
+      const result = await client.query(
+        "select v.country, v.observed_at, p.last_seen_at, p.last_page, p.visit_count::int as visit_count, p.country as profile_country from public.profiles p left join public.member_last_visit v on v.user_id = p.id where p.id = $1",
+        [userId]
+      );
+      return result.rows[0];
+    }
+    async function shownVisit(name) {
+      const result = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+        "select public.admin_member_directory_page($1, 'all', 'all', 0) as payload",
+        [name]
+      ));
+      return result.rows[0].payload.rows[0];
+    }
+    await recordVisit(orderMember, "later.html", "TR", "2026-10-14T12:05:00Z");
+    await recordVisit(orderMember, "earlier.html", "US", "2026-10-14T12:00:00Z");
+    const heldOrder = await storedVisit(orderMember);
+    const heldShown = await shownVisit("تەرتىپ ئەزا");
+    check("an earlier observation completed later cannot replace the newer visit", heldOrder.country === "TR" && heldOrder.last_page === "later.html" && heldOrder.visit_count === 2 && new Date(heldOrder.observed_at).toISOString() === "2026-10-14T12:05:00.000Z" && new Date(heldOrder.last_seen_at).toISOString() === "2026-10-14T12:05:00.000Z" && heldShown.last_visit_country === "TR" && heldShown.last_page === "later.html" && new Date(heldShown.last_visit_observed_at).toISOString() === "2026-10-14T12:05:00.000Z", JSON.stringify({ heldOrder, heldShown }));
+
+    await recordVisit(orderMember, "country.html", "DE", "2026-10-14T12:02:00Z");
+    await legacyVisit(client, orderMember, "legacy.html");
+    const afterLegacy = await storedVisit(orderMember);
+    const afterLegacyShown = await shownVisit("تەرتىپ ئەزا");
+    const legacySeen = new Date(afterLegacy.last_seen_at).getTime();
+    check("a newer legacy visit shows unknown and does not keep the older country", afterLegacy.country == null && afterLegacy.last_page === "legacy.html" && afterLegacy.visit_count === 4 && afterLegacy.profile_country === "تۈركىيە" && legacySeen === new Date(afterLegacy.observed_at).getTime() && legacySeen > new Date("2026-10-14T12:05:00Z").getTime() && afterLegacyShown.last_visit_country == null && afterLegacyShown.last_page === "legacy.html" && new Date(afterLegacyShown.last_visit_observed_at).getTime() === legacySeen, JSON.stringify({ afterLegacy, afterLegacyShown }));
+
+    await legacyVisit(client, legacyFirst, "legacy-first.html");
+    const legacyOnly = await storedVisit(legacyFirst);
+    await recordVisit(legacyFirst, "old.html", "US", "2000-01-01T00:00:00Z");
+    const olderNew = await storedVisit(legacyFirst);
+    const olderShown = await shownVisit("كونا يېڭى");
+    check("a later new visit with an older timestamp cannot move profile activity backward", olderNew.country == null && olderNew.last_page === "legacy-first.html" && olderNew.visit_count === 2 && olderNew.profile_country === "تۈركىيە" && new Date(olderNew.last_seen_at).getTime() === new Date(legacyOnly.last_seen_at).getTime() && new Date(olderNew.observed_at).getTime() === new Date(legacyOnly.observed_at).getTime() && olderShown.last_visit_country == null && olderShown.last_page === "legacy-first.html", JSON.stringify({ legacyOnly, olderNew, olderShown }));
+    await recordVisit(legacyFirst, "fresh-country.html", "TR", "2099-01-01T00:00:00Z");
+    const newerAfterLegacy = await storedVisit(legacyFirst);
+    const newerShown = await shownVisit("كونا يېڭى");
+    check("a newer country visit after a legacy visit becomes the directory country", newerAfterLegacy.country === "TR" && newerAfterLegacy.last_page === "fresh-country.html" && newerAfterLegacy.visit_count === 3 && new Date(newerAfterLegacy.observed_at).toISOString() === "2099-01-01T00:00:00.000Z" && new Date(newerAfterLegacy.last_seen_at).toISOString() === "2099-01-01T00:00:00.000Z" && newerShown.last_visit_country === "TR" && newerShown.last_page === "fresh-country.html", JSON.stringify({ newerAfterLegacy, newerShown }));
+
+    const overlapA = new pg.Client({ connectionString: "postgresql://postgres:postgres@127.0.0.1:55463/stage113" });
+    await overlapA.connect();
+    try {
+      await Promise.all([
+        asRole(client, "service_role", null, "aal1", () => client.query(
+          "select public.record_member_last_visit($1::uuid, 'new-overlap.html', 'TR', timestamptz '2099-06-01 00:00:00+00')",
+          [overlapNew]
+        )),
+        asRole(overlapA, "authenticated", overlapNew, "aal1", () => overlapA.query(
+          "select public.record_member_visit('legacy-overlap.html')"
+        ))
+      ]);
+      await Promise.all([
+        asRole(client, "service_role", null, "aal1", () => client.query(
+          "select public.record_member_last_visit($1::uuid, 'old-overlap.html', 'US', timestamptz '2000-01-01 00:00:00+00')",
+          [overlapLegacy]
+        )),
+        asRole(overlapA, "authenticated", overlapLegacy, "aal1", () => overlapA.query(
+          "select public.record_member_visit('legacy-wins.html')"
+        ))
+      ]);
+    } finally {
+      await overlapA.end().catch(() => {});
+    }
+    const overlapNewRow = await storedVisit(overlapNew);
+    const overlapNewShown = await shownVisit("بىللە يېڭى");
+    const overlapLegacyRow = await storedVisit(overlapLegacy);
+    const overlapLegacyShown = await shownVisit("بىللە كونا");
+    check("overlapping legacy and new calls keep the newer country visit and count once each", overlapNewRow.country === "TR" && overlapNewRow.last_page === "new-overlap.html" && overlapNewRow.visit_count === 2 && new Date(overlapNewRow.observed_at).toISOString() === "2099-06-01T00:00:00.000Z" && new Date(overlapNewRow.last_seen_at).toISOString() === "2099-06-01T00:00:00.000Z" && overlapNewShown.last_visit_country === "TR" && overlapNewShown.last_page === "new-overlap.html", JSON.stringify({ overlapNewRow, overlapNewShown }));
+    check("overlapping legacy and new calls keep the newer visit without country evidence", overlapLegacyRow.country == null && overlapLegacyRow.last_page === "legacy-wins.html" && overlapLegacyRow.visit_count === 2 && overlapLegacyRow.profile_country === "تۈركىيە" && new Date(overlapLegacyRow.observed_at).getTime() === new Date(overlapLegacyRow.last_seen_at).getTime() && new Date(overlapLegacyRow.observed_at).getTime() > new Date("2000-01-01T00:00:00Z").getTime() && overlapLegacyShown.last_visit_country == null && overlapLegacyShown.last_page === "legacy-wins.html" && new Date(overlapLegacyShown.last_visit_observed_at).getTime() === new Date(overlapLegacyRow.observed_at).getTime(), JSON.stringify({ overlapLegacyRow, overlapLegacyShown }));
+    const legacyGrant = await client.query("select has_function_privilege('authenticated', 'public.record_member_visit(text)', 'execute') as member, has_function_privilege('anon', 'public.record_member_visit(text)', 'execute') as anon");
+    check("legacy clients can still execute the visit recorder", legacyGrant.rows[0].member === true && legacyGrant.rows[0].anon === false, JSON.stringify(legacyGrant.rows[0]));
+    const paged = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('', 'all', 'all', 1) as payload"
+    ));
+    check("directory paging still returns the second page", paged.rows[0].payload.page === 1 && paged.rows[0].payload.rows.length === 20);
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT_ROLLBACK.sql"));
+    const dropped = await client.query("select to_regclass('public.member_last_visit') as name");
+    const recorder = await client.query("select proname from pg_proc where proname = 'record_member_last_visit'");
+    const restoredPage = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    const restoredLegacy = await client.query("select pg_get_functiondef('public.record_member_visit(text)'::regprocedure) as def");
+    check("rollback removes the table and restores the previous directory row", dropped.rows[0].name == null && recorder.rows.length === 0 && !Object.prototype.hasOwnProperty.call(restoredPage.rows[0].payload.rows[0], "last_visit_country") && !restoredLegacy.rows[0].def.includes("member_last_visit"));
+    const beforeRestore = await client.query("select visit_count::int as visit_count from public.profiles where id = $1", [orderMember]);
+    await asRole(client, "authenticated", orderMember, "aal1", () => client.query("select public.record_member_visit('restored.html')"));
+    const afterRestore = await client.query("select visit_count::int as visit_count, last_page from public.profiles where id = $1", [orderMember]);
+    check("the restored legacy recorder still counts one profile visit", afterRestore.rows[0].visit_count === beforeRestore.rows[0].visit_count + 1 && afterRestore.rows[0].last_page === "restored.html", JSON.stringify(afterRestore.rows[0]));
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT.sql"));
+    await recordVisit(fresh, "reapply.html", "DE", "2026-10-14T13:00:00Z");
+    const reapplied = await asRole(client, "authenticated", ADMIN, "aal2", () => client.query(
+      "select public.admin_member_directory_page('يېڭى ئەزا', 'all', 'all', 0) as payload"
+    ));
+    check("reapply records a new last visit", reapplied.rows[0].payload.rows[0].last_visit_country === "DE" && reapplied.rows[0].payload.rows[0].last_page === "reapply.html");
+    await client.query(readSql("STAGE124_MEMBER_LAST_VISIT_ROLLBACK.sql"));
+
     await client.query(readSql("STAGE113_ADMIN_MEMBER_DIRECTORY_ROLLBACK.sql"));
     const gone = await client.query("select proname from pg_proc where proname = 'admin_member_directory_page'");
     check("rollback drops only the directory function", gone.rows.length === 0);

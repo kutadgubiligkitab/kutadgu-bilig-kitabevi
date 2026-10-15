@@ -110,6 +110,62 @@ async function mockBooks(page) {
   });
 }
 
+function requestBearer(request) {
+  const header = String((request.headers() || {}).authorization || "");
+  const match = /^Bearer\s+(\S+)$/i.exec(header);
+  return match ? match[1] : "";
+}
+
+function expectedBearer(userId) {
+  return "test-access-" + String(userId || "").slice(0, 8);
+}
+
+function bearerAllowed(request, userId) {
+  return requestBearer(request) === expectedBearer(userId);
+}
+
+function unauthorized(route) {
+  return route.fulfill({
+    status: 401,
+    contentType: "application/json",
+    headers: { "www-authenticate": "Bearer" },
+    body: JSON.stringify({ message: "JWT required", code: "PGRST301" })
+  });
+}
+
+function answerSignup(route, gates) {
+  if (route.request().method() === "POST") {
+    gates.signupBodies = gates.signupBodies || [];
+    gates.signupBodies.push(route.request().postDataJSON());
+  }
+  if (gates.abortSignup) return route.abort("failed");
+  if (gates.failSignup) {
+    return route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "signup_failed", message: "signup failed" })
+    });
+  }
+  if (gates.signupMode === "confirm") {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: gates.userId,
+        aud: "authenticated",
+        email: gates.email,
+        role: "authenticated",
+        identities: [{ provider: "email", user_id: gates.userId }]
+      })
+    });
+  }
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(sessionFor(gates.userId, gates.email))
+  });
+}
+
 async function installBoundary(page, gates) {
   const leaks = [];
   let cloudCart = (gates.cloudCart || []).map((row) => ({
@@ -132,38 +188,20 @@ async function installBoundary(page, gates) {
     }
     return route.fallback();
   });
+  gates.visitPosts = [];
+  await page.route("**/api/member-visit", async (route) => {
+    gates.visitPosts.push({
+      body: route.request().postDataJSON(),
+      authorization: String(route.request().headers().authorization || "").replace(/^Bearer\s+/i, "")
+    });
+    return route.fulfill({ status: 204, body: "" });
+  });
   await page.route("**/auth/v1/**", async (route) => {
     const request = route.request();
     const method = request.method();
     const url = request.url();
     if (method === "OPTIONS") return route.fulfill({ status: 204, body: "" });
-    if (url.includes("/signup")) {
-      if (gates.abortSignup) return route.abort("failed");
-      if (gates.failSignup) {
-        return route.fulfill({
-          status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ code: "signup_failed", message: "signup failed" })
-        });
-      }
-      if (gates.signupMode === "confirm") {
-        return route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            id: gates.userId,
-            aud: "authenticated",
-            email: gates.email,
-            role: "authenticated"
-          })
-        });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(sessionFor(gates.userId, gates.email))
-      });
-    }
+    if (url.includes("/signup")) return answerSignup(route, gates);
     if (url.includes("/token")) {
       return route.fulfill({
         status: 200,
@@ -184,6 +222,7 @@ async function installBoundary(page, gates) {
   });
   await page.route("**/rest/v1/profiles**", async (route) => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    if (!bearerAllowed(route.request(), gates.userId)) return unauthorized(route);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -192,10 +231,12 @@ async function installBoundary(page, gates) {
   });
   await page.route("**/rest/v1/orders**", async (route) => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    if (!bearerAllowed(route.request(), gates.userId)) return unauthorized(route);
     return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
   });
   await page.route("**/rest/v1/rpc/**", async (route) => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    if (!bearerAllowed(route.request(), gates.userId)) return unauthorized(route);
     const url = route.request().url();
     if (url.includes("is_kutadgu_book_staff")) {
       return route.fulfill({ status: 200, contentType: "application/json", body: "false" });
@@ -205,6 +246,7 @@ async function installBoundary(page, gates) {
   await page.route("**/rest/v1/member_favorites**", async (route) => {
     const method = route.request().method();
     if (method === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    if (!bearerAllowed(route.request(), gates.userId)) return unauthorized(route);
     if (method === "GET" || method === "HEAD") {
       if (gates.holdReads && favReadsHeld === 0) {
         favReadsHeld += 1;
@@ -214,7 +256,7 @@ async function installBoundary(page, gates) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(cloudFav) });
     }
     const urlUser = parseEq(route.request().url(), "user_id");
-    mutations.push({ table: "favorites", method, user_id: urlUser, urlUser });
+    mutations.push({ table: "favorites", method, user_id: urlUser, urlUser, authorization: requestBearer(route.request()) });
     return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
   });
   await page.route("**/rest/v1/member_cart_items**", async (route) => {
@@ -223,6 +265,7 @@ async function installBoundary(page, gates) {
     const url = request.url();
     if (method === "OPTIONS") return route.fulfill({ status: 204, body: "" });
     const urlUser = parseEq(url, "user_id");
+    if (!bearerAllowed(request, gates.userId)) return unauthorized(route);
     if (method === "GET" || method === "HEAD") {
       if (gates.holdReads && cartReadsHeld === 0) {
         cartReadsHeld += 1;
@@ -237,7 +280,7 @@ async function installBoundary(page, gates) {
       await gates.holdCartWrite;
     }
     if (gates.failCartWrite && method === "POST") {
-      mutations.push({ table: "cart", method, user_id: "", urlUser, failed: true });
+      mutations.push({ table: "cart", method, user_id: "", urlUser, failed: true, authorization: requestBearer(request) });
       return route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -251,7 +294,7 @@ async function installBoundary(page, gates) {
         const userId = String(row.user_id || "");
         const bookId = String(row.book_id || "");
         const quantity = Number(row.quantity) || 1;
-        mutations.push({ table: "cart", method, user_id: userId, urlUser, book_id: bookId, quantity });
+        mutations.push({ table: "cart", method, user_id: userId, urlUser, book_id: bookId, quantity, authorization: requestBearer(request) });
         const hit = cloudCart.find((item) => item.user_id === userId && item.book_id === bookId);
         if (hit) hit.quantity = quantity;
         else cloudCart.push({ user_id: userId, book_id: bookId, quantity });
@@ -262,13 +305,13 @@ async function installBoundary(page, gates) {
       const posted = request.postDataJSON() || {};
       const quantity = Number(posted.quantity) || 1;
       const bookId = parseEq(url, "book_id");
-      mutations.push({ table: "cart", method, user_id: urlUser, urlUser, book_id: bookId, quantity });
+      mutations.push({ table: "cart", method, user_id: urlUser, urlUser, book_id: bookId, quantity, authorization: requestBearer(request) });
       const hit = cloudCart.find((item) => item.user_id === urlUser && item.book_id === bookId);
       if (hit) hit.quantity = quantity;
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(cloudCart) });
     }
     if (method === "DELETE") {
-      mutations.push({ table: "cart", method, user_id: urlUser, urlUser });
+      mutations.push({ table: "cart", method, user_id: urlUser, urlUser, authorization: requestBearer(request) });
       return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     }
     leaks.push(method + " " + url.split("?")[0]);
@@ -365,6 +408,54 @@ test.describe("guest cart invitation persistence through member.js", () => {
       expect(row.urlUser === "" || row.urlUser === USER).toBe(true);
     });
     expect(writes.some((row) => row.user_id && row.user_id !== USER)).toBe(false);
+    writes.forEach((row) => expect(row.authorization).toBe(expectedBearer(USER)));
+    const posted = gates.signupBodies && gates.signupBodies[0];
+    expect(posted && posted.code_challenge_method).toBe("s256");
+    expect(posted && posted.code_challenge).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+    expect(posted && posted.data && posted.data.full_name).toBe("يېڭى ئەزا");
+    expect(posted && posted.country).toBeUndefined();
+    expect(gates.visitPosts.length).toBeGreaterThan(0);
+    gates.visitPosts.forEach((visit) => {
+      expect(visit.body.country).toBeUndefined();
+      expect(visit.body.user_id).toBeUndefined();
+      expect(visit.body.page_path).toBeTruthy();
+      expect(visit.authorization).toBe(expectedBearer(USER));
+    });
+    const auth = await page.evaluate(async () => {
+      const client = window.KutadguMember.getClient();
+      const session = await client.auth.getSession();
+      return {
+        token: session.data.session && session.data.session.access_token,
+        userId: session.data.session && session.data.session.user && session.data.session.user.id,
+        stored: localStorage.getItem("kutadgu-member-auth-v1"),
+        verifier: localStorage.getItem("kutadgu-member-auth-v1-code-verifier")
+      };
+    });
+    expect(auth.token).toBe(expectedBearer(USER));
+    expect(auth.userId).toBe(USER);
+    expect(auth.stored).toContain(expectedBearer(USER));
+    expect(auth.verifier).toBeTruthy();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction((id) => {
+      const member = window.KutadguMember;
+      return !!(member && member.getUser && member.getUser() && member.getUser().id === id);
+    }, USER);
+    const other = await page.context().newPage();
+    await H.installReadSafeNetwork(other);
+    await mockBooks(other);
+    await installBoundary(other, gates);
+    await other.goto("/account.html", { waitUntil: "domcontentloaded" });
+    await other.waitForFunction((id) => {
+      const member = window.KutadguMember;
+      return !!(member && member.getUser && member.getUser() && member.getUser().id === id);
+    }, USER);
+    const otherSession = await other.evaluate(async () => {
+      const client = window.KutadguMember.getClient();
+      const session = await client.auth.getSession();
+      return session.data.session && session.data.session.user && session.data.session.user.id;
+    });
+    expect(otherSession).toBe(USER);
+    await other.close();
     await expect.poll(() => readCart(page)).toEqual([
       { id: "91021", qty: 5 },
       { id: "91022", qty: 1 }
@@ -394,6 +485,20 @@ test.describe("guest cart invitation persistence through member.js", () => {
     await expect(page.locator("#signupForm")).toBeHidden();
     expect(shop.mutations.filter((row) => row.table === "cart")).toEqual([]);
     expect(shop.cloud()).toEqual([]);
+    const confirmAuth = await page.evaluate(async () => {
+      const client = window.KutadguMember.getClient();
+      const session = await client.auth.getSession();
+      return {
+        session: session.data.session,
+        stored: localStorage.getItem("kutadgu-member-auth-v1"),
+        verifier: localStorage.getItem("kutadgu-member-auth-v1-code-verifier")
+      };
+    });
+    expect(confirmAuth.session).toBeNull();
+    expect(confirmAuth.stored).toBeNull();
+    expect(confirmAuth.verifier).toBeTruthy();
+    const confirmBody = gates.signupBodies && gates.signupBodies[0];
+    expect(confirmBody && confirmBody.code_challenge_method).toBe("s256");
     await expect.poll(() => readCart(page)).toEqual([
       { id: "91021", qty: 2 },
       { id: "91022", qty: 1 }

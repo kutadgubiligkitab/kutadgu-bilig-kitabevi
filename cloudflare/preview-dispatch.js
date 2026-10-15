@@ -7,6 +7,7 @@ const images = require("../kutadgu-image-storage.js");
 const sitemap = require("../kutadgu-sitemap.js");
 const sharedCartLinks = require("../kutadgu-shared-cart-links.js");
 const visitCountry = require("./analytics-visit-country.js");
+const memberVisit = require("./member-last-visit.js");
 const assetlinks = require("../.well-known/assetlinks.json");
 const appleAppSiteAssociation = require("../.well-known/apple-app-site-association.json");
 
@@ -136,6 +137,7 @@ function classifyPath(pathname, search) {
   if (shortPage) return { kind: "shared-cart-page", code: shortPage[1] };
   if (path === "/api/shared-cart") return { kind: "shared-cart-create" };
   if (path === "/api/analytics-event") return { kind: "analytics-event" };
+  if (path === "/api/member-visit") return { kind: "member-visit" };
   const shortRead = sharedCartLinks.READ_PATH_RE.exec(path);
   if (shortRead) return { kind: "shared-cart-read", code: shortRead[1] };
   return { kind: "asset", file: path === "/" ? "/index.html" : path };
@@ -467,7 +469,9 @@ function appLinkResponse(request, env, route) {
 }
 
 function methodAllowed(kind, method) {
-  if (kind === "shared-cart-create" || kind === "analytics-event") return method === "POST";
+  if (kind === "shared-cart-create" || kind === "analytics-event" || kind === "member-visit") {
+    return method === "POST";
+  }
   if (kind === "shared-cart-read" || kind === "shared-cart-page" || kind === "app-link") return method === "GET" || method === "HEAD";
   if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete") {
     return true;
@@ -537,6 +541,14 @@ async function dispatch(request, env, deps) {
   if (route.kind === "analytics-event") {
     const result = await visitCountry.handleAnalyticsEvent(request, env, source);
     const payload = method === "HEAD" || result.status === 204 ? null : result.body;
+    return textResponse(result.status, payload, env, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "private, no-store"
+    }, undefined, hostOf(request));
+  }
+  if (route.kind === "member-visit") {
+    const result = await memberVisit.handleMemberVisit(request, env, source);
+    const payload = result.status === 204 ? null : result.body;
     return textResponse(result.status, payload, env, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "private, no-store"
