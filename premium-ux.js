@@ -174,20 +174,20 @@
     return '<div class="premium-friendly-empty">بۇ تۈردە ھازىرچە كىتاب يوق. باشقا تۈرنى تاللاپ كۆرۈڭ.</div>';
   }
   function discoveryErrorMarkup(){
-    return '<div class="premium-friendly-empty premium-discovery-error">كىتابلارنى يۈكلەشتە ۋاقىتلىق خاتالىق كۆرۈلدى. سەل تۇرۇپ قايتا سىناڭ.</div>';
+    return '<div class="premium-friendly-empty premium-discovery-error" role="alert"><p>كىتابلارنى يۈكلەشتە ۋاقىتلىق خاتالىق كۆرۈلدى. سەل تۇرۇپ قايتا سىناڭ.</p><button type="button" class="catalog-retry-btn" data-discovery-retry="1">قايتا سىناش</button></div>';
   }
   function isAbortError(error){
     return error&&(error.name==="AbortError"||/abort/i.test(String(error.message||error)));
   }
-  async function queryCategoryAuthoritative(category,pageSize,signal){
+  async function queryCategoryAuthoritative(category,pageSize,signal,options={}){
     const name=String(category||"").trim();
     if(!name)return [];
     const size=Math.max(1,Number(pageSize)||DISCOVERY_PAGE_SIZE);
     const cached=discoveryCache.get(name);
-    if(cached&&cached.ok&&cached.pageSize>=size)return cached.items.slice(0,size);
+    if(cached&&cached.ok&&cached.pageSize>=size&&options.forceRecovery!==true)return cached.items.slice(0,size);
     const shop=window.kutadguShop;
     if(!shop||typeof shop.queryCatalog!=="function")throw new Error("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
-    const result=await shop.queryCatalog({category:name,offset:0,pageSize:size,sort:"new"},signal?{signal}:{});
+    const result=await shop.queryCatalog({category:name,offset:0,pageSize:size,sort:"new"},{signal:signal||undefined,forceRecovery:options.forceRecovery===true});
     if(signal&&signal.aborted){
       const abort=new Error("Aborted");
       abort.name="AbortError";
@@ -197,11 +197,11 @@
     discoveryCache.set(name,{ok:true,pageSize:size,items});
     return items.slice();
   }
-  async function queryDiscoveryCategories(categories,pageSize,signal,limit){
+  async function queryDiscoveryCategories(categories,pageSize,signal,limit,options={}){
     const names=[...new Set((categories||[]).map(value=>String(value||"").trim()).filter(Boolean))];
     if(!names.length)return [];
     const size=Math.max(1,Number(pageSize)||DISCOVERY_PAGE_SIZE);
-    const lists=await Promise.all(names.map(name=>queryCategoryAuthoritative(name,size,signal)));
+    const lists=await Promise.all(names.map(name=>queryCategoryAuthoritative(name,size,signal,options)));
     const cap=Math.max(1,Number(limit)||DISCOVERY_PAGE_SIZE);
     return mergeAuthoritativeCategoryLists(lists,cap);
   }
@@ -231,7 +231,7 @@
 
     const results=section.querySelector("#premiumDiscoveryResults");
     const subcategories=section.querySelector("#premiumSubcategories");
-    async function showGroup(id,category=""){
+    async function showGroup(id,category="",options={}){
       const group=groups.find(item=>item.id===id)||groups[0];
       const seq=++discoverySeq;
       if(discoveryAbort)discoveryAbort.abort();
@@ -242,7 +242,7 @@
       results.innerHTML=discoveryResultsLoadingMarkup();
       try{
         const names=category?[category]:(group.categories||[]);
-        const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE);
+        const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE,options);
         if(seq!==discoverySeq)return;
         const shown=(category?list.filter(book=>matchesSelectedCategory(book,category)):list).slice(0,DISCOVERY_PAGE_SIZE);
         results.innerHTML=shown.length?`<div class="premium-book-grid">${shown.map(compactCard).join("")}</div>`:discoveryEmptyMarkup();
@@ -250,6 +250,7 @@
       }catch(error){
         if(seq!==discoverySeq||isAbortError(error))return;
         results.innerHTML=discoveryErrorMarkup();
+        results.querySelector("[data-discovery-retry]")?.addEventListener("click",()=>showGroup(group.id,category,{forceRecovery:true}));
       }
     }
     section.querySelectorAll("[data-premium-group]").forEach(button=>button.onclick=()=>showGroup(button.dataset.premiumGroup));
@@ -278,7 +279,10 @@
     };
     wizard.querySelectorAll("[data-wizard-group]").forEach(button=>button.onclick=()=>{state.group=button.dataset.wizardGroup;setStep(2)});
     wizard.querySelectorAll("[data-wizard-style]").forEach(button=>button.onclick=()=>{state.style=button.dataset.wizardStyle;setStep(3)});
+    let wizardForceRecovery=false;
     wizard.querySelectorAll("[data-wizard-price]").forEach(button=>button.onclick=async()=>{
+      const forceRecovery=wizardForceRecovery;
+      wizardForceRecovery=false;
       state.price=button.dataset.wizardPrice;
       const group=groups.find(item=>item.id===state.group);
       const seq=++wizardSeq;
@@ -291,7 +295,7 @@
         host.querySelector(".premium-wizard-restart")?.addEventListener("click",()=>{state.group="";state.style="all";state.price="all";host.innerHTML="";setStep(1)});
       };
       try{
-        let list=await queryDiscoveryCategories(group?.categories||[],WIZARD_PAGE_SIZE,wizardAbort&&wizardAbort.signal,WIZARD_PAGE_SIZE*8);
+        let list=await queryDiscoveryCategories(group?.categories||[],WIZARD_PAGE_SIZE,wizardAbort&&wizardAbort.signal,WIZARD_PAGE_SIZE*8,{forceRecovery});
         if(seq!==wizardSeq)return;
         if(state.style==="story")list=list.filter(book=>/رومان|ھېكايە|داستان/.test(`${book.category} ${book.subcategory||""}`));
         if(state.style==="knowledge")list=list.filter(book=>/دەرسلىك|تېبابەت|ئۇنىۋېرسال|دىنىي/.test(`${book.category} ${book.subcategory||""}`));
@@ -312,6 +316,10 @@
       }catch(error){
         if(seq!==wizardSeq||isAbortError(error))return;
         host.innerHTML=`<h3>سىزگە ماس كىتابلار</h3>${discoveryErrorMarkup()}<button type="button" class="premium-wizard-restart">↺ قايتا تاللاش</button>`;
+        host.querySelector("[data-discovery-retry]")?.addEventListener("click",()=>{
+          wizardForceRecovery=true;
+          wizard.querySelector(`[data-wizard-price="${state.price}"]`)?.click();
+        });
         bindRestart();
       }
     });

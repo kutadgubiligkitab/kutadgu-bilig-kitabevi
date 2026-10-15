@@ -318,7 +318,7 @@ async function run() {
     assert.deepStrictEqual([...gridHtml(hydrated).matchAll(/data-live-book-id="(\d+)"/g)].map((match) => match[1]), ["1"]);
     const shop = fs.readFileSync(path.join(root, "shop.js"), "utf8");
     const filters = shop.slice(shop.indexOf("function setupCatalogFilters(){"), shop.indexOf("function myBooksData()"));
-    const draw = filters.slice(filters.indexOf("function draw(result,append=false){"), filters.indexOf("async function apply(append=false){"));
+    const draw = filters.slice(filters.indexOf("function draw(result,append=false){"), filters.indexOf("async function apply(append=false,options={}){"));
     assert.match(draw, /grid\.innerHTML=items\.map/);
     assert.doesNotMatch(draw, /insertAdjacentHTML|grid\.innerHTML\s*\+=/);
     assert.match(filters, /preserveSsr/);

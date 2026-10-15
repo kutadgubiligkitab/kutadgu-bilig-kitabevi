@@ -34,12 +34,12 @@ function sliceBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
-test("homepage pins shop.js v=162 and premium-ux v=14", () => {
-  assert.match(indexHtml, /shop\.js\?v=162/);
+test("homepage pins shop.js v=163 and premium-ux v=15", () => {
+  assert.match(indexHtml, /shop\.js\?v=163/);
   assert.match(indexHtml, /analytics\.js\?v=8/);
   assert.match(indexHtml, /kutadgu-book-seo\.js\?v=6/);
   assert.doesNotMatch(indexHtml, /shop\.js\?v=145/);
-  assert.match(shop, /premium-ux\.js\?v=14/);
+  assert.match(shop, /premium-ux\.js\?v=15/);
   assert.match(shop, /discovery-cover-space\.css\?v=1/);
   assert.match(shop, /premium-ux\.css\?v=10/);
 });

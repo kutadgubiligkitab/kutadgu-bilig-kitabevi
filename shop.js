@@ -138,6 +138,8 @@ const catalogQueryState={
 };
 const remoteCatalog={configured:false,available:false,total:null};
 const CATALOG_BOOT_TIMEOUT_MS=8000;
+const CATALOG_RECOVERY_COOLDOWN_MS=2000;
+let catalogRecoveryBlockedUntil=0;
 const CART_KEY="kutadgu-cart-v1", CART_DISPLAY_KEY="kutadgu-cart-display-v1", CART_DISPLAY_VERSION=1, CART_DISPLAY_MAX_ITEMS=80, FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1", SHOP_OWNER_GUEST="guest", SHOP_OWNER_STALE="stale";
 function isPreviewShopDebug(){
@@ -1600,7 +1602,7 @@ function widenDiscoveryPage(input,state){
 }
 
 async function fetchRemotePage(input={},options={}){
-  if(!remoteCatalog.available)throw new Error("Supabase catalog is unavailable");
+  if(!remoteCatalog.available&&!remoteCatalog.configured)throw new Error("Supabase catalog is unavailable");
   const state=widenDiscoveryPage(input,normalizeQueryState(input));
   if(isGlobalBooksDiscoveryState(state)&&!options._discoveryPage)return fetchDiscoveryRemotePage(state,options);
   if(usesSearchRelevance(state)&&!options._rankedPage)return fetchRankedRemotePage(state,options);
@@ -1629,6 +1631,10 @@ async function fetchRemotePage(input={},options={}){
   if(typeof options.accept==="function"&&options.accept()===false){
     return {items:[],total:0,hasMore:false,offset:from,pageSize:state.pageSize,source:"supabase",status:response.status,contentRange:response.headers.get("content-range")||"",rowCount:0,stale:true};
   }
+  if(!remoteCatalog.available){
+    remoteCatalog.available=true;
+    beginRemoteVisibleCatalog();
+  }
   const creditRows=state.creditId&&creditLib().dedupeCreditRows?creditLib().dedupeCreditRows(rows):rows;
   const fetched=refreshCatalogCache(creditRows.map((row,index)=>normalizeRemoteBook(row,from+index)).filter(book=>book.id));
   const items=state.includeInactive?fetched:fetched.filter(isStorefrontVisible);
@@ -1646,14 +1652,20 @@ async function fetchRemotePage(input={},options={}){
 
 async function queryCatalog(input={},options={}){
   const state=widenDiscoveryPage(input,normalizeQueryState(input));
-  if((state.creditId||state.creditRole)&&!remoteCatalog.available){
+  if(options.forceRecovery===true)catalogRecoveryBlockedUntil=0;
+  if(remoteCatalog.configured&&!remoteCatalog.available&&Date.now()<catalogRecoveryBlockedUntil){
     throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
   }
-  if(remoteCatalog.available){
+  if((state.creditId||state.creditRole)&&!remoteCatalog.available&&!remoteCatalog.configured){
+    throw new Error(catalogStatus.error||"كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
+  }
+  if(remoteCatalog.available||remoteCatalog.configured){
+    const recovering=remoteCatalog.configured&&!remoteCatalog.available;
     try{return await fetchRemotePage(state,options)}
     catch(error){
       if(error?.name==="AbortError")throw error;
       if(remoteCatalog.configured){
+        if(recovering&&!remoteCatalog.available)catalogRecoveryBlockedUntil=Date.now()+CATALOG_RECOVERY_COOLDOWN_MS;
         catalogStatus={...catalogStatus,source:"error",error:String(error?.message||error)};
         window.KUTADGU_CATALOG_STATUS=catalogStatus;
         throw error;
@@ -3131,7 +3143,7 @@ function homeFeatureCard(b){
 }
 
 let homeFeaturedRequestId=0;
-async function renderHomeFeaturedBooks(){
+async function renderHomeFeaturedBooks(options={}){
   const host=document.querySelector("#homeFeaturedBooks");
   if(!host)return;
   if(!featureEnabled("newArrivals")){host.hidden=true;return}
@@ -3151,7 +3163,7 @@ async function renderHomeFeaturedBooks(){
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
     // Only the latest twenty rows are requested; remoteOrder("new") maps to created_at DESC.
-    const result=await queryCatalog({offset:0,pageSize:20,sort:"new"});
+    const result=await queryCatalog({offset:0,pageSize:20,sort:"new"},{forceRecovery:options.forceRecovery===true});
     if(token!==homeFeaturedRequestId)return;
     const books=homepageVisibleBooks(result);
     const grid=host.querySelector(".home-featured-grid");
@@ -3179,7 +3191,8 @@ async function renderHomeFeaturedBooks(){
     if(!grid)return;
     grid.classList.remove("is-marquee","is-skeleton-grid");
     grid.removeAttribute("aria-busy");
-    grid.innerHTML='<div class="empty-state shop-section-empty">يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
+    grid.innerHTML='<div class="catalog-error-state" role="alert"><p>يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button></div>';
+    grid.querySelector(".catalog-retry-btn")?.addEventListener("click",()=>{void renderHomeFeaturedBooks({forceRecovery:true})});
   }
 }
 
@@ -3603,7 +3616,7 @@ function setupCatalogFilters(){
     grid.removeAttribute("data-catalog-ready");
     grid.setAttribute("aria-busy","false");
     grid.innerHTML=allowRetry?listingErrorMarkup():`<div class="catalog-error-state" role="alert"><p>${escapeHtml(message)}</p></div>`;
-    if(allowRetry)grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{await loadRemoteCatalog();apply(false)});
+    if(allowRetry)grid.querySelector(".catalog-retry-btn")?.addEventListener("click",()=>{apply(false,{forceRecovery:true})});
   }
   async function loadCreditIdentity(signal){
     const cfg=supabasePublicConfig();
@@ -3617,7 +3630,7 @@ function setupCatalogFilters(){
     if(!Array.isArray(rows))throw new Error("Identity query returned invalid data");
     return rows[0]||null;
   }
-  async function apply(append=false){
+  async function apply(append=false,options={}){
     if(append&&loadingMore)return;
     const token=++requestId;
     controller?.abort();controller=new AbortController();
@@ -3659,7 +3672,7 @@ function setupCatalogFilters(){
         }
         paintCreditHeading(creditIdentity.display_name,null);
       }
-      let result=await queryCatalog(state,{signal});
+      let result=await queryCatalog(state,{signal,forceRecovery:options.forceRecovery===true});
       if(token!==requestId||signal.aborted)return;
       if(result.discovery&&append&&!(Number(result.nextOffset)>discoveryCursor))result={...result,hasMore:false};
       if(!append)discoveryCursor=0;
@@ -3687,9 +3700,8 @@ function setupCatalogFilters(){
           grid.removeAttribute("data-catalog-ready");
           grid.setAttribute("aria-busy","false");
           grid.innerHTML=listingErrorMarkup();
-          grid.querySelector(".catalog-retry-btn")?.addEventListener("click",async()=>{
-            await loadRemoteCatalog();
-            apply(false);
+          grid.querySelector(".catalog-retry-btn")?.addEventListener("click",()=>{
+            apply(false,{forceRecovery:true});
           });
         }
       }
@@ -5342,11 +5354,11 @@ async function setupHomeCarousel(){
     };
     return catalogQueryState.carousel;
   }
-  async function loadMode(currentMode,append=false){
+  async function loadMode(currentMode,append=false,options={}){
     const existing=modeCache.get(currentMode)||{items:[],hasMore:true,total:0};
     if(append&&(!existing.hasMore||existing.items.length>=24))return existing;
     const token=++modeRequestId;modeController?.abort();modeController=new AbortController();
-    let result=await queryCatalog(modeState(currentMode,append?existing.items.length:0),{signal:modeController.signal});
+    let result=await queryCatalog(modeState(currentMode,append?existing.items.length:0),{signal:modeController.signal,forceRecovery:options.forceRecovery===true});
     if(token!==modeRequestId)throw new DOMException("Stale carousel query","AbortError");
     const merged=append?[...existing.items]:[];
     const known=new Set(merged.map(book=>book.id));
@@ -5542,7 +5554,7 @@ async function setupHomeCarousel(){
       modeController=null;
     }
   }
-  async function setMode(nextMode){
+  async function setMode(nextMode,options={}){
     invalidateCarouselRequests();
     mode=(enabledModes.includes(nextMode)||nextMode==="gifts")?nextMode:(enabledModes[0]||nextMode);
     tabs.forEach(button=>{const active=button.dataset.carouselMode===mode;button.classList.toggle("is-active",active);button.setAttribute("aria-selected",active?"true":"false")});
@@ -5552,7 +5564,7 @@ async function setupHomeCarousel(){
     if(!host.querySelector(".home-carousel-card.is-skeleton"))host.innerHTML=homeCarouselSkeletonMarkup(4);
     host.setAttribute("aria-busy","true");
     try{
-      const loaded=modeCache.get(requestedMode)||await loadMode(requestedMode,false);
+      const loaded=(!options.forceRecovery&&modeCache.get(requestedMode))||await loadMode(requestedMode,false,options);
       if(mode!==requestedMode)return;
       list=loaded.items;
       if(!list.length){
@@ -5569,7 +5581,7 @@ async function setupHomeCarousel(){
       stop();
       dotsHost.innerHTML="";
       host.removeAttribute("aria-busy");
-      host.innerHTML='<div class="empty-state shop-section-empty">كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</div>';
+      host.innerHTML='<div class="catalog-error-state" role="alert"><p>كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><button type="button" class="catalog-retry-btn" data-carousel-retry="1">قايتا سىناش</button></div>';
     }
   }
   async function next(){
@@ -5641,6 +5653,8 @@ async function setupHomeCarousel(){
   }
   tabs.forEach(button=>button.addEventListener("click",()=>{userPickedMode=true;setMode(button.dataset.carouselMode)}));
   host.addEventListener("click",event=>{
+    const catalogRetry=event.target.closest&&event.target.closest("[data-carousel-retry]");
+    if(catalogRetry){event.preventDefault();if(mode!=="gifts")void setMode(mode,{forceRecovery:true});return}
     const retry=event.target.closest&&event.target.closest("[data-gift-retry]");
     if(retry){event.preventDefault();if(mode==="gifts")renderGiftSurface();return}
     const button=event.target.closest&&event.target.closest("[data-gift-request]");
@@ -5891,7 +5905,7 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/premium-ux.js?v=14","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=15","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
