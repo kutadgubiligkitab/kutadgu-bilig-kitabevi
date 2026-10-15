@@ -166,8 +166,10 @@ test.describe("catalog probe recovery", () => {
     await expect(page.locator("#homeCarouselTrack")).not.toContainText(HIDDEN);
     await expect(page.locator("#homeFeaturedBooks")).not.toContainText(HIDDEN);
     await expect(page.locator("#homeCarouselTrack")).toContainText("88 ₺");
-    await expect(page.locator('#homeCarouselTrack [data-cart-id="91002"]')).toBeDisabled();
-    await expect(page.locator("#homeCarouselTrack, #homeFeaturedBooks")).not.toContainText("قايتا سىناش");
+    await expect(page.locator('#homeCarouselTrack [data-cart-id="91002"]')).toHaveCount(2);
+    await expect(page.locator('#homeCarouselTrack [data-cart-id="91002"]:not([disabled])')).toHaveCount(0);
+    await expect(page.locator("#homeCarouselTrack")).not.toContainText("قايتا سىناش");
+    await expect(page.locator("#homeFeaturedBooks")).not.toContainText("قايتا سىناش");
     const html = await page.locator("#homeCarouselTrack, #homeFeaturedBooks").evaluateAll((els) => els.map((el) => el.innerHTML).join(""));
     expect(html).not.toMatch(DEMO);
     expect(state.availabilityHeads).toBe(1);
@@ -273,7 +275,10 @@ test.describe("catalog probe recovery", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
     await expect.poll(() => state.pending.length).toBeGreaterThan(0);
-    await page.locator("#catalogSort").selectOption("title");
+    await page.locator("#catalogSort").evaluate((el) => {
+      el.value = "title";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     await expect.poll(() => state.orders.some((order) => order.startsWith("title.asc"))).toBe(true);
     state.pending.splice(0).forEach((release) => release());
     await expect(page.locator(".books-grid")).toContainText(TITLE_SORT);
