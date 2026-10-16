@@ -1018,6 +1018,108 @@
     return true;
   }
 
+  const ACTIVITY_CATEGORIES=["book_view","add_to_cart","whatsapp_order_click","search","zero_search"];
+  const ACTIVITY_SCOPES=["verified","raw"];
+  const ACTIVITY_SORTS=["latest","oldest","count_desc","count_asc"];
+  const ACTIVITY_PRESETS=["today","yesterday","last_7","last_30","custom"];
+
+  function activityPageRequest(options){
+    const src=options&&typeof options==="object"?options:{};
+    const category=ACTIVITY_CATEGORIES.indexOf(src.category)>=0?src.category:"book_view";
+    const scope=src.scope==="raw"?"raw":"verified";
+    const sort=ACTIVITY_SORTS.indexOf(src.sort)>=0?src.sort:"latest";
+    const preset=ACTIVITY_PRESETS.indexOf(src.preset)>=0?src.preset:"last_30";
+    const offset=integerAtLeast(src.offset,0);
+    const limit=integerAtLeast(src.limit,1);
+    const query=String(src.query||"").trim().slice(0,80);
+    const request={
+      p_category:category,
+      p_scope:scope,
+      p_sort:sort,
+      p_preset:preset,
+      p_offset:offset===null?0:offset,
+      p_limit:limit===null?20:Math.min(limit,50),
+      p_query:query
+    };
+    if(preset==="custom"){
+      request.p_start=String(src.start||"");
+      request.p_end=String(src.end||"");
+    }
+    return request;
+  }
+
+  function normalizeActivityPage(payload){
+    if(!payload||typeof payload!=="object"||Array.isArray(payload))return null;
+    const status=String(payload.status||"");
+    if(["unavailable","partial","zero","complete","raw"].indexOf(status)<0)return null;
+    if(ACTIVITY_CATEGORIES.indexOf(payload.category)<0)return null;
+    if(ACTIVITY_SCOPES.indexOf(payload.scope)<0)return null;
+    const offset=integerAtLeast(payload.offset,0);
+    const limit=integerAtLeast(payload.limit,1);
+    if(offset===null||limit===null)return null;
+    if(status==="unavailable"){
+      if(payload.rows!=null||payload.total!=null)return null;
+      return {
+        status,
+        scope:payload.scope,
+        category:payload.category,
+        kind:payload.kind==="phrase"?"phrase":"book",
+        sort:String(payload.sort||""),
+        startedAt:payload.started_at||null,
+        rangeStart:payload.range_start?String(payload.range_start):"",
+        rangeEnd:payload.range_end?String(payload.range_end):"",
+        offset,
+        limit,
+        total:null,
+        totalEvents:null,
+        rows:null,
+        hasMore:false
+      };
+    }
+    const total=integerAtLeast(payload.total,0);
+    const events=integerAtLeast(payload.total_events,0);
+    if(total===null||events===null||!Array.isArray(payload.rows))return null;
+    const rows=[];
+    for(let i=0;i<payload.rows.length;i+=1){
+      const row=payload.rows[i];
+      if(!row||typeof row!=="object")return null;
+      const count=integerAtLeast(row.count,0);
+      if(count===null||!row.label)return null;
+      rows.push({
+        key:String(row.key||""),
+        label:String(row.label),
+        kind:row.kind==="phrase"?"phrase":"book",
+        count,
+        lastAt:row.last_at||null,
+        stamp:formatIstanbulStamp(row.last_at)
+      });
+    }
+    return {
+      status,
+      scope:payload.scope,
+      category:payload.category,
+      kind:payload.kind==="phrase"?"phrase":"book",
+      sort:String(payload.sort||""),
+      startedAt:payload.started_at||null,
+      rangeStart:payload.range_start?String(payload.range_start):"",
+      rangeEnd:payload.range_end?String(payload.range_end):"",
+      offset,
+      limit,
+      total,
+      totalEvents:events,
+      rows,
+      hasMore:offset+rows.length<total
+    };
+  }
+
+  function missingActivityRpc(error){
+    if(!error||typeof error!=="object")return false;
+    const code=String(error.code||"");
+    if(code==="PGRST202"||code==="42883")return true;
+    const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
+    return /get_kutadgu_analytics_activity/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+  }
+
   function missingVisitCountryHistoryRpc(error){
     if(!error||typeof error!=="object")return false;
     const code=String(error.code||"");
@@ -1085,7 +1187,10 @@
     visitCountryHistoryRequest,
     normalizeVisitCountryHistory,
     visitCountryHistoryPageMatches,
-    missingVisitCountryHistoryRpc
+    missingVisitCountryHistoryRpc,
+    activityPageRequest,
+    normalizeActivityPage,
+    missingActivityRpc
   };
 
   if(typeof module==="object"&&module.exports)module.exports=api;

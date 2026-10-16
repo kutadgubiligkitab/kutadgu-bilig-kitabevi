@@ -157,7 +157,7 @@ test("existing Admin sections and pending submissions remain intact", () => {
   assert.match(adminJs, /reject_staff_book_submission/);
   assert.match(
     adminJs,
-    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadZeroSearches\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadHeroAdminCard\(\),loadMfaCard\(\),loadAdminSuggestionRows\(\)\]\)/
+    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadAnalyticsActivity\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadHeroAdminCard\(\),loadMfaCard\(\),loadAdminSuggestionRows\(\)\]\)/
   );
 });
 

@@ -208,6 +208,33 @@ async function noteOutage(env, source) {
   }
 }
 
+async function noteActionOutage(env, source) {
+  try {
+    await rpc(env, source, "kutadgu_note_action_attestation_outage", {});
+  } catch (err) {
+    return;
+  }
+}
+
+async function attestAnalyticsEvent(request, env, source, eventId) {
+  if (!isUuidV4(eventId)) return;
+  const identity = await readIdentity(request, env, Math.floor(Date.now() / 1000));
+  if (!identity || !identity.current) return;
+  let recorded;
+  try {
+    recorded = await rpc(env, source, "kutadgu_attest_analytics_event", {
+      p_event_id: String(eventId).toLowerCase(),
+      p_visitor_id: identity.id
+    });
+  } catch (err) {
+    await noteActionOutage(env, source);
+    return;
+  }
+  if (!recorded || !recorded.ok || recorded.body !== true) {
+    await noteActionOutage(env, source);
+  }
+}
+
 async function readJson(request) {
   const length = Number(request.headers.get("content-length") || 0);
   if (length > 4096) return null;
@@ -367,6 +394,7 @@ module.exports = {
   handleVisitConfig,
   handleVisitProof,
   handleVisitCount,
+  attestAnalyticsEvent,
   readIdentity,
   issueCookie,
   uuidV4,

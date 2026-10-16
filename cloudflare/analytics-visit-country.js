@@ -29,12 +29,18 @@ function trustedCountry(cf) {
   return code;
 }
 
-function emptyResult(status) {
+function emptyResult(status, eventId) {
   return {
     status,
     body: "",
+    eventId: eventId || "",
     headers: { "Cache-Control": "private, no-store" }
   };
+}
+
+function storedEventId(row) {
+  const value = row && row.event_id != null ? String(row.event_id).trim().toLowerCase() : "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value) ? value : "";
 }
 
 async function readBoundedBody(request) {
@@ -105,7 +111,7 @@ async function handleAnalyticsEvent(request, env, deps) {
     return emptyResult(503);
   }
   if (stored.status === 409 || (stored.status >= 200 && stored.status < 300)) {
-    return emptyResult(stored.status === 409 ? 409 : 204);
+    return emptyResult(stored.status === 409 ? 409 : 204, storedEventId(row));
   }
   if (stored.status >= 500 || stored.status === 400 || stored.status === 401 || stored.status === 403 || stored.status === 404) {
     return emptyResult(503);

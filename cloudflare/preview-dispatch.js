@@ -545,6 +545,9 @@ async function dispatch(request, env, deps) {
   }
   if (route.kind === "analytics-event") {
     const result = await visitCountry.handleAnalyticsEvent(request, env, source);
+    if (result.status === 204 || result.status === 409) {
+      await verifiedVisits.attestAnalyticsEvent(request, env, source, result.eventId);
+    }
     const payload = method === "HEAD" || result.status === 204 ? null : result.body;
     return textResponse(result.status, payload, env, {
       "Content-Type": "text/plain; charset=utf-8",
