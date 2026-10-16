@@ -88,7 +88,8 @@
         "KUTADGU_R2_READ_ENABLED": "true",
         "KUTADGU_R2_UPLOAD_ENABLED": "true",
         "KUTADGU_R2_OVERWRITE": "false",
-        "KUTADGU_R2_PUBLIC_BASE_URL": ""
+        "KUTADGU_R2_PUBLIC_BASE_URL": "",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFYwa2nBmJP1tS5K"
       },
       "r2_buckets": [
         {

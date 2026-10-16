@@ -209,9 +209,14 @@ jobs.push(test("preview config does not bind the production domain", () => {
   assert.strictEqual(prod.vars.KUTADGU_R2_UPLOAD_ENABLED, "true");
   assert.strictEqual(prod.vars.KUTADGU_R2_OVERWRITE, "false");
   assert.strictEqual(prod.vars.KUTADGU_R2_PUBLIC_BASE_URL, "");
+  assert.strictEqual(prod.vars.TURNSTILE_SITE_KEY, "0x4AAAAAAFYwa2nBmJP1tS5K");
+  assert.doesNotMatch(prod.vars.TURNSTILE_SITE_KEY, /^[123]x00000000000000000000/i);
+  assert.ok(!Object.prototype.hasOwnProperty.call(config.vars, "TURNSTILE_SITE_KEY"));
   assert.strictEqual(prod.r2_buckets[0].binding, "COVERS");
   assert.strictEqual(prod.r2_buckets[0].bucket_name, "kutadgu-covers-preview");
   assert.doesNotMatch(text, /OPENAI_API_KEY/);
+  assert.doesNotMatch(text, /TURNSTILE_SECRET_KEY/);
+  assert.doesNotMatch(text, /VISIT_SIGNING_SECRET/);
   assert.doesNotMatch(text, /production-cutover-routes/);
   const cutover = JSON.parse(fs.readFileSync(path.join(root, "cloudflare/production-cutover-routes.json"), "utf8"));
   assert.strictEqual(cutover.status, "custom-domains");

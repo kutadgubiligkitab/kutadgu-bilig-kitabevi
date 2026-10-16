@@ -2,7 +2,7 @@
 
 const SUPABASE_ORIGIN = "https://fxlojnqwyojqjskfggmh.supabase.co";
 
-const PRODUCTION_CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co; frame-src 'none'; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const PRODUCTION_CSP_REPORT_ONLY = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co blob: data:; font-src 'self'; connect-src 'self' https://fxlojnqwyojqjskfggmh.supabase.co https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'none'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 const ENFORCED_CSP = "frame-ancestors 'none'";
 const HSTS_VALUE = "max-age=63072000";

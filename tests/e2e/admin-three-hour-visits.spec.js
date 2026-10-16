@@ -41,8 +41,9 @@ async function paintSample(page) {
         period: { status: "complete", visitors: 99 },
         daily: days.map((date) => ({ date, status: "complete", visitors: 99 }))
       },
-      counted_visits: {
+      verified_visits: {
         version: 1,
+        metric: "verification_passed_browser_visits",
         window_hours: 3,
         today: { date: end, status: "complete", visits: 3 },
         yesterday: { date: Core.addCalendarDays(end, -1), status: "unavailable", visits: null },
@@ -54,6 +55,14 @@ async function paintSample(page) {
           if (index === 3) return { date, status: "partial", visits: 2 };
           return { date, status: "zero", visits: 0 };
         })
+      },
+      counted_visits: {
+        version: 1,
+        window_hours: 3,
+        today: { date: end, status: "complete", visits: 11 },
+        yesterday: { date: Core.addCalendarDays(end, -1), status: "complete", visits: 11 },
+        period: { status: "complete", visits: 11 },
+        daily: days.map((date) => ({ date, status: "complete", visits: 11 }))
       }
     }, now);
     window.__kutadguRenderAnalytics(described, { shownDays: 30 });
@@ -75,6 +84,10 @@ for (const viewport of viewports) {
       await expect(page.locator("#analyticsVisitorsPeriod")).toHaveText("5 (قىسمەن)");
       await expect(page.locator("#analyticsVisitorNote")).toContainText("زىيارەت قېتىمى");
       await expect(page.locator("#analyticsVisitorNote")).toContainText("3 سائەت");
+      await expect(page.locator("#analyticsVisitorNote")).toContainText("دەلىللەنگەن ئادەم");
+      await expect(page.locator("#analyticsLegacyVisits")).toContainText("كونا ئىستاتىستىكا");
+      await expect(page.locator("#analyticsLegacyVisits")).toContainText("11");
+      await expect(page.locator("#analyticsVisitorsToday")).not.toHaveText("11");
       await expect(page.locator("#analyticsVisitors")).not.toContainText("99");
       await expect(page.locator("#analyticsManagement")).not.toContainText("بۈگۈنكى خاتىرىلەنگەن زىيارەتچى");
       await expect(page.locator("#analyticsBookViews")).toHaveText("1.561");
@@ -117,11 +130,18 @@ test("a legacy payload keeps visit counts unavailable and event totals visible",
       cart_adds: 0,
       whatsapp_clicks: 1,
       top_books: [],
-      zero_searches: []
+      zero_searches: [],
+      counted_visits: {
+        today: { status: "complete", visits: 8 },
+        yesterday: { status: "complete", visits: 8 },
+        period: { status: "complete", visits: 8 },
+        daily: []
+      }
     }, new Date("2026-10-06T09:00:00Z"));
     window.__kutadguRenderAnalytics(described, { shownDays: 30 });
   });
   await expect(page.locator("#analyticsVisitorsToday")).toHaveText("—");
+  await expect(page.locator("#analyticsLegacyVisits")).toContainText("8");
   await expect(page.locator("#analyticsVisitorsYesterday")).toHaveText("—");
   await expect(page.locator("#analyticsVisitorsPeriod")).toHaveText("—");
   await expect(page.locator("#analyticsBookViews")).toHaveText("4");

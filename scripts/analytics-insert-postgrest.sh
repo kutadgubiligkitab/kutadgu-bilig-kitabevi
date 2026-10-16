@@ -421,8 +421,8 @@ function loadClient(origin, fetchImpl, storage) {
 
 async function openPage(loaded) {
   const fns = loaded.listeners.DOMContentLoaded || [];
-  if (fns.length !== 1) fail("page listener count " + fns.length);
-  await fns[0]();
+  if (fns.length !== 0) fail("page listener count " + fns.length);
+  await loaded.sandbox.KutadguAnalytics.track("page_view", {});
 }
 
 function assertShape(body) {

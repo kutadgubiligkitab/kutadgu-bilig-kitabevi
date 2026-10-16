@@ -165,8 +165,12 @@
     }catch(e){/* analytics must never block the shop */}
   }
   window.KutadguAnalytics={...(window.KutadguAnalytics||{}),__remoteReady:true,track:remoteTrack};
-  const page=()=>remoteTrack("page_view",{});
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",page,{once:true});else page();
+  if(document.head&&typeof document.createElement==="function"){
+    const proof=document.createElement("script");
+    proof.src="/visit-proof.js?v=2";
+    proof.defer=true;
+    document.head.appendChild(proof);
+  }
   document.addEventListener("click",event=>{
     try{
       const link=event.target.closest?.("#contactDetails a");if(!link)return;
