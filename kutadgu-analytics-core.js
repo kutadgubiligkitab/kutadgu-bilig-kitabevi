@@ -485,7 +485,9 @@
         daily:chartDays(src,now)
       },
       countedVisits:describeCountedVisits(src.counted_visits,now),
+      verifiedVisits:describeCountedVisits(src.verified_visits,now),
       visitCountries:describeVisitCountries(src.visit_countries),
+      verifiedVisitCountries:describeVisitCountries(src.verified_visit_countries),
       funnel:describeFunnel(src),
       arrival:src.arrival_funnel&&typeof src.arrival_funnel==="object"
         ?describeFunnel({funnel:src.arrival_funnel}).funnel
@@ -1021,7 +1023,7 @@
     const code=String(error.code||"");
     if(code==="PGRST202"||code==="42883")return true;
     const text=[error.message,error.details,error.hint].map(part=>String(part||"")).join(" ");
-    return /get_kutadgu_visit_country_history/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
+    return /get_kutadgu_(visit_country_history|verified_visit_history)/i.test(text)&&/(could not find|does not exist|schema cache|undefined function)/i.test(text);
   }
 
   const api={

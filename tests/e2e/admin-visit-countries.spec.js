@@ -1,19 +1,19 @@
 const { test, expect } = require("./playwright-test");
 const http = require("http");
 
-test("a cached analytics.js?v=7 stays reusable while the new homepage runs v=8", async ({ browser }) => {
+test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=9", async ({ browser }) => {
   const oldBody = "window.__kutadguOldAnalytics = true;";
-  const hits = { v7: 0, v8: 0 };
+  const hits = { v8: 0, v9: 0 };
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
       if (url.pathname === "/analytics-cache-old.html") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-        res.end("<!DOCTYPE html><html><body><script src=\"/analytics.js?v=7\"></script></body></html>");
+        res.end("<!DOCTYPE html><html><body><script src=\"/analytics.js?v=8\"></script></body></html>");
         return;
       }
-      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "7") {
-        hits.v7 += 1;
+      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "8") {
+        hits.v8 += 1;
         res.writeHead(200, {
           "content-type": "application/javascript; charset=utf-8",
           "cache-control": "public, max-age=300, immutable",
@@ -22,7 +22,7 @@ test("a cached analytics.js?v=7 stays reusable while the new homepage runs v=8",
         res.end(oldBody);
         return;
       }
-      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "8") hits.v8 += 1;
+      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "9") hits.v9 += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
         port: 4173,
@@ -47,10 +47,10 @@ test("a cached analytics.js?v=7 stays reusable while the new homepage runs v=8",
   try {
     await page.goto(origin.origin + "/analytics-cache-old.html", { waitUntil: "domcontentloaded" });
     await expect.poll(() => page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(true);
-    expect(hits.v7).toBe(1);
-    expect(hits.v8).toBe(0);
+    expect(hits.v8).toBe(1);
+    expect(hits.v9).toBe(0);
     const cached = await page.evaluate(async () => {
-      const res = await fetch("/analytics.js?v=7", { cache: "only-if-cached", mode: "same-origin" });
+      const res = await fetch("/analytics.js?v=8", { cache: "only-if-cached", mode: "same-origin" });
       if (!res.ok) throw new Error("cached recorder missed");
       return res.text();
     });
@@ -58,21 +58,21 @@ test("a cached analytics.js?v=7 stays reusable while the new homepage runs v=8",
     expect(cached).not.toContain("/api/analytics-event");
     await page.goto(origin.origin + "/analytics-cache-old.html", { waitUntil: "domcontentloaded" });
     await expect.poll(() => page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(true);
-    expect(hits.v7).toBe(1);
+    expect(hits.v8).toBe(1);
     const reused = await page.evaluate(() => performance.getEntriesByType("resource")
-      .filter((entry) => entry.name.includes("analytics.js?v=7"))
+      .filter((entry) => entry.name.includes("analytics.js?v=8"))
       .map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
     expect(reused.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     await page.goto(origin.origin + "/index.html", { waitUntil: "domcontentloaded" });
-    await expect.poll(() => hits.v8).toBe(1);
-    expect(hits.v7).toBe(1);
+    await expect.poll(() => hits.v9).toBe(1);
+    expect(hits.v8).toBe(1);
     expect(await page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(false);
     const ran = await page.evaluate(async () => {
-      const res = await fetch("/analytics.js?v=8", { cache: "no-store" });
+      const res = await fetch("/analytics.js?v=9", { cache: "no-store" });
       return res.text();
     });
     expect(ran).toContain("/api/analytics-event");
-    expect(hits.v8).toBe(2);
+    expect(hits.v9).toBe(2);
   } finally {
     await context.close();
     await new Promise((resolve) => origin.server.close(resolve));
@@ -93,7 +93,7 @@ function countryPayload(code, visits, latestCountry, latestAt) {
     top_books: [],
     zero_searches: [],
     top_cart_books: [],
-    visit_countries: {
+    verified_visit_countries: {
       version: 1,
       status: "complete",
       started_at: "2026-10-01T00:00:00Z",
@@ -142,7 +142,7 @@ for (const viewport of viewports) {
           whatsapp_clicks: 0,
           top_books: [],
           zero_searches: [],
-          visit_countries: {
+          verified_visit_countries: {
             status: "complete",
             countries: [{ code: "TR", visits: 4 }, { code: "DE", visits: 1 }],
             unknown_visits: 2,
@@ -153,7 +153,7 @@ for (const viewport of viewports) {
           }
         }, new Date("2026-10-08T12:00:00Z"));
         window.__kutadguRenderAnalytics(view, { shownDays: 30 });
-        return view.visitCountries.rows.map((row) => row.label + ":" + row.visits);
+        return view.verifiedVisitCountries.rows.map((row) => row.label + ":" + row.visits);
       });
       expect(described[0]).toBe("تۈركىيە:4");
       await page.locator("#analyticsVisitCountryToggle").click();
@@ -179,7 +179,7 @@ for (const viewport of viewports) {
       expect(box.color).not.toBe("rgba(0, 0, 0, 0)");
       await page.evaluate(() => {
         const view = window.KutadguAnalyticsCore.describeAnalytics({
-          visit_countries: { status: "unavailable", countries: null, unknown_visits: null, latest: null }
+          verified_visit_countries: { status: "unavailable", countries: null, unknown_visits: null, latest: null }
         }, new Date());
         window.__kutadguRenderAnalytics(view, { shownDays: 30 });
       });
@@ -187,14 +187,14 @@ for (const viewport of viewports) {
       await expect(page.locator("#analyticsVisitCountryTotals")).not.toContainText("سانىلىدىغان زىيارەت 0");
       await page.evaluate(() => {
         const view = window.KutadguAnalyticsCore.describeAnalytics({
-          visit_countries: { status: "zero", countries: [], unknown_visits: 0, latest: [] }
+          verified_visit_countries: { status: "zero", countries: [], unknown_visits: 0, latest: [] }
         }, new Date());
         window.__kutadguRenderAnalytics(view, { shownDays: 30 });
       });
       await expect(page.locator("#analyticsVisitCountryStatus")).toContainText("0");
       await page.evaluate(() => {
         const view = window.KutadguAnalyticsCore.describeAnalytics({
-          visit_countries: {
+          verified_visit_countries: {
             status: "partial",
             countries: [{ code: "FR", visits: 1 }],
             unknown_visits: 0,
@@ -234,7 +234,7 @@ for (const viewport of viewports) {
                   whatsapp_clicks: 0,
                   top_books: [],
                   zero_searches: [],
-                  visit_countries: {
+                  verified_visit_countries: {
                     status: "complete",
                     countries: [{ code: "TR", visits: 9 }],
                     unknown_visits: 0,
@@ -256,7 +256,7 @@ for (const viewport of viewports) {
             whatsapp_clicks: 0,
             top_books: [],
             zero_searches: [],
-            visit_countries: {
+            verified_visit_countries: {
               status: "complete",
               countries: [{ code, visits: days === 30 ? 4 : 1 }],
               unknown_visits: 0,
@@ -294,7 +294,7 @@ for (const viewport of viewports) {
               whatsapp_clicks: 0,
               top_books: [],
               zero_searches: [],
-              visit_countries: {
+              verified_visit_countries: {
                 status: "complete",
                 countries: [{ code: "TR", visits: 9 }],
                 unknown_visits: 0,
@@ -352,7 +352,7 @@ for (const viewport of viewports) {
               whatsapp_clicks: 0,
               top_books: [],
               zero_searches: [],
-              visit_countries: {
+              verified_visit_countries: {
                 status: "complete",
                 countries: [{ code: "US", visits: 1 }, { code: "SA", visits: 1 }],
                 unknown_visits: 0,
@@ -393,7 +393,7 @@ for (const viewport of viewports) {
     await page.keyboard.press("Enter");
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(panel).toBeVisible();
-    await expect(page.locator("#analyticsVisitCountryNote")).toHaveText("ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن.");
+    await expect(page.locator("#analyticsVisitCountryNote")).toHaveText("دەلىللەنگەن زىيارەت خاتىرىسى. ساناش ئارىلىقى: 3 سائەت. VPN دۆلەت نەتىجىسىگە تەسىر قىلىشى مۇمكىن. كونا دۆلەت سانى بۇ جەدۋەلگە قوشۇلمايدۇ.");
     await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("ئامېرىكا");
     await expect(page.locator("#analyticsVisitCountryTotals .admin-country-row .admin-country-count").first()).toContainText("1");
     await expect(page.locator("#analyticsVisitCountryLatestTitle")).toHaveText("ئاخىرقى 20 سانىلىدىغان زىيارەت");
@@ -496,7 +496,7 @@ test("country totals search and pages stay local at phone and desktop", async ({
           whatsapp_clicks: 0,
           top_books: [],
           zero_searches: [],
-          visit_countries: {
+          verified_visit_countries: {
             status: "complete",
             countries: [{ code: "JP", visits: 1 }],
             unknown_visits: 0,
@@ -517,7 +517,7 @@ test("country totals search and pages stay local at phone and desktop", async ({
         whatsapp_clicks: 0,
         top_books: [],
         zero_searches: [],
-        visit_countries: {
+        verified_visit_countries: {
           status: "complete",
           countries,
           unknown_visits: 4,
@@ -551,7 +551,7 @@ test("country totals search and pages stay local at phone and desktop", async ({
     await page.locator("#analyticsVisitCountryToggle").click();
     await page.evaluate(() => {
       const Core = window.KutadguAnalyticsCore;
-      const none = Core.describeAnalytics({ visit_countries: { status: "zero", countries: [], unknown_visits: 0, latest: [] } }, new Date());
+      const none = Core.describeAnalytics({ verified_visit_countries: { status: "zero", countries: [], unknown_visits: 0, latest: [] } }, new Date());
       window.__kutadguRenderAnalytics(none, { shownDays: 30 });
     });
     await expect(page.locator("#analyticsVisitCountryFilter")).toBeHidden();
@@ -559,7 +559,7 @@ test("country totals search and pages stay local at phone and desktop", async ({
     await page.evaluate(() => {
       const countries = [{ code: "TR", visits: 1 }];
       const one = window.KutadguAnalyticsCore.describeAnalytics({
-        visit_countries: { status: "complete", countries, unknown_visits: 0, latest: [{ country: "TR", counted_at: "2026-10-08T09:00:00Z" }] }
+        verified_visit_countries: { status: "complete", countries, unknown_visits: 0, latest: [{ country: "TR", counted_at: "2026-10-08T09:00:00Z" }] }
       }, new Date());
       window.__kutadguRenderAnalytics(one, { shownDays: 30 });
     });
@@ -569,7 +569,7 @@ test("country totals search and pages stay local at phone and desktop", async ({
       const countries = [];
       for (let i = 0; i < 21; i += 1) countries.push({ code: String.fromCharCode(65 + i) + "A", visits: 30 - i });
       const view = window.KutadguAnalyticsCore.describeAnalytics({
-        visit_countries: { status: "complete", countries, unknown_visits: 1, latest: [] }
+        verified_visit_countries: { status: "complete", countries, unknown_visits: 1, latest: [] }
       }, new Date());
       window.__kutadguRenderAnalytics(view, { shownDays: 30 });
     });
@@ -676,7 +676,7 @@ test("thrown analytics reads keep the last period and retry", async ({ page }) =
             whatsapp_clicks: 0,
             top_books: [],
             zero_searches: [],
-            visit_countries: {
+            verified_visit_countries: {
               status: "complete",
               countries: [{ code, visits: days === 30 ? 4 : 1 }],
               unknown_visits: 0,
@@ -764,7 +764,7 @@ async function installCountryAdmin(page) {
         whatsapp_clicks: 0,
         top_books: [],
         zero_searches: [],
-        visit_countries: {
+        verified_visit_countries: {
           status: "complete",
           countries: [{ code, visits }],
           unknown_visits: 0,
@@ -805,7 +805,7 @@ async function installCountryAdmin(page) {
           return chain({ data: [], error: null, count: 0 });
         },
         rpc(name, args) {
-          if (name === "get_kutadgu_visit_country_history") {
+          if (name === "get_kutadgu_verified_visit_history") {
             if (typeof window.__kutadguHistoryHandler === "function") return window.__kutadguHistoryHandler(args);
             return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });
           }
@@ -994,7 +994,7 @@ function installHistoryAdmin(page) {
           whatsapp_clicks: 0,
           top_books: [],
           zero_searches: [],
-          visit_countries: {
+          verified_visit_countries: {
             status: "complete",
             countries: [{ code: "JP", visits: 1 }],
             unknown_visits: 0,
@@ -1012,7 +1012,7 @@ function installHistoryAdmin(page) {
         whatsapp_clicks: 0,
         top_books: [],
         zero_searches: [],
-        visit_countries: {
+        verified_visit_countries: {
           status: "complete",
           countries,
           unknown_visits: 1,
@@ -1067,7 +1067,7 @@ function installHistoryAdmin(page) {
     window.__kutadguAnalyticsDb = {
       from() { return chain(); },
       rpc(name, args) {
-        if (name === "get_kutadgu_visit_country_history") {
+        if (name === "get_kutadgu_verified_visit_history") {
           window.__kutadguHistoryCalls.push(args || {});
           if (window.__kutadguHistoryMode === "missing") {
             return Promise.resolve({ data: null, error: { message: "يوق", code: "PGRST202" } });

@@ -222,10 +222,7 @@ test("the storefront recorder follows the worker result and falls back without a
   });
   vm.runInContext(fs.readFileSync(path.join(root, "analytics.js"), "utf8"), context);
   await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.ok(calls.length >= 1);
-  assert.ok(calls.every((call) => call.url.includes("/api/analytics-event")));
-  assert.equal(JSON.parse(calls[0].body).country, undefined);
-  calls.length = 0;
+  assert.equal(calls.length, 0);
   workerStatus = 503;
   await window.KutadguAnalytics.track("page_view", {});
   const workerCall = calls.find((call) => call.url.includes("/api/analytics-event"));
@@ -363,8 +360,8 @@ test("history requests keep the snapshot and reject private fields", () => {
   assert.doesNotMatch(rollback, /delete from/i);
   assert.doesNotMatch(rollback, /analytics_country_counter/);
   const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
-  assert.match(adminHtml, /admin\.js\?v=101/);
-  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=13/);
+  assert.match(adminHtml, /admin\.js\?v=114/);
+  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=14/);
   assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
   assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);
 });

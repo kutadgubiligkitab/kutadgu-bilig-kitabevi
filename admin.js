@@ -6482,10 +6482,13 @@ function setAnalyticsCount(id,state){
   if(el)el.textContent=analyticsCountText(state);
 }
 function countedVisitSource(view){
-  if(view&&view.countedVisits)return view.countedVisits;
+  if(view&&view.verifiedVisits)return view.verifiedVisits;
   const Core=window.KutadguAnalyticsCore;
   if(Core&&typeof Core.describeCountedVisits==="function")return Core.describeCountedVisits(null,new Date());
   return null;
+}
+function legacyVisitSource(view){
+  return view&&view.countedVisits?view.countedVisits:null;
 }
 function setCountedVisit(id,metric){
   const el=$(id);
@@ -6526,6 +6529,15 @@ function paintCountedVisits(view){
   setCountedVisit("#analyticsVisitorsYesterday",counted&&counted.yesterday);
   setCountedVisit("#analyticsVisitorsPeriod",counted&&counted.period);
   renderVisitCountChart(counted&&counted.daily);
+  const legacy=legacyVisitSource(view);
+  const legacyEl=$("#analyticsLegacyVisits");
+  if(legacyEl){
+    const period=legacy&&legacy.period;
+    const text=!period||period.status==="unavailable"||period.visits==null
+      ?"—"
+      :Number(period.visits).toLocaleString("tr-TR")+(period.status==="partial"?" (قىسمەن)":"");
+    legacyEl.textContent="كونا ئىستاتىستىكا: "+text;
+  }
 }
 function setVisitCountryOpen(open){
   const button=$("#analyticsVisitCountryToggle");
@@ -6710,7 +6722,7 @@ function paintHistorySession(session, extra){
 }
 function historyPreviewBlock(){
   const described=analyticsShown&&analyticsShown.described;
-  return described&&described.visitCountries?described.visitCountries:visitCountryBlock;
+  return described&&described.verifiedVisitCountries?described.verifiedVisitCountries:visitCountryBlock;
 }
 async function loadVisitCountryHistory(intent){
   if(visitHistoryFlight&&intent&&intent.kind==="page")return;
@@ -6738,7 +6750,7 @@ async function loadVisitCountryHistory(intent){
   let data=null;
   let error=null;
   try{
-    const response=await db.rpc("get_kutadgu_visit_country_history", request);
+    const response=await db.rpc("get_kutadgu_verified_visit_history", request);
     data=response&&response.data;
     error=response&&response.error;
     if(!response)error=error||{message:""};
@@ -6852,8 +6864,8 @@ function paintVisitCountries(view,opts){
     return;
   }
   const Core=window.KutadguAnalyticsCore;
-  const block=view&&view.visitCountries
-    ?view.visitCountries
+  const block=view&&view.verifiedVisitCountries
+    ?view.verifiedVisitCountries
     :(Core&&Core.describeVisitCountries?Core.describeVisitCountries(null):{status:"unavailable",rows:null,latest:null});
   // A retained analytics view must not hide the retry for a failed history read.
   if(retry)retry.hidden=!visitHistoryFailed;
