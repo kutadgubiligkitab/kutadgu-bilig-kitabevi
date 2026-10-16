@@ -45,8 +45,8 @@ test.describe("opt-in header diagnostic", () => {
     expect(coldHeader.position).toBe("fixed");
     expect(coldHeader.top).toBe(0);
     expect(coldHeader.backdrop).toBe("none");
-    expect(cold.snapshots.some((row) => /mobile\.css\?v=26/.test(row.mobileHref))).toBe(true);
-    expect(cold.snapshots.some((row) => row.links.some((link) => /mobile\.css\?v=26/.test(link)))).toBe(true);
+    expect(cold.snapshots.some((row) => /mobile\.css\?v=27/.test(row.mobileHref))).toBe(true);
+    expect(cold.snapshots.some((row) => row.links.some((link) => /mobile\.css\?v=27/.test(link)))).toBe(true);
     expect(cold.snapshots.some((row) => row.assets.some((asset) => asset.path === "/header-diag.js?v=2"))).toBe(true);
     const loaded = cold.snapshots.find((row) => row.label === "load");
     expect(loaded.ancestors.length).toBeGreaterThan(1);

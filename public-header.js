@@ -6,7 +6,7 @@
 (function (root) {
   "use strict";
 
-  var CSS_HREF = "/public-header.css?v=7";
+  var CSS_HREF = "/public-header.css?v=8";
   var ROOT_APP_PAGES = {
     "account.html": "/account.html",
     "cart.html": "/cart.html",
@@ -25,6 +25,19 @@
     "admin-quality-preview.html": true,
     "book-staff.html": true
   };
+
+  function instagramIphone() {
+    if (typeof navigator === "undefined") return false;
+    var ua = String(navigator.userAgent || "");
+    return /iPhone/.test(ua) && /Instagram/.test(ua);
+  }
+
+  function markInstagramHeader() {
+    if (!instagramIphone() || typeof document === "undefined" || !document.documentElement) return;
+    document.documentElement.classList.add("kutadgu-ig-iphone");
+  }
+
+  markInstagramHeader();
 
   function pageFile() {
     if (typeof location === "undefined") return "";
