@@ -38,26 +38,28 @@ function capture(store) {
     const target = String(url);
     const body = init && init.body ? JSON.parse(init.body) : {};
     store.calls.push({ url: target, body });
-    if (target.endsWith("/analytics_events")) {
-      store.inserts.push(body);
-      return { ok: store.insertStatus < 400, status: store.insertStatus, text: async () => "", json: async () => ({}) };
+    if (target.endsWith("/kutadgu_ingest_analytics_event")) {
+      store.ingests.push(body);
+      if (store.ingestThrows) throw new Error("ingest down");
+      if (store.ingestStatus) return { ok: false, status: store.ingestStatus, text: async () => store.ingestText || "" };
+      const outcome = store.outcome || "inserted";
+      const attested = Boolean(body.p_visitor_id) && outcome !== "conflict" && outcome !== "rejected";
+      return { ok: true, status: 200, text: async () => JSON.stringify({ result: outcome, attested }) };
     }
     if (target.endsWith("/kutadgu_attest_analytics_event")) {
       store.attests.push(body);
-      if (store.attestThrows) throw new Error("attest down");
-      if (!store.attestOk) return { ok: false, status: 500, json: async () => null };
-      return { ok: true, status: 200, json: async () => true };
+      return { ok: true, status: 200, text: async () => "true" };
     }
     if (target.endsWith("/kutadgu_note_action_attestation_outage")) {
       store.outages += 1;
-      return { ok: true, status: 200, json: async () => true };
+      return { ok: true, status: 200, text: async () => "true", json: async () => true };
     }
-    return { ok: false, status: 404, json: async () => ({ message: "missing" }) };
+    return { ok: false, status: 404, text: async () => "", json: async () => ({ message: "missing" }) };
   };
 }
 
 function blank() {
-  return { calls: [], inserts: [], attests: [], outages: 0, insertStatus: 201, attestOk: true, attestThrows: false };
+  return { calls: [], ingests: [], attests: [], outages: 0, outcome: "inserted", ingestThrows: false, ingestStatus: 0 };
 }
 
 (async () => {
@@ -114,8 +116,10 @@ function blank() {
   assert.strictEqual(legacyResponse.status, 204);
   assert.strictEqual(legacy.attests.length, 0);
   assert.strictEqual(legacy.outages, 0);
-  assert.strictEqual(legacy.inserts[0].visitor_id, CLIENT_VISITOR);
-  assert.strictEqual(legacy.inserts[0].verified, undefined);
+  assert.strictEqual(legacy.ingests.length, 1);
+  assert.strictEqual(legacy.ingests[0].p_visitor_id, null);
+  assert.strictEqual(legacy.ingests[0].p_event.visitor_id, CLIENT_VISITOR);
+  assert.strictEqual(legacy.ingests[0].p_event.verified, undefined);
 
   const cookie = await visits.issueCookie("17171717-1717-4171-8171-171717171717", env(), HOST, Math.floor(Date.now() / 1000));
   const live = blank();
@@ -126,22 +130,41 @@ function blank() {
     event_id: EVENT_A
   }, cookie.split(";")[0]), env(), { fetchImpl: capture(live) });
   assert.strictEqual(counted.status, 204);
-  assert.strictEqual(live.attests.length, 1);
-  assert.strictEqual(live.attests[0].p_visitor_id, "17171717-1717-4171-8171-171717171717");
-  assert.notStrictEqual(live.attests[0].p_visitor_id, CLIENT_VISITOR);
-  assert.strictEqual(live.attests[0].p_event_id, EVENT_A);
+  assert.strictEqual(live.ingests.length, 1);
+  assert.strictEqual(live.attests.length, 0);
+  assert.strictEqual(live.ingests[0].p_visitor_id, "17171717-1717-4171-8171-171717171717");
+  assert.notStrictEqual(live.ingests[0].p_visitor_id, CLIENT_VISITOR);
+  assert.strictEqual(live.ingests[0].p_event.event_id, EVENT_A);
+  assert.strictEqual(live.ingests[0].p_event.event_name, "add_to_cart");
   assert.ok(live.calls.every((call) => !call.url.includes("kutadgu_accept_verified_visit")));
+  assert.ok(live.calls.every((call) => !call.url.includes("kutadgu_attest_analytics_event")));
 
   const again = blank();
-  again.insertStatus = 409;
+  again.outcome = "retry";
   const retry = await preview.dispatch(request({
     event_name: "add_to_cart",
     book_id: "15",
     event_id: EVENT_A
   }, cookie.split(";")[0]), env(), { fetchImpl: capture(again) });
   assert.strictEqual(retry.status, 409);
-  assert.strictEqual(again.attests.length, 1);
-  assert.strictEqual(again.attests[0].p_event_id, EVENT_A);
+  assert.strictEqual(again.ingests.length, 1);
+  assert.strictEqual(again.attests.length, 0);
+  assert.strictEqual(again.outages, 0);
+  assert.strictEqual(again.ingests[0].p_event.event_id, EVENT_A);
+
+  const promoted = blank();
+  promoted.outcome = "conflict";
+  const clash = await preview.dispatch(request({
+    event_name: "contact_click",
+    category: "phone",
+    event_id: EVENT_A
+  }, cookie.split(";")[0]), env(), { fetchImpl: capture(promoted) });
+  assert.strictEqual(clash.status, 409);
+  assert.strictEqual(promoted.ingests.length, 1);
+  assert.strictEqual(promoted.attests.length, 0);
+  assert.strictEqual(promoted.outages, 0);
+  assert.strictEqual(promoted.ingests[0].p_event.event_name, "contact_click");
+  assert.strictEqual(promoted.ingests[0].p_visitor_id, "17171717-1717-4171-8171-171717171717");
 
   const second = blank();
   await preview.dispatch(request({
@@ -149,8 +172,8 @@ function blank() {
     book_id: "16",
     event_id: EVENT_B
   }, cookie.split(";")[0]), env(), { fetchImpl: capture(second) });
-  assert.strictEqual(second.attests.length, 1);
-  assert.strictEqual(second.attests[0].p_event_id, EVENT_B);
+  assert.strictEqual(second.ingests.length, 1);
+  assert.strictEqual(second.ingests[0].p_event.event_id, EVENT_B);
 
   const expiredCookie = await visits.issueCookie("17171717-1717-4171-8171-171717171717", env(), HOST, Math.floor(Date.now() / 1000) - (12 * 60 * 60) - 5);
   const expired = blank();
@@ -160,18 +183,20 @@ function blank() {
     result_count: 0,
     event_id: EVENT_B
   }, expiredCookie.split(";")[0]), env(), { fetchImpl: capture(expired) });
-  assert.strictEqual(expired.inserts.length, 1);
+  assert.strictEqual(expired.ingests.length, 1);
+  assert.strictEqual(expired.ingests[0].p_visitor_id, null);
   assert.strictEqual(expired.attests.length, 0);
   assert.strictEqual(expired.outages, 0);
 
   const failed = blank();
-  failed.attestOk = false;
-  await preview.dispatch(request({
+  failed.ingestStatus = 500;
+  const failedResponse = await preview.dispatch(request({
     event_name: "book_view",
     book_id: "15",
     event_id: EVENT_A
   }, cookie.split(";")[0]), env(), { fetchImpl: capture(failed) });
-  assert.strictEqual(failed.attests.length, 1);
+  assert.strictEqual(failedResponse.status, 503);
+  assert.strictEqual(failed.attests.length, 0);
   assert.strictEqual(failed.outages, 1);
 
   console.log("analytics activity: PASS");

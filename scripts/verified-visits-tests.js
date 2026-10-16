@@ -78,16 +78,25 @@ function rpcFetch(store) {
       store.outages += 1;
       return { ok: true, status: 200, json: async () => true };
     }
+    if (target.endsWith("/kutadgu_ingest_analytics_event")) {
+      store.eventsInserted += 1;
+      store.ingests.push(body);
+      return { ok: true, status: 200, json: async () => ({ result: "inserted", attested: false }), text: async () => '{"result":"inserted","attested":false}' };
+    }
     if (target.endsWith("/analytics_events")) {
       store.eventsInserted += 1;
       return { ok: true, status: 201, json: async () => ({}) };
+    }
+    if (target.endsWith("/kutadgu_attest_analytics_event")) {
+      store.attests = (store.attests || 0) + 1;
+      return { ok: true, status: 200, json: async () => true };
     }
     return { ok: false, status: 404, json: async () => ({ message: "missing" }) };
   };
 }
 
 function store() {
-  return { urls: [], proofs: new Set(), accepts: [], events: new Map(), visitors: new Set(), outages: 0, eventsInserted: 0 };
+  return { urls: [], proofs: new Set(), accepts: [], events: new Map(), visitors: new Set(), outages: 0, eventsInserted: 0, ingests: [], attests: 0 };
 }
 
 async function dispatch(env, request, fetchImpl) {
@@ -340,7 +349,11 @@ async function proof(env, fetchImpl, token, extra) {
   }), async (url, init) => rpcFetch(legacy)(url, init));
   assert.ok(legacyResponse.status === 204 || legacyResponse.status === 201 || legacyResponse.status === 200);
   assert.strictEqual(legacy.eventsInserted, 1);
+  assert.strictEqual(legacy.ingests.length, 1);
+  assert.strictEqual(legacy.ingests[0].p_visitor_id, null);
+  assert.strictEqual(legacy.attests, 0);
   assert.ok(legacy.urls.every((url) => !url.includes("kutadgu_accept_verified_visit")));
+  assert.ok(legacy.urls.every((url) => !url.includes("kutadgu_attest_analytics_event")));
 
   const config = await dispatch(baseEnv(), fakeRequest({
     method: "GET",

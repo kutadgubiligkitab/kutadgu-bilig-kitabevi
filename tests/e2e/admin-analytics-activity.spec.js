@@ -121,12 +121,31 @@ test.describe("admin analytics activity", () => {
     await page.evaluate(() => { window.__kutadguActivityMode = "fail"; window.__kutadguActivityDelay = 0; });
     await page.locator("#analyticsActivitySort").selectOption("count_desc");
     await expect(page.locator("#analyticsActivityStatus")).toContainText("ئوقۇلمىدى");
-    await expect(results).toContainText("يېڭى-سۆز");
+    await expect(results).toContainText("ئالدىنقى تىزىملىك كۆرسىتىلمەيدۇ");
+    await expect(results).not.toContainText("يېڭى-سۆز");
 
+    await page.evaluate(() => { window.__kutadguActivityMode = "ok"; window.__kutadguActivityDelay = 0; });
+    await page.locator("#analyticsActivitySort").selectOption("latest");
+    await expect(results).toContainText("يېڭى-سۆز");
+    await page.evaluate(() => { window.__kutadguActivityDelay = 500; window.__kutadguActivityMode = "stale-book"; });
+    const pending = await page.evaluate(() => window.__kutadguActivityCalls.length);
+    await page.locator('[data-activity-category="book_view"]').click();
     await page.locator("#analyticsActivityPreset").selectOption("custom");
     await expect(results).toContainText("چېسلاسىنى تاللاڭ");
-    await expect(results).not.toContainText("يېڭى-سۆز");
+    await expect.poll(() => page.evaluate((start) => window.__kutadguActivityCalls.length > start, pending)).toBe(true);
+    await expect(results).toContainText("چېسلاسىنى تاللاڭ");
+    await expect(results).not.toContainText("ئەسكى-كىتاب");
+    await expect(results).not.toContainText("نۆۋەتتىكى كىتاب");
+
+    await page.evaluate(() => { window.__kutadguActivityMode = "fail"; window.__kutadguActivityDelay = 0; });
     await page.locator("#analyticsActivityPreset").selectOption("last_30");
+    await page.locator('[data-activity-category="add_to_cart"]').click();
+    await expect(page.locator("#analyticsActivityStatus")).toContainText("ئوقۇلمىدى");
+    await expect(results).toContainText("ئالدىنقى تىزىملىك كۆرسىتىلمەيدۇ");
+    await expect(results).not.toContainText("يېڭى-سۆز");
+
+    await page.evaluate(() => { window.__kutadguActivityMode = "ok"; });
+    await page.locator('[data-activity-category="search"]').click();
     await expect(results).toContainText("يېڭى-سۆز");
 
     await page.evaluate(() => { window.__kutadguActivityMode = "unavailable"; });

@@ -29,11 +29,12 @@ function trustedCountry(cf) {
   return code;
 }
 
-function emptyResult(status, eventId) {
+function emptyResult(status, eventId, attestationOutage) {
   return {
     status,
     body: "",
     eventId: eventId || "",
+    attestationOutage: Boolean(attestationOutage),
     headers: { "Cache-Control": "private, no-store" }
   };
 }
@@ -72,24 +73,47 @@ function missingCountryColumn(status, text) {
   return status === 400 && /country/i.test(String(text || "")) && /PGRST204|column/i.test(String(text || ""));
 }
 
-async function insertEvent(env, fetchImpl, row) {
+function ingestResult(status, text) {
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (err) {
+    body = null;
+  }
+  return { status, text, body };
+}
+
+async function ingestEvent(env, fetchImpl, event, visitorId) {
   const key = serverKey(env);
-  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/analytics_events", {
+  const response = await fetchImpl(SUPABASE_URL + "/rest/v1/rpc/kutadgu_ingest_analytics_event", {
     method: "POST",
     headers: {
       apikey: key,
       Authorization: "Bearer " + key,
       Accept: "application/json",
-      "Content-Type": "application/json",
-      Prefer: "return=minimal"
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify(row)
+    body: JSON.stringify({
+      p_event: event,
+      p_visitor_id: visitorId || null
+    })
   });
-  const text = response.status === 400 ? await response.text() : "";
-  return { status: response.status, text };
+  const text = await response.text();
+  return ingestResult(response.status, text);
 }
 
-async function handleAnalyticsEvent(request, env, deps) {
+function storedStatus(stored, eventId) {
+  if (stored.status === 409) return emptyResult(409, eventId);
+  if (stored.status >= 200 && stored.status < 300) {
+    const outcome = stored.body && stored.body.result;
+    if (outcome === "inserted") return emptyResult(204, eventId);
+    if (outcome === "retry" || outcome === "conflict") return emptyResult(409, eventId);
+    if (outcome === "rejected") return emptyResult(400);
+  }
+  return null;
+}
+
+async function handleAnalyticsEvent(request, env, deps, visitorId) {
   const method = String((request && request.method) || "GET").toUpperCase();
   if (method !== "POST") return emptyResult(405);
   const limited = await readBoundedBody(request);
@@ -101,22 +125,19 @@ async function handleAnalyticsEvent(request, env, deps) {
   const country = trustedCountry(request && request.cf);
   const withCountry = Object.assign({}, row);
   if (country && row.event_name === "page_view") withCountry.country = country;
+  const trustedVisitor = typeof visitorId === "string" && visitorId ? visitorId : null;
   let stored;
   try {
-    stored = await insertEvent(env, fetchImpl, withCountry);
+    stored = await ingestEvent(env, fetchImpl, withCountry, trustedVisitor);
     if (missingCountryColumn(stored.status, stored.text)) {
-      stored = await insertEvent(env, fetchImpl, row);
+      stored = await ingestEvent(env, fetchImpl, row, trustedVisitor);
     }
   } catch (err) {
-    return emptyResult(503);
+    return emptyResult(503, "", Boolean(trustedVisitor));
   }
-  if (stored.status === 409 || (stored.status >= 200 && stored.status < 300)) {
-    return emptyResult(stored.status === 409 ? 409 : 204, storedEventId(row));
-  }
-  if (stored.status >= 500 || stored.status === 400 || stored.status === 401 || stored.status === 403 || stored.status === 404) {
-    return emptyResult(503);
-  }
-  return emptyResult(503);
+  const mapped = storedStatus(stored, storedEventId(row));
+  if (mapped) return mapped;
+  return emptyResult(503, "", Boolean(trustedVisitor));
 }
 
 module.exports = {

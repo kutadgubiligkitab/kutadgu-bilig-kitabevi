@@ -7017,6 +7017,21 @@ function activityFilters(){
     limit:ACTIVITY_PAGE
   };
 }
+function activityContextKey(filters){
+  return [
+    filters.category,
+    filters.scope,
+    filters.sort,
+    filters.preset,
+    filters.start,
+    filters.end,
+    filters.query,
+    String(filters.offset)
+  ].join("\u0001");
+}
+function activityRangeReady(filters){
+  return filters.preset!=="custom"||(!!filters.start&&!!filters.end&&filters.end>=filters.start);
+}
 function showActivityCustom(preset){
   const on=preset==="custom";
   const start=$("#analyticsActivityCustom");
@@ -7085,6 +7100,16 @@ function paintActivity(page, notice){
   }
   paintActivityPager(page);
 }
+function paintActivityUnmatched(notice){
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  const phrase=$("#analyticsActivityPhraseNote");
+  const filters=activityFilters();
+  if(phrase)phrase.hidden=filters.category!=="search"&&filters.category!=="zero_search";
+  if(status)status.textContent=notice||"بۇ تاللاش ئوقۇلمىدى.";
+  if(host)host.innerHTML='<div class="admin-empty">بۇ تاللاش ئوقۇلمىدى. ئالدىنقى تىزىملىك كۆرسىتىلمەيدۇ.</div>';
+  paintActivityPager(null);
+}
 function paintActivityUnsupported(){
   activityShown=null;
   const host=$("#analyticsActivityResults");
@@ -7093,27 +7118,33 @@ function paintActivityUnsupported(){
   if(status)status.textContent="فۇنكسىيە قاچىلانمىغان. نۆل دەپ قارالمايدۇ.";
   paintActivityPager(null);
 }
+function paintActivityRangePrompt(filters){
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  const phrase=$("#analyticsActivityPhraseNote");
+  if(status)status.textContent="ئارىلىقنى تولۇق تاللاڭ. Europe/Istanbul كۈن چېگرىسى.";
+  if(host)host.innerHTML='<div class="admin-empty">باشلىنىش ۋە ئاخىرلىشىش چېسلاسىنى تاللاڭ.</div>';
+  if(phrase)phrase.hidden=filters.category!=="search"&&filters.category!=="zero_search";
+  paintActivityPager(null);
+}
 async function loadAnalyticsActivity(){
   const host=$("#analyticsActivityResults");
   if(!db||!host)return;
   const Core=window.KutadguAnalyticsCore;
   const filters=activityFilters();
-  if(filters.preset==="custom"&&(!filters.start||!filters.end||filters.end<filters.start)){
-    const status=$("#analyticsActivityStatus");
-    const phrase=$("#analyticsActivityPhraseNote");
-    if(status)status.textContent="ئارىلىقنى تولۇق تاللاڭ. Europe/Istanbul كۈن چېگرىسى.";
-    if(host)host.innerHTML='<div class="admin-empty">باشلىنىش ۋە ئاخىرلىشىش چېسلاسىنى تاللاڭ.</div>';
-    if(phrase)phrase.hidden=filters.category!=="search"&&filters.category!=="zero_search";
-    paintActivityPager(null);
+  const key=activityContextKey(filters);
+  const token=activityRequests.begin();
+  const retained=activityShown&&activityShown.contextKey===key?activityShown:null;
+  if(!activityRangeReady(filters)){
+    paintActivityRangePrompt(filters);
     return;
   }
   const request=Core&&typeof Core.activityPageRequest==="function"?Core.activityPageRequest(filters):null;
   if(!request){
-    paintActivity(activityShown, "جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
+    paintActivityUnmatched("جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
     return;
   }
-  const token=activityRequests.begin();
-  if(!activityShown)paintActivity(null);
+  if(!retained)paintActivity(null);
   let data=null,error=null;
   try{
     const response=await db.rpc("get_kutadgu_analytics_activity", request);
@@ -7121,7 +7152,8 @@ async function loadAnalyticsActivity(){
     error=response&&response.error;
   }catch(err){
     if(!activityRequests.isCurrent(token))return;
-    paintActivity(activityShown, `ئوقۇلمىدى: ${err&&err.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
+    if(retained)paintActivity(retained, `ئوقۇلمىدى: ${err&&err.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
+    else paintActivityUnmatched(`ئوقۇلمىدى: ${err&&err.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
     return;
   }
   if(!activityRequests.isCurrent(token))return;
@@ -7130,14 +7162,17 @@ async function loadAnalyticsActivity(){
       paintActivityUnsupported();
       return;
     }
-    paintActivity(activityShown, `ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
+    const notice=`ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
+    if(retained)paintActivity(retained, notice);
+    else paintActivityUnmatched(notice);
     return;
   }
   const page=Core&&typeof Core.normalizeActivityPage==="function"?Core.normalizeActivityPage(data):null;
-  if(!page){
-    paintActivity(activityShown, "جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
+  if(!page||page.category!==filters.category||page.scope!==filters.scope||String(page.sort||"")!==filters.sort||page.offset!==filters.offset){
+    paintActivityUnmatched("جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
     return;
   }
+  page.contextKey=key;
   activityShown=page;
   paintActivity(page);
 }
@@ -8239,7 +8274,12 @@ $("#analyticsActivityStart")?.addEventListener("change",resetActivityAndLoad);
 $("#analyticsActivityEnd")?.addEventListener("change",resetActivityAndLoad);
 $("#analyticsActivityQuery")?.addEventListener("input",()=>{
   clearTimeout(activityQueryTimer);
-  activityQueryTimer=setTimeout(resetActivityAndLoad,250);
+  activityOffset=0;
+  const filters=activityFilters();
+  activityRequests.begin();
+  if(!activityRangeReady(filters))paintActivityRangePrompt(filters);
+  else if(!activityShown||activityShown.contextKey!==activityContextKey(filters))paintActivity(null);
+  activityQueryTimer=setTimeout(loadAnalyticsActivity,250);
 });
 $("#analyticsActivityPrev")?.addEventListener("click",()=>{
   activityOffset=Math.max(0, activityOffset-ACTIVITY_PAGE);

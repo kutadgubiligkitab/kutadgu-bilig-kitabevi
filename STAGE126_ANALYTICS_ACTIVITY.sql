@@ -6,10 +6,13 @@
 --
 -- PR #294 verifies visits only. Book, cart, WhatsApp, and search rows stay
 -- unverified until the Worker, using the current signed kb_visit cookie,
--- calls kutadgu_attest_analytics_event. A submitted visitor id or a client
--- flag cannot create that row. Direct anon/authenticated inserts cannot.
--- The 3-hour visit gate is not applied to these actions. The same event_id
--- is attested once. A different event_id is a separate action.
+-- calls kutadgu_ingest_analytics_event. That function stores the event and,
+-- only when this call inserted that event, the attestation. A submitted
+-- visitor id or a client flag cannot create that row. A later request that
+-- reuses an existing event_id does not promote an unverified row. A retry of
+-- an event this function already attested stays the first visitor. Direct
+-- anon/authenticated inserts cannot. The 3-hour visit gate is not applied.
+-- kutadgu_attest_analytics_event no longer writes.
 --
 -- Verified activity before private.analytics_action_attestation_counter.started_at
 -- is unavailable, not zero. A window that crosses that start, or an attestation
@@ -79,6 +82,10 @@ $overlap$;
 
 REVOKE ALL ON FUNCTION private.kutadgu_action_attestation_overlaps(timestamptz, timestamptz) FROM PUBLIC, anon, authenticated;
 
+CREATE UNIQUE INDEX IF NOT EXISTS analytics_events_event_id_uidx
+  ON public.analytics_events (event_id)
+  WHERE event_id IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.kutadgu_attest_analytics_event(
   p_event_id uuid,
   p_visitor_id uuid
@@ -92,15 +99,132 @@ BEGIN
   IF current_user IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'server only' USING ERRCODE = '42501';
   END IF;
-  IF p_event_id IS NULL OR p_visitor_id IS NULL THEN
-    RETURN false;
-  END IF;
-  INSERT INTO private.analytics_action_attestations (event_id, visitor_id)
-  VALUES (p_event_id, p_visitor_id)
-  ON CONFLICT (event_id) DO NOTHING;
-  RETURN true;
+  -- Attestation is written only by kutadgu_ingest_analytics_event, in the
+  -- same transaction as the event it inserted. This function cannot attach
+  -- a cookie to an event that already exists.
+  RETURN false;
 END;
 $attest$;
+
+CREATE OR REPLACE FUNCTION public.kutadgu_ingest_analytics_event(
+  p_event jsonb,
+  p_visitor_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $ingest$
+DECLARE
+  v_name text;
+  v_event_id uuid;
+  v_row_visitor uuid;
+  v_id bigint;
+  v_country text;
+  v_has_country boolean;
+  v_meta jsonb;
+BEGIN
+  IF current_user IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'server only' USING ERRCODE = '42501';
+  END IF;
+  IF p_event IS NULL OR jsonb_typeof(p_event) <> 'object' THEN
+    RETURN jsonb_build_object('result', 'rejected', 'attested', false);
+  END IF;
+  v_name := left(btrim(coalesce(p_event->>'event_name', '')), 60);
+  IF v_name NOT IN (
+    'page_view', 'book_view', 'book_engagement_detail', 'book_engagement_cart',
+    'add_to_cart', 'whatsapp_order_click', 'search', 'zero_result_search',
+    'add_to_favorite', 'remove_from_favorite', 'contact_click', 'filter_apply'
+  ) THEN
+    RETURN jsonb_build_object('result', 'rejected', 'attested', false);
+  END IF;
+  BEGIN
+    v_event_id := nullif(btrim(coalesce(p_event->>'event_id', '')), '')::uuid;
+  EXCEPTION WHEN invalid_text_representation THEN
+    v_event_id := NULL;
+  END;
+  BEGIN
+    v_row_visitor := nullif(btrim(coalesce(p_event->>'visitor_id', '')), '')::uuid;
+  EXCEPTION WHEN invalid_text_representation THEN
+    v_row_visitor := NULL;
+  END;
+  v_country := upper(left(btrim(coalesce(p_event->>'country', '')), 2));
+  IF v_country !~ '^[A-Z]{2}$' OR v_country = 'XX' THEN
+    v_country := NULL;
+  END IF;
+  v_meta := CASE WHEN jsonb_typeof(p_event->'meta') = 'object' THEN p_event->'meta' ELSE NULL END;
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'analytics_events'
+      AND column_name = 'country'
+  ) INTO v_has_country;
+
+  v_id := NULL;
+  IF v_has_country THEN
+    INSERT INTO public.analytics_events (
+      event_name, book_id, search_query, category, result_count, item_count,
+      order_total, path, session_id, legacy_id, meta, visitor_id, event_id, country
+    ) VALUES (
+      v_name,
+      nullif(left(btrim(coalesce(p_event->>'book_id', '')), 32), ''),
+      nullif(left(btrim(coalesce(p_event->>'search_query', '')), 80), ''),
+      nullif(left(btrim(coalesce(p_event->>'category', '')), 100), ''),
+      CASE WHEN coalesce(p_event->>'result_count', '') ~ '^-?[0-9]+$' THEN (p_event->>'result_count')::integer ELSE NULL END,
+      CASE WHEN coalesce(p_event->>'item_count', '') ~ '^-?[0-9]+$' THEN (p_event->>'item_count')::integer ELSE NULL END,
+      CASE WHEN coalesce(p_event->>'order_total', '') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (p_event->>'order_total')::numeric ELSE NULL END,
+      nullif(left(btrim(coalesce(p_event->>'path', '')), 180), ''),
+      nullif(left(btrim(coalesce(p_event->>'session_id', '')), 100), ''),
+      nullif(left(btrim(coalesce(p_event->>'legacy_id', '')), 120), ''),
+      v_meta,
+      v_row_visitor,
+      v_event_id,
+      v_country
+    )
+    ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
+    RETURNING id INTO v_id;
+  ELSE
+    INSERT INTO public.analytics_events (
+      event_name, book_id, search_query, category, result_count, item_count,
+      order_total, path, session_id, legacy_id, meta, visitor_id, event_id
+    ) VALUES (
+      v_name,
+      nullif(left(btrim(coalesce(p_event->>'book_id', '')), 32), ''),
+      nullif(left(btrim(coalesce(p_event->>'search_query', '')), 80), ''),
+      nullif(left(btrim(coalesce(p_event->>'category', '')), 100), ''),
+      CASE WHEN coalesce(p_event->>'result_count', '') ~ '^-?[0-9]+$' THEN (p_event->>'result_count')::integer ELSE NULL END,
+      CASE WHEN coalesce(p_event->>'item_count', '') ~ '^-?[0-9]+$' THEN (p_event->>'item_count')::integer ELSE NULL END,
+      CASE WHEN coalesce(p_event->>'order_total', '') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (p_event->>'order_total')::numeric ELSE NULL END,
+      nullif(left(btrim(coalesce(p_event->>'path', '')), 180), ''),
+      nullif(left(btrim(coalesce(p_event->>'session_id', '')), 100), ''),
+      nullif(left(btrim(coalesce(p_event->>'legacy_id', '')), 120), ''),
+      v_meta,
+      v_row_visitor,
+      v_event_id
+    )
+    ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
+    RETURNING id INTO v_id;
+  END IF;
+
+  IF v_id IS NOT NULL THEN
+    IF p_visitor_id IS NOT NULL AND v_event_id IS NOT NULL THEN
+      INSERT INTO private.analytics_action_attestations (event_id, visitor_id)
+      VALUES (v_event_id, p_visitor_id)
+      ON CONFLICT (event_id) DO NOTHING;
+      RETURN jsonb_build_object('result', 'inserted', 'attested', true);
+    END IF;
+    RETURN jsonb_build_object('result', 'inserted', 'attested', false);
+  END IF;
+
+  IF v_event_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM private.analytics_action_attestations WHERE event_id = v_event_id
+  ) THEN
+    RETURN jsonb_build_object('result', 'retry', 'attested', true);
+  END IF;
+  RETURN jsonb_build_object('result', 'conflict', 'attested', false);
+END;
+$ingest$;
 
 CREATE OR REPLACE FUNCTION public.kutadgu_note_action_attestation_outage()
 RETURNS boolean
@@ -134,6 +258,7 @@ END;
 $outage$;
 
 REVOKE ALL ON FUNCTION public.kutadgu_attest_analytics_event(uuid, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.kutadgu_ingest_analytics_event(jsonb, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.kutadgu_note_action_attestation_outage() FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_kutadgu_analytics_activity(
@@ -176,6 +301,7 @@ DECLARE
   v_rows jsonb := '[]'::jsonb;
   v_page_count integer := 0;
   v_kind text;
+  v_has_search boolean := false;
 BEGIN
   IF NOT public.is_kutadgu_admin() THEN
     RAISE EXCEPTION 'admin only';
@@ -260,6 +386,25 @@ BEGIN
     v_status := 'raw';
   END IF;
 
+  IF v_category = 'zero_search' THEN
+    SELECT EXISTS (
+      SELECT 1
+      FROM public.analytics_events AS e
+      WHERE e.created_at >= v_query_from
+        AND e.created_at < v_until
+        AND e.created_at <= v_as_of
+        AND e.event_name = 'search'
+        AND (
+          v_scope = 'raw'
+          OR EXISTS (
+            SELECT 1
+            FROM private.analytics_action_attestations AS a
+            WHERE a.event_id = e.event_id
+          )
+        )
+    ) INTO v_has_search;
+  END IF;
+
   WITH base AS (
     SELECT
       e.id,
@@ -337,8 +482,16 @@ BEGIN
       AND e.search_query IS NOT NULL
       AND btrim(e.search_query) <> ''
       AND (
-        (e.event_name = 'search' AND e.result_count = 0)
-        OR e.event_name = 'zero_result_search'
+        (
+          v_has_search
+          AND e.event_name = 'search'
+          AND e.result_count = 0
+        )
+        OR (
+          NOT v_has_search
+          AND e.event_name = 'zero_result_search'
+          AND (e.result_count IS NULL OR e.result_count = 0)
+        )
       )
   ),
   grouped AS (
@@ -449,6 +602,12 @@ BEGIN
     TO service_role;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA private TO service_role;
     GRANT EXECUTE ON FUNCTION public.kutadgu_attest_analytics_event(uuid, uuid) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.kutadgu_ingest_analytics_event(jsonb, uuid) TO service_role;
+    -- ON CONFLICT and RETURNING read the table. INSERT alone is not enough.
+    GRANT SELECT, INSERT ON TABLE public.analytics_events TO service_role;
+    IF to_regclass('public.analytics_events_id_seq') IS NOT NULL THEN
+      GRANT USAGE, SELECT ON SEQUENCE public.analytics_events_id_seq TO service_role;
+    END IF;
     GRANT EXECUTE ON FUNCTION public.kutadgu_note_action_attestation_outage() TO service_role;
     REVOKE ALL ON FUNCTION public.get_kutadgu_analytics_activity(text, text, text, text, date, date, text, integer, integer) FROM service_role;
   END IF;
