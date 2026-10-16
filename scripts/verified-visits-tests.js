@@ -223,6 +223,23 @@ async function proof(env, fetchImpl, token, extra) {
   assert.strictEqual(thrown.cookie, "");
   assert.strictEqual(consumeThrow.outages, 1);
 
+  const countThrow = store();
+  const countCookie = await visits.issueCookie(visits.uuidV4(), baseEnv(), HOST, Math.floor(Date.now() / 1000));
+  const countTransport = await dispatch(baseEnv(), fakeRequest({
+    url: "https://" + HOST + "/api/visit-count",
+    cookie: countCookie.split(";")[0],
+    body: { event_id: "16161616-1616-4161-8161-161616161616" }
+  }), async (url, init) => {
+    if (String(url).endsWith("/kutadgu_accept_verified_visit")) throw new Error("count rpc failed");
+    return rpcFetch(countThrow)(url, init);
+  });
+  const countTransportBody = await jsonOf(countTransport);
+  assert.strictEqual(countTransport.status, 503);
+  assert.deepStrictEqual(countTransportBody, { ok: false, counted: false, reason: "verification_unavailable" });
+  assert.strictEqual(countThrow.outages, 1);
+  assert.strictEqual(countThrow.accepts.length, 0);
+  assert.ok(countThrow.urls.some((url) => url.endsWith("/kutadgu_note_verified_outage")));
+
   const bare = await dispatch(baseEnv(), fakeRequest({
     url: "https://" + HOST + "/api/visit-count",
     body: { event_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", visitor_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }

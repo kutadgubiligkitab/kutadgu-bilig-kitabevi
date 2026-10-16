@@ -336,12 +336,18 @@ async function handleVisitCount(request, env, source) {
   const eventId = body && typeof body.event_id === "string" ? body.event_id.trim().toLowerCase() : "";
   if (!isUuidV4(eventId)) return jsonResult(400, { ok: false, counted: false, reason: "bad_event_id" });
   const country = visitCountry.trustedCountry(request.cf);
-  const recorded = await rpc(env, source, "kutadgu_accept_verified_visit", {
-    p_visitor_id: identity.id,
-    p_event_id: eventId,
-    p_country: country
-  });
-  if (!recorded.ok || typeof recorded.body !== "boolean") {
+  let recorded;
+  try {
+    recorded = await rpc(env, source, "kutadgu_accept_verified_visit", {
+      p_visitor_id: identity.id,
+      p_event_id: eventId,
+      p_country: country
+    });
+  } catch (err) {
+    await noteOutage(env, source);
+    return jsonResult(503, { ok: false, counted: false, reason: "verification_unavailable" });
+  }
+  if (!recorded || !recorded.ok || typeof recorded.body !== "boolean") {
     await noteOutage(env, source);
     return jsonResult(503, { ok: false, counted: false, reason: "verification_unavailable" });
   }
