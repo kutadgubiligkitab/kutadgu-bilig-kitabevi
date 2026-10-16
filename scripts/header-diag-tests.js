@@ -20,9 +20,10 @@ function test(name, fn) {
   }
 }
 
-test("homepage gate loads the diagnostic only for the explicit parameter", () => {
-  assert.match(html, /params\.get\("kutadguHeaderDiag"\) !== "1"\) return;/);
-  assert.match(html, /script\.src = "header-diag\.js\?v=1"/);
+test("homepage loads the diagnostic from an external script", () => {
+  assert.match(html, /<script defer src="header-diag\.js\?v=2"><\/script>/);
+  assert.doesNotMatch(html, /kutadguHeaderDiag/);
+  assert.match(source, /params\.get\("kutadguHeaderDiag"\) !== "1"\) return;/);
   assert.match(html, /mobile\.css\?v=26/);
   assert.match(html, /shop\.js\?v=163/);
 });
@@ -39,6 +40,9 @@ test("diagnostic stays local and does not move the page", () => {
   assert.match(source, /backdrop-filter/);
   assert.match(source, /inset-block-start/);
   assert.match(source, /--kutadgu-sticky-header-height/);
+  assert.match(source, /https:\/\/diag\.invalid\//);
+  assert.doesNotMatch(source, /location\.pathname \+ location\.search/);
+  assert.match(source, /LIFECYCLE/);
 });
 
 if (failed) {

@@ -24,13 +24,25 @@
     return Math.round(number * 100) / 100;
   }
 
-  function pathOnly(value) {
+  function safeAssetPath(value) {
+    var raw = String(value == null ? "" : value).trim();
+    if (!raw) return "";
+    var url;
     try {
-      var url = new URL(String(value || ""), location.href);
-      return url.pathname + url.search;
+      url = new URL(raw, "https://diag.invalid/");
     } catch (err) {
       return "";
     }
+    var parts = String(url.pathname || "").split("/");
+    var name = parts[parts.length - 1] || "";
+    if (!/^(?:mobile\.css|index\.css|theme\.css|shop\.css|public-header\.css|public-header\.js|mobile\.js|header-diag\.js)$/.test(name)) return "";
+    var version = url.searchParams.get("v") || "";
+    if (!/^[0-9]{1,4}$/.test(version)) version = "";
+    return version ? "/" + name + "?v=" + version : "/" + name;
+  }
+
+  function documentPath() {
+    return location.pathname + "?kutadguHeaderDiag=1";
   }
 
   function declared(style, name) {
@@ -114,13 +126,12 @@
     }
     var sheets = document.styleSheets;
     for (var sheetIndex = 0; sheetIndex < sheets.length && rows.length < 24; sheetIndex += 1) {
+      var rawHref = sheets[sheetIndex].href;
       var href = "";
-      try {
-        href = pathOnly(sheets[sheetIndex].href || "");
-      } catch (err) {
-        href = "";
+      if (rawHref) {
+        href = safeAssetPath(rawHref);
+        if (!href) continue;
       }
-      if (href && !/mobile\.css|index\.css|theme\.css|shop\.css|public-header\.css/.test(href)) continue;
       walk(sheets[sheetIndex], href, "");
     }
     return rows;
@@ -131,7 +142,7 @@
     var entries = performance.getEntriesByType ? performance.getEntriesByType("resource") : [];
     for (var index = 0; index < entries.length; index += 1) {
       var entry = entries[index];
-      var assetPath = pathOnly(entry.name);
+      var assetPath = safeAssetPath(entry.name);
       if (!/mobile\.css|index\.css|theme\.css|shop\.css|public-header\.css|public-header\.js|mobile\.js|header-diag\.js/.test(assetPath)) continue;
       rows.push({
         path: assetPath,
@@ -147,11 +158,9 @@
     var rows = [];
     var nodes = document.querySelectorAll("link[rel='stylesheet'], script[src]");
     for (var index = 0; index < nodes.length; index += 1) {
-      var href = nodes[index].href || nodes[index].src || "";
-      var assetPath = pathOnly(href);
-      if (/mobile\.css|index\.css|theme\.css|shop\.css|public-header\.css|public-header\.js|mobile\.js|header-diag\.js/.test(assetPath)) {
-        rows.push(assetPath);
-      }
+      var raw = nodes[index].getAttribute("href") || nodes[index].getAttribute("src") || "";
+      var assetPath = safeAssetPath(raw);
+      if (assetPath) rows.push(assetPath);
     }
     return rows;
   }
@@ -247,7 +256,7 @@
   function payload() {
     return JSON.stringify({
       v: 1,
-      path: location.pathname + location.search,
+      path: documentPath(),
       ua: navigator.userAgent,
       snapshots: snapshots
     });
@@ -263,13 +272,55 @@
     area.value = payload();
   }
 
+  var LIFECYCLE = { domcontentloaded: 1, load: 1, pageshow: 1 };
+  var REPEAT = { scroll: 1, resize: 1, viewport: 1, manual: 1 };
+
+  function dropRepeatIndex() {
+    var index;
+    for (index = snapshots.length - 1; index >= 1; index -= 1) {
+      if (REPEAT[snapshots[index].label]) return index;
+    }
+    var seen = {};
+    var duplicate = -1;
+    for (index = 1; index < snapshots.length; index += 1) {
+      var name = snapshots[index].label;
+      if (seen[name]) duplicate = index;
+      else seen[name] = 1;
+    }
+    if (duplicate >= 1) return duplicate;
+    return snapshots.length - 1;
+  }
+
   function snap(label, persisted) {
     var row = measure(label, persisted);
-    if (snapshots.length >= MAX) {
-      if (label === "scroll" || label === "resize" || label === "viewport" || label === "manual") {
-        snapshots[snapshots.length - 1] = row;
-      }
+    if (snapshots.length < MAX) {
+      snapshots.push(row);
+      render();
+      return;
+    }
+    if (LIFECYCLE[label]) {
+      snapshots.splice(dropRepeatIndex(), 1);
+      snapshots.push(row);
+      render();
+      return;
+    }
+    if (!REPEAT[label]) {
+      render();
+      return;
+    }
+    if (snapshots[snapshots.length - 1].label === label) {
+      snapshots[snapshots.length - 1] = row;
     } else {
+      var same = -1;
+      var index;
+      for (index = snapshots.length - 1; index >= 1; index -= 1) {
+        if (snapshots[index].label === label) {
+          same = index;
+          break;
+        }
+      }
+      if (same >= 1) snapshots.splice(same, 1);
+      else snapshots.splice(dropRepeatIndex(), 1);
       snapshots.push(row);
     }
     render();
