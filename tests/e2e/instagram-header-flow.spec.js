@@ -2,10 +2,20 @@ const { execFileSync } = require("child_process");
 const path = require("path");
 const { test, expect } = require("./playwright-test");
 
-const MAIN_MOBILE_CSS = execFileSync("git", ["show", "167b733cfbec42c89d48660c7220bcd879add64b:mobile.css"], {
-  cwd: path.join(__dirname, "../.."),
-  encoding: "utf8"
-});
+const ROOT = path.join(__dirname, "../..");
+const CACHED_MOBILE_CSS = "167b733cfbec42c89d48660c7220bcd879add64b";
+
+function cachedMobileCss() {
+  const args = ["show", CACHED_MOBILE_CSS + ":mobile.css"];
+  try {
+    return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
+  } catch (err) {
+    execFileSync("git", ["fetch", "--depth=1", "origin", CACHED_MOBILE_CSS], { cwd: ROOT, stdio: "ignore" });
+    return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
+  }
+}
+
+const MAIN_MOBILE_CSS = cachedMobileCss();
 
 const IPHONE_INSTAGRAM = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21F79 Instagram 340.0.0.0.0";
 const IPHONE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
