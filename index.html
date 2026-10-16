@@ -58,6 +58,18 @@
 <script defer src="home-about-content.js?v=1"></script>
 <script defer src="kutadgu-shop-hours.js?v=1"></script>
 <script defer src="store-hours-content.js?v=2"></script>
+<script>
+(function () {
+  try {
+    var params = new URLSearchParams(location.search);
+    if (params.get("kutadguHeaderDiag") !== "1") return;
+    var script = document.createElement("script");
+    script.src = "header-diag.js?v=1";
+    script.async = false;
+    document.head.appendChild(script);
+  } catch (err) {}
+})();
+</script>
 </head>
 
 
