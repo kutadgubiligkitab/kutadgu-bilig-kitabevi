@@ -99,8 +99,22 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(css, /@media \(min-width: 1200px\)/);
   assert.match(css, /flex-wrap:\s*wrap !important/);
   assert.doesNotMatch(css, /admin-topbar/);
+  assert.match(css, /html\.kutadgu-ig-iphone header\.kutadgu-public-header\.is-mobile-enhanced/);
+  assert.match(css, /html\.kutadgu-ig-iphone body\.has-kutadgu-public-header\.has-mobile-fixed-header,\s*\n\s*html\.kutadgu-ig-iphone body\.has-mobile-fixed-header \{\s*\n\s*padding-top: 0 !important;/);
+  const mobileCss = fs.readFileSync(path.join(root, "mobile.css"), "utf8");
+  assert.match(mobileCss, /html\.kutadgu-ig-iphone header\.is-mobile-enhanced/);
+  assert.match(mobileCss, /position: sticky !important;/);
+  assert.match(mobileCss, /html\.kutadgu-ig-iphone body\.has-mobile-fixed-header \{\s*\n\s*padding-top: 0 !important;/);
+  assert.match(indexHtml, /mobile\.css\?v=27/);
+  assert.match(indexHtml, /public-header\.js\?v=5/);
+  assert.match(bookShell, /public-header\.js\?v=4/);
   const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
-  assert.match(helperJs, /public-header\.css\?v=7/);
+  assert.match(helperJs, /public-header\.css\?v=8/);
+  assert.match(helperJs, /function instagramIphone\(\)/);
+  assert.match(helperJs, /iPhone/);
+  assert.match(helperJs, /Instagram/);
+  assert.match(helperJs, /kutadgu-ig-iphone/);
+  assert.doesNotMatch(helperJs, /scrollTo\(|visualViewport|translateY/);
 });
 
 test("header search keeps a visible keyboard focus state", () => {

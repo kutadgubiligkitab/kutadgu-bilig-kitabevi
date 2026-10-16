@@ -109,6 +109,25 @@
     backdrop-filter: none !important;
   }
 
+  /* iPhone Instagram can paint this fixed bar below the top while layout still
+     reports top 0. Keep the public header in flow there. Other browsers stay fixed. */
+  html.kutadgu-ig-iphone header.is-mobile-enhanced,
+  html.kutadgu-ig-iphone .mobile-site-header {
+    position: sticky !important;
+    top: 0;
+    inset-block-start: 0;
+  }
+
+  html.kutadgu-ig-iphone body.has-mobile-fixed-header {
+    padding-top: 0 !important;
+  }
+
+  /* overflow:hidden on the open menu makes this in-flow bar leave the top.
+     clip keeps the lock without turning the body into the sticky scroller. */
+  html.kutadgu-ig-iphone body.mobile-menu-open {
+    overflow: clip !important;
+  }
+
   header.is-mobile-enhanced .logo,
   .mobile-site-brand {
     min-width: 0 !important;

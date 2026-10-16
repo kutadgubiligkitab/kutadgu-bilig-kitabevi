@@ -460,6 +460,20 @@ header.kutadgu-public-header > #kutadguAnnounceBar {
   body.has-kutadgu-public-header.has-mobile-fixed-header {
     padding-top: var(--kutadgu-sticky-header-height, calc(106px + env(safe-area-inset-top, 0px))) !important;
   }
+
+  /* Same iPhone Instagram fallback as mobile.css. This rule wins over the
+     fixed-header padding above so an in-flow bar does not add a second gap. */
+  html.kutadgu-ig-iphone header.kutadgu-public-header.is-mobile-enhanced,
+  html.kutadgu-ig-iphone .mobile-site-header {
+    position: sticky !important;
+    top: 0;
+    inset-block-start: 0;
+  }
+
+  html.kutadgu-ig-iphone body.has-kutadgu-public-header.has-mobile-fixed-header,
+  html.kutadgu-ig-iphone body.has-mobile-fixed-header {
+    padding-top: 0 !important;
+  }
 }
 
 @media (max-width: 390px) {
