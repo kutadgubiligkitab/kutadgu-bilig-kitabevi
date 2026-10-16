@@ -1,4 +1,11 @@
+const { execFileSync } = require("child_process");
+const path = require("path");
 const { test, expect } = require("./playwright-test");
+
+const MAIN_MOBILE_CSS = execFileSync("git", ["show", "167b733cfbec42c89d48660c7220bcd879add64b:mobile.css"], {
+  cwd: path.join(__dirname, "../.."),
+  encoding: "utf8"
+});
 
 const IPHONE_INSTAGRAM = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21F79 Instagram 340.0.0.0.0";
 const IPHONE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -150,6 +157,81 @@ test.describe("iPhone Safari keeps the fixed header", () => {
   test("ordinary mobile Safari does not take the Instagram fallback", async ({ page }) => {
     await blockWrites(page);
     await expectFixedPhone(page);
+  });
+});
+
+test.describe("cached mobile.css does not drop the sticky header", () => {
+  test.use({
+    userAgent: IPHONE_INSTAGRAM,
+    viewport: { width: 440, height: 879 },
+    isMobile: true,
+    hasTouch: true
+  });
+
+  test("opening and closing the menu at scroll 650 keeps the header at the top", async ({ page }) => {
+    expect(MAIN_MOBILE_CSS).not.toContain("kutadgu-ig-iphone");
+    const requests = [];
+    await page.route("**/*", (route) => {
+      const request = route.request();
+      const url = request.url();
+      requests.push(request.method() + " " + url);
+      if (request.method() !== "GET" && request.method() !== "HEAD") return route.abort();
+      if (/analytics-event|cdn-cgi\/rum|member-visit|posthog|supabase\.co/.test(url)) return route.abort();
+      if (/\/mobile\.css(?:\?|$)/.test(url)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "text/css; charset=utf-8",
+          body: MAIN_MOBILE_CSS
+        });
+      }
+      return route.continue();
+    });
+
+    await page.goto("/books");
+    await expect(page.locator("header.is-mobile-enhanced")).toBeVisible();
+    await expect(page.locator("link[href='mobile.css?v=24']")).toHaveCount(1);
+    await expect(page.locator("script[src='public-header.js?v=4']")).toHaveCount(1);
+    await expect(page.locator("#kutadguPublicHeaderCss")).toHaveAttribute("href", "/public-header.css?v=8");
+    expect(requests.some((entry) => entry.includes("/mobile.css?v=24"))).toBe(true);
+
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = "auto";
+      document.body.style.minHeight = "2400px";
+      window.scrollTo(0, 650);
+    });
+    const before = await anchorBox(page);
+    expect(before.ig).toBe(true);
+    expect(before.position).toBe("sticky");
+    expect(before.scrollY).toBe(650);
+    expect(before.headerTop).toBe(0);
+    expect(before.paddingTop).toBe(0);
+
+    const tapToggle = async () => {
+      const point = await page.evaluate(() => {
+        const button = document.querySelector(".mobile-menu-toggle");
+        const rect = button.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+      await page.touchscreen.tap(point.x, point.y);
+    };
+
+    await tapToggle();
+    await expect(page.locator("#mobileSiteMenu")).toHaveClass(/is-open/);
+    const open = await anchorBox(page);
+    expect(open.scrollY).toBe(650);
+    expect(Math.abs(open.headerTop)).toBeLessThan(1);
+    expect(open.position).toBe("sticky");
+    expect(open.menuTop).toBeGreaterThanOrEqual(open.headerBottom - 2);
+    expect(open.menuTop).toBeLessThan(open.headerBottom + 8);
+    expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe("clip");
+
+    await tapToggle();
+    await expect(page.locator("#mobileSiteMenu")).not.toHaveClass(/is-open/);
+    const closed = await anchorBox(page);
+    expect(closed.scrollY).toBe(650);
+    expect(Math.abs(closed.headerTop)).toBeLessThan(1);
+    expect(closed.position).toBe("sticky");
+    expect(closed.paddingTop).toBe(0);
   });
 });
 

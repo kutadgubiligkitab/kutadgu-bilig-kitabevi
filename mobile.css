@@ -122,8 +122,8 @@
     padding-top: 0 !important;
   }
 
-  /* overflow:hidden on the open menu makes this in-flow bar leave the top.
-     clip keeps the lock without turning the body into the sticky scroller. */
+  /* Same menu-open override as public-header.css. The shared header file is
+     the one that still applies when this stylesheet is cached. */
   html.kutadgu-ig-iphone body.mobile-menu-open {
     overflow: clip !important;
   }

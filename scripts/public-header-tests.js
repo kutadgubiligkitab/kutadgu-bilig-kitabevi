@@ -101,6 +101,7 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.doesNotMatch(css, /admin-topbar/);
   assert.match(css, /html\.kutadgu-ig-iphone header\.kutadgu-public-header\.is-mobile-enhanced/);
   assert.match(css, /html\.kutadgu-ig-iphone body\.has-kutadgu-public-header\.has-mobile-fixed-header,\s*\n\s*html\.kutadgu-ig-iphone body\.has-mobile-fixed-header \{\s*\n\s*padding-top: 0 !important;/);
+  assert.match(css, /html\.kutadgu-ig-iphone body\.mobile-menu-open \{\s*\n\s*overflow: clip !important;/);
   const mobileCss = fs.readFileSync(path.join(root, "mobile.css"), "utf8");
   assert.match(mobileCss, /html\.kutadgu-ig-iphone header\.is-mobile-enhanced/);
   assert.match(mobileCss, /position: sticky !important;/);

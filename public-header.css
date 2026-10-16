@@ -474,6 +474,13 @@ header.kutadgu-public-header > #kutadguAnnounceBar {
   html.kutadgu-ig-iphone body.has-mobile-fixed-header {
     padding-top: 0 !important;
   }
+
+  /* This file switches the bar to sticky. A cached mobile.css can still set
+     overflow:hidden on the open menu, which pulls that sticky bar off the top.
+     The override has to live here, not only in a newer mobile.css. */
+  html.kutadgu-ig-iphone body.mobile-menu-open {
+    overflow: clip !important;
+  }
 }
 
 @media (max-width: 390px) {
