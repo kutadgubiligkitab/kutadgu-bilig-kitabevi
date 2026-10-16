@@ -103,6 +103,10 @@
     color: #fff !important;
     box-shadow: 0 5px 18px rgba(32, 20, 14, .16) !important;
     box-sizing: border-box;
+    /* Homepage index.css blurs every header. This bar is opaque, so that
+       blur is invisible and is cleared on the fixed mobile header. */
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
   header.is-mobile-enhanced .logo,
