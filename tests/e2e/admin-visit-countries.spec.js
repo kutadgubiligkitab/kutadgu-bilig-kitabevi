@@ -1,9 +1,9 @@
 const { test, expect } = require("./playwright-test");
 const http = require("http");
 
-test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=9", async ({ browser }) => {
+test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=10", async ({ browser }) => {
   const oldBody = "window.__kutadguOldAnalytics = true;";
-  const hits = { v8: 0, v9: 0 };
+  const hits = { v8: 0, v10: 0 };
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -22,7 +22,7 @@ test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=9",
         res.end(oldBody);
         return;
       }
-      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "9") hits.v9 += 1;
+      if (url.pathname === "/analytics.js" && url.searchParams.get("v") === "10") hits.v10 += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
         port: 4173,
@@ -48,7 +48,7 @@ test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=9",
     await page.goto(origin.origin + "/analytics-cache-old.html", { waitUntil: "domcontentloaded" });
     await expect.poll(() => page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(true);
     expect(hits.v8).toBe(1);
-    expect(hits.v9).toBe(0);
+    expect(hits.v10).toBe(0);
     const cached = await page.evaluate(async () => {
       const res = await fetch("/analytics.js?v=8", { cache: "only-if-cached", mode: "same-origin" });
       if (!res.ok) throw new Error("cached recorder missed");
@@ -64,15 +64,15 @@ test("a cached analytics.js?v=8 stays reusable while the new homepage runs v=9",
       .map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
     expect(reused.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     await page.goto(origin.origin + "/index.html", { waitUntil: "domcontentloaded" });
-    await expect.poll(() => hits.v9).toBe(1);
+    await expect.poll(() => hits.v10).toBe(1);
     expect(hits.v8).toBe(1);
     expect(await page.evaluate(() => window.__kutadguOldAnalytics === true)).toBe(false);
     const ran = await page.evaluate(async () => {
-      const res = await fetch("/analytics.js?v=9", { cache: "no-store" });
+      const res = await fetch("/analytics.js?v=10", { cache: "no-store" });
       return res.text();
     });
     expect(ran).toContain("/api/analytics-event");
-    expect(hits.v9).toBe(2);
+    expect(hits.v10).toBe(2);
   } finally {
     await context.close();
     await new Promise((resolve) => origin.server.close(resolve));

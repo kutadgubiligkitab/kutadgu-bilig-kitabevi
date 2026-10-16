@@ -17,9 +17,13 @@
 --
 -- Collection starts at private.analytics_verified_counter.started_at, once.
 -- An interval entirely before that marker is unavailable. An interval that
--- crosses it, or that contains a recorded verification outage, is partial
--- and must not be shown as complete coverage. A fully covered quiet
--- interval is zero. Country is Cloudflare metadata on a counted receipt.
+-- crosses it, or that overlaps a recorded verification outage, is partial
+-- and must not be shown as complete coverage. Each outage signal covers
+-- [occurred_at, observed_until). A later note while that coverage is still
+-- open extends observed_until to at least one hour from now, so a continuing
+-- outage stays visible across a reporting boundary. The same overlap is used
+-- for cards, charts, countries, and history. A fully covered quiet interval
+-- is zero. Country is Cloudflare metadata on a counted receipt.
 -- Server time is now() inside the public counting function. The same
 -- event_id is stored once. A suppressed visit does not move the 3-hour gate.
 --
@@ -79,6 +83,7 @@ CREATE TABLE IF NOT EXISTS private.analytics_verified_proofs (
 CREATE TABLE IF NOT EXISTS private.analytics_verified_signals (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   occurred_at timestamptz NOT NULL DEFAULT now(),
+  observed_until timestamptz,
   kind text NOT NULL CHECK (kind = 'outage')
 );
 
@@ -86,8 +91,46 @@ CREATE INDEX IF NOT EXISTS analytics_verified_receipts_counted_idx
   ON private.analytics_verified_receipts (counted_at)
   WHERE counted;
 
+ALTER TABLE private.analytics_verified_signals
+  ADD COLUMN IF NOT EXISTS observed_until timestamptz;
+
+UPDATE private.analytics_verified_signals
+SET observed_until = occurred_at + interval '1 hour'
+WHERE observed_until IS NULL;
+
+ALTER TABLE private.analytics_verified_signals
+  ALTER COLUMN observed_until SET NOT NULL;
+
 CREATE INDEX IF NOT EXISTS analytics_verified_signals_outage_idx
   ON private.analytics_verified_signals (occurred_at);
+
+CREATE INDEX IF NOT EXISTS analytics_verified_signals_coverage_idx
+  ON private.analytics_verified_signals (occurred_at, observed_until);
+
+CREATE OR REPLACE FUNCTION private.kutadgu_verified_signal_coverage()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $coverage$
+BEGIN
+  IF NEW.occurred_at IS NULL THEN
+    NEW.occurred_at := now();
+  END IF;
+  IF NEW.observed_until IS NULL THEN
+    NEW.observed_until := NEW.occurred_at + interval '1 hour';
+  END IF;
+  RETURN NEW;
+END;
+$coverage$;
+
+DROP TRIGGER IF EXISTS analytics_verified_signals_coverage ON private.analytics_verified_signals;
+CREATE TRIGGER analytics_verified_signals_coverage
+  BEFORE INSERT ON private.analytics_verified_signals
+  FOR EACH ROW
+  EXECUTE FUNCTION private.kutadgu_verified_signal_coverage();
+
+REVOKE ALL ON FUNCTION private.kutadgu_verified_signal_coverage() FROM PUBLIC, anon, authenticated;
 
 CREATE TABLE IF NOT EXISTS private.kutadgu_verified_history_snapshots (
   snapshot_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -227,26 +270,54 @@ EXCEPTION
 END;
 $proof$;
 
+CREATE OR REPLACE FUNCTION private.kutadgu_verified_outage_overlaps(
+  p_start timestamptz,
+  p_end timestamptz,
+  p_as_of timestamptz DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $overlap$
+  SELECT EXISTS (
+    SELECT 1
+    FROM private.analytics_verified_signals
+    WHERE kind = 'outage'
+      AND occurred_at < p_end
+      AND observed_until > p_start
+      AND (p_as_of IS NULL OR occurred_at <= p_as_of)
+  );
+$overlap$;
+
 CREATE OR REPLACE FUNCTION public.kutadgu_note_verified_outage()
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public
 AS $outage$
+DECLARE
+  v_id bigint;
 BEGIN
   IF current_user IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'server only' USING ERRCODE = '42501';
   END IF;
-  IF EXISTS (
-    SELECT 1
-    FROM private.analytics_verified_signals
-    WHERE kind = 'outage'
-      AND occurred_at > now() - interval '1 hour'
-  ) THEN
-    RETURN false;
+  SELECT id INTO v_id
+  FROM private.analytics_verified_signals
+  WHERE kind = 'outage'
+    AND observed_until > now()
+  ORDER BY observed_until DESC, id DESC
+  LIMIT 1
+  FOR UPDATE;
+  IF v_id IS NOT NULL THEN
+    UPDATE private.analytics_verified_signals
+    SET observed_until = greatest(observed_until, now() + interval '1 hour')
+    WHERE id = v_id;
+    RETURN true;
   END IF;
-  INSERT INTO private.analytics_verified_signals (kind)
-  VALUES ('outage');
+  INSERT INTO private.analytics_verified_signals (kind, occurred_at, observed_until)
+  VALUES ('outage', now(), now() + interval '1 hour');
   RETURN true;
 END;
 $outage$;
@@ -280,13 +351,7 @@ BEGIN
     RETURN private.kutadgu_visit_status_json('partial', v_counted);
   END IF;
 
-  SELECT count(*)::integer INTO v_outages
-  FROM private.analytics_verified_signals
-  WHERE kind = 'outage'
-    AND occurred_at >= p_start
-    AND occurred_at < p_end;
-
-  IF v_outages > 0 THEN
+  IF private.kutadgu_verified_outage_overlaps(p_start, p_end) THEN
     RETURN private.kutadgu_visit_status_json('partial', v_counted);
   ELSIF v_counted = 0 THEN
     RETURN private.kutadgu_visit_status_json('zero', 0);
@@ -403,12 +468,7 @@ BEGIN
   v_partial := v_since < v_started;
   v_from := greatest(v_since, v_started);
 
-  SELECT count(*)::integer INTO v_outages
-  FROM private.analytics_verified_signals
-  WHERE kind = 'outage'
-    AND occurred_at >= v_from
-    AND occurred_at < v_until;
-  IF v_outages > 0 THEN
+  IF private.kutadgu_verified_outage_overlaps(v_from, v_until) THEN
     v_partial := true;
   END IF;
 
@@ -645,13 +705,7 @@ BEGIN
     END;
 
     IF v_available THEN
-      SELECT count(*)::integer INTO v_outages
-      FROM private.analytics_verified_signals
-      WHERE kind = 'outage'
-        AND occurred_at >= v_from
-        AND occurred_at < v_until
-        AND occurred_at <= v_as_of;
-      v_gap_partial := v_outages > 0;
+      v_gap_partial := private.kutadgu_verified_outage_overlaps(v_from, v_until, v_as_of);
     END IF;
 
     INSERT INTO private.kutadgu_verified_history_snapshots (
@@ -769,6 +823,7 @@ $history$;
 
 
 REVOKE ALL ON FUNCTION private.kutadgu_accept_verified_visit(uuid, uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.kutadgu_verified_outage_overlaps(timestamptz, timestamptz, timestamptz) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.kutadgu_verified_window_status(timestamptz, timestamptz, timestamptz) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.kutadgu_verified_visit_report(integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.kutadgu_verified_country_report(integer) FROM PUBLIC, anon, authenticated;
@@ -782,6 +837,7 @@ DO $grants$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     GRANT USAGE ON SCHEMA private TO service_role;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA private TO service_role;
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
       private.analytics_verified_counter,
       private.analytics_verified_gate,

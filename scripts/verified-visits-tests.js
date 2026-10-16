@@ -137,6 +137,7 @@ async function proof(env, fetchImpl, token, extra) {
   assert.strictEqual(forged.body.reason, "verification_rejected");
   assert.strictEqual(forged.cookie, "");
   assert.strictEqual(data.accepts.length, 0);
+  assert.strictEqual(data.outages, 0);
 
   const expiredCalls = [];
   const expired = await proof(baseEnv(), async (url, init) => {
@@ -193,7 +194,34 @@ async function proof(env, fetchImpl, token, extra) {
     return rpcFetch(live)(url, init);
   }, token);
   assert.strictEqual(replay.body.reason, "replayed_proof");
+  assert.strictEqual(replay.response.status, 403);
   assert.strictEqual(replay.cookie, "");
+  assert.strictEqual(live.outages, 0);
+
+  const consumeDown = store();
+  const down = await proof(baseEnv(), async (url, init) => {
+    if (String(url).includes("siteverify")) return siteverify({ success: true, hostname: HOST, action: "visit" }, [])(url, init);
+    if (String(url).endsWith("/kutadgu_consume_visit_proof")) {
+      return { ok: false, status: 503, json: async () => ({ message: "unavailable" }) };
+    }
+    return rpcFetch(consumeDown)(url, init);
+  }, "consume-503-token");
+  assert.strictEqual(down.response.status, 503);
+  assert.strictEqual(down.body.reason, "verification_unavailable");
+  assert.strictEqual(down.cookie, "");
+  assert.strictEqual(consumeDown.outages, 1);
+  assert.strictEqual(consumeDown.accepts.length, 0);
+
+  const consumeThrow = store();
+  const thrown = await proof(baseEnv(), async (url, init) => {
+    if (String(url).includes("siteverify")) return siteverify({ success: true, hostname: HOST, action: "visit" }, [])(url, init);
+    if (String(url).endsWith("/kutadgu_consume_visit_proof")) throw new Error("rpc failed");
+    return rpcFetch(consumeThrow)(url, init);
+  }, "consume-throw-token");
+  assert.strictEqual(thrown.response.status, 503);
+  assert.strictEqual(thrown.body.reason, "verification_unavailable");
+  assert.strictEqual(thrown.cookie, "");
+  assert.strictEqual(consumeThrow.outages, 1);
 
   const bare = await dispatch(baseEnv(), fakeRequest({
     url: "https://" + HOST + "/api/visit-count",

@@ -137,6 +137,69 @@ BEGIN
     RAISE EXCEPTION 'outage looked like complete or zero coverage';
   END IF;
 
+  INSERT INTO private.analytics_verified_signals (occurred_at, observed_until, kind)
+  VALUES (
+    timestamptz '2026-09-15 23:40:00+03',
+    timestamptz '2026-09-16 00:40:00+03',
+    'outage'
+  );
+  v_status := private.kutadgu_verified_window_status(
+    timestamptz '2026-09-16 00:00:00+03',
+    timestamptz '2026-09-16 00:30:00+03',
+    timestamptz '2026-01-01 00:00:00+03'
+  );
+  IF v_status->>'status' <> 'partial' OR v_status->>'visits' <> '0' THEN
+    RAISE EXCEPTION 'midnight boundary dropped a continuing outage: %', v_status;
+  END IF;
+  v_status := private.kutadgu_verified_window_status(
+    timestamptz '2026-09-16 00:40:00+03',
+    timestamptz '2026-09-16 02:00:00+03',
+    timestamptz '2026-01-01 00:00:00+03'
+  );
+  IF v_status->>'status' <> 'zero' OR v_status->>'visits' <> '0' THEN
+    RAISE EXCEPTION 'window after outage coverage was not zero: %', v_status;
+  END IF;
+  IF NOT private.kutadgu_verified_outage_overlaps(
+    timestamptz '2026-09-16 00:00:00+03',
+    timestamptz '2026-09-16 00:30:00+03'
+  ) THEN
+    RAISE EXCEPTION 'shared outage overlap missed the midnight boundary';
+  END IF;
+
+  UPDATE private.analytics_verified_counter SET started_at = now() - interval '2 days';
+  INSERT INTO private.analytics_verified_signals (occurred_at, kind)
+  VALUES (now() - interval '30 minutes', 'outage');
+  PERFORM set_config('role', 'service_role', true);
+  IF public.kutadgu_note_verified_outage() IS NOT TRUE THEN
+    RAISE EXCEPTION 'continuing outage was not recorded';
+  END IF;
+  PERFORM set_config('role', 'none', true);
+  v_status := private.kutadgu_verified_window_status(
+    now() - interval '20 minutes',
+    now() + interval '1 minute',
+    now() - interval '2 days'
+  );
+  IF v_status->>'status' <> 'partial' OR v_status->>'visits' <> '0' THEN
+    RAISE EXCEPTION 'continuing outage disappeared across the reporting boundary: %', v_status;
+  END IF;
+  v_report := private.kutadgu_verified_visit_report(7);
+  IF v_report->'today'->>'status' <> 'partial'
+     OR NOT EXISTS (
+       SELECT 1
+       FROM jsonb_array_elements(v_report->'daily') AS day
+       WHERE day->>'status' = 'partial'
+     ) THEN
+    RAISE EXCEPTION 'cards or charts missed the continuing outage: %', v_report->'today';
+  END IF;
+  v_report := private.kutadgu_verified_country_report(1);
+  IF v_report->>'status' <> 'partial' THEN
+    RAISE EXCEPTION 'country report missed the continuing outage: %', v_report->>'status';
+  END IF;
+  v_history := public.get_kutadgu_verified_visit_history(1, 0, 20, now());
+  IF v_history->>'status' <> 'partial' THEN
+    RAISE EXCEPTION 'history missed the continuing outage: %', v_history->>'status';
+  END IF;
+
   v_report := public.get_kutadgu_analytics(30);
   IF v_report->'verified_visits'->>'metric' <> 'verification_passed_browser_visits' THEN
     RAISE EXCEPTION 'verified report missing';

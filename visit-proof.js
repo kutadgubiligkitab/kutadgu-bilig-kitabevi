@@ -12,6 +12,13 @@
   function eventId(){
     return uuid();
   }
+  function analyticsEnabled(){
+    return window.KUTADGU_APP_CONFIG?.featureFlags?.analyticsHooks!==false;
+  }
+  function exerciseHost(){
+    const host=String(location.hostname||"").toLowerCase();
+    return document.documentElement.hasAttribute("data-kutadgu-visit-exercise")&&(host==="127.0.0.1"||host==="localhost");
+  }
   async function post(path,body){
     const response=await fetch(path,{
       method:"POST",
@@ -44,6 +51,16 @@
     host.hidden=false;
     return host.querySelector("[data-turnstile]");
   }
+  function clearCheck(){
+    const host=document.getElementById("kutadgu-visit-check");
+    if(!host)return;
+    try{
+      const slot=host.querySelector("[data-turnstile]");
+      if(slot&&window.turnstile&&typeof window.turnstile.remove==="function")window.turnstile.remove(slot);
+    }catch(err){}
+    host.hidden=true;
+    host.remove();
+  }
   async function finish(id){
     return post("/api/visit-count",{event_id:id});
   }
@@ -56,6 +73,8 @@
         post("/api/visit-proof",{token,action:ACTION}).then(proof=>{
           if(!proof||!proof.ok)return null;
           return finish(id);
+        }).then(result=>{
+          if(result&&result.ok)clearCheck();
         }).catch(()=>{});
       },
       "before-interactive-callback"(){showCheck();},
@@ -79,7 +98,8 @@
   }
   async function start(){
     try{
-      if(!allowedHost())return;
+      if(!analyticsEnabled())return;
+      if(!allowedHost()&&!exerciseHost())return;
       const id=eventId();
       const existing=await finish(id);
       if(existing&&existing.ok)return;

@@ -13,6 +13,9 @@ DROP FUNCTION IF EXISTS public.kutadgu_accept_verified_visit(uuid, uuid, text);
 DROP FUNCTION IF EXISTS private.kutadgu_verified_country_report(integer);
 DROP FUNCTION IF EXISTS private.kutadgu_verified_visit_report(integer);
 DROP FUNCTION IF EXISTS private.kutadgu_verified_window_status(timestamptz, timestamptz, timestamptz);
+DROP FUNCTION IF EXISTS private.kutadgu_verified_outage_overlaps(timestamptz, timestamptz, timestamptz);
+DROP TRIGGER IF EXISTS analytics_verified_signals_coverage ON private.analytics_verified_signals;
+DROP FUNCTION IF EXISTS private.kutadgu_verified_signal_coverage();
 DROP FUNCTION IF EXISTS private.kutadgu_accept_verified_visit(uuid, uuid, text, timestamptz);
 
 DROP TABLE IF EXISTS private.kutadgu_verified_history_members;

@@ -300,9 +300,19 @@ async function handleVisitProof(request, env, source) {
   if (verdict.outcome !== "pass") {
     return jsonResult(403, { ok: false, counted: false, reason: "verification_rejected" });
   }
-  const consumed = await rpc(env, source, "kutadgu_consume_visit_proof", { p_token_hash: hash });
-  if (!consumed.ok || consumed.body !== true) {
-    return jsonResult(403, { ok: false, counted: false, reason: consumed.body === false ? "replayed_proof" : "verification_unavailable" });
+  let consumed;
+  try {
+    consumed = await rpc(env, source, "kutadgu_consume_visit_proof", { p_token_hash: hash });
+  } catch (err) {
+    await noteOutage(env, source);
+    return jsonResult(503, { ok: false, counted: false, reason: "verification_unavailable" });
+  }
+  if (consumed && consumed.body === false) {
+    return jsonResult(403, { ok: false, counted: false, reason: "replayed_proof" });
+  }
+  if (!consumed || !consumed.ok || consumed.body !== true) {
+    await noteOutage(env, source);
+    return jsonResult(503, { ok: false, counted: false, reason: "verification_unavailable" });
   }
   const nowSeconds = Math.floor(Date.now() / 1000);
   const existing = await readIdentity(request, env, nowSeconds);
