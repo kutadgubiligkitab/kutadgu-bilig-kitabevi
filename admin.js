@@ -1248,7 +1248,7 @@ async function openAuthorizedDashboard(){
     if(mfaCtl&&typeof mfaCtl.refresh==="function")await mfaCtl.refresh();
     return;
   }
-  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadZeroSearches(),loadSearches(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadHeroAdminCard(),loadMfaCard(),loadAdminSuggestionRows()]);
+  await Promise.all([loadBooks(),loadMembers(),loadAnalytics(),loadAnalyticsActivity(),loadStats(),loadMaintenanceCard(),loadAnnouncementCard(),loadHeroAdminCard(),loadMfaCard(),loadAdminSuggestionRows()]);
 }
 
 function columnList(){
@@ -6902,10 +6902,6 @@ function renderAnalytics(described,opts){
       meta.textContent=errorText;
       delete meta.dataset.shownDays;
     }
-    ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp"].forEach(sel=>{
-      const el=$(sel);
-      if(el)el.innerHTML=`<div class="admin-empty">${esc(errorText)}</div>`;
-    });
     paintVisitCountries(null,{error:errorText});
     return;
   }
@@ -6916,10 +6912,6 @@ function renderAnalytics(described,opts){
     }
     const chart=$("#analyticsVisitorChart");
     if(chart&&!chart.childElementCount)paintCountedVisits(described);
-    ["#analyticsTopBooks","#analyticsTopCart","#analyticsTopWhatsapp"].forEach(sel=>{
-      const el=$(sel);
-      if(el)el.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-    });
     paintVisitCountries(described,{pending:true});
     return;
   }
@@ -6986,337 +6978,289 @@ function renderAnalytics(described,opts){
       <div class="admin-analytics-funnel-step"><span>2. سېۋەتكە قوشۇش${fmtPct(funnel.view_to_cart_pct)}</span><strong>${Number(funnel.cart_adds||0).toLocaleString("tr-TR")}</strong></div>
       <div class="admin-analytics-funnel-step"><span>3. WhatsApp زاكاز چېكىش (مەقسەت)${fmtPct(funnel.view_to_whatsapp_pct)}${funnel.cart_to_whatsapp_pct!=null?` · سېۋەتتىن ${Number(funnel.cart_to_whatsapp_pct).toLocaleString("tr-TR")}%`:""}</span><strong>${Number(funnel.whatsapp_clicks||0).toLocaleString("tr-TR")}</strong></div>`;
   }
-  renderAnalyticsList($("#analyticsTopBooks"),view.lists&&view.lists.top_books,"views","بۇ ۋاقىت دائىرىسىدە كىتاب كۆرۈش سانلىق مەلۇماتى يوق.");
-  renderAnalyticsList($("#analyticsTopCart"),view.lists&&view.lists.top_cart_books,"adds","سېۋەتكە قوشۇش سانلىق مەلۇماتى يوق.");
-  renderAnalyticsList($("#analyticsTopWhatsapp"),view.lists&&view.lists.top_whatsapp_books,"clicks","WhatsApp چېكىش سانلىق مەلۇماتى يوق.");
 }
 function paintAnalyticsPending(){
   const Core=window.KutadguAnalyticsCore;
-  if(!Core||!Core.describeAnalytics||!$("#analyticsTopBooks"))return;
+  if(!Core||!Core.describeAnalytics||!$("#analyticsActivityResults"))return;
   renderAnalytics(Core.describeAnalytics({},new Date()),{pending:true});
 }
 
-const ZERO_SEARCH_PAGE=20;
-const zeroSearchRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
+const ACTIVITY_PAGE=20;
+const activityRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
   ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
   :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
-let zeroSearchShown=null;
-let zeroSearchFlight=false;
+let activityOffset=0;
+let activityShown=null;
+let activityQueryTimer=0;
 
-function zeroSearchHost(){return $("#analyticsZeroSearches")}
-function zeroSearchCountEl(){return $("#analyticsZeroSearchesCount")}
-function zeroSearchMetaEl(){return $("#analyticsZeroSearchesMeta")}
-function zeroSearchMoreEl(){return $("#analyticsZeroSearchesMore")}
-function paintZeroSearchCount(text){
-  const el=zeroSearchCountEl();
-  if(el)el.textContent=text;
+function activityPressed(selector, attr){
+  return document.querySelector(`${selector}[${attr}]`)||null;
 }
-function zeroSearchStamp(value){
-  const Core=window.KutadguAnalyticsCore;
-  if(!Core||typeof Core.formatIstanbulStamp!=="function")return "";
-  return Core.formatIstanbulStamp(value)||"";
+function activityCategory(){
+  const button=activityPressed("[data-activity-category]","aria-selected=\"true\"");
+  return button?button.getAttribute("data-activity-category"):"book_view";
 }
-function paintZeroSearchRows(view){
-  const host=zeroSearchHost();
-  const meta=zeroSearchMetaEl();
-  const more=zeroSearchMoreEl();
+function activityScope(){
+  const button=activityPressed("[data-activity-scope]","aria-pressed=\"true\"");
+  return button&&button.getAttribute("data-activity-scope")==="raw"?"raw":"verified";
+}
+function activityFilters(){
+  return {
+    category:activityCategory(),
+    scope:activityScope(),
+    sort:$("#analyticsActivitySort")?$("#analyticsActivitySort").value:"latest",
+    preset:$("#analyticsActivityPreset")?$("#analyticsActivityPreset").value:"last_30",
+    start:$("#analyticsActivityStart")?$("#analyticsActivityStart").value:"",
+    end:$("#analyticsActivityEnd")?$("#analyticsActivityEnd").value:"",
+    query:$("#analyticsActivityQuery")?$("#analyticsActivityQuery").value.trim():"",
+    offset:activityOffset,
+    limit:ACTIVITY_PAGE
+  };
+}
+function activityContextKey(filters){
+  return [
+    filters.category,
+    filters.scope,
+    filters.sort,
+    filters.preset,
+    filters.start,
+    filters.end,
+    filters.query,
+    String(filters.offset)
+  ].join("\u0001");
+}
+function activityRangeReady(filters){
+  return filters.preset!=="custom"||(!!filters.start&&!!filters.end&&filters.end>=filters.start);
+}
+function showActivityCustom(preset){
+  const on=preset==="custom";
+  const start=$("#analyticsActivityCustom");
+  const end=$("#analyticsActivityCustomEnd");
+  if(start)start.hidden=!on;
+  if(end)end.hidden=!on;
+}
+function paintActivityPager(page){
+  const pager=$("#analyticsActivityPager");
+  const label=$("#analyticsActivityPage");
+  const prev=$("#analyticsActivityPrev");
+  const next=$("#analyticsActivityNext");
+  if(!pager)return;
+  const rows=page&&Array.isArray(page.rows)?page.rows:[];
+  const total=page&&page.total!=null?Number(page.total):null;
+  const visible=!!page&&page.status!=="unavailable"&&total!=null&&total>rows.length;
+  pager.hidden=!visible&&!(page&&page.offset>0);
+  if(page&&page.status!=="unavailable"&&total!=null&&(page.offset>0||page.offset+rows.length<total))pager.hidden=false;
+  if(page&&(page.status==="unavailable"||total==null))pager.hidden=true;
+  if(label){
+    const from=total?page.offset+1:0;
+    const to=page?page.offset+rows.length:0;
+    label.textContent=total==null?"":`${from.toLocaleString("tr-TR")}–${to.toLocaleString("tr-TR")} / ${total.toLocaleString("tr-TR")}`;
+  }
+  if(prev)prev.disabled=!page||page.offset<=0;
+  if(next)next.disabled=!page||total==null||page.offset+rows.length>=total;
+}
+function paintActivity(page, notice){
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  const phrase=$("#analyticsActivityPhraseNote");
   if(!host)return;
-  const rows=view&&Array.isArray(view.rows)?view.rows:[];
-  if(!rows.length){
-    host.innerHTML='<div class="admin-empty">بۇ ۋاقىت دائىرىسىدە نەتىجىسىز ئىزدەش يوق.</div>';
+  const category=page&&page.category||activityCategory();
+  if(phrase)phrase.hidden=category!=="search"&&category!=="zero_search";
+  if(!page){
+    if(status)status.textContent=notice||"يۈكلىنىۋاتىدۇ...";
+    host.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
+    paintActivityPager(null);
+    return;
+  }
+  const stamp=page.startedAt&&window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.formatIstanbulStamp
+    ?window.KutadguAnalyticsCore.formatIstanbulStamp(page.startedAt):"";
+  const started=stamp?` باشلىنىش: ${stamp}.`:"";
+  let lead="";
+  if(page.status==="unavailable")lead="دەلىللەش باشلىنىشتىن بۇرۇن. بۇ نۆل ئەمەس.";
+  else if(page.status==="partial")lead="قىسمەن خاتىرە. پەقەت دەلىللەش باشلانغاندىن كېيىنكى ھەرىكەت كۆرۈنىدۇ.";
+  else if(page.status==="zero")lead="بۇ ئارىلىقتا دەلىللەنگەن ھەرىكەت 0.";
+  else if(page.status==="raw")lead="بارلىق خام خاتىرىلەر. بۇ تەكشۈرۈشتىن ئۆتكەن كۆرگۈچ ئەمەس.";
+  else lead="تەكشۈرۈشتىن ئۆتكەن كۆرگۈچلەر. بۇ زىيارەت قېتىمى ئەمەس.";
+  const range=page.rangeStart&&page.rangeEnd?` ${page.rangeStart} — ${page.rangeEnd}.`:"";
+  if(status)status.textContent=`${lead}${started}${range}${notice?` ${notice}`:""}`;
+  const rows=Array.isArray(page.rows)?page.rows:[];
+  if(page.status==="unavailable"||page.rows==null){
+    host.innerHTML='<div class="admin-empty">بۇ ئارىلىق دەلىللەش باشلىنىشتىن بۇرۇن. نۆل دەپ قارالمايدۇ.</div>';
+  }else if(!rows.length&&page.status==="partial"){
+    host.innerHTML='<div class="admin-empty">قىسمەن ئارىلىقتا دەلىللەنگەن ھەرىكەت يوق. بۇ تولۇق نۆل ئەمەس.</div>';
+  }else if(!rows.length&&page.status==="raw"){
+    host.innerHTML='<div class="admin-empty">بۇ ئارىلىقتا خام خاتىرە يوق.</div>';
+  }else if(!rows.length){
+    host.innerHTML='<div class="admin-empty">بۇ ئارىلىقتا ماس ھەرىكەت يوق.</div>';
   }else{
     host.innerHTML=rows.map((row,i)=>{
-      const stamp=zeroSearchStamp(row.last_searched_at);
-      const when=stamp?` <small>${esc(stamp)}</small>`:"";
-      return `<div class="admin-analytics-row"><span>${i+1}. ${esc(row.query)}${when}</span><strong>${Number(row.searches||0).toLocaleString("tr-TR")}</strong></div>`;
+      const when=row.stamp?`<small>${esc(row.stamp)}</small>`:"";
+      return `<div class="admin-analytics-row admin-activity-row"><span>${(page.offset+i+1).toLocaleString("tr-TR")}. ${esc(row.label)}${when}</span><strong dir="ltr">${Number(row.count||0).toLocaleString("tr-TR")}</strong></div>`;
     }).join("");
   }
-  if(meta){
-    const shown=rows.length.toLocaleString("tr-TR");
-    const total=Number(view.totalQueries||0).toLocaleString("tr-TR");
-    const days=view.days?`ئاخىرقى ${Number(view.days)} كۈن` : "";
-    const span=view.rangeStart&&view.rangeEnd?`${view.rangeStart} — ${view.rangeEnd}` : "";
-    const range=[days,span,"Europe/Istanbul"].filter(Boolean).join(" · ");
-    meta.textContent=`${shown} / ${total} سۆز · ${range}`;
-    if(view.days)meta.dataset.shownDays=String(view.days);
-    else delete meta.dataset.shownDays;
-  }
-  if(more){
-    more.hidden=!view.hasMore;
-    more.disabled=false;
-    more.textContent="يەنە كۆرسىتىش";
-  }
-  paintZeroSearchCount(Number(view.totalEvents||0).toLocaleString("tr-TR"));
+  paintActivityPager(page);
 }
-function paintZeroSearchLoading(){
-  const host=zeroSearchHost();
-  const meta=zeroSearchMetaEl();
-  const more=zeroSearchMoreEl();
-  if(host)host.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-  if(meta){
-    meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
-    delete meta.dataset.shownDays;
-  }
-  if(more){more.hidden=true;more.disabled=true}
-  paintZeroSearchCount("—");
+function paintActivityUnmatched(notice){
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  const phrase=$("#analyticsActivityPhraseNote");
+  const filters=activityFilters();
+  if(phrase)phrase.hidden=filters.category!=="search"&&filters.category!=="zero_search";
+  if(status)status.textContent=notice||"بۇ تاللاش ئوقۇلمىدى.";
+  if(host)host.innerHTML='<div class="admin-empty">بۇ تاللاش ئوقۇلمىدى. ئالدىنقى تىزىملىك كۆرسىتىلمەيدۇ.</div>';
+  paintActivityPager(null);
 }
-function paintZeroSearchUnsupported(){
-  const host=zeroSearchHost();
-  const meta=zeroSearchMetaEl();
-  const more=zeroSearchMoreEl();
-  if(host)host.innerHTML='<div class="admin-empty">نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان. بۇ تىزىملىك تولۇق ئەمەس دەپ كۆرسىتىلمەيدۇ. نۆل دەپ قارالمايدۇ.</div>';
-  if(meta){
-    meta.textContent="";
-    delete meta.dataset.shownDays;
-  }
-  if(more){more.hidden=true;more.disabled=true}
-  paintZeroSearchCount("—");
+function paintActivityUnsupported(){
+  activityShown=null;
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  if(host)host.innerHTML='<div class="admin-empty">ھەرىكەت تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان. بۇ تىزىملىك تولۇق ئەمەس دەپ كۆرسىتىلمەيدۇ. نۆل دەپ قارالمايدۇ.</div>';
+  if(status)status.textContent="فۇنكسىيە قاچىلانمىغان. نۆل دەپ قارالمايدۇ.";
+  paintActivityPager(null);
 }
-function paintZeroSearchFailure(message, requestedDays){
-  const host=zeroSearchHost();
-  const meta=zeroSearchMetaEl();
-  const more=zeroSearchMoreEl();
-  const asked=requestedDays?`${requestedDays} كۈنلۈك `:"";
-  const text=`${asked}نەتىجىسىز ئىزدەش ئوقۇلمىدى: ${message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
-  if(zeroSearchShown){
-    paintZeroSearchRows(zeroSearchShown);
-    if(meta)meta.textContent=`${meta.textContent}. ${text}`;
-    return;
-  }
-  if(host)host.innerHTML=`<div class="admin-empty">${esc(text)}</div>`;
-  if(meta)meta.textContent="";
-  if(more){more.hidden=true;more.disabled=true}
-  paintZeroSearchCount("—");
+function paintActivityRangePrompt(filters){
+  const host=$("#analyticsActivityResults");
+  const status=$("#analyticsActivityStatus");
+  const phrase=$("#analyticsActivityPhraseNote");
+  if(status)status.textContent="ئارىلىقنى تولۇق تاللاڭ. Europe/Istanbul كۈن چېگرىسى.";
+  if(host)host.innerHTML='<div class="admin-empty">باشلىنىش ۋە ئاخىرلىشىش چېسلاسىنى تاللاڭ.</div>';
+  if(phrase)phrase.hidden=filters.category!=="search"&&filters.category!=="zero_search";
+  paintActivityPager(null);
 }
-async function loadZeroSearches(opts){
-  const host=zeroSearchHost();
+async function loadAnalyticsActivity(){
+  const host=$("#analyticsActivityResults");
   if(!db||!host)return;
-  const append=!!(opts&&opts.append);
   const Core=window.KutadguAnalyticsCore;
-  if(append){
-    if(zeroSearchFlight||!zeroSearchShown||!zeroSearchShown.hasMore)return;
-  }
-  const selectedDays=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  const request=Core&&typeof Core.zeroSearchPageRequest==="function"
-    ?Core.zeroSearchPageRequest({append,selectedDays,session:zeroSearchShown,limit:ZERO_SEARCH_PAGE})
-    :null;
-  if(!request){
-    if(!append)paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", selectedDays);
+  const filters=activityFilters();
+  const key=activityContextKey(filters);
+  const token=activityRequests.begin();
+  const retained=activityShown&&activityShown.contextKey===key?activityShown:null;
+  if(!activityRangeReady(filters)){
+    paintActivityRangePrompt(filters);
     return;
   }
-  const days=request.p_days;
-  zeroSearchFlight=true;
-  const token=zeroSearchRequests.begin();
-  const more=zeroSearchMoreEl();
-  if(append){
-    if(more){more.disabled=true;more.textContent="يۈكلىنىۋاتىدۇ…"}
-  }else paintZeroSearchLoading();
-  const args=request;
+  const request=Core&&typeof Core.activityPageRequest==="function"?Core.activityPageRequest(filters):null;
+  if(!request){
+    paintActivityUnmatched("جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
+    return;
+  }
+  if(!retained)paintActivity(null);
   let data=null,error=null;
   try{
-    const response=await db.rpc("get_kutadgu_zero_searches",args);
+    const response=await db.rpc("get_kutadgu_analytics_activity", request);
     data=response&&response.data;
     error=response&&response.error;
   }catch(err){
-    if(!zeroSearchRequests.isCurrent(token))return;
-    zeroSearchFlight=false;
-    paintZeroSearchFailure(err&&err.message||"", days);
+    if(!activityRequests.isCurrent(token))return;
+    if(retained)paintActivity(retained, `ئوقۇلمىدى: ${err&&err.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
+    else paintActivityUnmatched(`ئوقۇلمىدى: ${err&&err.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`);
     return;
   }
-  if(!zeroSearchRequests.isCurrent(token))return;
-  zeroSearchFlight=false;
+  if(!activityRequests.isCurrent(token))return;
+  if(error){
+    if(Core&&typeof Core.missingActivityRpc==="function"&&Core.missingActivityRpc(error)){
+      paintActivityUnsupported();
+      return;
+    }
+    const notice=`ئوقۇلمىدى: ${error.message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
+    if(retained)paintActivity(retained, notice);
+    else paintActivityUnmatched(notice);
+    return;
+  }
+  const page=Core&&typeof Core.normalizeActivityPage==="function"?Core.normalizeActivityPage(data):null;
+  if(!page||page.category!==filters.category||page.scope!==filters.scope||String(page.sort||"")!==filters.sort||page.offset!==filters.offset){
+    paintActivityUnmatched("جاۋاب تولۇق ئەمەس. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.");
+    return;
+  }
+  page.contextKey=key;
+  activityShown=page;
+  paintActivity(page);
+}
+function resetActivityAndLoad(){
+  activityOffset=0;
+  loadAnalyticsActivity();
+}
+
+let zeroSummaryShown=null;
+function paintZeroSearchSummary(total){
+  const el=$("#analyticsZeroSearchesCount");
+  if(!el)return;
+  el.textContent=total==null?"—":Number(total).toLocaleString("tr-TR");
+}
+function paintZeroSearchSummaryNotice(text){
+  const note=$("#analyticsZeroSearchesNote");
+  if(!note)return;
+  const message=text?String(text):"";
+  note.textContent=message;
+  note.hidden=!message;
+}
+function noteZeroSearchSummaryFailure(days){
+  const shown=zeroSummaryShown;
+  const retained=shown&&Number.isInteger(shown.days)&&Number.isInteger(shown.totalEvents);
+  if(!retained){
+    zeroSummaryShown=null;
+    paintZeroSearchSummary(null);
+    paintZeroSearchSummaryNotice(`${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى. نۆل دەپ قارالمايدۇ.`);
+    return;
+  }
+  paintZeroSearchSummary(shown.totalEvents);
+  if(shown.days===days){
+    paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان يەنىلا ئاخىرقى ${shown.days} كۈن. بۇ يېڭىلانمىغان سان. ${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى.`);
+    return;
+  }
+  paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان ئاخىرقى ${shown.days} كۈن. ${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى.`);
+}
+async function loadZeroSearchSummary(days, token){
+  const el=$("#analyticsZeroSearchesCount");
+  if(!db||!el)return;
+  if(zeroSummaryShown&&zeroSummaryShown.days!==days){
+    paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان ئاخىرقى ${zeroSummaryShown.days} كۈن.`);
+  }
+  const Core=window.KutadguAnalyticsCore;
+  const request=Core&&typeof Core.zeroSearchPageRequest==="function"
+    ?Core.zeroSearchPageRequest({append:false,selectedDays:days,limit:1})
+    :null;
+  if(!request){
+    if(analyticsRequests.isCurrent(token))noteZeroSearchSummaryFailure(days);
+    return;
+  }
+  let data=null,error=null;
+  try{
+    const response=await db.rpc("get_kutadgu_zero_searches", request);
+    data=response&&response.data;
+    error=response&&response.error;
+  }catch(err){
+    if(!analyticsRequests.isCurrent(token))return;
+    noteZeroSearchSummaryFailure(days);
+    return;
+  }
+  if(!analyticsRequests.isCurrent(token))return;
   if(error){
     if(Core&&typeof Core.missingZeroSearchRpc==="function"&&Core.missingZeroSearchRpc(error)){
-      zeroSearchShown=null;
-      paintZeroSearchUnsupported();
+      zeroSummaryShown=null;
+      paintZeroSearchSummary(null);
+      paintZeroSearchSummaryNotice("نەتىجىسىز ئىزدەش فۇنكسىيەسى قاچىلانمىغان. نۆل دەپ قارالمايدۇ.");
       return;
     }
-    paintZeroSearchFailure(error.message||"", days);
+    noteZeroSearchSummaryFailure(days);
     return;
   }
   const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
-  if(!page){
-    paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", days);
+  if(!page||page.days!==days||!Number.isInteger(page.total_events)){
+    noteZeroSearchSummaryFailure(days);
     return;
   }
-  if(append&&typeof Core.zeroSearchAppendMatches==="function"&&!Core.zeroSearchAppendMatches(zeroSearchShown, page)){
-    paintZeroSearchFailure("جاۋاب ساقلانغان تىزىملىك بىلەن ماس كەلمىدى", days);
-    return;
-  }
-  const session=typeof Core.continueZeroSearchSession==="function"
-    ?Core.continueZeroSearchSession(append?zeroSearchShown:null, page)
-    :null;
-  if(!session){
-    paintZeroSearchFailure("جاۋاب تولۇق ئەمەس", days);
-    return;
-  }
-  if(!append){
-    session.days=page.days!=null?page.days:days;
-    session.asOf=page.as_of||"";
-    session.rangeStart=page.range_start||"";
-    session.rangeEnd=page.range_end||"";
-    session.hasMore=!!session.asOf&&session.nextOffset>0&&session.nextOffset<session.totalQueries;
-  }
-  zeroSearchShown=session;
-  paintZeroSearchRows(zeroSearchShown);
-}
-
-const SEARCH_PAGE=20;
-const searchRequests=window.KutadguAnalyticsCore&&window.KutadguAnalyticsCore.createAnalyticsLoadGate
-  ?window.KutadguAnalyticsCore.createAnalyticsLoadGate()
-  :{n:0,begin(){this.n+=1;return this.n},isCurrent(id){return id===this.n}};
-let searchShown=null;
-let searchFlight=false;
-
-function searchHost(){return $("#analyticsSearches")}
-function searchMetaEl(){return $("#analyticsSearchesMeta")}
-function searchMoreEl(){return $("#analyticsSearchesMore")}
-function paintSearchRows(view){
-  const host=searchHost();
-  const meta=searchMetaEl();
-  const more=searchMoreEl();
-  if(!host)return;
-  const rows=view&&Array.isArray(view.rows)?view.rows:[];
-  if(!rows.length){
-    host.innerHTML='<div class="admin-empty">بۇ ۋاقىت دائىرىسىدە ئىزدەش يوق.</div>';
-  }else{
-    host.innerHTML=rows.map((row,i)=>{
-      const stamp=zeroSearchStamp(row.last_searched_at);
-      const when=stamp?` <small>${esc(stamp)}</small>`:"";
-      return `<div class="admin-analytics-row"><span>${i+1}. ${esc(row.query)}${when}</span><strong>${Number(row.searches||0).toLocaleString("tr-TR")}</strong></div>`;
-    }).join("");
-  }
-  if(meta){
-    const shown=rows.length.toLocaleString("tr-TR");
-    const total=Number(view.totalQueries||0).toLocaleString("tr-TR");
-    const events=Number(view.totalEvents||0).toLocaleString("tr-TR");
-    const days=view.days?`ئاخىرقى ${Number(view.days)} كۈن` : "";
-    const span=view.rangeStart&&view.rangeEnd?`${view.rangeStart} — ${view.rangeEnd}` : "";
-    const range=[days,span,"Europe/Istanbul"].filter(Boolean).join(" · ");
-    meta.textContent=`${shown} / ${total} سۆز · ${events} قېتىم · ${range}`;
-    if(view.days)meta.dataset.shownDays=String(view.days);
-    else delete meta.dataset.shownDays;
-  }
-  if(more){
-    more.hidden=!view.hasMore;
-    more.disabled=false;
-    more.textContent="يەنە كۆرسىتىش";
-  }
-}
-function paintSearchLoading(){
-  const host=searchHost();
-  const meta=searchMetaEl();
-  const more=searchMoreEl();
-  if(host)host.innerHTML='<div class="admin-empty">يۈكلىنىۋاتىدۇ...</div>';
-  if(meta){
-    meta.textContent="Europe/Istanbul · يۈكلىنىۋاتىدۇ...";
-    delete meta.dataset.shownDays;
-  }
-  if(more){more.hidden=true;more.disabled=true}
-}
-function paintSearchUnsupported(){
-  const host=searchHost();
-  const meta=searchMetaEl();
-  const more=searchMoreEl();
-  if(host)host.innerHTML='<div class="admin-empty">ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان. بۇ تىزىملىك تولۇق ئەمەس دەپ كۆرسىتىلمەيدۇ. نۆل دەپ قارالمايدۇ.</div>';
-  if(meta){
-    meta.textContent="";
-    delete meta.dataset.shownDays;
-  }
-  if(more){more.hidden=true;more.disabled=true}
-}
-function paintSearchFailure(message, requestedDays){
-  const host=searchHost();
-  const meta=searchMetaEl();
-  const more=searchMoreEl();
-  const asked=requestedDays?`${requestedDays} كۈنلۈك `:"";
-  const text=`${asked}ئىزدەش ئوقۇلمىدى: ${message||""}. كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى.`;
-  if(searchShown){
-    paintSearchRows(searchShown);
-    if(meta)meta.textContent=`${meta.textContent}. ${text}`;
-    return;
-  }
-  if(host)host.innerHTML=`<div class="admin-empty">${esc(text)}</div>`;
-  if(meta)meta.textContent="";
-  if(more){more.hidden=true;more.disabled=true}
-}
-async function loadSearches(opts){
-  const host=searchHost();
-  if(!db||!host)return;
-  const append=!!(opts&&opts.append);
-  const Core=window.KutadguAnalyticsCore;
-  if(append){
-    if(searchFlight||!searchShown||!searchShown.hasMore)return;
-  }
-  const selectedDays=Math.max(1,Number($("#analyticsRange")?.value)||30);
-  const request=Core&&typeof Core.zeroSearchPageRequest==="function"
-    ?Core.zeroSearchPageRequest({append,selectedDays,session:searchShown,limit:SEARCH_PAGE})
-    :null;
-  if(!request){
-    if(!append)paintSearchFailure("جاۋاب تولۇق ئەمەس", selectedDays);
-    return;
-  }
-  const days=request.p_days;
-  searchFlight=true;
-  const token=searchRequests.begin();
-  const more=searchMoreEl();
-  if(append){
-    if(more){more.disabled=true;more.textContent="يۈكلىنىۋاتىدۇ…"}
-  }else paintSearchLoading();
-  let data=null,error=null;
-  try{
-    const response=await db.rpc("get_kutadgu_searches",request);
-    data=response&&response.data;
-    error=response&&response.error;
-  }catch(err){
-    if(!searchRequests.isCurrent(token))return;
-    searchFlight=false;
-    paintSearchFailure(err&&err.message||"", days);
-    return;
-  }
-  if(!searchRequests.isCurrent(token))return;
-  searchFlight=false;
-  if(error){
-    if(Core&&typeof Core.missingSearchTermsRpc==="function"&&Core.missingSearchTermsRpc(error)){
-      searchShown=null;
-      paintSearchUnsupported();
-      return;
-    }
-    paintSearchFailure(error.message||"", days);
-    return;
-  }
-  const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
-  if(!page){
-    paintSearchFailure("جاۋاب تولۇق ئەمەس", days);
-    return;
-  }
-  if(append&&typeof Core.zeroSearchAppendMatches==="function"&&!Core.zeroSearchAppendMatches(searchShown, page)){
-    paintSearchFailure("جاۋاب ساقلانغان تىزىملىك بىلەن ماس كەلمىدى", days);
-    return;
-  }
-  const session=typeof Core.continueZeroSearchSession==="function"
-    ?Core.continueZeroSearchSession(append?searchShown:null, page)
-    :null;
-  if(!session){
-    paintSearchFailure("جاۋاب تولۇق ئەمەس", days);
-    return;
-  }
-  if(!append){
-    session.days=page.days!=null?page.days:days;
-    session.asOf=page.as_of||"";
-    session.rangeStart=page.range_start||"";
-    session.rangeEnd=page.range_end||"";
-    session.hasMore=!!session.asOf&&session.nextOffset>0&&session.nextOffset<session.totalQueries;
-  }
-  searchShown=session;
-  paintSearchRows(searchShown);
+  zeroSummaryShown={days,totalEvents:page.total_events};
+  paintZeroSearchSummary(page.total_events);
+  paintZeroSearchSummaryNotice("");
 }
 
 async function loadAnalytics(){
-  const hostTop=$("#analyticsTopBooks"),hostZero=$("#analyticsZeroSearches");
-  if(!db||!hostTop||!hostZero)return;
+  const hostTop=$("#analyticsBookViews");
+  if(!db||!hostTop)return;
   const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
   const token=analyticsRequests.begin();
+  const zeroSummaryTask=loadZeroSearchSummary(days, token);
   const Core=window.KutadguAnalyticsCore;
   renderAnalytics(Core&&Core.describeAnalytics?Core.describeAnalytics({},new Date()):null,{pending:true});
   let data=null;
@@ -7356,6 +7300,7 @@ async function loadAnalytics(){
   analyticsShown={days,described};
   renderAnalytics(described,{shownDays:days});
   await loadVisitCountryHistory({kind:periodChanged?"initial":"refresh",days,offset:0});
+  await zeroSummaryTask;
 }
 
 function bindMfaCard(){
@@ -8347,8 +8292,7 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 
 function reloadAnalyticsView(){
   loadAnalytics();
-  loadZeroSearches();
-  loadSearches();
+  resetActivityAndLoad();
 }
 $("#reloadAnalytics")?.addEventListener("click",reloadAnalyticsView);
 $("#analyticsVisitCountryToggle")?.addEventListener("click",()=>{
@@ -8385,8 +8329,44 @@ $("#analyticsVisitCountryNext")?.addEventListener("click",()=>{
   repaintVisitCountryTables();
 });
 $("#analyticsRange")?.addEventListener("change",reloadAnalyticsView);
-$("#analyticsZeroSearchesMore")?.addEventListener("click",()=>loadZeroSearches({append:true}));
-$("#analyticsSearchesMore")?.addEventListener("click",()=>loadSearches({append:true}));
+document.querySelectorAll("[data-activity-scope]").forEach(button=>{
+  button.addEventListener("click",()=>{
+    document.querySelectorAll("[data-activity-scope]").forEach(item=>item.setAttribute("aria-pressed", item===button?"true":"false"));
+    resetActivityAndLoad();
+  });
+});
+document.querySelectorAll("[data-activity-category]").forEach(button=>{
+  button.addEventListener("click",()=>{
+    document.querySelectorAll("[data-activity-category]").forEach(item=>item.setAttribute("aria-selected", item===button?"true":"false"));
+    resetActivityAndLoad();
+  });
+});
+$("#analyticsActivitySort")?.addEventListener("change",resetActivityAndLoad);
+$("#analyticsActivityPreset")?.addEventListener("change",()=>{
+  showActivityCustom($("#analyticsActivityPreset").value);
+  resetActivityAndLoad();
+});
+$("#analyticsActivityStart")?.addEventListener("change",resetActivityAndLoad);
+$("#analyticsActivityEnd")?.addEventListener("change",resetActivityAndLoad);
+$("#analyticsActivityQuery")?.addEventListener("input",()=>{
+  clearTimeout(activityQueryTimer);
+  activityOffset=0;
+  const filters=activityFilters();
+  activityRequests.begin();
+  if(!activityRangeReady(filters))paintActivityRangePrompt(filters);
+  else if(!activityShown||activityShown.contextKey!==activityContextKey(filters))paintActivity(null);
+  activityQueryTimer=setTimeout(loadAnalyticsActivity,250);
+});
+$("#analyticsActivityPrev")?.addEventListener("click",()=>{
+  activityOffset=Math.max(0, activityOffset-ACTIVITY_PAGE);
+  loadAnalyticsActivity();
+});
+$("#analyticsActivityNext")?.addEventListener("click",()=>{
+  if(!activityShown||activityShown.total==null)return;
+  if(activityOffset+ACTIVITY_PAGE>=activityShown.total)return;
+  activityOffset+=ACTIVITY_PAGE;
+  loadAnalyticsActivity();
+});
 paintAnalyticsPending();
 if(window.__kutadguExposeAnalyticsRender){
   window.__kutadguRenderAnalytics=renderAnalytics;

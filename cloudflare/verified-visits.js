@@ -208,6 +208,14 @@ async function noteOutage(env, source) {
   }
 }
 
+async function noteActionOutage(env, source) {
+  try {
+    await rpc(env, source, "kutadgu_note_action_attestation_outage", {});
+  } catch (err) {
+    return;
+  }
+}
+
 async function readJson(request) {
   const length = Number(request.headers.get("content-length") || 0);
   if (length > 4096) return null;
@@ -367,6 +375,7 @@ module.exports = {
   handleVisitConfig,
   handleVisitProof,
   handleVisitCount,
+  noteActionOutage,
   readIdentity,
   issueCookie,
   uuidV4,

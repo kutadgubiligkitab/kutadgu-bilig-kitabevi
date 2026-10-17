@@ -544,7 +544,10 @@ async function dispatch(request, env, deps) {
     return handleSharedCartApiRoute(request, env, source);
   }
   if (route.kind === "analytics-event") {
-    const result = await visitCountry.handleAnalyticsEvent(request, env, source);
+    const identity = await verifiedVisits.readIdentity(request, env, Math.floor(Date.now() / 1000));
+    const visitorId = identity && identity.current ? identity.id : null;
+    const result = await visitCountry.handleAnalyticsEvent(request, env, source, visitorId);
+    if (result.attestationOutage) await verifiedVisits.noteActionOutage(env, source);
     const payload = method === "HEAD" || result.status === 204 ? null : result.body;
     return textResponse(result.status, payload, env, {
       "Content-Type": "text/plain; charset=utf-8",

@@ -31,7 +31,7 @@ test("worker uses Cloudflare country and ignores the body and header", async () 
   const seen = [];
   const fetchImpl = async (_url, opts) => {
     seen.push(JSON.parse(opts.body));
-    return { status: 201, text: async () => "" };
+    return { status: 200, text: async () => '{"result":"inserted","attested":false}' };
   };
   const result = await visit.handleAnalyticsEvent(requestFor({
     event_name: "page_view",
@@ -46,9 +46,10 @@ test("worker uses Cloudflare country and ignores the body and header", async () 
   assert.equal(result.status, 204);
   assert.equal(result.headers["Cache-Control"], "private, no-store");
   assert.equal(seen.length, 1);
-  assert.equal(seen[0].country, "TR");
-  assert.equal(seen[0].ip, undefined);
-  assert.equal(seen[0].event_name, "page_view");
+  assert.equal(seen[0].p_visitor_id, null);
+  assert.equal(seen[0].p_event.country, "TR");
+  assert.equal(seen[0].p_event.ip, undefined);
+  assert.equal(seen[0].p_event.event_name, "page_view");
 });
 
 test("unknown Cloudflare metadata is stored without a country", async () => {
@@ -61,11 +62,11 @@ test("unknown Cloudflare metadata is stored without a country", async () => {
     }, { country }, {}), { SUPABASE_SECRET_KEY: "server-secret" }, {
       fetchImpl: async (_url, opts) => {
         seen.push(JSON.parse(opts.body));
-        return { status: 201, text: async () => "" };
+        return { status: 200, text: async () => '{"result":"inserted","attested":false}' };
       }
     });
     assert.equal(result.status, 204);
-    assert.equal(Object.hasOwn(seen[0], "country"), false);
+    assert.equal(Object.hasOwn(seen[0].p_event, "country"), false);
   }
 });
 
@@ -81,12 +82,12 @@ test("a missing country column is retried once without country", async () => {
       if (seen.length === 1) {
         return { status: 400, text: async () => '{"code":"PGRST204","message":"Could not find the \'country\' column of analytics_events"}' };
       }
-      return { status: 201, text: async () => "" };
+      return { status: 200, text: async () => '{"result":"inserted","attested":false}' };
     }
   });
   assert.equal(result.status, 204);
-  assert.equal(seen[0].country, "DE");
-  assert.equal(Object.hasOwn(seen[1], "country"), false);
+  assert.equal(seen[0].p_event.country, "DE");
+  assert.equal(Object.hasOwn(seen[1].p_event, "country"), false);
 });
 
 test("country collection failure does not claim the event was stored", async () => {
@@ -124,11 +125,11 @@ test("duplicate conflict stays a stored response and cart events carry no countr
   }, { country: "TR" }, {}), { SUPABASE_SECRET_KEY: "server-secret" }, {
     fetchImpl: async (_url, opts) => {
       seen.push(JSON.parse(opts.body));
-      return { status: 201, text: async () => "" };
+      return { status: 200, text: async () => '{"result":"inserted","attested":false}' };
     }
   });
-  assert.equal(seen[0].event_name, "add_to_cart");
-  assert.equal(Object.hasOwn(seen[0], "country"), false);
+  assert.equal(seen[0].p_event.event_name, "add_to_cart");
+  assert.equal(Object.hasOwn(seen[0].p_event, "country"), false);
   assert.equal(preview.classifyPath("/api/analytics-event", "").kind, "analytics-event");
   assert.equal(preview.methodAllowed("analytics-event", "POST"), true);
   assert.equal(preview.methodAllowed("analytics-event", "GET"), false);
@@ -360,8 +361,8 @@ test("history requests keep the snapshot and reject private fields", () => {
   assert.doesNotMatch(rollback, /delete from/i);
   assert.doesNotMatch(rollback, /analytics_country_counter/);
   const adminHtml = fs.readFileSync(path.join(root, "admin.html"), "utf8");
-  assert.match(adminHtml, /admin\.js\?v=114/);
-  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=14/);
+  assert.match(adminHtml, /admin\.js\?v=116/);
+  assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=15/);
   assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
   assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);
 });

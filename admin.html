@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=56">
+  <link rel="stylesheet" href="admin.css?v=57">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -505,18 +505,64 @@
           <div class="admin-stat"><strong id="analyticsWhatsapp">—</strong><span>WhatsApp زاكاز چېكىش</span></div>
           <div class="admin-stat"><strong id="analyticsZeroSearchesCount">—</strong><span>نەتىجىسىز ئىزدەش</span></div>
         </div>
+        <p class="admin-help" id="analyticsRawSummaryNote">بۇ تۆت سان خام خاتىرە جەمئىي. تەكشۈرۈشتىن ئۆتكەن كۆرگۈچ سانى ئەمەس. زىيارەت قېتىمى يۇقىرىدا ئايرىم.</p>
+        <p class="admin-help" id="analyticsZeroSearchesNote" hidden></p>
         <p class="admin-help admin-analytics-sub">بەت زىيارىتى: <strong id="analyticsPageViews">—</strong> — ھەر بەت ئېچىلىشى؛ سېتىش ئەمەس. <span id="analyticsUnknownSearches"></span></p>
         <div class="admin-analytics-funnel" id="analyticsFunnel" aria-label="ئىشلىتىش يولى">
           <h3 id="analyticsFunnelTitle">يوسۇن (Views → سېۋەت → WhatsApp چېكىش)</h3>
           <div class="admin-analytics-funnel-steps" id="analyticsFunnelSteps"></div>
           <p class="admin-help" id="analyticsFunnelNote">WhatsApp چېكىش = زاكاز مەقسىتى. تاماملانغان سېتىش ئەمەس.</p>
         </div>
-        <div class="admin-analytics-grid">
-          <div><h3>🔥 ئەڭ كۆپ كۆرۈلگەن كىتابلار</h3><div id="analyticsTopBooks" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🛒 ئەڭ كۆپ سېۋەتكە قوشۇلغان</h3><p class="admin-help">سېۋەتكە قوشۇش ۋەقىسى. زاكاز ئەمەس.</p><div id="analyticsTopCart" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>💬 ئەڭ كۆپ WhatsApp چېكىلگەن</h3><p class="admin-help">چېكىش سانى. سېتىش ياكى زاكاز ئەمەس.</p><div id="analyticsTopWhatsapp" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div></div>
-          <div><h3>🔎 ئەڭ كۆپ ئىزدەلگەن سۆزلەر</h3><p class="admin-help">ھەر بىر تاماملانغان ئىزدەش بىر قېتىم. ئوخشاش سۆز 3 سائەت ئىچىدە قايتا ئىزدەلسە يەنە سانىلىدۇ. Europe/Istanbul كۈن چېگرىسى. سانى كۆپتىن ئازغىچە، بەت-بەت.</p><div id="analyticsSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
-          <div><h3>🚫 نەتىجىسىز ئىزدەشلەر</h3><div id="analyticsZeroSearches" class="admin-analytics-list"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div><p class="admin-help" id="analyticsZeroSearchesMeta"></p><button type="button" class="admin-secondary" id="analyticsZeroSearchesMore" hidden>يەنە كۆرسىتىش</button></div>
+        <div id="analyticsActivity" class="admin-activity">
+          <h3 id="analyticsActivityTitle">ھەرىكەت تىزىملىكى</h3>
+          <p class="admin-help">بىر كاتېگورىيەنى تاللاڭ. سۈكۈتتىكى تەرتىپ ئاخىرقى ماس ھەرىكەت. بۇ كىتابنىڭ نەشر ۋاقتى ئەمەس. ئىزدەش سۆز كۆرسىتىدۇ، ئىزدەلگەن كىتاب دەپ يېزىلمايدۇ. 3 سائەتلىك زىيارەت دەرۋازىسى بۇ ھەرىكەتلەرگە قوللىنىلمايدۇ.</p>
+          <div class="admin-activity-scopes" role="radiogroup" aria-label="خاتىرە دائىرىسى">
+            <button type="button" data-activity-scope="verified" aria-pressed="true">تەكشۈرۈشتىن ئۆتكەن كۆرگۈچلەر</button>
+            <button type="button" data-activity-scope="raw" aria-pressed="false">بارلىق خام خاتىرىلەر</button>
+          </div>
+          <div class="admin-activity-categories" role="tablist" aria-label="ھەرىكەت كاتېگورىيەسى">
+            <button type="button" role="tab" data-activity-category="book_view" aria-selected="true">كۆرۈلگەن كىتابلار</button>
+            <button type="button" role="tab" data-activity-category="add_to_cart" aria-selected="false">سېۋەتكە قوشۇلغان كىتابلار</button>
+            <button type="button" role="tab" data-activity-category="whatsapp_order_click" aria-selected="false">WhatsApp زاكاز چېكىشلىرى</button>
+            <button type="button" role="tab" data-activity-category="search" aria-selected="false">ئىزدەشلەر</button>
+            <button type="button" role="tab" data-activity-category="zero_search" aria-selected="false">نەتىجىسىز ئىزدەشلەر</button>
+          </div>
+          <div class="admin-activity-filters">
+            <label>تەرتىپ
+              <select id="analyticsActivitySort" aria-label="ھەرىكەت تەرتىپى">
+                <option value="latest">ئاخىرقى ھەرىكەت ئالدىدا</option>
+                <option value="oldest">ئەڭ بۇرۇنقى ھەرىكەت ئالدىدا</option>
+                <option value="count_desc">سانى ئەڭ كۆپ</option>
+                <option value="count_asc">سانى ئەڭ ئاز</option>
+              </select>
+            </label>
+            <label>ۋاقىت
+              <select id="analyticsActivityPreset" aria-label="ھەرىكەت ۋاقتى">
+                <option value="today">بۈگۈن</option>
+                <option value="yesterday">تۈنۈگۈن</option>
+                <option value="last_7">ئاخىرقى 7 كۈن</option>
+                <option value="last_30" selected>ئاخىرقى 30 كۈن</option>
+                <option value="custom">ئارىلىق تاللاش</option>
+              </select>
+            </label>
+            <label id="analyticsActivityCustom" hidden>باشلىنىش
+              <input id="analyticsActivityStart" type="date" aria-label="باشلىنىش چېسلاسى">
+            </label>
+            <label id="analyticsActivityCustomEnd" hidden>ئاخىرلىشىش
+              <input id="analyticsActivityEnd" type="date" aria-label="ئاخىرلىشىش چېسلاسى">
+            </label>
+            <label>سۈزگۈچ
+              <input id="analyticsActivityQuery" type="search" autocomplete="off" enterkeyhint="search" placeholder="كىتاب نامى ياكى ئىزدەش سۆزى" aria-label="كىتاب نامى ياكى ئىزدەش سۆزى">
+            </label>
+          </div>
+          <p class="admin-help" id="analyticsActivityStatus">يۈكلىنىۋاتىدۇ...</p>
+          <p class="admin-help" id="analyticsActivityPhraseNote" hidden>بۇ ئىزدەش سۆزى. ئىزدەلگەن كىتاب دەپ قارالمايدۇ.</p>
+          <div id="analyticsActivityResults" class="admin-analytics-list" aria-live="polite"><div class="admin-empty">يۈكلىنىۋاتىدۇ...</div></div>
+          <div id="analyticsActivityPager" class="admin-country-pager" hidden>
+            <button type="button" id="analyticsActivityPrev">ئالدىنقى</button>
+            <span id="analyticsActivityPage" dir="ltr"></span>
+            <button type="button" id="analyticsActivityNext">كېيىنكى</button>
+          </div>
         </div>
       </section>
       </div>
@@ -1096,7 +1142,7 @@
 <script defer src="admin-price-history.js?v=3"></script>
 <script defer src="catalog-bibliography.js?v=3"></script>
 <script defer src="catalog-credits.js?v=3"></script>
-<script defer src="kutadgu-analytics-core.js?v=14"></script>
+<script defer src="kutadgu-analytics-core.js?v=15"></script>
 <script defer src="admin-import-scale.js?v=1"></script>
 <script defer src="admin-import-covers.js?v=1"></script>
 <script defer src="admin-cover-repair.js?v=2"></script>
@@ -1112,7 +1158,7 @@
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=114"></script>
+  <script defer src="admin.js?v=118"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

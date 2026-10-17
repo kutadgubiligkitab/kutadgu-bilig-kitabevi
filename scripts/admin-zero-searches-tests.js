@@ -238,22 +238,26 @@ test("header search still completes through the homepage field or the q paramete
 test("admin zero-search section is paginated and does not paint the summary top ten", () => {
   const admin = read("admin.js");
   const html = read("admin.html");
-  assert.match(admin, /rpc\("get_kutadgu_zero_searches"/);
-  assert.match(admin, /zeroSearchPageRequest/);
-  assert.match(admin, /zeroSearchAppendMatches/);
-  assert.match(admin, /continueZeroSearchSession/);
+  const core = read("kutadgu-analytics-core.js");
+  assert.match(admin, /rpc\("get_kutadgu_analytics_activity"/);
+  assert.match(admin, /activityPageRequest/);
+  assert.match(core, /function activityPageRequest/);
+  assert.match(html, /data-activity-category="zero_search"/);
+  assert.match(html, /id="analyticsActivityNext"/);
   assert.doesNotMatch(admin, /range\.value\s*=/);
   assert.doesNotMatch(admin, /جاۋاب چەكلىمىسى/);
-  assert.match(admin, /missingZeroSearchRpc/);
-  assert.match(read("kutadgu-analytics-core.js"), /function appendZeroSearchRows/);
-  assert.match(admin, /normalizeZeroSearchPage/);
-  assert.match(admin, /loadZeroSearches\(\{append:true\}\)/);
+  assert.match(admin, /missingActivityRpc/);
+  assert.match(core, /function appendZeroSearchRows/);
+  assert.match(admin, /normalizeActivityPage/);
   assert.ok(!admin.includes('setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches)'));
   assert.ok(!admin.includes('renderAnalyticsList($("#analyticsZeroSearches")'));
-  assert.match(html, /id="analyticsZeroSearchesMore"/);
-  assert.match(html, /admin\.js\?v=94/);
-  assert.match(html, /kutadgu-analytics-core\.js\?v=9/);
-  assert.match(admin, /نەتىجىسىز ئىزدەش تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
+  assert.match(admin, /rpc\("get_kutadgu_zero_searches"/);
+  assert.match(admin, /paintZeroSearchSummary\(page\.total_events\)/);
+  assert.match(html, /id="analyticsZeroSearchesCount"/);
+  assert.match(html, /id="analyticsZeroSearchesNote"/);
+  assert.match(html, /admin\.js\?v=118/);
+  assert.match(html, /kutadgu-analytics-core\.js\?v=15/);
+  assert.match(admin, /ھەرىكەت تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
   assert.match(admin, /كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى/);
 });
 

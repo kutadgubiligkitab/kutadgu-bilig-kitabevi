@@ -117,7 +117,7 @@ test("default section is books and hash parser falls back", () => {
 test("post-auth load list includes Admin suggestion rows after authorization", () => {
   assert.match(
     adminJs,
-    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadZeroSearches\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadHeroAdminCard\(\),loadMfaCard\(\),loadAdminSuggestionRows\(\)\]\)/
+    /await Promise\.all\(\[loadBooks\(\),loadMembers\(\),loadAnalytics\(\),loadAnalyticsActivity\(\),loadStats\(\),loadMaintenanceCard\(\),loadAnnouncementCard\(\),loadHeroAdminCard\(\),loadMfaCard\(\),loadAdminSuggestionRows\(\)\]\)/
   );
   assert.match(adminJs, /show\("dashboardPanel"\);\s*applyDashboardSectionFromLocation\(\{replace:true\}\)/);
 });
