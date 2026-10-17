@@ -251,7 +251,10 @@ test("admin zero-search section is paginated and does not paint the summary top 
   assert.match(admin, /normalizeActivityPage/);
   assert.ok(!admin.includes('setAnalyticsCount("#analyticsZeroSearchesCount",view.counts&&view.counts.zero_result_searches)'));
   assert.ok(!admin.includes('renderAnalyticsList($("#analyticsZeroSearches")'));
-  assert.match(html, /admin\.js\?v=116/);
+  assert.match(admin, /rpc\("get_kutadgu_zero_searches"/);
+  assert.match(admin, /paintZeroSearchSummary\(page\.total_events\)/);
+  assert.match(html, /id="analyticsZeroSearchesCount"/);
+  assert.match(html, /admin\.js\?v=117/);
   assert.match(html, /kutadgu-analytics-core\.js\?v=15/);
   assert.match(admin, /ھەرىكەت تىزىملىكى ئۈچۈن سانلىق مەلۇمات فۇنكسىيەسى تېخى قاچىلانمىغان/);
   assert.match(admin, /كۆرسىتىلگەن سان نۆلگە ئالماشتۇرۇلمىدى/);

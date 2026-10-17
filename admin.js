@@ -7181,11 +7181,49 @@ function resetActivityAndLoad(){
   loadAnalyticsActivity();
 }
 
+let zeroSummaryShown=null;
+function paintZeroSearchSummary(total){
+  const el=$("#analyticsZeroSearchesCount");
+  if(!el)return;
+  el.textContent=total==null?"—":Number(total).toLocaleString("tr-TR");
+}
+async function loadZeroSearchSummary(days, token){
+  const el=$("#analyticsZeroSearchesCount");
+  if(!db||!el)return;
+  const Core=window.KutadguAnalyticsCore;
+  const request=Core&&typeof Core.zeroSearchPageRequest==="function"
+    ?Core.zeroSearchPageRequest({append:false,selectedDays:days,limit:1})
+    :null;
+  if(!request)return;
+  let data=null,error=null;
+  try{
+    const response=await db.rpc("get_kutadgu_zero_searches", request);
+    data=response&&response.data;
+    error=response&&response.error;
+  }catch(err){
+    if(!analyticsRequests.isCurrent(token))return;
+    return;
+  }
+  if(!analyticsRequests.isCurrent(token))return;
+  if(error){
+    if(Core&&typeof Core.missingZeroSearchRpc==="function"&&Core.missingZeroSearchRpc(error)){
+      zeroSummaryShown=null;
+      paintZeroSearchSummary(null);
+    }
+    return;
+  }
+  const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
+  if(!page||page.days!==days||!Number.isInteger(page.total_events))return;
+  zeroSummaryShown={days,totalEvents:page.total_events};
+  paintZeroSearchSummary(page.total_events);
+}
+
 async function loadAnalytics(){
   const hostTop=$("#analyticsBookViews");
   if(!db||!hostTop)return;
   const days=Math.max(1,Number($("#analyticsRange")?.value)||30);
   const token=analyticsRequests.begin();
+  const zeroSummaryTask=loadZeroSearchSummary(days, token);
   const Core=window.KutadguAnalyticsCore;
   renderAnalytics(Core&&Core.describeAnalytics?Core.describeAnalytics({},new Date()):null,{pending:true});
   let data=null;
@@ -7225,6 +7263,7 @@ async function loadAnalytics(){
   analyticsShown={days,described};
   renderAnalytics(described,{shownDays:days});
   await loadVisitCountryHistory({kind:periodChanged?"initial":"refresh",days,offset:0});
+  await zeroSummaryTask;
 }
 
 function bindMfaCard(){
