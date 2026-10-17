@@ -70,14 +70,15 @@ test("the raw no-result card uses the summary total and ignores the activity pag
         }
         if (name === "get_kutadgu_zero_searches") {
           const delay = window.__kutadguZeroDelay;
+          const mode = window.__kutadguZeroMode;
           return new Promise((resolve) => {
             window.setTimeout(() => {
-              window.__kutadguZeroCalls.push({ args: Object.assign({}, args), mode: window.__kutadguZeroMode });
-              if (window.__kutadguZeroMode === "missing") {
+              window.__kutadguZeroCalls.push({ args: Object.assign({}, args), mode });
+              if (mode === "missing") {
                 resolve({ data: null, error: { code: "PGRST202", message: "Could not find the function public.get_kutadgu_zero_searches in the schema cache" } });
                 return;
               }
-              if (window.__kutadguZeroMode === "fail") {
+              if (mode === "fail") {
                 resolve({ data: null, error: { message: "db down" } });
                 return;
               }
@@ -159,11 +160,34 @@ test("the raw no-result card uses the summary total and ignores the activity pag
 
   await page.locator("#analyticsRange").selectOption("7");
   await expect(card).toHaveText("0");
+  const note = page.locator("#analyticsZeroSearchesNote");
+  await expect(note).toBeHidden();
 
   await page.evaluate(() => { window.__kutadguZeroMode = "fail"; });
+  const beforeCross = await page.evaluate(() => window.__kutadguZeroCalls.length);
   await page.locator("#analyticsRange").selectOption("90");
-  await expect.poll(() => page.evaluate(() => window.__kutadguZeroCalls.length)).toBe(settled + 2);
+  await expect.poll(() => page.evaluate(() => window.__kutadguZeroCalls.length)).toBe(beforeCross + 1);
   await expect(card).toHaveText("0");
+  await expect(note).toContainText("ئاخىرقى 7 كۈن");
+  await expect(note).toContainText("90 كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى");
+  await expect(page.locator("#analyticsMeta")).toContainText("90");
+  const crossNote = await note.textContent();
+  await page.locator('[data-activity-category="search"]').click();
+  await expect(card).toHaveText("0");
+  await expect(note).toHaveText(crossNote);
+  expect(await page.evaluate(() => window.__kutadguZeroCalls.length)).toBe(beforeCross + 1);
+
+  await page.evaluate(() => { window.__kutadguZeroMode = "ok"; window.__kutadguZeroDelay = 0; });
+  await page.locator("#analyticsRange").selectOption("7");
+  await expect(card).toHaveText("0");
+  await expect(note).toBeHidden();
+  await page.evaluate(() => { window.__kutadguZeroMode = "fail"; });
+  await page.locator("#reloadAnalytics").click();
+  await expect(card).toHaveText("0");
+  await expect(note).toContainText("يەنىلا ئاخىرقى 7 كۈن");
+  await expect(note).toContainText("يېڭىلانمىغان");
+  await expect(note).toContainText("7 كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى");
+  await expect(note).not.toContainText("90 كۈن");
 
   await page.evaluate(() => { window.__kutadguZeroMode = "ok"; window.__kutadguZeroDelay = 400; });
   const beforeStale = await page.evaluate(() => window.__kutadguZeroCalls.length);
@@ -171,10 +195,28 @@ test("the raw no-result card uses the summary total and ignores the activity pag
   await page.evaluate(() => { window.__kutadguZeroDelay = 0; });
   await page.locator("#analyticsRange").selectOption("90");
   await expect(card).toHaveText("4");
+  await expect(note).toBeHidden();
   await expect.poll(() => page.evaluate((start) => window.__kutadguZeroCalls.length > start + 1, beforeStale)).toBe(true);
   await expect(card).toHaveText("4");
+  await expect(note).toBeHidden();
+
+  await page.evaluate(() => { window.__kutadguZeroMode = "fail"; window.__kutadguZeroDelay = 400; });
+  const beforeLate = await page.evaluate(() => window.__kutadguZeroCalls.length);
+  await page.locator("#analyticsRange").selectOption("30");
+  await page.evaluate(() => { window.__kutadguZeroMode = "ok"; window.__kutadguZeroDelay = 0; });
+  await page.locator("#analyticsRange").selectOption("7");
+  await expect(card).toHaveText("0");
+  await expect(note).toBeHidden();
+  await expect.poll(() => page.evaluate((start) => {
+    const calls = window.__kutadguZeroCalls.slice(start);
+    return calls.some((call) => call.mode === "fail" && call.args.p_days === 30);
+  }, beforeLate)).toBe(true);
+  await expect(card).toHaveText("0");
+  await expect(note).toBeHidden();
 
   await page.evaluate(() => { window.__kutadguZeroMode = "missing"; window.__kutadguZeroDelay = 0; });
-  await page.locator("#analyticsRange").selectOption("7");
+  await page.locator("#analyticsRange").selectOption("90");
   await expect(card).toHaveText("—");
+  await expect(note).toContainText("نۆل دەپ قارالمايدۇ");
+  await expect(card).not.toHaveText("0");
 });

@@ -7187,14 +7187,43 @@ function paintZeroSearchSummary(total){
   if(!el)return;
   el.textContent=total==null?"—":Number(total).toLocaleString("tr-TR");
 }
+function paintZeroSearchSummaryNotice(text){
+  const note=$("#analyticsZeroSearchesNote");
+  if(!note)return;
+  const message=text?String(text):"";
+  note.textContent=message;
+  note.hidden=!message;
+}
+function noteZeroSearchSummaryFailure(days){
+  const shown=zeroSummaryShown;
+  const retained=shown&&Number.isInteger(shown.days)&&Number.isInteger(shown.totalEvents);
+  if(!retained){
+    zeroSummaryShown=null;
+    paintZeroSearchSummary(null);
+    paintZeroSearchSummaryNotice(`${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى. نۆل دەپ قارالمايدۇ.`);
+    return;
+  }
+  paintZeroSearchSummary(shown.totalEvents);
+  if(shown.days===days){
+    paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان يەنىلا ئاخىرقى ${shown.days} كۈن. بۇ يېڭىلانمىغان سان. ${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى.`);
+    return;
+  }
+  paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان ئاخىرقى ${shown.days} كۈن. ${days} كۈنلۈك نەتىجىسىز ئىزدەش ئوقۇلمىدى.`);
+}
 async function loadZeroSearchSummary(days, token){
   const el=$("#analyticsZeroSearchesCount");
   if(!db||!el)return;
+  if(zeroSummaryShown&&zeroSummaryShown.days!==days){
+    paintZeroSearchSummaryNotice(`كۆرسىتىلگەن سان ئاخىرقى ${zeroSummaryShown.days} كۈن.`);
+  }
   const Core=window.KutadguAnalyticsCore;
   const request=Core&&typeof Core.zeroSearchPageRequest==="function"
     ?Core.zeroSearchPageRequest({append:false,selectedDays:days,limit:1})
     :null;
-  if(!request)return;
+  if(!request){
+    if(analyticsRequests.isCurrent(token))noteZeroSearchSummaryFailure(days);
+    return;
+  }
   let data=null,error=null;
   try{
     const response=await db.rpc("get_kutadgu_zero_searches", request);
@@ -7202,6 +7231,7 @@ async function loadZeroSearchSummary(days, token){
     error=response&&response.error;
   }catch(err){
     if(!analyticsRequests.isCurrent(token))return;
+    noteZeroSearchSummaryFailure(days);
     return;
   }
   if(!analyticsRequests.isCurrent(token))return;
@@ -7209,13 +7239,20 @@ async function loadZeroSearchSummary(days, token){
     if(Core&&typeof Core.missingZeroSearchRpc==="function"&&Core.missingZeroSearchRpc(error)){
       zeroSummaryShown=null;
       paintZeroSearchSummary(null);
+      paintZeroSearchSummaryNotice("نەتىجىسىز ئىزدەش فۇنكسىيەسى قاچىلانمىغان. نۆل دەپ قارالمايدۇ.");
+      return;
     }
+    noteZeroSearchSummaryFailure(days);
     return;
   }
   const page=Core&&typeof Core.normalizeZeroSearchPage==="function"?Core.normalizeZeroSearchPage(data):null;
-  if(!page||page.days!==days||!Number.isInteger(page.total_events))return;
+  if(!page||page.days!==days||!Number.isInteger(page.total_events)){
+    noteZeroSearchSummaryFailure(days);
+    return;
+  }
   zeroSummaryShown={days,totalEvents:page.total_events};
   paintZeroSearchSummary(page.total_events);
+  paintZeroSearchSummaryNotice("");
 }
 
 async function loadAnalytics(){
