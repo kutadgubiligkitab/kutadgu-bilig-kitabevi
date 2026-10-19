@@ -99,7 +99,8 @@ test("setupCheckout syncs after loadCustomerData and on delivery change; actions
   assert.match(setup, /copy\)copy\.onclick=copyOrder/);
   assert.match(setup, /share\)share\.onclick=shareOrder/);
   assert.match(previewFn, /getOrBuildOrder\(true\)/);
-  assert.match(copyFn, /getOrBuildOrder\(true\)/);
+  assert.match(copyFn, /getOrBuildOrder\(false\)/);
+  assert.doesNotMatch(copyFn, /getOrBuildOrder\(true\)/);
   assert.match(shareFn, /getOrBuildOrder\(true\)/);
   assert.match(waFn, /getOrBuildOrder\(true\)/);
   assert.match(getOrBuildFn, /form\.reportValidity\(\)/);

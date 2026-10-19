@@ -151,7 +151,7 @@ test("shop hides the action until the current account is confirmed", () => {
   assert.match(cartHtml, /id="copyOrder"/);
   assert.match(cartHtml, /id="shareOrder"/);
   assert.doesNotMatch(cartHtml, /id="shareCart"/);
-  assert.match(cartHtml, /shop\.js\?v=166/);
+  assert.match(cartHtml, /shop\.js\?v=167/);
 });
 
 test("admin reads one batched permission payload and ignores a stale write", () => {
