@@ -1199,7 +1199,7 @@ test("ordinary navigation requests the current shop pin", async ({ page }) => {
   await H.installReadSafeNetwork(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=163/);
+  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=164/);
   const body = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
   expect(body).toContain("my_cart_share_permission");
   expect(body).not.toContain("shop.js?v=151");

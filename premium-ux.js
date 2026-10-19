@@ -395,6 +395,7 @@
     if(!enabled("smartEmptyState"))return;
     const results=document.querySelector("#searchResults");if(!results)return;
     const enhance=()=>{
+      if(results.dataset.searchState!=="empty")return;
       const empty=results.querySelector(".search-empty");if(!empty||empty.querySelector(".smart-empty-actions"))return;
       const query=document.querySelector("#searchInput")?.value.trim()||"";
       empty.innerHTML=`<h2>ئىزدەش نەتىجىسى تېپىلمىدى</h2>${emptyActionMarkup(query)}`;

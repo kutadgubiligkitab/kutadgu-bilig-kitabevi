@@ -44,7 +44,7 @@ assert.strictEqual((index.match(/rel="manifest"/g) || []).length, 1);
 assert.ok(index.includes('<link rel="manifest" href="/kutadgu.webmanifest">'));
 assert.strictEqual((index.match(/rel="icon"/g) || []).length, 1);
 assert.ok(!index.includes("apple-touch-icon"));
-assert.ok(index.includes('shop.js?v=163'));
+assert.ok(index.includes('shop.js?v=164'));
 assert.ok(!/serviceWorker|beforeinstallprompt/i.test(index));
 assert.ok(!read("shop.js").toString("utf8").includes("serviceWorker.register"));
 
