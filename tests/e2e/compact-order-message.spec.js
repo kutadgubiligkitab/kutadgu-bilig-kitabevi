@@ -83,7 +83,7 @@ test.describe("compact order message", () => {
     await mockBooks(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=166/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=167/);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
     await expect(page.locator("#checkoutCard")).toBeVisible();
@@ -189,5 +189,101 @@ test.describe("compact order message", () => {
     });
     const empty = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
     expect(empty).toBeNull();
+  });
+
+  test("copy allows blank and partial details, falls back, and WhatsApp still validates", async ({ page, context }) => {
+    test.setTimeout(45_000);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const writes = [];
+    await page.route("**/rest/v1/orders**", async (route) => {
+      const method = route.request().method();
+      if (method !== "GET" && method !== "HEAD") writes.push(method + " " + route.request().url());
+      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+    });
+    await page.route("**/rest/v1/rpc/create_member_order**", async (route) => {
+      writes.push(route.request().method() + " " + route.request().url());
+      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+    });
+    await seedCart(page);
+    await mockBooks(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
+    await expect(page.locator("#copyOrderNote")).toBeVisible();
+    await expect(page.locator("#copyOrderNote")).toContainText("كۆچۈرۈشتە ئىسىم، تېلېفون ۋە ئادرېسنى تولدۇرۇش شەرت ئەمەس");
+    await expect(page.locator("#customerName")).toHaveValue("");
+    await expect(page.locator("#customerPhone")).toHaveValue("");
+    await expect(page.locator("#customerAddress")).toHaveValue("");
+
+    await page.locator("#copyOrder").click();
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toContain("ئىسمى: -");
+    const blank = await page.evaluate(() => navigator.clipboard.readText());
+    expect(blank).toContain(`1. ${LONG_TITLE} — 1 دانە · 153 ₺`);
+    expect(blank).toContain("تېلېفون: -");
+    expect(blank).toContain("ئادرېس: -");
+    expect(blank).toContain("يەتكۈزۈش: كارگو ئارقىلىق");
+    expect(blank).toContain("*جەمئىي كىتاب سانى: 7 — جەمئىي: 1.577,20 ₺*");
+    const orderNo = blank.match(/KB-\d{6}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}/)[0];
+    await page.locator("#copyOrder").click();
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toContain(`زاكاز نومۇرى: ${orderNo}`);
+    await expect(page.locator("#orderPreviewWrap")).toBeHidden();
+
+    await page.locator("#customerName").fill("Aygul Test", { force: true });
+    await page.locator("#copyOrder").click();
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toContain("ئىسمى: Aygul Test");
+    const partial = await page.evaluate(() => navigator.clipboard.readText());
+    expect(partial).toContain("تېلېفون: -");
+    expect(partial).toContain("ئادرېس: -");
+    expect(partial).not.toContain(orderNo);
+
+    await page.evaluate(() => {
+      navigator.clipboard.writeText = async () => { throw new Error("denied"); };
+      document.execCommand = (cmd) => {
+        const nodes = document.querySelectorAll("textarea");
+        const ta = nodes[nodes.length - 1];
+        window.__fallbackCopy = { cmd, value: ta ? ta.value : "" };
+        return true;
+      };
+    });
+    await page.locator("#copyOrder").click();
+    await expect.poll(() => page.evaluate(() => window.__fallbackCopy && window.__fallbackCopy.cmd)).toBe("copy");
+    const fallback = await page.evaluate(() => window.__fallbackCopy.value);
+    expect(fallback).toContain("ئىسمى: Aygul Test");
+    expect(fallback).toContain("تېلېفون: -");
+    expect(fallback).toContain(LONG_TITLE);
+
+    const opened = [];
+    await page.exposeFunction("__kutadguCaptureWa", (url) => opened.push(url));
+    await page.evaluate(() => {
+      window.open = (url) => {
+        window.__kutadguCaptureWa(String(url));
+        return { opener: null, close() {} };
+      };
+    });
+    await page.locator("#whatsappOrder").click();
+    await expect.poll(() => page.locator("#customerPhone").evaluate((el) => el.validity.valueMissing)).toBe(true);
+    expect(opened).toEqual([]);
+    expect(writes).toEqual([]);
+
+    await page.locator("#customerPhone").fill("0555 000 11 11", { force: true });
+    await page.locator("#customerAddress").fill("Test street 1, door 4", { force: true });
+    await page.locator("#whatsappOrder").click();
+    await expect.poll(() => opened.length).toBe(1);
+    expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    const sent = decodeURIComponent(opened[0].split("text=")[1]);
+    expect(sent).toContain("ئىسمى: Aygul Test");
+    expect(sent).toContain("تېلېفون: 0555 000 11 11");
+    expect(sent).toContain("ئادرېس: Test street 1, door 4");
+    expect(sent).not.toContain("تېلېفون: -");
+    expect(sent).not.toContain(orderNo);
+    expect(writes).toEqual([]);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator("#copyOrderNote")).toBeVisible();
+    const overflow = await page.evaluate(() => (
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1
+    ));
+    expect(overflow).toBe(true);
   });
 });

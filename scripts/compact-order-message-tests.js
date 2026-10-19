@@ -86,12 +86,26 @@ function load(state) {
         if (sel === "#orderPreview") return state.pre;
         return null;
       },
-      createElement() { return { value: "", select() {}, remove() {} }; },
+      createElement() {
+        const el = { value: "", select() { state.selected = el.value; }, remove() {} };
+        state.created = el;
+        return el;
+      },
       body: { appendChild() {} },
-      execCommand() { return true; }
+      execCommand(cmd) {
+        state.execCommands = state.execCommands || [];
+        state.execCommands.push(cmd);
+        state.fallbackText = state.created ? state.created.value : "";
+        return true;
+      }
     };
     const navigator = {
-      clipboard: { async writeText(text) { state.copied.push(String(text)); } },
+      clipboard: state.clipboardMissing ? undefined : {
+        async writeText(text) {
+          if (state.clipboardFail) throw new Error("clipboard denied");
+          state.copied.push(String(text));
+        }
+      },
       share: state.share === false ? undefined : async (payload) => { state.shares.push(payload); }
     };
     const window = {
@@ -120,7 +134,10 @@ function load(state) {
     function saveCustomerData() { state.saveCustomerCalls += 1; return state.customer; }
     function canonicalId(id) { return String(id); }
     function trackEvent(name, payload) { state.events.push({ name, payload }); }
-    function savePreparedOrderHistory() { return Promise.resolve({ saved: false, reason: "not_signed_in" }); }
+    function savePreparedOrderHistory() {
+      state.historySaves = (state.historySaves || 0) + 1;
+      return Promise.resolve({ saved: false, reason: "not_signed_in" });
+    }
     let preparedOrder = null, preparedOrderSignature = "";
     ${genFn}
     ${signatureFn}
@@ -293,6 +310,109 @@ async function run() {
     assert.equal(invalidState.saveCustomerCalls, 0);
   });
 
+  await test("copy exports blank and partial details without saving or skipping later WhatsApp validation", async () => {
+    assert.match(copyFn, /getOrBuildOrder\(false\)/);
+    assert.doesNotMatch(copyFn, /getOrBuildOrder\(true\)/);
+    assert.doesNotMatch(copyFn, /savePreparedOrderHistory|saveOrder/);
+    assert.match(previewFn, /getOrBuildOrder\(true\)/);
+    assert.match(shareFn, /getOrBuildOrder\(true\)/);
+    assert.match(waFn, /getOrBuildOrder\(true\)/);
+    assert.match(cartHtml, /id="copyOrderNote"/);
+    assert.match(cartHtml, /كۆچۈرۈشتە ئىسىم، تېلېفون ۋە ئادرېسنى تولدۇرۇش شەرت ئەمەس\. يازغان ئۇچۇر تېكىستكە كىرىدۇ\. WhatsApp زاكازىدا بۇ ئۇچۇرلار يەنىلا لازىم\./);
+
+    const pending = readyState({ hydrationPending: true, formValid: false });
+    await load(pending).copyOrder();
+    assert.deepStrictEqual(pending.copied, []);
+    assert.deepStrictEqual(pending.toasts, ["كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ."]);
+
+    const stock = readyState({ formValid: false, stock: { canBuy: false, qty: 0 } });
+    await load(stock).copyOrder();
+    assert.deepStrictEqual(stock.copied, []);
+    assert.deepStrictEqual(stock.toasts, ["سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ"]);
+
+    const blankState = readyState({
+      formValid: false,
+      customer: customer({ name: "", phone: "", city: "", address: "", delivery: "", note: "  " })
+    });
+    const blank = load(blankState);
+    await blank.copyOrder();
+    await blank.copyOrder();
+    assert.equal(blank.cryptoCalls(), 1);
+    assert.equal(blankState.copied.length, 2);
+    assert.equal(blankState.copied[0], blankState.copied[1]);
+    assert.match(blankState.copied[0], /ئىسمى: -/);
+    assert.match(blankState.copied[0], /تېلېفون: -/);
+    assert.match(blankState.copied[0], /شەھەر \/ رايون: -/);
+    assert.match(blankState.copied[0], /ئادرېس: -/);
+    assert.match(blankState.copied[0], /يەتكۈزۈش: -/);
+    assert.equal(blankState.copied[0].includes("ئىزاھات"), false);
+    assert.match(blankState.copied[0], /\*جەمئىي كىتاب سانى: 5 — جەمئىي: 753,00 ₺\*/);
+    assert.match(blankState.copied[0], /زاكاز نومۇرى: KB-\d{6}-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}/);
+    assert.equal(blankState.historySaves || 0, 0);
+    assert.equal(blankState.openCalls.length, 0);
+    assert.equal(await blank.showOrderPreview(), null);
+    assert.equal(blankState.wrap.hidden, true);
+    await blank.shareOrder();
+    assert.equal(blankState.shares.length, 0);
+    assert.equal(blankState.copied.length, 2);
+    await blank.orderWithWhatsApp();
+    assert.equal(blankState.openCalls.length, 0);
+    assert.equal(blank.cryptoCalls(), 1);
+    assert.equal(blankState.historySaves || 0, 0);
+
+    const partialState = readyState({
+      formValid: false,
+      customer: customer({ name: "Aygul", phone: "", city: "Istanbul", address: "", note: "ئىشىك" })
+    });
+    const partial = load(partialState);
+    await partial.copyOrder();
+    assert.match(partialState.copied[0], /ئىسمى: Aygul/);
+    assert.match(partialState.copied[0], /تېلېفون: -/);
+    assert.match(partialState.copied[0], /شەھەر \/ رايون: Istanbul/);
+    assert.match(partialState.copied[0], /ئادرېس: -/);
+    assert.match(partialState.copied[0], /يەتكۈزۈش: كارگو ئارقىلىق/);
+    assert.match(partialState.copied[0], /ئىزاھات: ئىشىك/);
+    assert.equal(partialState.historySaves || 0, 0);
+    await partial.orderWithWhatsApp();
+    assert.equal(partialState.openCalls.length, 0);
+    partialState.formValid = true;
+    partialState.customer = customer({ name: "Aygul", phone: "0555", address: "Street 2", note: "ئىشىك" });
+    await partial.orderWithWhatsApp();
+    assert.equal(partialState.openCalls.length, 1);
+    const decoded = decodeURIComponent(partialState.openCalls[0].split("text=")[1]);
+    assert.match(decoded, /تېلېفون: 0555/);
+    assert.match(decoded, /ئادرېس: Street 2/);
+    assert.equal(decoded.includes("تېلېفون: -"), false);
+    assert.notEqual(decoded, partialState.copied[0]);
+    assert.equal(partialState.historySaves, 1);
+  });
+
+  await test("copy uses the textarea fallback when clipboard is missing or rejects", async () => {
+    const missing = readyState({
+      formValid: false,
+      clipboardMissing: true,
+      customer: customer({ name: "", phone: "", address: "" })
+    });
+    await load(missing).copyOrder();
+    assert.deepStrictEqual(missing.copied, []);
+    assert.deepStrictEqual(missing.execCommands, ["copy"]);
+    assert.match(missing.fallbackText, /ئىسمى: -/);
+    assert.match(missing.fallbackText, /ئادرېس: -/);
+    assert.equal(missing.historySaves || 0, 0);
+
+    const denied = readyState({
+      formValid: false,
+      clipboardFail: true,
+      customer: customer({ phone: "0555" })
+    });
+    await load(denied).copyOrder();
+    assert.deepStrictEqual(denied.copied, []);
+    assert.equal(denied.execCommands[0], "copy");
+    assert.match(denied.fallbackText, /تېلېفون: 0555/);
+    assert.match(denied.fallbackText, /ئىسمى: Aygul Test/);
+    assert.equal(denied.historySaves || 0, 0);
+  });
+
   await test("formatting stays local to the order message and the cart still uses money()", () => {
     assert.equal(moneyFn.trim(), 'function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}');
     assert.match(cartPageFn, /money\(\(x\.b\.price\|\|0\)\*x\.qty\)/);
@@ -301,7 +421,7 @@ async function run() {
     assert.doesNotMatch(buildFn, /money\(/);
     assert.match(buildFn, /price:Number\(x\.b\.price\)\|\|0/);
     assert.match(buildFn, /line_total:\(Number\(x\.b\.price\)\|\|0\)\*x\.qty/);
-    assert.match(cartHtml, /shop\.js\?v=166/);
+    assert.match(cartHtml, /shop\.js\?v=167/);
     assert.match(previewCss, /white-space:pre-wrap/);
     assert.match(previewCss, /word-break:break-word/);
     assert.match(previewCss, /direction:rtl/);

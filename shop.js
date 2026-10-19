@@ -4341,7 +4341,7 @@ async function showOrderPreview(){
 }
 
 async function copyOrder(){
-  let o=getOrBuildOrder(true);if(!o)return;
+  let o=getOrBuildOrder(false);if(!o)return;
   try{
     if(navigator.clipboard)await navigator.clipboard.writeText(o.text);
     else throw new Error();
