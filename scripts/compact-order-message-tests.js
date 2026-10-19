@@ -301,7 +301,7 @@ async function run() {
     assert.doesNotMatch(buildFn, /money\(/);
     assert.match(buildFn, /price:Number\(x\.b\.price\)\|\|0/);
     assert.match(buildFn, /line_total:\(Number\(x\.b\.price\)\|\|0\)\*x\.qty/);
-    assert.match(cartHtml, /shop\.js\?v=163/);
+    assert.match(cartHtml, /shop\.js\?v=166/);
     assert.match(previewCss, /white-space:pre-wrap/);
     assert.match(previewCss, /word-break:break-word/);
     assert.match(previewCss, /direction:rtl/);

@@ -3156,9 +3156,12 @@ async function renderHomeFeaturedBooks(options={}){
       </div>
       <a class="home-featured-all" href="/books">ھەممىسىنى كۆرۈش ←</a>
     </div>
-    <div class="home-featured-grid is-skeleton-grid" aria-busy="true">${homeFeaturedSkeletonTrack(5)}${homeFeaturedSkeletonTrack(5)}</div>
+    <div class="home-featured-grid is-skeleton-grid" data-catalog-state="loading" aria-busy="true">${homeFeaturedSkeletonTrack(5)}${homeFeaturedSkeletonTrack(5)}</div>
   </section>`;
   }
+  host.dataset.catalogState="loading";
+  const featuredGrid=host.querySelector(".home-featured-grid");
+  if(featuredGrid)featuredGrid.dataset.catalogState="loading";
   const token=++homeFeaturedRequestId;
   try{
     // This standalone section is independent from the Admin-controlled is_new tab.
@@ -3171,13 +3174,17 @@ async function renderHomeFeaturedBooks(options={}){
       if(!books.length){
         grid.classList.remove("is-marquee","is-skeleton-grid");
         grid.removeAttribute("aria-busy");
-        grid.innerHTML='<div class="empty-state shop-section-empty">كىتابلار تېخى قوشۇلمىغان.</div>';
+        host.dataset.catalogState="empty";
+        grid.dataset.catalogState="empty";
+        grid.innerHTML='<div class="empty-state shop-section-empty" data-catalog-state="empty">كىتابلار تېخى قوشۇلمىغان.</div>';
       }else{
         const split=splitFeaturedRows(books);
         const rowMarkup=(items,which)=>`<div class="home-featured-row" data-featured-row="${which}" data-direction="${featuredRowDirection(which)}"><div class="home-featured-track">${items.map(homeFeatureCard).join("")}</div></div>`;
         grid.classList.add("is-marquee");
         grid.classList.remove("is-skeleton-grid");
         grid.removeAttribute("aria-busy");
+        host.dataset.catalogState="ready";
+        grid.dataset.catalogState="ready";
         grid.innerHTML=`${rowMarkup(split.top,"top")}${split.bottom.length?rowMarkup(split.bottom,"bottom"):""}`;
         grid.classList.add("home-catalog-fade");
       }
@@ -3191,7 +3198,9 @@ async function renderHomeFeaturedBooks(options={}){
     if(!grid)return;
     grid.classList.remove("is-marquee","is-skeleton-grid");
     grid.removeAttribute("aria-busy");
-    grid.innerHTML='<div class="catalog-error-state" role="alert"><p>يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button></div>';
+    host.dataset.catalogState="failed";
+    grid.dataset.catalogState="failed";
+    grid.innerHTML='<div class="catalog-error-state" role="alert" data-catalog-state="failed"><p>يېقىندا قوشۇلغان كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><button type="button" class="catalog-retry-btn">قايتا سىناش</button></div>';
     grid.querySelector(".catalog-retry-btn")?.addEventListener("click",()=>{void renderHomeFeaturedBooks({forceRecovery:true})});
   }
 }
@@ -3348,7 +3357,7 @@ function searchEnhance(){
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
   const fallbackNotice=()=>(!remoteCatalog.configured&&catalogStatus.error)?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
   function hasFilter(){return !!(input.value.trim()||category?.value||collection?.value||minEl?.value||maxEl?.value)}
-  let requestId=0,controller=null,items=[],loadingMore=false;
+  let requestId=0,controller=null,items=[],loadingMore=false,inputTimer;
   function readState(offset=0){
     const collectionMode=collection?.value||"";
     catalogQueryState.search={
@@ -3359,50 +3368,105 @@ function searchEnhance(){
     };
     return catalogQueryState.search;
   }
+  const SEARCH_AUTO_RETRY_MS=350;
+  function setSearchState(state){res.dataset.searchState=state}
+  function invalidateSearch(){
+    clearTimeout(inputTimer);
+    requestId++;
+    controller?.abort();
+    loadingMore=false;
+  }
+  function recoveryDelayMs(){
+    if(remoteCatalog.available)return 0;
+    const remain=catalogRecoveryBlockedUntil-Date.now();
+    return remain>0?remain:0;
+  }
   function draw(result,append=false){
     if(append){
       const known=new Set(items.map(book=>book.id));
       result.items.forEach(book=>{if(!known.has(book.id)){known.add(book.id);items.push(book)}});
     }else items=[...result.items];
-    res.innerHTML=fallbackNotice()+`<div class="advanced-search-summary"><strong>${result.total}</strong> دانە كىتاب تېپىلدى</div>`+
-      (items.length?`<div class="advanced-search-results-grid">${items.map(searchResultCard).join("")}</div>${result.hasMore?`<button type="button" class="search-load-more" id="searchLoadMore">يەنە ${result.pageSize} دانە كۆرۈش</button>`:""}`:'<div class="search-empty"><strong>نەتىجە تېپىلمىدى.</strong><br>سۈزگۈچنى تازىلاڭ ياكى باشقا كىتاب/ئاپتور نامىنى سىناڭ.</div>');
+    const empty=!items.length;
+    setSearchState(empty?"empty":"results");
+    res.innerHTML=fallbackNotice()+`<div class="advanced-search-summary" data-search-state="${empty?"empty":"results"}"><strong>${result.total}</strong> دانە كىتاب تېپىلدى</div>`+
+      (items.length?`<div class="advanced-search-results-grid" data-search-state="results">${items.map(searchResultCard).join("")}</div>${result.hasMore?`<button type="button" class="search-load-more" id="searchLoadMore">يەنە ${result.pageSize} دانە كۆرۈش</button>`:""}`:'<div class="search-empty" data-search-state="empty"><strong>نەتىجە تېپىلمىدى.</strong><br>سۈزگۈچنى تازىلاڭ ياكى باشقا كىتاب/ئاپتور نامىنى سىناڭ.</div>');
     bindDynamicActions(res);
     const more=res.querySelector("#searchLoadMore");
     if(more)more.onclick=()=>run(true);
   }
-  async function run(append=false){
+  function paintSearchLoading(){
+    setSearchState("loading");
+    res.innerHTML='<div class="catalog-loading-state" data-search-state="loading" role="status"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار ئىزدەلىۋاتىدۇ…</span></div>';
+  }
+  function paintSearchFailure(){
+    setSearchState("failed");
+    res.innerHTML='<div class="search-failed catalog-error-state" role="alert" data-search-state="failed"><p><strong>ئىزدەش ۋاقىتلىق ئىشلىمىدى.</strong><br>تورنى تەكشۈرۈپ قايتا سىناڭ.</p><button type="button" class="catalog-retry-btn" data-search-retry="1">قايتا سىناش</button></div>';
+    const retry=res.querySelector("[data-search-retry]");
+    if(retry)retry.onclick=()=>run(false,{forceRecovery:true});
+  }
+  function waitForSearchRetry(signal,token,delay){
+    return new Promise((resolve,reject)=>{
+      let timer=0;
+      const stop=()=>{
+        if(timer)clearTimeout(timer);
+        signal.removeEventListener("abort",stop);
+        reject(abortError());
+      };
+      if(signal.aborted||token!==requestId){stop();return}
+      timer=setTimeout(()=>{
+        signal.removeEventListener("abort",stop);
+        if(token!==requestId||signal.aborted)reject(abortError());
+        else resolve();
+      },delay);
+      signal.addEventListener("abort",stop,{once:true});
+    });
+  }
+  async function querySearchPage(state,token,append,options){
+    const force=options?.forceRecovery===true;
+    try{
+      return await queryCatalog(state,{signal:controller.signal,forceRecovery:force});
+    }catch(error){
+      if(append||error?.name==="AbortError"||token!==requestId)throw error;
+      await waitForSearchRetry(controller.signal,token,Math.max(SEARCH_AUTO_RETRY_MS,recoveryDelayMs()));
+      if(token!==requestId)throw abortError();
+      return queryCatalog(state,{signal:controller.signal});
+    }
+  }
+  async function run(append=false,options={}){
+    clearTimeout(inputTimer);
     if(!hasFilter()){
-      controller?.abort();items=[];
+      invalidateSearch();
+      items=[];
+      setSearchState("idle");
       res.innerHTML=fallbackNotice();
       return;
     }
-    if(loadingMore)return;
+    if(append&&loadingMore)return;
     const token=++requestId;
     controller?.abort();controller=new AbortController();
     const offset=append?items.length:0,state=readState(offset);
     loadingMore=append;
     if(append){const button=res.querySelector("#searchLoadMore");if(button){button.disabled=true;button.textContent="يۈكلىنىۋاتىدۇ…"}}
-    else res.innerHTML='<div class="catalog-loading-state"><span class="catalog-loading-spinner" aria-hidden="true"></span><span>كىتابلار ئىزدەلىۋاتىدۇ…</span></div>';
+    else paintSearchLoading();
     try{
-      const result=await queryCatalog(state,{signal:controller.signal});
+      const result=await querySearchPage(state,token,append,options);
       if(token!==requestId)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
       if(!append)trackCompletedSearch(state.search,result);
     }catch(error){
       if(error?.name!=="AbortError"&&token===requestId){
         console.error("Catalog search failed.",error);
-        res.innerHTML='<div class="search-empty"><strong>ئىزدەش ۋاقىتلىق ئىشلىمىدى.</strong><br>تورنى تەكشۈرۈپ قايتا سىناڭ.</div>';
+        paintSearchFailure();
       }
     }finally{if(token===requestId)loadingMore=false}
   }
-  let inputTimer;
   if(btn)btn.onclick=()=>{clearTimeout(inputTimer);run(false)};
-  const debouncedRun=()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>run(false),400)};
+  const debouncedRun=()=>{invalidateSearch();inputTimer=setTimeout(()=>run(false),400)};
   input.addEventListener("input",debouncedRun);
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
-  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";reset.dispatchEvent(new Event("input",{bubbles:true}));run(false)};
+  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";clearTimeout(inputTimer);invalidateSearch();items=[];setSearchState("idle");res.innerHTML=fallbackNotice();reset.dispatchEvent(new Event("input",{bubbles:true}))};
   res.innerHTML=fallbackNotice();
   try{
     const qParam=new URLSearchParams(location.search).get("q");
@@ -5905,7 +5969,7 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/premium-ux.js?v=15","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=16","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){

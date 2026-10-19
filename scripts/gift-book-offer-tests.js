@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=163/);
+  assert.match(index, /shop\.js\?v=166/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -125,7 +125,16 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.doesNotMatch(request, /getOrBuildOrder|savePreparedOrderHistory|\badd\(/);
   assert.match(shop, /function orderWithWhatsApp\(\)\{\s*let o=getOrBuildOrder\(true\);if\(!o\)return;/);
   assert.doesNotMatch(fs.readFileSync(path.join(root, "member.js"), "utf8"), /gift_book_offers|requestGiftFromButton/);
-  assert.strictEqual(gitDiff("premium-ux.js"), "");
+  const premiumNow = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
+  const premiumMain = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });
+  const dropEmpty = (src) => {
+    const start = src.indexOf("function setupSmartEmptyState(){");
+    const end = src.indexOf("function setupFilterUX(){");
+    assert.ok(start >= 0 && end > start);
+    return src.slice(0, start) + src.slice(end);
+  };
+  assert.strictEqual(dropEmpty(premiumNow), dropEmpty(premiumMain));
+  assert.match(premiumNow, /dataset\.searchState!=="empty"/);
   assert.strictEqual(gitDiff("kutadgu-public-book.js"), "");
 });
 
