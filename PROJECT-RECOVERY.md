@@ -6,7 +6,7 @@ The runtime baseline below is the last verified application commit. It is not au
 
 ## Catalog search failure — draft, not deployed
 
-Draft branch `cursor/catalog-search-failure-e5d6`. The application commit is `e6b9ad984ac7d5222ebf97e399d8fb2a809d035c`. `origin/main` is the PR #295 merge `2b3fb765aee6b009a358366b89baf83f235c1e06`. This draft is not deployed. It does not change SQL or security rules, and it does not move the runtime baseline.
+Draft branch `cursor/catalog-search-failure-e5d6`, draft PR #296. The application commit is `e6b9ad984ac7d5222ebf97e399d8fb2a809d035c`. `origin/main` is the PR #295 merge `2b3fb765aee6b009a358366b89baf83f235c1e06`. This draft is not deployed. It does not change SQL or security rules, and it does not move the runtime baseline.
 
 The proven client bug is that a failed homepage search and a confirmed empty search both used `.search-empty`. `shop.js` painted `ئىزدەش ۋاقىتلىق ئىشلىمىدى.` on failure. `premium-ux.js` `setupSmartEmptyState()` then rewrote every `.search-empty` to `ئىزدەش نەتىجىسى تېپىلمىدى`. That rewrite does not depend on geography, a Workers quota, or a Cloudflare block. The draft gives `#searchResults` `data-search-state` values `loading`, `failed`, `empty`, `results`, and `idle`. Only `empty`, after a successful zero-row response, receives the smart empty actions. A failure uses `.search-failed`, keeps the failure sentence, and offers `قايتا سىناش`. The same query, category, collection, prices, and sort are kept. One automatic retry waits 350ms inside the same request token and then stops. A newer query aborts that wait. The manual button starts another attempt. A failure does not emit `search` or `zero_result_search`.
 
