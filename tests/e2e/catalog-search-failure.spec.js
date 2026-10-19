@@ -375,6 +375,28 @@ test.describe("catalog search failure stays distinct from an empty result", () =
     expect(events.some((row) => row && row.search_query === FAIL_QUERY)).toBeFalsy();
   });
 
+  test("reset clears the minimum price and its active filter chip without a catalog read", async ({ page }) => {
+    const state = catalogState();
+    await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    const results = page.locator("#searchResults");
+    const chips = page.locator(".home-search-card .premium-active-filters");
+    await page.locator(".mobile-filter-toggle").click();
+    await expect(page.locator("#searchReset")).toBeVisible();
+    await page.locator("#searchMinPrice").evaluate((el) => {
+      el.value = "10";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect(chips).toContainText("10");
+    await page.locator("#searchReset").click();
+    await expect(page.locator("#searchMinPrice")).toHaveValue("");
+    await expect(results).toHaveAttribute("data-search-state", "idle");
+    await expect(chips).not.toContainText("10");
+    await expect(chips.locator("button")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(state.gets.some((url) => url.includes("price=gte."))).toBeFalsy();
+  });
+
   test("a new query cancels an in-flight load-more and does not append the old page", async ({ page }) => {
     const state = catalogState();
     state.hitQuery = FAIL_QUERY;

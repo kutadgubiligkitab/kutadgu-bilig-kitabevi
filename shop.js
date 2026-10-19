@@ -3466,7 +3466,7 @@ function searchEnhance(){
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
-  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";clearTimeout(inputTimer);invalidateSearch();items=[];setSearchState("idle");res.innerHTML=fallbackNotice()};
+  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";clearTimeout(inputTimer);invalidateSearch();items=[];setSearchState("idle");res.innerHTML=fallbackNotice();reset.dispatchEvent(new Event("input",{bubbles:true}))};
   res.innerHTML=fallbackNotice();
   try{
     const qParam=new URLSearchParams(location.search).get("q");

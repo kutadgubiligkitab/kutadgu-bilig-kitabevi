@@ -57,7 +57,8 @@ test("search failure is not the confirmed-empty class", () => {
   assert.doesNotMatch(second, /forceRecovery/);
   assert.match(search, /if\(append&&loadingMore\)return/);
   assert.match(search, /function invalidateSearch\(\)/);
-  assert.match(search, /reset\.onclick=\(\)=>\{[\s\S]*invalidateSearch\(\)/);
+  assert.match(search, /reset\.onclick=\(\)=>\{[^}]*invalidateSearch\(\)[^}]*reset\.dispatchEvent\(new Event\("input",\{bubbles:true\}\)\)\}/);
+  assert.doesNotMatch(sliceBetween(search, "if(reset)reset.onclick=", "res.innerHTML=fallbackNotice();"), /run\(false\)/);
   assert.match(search, /if\(remoteCatalog\.available\)return 0/);
 });
 

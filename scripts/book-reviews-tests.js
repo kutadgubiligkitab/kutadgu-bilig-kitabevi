@@ -78,7 +78,7 @@ test("admin moderation is a separate AAL2 client path", () => {
   assert.match(admin, /data-review-status/);
   assert.match(shell, /book-reviews\.js\?v=5/);
   assert.match(shell, /book-reviews\.css\?v=4/);
-  assert.match(shell, /shop\.js\?v=165/);
+  assert.match(shell, /shop\.js\?v=166/);
 });
 
 test("review SQL keeps anonymous reads off the admin helper", () => {
