@@ -44,6 +44,21 @@ test("search failure is not the confirmed-empty class", () => {
   assert.match(search, /if\(append\|\|error\?\.name==="AbortError"\|\|token!==requestId\)throw error/);
   assert.match(search, /if\(!append\)trackCompletedSearch\(state\.search,result\)/);
   assert.doesNotMatch(failure, /trackCompletedSearch|analytics/);
+  assert.match(failure, /run\(false,\{forceRecovery:true\}\)/);
+  const debounced = sliceBetween(search, "const debouncedRun=", "input.addEventListener(\"input\",debouncedRun);");
+  assert.match(debounced, /invalidateSearch\(\)/);
+  assert.match(debounced, /setTimeout\(\(\)=>run\(false\),400\)/);
+  assert.ok(debounced.indexOf("invalidateSearch()") < debounced.indexOf("setTimeout"));
+  const retry = sliceBetween(search, "async function querySearchPage(", "async function run(append=false,options={}){");
+  assert.match(retry, /forceRecovery:force/);
+  assert.match(retry, /Math\.max\(SEARCH_AUTO_RETRY_MS,recoveryDelayMs\(\)\)/);
+  const second = retry.slice(retry.lastIndexOf("return queryCatalog"));
+  assert.match(second, /queryCatalog\(state,\{signal:controller\.signal\}\)/);
+  assert.doesNotMatch(second, /forceRecovery/);
+  assert.match(search, /if\(append&&loadingMore\)return/);
+  assert.match(search, /function invalidateSearch\(\)/);
+  assert.match(search, /reset\.onclick=\(\)=>\{[\s\S]*invalidateSearch\(\)/);
+  assert.match(search, /if\(remoteCatalog\.available\)return 0/);
 });
 
 test("smart empty state enhances only a confirmed empty result", () => {

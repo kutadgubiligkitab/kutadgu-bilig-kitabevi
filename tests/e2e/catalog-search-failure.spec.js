@@ -3,6 +3,7 @@ const H = require("./helpers");
 
 const FOUND_TITLE = "سېھىرلىك باغ";
 const FAIL_QUERY = "يېڭىلمىسۈز";
+const NEXT_QUERY = "باشقا سۆز";
 const ZERO_QUERY = "zzzz-no-such-book";
 const COVER_PATH = "/missing-search-cover.png";
 
@@ -46,6 +47,25 @@ function isFeaturedCatalogGet(url) {
     && !text.includes("ilike")
     && !text.includes("id=in.")
     && !text.includes("id=eq.");
+}
+
+function isIdFetch(text) {
+  return text.includes("id=in.") || text.includes("id=eq.");
+}
+
+function catalogBook(id, title) {
+  return { ...bookRow(), id, title };
+}
+
+function fulfillBooks(route, rows, total) {
+  const count = rows.length;
+  const range = count ? `0-${count - 1}/${total}` : "*/0";
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    headers: { "content-range": range },
+    body: JSON.stringify(rows)
+  });
 }
 
 async function installIsolatedCatalog(page, state) {
@@ -94,6 +114,13 @@ async function installIsolatedCatalog(page, state) {
     const url = req.url();
     const text = decodeUrl(url);
     if (req.method() === "HEAD") {
+      if (state.headFail && text.includes("is_active=eq.true")) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "probe down" })
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -103,12 +130,35 @@ async function installIsolatedCatalog(page, state) {
     }
     if (req.method() !== "GET") return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     state.gets.push(text);
+    if (state.blockReads) {
+      state.blockedReads += 1;
+      return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "catalog down" }) });
+    }
     if (state.failFeatured && isFeaturedCatalogGet(text)) {
       state.featuredFailures += 1;
       return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "featured down" }) });
     }
+    const idFetch = isIdFetch(text);
+    if (idFetch) state.idFetches += 1;
+    if (state.holdExtraIdFetch && idFetch && state.idFetches > 1) {
+      state.heldUrl = text;
+      await new Promise((resolve) => state.release.push(resolve));
+    }
     if (state.holdQuery && text.includes(state.holdQuery)) {
       await new Promise((resolve) => state.release.push(resolve));
+    }
+    if (state.manyRank && !idFetch && state.hitQuery && queryInUrl(text, state.hitQuery)) {
+      const rows = Array.from({ length: state.manyRank }, (_, index) => {
+        const id = 88001 + index;
+        return catalogBook(id, index === 0 ? FOUND_TITLE : `سىناق-${id}`);
+      });
+      return fulfillBooks(route, rows, rows.length);
+    }
+    if (state.manyRank && idFetch) {
+      const match = text.match(/id=in\.\(([^)]+)\)/) || text.match(/id=eq\.(\d+)/);
+      const ids = match ? match[1].split(",") : [];
+      const rows = ids.map((id) => catalogBook(Number(id), Number(id) === 88001 ? FOUND_TITLE : `سىناق-${id}`));
+      return fulfillBooks(route, rows, rows.length);
     }
     const failing = state.failQuery && queryInUrl(text, state.failQuery);
     if (failing) {
@@ -135,12 +185,55 @@ function catalogState() {
     release: [],
     failFeatured: false,
     featuredFailures: 0,
+    headFail: false,
+    blockReads: false,
+    blockedReads: 0,
     holdQuery: "",
     failQuery: "",
     failLimit: 2,
     searchFailures: 0,
-    hitQuery: ""
+    hitQuery: "",
+    manyRank: 0,
+    holdExtraIdFetch: false,
+    idFetches: 0,
+    heldUrl: ""
   };
+}
+
+function queryGets(state, query) {
+  return state.gets.filter((url) => queryInUrl(url, query));
+}
+
+async function armPaintLog(page) {
+  await page.evaluate(() => {
+    const el = document.querySelector("#searchResults");
+    window.__searchPaints = [];
+    const note = () => window.__searchPaints.push(el.textContent || "");
+    note();
+    new MutationObserver(note).observe(el, { childList: true, subtree: true, characterData: true });
+  });
+}
+
+async function paintsInclude(page, text) {
+  return page.evaluate((needle) => (window.__searchPaints || []).some((row) => row.includes(needle)), text);
+}
+
+async function releaseHeld(state) {
+  const pending = state.release.splice(0);
+  pending.forEach((release) => release());
+}
+
+async function primeFailedSearch(page, state) {
+  state.holdQuery = FAIL_QUERY;
+  state.failQuery = FAIL_QUERY;
+  state.failLimit = 1;
+  state.hitQuery = FAIL_QUERY;
+  await page.locator("#searchInput").evaluate((el, value) => { el.value = value; }, FAIL_QUERY);
+  await page.locator("#searchButton").click();
+  await expect.poll(() => state.release.length).toBeGreaterThan(0);
+  await armPaintLog(page);
+  await releaseHeld(state);
+  state.holdQuery = "";
 }
 
 test.describe("catalog search failure stays distinct from an empty result", () => {
@@ -224,5 +317,133 @@ test.describe("catalog search failure stays distinct from an empty result", () =
     const card = results.locator(".advanced-search-result", { hasText: FOUND_TITLE });
     await expect(card.locator(".book-cover-unavailable")).toBeVisible({ timeout: 10000 });
     await expect(card.locator(".advanced-search-title")).toHaveText(FOUND_TITLE);
+  });
+
+  test("editing the query or price during the automatic retry drops the old request", async ({ page }) => {
+    const state = catalogState();
+    const events = await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    const results = page.locator("#searchResults");
+    await primeFailedSearch(page, state);
+    await page.locator("#searchInput").evaluate((el, value) => {
+      el.value = value;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, NEXT_QUERY);
+    await page.waitForTimeout(800);
+    expect(queryGets(state, FAIL_QUERY)).toHaveLength(1);
+    expect(await paintsInclude(page, FOUND_TITLE)).toBeFalsy();
+    await expect(results).not.toContainText(FOUND_TITLE);
+    await expect(page.locator("#searchInput")).toHaveValue(NEXT_QUERY);
+    expect(events.some((row) => row && row.search_query === FAIL_QUERY)).toBeFalsy();
+    await expect(results).toHaveAttribute("data-search-state", "empty");
+
+    state.holdQuery = FAIL_QUERY;
+    state.searchFailures = 0;
+    state.gets.length = 0;
+    await page.locator("#searchInput").evaluate((el, value) => { el.value = value; }, FAIL_QUERY);
+    await page.locator("#searchButton").click();
+    await expect.poll(() => state.release.length).toBeGreaterThan(0);
+    await page.evaluate(() => { window.__searchPaints = []; });
+    await releaseHeld(state);
+    state.holdQuery = "";
+    await page.locator("#searchMinPrice").evaluate((el) => {
+      el.value = "10";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(800);
+    expect(state.gets.filter((url) => queryInUrl(url, FAIL_QUERY) && !url.includes("price=gte."))).toHaveLength(1);
+    expect(state.gets.some((url) => queryInUrl(url, FAIL_QUERY) && url.includes("price=gte.10"))).toBeTruthy();
+    expect(events.filter((row) => row && row.search_query === FAIL_QUERY && row.event_name === "search").length).toBeLessThanOrEqual(1);
+  });
+
+  test("reset during the automatic retry clears the search without a second read", async ({ page }) => {
+    const state = catalogState();
+    const events = await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    const results = page.locator("#searchResults");
+    await page.locator(".mobile-filter-toggle").click();
+    await expect(page.locator("#searchReset")).toBeVisible();
+    await primeFailedSearch(page, state);
+    await page.locator("#searchReset").click();
+    await expect(results).toHaveAttribute("data-search-state", "idle");
+    await expect(page.locator("#searchInput")).toHaveValue("");
+    await page.waitForTimeout(700);
+    expect(queryGets(state, FAIL_QUERY)).toHaveLength(1);
+    expect(await paintsInclude(page, FOUND_TITLE)).toBeFalsy();
+    await expect(results).not.toContainText(FOUND_TITLE);
+    await expect(results.locator(".search-failed")).toHaveCount(0);
+    expect(events.some((row) => row && row.search_query === FAIL_QUERY)).toBeFalsy();
+  });
+
+  test("a new query cancels an in-flight load-more and does not append the old page", async ({ page }) => {
+    const state = catalogState();
+    state.hitQuery = FAIL_QUERY;
+    state.manyRank = 13;
+    state.holdExtraIdFetch = true;
+    const events = await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    await armPaintLog(page);
+    const results = page.locator("#searchResults");
+    await page.locator("#searchInput").evaluate((el, value) => { el.value = value; }, FAIL_QUERY);
+    await page.locator("#searchButton").click();
+    await expect(results).toHaveAttribute("data-search-state", "results");
+    await expect(results.locator(".advanced-search-title")).toHaveCount(12);
+    await expect(results.locator("#searchLoadMore")).toBeVisible();
+    await results.locator("#searchLoadMore").click();
+    await expect.poll(() => state.heldUrl).not.toBe("");
+    const id = (state.heldUrl.match(/id=in\.\((\d+)\)/) || [])[1];
+    expect(id).toBeTruthy();
+    const page2Title = id === "88001" ? FOUND_TITLE : `سىناق-${id}`;
+    await page.evaluate(() => { window.__searchPaints = []; });
+    await page.locator("#searchInput").evaluate((el, value) => {
+      el.value = value;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, ZERO_QUERY);
+    await releaseHeld(state);
+    await expect(results).toHaveAttribute("data-search-state", "empty");
+    expect(await paintsInclude(page, page2Title)).toBeFalsy();
+    await expect(results).not.toContainText(FOUND_TITLE);
+    await expect(results).not.toContainText(page2Title);
+    expect(events.filter((row) => row && row.search_query === FAIL_QUERY && row.event_name === "search")).toHaveLength(1);
+  });
+
+  test("explicit retry during catalog recovery reads the network while the automatic retry waits", async ({ page }) => {
+    const state = catalogState();
+    state.headFail = true;
+    state.blockReads = true;
+    const events = await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    const featured = page.locator("#homeFeaturedBooks");
+    await expect(featured).toHaveAttribute("data-catalog-state", "failed");
+    await page.waitForTimeout(300);
+    const quiet = state.gets.length;
+    await page.waitForTimeout(200);
+    expect(state.gets.length).toBe(quiet);
+    expect(state.blockedReads).toBeGreaterThan(0);
+
+    const results = page.locator("#searchResults");
+    await page.locator("#searchInput").evaluate((el, value) => { el.value = value; }, FAIL_QUERY);
+    const started = Date.now();
+    await page.locator("#searchButton").click();
+    await expect(results).toHaveAttribute("data-search-state", "loading");
+    await page.waitForTimeout(400);
+    expect(queryGets(state, FAIL_QUERY)).toHaveLength(0);
+    await expect(results).toHaveAttribute("data-search-state", "loading");
+    await expect(results.locator(".search-failed")).toHaveCount(0);
+    await expect(results).toHaveAttribute("data-search-state", "failed", { timeout: 5000 });
+    expect(Date.now() - started).toBeGreaterThan(1000);
+    expect(queryGets(state, FAIL_QUERY)).toHaveLength(1);
+    expect(events.some((row) => row && row.search_query === FAIL_QUERY)).toBeFalsy();
+
+    state.blockReads = false;
+    state.hitQuery = FAIL_QUERY;
+    const before = queryGets(state, FAIL_QUERY).length;
+    const clicked = Date.now();
+    await results.locator("[data-search-retry]").click();
+    await expect.poll(() => queryGets(state, FAIL_QUERY).length, { timeout: 1500 }).toBeGreaterThan(before);
+    expect(Date.now() - clicked).toBeLessThan(1500);
+    await expect(results.locator(".advanced-search-title")).toContainText(FOUND_TITLE, { timeout: 1500 });
+    await expect(page.locator("#searchInput")).toHaveValue(FAIL_QUERY);
+    await expect.poll(() => events.filter((row) => row && row.search_query === FAIL_QUERY && row.event_name === "search").length).toBe(1);
   });
 });

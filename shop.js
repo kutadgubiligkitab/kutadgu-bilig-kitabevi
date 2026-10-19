@@ -3357,7 +3357,7 @@ function searchEnhance(){
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
   const fallbackNotice=()=>(!remoteCatalog.configured&&catalogStatus.error)?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
   function hasFilter(){return !!(input.value.trim()||category?.value||collection?.value||minEl?.value||maxEl?.value)}
-  let requestId=0,controller=null,items=[],loadingMore=false;
+  let requestId=0,controller=null,items=[],loadingMore=false,inputTimer;
   function readState(offset=0){
     const collectionMode=collection?.value||"";
     catalogQueryState.search={
@@ -3370,6 +3370,17 @@ function searchEnhance(){
   }
   const SEARCH_AUTO_RETRY_MS=350;
   function setSearchState(state){res.dataset.searchState=state}
+  function invalidateSearch(){
+    clearTimeout(inputTimer);
+    requestId++;
+    controller?.abort();
+    loadingMore=false;
+  }
+  function recoveryDelayMs(){
+    if(remoteCatalog.available)return 0;
+    const remain=catalogRecoveryBlockedUntil-Date.now();
+    return remain>0?remain:0;
+  }
   function draw(result,append=false){
     if(append){
       const known=new Set(items.map(book=>book.id));
@@ -3391,9 +3402,9 @@ function searchEnhance(){
     setSearchState("failed");
     res.innerHTML='<div class="search-failed catalog-error-state" role="alert" data-search-state="failed"><p><strong>ئىزدەش ۋاقىتلىق ئىشلىمىدى.</strong><br>تورنى تەكشۈرۈپ قايتا سىناڭ.</p><button type="button" class="catalog-retry-btn" data-search-retry="1">قايتا سىناش</button></div>';
     const retry=res.querySelector("[data-search-retry]");
-    if(retry)retry.onclick=()=>run(false);
+    if(retry)retry.onclick=()=>run(false,{forceRecovery:true});
   }
-  function waitForSearchRetry(signal,token){
+  function waitForSearchRetry(signal,token,delay){
     return new Promise((resolve,reject)=>{
       let timer=0;
       const stop=()=>{
@@ -3406,27 +3417,31 @@ function searchEnhance(){
         signal.removeEventListener("abort",stop);
         if(token!==requestId||signal.aborted)reject(abortError());
         else resolve();
-      },SEARCH_AUTO_RETRY_MS);
+      },delay);
       signal.addEventListener("abort",stop,{once:true});
     });
   }
-  async function querySearchPage(state,token,append){
+  async function querySearchPage(state,token,append,options){
+    const force=options?.forceRecovery===true;
     try{
-      return await queryCatalog(state,{signal:controller.signal});
+      return await queryCatalog(state,{signal:controller.signal,forceRecovery:force});
     }catch(error){
       if(append||error?.name==="AbortError"||token!==requestId)throw error;
-      await waitForSearchRetry(controller.signal,token);
+      await waitForSearchRetry(controller.signal,token,Math.max(SEARCH_AUTO_RETRY_MS,recoveryDelayMs()));
+      if(token!==requestId)throw abortError();
       return queryCatalog(state,{signal:controller.signal});
     }
   }
-  async function run(append=false){
+  async function run(append=false,options={}){
+    clearTimeout(inputTimer);
     if(!hasFilter()){
-      controller?.abort();items=[];
+      invalidateSearch();
+      items=[];
       setSearchState("idle");
       res.innerHTML=fallbackNotice();
       return;
     }
-    if(loadingMore)return;
+    if(append&&loadingMore)return;
     const token=++requestId;
     controller?.abort();controller=new AbortController();
     const offset=append?items.length:0,state=readState(offset);
@@ -3434,7 +3449,7 @@ function searchEnhance(){
     if(append){const button=res.querySelector("#searchLoadMore");if(button){button.disabled=true;button.textContent="يۈكلىنىۋاتىدۇ…"}}
     else paintSearchLoading();
     try{
-      const result=await querySearchPage(state,token,append);
+      const result=await querySearchPage(state,token,append,options);
       if(token!==requestId)return;
       draw({...result,items:result.items.filter(isStorefrontVisible)},append);
       if(!append)trackCompletedSearch(state.search,result);
@@ -3445,14 +3460,13 @@ function searchEnhance(){
       }
     }finally{if(token===requestId)loadingMore=false}
   }
-  let inputTimer;
   if(btn)btn.onclick=()=>{clearTimeout(inputTimer);run(false)};
-  const debouncedRun=()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>run(false),400)};
+  const debouncedRun=()=>{invalidateSearch();inputTimer=setTimeout(()=>run(false),400)};
   input.addEventListener("input",debouncedRun);
   input.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();clearTimeout(inputTimer);run(false)}});
   [category,collection,sortEl].forEach(el=>el&&el.addEventListener("change",()=>run(false)));
   [minEl,maxEl].forEach(el=>el&&el.addEventListener("input",debouncedRun));
-  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";reset.dispatchEvent(new Event("input",{bubbles:true}));run(false)};
+  if(reset)reset.onclick=()=>{input.value="";if(category)category.value="";if(collection)collection.value="";if(minEl)minEl.value="";if(maxEl)maxEl.value="";if(sortEl)sortEl.value="relevance";clearTimeout(inputTimer);invalidateSearch();items=[];setSearchState("idle");res.innerHTML=fallbackNotice()};
   res.innerHTML=fallbackNotice();
   try{
     const qParam=new URLSearchParams(location.search).get("q");

@@ -146,10 +146,10 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.match(read("admin.html"), /admin\.js\?v=113/);
   assert.match(read("admin.html"), /admin-book-reviews\.js\?v=7/);
   assert.match(read("admin.html"), /admin\.css\?v=56/);
-  assert.match(read("index.html"), /shop\.js\?v=164/);
-  assert.match(read("books.html"), /shop\.js\?v=164/);
-  assert.match(read("book-shell.html"), /shop\.js\?v=164/);
-  assert.match(read("cart.html"), /shop\.js\?v=164/);
+  assert.match(read("index.html"), /shop\.js\?v=165/);
+  assert.match(read("books.html"), /shop\.js\?v=165/);
+  assert.match(read("book-shell.html"), /shop\.js\?v=165/);
+  assert.match(read("cart.html"), /shop\.js\?v=165/);
   assert.match(read("account.html"), /member\.js\?v=34/);
   assert.match(read("shop.js"), /member\.js\?v=34/);
   assert.match(read("admin-feedback.js"), /p_before/);

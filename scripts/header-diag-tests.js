@@ -25,7 +25,7 @@ test("homepage loads the diagnostic from an external script", () => {
   assert.doesNotMatch(html, /kutadguHeaderDiag/);
   assert.match(source, /params\.get\("kutadguHeaderDiag"\) !== "1"\) return;/);
   assert.match(html, /mobile\.css\?v=26/);
-  assert.match(html, /shop\.js\?v=164/);
+  assert.match(html, /shop\.js\?v=165/);
 });
 
 test("diagnostic stays local and does not move the page", () => {
