@@ -43,7 +43,10 @@
       image_url:text(value.image_url),
       href:text(value.href||value.url)||`/book/${id}`,
       isbn:text(value.isbn),
-      is_active:value.is_active!==false
+      is_active:value.is_active!==false,
+      group_id:positiveId(value.group_id),
+      group_title:text(value.group_title),
+      group_slug:text(value.group_slug)
     };
   }
   function normalizeMembers(values){
@@ -228,14 +231,22 @@
     const host=$("#volumeGroupLookupPreview");
     if(!host)return;
     if(!rows.length){host.innerHTML='<div class="admin-empty">دەل ماس كېلىدىغان كىتاب تېپىلمىدى.</div>';return}
-    host.innerHTML=rows.map(row=>`<article class="volume-admin-lookup">
+    const currentId=positiveId($("#volumeGroupId")?.value);
+    host.innerHTML=rows.map(row=>{
+      const linked=positiveId(row.group_id);
+      const linkedElsewhere=!!linked&&linked!==currentId;
+      const alreadyPresent=state.members.some(member=>member.book_id===row.book_id);
+      return `<article class="volume-admin-lookup">
       <img src="${escapeHtml(safeCover(row.image_url))}" alt="" width="54" height="78">
-      <span><strong>${escapeHtml(row.title||`كىتاب ${row.book_id}`)}</strong><small>ID ${escapeHtml(row.book_id)}${row.isbn?` · ISBN ${escapeHtml(row.isbn)}`:""}</small><small>${row.price==null?"باھاسىز":`${escapeHtml(row.price)} ₺`} · ئامبار ${row.stock==null?"بېكىتىلمىگەن":escapeHtml(row.stock)}</small>${row.href?`<a href="${escapeHtml(row.href)}" target="_blank" rel="noopener">URL نى ئېچىش</a>`:""}</span>
-      <button type="button" class="admin-secondary" data-lookup-add="${escapeHtml(row.book_id)}">جىلد قىلىپ قوشۇش</button>
-    </article>`).join("");
+      <span><strong>${escapeHtml(row.title||`كىتاب ${row.book_id}`)}</strong><small>ID ${escapeHtml(row.book_id)}${row.isbn?` · ISBN ${escapeHtml(row.isbn)}`:""}</small><small>${row.price==null?"باھاسىز":`${escapeHtml(row.price)} ₺`} · ئامبار ${row.stock==null?"بېكىتىلمىگەن":escapeHtml(row.stock)}</small>${linked?`<small class="${linkedElsewhere?"is-linked-elsewhere":"is-linked-current"}">${linkedElsewhere?"باشقا توپلامغا باغلانغان":"مۇشۇ توپلامغا باغلانغان"}: ${escapeHtml(row.group_title||row.group_slug||`ID ${linked}`)}</small>`:""}${row.href?`<a href="${escapeHtml(row.href)}" target="_blank" rel="noopener">URL نى ئېچىش</a>`:""}</span>
+      <button type="button" class="admin-secondary" data-lookup-add="${escapeHtml(row.book_id)}"${linkedElsewhere||alreadyPresent?" disabled":""}>${linkedElsewhere?"باغلاشقا بولمايدۇ":alreadyPresent?"قوشۇلغان":"جىلد قىلىپ قوشۇش"}</button>
+    </article>`;
+    }).join("");
     host.querySelectorAll("[data-lookup-add]").forEach(button=>button.onclick=()=>{
       const row=rows.find(item=>item.book_id===button.dataset.lookupAdd);
       if(!row)return;
+      const linked=positiveId(row.group_id);
+      if(linked&&linked!==currentId){setStatus("بۇ كىتاب باشقا جىلدلىق توپلامغا باغلانغان. ئالدى بىلەن شۇ توپلامدىن چىقىرىڭ.","error");return}
       if(state.members.some(member=>member.book_id===row.book_id)){setStatus("بۇ كىتاب ئاللىقاچان جىلد تىزىملىكىدە.","error");return}
       state.members=normalizeMembers([...state.members,{...row,volume_label:`${state.members.length+1}-جىلد`}]);
       renderMembers();

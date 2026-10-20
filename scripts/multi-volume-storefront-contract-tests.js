@@ -117,6 +117,8 @@ test("admin workflow preserves IDs and uses revisioned RPCs",()=>{
   assert.match(source,/p_expected_revision/);
   assert.match(source,/admin_set_book_volume_group_publication/);
   assert.match(source,/admin_preview_book_volume_members/);
+  assert.match(source,/linkedElsewhere/);
+  assert.match(source,/row\.group_id/);
   assert.doesNotMatch(source,/\\.from\\(["']books["']\\)\\.update/);
 });
 
