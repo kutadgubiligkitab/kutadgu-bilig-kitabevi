@@ -161,7 +161,13 @@ async function renderOrders(token){
           <span class="member-order-status is-${esc(order.status)}">${esc(statusLabels[order.status]||order.status)}</span>
         </div>
         <div class="member-order-meta">${Number(order.total_qty)||0} دانە كىتاب · ${money(order.total)}</div>
-        <div class="member-order-items">${items.map(x=>`${esc(x.title||x.book_id||"كىتاب")} × ${Number(x.qty)||1}`).join(" · ")}</div>
+        <div class="member-order-items">${items.map(x=>{
+          if(x&&x.kind==="set"){
+            const count=Array.isArray(x.components)?x.components.length:0;
+            return `${esc(x.title||"تولۇق توپلام")} — تولۇق توپلام × ${Number(x.qty)||1} (${count} جىلد)`;
+          }
+          return `${esc(x.title||x.book_id||"كىتاب")} × ${Number(x.qty)||1}`;
+        }).join(" · ")}</div>
       </article>`;
     }).join("");
   }catch(err){

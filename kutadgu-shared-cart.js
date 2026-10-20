@@ -3,7 +3,7 @@
   if(typeof module==="object"&&module.exports)module.exports=api;
   root.KutadguSharedCart=api;
 })(typeof globalThis!=="undefined"?globalThis:this,function(){
-  const VERSION="v1";
+  const VERSION="v2";
   const MAX_ITEMS=80;
   const MAX_QTY=99;
   const MAX_PAYLOAD=2048;
@@ -16,20 +16,32 @@
 
   function encodeSharedCart(items){
     if(!Array.isArray(items)||!items.length)return {ok:false,reason:"empty",payload:""};
-    const map=new Map();
+    const books=new Map();
+    const sets=new Map();
+    let hasSet=false;
     for(const item of items){
-      if(!item||typeof item!=="object")continue;
-      const id=String(item.id==null?"":item.id).trim();
-      if(!/^\d+$/.test(id))continue;
+      if(!item||typeof item!=="object")return {ok:false,reason:"unsupported",payload:""};
+      const kind=item.kind===undefined?"book":String(item.kind);
+      const isSet=kind==="set";
+      if(kind!=="book"&&!isSet)return {ok:false,reason:"unsupported",payload:""};
+      const id=String(isSet?(item.group_id??item.groupId):(item.id??item.book_id)??"").trim();
+      if(!/^[1-9]\d*$/.test(id))return {ok:false,reason:"unsupported",payload:""};
       const qty=asQty(item.qty);
-      if(qty==null)continue;
+      if(qty==null)return {ok:false,reason:"unsupported",payload:""};
+      const map=isSet?sets:books;
       const prev=map.get(id)||0;
       map.set(id,Math.min(MAX_QTY,prev+qty));
+      if(isSet)hasSet=true;
     }
-    if(!map.size)return {ok:false,reason:"empty",payload:""};
-    if(map.size>MAX_ITEMS)return {ok:false,reason:"too_many",payload:""};
+    if(!books.size&&!sets.size)return {ok:false,reason:"empty",payload:""};
+    if(books.size+sets.size>MAX_ITEMS)return {ok:false,reason:"too_many",payload:""};
     const parts=[];
-    for(const pair of map)parts.push(pair[0]+"x"+pair[1]);
+    if(!hasSet){
+      for(const pair of books)parts.push(pair[0]+"x"+pair[1]);
+      return {ok:true,reason:"",payload:"v1."+parts.join(".")};
+    }
+    for(const pair of books)parts.push("b"+pair[0]+"x"+pair[1]);
+    for(const pair of sets)parts.push("s"+pair[0]+"x"+pair[1]);
     return {ok:true,reason:"",payload:VERSION+"."+parts.join(".")};
   }
 
@@ -40,23 +52,46 @@
     catch(e){return {ok:false,reason:"encoding",items:[]}}
     text=text.trim();
     if(!text||text.length>MAX_PAYLOAD)return {ok:false,reason:text?"too_long":"empty",items:[]};
-    if(!/^v1(?:\.|$)/.test(text))return {ok:false,reason:"version",items:[]};
-    if(!/^v1(?:\.\d+x\d+)+$/.test(text))return {ok:false,reason:"malformed",items:[]};
+    if(!/^v[12](?:\.|$)/.test(text))return {ok:false,reason:"version",items:[]};
+    if(text.startsWith("v1.")){
+      if(!/^v1(?:\.\d+x\d+)+$/.test(text))return {ok:false,reason:"malformed",items:[]};
+      const chunks=text.slice(3).split(".");
+      if(chunks.length>MAX_ITEMS)return {ok:false,reason:"too_many",items:[]};
+      const map=new Map();
+      for(const chunk of chunks){
+        const match=/^(\d+)x(\d+)$/.exec(chunk);
+        if(!match)return {ok:false,reason:"malformed",items:[]};
+        const qty=asQty(match[2]);
+        if(qty==null)return {ok:false,reason:"malformed",items:[]};
+        const prev=map.get(match[1])||0;
+        map.set(match[1],Math.min(MAX_QTY,prev+qty));
+      }
+      if(map.size>MAX_ITEMS)return {ok:false,reason:"too_many",items:[]};
+      const items=[];
+      for(const pair of map)items.push({id:pair[0],qty:pair[1]});
+      return {ok:true,reason:"",version:"v1",items};
+    }
+    if(!/^v2(?:\.[bs]\d+x\d+)+$/.test(text))return {ok:false,reason:"malformed",items:[]};
     const chunks=text.slice(3).split(".");
     if(chunks.length>MAX_ITEMS)return {ok:false,reason:"too_many",items:[]};
     const map=new Map();
     for(const chunk of chunks){
-      const match=/^(\d+)x(\d+)$/.exec(chunk);
+      const match=/^([bs])(\d+)x(\d+)$/.exec(chunk);
       if(!match)return {ok:false,reason:"malformed",items:[]};
-      const qty=asQty(match[2]);
+      const qty=asQty(match[3]);
       if(qty==null)return {ok:false,reason:"malformed",items:[]};
-      const prev=map.get(match[1])||0;
-      map.set(match[1],Math.min(MAX_QTY,prev+qty));
+      const key=match[1]+match[2];
+      const prev=map.get(key)||0;
+      map.set(key,Math.min(MAX_QTY,prev+qty));
     }
     if(map.size>MAX_ITEMS)return {ok:false,reason:"too_many",items:[]};
     const items=[];
-    for(const pair of map)items.push({id:pair[0],qty:pair[1]});
-    return {ok:true,reason:"",items};
+    for(const pair of map){
+      const kind=pair[0][0];
+      const id=pair[0].slice(1);
+      items.push(kind==="s"?{kind:"set",group_id:id,qty:pair[1]}:{kind:"book",id,qty:pair[1]});
+    }
+    return {ok:true,reason:"",version:"v2",items};
   }
 
   function mergeSharedLines(existing,incoming,lookup){

@@ -3077,9 +3077,16 @@ function parseOrderItems(raw){
     let line=item.line_total==null||item.line_total===""?null:Number(item.line_total);
     if(line==null&&price!=null&&Number.isFinite(price)&&Number.isFinite(qty))line=price*qty;
     return {
+      kind:item.kind==="set"?"set":"book",
       title:item.title||item.book_id||"كىتاب",
       author:item.author||"",
       qty:Number.isFinite(qty)&&qty>0?qty:1,
+      physical_qty:Number.isFinite(Number(item.physical_qty))?Number(item.physical_qty):null,
+      components:Array.isArray(item.components)?item.components.map(component=>({
+        book_id:component&&component.book_id,
+        title:component&&component.title||component&&component.book_id||"كىتاب",
+        qty:Number(component&&component.qty)||1
+      })):[],
       price:Number.isFinite(price)?price:null,
       line_total:Number.isFinite(line)?line:null
     };
@@ -3250,7 +3257,8 @@ function renderAdminOrderDetail(){
   const itemHtml=items.length?items.map(item=>`<article class="admin-order-item">
       <div class="admin-order-item-title">${esc(item.title)}</div>
       ${item.author?`<div class="admin-order-item-meta">${esc(item.author)}</div>`:""}
-      <div class="admin-order-item-meta">${item.qty} دانە · ${esc(money(item.price))} · ${esc(money(item.line_total))}</div>
+      <div class="admin-order-item-meta">${item.kind==="set"?`تولۇق توپلام × ${item.qty} · ${item.components.length} جىلد · ${item.physical_qty||item.components.reduce((sum,row)=>sum+row.qty,0)} دانە كىتاب`:`${item.qty} دانە`} · ${esc(money(item.price))} · ${esc(money(item.line_total))}</div>
+      ${item.kind==="set"&&item.components.length?`<div class="admin-order-item-meta">${item.components.map(row=>`${esc(row.title)} × ${row.qty}`).join(" · ")}</div>`:""}
     </article>`).join(""):'<div class="admin-empty">بۇ زاكازدا كىتاب تۈرى يوق.</div>';
   const statusOptions=ORDER_STATUSES.map(status=>`<option value="${esc(status)}" ${orderStatusKey(order)===status?"selected":""}>${esc(orderStatusLabel(status))}</option>`).join("");
   host.innerHTML=`<h3>زاكاز ${esc(order.order_no||"—")}</h3>

@@ -8,6 +8,8 @@ global.KUTADGU_SUPABASE_CONFIG = {
 };
 
 const Volume = require(path.join(__dirname, "..", "kutadgu-volume-groups.js"));
+const Shared = require(path.join(__dirname, "..", "kutadgu-shared-cart.js"));
+const SharedLinks = require(path.join(__dirname, "..", "kutadgu-shared-cart-links.js"));
 
 function storage(initial) {
   const values = new Map(Object.entries(initial || {}));
@@ -155,6 +157,52 @@ test("five-minute quotes are cached only for the exact typed cart", async () => 
   assert.strictEqual(calls, 1);
   assert.strictEqual(Volume.cachedQuoteFor([], line).fingerprint, "quoted");
   assert.strictEqual(Volume.cachedQuoteFor([], [{ kind: "set", group_id: "7", qty: 2 }]), null);
+});
+
+test("shared cart v1 stays readable and ordinary shares stay v1", () => {
+  const encoded = Shared.encodeSharedCart([{ id: "11", qty: 2 }, { id: "12", qty: 1 }]);
+  assert.strictEqual(encoded.payload, "v1.11x2.12x1");
+  assert.deepStrictEqual(Shared.decodeSharedCart(encoded.payload).items, [
+    { id: "11", qty: 2 },
+    { id: "12", qty: 1 }
+  ]);
+});
+
+test("shared cart v2 preserves explicit complete-set intent", () => {
+  const encoded = Shared.encodeSharedCart([
+    { id: "11", qty: 2 },
+    { kind: "set", group_id: "7", qty: 1 }
+  ]);
+  assert.strictEqual(encoded.payload, "v2.b11x2.s7x1");
+  assert.deepStrictEqual(Shared.decodeSharedCart(encoded.payload).items, [
+    { kind: "book", id: "11", qty: 2 },
+    { kind: "set", group_id: "7", qty: 1 }
+  ]);
+  assert.strictEqual(Shared.encodeSharedCart([{ kind: "future", id: "1", qty: 1 }]).reason, "unsupported");
+});
+
+test("short-link API accepts exact typed lines and rejects forged prices", async () => {
+  const normalized = SharedLinks.normalizeCreateItems({
+    items: [
+      { kind: "book", id: "11", qty: 2 },
+      { kind: "set", group_id: "7", qty: 1 }
+    ]
+  });
+  assert.deepStrictEqual(normalized, {
+    ok: true,
+    items: [
+      { kind: "book", id: "11", qty: 2 },
+      { kind: "set", group_id: "7", qty: 1 }
+    ]
+  });
+  assert.deepStrictEqual(
+    SharedLinks.normalizeCreateItems({ items: [{ kind: "set", group_id: "7", qty: 1, price: 1 }] }),
+    { ok: false, error: "invalid" }
+  );
+  assert.deepStrictEqual(
+    SharedLinks.normalizeStoredItems(normalized.items),
+    normalized.items
+  );
 });
 
 process.on("beforeExit", () => {
