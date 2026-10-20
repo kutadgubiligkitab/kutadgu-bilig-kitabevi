@@ -4,8 +4,8 @@ DECLARE
   g jsonb;
   updated jsonb;
   members jsonb;
-  group_id bigint;
-  revision bigint;
+  v_group_id bigint;
+  v_revision bigint;
   quote_before text;
   quote_after text;
   explicit_before text;
@@ -79,13 +79,13 @@ BEGIN
     RAISE EXCEPTION 'linking rewrote protected book fields';
   END IF;
 
-  SELECT id, revision INTO group_id, revision
-  FROM public.book_volume_groups WHERE slug = 'set-3';
+  SELECT g.id, g.revision INTO v_group_id, v_revision
+  FROM public.book_volume_groups AS g WHERE g.slug = 'set-3';
 
   BEGIN
     PERFORM public.admin_save_book_volume_group(
-      group_id,
-      revision - 1,
+      v_group_id,
+      v_revision - 1,
       '{"slug":"set-3","title":"Set 3","is_active":true}'::jsonb,
       '[{"book_id":3,"position":1},{"book_id":4,"position":2},{"book_id":5,"position":3}]'::jsonb
     );
@@ -96,8 +96,8 @@ BEGIN
 
   BEGIN
     PERFORM public.admin_save_book_volume_group(
-      group_id,
-      revision,
+      v_group_id,
+      v_revision,
       '{"slug":"set-3","title":"Set 3","is_active":true}'::jsonb,
       '[{"book_id":3,"position":1},{"book_id":3,"position":2},{"book_id":5,"position":3}]'::jsonb
     );
@@ -108,8 +108,8 @@ BEGIN
 
   BEGIN
     PERFORM public.admin_save_book_volume_group(
-      group_id,
-      revision,
+      v_group_id,
+      v_revision,
       '{"slug":"set-3","title":"Set 3","is_active":true}'::jsonb,
       '[{"book_id":3,"position":1},{"book_id":4,"position":3},{"book_id":5,"position":4}]'::jsonb
     );
@@ -119,8 +119,8 @@ BEGIN
   END;
 
   updated := public.admin_save_book_volume_group(
-    group_id,
-    revision,
+    v_group_id,
+    v_revision,
     '{"slug":"set-3","title":"Set 3 reordered","is_active":true,"representative_book_id":5}'::jsonb,
     '[{"book_id":5,"position":1,"volume_label":"Third"},{"book_id":3,"position":2,"volume_label":"First"}]'::jsonb
   );
@@ -131,28 +131,28 @@ BEGIN
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.book_volume_group_members
-    WHERE group_id = group_id AND book_id = 4
+    WHERE group_id = v_group_id AND book_id = 4
   ) THEN
     RAISE EXCEPTION 'unlinked member survived';
   END IF;
 
-  SELECT id INTO group_id FROM public.book_volume_groups WHERE slug = 'set-2';
-  quote_before := public.kutadgu_book_volume_quote_revision(group_id);
+  SELECT id INTO v_group_id FROM public.book_volume_groups WHERE slug = 'set-2';
+  quote_before := public.kutadgu_book_volume_quote_revision(v_group_id);
   UPDATE public.books SET price = price + 1 WHERE id = 1;
-  quote_after := public.kutadgu_book_volume_quote_revision(group_id);
+  quote_after := public.kutadgu_book_volume_quote_revision(v_group_id);
   IF quote_before = quote_after THEN
     RAISE EXCEPTION 'fallback quote revision ignored child price';
   END IF;
 
-  SELECT id INTO group_id FROM public.book_volume_groups WHERE slug = 'set-9';
-  explicit_before := public.kutadgu_book_volume_quote_revision(group_id);
+  SELECT id INTO v_group_id FROM public.book_volume_groups WHERE slug = 'set-9';
+  explicit_before := public.kutadgu_book_volume_quote_revision(v_group_id);
   UPDATE public.books SET price = price + 1 WHERE id = 14;
-  explicit_after := public.kutadgu_book_volume_quote_revision(group_id);
+  explicit_after := public.kutadgu_book_volume_quote_revision(v_group_id);
   IF explicit_before <> explicit_after THEN
     RAISE EXCEPTION 'explicit set quote revision depended on child price';
   END IF;
 
-  IF public.get_public_book_volume_group(group_id) IS NOT NULL THEN
+  IF public.get_public_book_volume_group(v_group_id) IS NOT NULL THEN
     RAISE EXCEPTION 'disabled group was publicly readable';
   END IF;
 END;
