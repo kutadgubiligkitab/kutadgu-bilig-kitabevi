@@ -1,4 +1,5 @@
 const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 
 global.KUTADGU_APP_CONFIG = { featureFlags: { multiVolumeBooks: false } };
@@ -169,6 +170,14 @@ test("five-minute quotes are cached only for the exact typed cart", async () => 
   assert.strictEqual(calls, 1);
   assert.strictEqual(Volume.cachedQuoteFor([], line).fingerprint, "quoted");
   assert.strictEqual(Volume.cachedQuoteFor([], [{ kind: "set", group_id: "7", qty: 2 }]), null);
+});
+
+test("stale or expired WhatsApp quotes are invalidated with a visible retry message", () => {
+  const shop = fs.readFileSync(path.join(__dirname, "..", "shop.js"), "utf8");
+  assert.match(shop, /expired_quote/);
+  assert.match(shop, /stale_quote/);
+  assert.match(shop, /volumeGroups\(\)\?\.invalidateQuote\?\.\(\)/);
+  assert.match(shop, /WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ/);
 });
 
 test("shared cart v1 stays readable and ordinary shares stay v1", () => {

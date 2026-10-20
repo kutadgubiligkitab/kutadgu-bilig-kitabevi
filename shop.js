@@ -5367,6 +5367,15 @@ async function orderWithWhatsApp(){
   try{await savePreparedOrderHistory(o)}catch(err){
     const blob=String(err&&(err.message||err.details||err.hint)||err||"");
     if(/insufficient_stock/i.test(blob))toast("ئامبار سانى يەتمىدى، ئەزا زاكاز تارىخى يېزىلمىدى.");
+    else if(/expired_quote/i.test(blob)){
+      volumeGroups()?.invalidateQuote?.();
+      toast("باھا جەزملەش ۋاقتى ئۆتتى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى.");
+      if(document.querySelector("#cartItems"))cartPage();
+    }else if(/stale_quote/i.test(blob)){
+      volumeGroups()?.invalidateQuote?.();
+      toast("توپلام تەركىبى ياكى باھاسى ئۆزگەردى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى.");
+      if(document.querySelector("#cartItems"))cartPage();
+    }
     else console.warn("Order history save failed",err);
   }
 }
