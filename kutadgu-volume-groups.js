@@ -235,12 +235,14 @@
   function normalizeGroup(value){
     if(!value||typeof value!=="object"||Array.isArray(value))return null;
     const id=positiveId(value.id);
-    const members=(Array.isArray(value.members)?value.members:[]).map(member=>{
+    const rawMembers=Array.isArray(value.members)?value.members:[];
+    if(!id||rawMembers.length<2||rawMembers.length>MAX_GROUP_VOLUMES)return null;
+    const members=rawMembers.map(member=>{
       const bookId=positiveId(member&&member.book_id);
       const position=Number(member&&member.position);
       const price=Number(member&&member.price);
       const stock=Number(member&&member.stock);
-      if(!bookId||!Number.isInteger(position)||position<1)return null;
+      if(!bookId||!Number.isInteger(position)||position<1||position>MAX_GROUP_VOLUMES)return null;
       return {
         book_id:bookId,
         position,
@@ -253,8 +255,12 @@
         stock_status:String(member.stock_status||""),
         is_active:member.is_active!==false
       };
-    }).filter(Boolean).sort((a,b)=>a.position-b.position);
-    if(!id||members.length<2||members.length>MAX_GROUP_VOLUMES)return null;
+    });
+    if(members.some(member=>!member))return null;
+    const bookIds=new Set(members.map(member=>member.book_id));
+    const positions=new Set(members.map(member=>member.position));
+    if(bookIds.size!==members.length||positions.size!==members.length)return null;
+    members.sort((a,b)=>a.position-b.position);
     return {
       id,
       slug:String(value.slug||""),

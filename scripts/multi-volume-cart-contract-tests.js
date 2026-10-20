@@ -109,6 +109,18 @@ test("2, 3, 8, 9, and 10+ member public groups normalize", () => {
     assert.strictEqual(Volume.setAvailable(group, 6), false);
   }
   assert.strictEqual(Volume.normalizeGroup({ id: 1, members: [{ book_id: 1, position: 1 }] }), null);
+  assert.strictEqual(Volume.normalizeGroup({
+    id: 101,
+    members: Array.from({ length: 101 }, (_, index) => ({ book_id: index + 1, position: index + 1 }))
+  }), null);
+  assert.strictEqual(Volume.normalizeGroup({
+    id: 2,
+    members: [{ book_id: 1, position: 1 }, { book_id: 1, position: 2 }]
+  }), null);
+  assert.strictEqual(Volume.normalizeGroup({
+    id: 2,
+    members: [{ book_id: 1, position: 1 }, { book_id: 2, position: 1 }]
+  }), null);
 });
 
 test("explicit complete-set price overrides fallback sum", () => {
