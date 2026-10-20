@@ -107,6 +107,8 @@ test("public group SSR validates slug and emits BookSeries",()=>{
   assert.strictEqual(graph.numberOfBooks,9);
   assert.strictEqual(graph.hasPart.length,9);
   assert.strictEqual(publicGroups.validSlug("../bad"),"");
+  assert.strictEqual(publicGroups.normalizeGroup(group(2,{members:[member(1),member(1)]}),"sample-series"),null);
+  assert.strictEqual(publicGroups.normalizeGroup(group(2,{members:[member(1),member(2,{book_id:"1001"})]}),"sample-series"),null);
 });
 
 test("admin workflow preserves IDs and uses revisioned RPCs",()=>{

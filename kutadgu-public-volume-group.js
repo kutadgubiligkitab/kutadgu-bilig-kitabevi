@@ -32,8 +32,16 @@ function normalizeGroup(value,expectedSlug){
   if(!value||typeof value!=="object"||Array.isArray(value))return null;
   const slug=validSlug(value.slug);
   const id=String(value.id==null?"":value.id).trim();
-  const members=(Array.isArray(value.members)?value.members:[]).filter(member=>member&&/^[1-9][0-9]*$/.test(String(member.book_id||"")));
+  const members=Array.isArray(value.members)?value.members:[];
   if(!id||slug!==expectedSlug||members.length<2||members.length>100)return null;
+  if(members.some(member=>{
+    const position=Number(member&&member.position);
+    return !member||!/^[1-9][0-9]*$/.test(String(member.book_id||""))
+      ||!Number.isInteger(position)||position<1||position>100;
+  }))return null;
+  const bookIds=new Set(members.map(member=>String(member.book_id)));
+  const positions=new Set(members.map(member=>Number(member.position)));
+  if(bookIds.size!==members.length||positions.size!==members.length)return null;
   const representative=String(value.representative_book_id||members[0].book_id);
   if(!members.some(member=>String(member.book_id)===representative))return null;
   return {
