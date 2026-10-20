@@ -561,8 +561,8 @@ test("a streamed body is cancelled once it crosses 8192 bytes", async () => {
 });
 
 test("dark light and mobile cart layout stay unchanged", () => {
-  assert.match(cartHtml, /shop\.css\?v=56/);
-  assert.match(cartHtml, /shop\.js\?v=167/);
+  assert.match(cartHtml, /shop\.css\?v=57/);
+  assert.match(cartHtml, /shop\.js\?v=168/);
   assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");

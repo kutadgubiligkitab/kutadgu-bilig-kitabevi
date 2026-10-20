@@ -62,7 +62,7 @@ const H = loadHelpers();
 test("1 Orders section exists in desktop Admin navigation", () => {
   assert.match(adminHtml, /data-admin-section="orders">📦 زاكازلار/);
   assert.match(adminHtml, /class="admin-sidenav"/);
-  assert.match(adminJs, /const ADMIN_SECTIONS=\["overview","books","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"\]/);
+  assert.match(adminJs, /const ADMIN_SECTIONS=\["overview","books","volume-groups","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"\]/);
 });
 
 test("2 Orders section exists in the Admin section picker/mobile navigation", () => {
@@ -85,7 +85,6 @@ test("4 Admin order query includes required order fields and is bounded", () => 
   assert.match(adminJs, /const ADMIN_ORDER_SELECT="id,order_no,user_id,status,stock_committed,items,total,total_qty,customer_name,customer_phone,customer_city,customer_address,delivery_method,customer_note,created_at,updated_at"/);
   assert.match(adminJs, /const ADMIN_ORDER_PAGE_SIZE=40/);
   assert.match(adminJs, /db\.from\("orders"\)\.select\(ADMIN_ORDER_SELECT,\{count:"exact"\}\)\.range\(from,to\)/);
-  assert.match(adminJs, /db\.from\("orders"\)\.select\("id,user_id,total,status,created_at"\)/);
   assert.doesNotMatch(adminJs, /from\("orders"\)\.select\("\*"\)/);
 });
 

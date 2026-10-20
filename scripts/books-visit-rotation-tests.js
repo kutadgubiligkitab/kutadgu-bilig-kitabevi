@@ -300,12 +300,12 @@ test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage
   const sortFn = shop.slice(shop.indexOf("function sortBooks("), shop.indexOf("function bindDynamicActions("));
   assert.doesNotMatch(sortFn, /permuteIds|Math\.random|discover/);
   assert.doesNotMatch(shop, /localStorage\.setItem\("kutadgu-books-visit/);
-  assert.match(booksHtml, /kutadgu-visit-order\.js\?v=2/);
+  assert.match(booksHtml, /kutadgu-visit-order\.js\?v=3/);
   assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=3") < booksHtml.indexOf("shop.js?v=168"));
   assert.match(booksHtml, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/books"/);
   assert.strictEqual((booksHtml.match(/application\/ld\+json/g) || []).length, 1);
   assert.match(booksHtml, /CollectionPage/);
-  assert.match(booksHtml, /shop\.js\?v=167/);
+  assert.match(booksHtml, /shop\.js\?v=168/);
 });
 
 (async () => {
