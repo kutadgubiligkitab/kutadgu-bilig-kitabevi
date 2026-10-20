@@ -15,6 +15,13 @@ AS $$ SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND sta
 REVOKE ALL ON FUNCTION public.is_member_active() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_member_active() TO authenticated;
 
+CREATE TABLE public.member_cart_items (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  book_id text NOT NULL,
+  quantity integer NOT NULL CHECK (quantity BETWEEN 1 AND 99),
+  PRIMARY KEY (user_id, book_id)
+);
+
 CREATE TABLE public.orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_no text NOT NULL UNIQUE,

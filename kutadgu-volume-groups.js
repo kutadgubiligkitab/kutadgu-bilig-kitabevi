@@ -279,7 +279,11 @@
   async function getPublicGroup(groupId,options){
     const id=positiveId(groupId);
     if(!id)return null;
-    return normalizeGroup(await rpc("get_public_book_volume_group",{p_group_id:id},options&&options.fetchImpl));
+    return normalizeGroup(await rpc("get_public_book_volume_group_storefront",{
+      p_group_id:id,
+      p_slug:null,
+      p_child_book_id:null
+    },options&&options.fetchImpl));
   }
   function groupSetPrice(group){
     if(!group)return null;

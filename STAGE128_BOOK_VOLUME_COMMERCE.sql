@@ -43,6 +43,73 @@ CREATE POLICY "set cart owner access"
 REVOKE ALL ON TABLE public.member_volume_set_cart_items FROM PUBLIC, anon, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.member_volume_set_cart_items TO authenticated;
 
+-- Keep the existing read-only admin cart surface complete without changing its
+-- response shape. Set rows use a namespaced key and a title that states both
+-- complete-set intent and physical volume count.
+CREATE OR REPLACE FUNCTION public.admin_member_cart_page(
+  p_user_id uuid,
+  p_after_book_id text
+)
+RETURNS TABLE (
+  book_id text,
+  quantity integer,
+  title text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $admin_cart$
+DECLARE
+  v_after text;
+BEGIN
+  IF coalesce(public.is_kutadgu_admin(), false) IS NOT TRUE
+     OR (SELECT auth.jwt()->>'aal') IS DISTINCT FROM 'aal2' THEN
+    RAISE EXCEPTION 'Admin permission required' USING ERRCODE = '42501';
+  END IF;
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'Member required' USING ERRCODE = '22023';
+  END IF;
+  v_after := nullif(p_after_book_id, '');
+  RETURN QUERY
+  WITH cart_lines AS (
+    SELECT
+      c.book_id,
+      c.quantity,
+      b.title
+    FROM public.member_cart_items AS c
+    LEFT JOIN public.books AS b ON b.id::text = c.book_id
+    WHERE c.user_id = p_user_id
+
+    UNION ALL
+
+    SELECT
+      'set:' || s.group_id::text AS book_id,
+      s.quantity,
+      concat(
+        nullif(btrim(g.title), ''),
+        CASE WHEN nullif(btrim(g.title), '') IS NULL THEN '' ELSE ' — ' END,
+        'تولۇق توپلام (',
+        (SELECT count(*) FROM public.book_volume_group_members AS m WHERE m.group_id = s.group_id),
+        ' جىلد)'
+      ) AS title
+    FROM public.member_volume_set_cart_items AS s
+    JOIN public.book_volume_groups AS g ON g.id = s.group_id
+    WHERE s.user_id = p_user_id
+  )
+  SELECT line.book_id, line.quantity, line.title
+  FROM cart_lines AS line
+  WHERE v_after IS NULL OR line.book_id > v_after
+  ORDER BY line.book_id
+  LIMIT 100;
+END;
+$admin_cart$;
+
+REVOKE ALL ON FUNCTION public.admin_member_cart_page(uuid, text)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_member_cart_page(uuid, text)
+  TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.kutadgu_order_inventory_lines(p_items jsonb)
 RETURNS TABLE(book_id bigint, qty integer)
 LANGUAGE sql

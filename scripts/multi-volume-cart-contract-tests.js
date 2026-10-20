@@ -172,12 +172,44 @@ test("five-minute quotes are cached only for the exact typed cart", async () => 
   assert.strictEqual(Volume.cachedQuoteFor([], [{ kind: "set", group_id: "7", qty: 2 }]), null);
 });
 
+test("cart hydration uses the validated storefront group contract", async () => {
+  let called = "";
+  const value = await Volume.getPublicGroup("7", {
+    fetchImpl: async (url, options) => {
+      called = url;
+      assert.deepStrictEqual(JSON.parse(options.body), {
+        p_group_id: "7",
+        p_slug: null,
+        p_child_book_id: null
+      });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            id: 7,
+            members: [
+              { book_id: 11, position: 1, price: 10, stock: 2 },
+              { book_id: 12, position: 2, price: 20, stock: 2 }
+            ]
+          });
+        }
+      };
+    }
+  });
+  assert.ok(called.endsWith("/rest/v1/rpc/get_public_book_volume_group_storefront"));
+  assert.strictEqual(value.members.length, 2);
+});
+
 test("stale or expired WhatsApp quotes are invalidated with a visible retry message", () => {
   const shop = fs.readFileSync(path.join(__dirname, "..", "shop.js"), "utf8");
   assert.match(shop, /expired_quote/);
   assert.match(shop, /stale_quote/);
   assert.match(shop, /volumeGroups\(\)\?\.invalidateQuote\?\.\(\)/);
   assert.match(shop, /WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ/);
+  assert.match(shop, /window\.open\("about:blank","_blank"\)/);
+  assert.match(shop, /if\(!history\?\.saved\)throw new Error/);
+  assert.match(shop, /popup\.location\.href=url/);
 });
 
 test("shared cart v1 stays readable and ordinary shares stay v1", () => {

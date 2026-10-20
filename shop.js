@@ -1310,6 +1310,7 @@ function usesSearchRelevance(state){
 }
 function searchRankKey(state){
   return JSON.stringify({
+    grouped:!!volumeStorefront(),
     search:state.search||"",
     category:state.category||"",
     source:state.source||"",
@@ -1416,6 +1417,24 @@ async function loadSearchRankIndex(state,options={}){
   const Rank=searchRankApi();
   const key=searchRankKey(state);
   if(searchRankCache.key===key&&Array.isArray(searchRankCache.ids))return searchRankCache;
+  const grouped=volumeStorefront();
+  if(grouped&&!state.includeInactive){
+    const pageSize=grouped.MAX_PAGE_SIZE||100;
+    let from=0,rows=[],total=null;
+    for(;;){
+      const page=await grouped.queryCatalog({...state,offset:from,pageSize,sort:"title"},{signal:options.signal});
+      const chunk=Array.isArray(page.items)?page.items:[];
+      rows=rows.concat(chunk);
+      if(Number.isFinite(page.total))total=page.total;
+      if(chunk.length<pageSize||(Number.isFinite(total)&&rows.length>=total))break;
+      from+=pageSize;
+    }
+    const ranked=(Rank.rankHits?Rank.rankHits(rows,state.search):rows)
+      .map(row=>String(row&&row.unit_key||""))
+      .filter(value=>/^(?:book|group):[1-9][0-9]*$/.test(value));
+    searchRankCache={key,ids:ranked,total:ranked.length};
+    return searchRankCache;
+  }
   const pageSize=1000;
   let from=0,rows=[],total=null;
   for(;;){
@@ -1467,7 +1486,11 @@ async function fetchRankedRemotePage(state,options={}){
     sort:"new",
     includeInactive:state.includeInactive
   },{...options,_rankedPage:true});
-  const byId=new Map((page.items||[]).map(book=>[String(book.id),book]));
+  const grouped=volumeStorefront();
+  const byId=new Map((page.items||[]).map(book=>[
+    grouped?String(book.unitKey||""):String(book.id),
+    book
+  ]));
   const items=slice.map(id=>byId.get(String(id))).filter(Boolean);
   return {
     items,
@@ -1627,6 +1650,7 @@ async function fetchRemotePage(input={},options={}){
   const state=widenDiscoveryPage(input,normalizeQueryState(input));
   if(isGlobalBooksDiscoveryState(state)&&!options._discoveryPage)return fetchDiscoveryRemotePage(state,options);
   const grouped=volumeStorefront();
+  if(grouped&&usesSearchRelevance(state)&&!options._rankedPage)return fetchRankedRemotePage(state,options);
   if(grouped&&!state.includeInactive){
     const page=await grouped.queryCatalog(state,{signal:options.signal});
     if(typeof options.accept==="function"&&options.accept()===false){
@@ -5361,10 +5385,26 @@ async function orderWithWhatsApp(){
   const bookIds=[...new Set(cart().map(line=>canonicalId(line.id)).filter(id=>id&&/^\d+$/.test(String(id))))];
   trackEvent("whatsapp_order_click",{bookId:bookIds[0]||"",bookIds,items:bookIds.length||o.items?.length||cart().length,total:o.total||0});
   const url=whatsappOrderUrl(o.text);
-  const popup=window.open(url,"_blank");
-  if(popup)popup.opener=null;
-  else location.href=url;
-  try{await savePreparedOrderHistory(o)}catch(err){
+  const member=window.KutadguMember;
+  const signedIn=typeof member?.getUser==="function"&&!!member.getUser();
+  let popup=null;
+  if(signedIn){
+    popup=window.open("about:blank","_blank");
+    if(popup)popup.opener=null;
+  }else{
+    popup=window.open(url,"_blank");
+    if(popup)popup.opener=null;
+    else location.href=url;
+  }
+  try{
+    const history=await savePreparedOrderHistory(o);
+    if(signedIn){
+      if(!history?.saved)throw new Error(String(history?.reason||"order_history_not_saved"));
+      if(popup)popup.location.href=url;
+      else location.href=url;
+    }
+  }catch(err){
+    if(signedIn&&popup&&typeof popup.close==="function")popup.close();
     const blob=String(err&&(err.message||err.details||err.hint)||err||"");
     if(/insufficient_stock/i.test(blob))toast("ئامبار سانى يەتمىدى، ئەزا زاكاز تارىخى يېزىلمىدى.");
     else if(/expired_quote/i.test(blob)){

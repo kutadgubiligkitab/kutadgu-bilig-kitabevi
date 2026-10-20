@@ -15,6 +15,8 @@ DECLARE
   g9_revision bigint;
   demand integer;
   before_stock integer;
+  admin_set_title text;
+  admin_set_quantity integer;
 BEGIN
   PERFORM set_config('request.jwt.claims', '{"sub":"22222222-2222-4222-8222-222222222222","role":"authenticated","aal":"aal2"}', true);
 
@@ -32,6 +34,19 @@ BEGIN
   g9_id := (g9->>'id')::bigint;
   g3_id := (g3->>'id')::bigint;
   UPDATE public.book_volume_groups SET is_public = true WHERE id IN (g9_id, g3_id);
+
+  INSERT INTO public.member_cart_items (user_id, book_id, quantity)
+  VALUES ('11111111-1111-4111-8111-111111111111', '20', 2);
+  INSERT INTO public.member_volume_set_cart_items (user_id, group_id, quantity)
+  VALUES ('11111111-1111-4111-8111-111111111111', g9_id, 2);
+  SELECT title, quantity INTO admin_set_title, admin_set_quantity
+  FROM public.admin_member_cart_page('11111111-1111-4111-8111-111111111111', NULL)
+  WHERE book_id = 'set:' || g9_id::text;
+  IF admin_set_quantity <> 2
+     OR admin_set_title NOT LIKE 'Nine Volume Set%تولۇق توپلام (9 جىلد)' THEN
+    RAISE EXCEPTION 'admin cart omitted complete-set intent: % / %',
+      admin_set_title, admin_set_quantity;
+  END IF;
 
   q9 := public.quote_book_volume_cart(jsonb_build_array(jsonb_build_object(
     'kind', 'set', 'group_id', g9_id, 'qty', 1

@@ -87,6 +87,38 @@ test.describe("order prepared semantics", () => {
     expect(waText).toContain(`زاكاز نومۇرى: ${preparedOrderNo}`);
   });
 
+  test("signed-in WhatsApp waits for accepted history and closes on a stale quote", async ({ page }) => {
+    const book = await addBookOnce(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+    await fillCheckout(page);
+    await page.evaluate(() => {
+      window.__waProbe = { opened: [], navigated: [], closed: false };
+      window.KutadguMember = {
+        getUser: () => ({ id: "member-test" }),
+        saveOrder: async () => { throw new Error("stale_quote"); }
+      };
+      window.open = (url) => {
+        window.__waProbe.opened.push(String(url));
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__waProbe.navigated.push(String(value)); }
+        });
+        return {
+          opener: null,
+          location,
+          close() { window.__waProbe.closed = true; }
+        };
+      };
+    });
+    await page.locator("#whatsappOrder").click();
+    await expect.poll(() => page.evaluate(() => window.__waProbe.closed)).toBe(true);
+    const probe = await page.evaluate(() => window.__waProbe);
+    expect(probe.opened).toEqual(["about:blank"]);
+    expect(probe.navigated).toEqual([]);
+  });
+
   for (const width of [390, 412, 768, 1280]) {
     test(`checkout controls remain usable at ${width}`, async ({ page }) => {
       const book = await addBookOnce(page);
