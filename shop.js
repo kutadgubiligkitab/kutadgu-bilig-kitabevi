@@ -6039,6 +6039,7 @@ async function boot(){
   const publicHeaderReady=loadPublicHeader();
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
+  await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=1","kutadguVolumeGroupsScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();
