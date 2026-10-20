@@ -121,7 +121,7 @@ test("storefront is dark by default and grouping is server paginated",()=>{
   const shop=fs.readFileSync(path.join(root,"shop.js"),"utf8");
   const vercel=JSON.parse(fs.readFileSync(path.join(root,"vercel.json"),"utf8"));
   assert.match(config,/multiVolumeBooks:false/);
-  assert.match(shop,/grouped\\.queryCatalog\\(state/);
+  assert.match(shop,/grouped\.queryCatalog\(state/);
   assert.match(shop,/volumeGroupSlugFromLocation/);
   assert.match(shop,/renderVolumeGroupPurchasePanel/);
   assert.ok(vercel.rewrites.some(rule=>rule.source==="/volume-group/:slug"));

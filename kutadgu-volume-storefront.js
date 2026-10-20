@@ -51,7 +51,7 @@
     return data;
   }
   function groupPath(value){
-    const key=slug(value&&value.slug)||positiveId(value&&value.group_id??value&&value.id);
+    const key=slug(value&&value.slug)||positiveId(value&&(value.group_id??value.id));
     return key?`/volume-group/${encodeURIComponent(key)}`:"";
   }
   function normalizeMember(value){
