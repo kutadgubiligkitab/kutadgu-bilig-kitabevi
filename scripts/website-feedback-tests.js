@@ -140,7 +140,7 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.doesNotMatch(page, /account\.html\?/);
   assert.doesNotMatch(page, /analytics\.js/);
   assert.match(page, /maxlength="4000"/);
-  assert.match(page, /member\.js\?v=34/);
+  assert.match(page, /member\.js\?v=35/);
   assert.match(page, /feedback\.js\?v=3/);
   assert.match(read("admin.html"), /admin-feedback\.js\?v=2/);
   assert.match(read("admin.html"), /admin\.js\?v=113/);
@@ -150,8 +150,8 @@ test("footer, page, and admin entry stay narrow", () => {
   assert.match(read("books.html"), /shop\.js\?v=167/);
   assert.match(read("book-shell.html"), /shop\.js\?v=167/);
   assert.match(read("cart.html"), /shop\.js\?v=167/);
-  assert.match(read("account.html"), /member\.js\?v=34/);
-  assert.match(read("shop.js"), /member\.js\?v=34/);
+  assert.match(read("account.html"), /member\.js\?v=35/);
+  assert.match(read("shop.js"), /member\.js\?v=35/);
   assert.match(read("admin-feedback.js"), /p_before/);
   assert.match(read("member.js"), /noteAuthUser/);
 });

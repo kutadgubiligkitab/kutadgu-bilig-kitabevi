@@ -112,7 +112,7 @@ function badgeApi({ owner, cart, sessionUser, liveUser, sessionBootDone, expires
 test("account.html does not load shop.js and member owns the safe badge", () => {
   assert.doesNotMatch(accountHtml, /shop\.js/);
   assert.match(accountHtml, /public-header\.js/);
-  assert.match(accountHtml, /member\.js\?v=34/);
+  assert.match(accountHtml, /member\.js\?v=35/);
   assert.match(member, /function shopOwnerAllowsLocalDisplay\(owner,uid\)\{/);
   assert.match(member, /function identityBootstrapPending\(\)\{/);
   assert.match(member, /function refreshSafeCartCount\(\)\{/);
@@ -124,6 +124,19 @@ test("account.html does not load shop.js and member owns the safe badge", () => 
   assert.match(mobile, /refreshSafeCartCount/);
   assert.match(shop, /updateBadge,add,/);
   assert.match(shop, /data-kutadgu-count-state","ready"/);
+});
+
+test("complete sets contribute their physical member count to account badges", () => {
+  const source = sliceBetween(member, "function accountSetCartPhysicalQty(lines,groups){", "let safeCartCountEpoch=0;");
+  const count = new Function(`${source};return accountSetCartPhysicalQty;`)();
+  assert.strictEqual(count(
+    [{ group_id: "7", qty: 1 }, { group_id: "8", qty: 2 }],
+    [
+      { id: "7", members: Array.from({ length: 9 }, (_, index) => ({ book_id: index + 1 })) },
+      { id: "8", members: [{ book_id: 10 }, { book_id: 11 }, { book_id: 12 }] }
+    ]
+  ), 15);
+  assert.match(member, /volumeApi\.getPublicGroup\(line\.group_id\)/);
 });
 
 test("member shopOwnerAllowsLocalDisplay matches storefront guest/stale/uuid rules", () => {

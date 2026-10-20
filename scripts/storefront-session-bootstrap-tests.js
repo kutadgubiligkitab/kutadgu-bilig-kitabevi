@@ -180,7 +180,7 @@ test("storefront pages still load shop.js without statically loading member.js",
   assert.doesNotMatch(indexHtml, /src="member\.js/);
   assert.match(cartHtml, /shop\.js\?v=167/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
-  assert.match(accountHtml, /member\.js\?v=34/);
+  assert.match(accountHtml, /member\.js\?v=35/);
   assert.doesNotMatch(accountHtml, /member\.js\?v=25/);
   assert.doesNotMatch(accountHtml, /shop\.js\?/);
 });
@@ -221,7 +221,7 @@ test("shop.js does not await member boot before catalog first paint", () => {
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
   assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
-  assert.match(shop, /member\.js\?v=34/);
+  assert.match(shop, /member\.js\?v=35/);
   assert.match(shop, /script\[src\*="member\.js"\]/);
 });
 
@@ -694,7 +694,7 @@ test("logout still abandons member shop state and account page still loads membe
   assert.doesNotMatch(signOutBody, /rememberSignOutContext|restoreRejectedSignOut/);
   assert.match(signOutBody, /if\(db\)await db\.auth\.signOut\(\{scope:"local"\}\);/);
   const accountScripts = accountHtml.match(/member\.js\?v=\d+/g) || [];
-  assert.deepStrictEqual(accountScripts, ["member.js?v=34"]);
+  assert.deepStrictEqual(accountScripts, ["member.js?v=35"]);
 });
 
 Promise.resolve().then(() => Promise.all(pending)).then(() => {

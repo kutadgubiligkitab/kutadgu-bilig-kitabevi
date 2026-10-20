@@ -591,6 +591,27 @@ function cartCountQty(items){
     return sum+(Number.isFinite(qty)&&qty>0?qty:1);
   },0);
 }
+function accountSetCartLines(){
+  let raw=[];
+  try{raw=JSON.parse(localStorage.getItem(SET_CART_KEY)||"[]")}catch(e){raw=[]}
+  const seen=new Map();
+  (Array.isArray(raw)?raw:[]).forEach(item=>{
+    if(!item||typeof item!=="object"||Array.isArray(item))return;
+    const groupId=String(item.group_id??item.groupId??"").trim();
+    const qty=Number(item.qty??item.quantity);
+    if(!/^[1-9][0-9]*$/.test(groupId)||!Number.isInteger(qty)||qty<1||qty>99)return;
+    seen.set(groupId,Math.min(99,(seen.get(groupId)||0)+qty));
+  });
+  return [...seen].map(([group_id,qty])=>({group_id,qty}));
+}
+function accountSetCartPhysicalQty(lines,groups){
+  const byId=new Map((Array.isArray(groups)?groups:[]).filter(Boolean).map(group=>[String(group.id),group]));
+  return (Array.isArray(lines)?lines:[]).reduce((sum,line)=>{
+    const count=byId.get(String(line.group_id))?.members?.length;
+    return sum+(Number.isInteger(count)&&count>=2?count*line.qty:0);
+  },0);
+}
+let safeCartCountEpoch=0;
 function paintCartCountBadges(qty,state){
   document.querySelectorAll(".cart-count").forEach(el=>{
     if(state==="hidden"){
@@ -609,6 +630,7 @@ function paintCartCountBadges(qty,state){
   });
 }
 function refreshSafeCartCount(){
+  const epoch=++safeCartCountEpoch;
   if(window.kutadguShop&&typeof window.kutadguShop.updateBadge==="function"){
     window.kutadguShop.updateBadge();
     return;
@@ -623,7 +645,19 @@ function refreshSafeCartCount(){
   }
   let items=[];
   try{items=JSON.parse(localStorage.getItem(CART_KEY)||"[]")}catch(e){items=[]}
-  paintCartCountBadges(cartCountQty(items),"ready");
+  const baseQty=cartCountQty(items);
+  paintCartCountBadges(baseQty,"ready");
+  const volumeApi=window.KutadguVolumeGroups;
+  const setLines=accountSetCartLines();
+  if(window.KUTADGU_APP_CONFIG?.featureFlags?.multiVolumeBooks!==true
+     ||!setLines.length||typeof volumeApi?.getPublicGroup!=="function")return;
+  const owner=readShopOwner();
+  const uid=currentShopUserId();
+  Promise.all(setLines.map(line=>volumeApi.getPublicGroup(line.group_id).catch(()=>null))).then(groups=>{
+    if(epoch!==safeCartCountEpoch||readShopOwner()!==owner||currentShopUserId()!==uid
+       ||identityBootstrapPending()||!shopOwnerAllowsLocalDisplay())return;
+    paintCartCountBadges(baseQty+accountSetCartPhysicalQty(setLines,groups),"ready");
+  });
 }
 function shouldMergeLocalForUser(userId){
   const owner=readShopOwner();
