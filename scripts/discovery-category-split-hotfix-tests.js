@@ -272,7 +272,7 @@ test("14 no SQL RLS auth or database-record changes", () => {
     /catalog\.js$/.test(file)
   );
   assert.deepStrictEqual(forbidden, [], forbidden.join(", "));
-  assert.match(shop, /app-config\.js\?v=5/);
+  assert.match(shop, /app-config\.js\?v=6/);
   assert.doesNotMatch(shop, /UPDATE\s+books|alter\s+table/i);
 });
 
