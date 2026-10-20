@@ -254,7 +254,7 @@ function normalizeMemberSetLines(values){
   const index=new Map();
   (Array.isArray(values)?values:[]).forEach(raw=>{
     const apiLine=window.KutadguVolumeGroups?.normalizeSetLine?.(raw);
-    const groupId=String(raw&&(raw.group_id??raw.groupId)??"").trim();
+    const groupId=String((raw&&(raw.group_id??raw.groupId))??"").trim();
     const quantity=Number(raw&&(raw.qty??raw.quantity));
     const line=apiLine||(
       raw&&typeof raw==="object"&&!Array.isArray(raw)

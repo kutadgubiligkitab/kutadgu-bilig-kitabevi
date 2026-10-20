@@ -610,6 +610,11 @@ a.book-cover.is-stock-out,
 }
 .checkout-member-note{margin:0 0 10px;padding:8px 10px;border:1px solid var(--site-border,#e8dccb);border-radius:8px;background:var(--site-bg-soft,#fbf8f2);color:var(--site-text-soft,#806f62);font-size:12px;line-height:1.55}
 .checkout-member-note a{color:var(--site-brown,#70503d);font-weight:700}
+#guestCartInvite{direction:rtl;text-align:right;overflow-wrap:anywhere}
+#guestCartInvite p{margin:0 0 4px}
+#guestCartInvite a{display:inline-flex;align-items:center;min-height:44px;padding:0 2px;text-decoration:underline;text-underline-offset:3px}
+#guestCartInvite a:focus-visible{outline:2px solid var(--site-brown,#70503d);outline-offset:3px;border-radius:6px}
+body.dark-mode #guestCartInvite a:focus-visible{outline-color:var(--site-text)}
 @media(min-width:960px){
     .cart-layout{
         grid-template-columns:minmax(0,1fr) minmax(280px,340px);

@@ -4360,8 +4360,8 @@ function makeOrderId(){
 
 let preparedOrder=null,preparedOrderSignature="";
 function currentOrderSignature(customer){
-  const api=volumeGroups();
-  const sets=setCartState().lines;
+  const api=typeof volumeGroups==="function"?volumeGroups():null;
+  const sets=api&&typeof setCartState==="function"?setCartState().lines:[];
   const quote=api&&sets.length?api.cachedQuoteFor(cart(),sets):null;
   return JSON.stringify({
     cart:cart(),
@@ -4384,10 +4384,11 @@ function orderGrandAmount(n){return orderMessageAmount(n,true)}
 function buildOrderText(requireCustomer=true){
   if(cartHydrationPending()){toast("كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ.");return null}
   let items=cartLines().map(line=>({...line,b:find(line.id)||null}));
-  const api=volumeGroups();
-  const sets=setCartState().lines;
+  const api=typeof volumeGroups==="function"?volumeGroups():null;
+  const setState=api&&typeof setCartState==="function"?setCartState():{lines:[],unsupported:[]};
+  const sets=setState.lines;
   if(!items.length&&!sets.length){toast("سېۋەت بوش");return null}
-  if(setCartUnsupported().length){
+  if(setState.unsupported.length){
     toast("سېۋەتتە بۇ نەشر تونۇمايدىغان توپلام قۇرى بار؛ ئۇ ئۆزلۈكىدىن ئۆچۈرۈلمىدى");
     return null;
   }
@@ -4411,7 +4412,7 @@ function buildOrderText(requireCustomer=true){
   let c=saveCustomerData();
   const quote=api&&sets.length?api.cachedQuoteFor(cart(),sets):null;
   if(sets.length&&!quote){
-    primeVolumeCart().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+    if(typeof primeVolumeCart==="function")primeVolumeCart().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
     toast("باھا ۋە ئامبار جەزملەۋاتىدۇ؛ تاماملانغاندىن كېيىن قايتا بېسىڭ");
     return null;
   }
