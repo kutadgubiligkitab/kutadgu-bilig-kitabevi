@@ -182,6 +182,7 @@ $$;
 DO $$
 BEGIN
   PERFORM set_config('request.jwt.claims', '{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","aal":"aal1"}', true);
+  PERFORM set_config('role', 'authenticated', true);
   BEGIN
     INSERT INTO public.member_volume_set_cart_items (user_id, group_id, quantity)
     SELECT auth.uid(), id, 1 FROM public.book_volume_groups LIMIT 1;
@@ -189,5 +190,6 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     NULL;
   END;
+  PERFORM set_config('role', 'postgres', true);
 END;
 $$;
