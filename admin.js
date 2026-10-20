@@ -221,7 +221,7 @@ function show(id){
     if(el)el.hidden=x!==id;
   });
 }
-const ADMIN_SECTIONS=["overview","books","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"];
+const ADMIN_SECTIONS=["overview","books","volume-groups","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"];
 const DEFAULT_ADMIN_SECTION="books";
 let applyingAdminSection=false;
 function parseAdminSectionHash(hash){
@@ -254,6 +254,7 @@ function showAdminSection(sectionId,opts){
     if(id==="submissions")loadPendingSubmissions();
     if(id==="reviews"&&window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.load==="function")window.KutadguAdminReviews.load();
     if(id==="feedback"&&window.KutadguAdminFeedback&&typeof window.KutadguAdminFeedback.load==="function")window.KutadguAdminFeedback.load();
+    if(id==="volume-groups"&&window.KutadguAdminVolumeGroups&&typeof window.KutadguAdminVolumeGroups.load==="function")window.KutadguAdminVolumeGroups.load();
     if(id==="system")loadBookStaffAccounts();
   }
   if(options.updateHash===false||!dashboardAuthorized())return;
@@ -8234,6 +8235,7 @@ function init(){
     auth:(typeof window.kutadguAdminAuthOptions==="function"?window.kutadguAdminAuthOptions():{persistSession:true,detectSessionInUrl:false,flowType:"pkce",storageKey:String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1")})
   });
   window.__kutadguAdminDb=db;
+  if(window.KutadguAdminVolumeGroups&&typeof window.KutadguAdminVolumeGroups.init==="function")window.KutadguAdminVolumeGroups.init({db});
   if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
   bindBookListUx();
   $("#loginForm").addEventListener("submit",login);

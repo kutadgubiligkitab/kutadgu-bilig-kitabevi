@@ -83,6 +83,12 @@
     if (!Number.isInteger(num) || num <= 0) return "";
     return "/book/" + String(num);
   }
+  function publicResultHref(row) {
+    if (row && row.kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(row.group_slug || ""))) {
+      return "/volume-group/" + String(row.group_slug);
+    }
+    return publicBookHref(row && row.id);
+  }
 
   function isSampleDemoCover(src) {
     return /(?:^|\/)(?:sample-book-cover(?:\(\d+\))?|carousel-sample-cover)\.png(?:$|\?)/i.test(String(src == null ? "" : src).trim());
@@ -180,7 +186,7 @@
   function usableRows(rows) {
     var out = [];
     (rows || []).forEach(function (row) {
-      if (publicBookHref(row && row.id)) out.push(row);
+      if (publicResultHref(row)) out.push(row);
     });
     return out;
   }
@@ -194,7 +200,7 @@
   }
 
   function appendResultCard(doc, list, row) {
-    var href = publicBookHref(row && row.id);
+    var href = publicResultHref(row);
     if (!href || !doc || !list) return;
     var item = doc.createElement("article");
     item.className = "ai-search-item";
@@ -234,13 +240,14 @@
     info.appendChild(titleLink);
     if (row.author) info.appendChild(text(doc, "p", String(row.author), "ai-search-author"));
     if (row.category) info.appendChild(text(doc, "p", String(row.category), "ai-search-category"));
+    if (row.kind === "group") info.appendChild(text(doc, "p", String(row.member_count || "") + " جىلدلىق توپلام", "ai-search-category"));
     var meta = doc.createElement("p");
     meta.className = "ai-search-meta";
     var bits = [];
     var price = priceLabel(row.price);
     var stock = stockStatus(row.stock);
-    if (price) bits.push(price);
-    if (stock) bits.push(stock);
+    if (price) bits.push(row.kind === "group" ? "ھەر بىر جىلد " + price + " دىن" : price);
+    if (stock && row.kind !== "group") bits.push(stock);
     meta.textContent = bits.join(" · ");
     if (bits.length) info.appendChild(meta);
     item.appendChild(info);

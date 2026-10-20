@@ -104,6 +104,55 @@ function rowToSitemapEntry(row) {
   return lastmod ? { loc, lastmod, id: String(row.id).trim() } : { loc, id: String(row.id).trim() };
 }
 
+function groupedSitemapEnabled(options) {
+  const env = options && options.env ? options.env : (typeof process !== "undefined" ? process.env : {});
+  return String(env && env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true";
+}
+
+function groupedRowToSitemapEntry(row) {
+  if (!row || typeof row !== "object") return null;
+  const kind = String(row.kind || "book");
+  const slug = String(row.slug || "").trim().toLowerCase();
+  const id = String((row.book_id == null ? row.id : row.book_id) == null ? "" : (row.book_id == null ? row.id : row.book_id)).trim();
+  let loc = "";
+  if (kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) loc = `${SITE_ORIGIN}/volume-group/${slug}`;
+  else if (kind === "book") loc = bookCanonicalUrl(id);
+  if (!loc) return null;
+  const lastmod = trustworthyLastmod(row.updated_at) || trustworthyLastmod(row.created_at);
+  return lastmod ? { loc, lastmod, id: `${kind}:${kind === "group" ? slug : id}` } : { loc, id: `${kind}:${kind === "group" ? slug : id}` };
+}
+
+async function fetchGroupedSitemapRows(offset, limit, fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  const start = Math.max(0, Number(offset) || 0);
+  const wanted = Math.max(1, Number(limit) || URLS_PER_SITEMAP);
+  const rows = [];
+  let total = null;
+  while (rows.length < wanted) {
+    const pageSize = Math.min(FETCH_PAGE_SIZE, wanted - rows.length);
+    const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/list_public_book_volume_sitemap_entries`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ p_offset: start + rows.length, p_limit: pageSize })
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch (err) {}
+    if (!response.ok) throw new Error(`Grouped sitemap fetch failed (${response.status})`);
+    const batch = Array.isArray(payload) ? payload : (Array.isArray(payload && payload.items) ? payload.items : []);
+    const parsedTotal = Number(payload && payload.total);
+    if (Number.isFinite(parsedTotal)) total = parsedTotal;
+    rows.push(...batch);
+    if (batch.length < pageSize || (Number.isFinite(total) && start + rows.length >= total)) break;
+  }
+  return { rows, total: Number.isFinite(total) ? total : rows.length };
+}
+
 function uniqueBookEntries(rows) {
   const seen = new Set();
   const entries = [];
@@ -235,14 +284,20 @@ async function buildPagesSitemapXml() {
   return buildUrlsetXml(publicPageEntries());
 }
 
-async function buildIndexSitemapXml(fetchImpl) {
-  const total = await countActiveBooks(fetchImpl);
+async function buildIndexSitemapXml(fetchImpl, options) {
+  const total = groupedSitemapEnabled(options)
+    ? (await fetchGroupedSitemapRows(0, 1, fetchImpl)).total
+    : await countActiveBooks(fetchImpl);
   return buildSitemapIndexXml(indexLocs(total));
 }
 
-async function buildBooksSitemapXml(page, fetchImpl) {
+async function buildBooksSitemapXml(page, fetchImpl, options) {
   const p = parsePageParam(page);
   const start = (p - 1) * URLS_PER_SITEMAP;
+  if (groupedSitemapEnabled(options)) {
+    const { rows } = await fetchGroupedSitemapRows(start, URLS_PER_SITEMAP, fetchImpl);
+    return buildUrlsetXml(rows.map(groupedRowToSitemapEntry).filter(Boolean));
+  }
   const { rows } = await fetchActiveBookRows(start, URLS_PER_SITEMAP, fetchImpl);
   const entries = uniqueBookEntries(rows);
   return buildUrlsetXml(entries);
@@ -264,6 +319,9 @@ const api = {
   bookCanonicalUrl,
   rowToSitemapEntry,
   uniqueBookEntries,
+  groupedSitemapEnabled,
+  groupedRowToSitemapEntry,
+  fetchGroupedSitemapRows,
   locLooksPrivate,
   buildUrlsetXml,
   buildSitemapIndexXml,

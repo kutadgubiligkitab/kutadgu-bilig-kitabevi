@@ -228,7 +228,7 @@
       var byId = new Map();
       (books || []).forEach(function (book) {
         if (!book) return;
-        var id = String(book.id != null ? book.id : "").trim();
+        var id = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : "")).trim();
         if (id) byId.set(id, book);
       });
       var n;
@@ -238,7 +238,7 @@
         cursor += 1;
         var book = byId.get(String(id));
         if (!book || book.isActive === false || book.is_active === false) continue;
-        var key = String(book.id != null ? book.id : id).trim();
+        var key = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : id)).trim();
         if (!key || seen.has(key)) continue;
         seen.add(key);
         items.push(book);
@@ -279,7 +279,7 @@
       var progress = 0;
       chunk.forEach(function (book) {
         if (!book) return;
-        var id = String(book.id != null ? book.id : "").trim();
+        var id = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : "")).trim();
         if (!id || !wantedSet.has(id) || resolved.has(id)) return;
         resolved.add(id);
         progress += 1;
