@@ -127,7 +127,14 @@ AS $public_group$
     'source', g.source,
     'description', g.description,
     'complete_set_price', g.complete_set_price,
-    'representative_book_id', coalesce(g.representative_book_id, first_value(m.book_id) OVER (ORDER BY m.position)),
+    'representative_book_id', coalesce(
+      g.representative_book_id,
+      (SELECT first_m.book_id
+       FROM public.book_volume_group_members AS first_m
+       WHERE first_m.group_id = g.id
+       ORDER BY first_m.position
+       LIMIT 1)
+    ),
     'revision', g.revision,
     'quote_revision', public.kutadgu_book_volume_quote_revision(g.id),
     'members', jsonb_agg(
