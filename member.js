@@ -1256,7 +1256,10 @@ async function saveOrder(order){
   };
   if(hasSet)args.p_quote=order.quote;
   else args.p_items=items;
-  const {data,error}=await db.rpc(hasSet?"create_member_volume_order":"create_member_order",args);
+  const result=hasSet
+    ?await db.rpc("create_member_volume_order",args)
+    :await db.rpc("create_member_order",args);
+  const {data,error}=result;
   if(error){
     const blob=String(error.message||error.details||error.hint||error.code||"");
     if(/insufficient_stock|stale_quote|expired_quote/i.test(blob)){

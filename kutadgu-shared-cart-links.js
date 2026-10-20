@@ -89,10 +89,10 @@ function normalizeCreateItems(body) {
     const kind = item.kind === undefined ? "book" : String(item.kind);
     if (item.kind !== undefined) typed = true;
     if (kind !== "book" && kind !== "set") return { ok: false, error: "unsupported" };
-    const expectedKeys = kind === "set"
-      ? ["group_id", "kind", "qty"]
-      : item.kind === undefined ? ["id", "qty"] : ["id", "kind", "qty"];
-    if (Object.keys(item).sort().join(",") !== expectedKeys.slice().sort().join(",")) return { ok: false, error: "invalid" };
+    if (item.kind !== undefined) {
+      const expectedKeys = kind === "set" ? ["group_id", "kind", "qty"] : ["id", "kind", "qty"];
+      if (Object.keys(item).sort().join(",") !== expectedKeys.slice().sort().join(",")) return { ok: false, error: "invalid" };
+    }
     const id = asCanonicalId(kind === "set" ? item.group_id : item.id);
     const qty = asCreateQty(item.qty);
     if (!id || qty == null) return { ok: false, error: "invalid" };
