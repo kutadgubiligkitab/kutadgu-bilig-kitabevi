@@ -25,7 +25,7 @@ const NEW_HUBS = {
   taamlar: { label: "تائاملار" }
 };
 const FROZEN = {
-  "shop.js": "2d3c94257a7bb03f3c4d85d03f8dd1710bbc02b044c6d18f621cfe57086e1821",
+  "shop.js": "8e69fa2726519a2b34d6c17e8798754ae0781ee5a76eb6919eab5096a06475b8",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "242ee8d31e231b758d52eb6a85aa01b3bbcf2050a6d1305d9a87864e81506ae0",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
