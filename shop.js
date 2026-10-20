@@ -2602,6 +2602,8 @@ function getDetailBook(){
   const Seo=window.KutadguBookSeo||{};
   let id=document.body.dataset.bookId;
   let b=find(id); if(b)return b;
+  if(activeVolumeBookId){b=find(activeVolumeBookId);if(b)return b}
+  if(pageBookBoot.id){b=find(pageBookBoot.id);if(b)return b}
   let queryId=Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):new URLSearchParams(location.search).get("id");
   if(queryId){b=find(queryId);if(b)return b}
   let file=(location.pathname.split("/").pop()||"").split("?")[0];
@@ -5386,25 +5388,18 @@ async function orderWithWhatsApp(){
   trackEvent("whatsapp_order_click",{bookId:bookIds[0]||"",bookIds,items:bookIds.length||o.items?.length||cart().length,total:o.total||0});
   const url=whatsappOrderUrl(o.text);
   const member=window.KutadguMember;
-  const signedIn=typeof member?.getUser==="function"&&!!member.getUser();
-  let popup=null;
-  if(signedIn){
-    popup=window.open("about:blank","_blank");
-    if(popup)popup.opener=null;
-  }else{
-    popup=window.open(url,"_blank");
-    if(popup)popup.opener=null;
-    else location.href=url;
-  }
+  const popup=window.open("about:blank","_blank");
+  if(popup)popup.opener=null;
+  let signedIn=false;
   try{
+    if(member?.ready)await member.ready;
+    signedIn=typeof member?.getUser==="function"&&!!member.getUser();
     const history=await savePreparedOrderHistory(o);
-    if(signedIn){
-      if(!history?.saved)throw new Error(String(history?.reason||"order_history_not_saved"));
-      if(popup)popup.location.href=url;
-      else location.href=url;
-    }
+    if(signedIn&&!history?.saved)throw new Error(String(history?.reason||"order_history_not_saved"));
+    if(popup)popup.location.href=url;
+    else location.href=url;
   }catch(err){
-    if(signedIn&&popup&&typeof popup.close==="function")popup.close();
+    if(popup&&typeof popup.close==="function")popup.close();
     const blob=String(err&&(err.message||err.details||err.hint)||err||"");
     if(/insufficient_stock/i.test(blob))toast("ئامبار سانى يەتمىدى، ئەزا زاكاز تارىخى يېزىلمىدى.");
     else if(/expired_quote/i.test(blob)){

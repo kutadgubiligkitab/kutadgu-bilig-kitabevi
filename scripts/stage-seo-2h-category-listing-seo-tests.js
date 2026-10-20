@@ -25,7 +25,7 @@ const NEW_HUBS = {
   taamlar: { label: "تائاملار" }
 };
 const FROZEN = {
-  "shop.js": "dd888490d86fccf1432de93cf14f9277f91fa87b08340590d4b311278c5c9a9c",
+  "shop.js": "b936827448e092e7f22dcd74237a13a45e7b89283f8ad0d715d7ef328e304e38",
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
   "kutadgu-ai-search.js": "242ee8d31e231b758d52eb6a85aa01b3bbcf2050a6d1305d9a87864e81506ae0",
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
@@ -187,7 +187,7 @@ HUBS.forEach((slug) => {
     assert.doesNotMatch(intro, FAKE_CLAIM);
     assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
     assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-    assert.match(html, /shop\.js\?v=168/);
+    assert.match(html, /shop\.js\?v=169/);
     if (NEW_HUBS[slug]) {
       assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), `${slug}.html`);
       assert.strictEqual(attr(html, /data-catalog-sources="([^"]*)"/) || "", "");
@@ -251,7 +251,7 @@ test("/books public global listing gets first-byte favicon and intro without bec
   assert.doesNotMatch(intro, FAKE_CLAIM);
   assert.doesNotMatch(html, /<p class="category-hub-intro"[^>]*(hidden|aria-hidden="true")/);
   assert.match(html, /href="\/category-hub-seo\.css\?v=1"/);
-  assert.match(html, /shop\.js\?v=168/);
+  assert.match(html, /shop\.js\?v=169/);
   assert.match(html, /class="books-grid" data-catalog-source=""/);
   assert.strictEqual(attr(html, /data-catalog-source="([^"]*)"/), "");
   assert.strictEqual(attr(old, /data-catalog-source="([^"]*)"/), "");

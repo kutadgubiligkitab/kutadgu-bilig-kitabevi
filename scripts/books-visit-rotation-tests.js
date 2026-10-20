@@ -305,7 +305,7 @@ test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage
   assert.match(booksHtml, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/books"/);
   assert.strictEqual((booksHtml.match(/application\/ld\+json/g) || []).length, 1);
   assert.match(booksHtml, /CollectionPage/);
-  assert.match(booksHtml, /shop\.js\?v=168/);
+  assert.match(booksHtml, /shop\.js\?v=169/);
 });
 
 (async () => {

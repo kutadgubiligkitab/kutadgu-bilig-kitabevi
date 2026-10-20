@@ -77,13 +77,18 @@ test.describe("order prepared semantics", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBeGreaterThan(0);
-    expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
-    const waText = decodeURIComponent(opened[0].split("text=")[1] || "");
+    await expect.poll(() => opened.length).toBeGreaterThan(1);
+    expect(opened[0]).toBe("about:blank");
+    expect(opened[1]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    const waText = decodeURIComponent(opened[1].split("text=")[1] || "");
     expect(waText).toContain(`زاكاز نومۇرى: ${preparedOrderNo}`);
   });
 
