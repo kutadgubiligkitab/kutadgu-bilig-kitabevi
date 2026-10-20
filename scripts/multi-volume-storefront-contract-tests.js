@@ -57,6 +57,8 @@ function group(count,overrides){
 test("rejects unsupported group sizes",()=>{
   assert.strictEqual(storefront.normalizeGroup(group(1)),null);
   assert.strictEqual(storefront.normalizeGroup(group(101)),null);
+  assert.strictEqual(storefront.normalizeGroup(group(2,{members:[member(1),member(1)]})),null);
+  assert.strictEqual(storefront.normalizeGroup(group(2,{members:[member(1),member(2,{book_id:"1001"})]})),null);
 });
 
 test("catalog group keeps representative identity and stable group URL",()=>{

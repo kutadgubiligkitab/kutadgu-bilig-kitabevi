@@ -77,8 +77,14 @@
   function normalizeGroup(value){
     if(!value||typeof value!=="object")return null;
     const id=positiveId(value.id??value.group_id);
-    const members=(Array.isArray(value.members)?value.members:[]).map(normalizeMember).filter(Boolean).sort((a,b)=>a.position-b.position);
-    if(!id||members.length<2||members.length>100)return null;
+    const rawMembers=Array.isArray(value.members)?value.members:[];
+    if(!id||rawMembers.length<2||rawMembers.length>100)return null;
+    const members=rawMembers.map(normalizeMember);
+    if(members.some(member=>!member))return null;
+    const bookIds=new Set(members.map(member=>member.book_id));
+    const positions=new Set(members.map(member=>member.position));
+    if(bookIds.size!==members.length||positions.size!==members.length)return null;
+    members.sort((a,b)=>a.position-b.position);
     const explicit=value.complete_set_price==null||value.complete_set_price===""?null:Number(value.complete_set_price);
     const effectiveRaw=value.effective_set_price??value.set_price;
     const effective=effectiveRaw==null||effectiveRaw===""?null:Number(effectiveRaw);
