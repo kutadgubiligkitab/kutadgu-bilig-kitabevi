@@ -761,8 +761,8 @@ BEGIN
   v_sort := lower(btrim(coalesce(p_query->>'sort', 'new')));
   v_credit_id := nullif(btrim(coalesce(p_query->>'credit_id', '')), '');
   v_credit_role := nullif(btrim(coalesce(p_query->>'credit_role', '')), '');
-  v_sources := p_query->'sources';
-  v_ids := p_query->'ids';
+  v_sources := nullif(p_query->'sources', 'null'::jsonb);
+  v_ids := nullif(p_query->'ids', 'null'::jsonb);
   BEGIN
     v_min_price := nullif(p_query->>'min_price', '')::numeric;
     v_max_price := nullif(p_query->>'max_price', '')::numeric;

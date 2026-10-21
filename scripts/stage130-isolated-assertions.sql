@@ -444,3 +444,64 @@ BEGIN
   END IF;
 END
 $grants$;
+
+-- The browser serializes optional arrays as JSON null, not omitted keys.
+DO $browser_query$
+DECLARE
+  v_expected jsonb;
+  v_actual jsonb;
+  v_field text;
+BEGIN
+  v_expected := public.query_public_book_catalog('{"offset":0,"limit":24}'::jsonb);
+  v_actual := public.query_public_book_catalog('{
+    "search":"","category":"","source":"","sources":null,"sort":"new",
+    "min_price":null,"max_price":null,"recommended":false,"bestseller":false,
+    "new_only":false,"credit_id":null,"credit_role":null,"ids":null,
+    "offset":0,"limit":24
+  }'::jsonb);
+  IF (v_actual->>'total')::integer < 1
+     OR v_actual->'items' IS DISTINCT FROM v_expected->'items'
+     OR v_actual->'total' IS DISTINCT FROM v_expected->'total' THEN
+    RAISE EXCEPTION 'browser null filters changed the unfiltered catalog: %', v_actual;
+  END IF;
+
+  v_actual := public.query_public_book_catalog(
+    '{"sources":null,"ids":["book:150"],"offset":0,"limit":24}'::jsonb
+  );
+  IF v_actual->>'total' <> '1' OR v_actual#>>'{items,0,unit_id}' <> 'book:150' THEN
+    RAISE EXCEPTION 'null sources broke explicit book lookup: %', v_actual;
+  END IF;
+  v_actual := public.query_public_book_catalog(
+    '{"sources":["universal.html"],"ids":null,"offset":0,"limit":24}'::jsonb
+  );
+  IF (v_actual->>'total')::integer < 1 OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(v_actual->'items') AS row(value)
+    WHERE row.value->>'source' <> 'universal.html'
+  ) THEN
+    RAISE EXCEPTION 'null ids broke source filtering: %', v_actual;
+  END IF;
+
+  FOREACH v_field IN ARRAY ARRAY['sources','ids'] LOOP
+    v_actual := public.query_public_book_catalog(jsonb_build_object(v_field, '[]'::jsonb));
+    IF v_actual->>'total' <> '0' THEN
+      RAISE EXCEPTION 'explicit empty % filter was ignored: %', v_field, v_actual;
+    END IF;
+    BEGIN
+      PERFORM public.query_public_book_catalog(jsonb_build_object(v_field, 'invalid'));
+      RAISE EXCEPTION 'invalid scalar % filter was accepted', v_field;
+    EXCEPTION WHEN invalid_parameter_value THEN
+      NULL;
+    END;
+  END LOOP;
+
+  v_actual := public.query_public_book_catalog(
+    '{"sources":null,"ids":null,"max_price":0}'::jsonb
+  );
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(v_actual->'items') AS row(value)
+    WHERE (row.value->>'price')::numeric > 0
+  ) THEN
+    RAISE EXCEPTION 'explicit zero price bound was ignored: %', v_actual;
+  END IF;
+END
+$browser_query$;

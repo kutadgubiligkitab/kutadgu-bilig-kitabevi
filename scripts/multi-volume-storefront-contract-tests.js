@@ -85,6 +85,22 @@ test("catalog query carries grouped-before-pagination filters",()=>{
   });
 });
 
+test("absent price bounds remain absent while explicit zero remains a filter",()=>{
+  for(const value of [undefined,null,"","   "]){
+    const query=storefront.catalogQuery({minPrice:value,maxPrice:value});
+    assert.strictEqual(query.min_price,null);
+    assert.strictEqual(query.max_price,null);
+  }
+  for(const value of [0,"0"]){
+    const query=storefront.catalogQuery({minPrice:value,maxPrice:value});
+    assert.strictEqual(query.min_price,0);
+    assert.strictEqual(query.max_price,0);
+  }
+  const query=storefront.catalogQuery({minPrice:"12.5",maxPrice:"90"});
+  assert.strictEqual(query.min_price,12.5);
+  assert.strictEqual(query.max_price,90);
+});
+
 test("RPC catalog response preserves authoritative totals",async()=>{
   const response={
     ok:true,status:200,

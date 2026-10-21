@@ -147,6 +147,11 @@
   }
   function catalogQuery(input){
     const value=input&&typeof input==="object"?input:{};
+    const optionalPrice=raw=>{
+      if(raw==null||typeof raw==="string"&&!raw.trim())return null;
+      const parsed=Number(raw);
+      return Number.isFinite(parsed)?parsed:null;
+    };
     const pageSize=Math.max(1,Math.min(MAX_PAGE_SIZE,Number(value.pageSize)||24));
     const offset=Math.max(0,Number(value.offset)||0);
     const ids=(Array.isArray(value.ids)?value.ids:[]).map(String).filter(Boolean).slice(0,MAX_PAGE_SIZE);
@@ -156,8 +161,8 @@
       source:String(value.source||"").trim().slice(0,300),
       sources:Array.isArray(value.sources)?value.sources.map(x=>String(x||"").trim()).filter(Boolean).slice(0,50):null,
       sort:String(value.sort||"new"),
-      min_price:Number.isFinite(Number(value.minPrice))?Number(value.minPrice):null,
-      max_price:Number.isFinite(Number(value.maxPrice))?Number(value.maxPrice):null,
+      min_price:optionalPrice(value.minPrice),
+      max_price:optionalPrice(value.maxPrice),
       recommended:value.recommended===true||value.featured===true,
       bestseller:value.bestseller===true,
       new_only:value.newOnly===true,
