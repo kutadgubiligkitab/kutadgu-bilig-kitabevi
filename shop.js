@@ -1665,13 +1665,18 @@ async function fetchRemotePage(input={},options={}){
     }
     const items=(page.items||[]).map((row,index)=>normalizeRemoteBook(row,state.offset+index)).filter(book=>book.id);
     items.filter(book=>book.catalogKind!=="group").forEach(indexCatalogBook);
-    catalogStatus={source:"supabase",remoteCount:C.length,total:page.total,migrated:true,error:""};
+    rebuildVisibleCatalog();
+    const reportedTotal=page.total;
+    const exactTotal=reportedTotal==null||reportedTotal===""?null:Number(reportedTotal);
+    const knownTotal=Number.isFinite(exactTotal)?exactTotal:null;
+    catalogStatus={source:"supabase",remoteCount:C.length,total:knownTotal,migrated:true,error:""};
     window.KUTADGU_CATALOG_STATUS=catalogStatus;
+    const end=Math.max(state.offset,state.offset+items.length-1);
     return {
       ...page,
       items,
       status:200,
-      contentRange:`${state.offset}-${Math.max(state.offset,state.offset+items.length-1)}/${page.total}`,
+      contentRange:knownTotal==null?"":`${state.offset}-${end}/${knownTotal}`,
       rowCount:items.length
     };
   }

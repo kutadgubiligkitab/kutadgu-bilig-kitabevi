@@ -209,11 +209,13 @@
         if(options&&options.signal&&options.signal.aborted)throw error;
       }
     }
-    const total=Number(result&&result.total);
+    const reported=result&&Object.prototype.hasOwnProperty.call(result,"total")?result.total:undefined;
+    const parsedTotal=reported==null||reported===""?null:Number(reported);
+    const total=Number.isFinite(parsedTotal)?parsedTotal:null;
     return {
       items,
-      total:Number.isFinite(total)?total:items.length,
-      hasMore:result&&typeof result.has_more==="boolean"?result.has_more:query.offset+items.length<(Number.isFinite(total)?total:query.offset+items.length),
+      total,
+      hasMore:result&&typeof result.has_more==="boolean"?result.has_more:(total==null?items.length===query.limit:query.offset+items.length<total),
       offset:query.offset,
       pageSize:query.limit,
       source:"volume-groups"
