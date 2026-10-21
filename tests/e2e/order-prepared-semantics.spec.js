@@ -97,16 +97,21 @@ test.describe("order prepared semantics", () => {
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
-    await page.evaluate(async (bookId) => {
+    await expect(page.locator("#checkoutCard")).toBeVisible();
+    await fillCheckout(page);
+    await expect(page.locator("#customerName")).toHaveValue("Playwright Test");
+    await expect(page.locator("#customerPhone")).toHaveValue("5550000111");
+    await expect(page.locator("#customerAddress")).toHaveValue("Test street 1");
+    const probe = await page.evaluate(async () => {
       const member = window.KutadguMember;
       if (member?.ready) await member.ready;
-      window.__waProbe = { opened: [], navigated: [], closed: false };
+      const uid = "11111111-1111-4111-8111-111111111111";
       window.KutadguMember = member || {};
-      window.KutadguMember.getUser = () => ({ id: "11111111-1111-4111-8111-111111111111" });
+      window.KutadguMember.ready = Promise.resolve();
+      window.KutadguMember.getUser = () => ({ id: uid });
       window.KutadguMember.saveOrder = async () => { throw new Error("stale_quote"); };
-      localStorage.setItem("kutadgu-shop-owner-v1", "11111111-1111-4111-8111-111111111111");
-      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: String(bookId), qty: 1 }]));
-      document.querySelector("#checkoutForm").reportValidity = () => true;
+      localStorage.setItem("kutadgu-shop-owner-v1", uid);
+      window.__waProbe = { opened: [], navigated: [], closed: false };
       window.open = (url) => {
         window.__waProbe.opened.push(String(url));
         const location = {};
@@ -119,12 +124,13 @@ test.describe("order prepared semantics", () => {
           close() { window.__waProbe.closed = true; }
         };
       };
-    }, book.id);
-    await fillCheckout(page);
-    const probe = await page.evaluate(async () => {
       await window.kutadguShop.orderWithWhatsApp();
+      window.__waProbe.notices = [...document.querySelectorAll(".shop-toast")].map((node) => node.textContent);
       return window.__waProbe;
     });
+    expect(probe.notices).toEqual([
+      "توپلام تەركىبى ياكى باھاسى ئۆزگەردى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى."
+    ]);
     expect(probe.opened).toEqual(["about:blank"]);
     expect(probe.navigated).toEqual([]);
     expect(probe.closed).toBe(true);
