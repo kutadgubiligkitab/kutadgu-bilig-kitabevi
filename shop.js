@@ -2174,7 +2174,37 @@ function volumeStorefront(){
   return api&&api.enabled&&api.enabled()?api:null;
 }
 const volumeGroupCache=new Map();
+const volumeGroupReadFailed=new Set();
 let volumeGroupHydration=null;
+let volumeGroupHydrationGen=0;
+let volumeCartPrime=null;
+let volumeCartPrimeGen=0;
+let volumeCartPaintQueued=false;
+let volumeQuoteFailureSignature="";
+function volumeGroupState(groupId){
+  const id=String(groupId||"");
+  if(!id)return "failed";
+  if(volumeGroupCache.get(id))return "ready";
+  if(volumeGroupReadFailed.has(id))return "failed";
+  return "pending";
+}
+function clearVolumeCartReadFailures(){
+  volumeQuoteFailureSignature="";
+  volumeGroupReadFailed.clear();
+  volumeGroupHydrationGen+=1;
+  volumeCartPrimeGen+=1;
+  volumeGroupHydration=null;
+  volumeCartPrime=null;
+  volumeCartPaintQueued=false;
+}
+function retryVolumeCartReads(){
+  const api=volumeGroups();
+  clearVolumeCartReadFailures();
+  if(api&&typeof api.invalidateQuote==="function")api.invalidateQuote();
+  if(!document.querySelector("#cartItems"))return;
+  volumeCartPaintQueued=true;
+  primeVolumeCart().finally(()=>{volumeCartPaintQueued=false}).then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+}
 function setCartState(){
   const api=volumeGroups();
   if(!api||!shopOwnerAllowsLocalDisplay())return {lines:[],unsupported:[]};
@@ -2245,30 +2275,63 @@ function changeCompleteSetQty(groupId,delta){
 async function hydrateSetCartGroups(){
   const api=volumeGroups();
   if(!api)return [];
-  const missing=setCartState().lines.map(line=>String(line.group_id)).filter(id=>!volumeGroupCache.has(id));
+  const missing=setCartState().lines.map(line=>String(line.group_id)).filter(id=>!volumeGroupCache.get(id)&&!volumeGroupReadFailed.has(id));
   if(!missing.length)return setCartLines();
   if(volumeGroupHydration)return volumeGroupHydration;
+  const gen=++volumeGroupHydrationGen;
   volumeGroupHydration=(async()=>{
     await Promise.all([...new Set(missing)].map(async id=>{
       try{
         const group=await api.getPublicGroup(id);
-        volumeGroupCache.set(id,group||false);
+        if(gen!==volumeGroupHydrationGen)return;
+        if(group){
+          volumeGroupCache.set(id,group);
+          volumeGroupReadFailed.delete(id);
+        }else{
+          volumeGroupReadFailed.add(id);
+          volumeGroupCache.delete(id);
+        }
       }catch(error){
-        volumeGroupCache.set(id,false);
+        if(gen!==volumeGroupHydrationGen)return;
+        volumeGroupReadFailed.add(id);
+        volumeGroupCache.delete(id);
       }
     }));
     return setCartLines();
-  })().finally(()=>{volumeGroupHydration=null});
+  })().finally(()=>{if(gen===volumeGroupHydrationGen)volumeGroupHydration=null});
   return volumeGroupHydration;
 }
 function primeVolumeCart(){
   const api=volumeGroups();
   const sets=setCartState().lines;
   if(!api||!sets.length||setCartUnsupported().length)return Promise.resolve(null);
-  return hydrateSetCartGroups().then(()=>{
-    if(setCartLines().some(line=>!line.group))throw new Error("volume_group_unavailable");
+  if(volumeCartPrime)return volumeCartPrime;
+  const signature=api.cartSignature(cart(),sets);
+  const gen=++volumeCartPrimeGen;
+  volumeCartPrime=hydrateSetCartGroups().then(()=>{
+    if(setCartState().lines.some(line=>volumeGroupState(line.group_id)==="failed")){
+      const err=new Error("volume_group_unavailable");
+      err.code="volume_group_unavailable";
+      throw err;
+    }
+    if(setCartState().lines.some(line=>volumeGroupState(line.group_id)!=="ready")){
+      const err=new Error("volume_group_pending");
+      err.code="volume_group_pending";
+      throw err;
+    }
+    if(setCartLines().some(line=>line.group&&!api.setAvailable(line.group,line.qty)))return null;
     return api.requestQuote(cart(),sets);
-  }).catch(()=>null);
+  }).then(quote=>{
+    if(gen!==volumeCartPrimeGen)return quote;
+    volumeQuoteFailureSignature="";
+    return quote;
+  }).catch(error=>{
+    if(gen!==volumeCartPrimeGen)return null;
+    if(error&&(error.code==="volume_group_unavailable"||error.code==="volume_group_pending"))return null;
+    volumeQuoteFailureSignature=signature;
+    return null;
+  }).finally(()=>{if(gen===volumeCartPrimeGen)volumeCartPrime=null});
+  return volumeCartPrime;
 }
 function cart(){
   if(!shopOwnerAllowsLocalDisplay())return [];
@@ -2320,8 +2383,11 @@ function updateBadge(){
     e.textContent=n;
     e.setAttribute("data-kutadgu-count-state","ready");
   });
-  if(sets.some(line=>!line.group)&&!volumeGroupHydration){
-    hydrateSetCartGroups().then(updateBadge,()=>{});
+  if(sets.some(line=>volumeGroupState(line.group_id)==="pending")){
+    hydrateSetCartGroups().then(()=>{
+      updateBadge();
+      if(document.querySelector("#cartItems"))cartPage();
+    },()=>{});
   }
 }
 function add(id,qty=1){
@@ -4436,16 +4502,32 @@ function cartPage(){
   }
   const orderable=preview?[]:items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy&&!x.b.__cartDisplayPreview);
   const volumeApi=volumeGroups();
-  const volumeQuote=volumeApi&&setItems.length?volumeApi.cachedQuoteFor(cart(),setCartState().lines):null;
+  const setState=volumeApi?setCartState():{lines:[],unsupported:[]};
+  const volumeQuote=volumeApi&&setItems.length?volumeApi.cachedQuoteFor(cart(),setState.lines):null;
+  const quoteSignature=volumeApi&&setItems.length?volumeApi.cartSignature(cart(),setState.lines):"";
+  const setGroupPending=setItems.some(x=>volumeGroupState(x.group_id)==="pending");
+  const setGroupFailed=setItems.some(x=>volumeGroupState(x.group_id)==="failed");
+  const setUnavailable=setItems.some(x=>x.group&&!volumeApi?.setAvailable(x.group,x.qty));
+  const quoteFailed=!!quoteSignature&&volumeQuoteFailureSignature===quoteSignature;
+  const readFailed=setGroupFailed||quoteFailed;
+  const quotePending=!!setItems.length&&!volumeQuote&&!readFailed&&!unsupportedSets.length&&!setUnavailable;
+  const setBlocked=setUnavailable;
   let totalQty=volumeQuote?Number(volumeQuote.total_qty)||0:orderable.reduce((s,x)=>s+x.qty,0)+setCartPhysicalQty(setItems);
   let total=volumeQuote?Number(volumeQuote.total)||0:orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0)+setItems.reduce((s,x)=>s+(volumeApi?.groupSetPrice(x.group)||0)*x.qty,0);
+  const amountLabel=quotePending?"جەزملەۋاتىدۇ…":(readFailed?"—":money(total));
+  const qtyLabel=quotePending?"جەزملەۋاتىدۇ…":(readFailed&&!setItems.some(x=>x.group)?"—":String(totalQty));
   let checkout=document.querySelector("#checkoutCard");
   const layout=document.querySelector("#cartLayout");
   const aside=document.querySelector("#cartAside");
   const summaryHost=document.querySelector("#cartSummaryHost");
-  const setBlocked=setItems.some(x=>!x.group||!volumeApi?.setAvailable(x.group,x.qty));
-  const quotePending=!!setItems.length&&!volumeQuote&&!setBlocked&&!unsupportedSets.length;
-  const blocked=preview||unsupportedSets.length>0||setBlocked||quotePending||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
+  const blocked=preview||unsupportedSets.length>0||setBlocked||quotePending||readFailed||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
+  if(quotePending){
+    host.setAttribute("aria-busy","true");
+    host.setAttribute("data-cart-quote","pending");
+  }else{
+    host.setAttribute("data-cart-quote",volumeQuote?"ready":(readFailed?"error":(setBlocked?"blocked":"idle")));
+    if(!preview)host.removeAttribute("aria-busy");
+  }
 
   if(!items.length&&!setItems.length&&!unsupportedSets.length){
     host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
@@ -4494,26 +4576,43 @@ function cartPage(){
     </div>`;
   }).join("")+setItems.map((x,index)=>{
     const group=x.group;
+    const groupState=volumeGroupState(x.group_id);
     const representative=group&&group.members.find(member=>String(member.book_id)===String(group.representative_book_id))||group?.members?.[0];
     const available=!!group&&volumeApi?.setAvailable(group,x.qty);
-    const setPrice=group?volumeApi?.groupSetPrice(group):null;
-    const plusDisabled=preview||!available;
-    return `<div class="cart-item cart-volume-set${available?"":" cart-item-unavailable"}" data-set-group="${escapeAttr(x.group_id)}">
-      <div class="cart-item-cover${available?"":" is-stock-out"}">
+    const loading=quotePending||groupState==="pending";
+    const readError=!loading&&(groupState==="failed"||quoteFailed);
+    const quoteLine=volumeQuote&&Array.isArray(volumeQuote.items)?volumeQuote.items.find(item=>String(item.group_id)===String(x.group_id)&&String(item.kind||"set")==="set"):null;
+    let setPrice=null;
+    if(quoteLine){
+      const lineTotal=Number(quoteLine.line_total);
+      const unit=Number(quoteLine.price);
+      if(Number.isFinite(lineTotal))setPrice=lineTotal/Math.max(1,x.qty);
+      else if(Number.isFinite(unit))setPrice=unit;
+    }else if(!loading&&!readError&&group)setPrice=volumeApi?.groupSetPrice(group);
+    const plusDisabled=preview||loading||readError||!available;
+    const quoteState=loading?"pending":(readError?"error":(!available?"blocked":"ready"));
+    const priceLabel=loading?"جەزملەۋاتىدۇ…":(Number.isFinite(setPrice)?money(setPrice):"—");
+    const lineLabel=loading?"جەزملەۋاتىدۇ…":(Number.isFinite(setPrice)?money(setPrice*x.qty):"—");
+    const stockNote=loading
+      ?`<span class="stock-badge" data-set-loading="true">جەزملەۋاتىدۇ…</span>`
+      :(readError?`<span class="stock-badge" data-set-read-error="true">${groupState==="failed"?"يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى":"باھا جەزملەنمىدى"}</span>`
+      :(available?"":`<span class="stock-badge stock-out">بەزى قىسىملار تەمىنلەنمەيدۇ</span>`));
+    return `<div class="cart-item cart-volume-set${available||loading||readError?"":" cart-item-unavailable"}${loading?" is-quote-pending":""}${readError?" is-quote-error":""}" data-set-group="${escapeAttr(x.group_id)}" data-set-quote-state="${quoteState}">
+      <div class="cart-item-cover${available||loading?"":" is-stock-out"}">
         ${representative?`<img src="${escapeAttr(safeCoverUrl(representative.image_url))}" alt="${escapeAttr(group.title||"تولۇق توپلام")}" width="100" height="127" loading="${index<2?"eager":"lazy"}">`:""}
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(group?.title||`توپلام #${x.group_id}`)}</div>
-        <div class="cart-meta">تولۇق يۈرۈشلۈك · ${group?.members?.length||"—"} قىسىم</div>
-        <div class="cart-stock">${available?"":`<span class="stock-badge stock-out">${group?"بەزى قىسىملار تەمىنلەنمەيدۇ":"يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى"}</span>`}</div>
+        <div class="cart-meta">تولۇق يۈرۈشلۈك · ${loading?"جەزملەۋاتىدۇ…":`${group?.members?.length||"—"} قىسىم`}</div>
+        <div class="cart-stock">${stockNote}</div>
         <div class="cart-item-toolbar">
-          <div class="cart-unit-price">يۈرۈشلۈك باھاسى: ${Number.isFinite(setPrice)?money(setPrice):"—"}</div>
+          <div class="cart-unit-price">يۈرۈشلۈك باھاسى: ${priceLabel}</div>
           <div class="qty-control">
-            <button type="button" aria-label="توپلام سانىنى ئازايتىش" data-set-minus="${escapeAttr(x.group_id)}"${preview?" disabled aria-disabled=\"true\"":""}>−</button>
+            <button type="button" aria-label="توپلام سانىنى ئازايتىش" data-set-minus="${escapeAttr(x.group_id)}"${preview||loading||readError?" disabled aria-disabled=\"true\"":""}>−</button>
             <span class="cart-qty-value">${x.qty}</span>
             <button type="button" aria-label="توپلام سانىنى كۆپەيتىش" data-set-plus="${escapeAttr(x.group_id)}"${plusDisabled?" disabled aria-disabled=\"true\"":""}>+</button>
           </div>
-          <div class="cart-line-price"><small>جەمئىي</small><strong>${Number.isFinite(setPrice)?money(setPrice*x.qty):"—"}</strong></div>
+          <div class="cart-line-price"><small>جەمئىي</small><strong>${lineLabel}</strong></div>
           <button type="button" class="remove-cart" data-set-remove="${escapeAttr(x.group_id)}">ئۆچۈرۈش</button>
         </div>
       </div>
@@ -4523,12 +4622,13 @@ function cartPage(){
   const summaryHtml=`<div class="cart-summary">
        <h2 class="cart-summary-heading">زاكاز خۇلاسىسى</h2>
        <div class="cart-summary-meta">
-         <div class="cart-summary-row"><span>جەمئىي كىتاب سانى</span><strong>${totalQty}</strong></div>
-         <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${quotePending?"جەزملەۋاتىدۇ…":money(total)}</strong></div>
+         <div class="cart-summary-row"><span>جەمئىي كىتاب سانى</span><strong>${qtyLabel}</strong></div>
+         <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${amountLabel}</strong></div>
        </div>
        <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
-       ${blocked&&!preview?`<p class="cart-stock-block-note" role="status">سېۋەتتە تۈگەپ كەتكەن ياكى تەمىنلەنمەيدىغان كىتاب بار. زاكاز قىلىشتىن بۇرۇن ئۇنى ئۆچۈرۈڭ.</p>`:""}
-       <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${quotePending?"جەزملەۋاتىدۇ…":money(total)}</strong></div>
+       ${readFailed&&!preview?`<div class="catalog-error-state" role="alert" data-cart-quote-error="true"><p>باھا ياكى يۈرۈشلۈك ئۇچۇرى ۋاقىتلىق يۈكلەنمىدى.</p><button type="button" class="catalog-retry-btn" data-set-quote-retry="1">قايتا سىناش</button></div>`:""}
+       ${setBlocked&&!preview&&!quotePending&&!readFailed?`<p class="cart-stock-block-note" role="status">سېۋەتتە تۈگەپ كەتكەن ياكى تەمىنلەنمەيدىغان كىتاب بار. زاكاز قىلىشتىن بۇرۇن ئۇنى ئۆچۈرۈڭ.</p>`:""}
+       <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${amountLabel}</strong></div>
        <div class="cart-summary-actions">
          ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          ${cartShareVisible()?`<button type="button" class="checkout-secondary" id="shareCart">📤 سېۋەتنى ھەمبەھىرلەش</button>`:""}
@@ -4546,6 +4646,7 @@ function cartPage(){
   host.querySelectorAll("[data-set-plus]").forEach(b=>b.onclick=()=>changeCompleteSetQty(b.dataset.setPlus,1));
   host.querySelectorAll("[data-set-minus]").forEach(b=>b.onclick=()=>changeCompleteSetQty(b.dataset.setMinus,-1));
   host.querySelectorAll("[data-set-remove]").forEach(b=>b.onclick=()=>{removeCompleteSet(b.dataset.setRemove);cartPage()});
+  document.querySelectorAll("[data-set-quote-retry]").forEach(b=>b.onclick=()=>retryVolumeCartReads());
 
   let clear=document.querySelector("#clearCart");
   if(clear)clear.onclick=()=>{
@@ -4566,9 +4667,12 @@ function cartPage(){
   setupCheckout();
   updateBadge();
   syncGuestCartInvite();
-  if(quotePending&&!volumeGroupHydration){
-    primeVolumeCart().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
-  }else if(setItems.some(line=>!line.group)&&!volumeGroupHydration){
+  if(quotePending){
+    if(!volumeCartPaintQueued){
+      volumeCartPaintQueued=true;
+      primeVolumeCart().finally(()=>{volumeCartPaintQueued=false}).then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+    }
+  }else if(setGroupPending){
     hydrateSetCartGroups().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
   }
 }
@@ -6599,5 +6703,5 @@ async function boot(){
   ensurePublicBookCardRowAlignmentCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage};
+window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,retryVolumeCartReads,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage};
 })();

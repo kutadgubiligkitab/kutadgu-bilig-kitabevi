@@ -56,6 +56,25 @@ test("static shell paints cart boot state before remote catalog hydrate", () => 
   assert.match(init, /cartPage\(\)/);
 });
 
+test("set cart paints a loading quote instead of 0 TRY and refreshes after in-flight group reads", () => {
+  const cartPage = sliceBetween(shop, "function cartPage()", "function changeQty(");
+  assert.match(shop, /function volumeGroupState\(/);
+  assert.match(shop, /function retryVolumeCartReads\(/);
+  assert.match(cartPage, /const readFailed=setGroupFailed\|\|quoteFailed/);
+  assert.match(cartPage, /const quotePending=!!setItems.length&&!volumeQuote&&!readFailed&&!unsupportedSets.length&&!setUnavailable/);
+  assert.match(cartPage, /const setBlocked=setUnavailable/);
+  assert.doesNotMatch(cartPage, /setBlocked=setItems.some\(x=>!x\.group/);
+  assert.doesNotMatch(cartPage, /setBlocked=setGroupFailed\|\|setUnavailable\|\|quoteFailed/);
+  assert.match(cartPage, /data-set-quote-retry/);
+  assert.match(cartPage, /data-cart-quote-error/);
+  assert.match(cartPage, /data-set-quote-state/);
+  assert.match(cartPage, /if\(quotePending\)\{\s*if\(!volumeCartPaintQueued\)/);
+  assert.doesNotMatch(cartPage, /quotePending&&!volumeGroupHydration/);
+  assert.match(shop, /volumeGroupReadFailed\.add\(id\)/);
+  assert.doesNotMatch(sliceBetween(shop, "async function hydrateSetCartGroups()", "function primeVolumeCart("), /volumeGroupCache\.set\(id,false\)/);
+  assert.match(sliceBetween(shop, "function primeVolumeCart()", "function cart()"), /setAvailable\(line\.group,line\.qty\)\)\)return null/);
+});
+
 test("cart boot helpers do not change persistence keys or WhatsApp builders", () => {
   assert.match(shop, /const CART_KEY="kutadgu-cart-v1"/);
   assert.match(shop, /CART_DISPLAY_KEY="kutadgu-cart-display-v1"/);
