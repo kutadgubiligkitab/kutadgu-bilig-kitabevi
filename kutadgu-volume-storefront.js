@@ -177,9 +177,15 @@
       limit:pageSize
     };
   }
+  function groupedSearchText(value){
+    const text=String(value||"").trim();
+    if(!text)return "";
+    return text.split(/\s+/).filter(Boolean).join("%").slice(0,300);
+  }
   async function queryCatalog(input,options){
     const query=catalogQuery(input);
-    const result=await rpc("query_public_book_catalog",{p_query:query},options);
+    const sent={...query,search:groupedSearchText(query.search)};
+    const result=await rpc("query_public_book_catalog",{p_query:sent},options);
     const rows=Array.isArray(result)?result:Array.isArray(result&&result.items)?result.items:[];
     const items=rows.map(normalizeCatalogItem).filter(Boolean);
     const missing=items.filter(item=>item.kind==="group"&&(!item.member_prices||!item.member_prices.length)).map(item=>Number(item.group_id)).filter(Number.isFinite);

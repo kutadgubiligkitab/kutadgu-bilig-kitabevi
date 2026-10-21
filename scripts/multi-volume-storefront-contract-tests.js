@@ -73,6 +73,19 @@ test("catalog group keeps representative identity and stable group URL",()=>{
   assert.deepStrictEqual(value.member_book_ids,["1001","1002","1003","1004"]);
 });
 
+test("grouped search keeps words apart so punctuation in a title still matches",()=>{
+  const seen=[];
+  const query=storefront.catalogQuery({search:"بالىلار قامۇسى ئالەم سارىيى",sort:"relevance"});
+  return storefront.queryCatalog({search:query.search,sort:"relevance"},{
+    fetchImpl:async (_url,init)=>{
+      seen.push(JSON.parse(init.body).p_query.search);
+      return {ok:true,text:async()=>JSON.stringify({items:[],total:0,has_more:false})};
+    }
+  }).then(()=>{
+    assert.deepStrictEqual(seen,["بالىلار%قامۇسى%ئالەم%سارىيى"]);
+  });
+});
+
 test("catalog query carries grouped-before-pagination filters",()=>{
   assert.deepStrictEqual(storefront.catalogQuery({
     search:"  history ",source:"romanlar.html",sort:"priceLow",minPrice:10,maxPrice:90,

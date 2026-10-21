@@ -4,6 +4,8 @@ const H = require("./helpers");
 const ROMAN_TITLE = "سوغۇق يۈكلەش رومانى";
 const POEM_TITLE = "سوغۇق يۈكلەش شېئىرى";
 const HIST_TITLE = "سوغۇق يۈكلەش تارىخىي رومانى";
+const SERIES_TITLE = "سوغۇق يۈرۈشلۈك";
+const SERIES_SLUG = "soghuq-yurushluk";
 
 function bookRow(overrides) {
   return {
@@ -40,7 +42,23 @@ async function mockBooks(page, { books, pageSize } = {}) {
     bookRow({ id: 91002, title: POEM_TITLE, source: "sheirlar.html" }),
     bookRow({ id: 91003, title: HIST_TITLE, source: "tarikhiy-romanlar.html" }),
     bookRow({ id: 91004, title: "تۈگىگەن رومان", source: "romanlar.html", stock: 0, stock_status: "out_of_stock" }),
-    bookRow({ id: 91005, title: "ئاز قالغان رومان", source: "romanlar.html", stock: 2, stock_status: "low_stock" })
+    bookRow({ id: 91005, title: "ئاز قالغان رومان", source: "romanlar.html", stock: 2, stock_status: "low_stock" }),
+    bookRow({
+      id: 91021,
+      title: SERIES_TITLE,
+      source: "romanlar.html",
+      price: 370,
+      kind: "group",
+      group_id: 91020,
+      group_slug: SERIES_SLUG,
+      slug: SERIES_SLUG,
+      representative_book_id: 91021,
+      member_book_ids: [91021, 91022],
+      member_count: 2,
+      member_prices: [370, 399],
+      complete_set_price: 750,
+      effective_set_price: 750
+    })
   ];
   await page.route("**/rest/v1/books**", async (route) => {
     const req = route.request();
@@ -125,6 +143,13 @@ test.describe("adabiyat books-first hub", () => {
     await expect(page.locator("[data-adabiyat-heading]")).toHaveText("رومان");
     await expect(page.locator(".book-title", { hasText: ROMAN_TITLE })).toBeVisible();
     await expect(page.locator(".book-title", { hasText: POEM_TITLE })).toHaveCount(0);
+    const series = page.locator(".book-card", { hasText: SERIES_TITLE });
+    await expect(series).toHaveCount(1);
+    await expect(series).toContainText("750");
+    await expect(series).toContainText("370");
+    await expect(series).toContainText("399");
+    await expect(series.locator("a[href*='/volume-group/']").first()).toHaveAttribute("href", `/volume-group/${SERIES_SLUG}`);
+    await expect(page.locator("[data-live-book-id='91022']")).toHaveCount(0);
     await page.locator('.adabiyat-hub-pill[data-adabiyat-sub="sheirlar"]').click();
     await expect.poll(async () => page.url()).toMatch(/sub=sheirlar/);
     await expect(page.locator(".book-title", { hasText: POEM_TITLE })).toBeVisible();
