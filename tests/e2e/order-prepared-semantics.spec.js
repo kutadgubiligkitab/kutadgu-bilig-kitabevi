@@ -97,7 +97,6 @@ test.describe("order prepared semantics", () => {
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
-    await fillCheckout(page);
     await page.evaluate(() => {
       window.__waProbe = { opened: [], navigated: [], closed: false };
       window.KutadguMember = {
@@ -117,6 +116,7 @@ test.describe("order prepared semantics", () => {
         };
       };
     });
+    await fillCheckout(page);
     expect(await page.locator("#checkoutForm").evaluate((form) => form.checkValidity())).toBe(true);
     const probe = await page.evaluate(async () => {
       await window.kutadguShop.orderWithWhatsApp();
