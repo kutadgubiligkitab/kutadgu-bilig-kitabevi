@@ -195,11 +195,15 @@ test.describe("book clean URLs", () => {
   test("E homepage featured and search cards use /book/{id}", async ({ page }) => {
     const book = await H.discoverLiveBook(page);
     await H.openFresh(page, "/");
-    const featured = page.locator(".home-feature-card a[href], .home-carousel-link[href]").first();
-    await expect(featured).toBeVisible({ timeout: 30_000 });
-    const featuredHref = await featured.getAttribute("href");
-    expect(featuredHref).toMatch(/\/book\/\d+/);
-    expect(featuredHref).not.toMatch(/book\.html/);
+    const cards = page.locator(".home-feature-card a[href], .home-carousel-link[href]");
+    await expect(cards.first()).toBeVisible({ timeout: 30_000 });
+    const hrefs = await cards.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href") || ""));
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href, href).toMatch(/^\/(?:book\/\d+|volume-group\/[^/?#]+)$/);
+      expect(href, href).not.toMatch(/book\.html/);
+    }
+    expect(hrefs.some((href) => /^\/book\/\d+$/.test(href))).toBe(true);
 
     await page.locator("#searchInput").fill(book.searchToken);
     await page.locator("#searchButton").click();
