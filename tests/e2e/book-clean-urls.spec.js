@@ -11,6 +11,7 @@ function bookNodeOf(payload) {
 test.describe("book clean URLs", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A clean active book uses /book/{id} SEO and does not bounce to book.html", async ({ page }) => {
@@ -302,6 +303,7 @@ async function bodyNotHidden(page) {
 test.describe("book clean URLs — responsive", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   for (const vp of VIEWPORTS) {

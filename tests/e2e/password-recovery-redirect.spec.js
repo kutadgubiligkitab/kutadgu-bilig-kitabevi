@@ -41,6 +41,7 @@ async function mockVerify(page, outcome) {
 test.describe("password recovery token_hash", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A valid token_hash + type=recovery enables the form after verifyOtp", async ({ page }) => {
@@ -152,6 +153,7 @@ for (const [width, height] of [[390, 844], [412, 915], [768, 1024], [1280, 800]]
 
     test(`G-J valid token_hash enables form at ${width}`, async ({ page }) => {
       await H.installReadSafeNetwork(page);
+      H.allowLiveCatalogReads(page);
       await mockVerify(page, "ok");
       await page.goto("/reset-password.html?type=recovery&next=account&token_hash=ok-hash", { waitUntil: "domcontentloaded" });
       await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });

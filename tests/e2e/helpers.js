@@ -124,7 +124,9 @@ function memberCreds() {
  * Default also stubs Supabase public book-covers Storage GETs/HEADs with a tiny local PNG
  * so CI does not download real cover bytes. Pass { allowLiveBookCovers: true } to opt out.
  * Repeated read probes (view totals, catalog availability, inactive index, sales HEAD)
- * are fulfilled locally. Live select=* catalog queries still continue.
+ * are fulfilled locally. Live select=* book GETs still continue. A missing grouped
+ * catalog fixture is not forwarded as the original RPC; call allowLiveCatalogReads
+ * before a test that intentionally reads that RPC.
  */
 function isBookViewStatsRead(url, method) {
   const verb = String(method || "").toUpperCase();
@@ -367,6 +369,16 @@ async function readBridgedBooks(page, route, url, from, to) {
   }
 }
 
+const LIVE_CATALOG_READS = Symbol.for("kutadgu.allowLiveCatalogReads");
+
+function allowLiveCatalogReads(page) {
+  if (page) page[LIVE_CATALOG_READS] = true;
+}
+
+function allowsLiveCatalogReads(page) {
+  return !!(page && page[LIVE_CATALOG_READS]);
+}
+
 async function continueOriginal(route) {
   try { await route.continue(); } catch (err) {}
 }
@@ -374,6 +386,22 @@ async function continueOriginal(route) {
 function unmockedBridge(result) {
   if (!result || result.status !== 599) return false;
   return /unmocked_catalog_bridge/.test(String(result.body || ""));
+}
+
+async function rejectCatalogBridge(route, result) {
+  const status = result && Number.isFinite(Number(result.status)) && Number(result.status) >= 400
+    ? Number(result.status)
+    : 599;
+  const body = result && result.body
+    ? String(result.body)
+    : JSON.stringify({ message: "catalog_bridge_failed", code: "catalog_bridge_failed" });
+  try {
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body
+    });
+  } catch (err) {}
 }
 
 async function bridgeQueryPublicBookCatalog(page, route) {
@@ -389,9 +417,12 @@ async function bridgeQueryPublicBookCatalog(page, route) {
   try {
     result = await readBridgedBooks(page, route, url, offset, offset + limit - 1);
   } catch (err) {
-    return continueOriginal(route);
+    return rejectCatalogBridge(route, null);
   }
-  if (!result || unmockedBridge(result)) return continueOriginal(route);
+  if (!result || unmockedBridge(result)) {
+    if (unmockedBridge(result) && allowsLiveCatalogReads(page)) return continueOriginal(route);
+    return rejectCatalogBridge(route, result);
+  }
   if (result.status === 416) {
     const total = totalFromContentRange(result.contentRange);
     return route.fulfill({
@@ -447,9 +478,12 @@ async function bridgeDiscoveryUnitIds(page, route) {
     try {
       result = await readBridgedBooks(page, route, url, from, from + ask - 1);
     } catch (err) {
-      return continueOriginal(route);
+      return rejectCatalogBridge(route, null);
     }
-    if (!result || unmockedBridge(result)) return continueOriginal(route);
+    if (!result || unmockedBridge(result)) {
+      if (unmockedBridge(result) && allowsLiveCatalogReads(page)) return continueOriginal(route);
+      return rejectCatalogBridge(route, result);
+    }
     if (result.status >= 400 && result.status !== 416) {
       return route.fulfill({
         status: result.status,
@@ -621,13 +655,13 @@ async function installCatalogRpcBridge(context) {
   await context.route("**/rest/v1/rpc/query_public_book_catalog**", async (route) => {
     const frame = route.request().frame();
     const page = frame && frame.page();
-    if (!page) return continueOriginal(route);
+    if (!page) return rejectCatalogBridge(route, null);
     return bridgeQueryPublicBookCatalog(page, route);
   });
   await context.route("**/rest/v1/rpc/list_public_book_volume_discovery_unit_ids**", async (route) => {
     const frame = route.request().frame();
     const page = frame && frame.page();
-    if (!page) return continueOriginal(route);
+    if (!page) return rejectCatalogBridge(route, null);
     return bridgeDiscoveryUnitIds(page, route);
   });
 }
@@ -780,6 +814,7 @@ async function fetchFirstLegacyCatalogRow(page) {
  * Cached per Playwright page so a test does not repeat the lookup.
  */
 async function discoverLiveBook(page) {
+  allowLiveCatalogReads(page);
   const cached = page.__kutadguLiveBook;
   if (cached && cached.id) return cached;
   const shopReady = await page.evaluate(() => !!(window.kutadguShop && typeof window.kutadguShop.queryCatalog === "function")).catch(() => false);
@@ -1078,6 +1113,7 @@ module.exports = {
   isInactiveIndexRead,
   mockedBookCoverRequests,
   allowLiveBookCovers,
+  allowLiveCatalogReads,
   stubNumericBookDocuments,
   installBookCoverEgressGuard,
   logMockedBookCoverSummary,

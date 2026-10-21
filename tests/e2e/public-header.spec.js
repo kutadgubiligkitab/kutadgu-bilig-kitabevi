@@ -55,6 +55,7 @@ async function layoutSnapshot(page) {
 test.describe("unified public header", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await H.stubNumericBookDocuments(page, ["122"]);
   });
 

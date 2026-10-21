@@ -13,6 +13,7 @@ async function addOnceOnMobile(page) {
 test.describe("mobile toast stays above bottom nav", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("signed-out mobile add-to-cart toast is above the bottom nav", async ({ page }) => {

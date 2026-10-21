@@ -131,6 +131,7 @@ async function findBackdropHitPoint(page) {
 test.describe("mobile menu tap", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("390x844 drawer links receive hits and hash-navigate, not the backdrop", async ({ page }) => {

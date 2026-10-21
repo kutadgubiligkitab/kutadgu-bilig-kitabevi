@@ -143,6 +143,7 @@ async function scanForeignCoverImages(page) {
 test.describe("security hardening 2a", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("security headers are present on HTML", async ({ request, baseURL }) => {

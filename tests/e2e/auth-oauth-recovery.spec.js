@@ -4,6 +4,7 @@ const H = require("./helpers");
 test.describe("auth oauth vs recovery", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A generic homepage ?code= is not sent to reset-password", async ({ page }) => {
@@ -148,6 +149,7 @@ test.describe("cross-device token_hash recovery", () => {
     });
     const page = await phone.newPage();
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "ok");
     await page.goto("/reset-password.html?next=account&token_hash=phone-opens-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
@@ -157,6 +159,7 @@ test.describe("cross-device token_hash recovery", () => {
 
   test("phone request, desktop opens token_hash, form enables", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "ok");
     await page.goto("/reset-password.html?next=admin&token_hash=desktop-opens-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
@@ -164,6 +167,7 @@ test.describe("cross-device token_hash recovery", () => {
 
   test("same-device token_hash recovery enables the form", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "ok");
     await page.goto("/reset-password.html?next=account&token_hash=same-device-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });
@@ -171,6 +175,7 @@ test.describe("cross-device token_hash recovery", () => {
 
   test("invalid token_hash is rejected", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "invalid");
     await page.goto("/reset-password.html?next=account&token_hash=invalid-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeDisabled();
@@ -179,6 +184,7 @@ test.describe("cross-device token_hash recovery", () => {
 
   test("expired token_hash is rejected", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "expired");
     await page.goto("/reset-password.html?next=account&token_hash=expired-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeDisabled();
@@ -187,6 +193,7 @@ test.describe("cross-device token_hash recovery", () => {
 
   test("used token_hash is rejected", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockVerify(page, "invalid");
     await page.goto("/reset-password.html?next=account&token_hash=used-hash&type=recovery", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#newPassword")).toBeDisabled();
@@ -204,6 +211,7 @@ test.describe("auth oauth vs recovery — mobile viewport", () => {
 
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("F mobile: homepage ?code= stays on storefront", async ({ page }) => {

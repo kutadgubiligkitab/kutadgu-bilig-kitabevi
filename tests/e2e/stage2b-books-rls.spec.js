@@ -4,6 +4,7 @@ const H = require("./helpers");
 test.describe("stage 2B books RLS storefront/admin/auth smoke", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("storefront homepage still loads active catalog UI", async ({ page }) => {
@@ -39,6 +40,7 @@ for (const [width, height] of [[390, 844], [412, 915], [768, 1024], [1280, 800]]
     test.use({ viewport: { width, height } });
     test(`homepage search remains usable at ${width}`, async ({ page }) => {
       await H.installReadSafeNetwork(page);
+      H.allowLiveCatalogReads(page);
       await page.goto("/index.html", { waitUntil: "domcontentloaded" });
       await expect(page.locator("#searchInput")).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);

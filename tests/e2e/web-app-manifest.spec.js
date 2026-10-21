@@ -42,6 +42,7 @@ async function noHorizontalOverflow(page) {
 test("ordinary tab parses the manifest and keeps storefront navigation online", async ({ page }) => {
   test.setTimeout(150000);
   await H.installReadSafeNetwork(page);
+  H.allowLiveCatalogReads(page);
   const parsed = await page.goto("/", { waitUntil: "domcontentloaded" }).then(async () => {
     const client = await page.context().newCDPSession(page);
     return client.send("Page.getAppManifest");
@@ -145,6 +146,7 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
 
 test("offline navigation is a failure and does not cache protected reads", async ({ page }) => {
   await H.installReadSafeNetwork(page);
+  H.allowLiveCatalogReads(page);
   await H.openFresh(page, "/");
   const before = await page.evaluate(async () => ({
     registrations: navigator.serviceWorker ? (await navigator.serviceWorker.getRegistrations()).length : 0,

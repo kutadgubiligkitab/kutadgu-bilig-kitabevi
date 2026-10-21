@@ -4,6 +4,7 @@ const H = require("./helpers");
 test.describe("stage 2C AAL2 books/RPC storefront/admin/auth smoke", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("storefront homepage still loads", async ({ page }) => {

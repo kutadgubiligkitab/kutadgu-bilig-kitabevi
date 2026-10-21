@@ -6,6 +6,7 @@ const path = require("path");
 test.describe("Stage 3 real shop identity", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("hero uses real shop photos and search stays below it", async ({ page }) => {

@@ -4,6 +4,7 @@ const H = require("./helpers");
 test.describe("homepage compact first-view", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("idle #searchResults does not consume vertical space", async ({ page }) => {
