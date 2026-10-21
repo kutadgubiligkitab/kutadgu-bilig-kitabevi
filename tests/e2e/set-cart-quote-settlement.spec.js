@@ -79,7 +79,32 @@ function quotePayload() {
   };
 }
 
+function isExactZeroTry(text) {
+  return /^0\s*₺$/.test(String(text || "").trim());
+}
+
+async function expectNoExactZeroPrice(page) {
+  const amounts = [
+    page.locator(".cart-total strong"),
+    page.locator(".cart-volume-set .cart-line-price strong")
+  ];
+  for (const amount of amounts) {
+    if (await amount.count()) expect(isExactZeroTry(await amount.textContent())).toBeFalsy();
+  }
+}
+
+async function expectGuestSetCart(page) {
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-set-cart-v1") || "[]")))
+    .toEqual([expect.objectContaining({ kind: "set", group_id: "1", qty: 1 })]);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]")))
+    .toEqual([]);
+}
+
 async function openGuestSetCart(page, holds) {
+  holds.groupFails = Number(holds.groupFails || 0);
+  holds.quoteFails = Number(holds.quoteFails || 0);
+  holds.quoteCalls = 0;
+  holds.groupBody = holds.groupBody || group;
   await H.installReadSafeNetwork(page);
   await page.addInitScript(() => {
     try {
@@ -111,10 +136,27 @@ async function openGuestSetCart(page, holds) {
     const url = request.url();
     if (url.includes("/rpc/get_public_book_volume_group_storefront")) {
       await holds.group.promise;
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(group) });
+      if (holds.groupFails > 0) {
+        holds.groupFails -= 1;
+        return route.fulfill({
+          status: 502,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "group_failed" })
+        });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(holds.groupBody) });
     }
     if (url.includes("/rpc/quote_book_volume_cart")) {
+      holds.quoteCalls += 1;
       await holds.quote.promise;
+      if (holds.quoteFails > 0) {
+        holds.quoteFails -= 1;
+        return route.fulfill({
+          status: 502,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "quote_failed" })
+        });
+      }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(quotePayload()) });
     }
     if (url.includes("/rest/v1/books")) {
@@ -150,9 +192,20 @@ async function expectQuotePending(page) {
   await expect(setRow).toHaveAttribute("data-set-quote-state", "pending");
   await expect(page.locator(".cart-total strong")).toHaveText("جەزملەۋاتىدۇ…");
   await expect(page.locator(".cart-volume-set .cart-line-price strong")).toHaveText("جەزملەۋاتىدۇ…");
-  await expect(page.locator("#cartItems")).not.toContainText("0 ₺");
-  await expect(page.locator("#cartSummaryHost")).not.toContainText("0 ₺");
+  await expectNoExactZeroPrice(page);
   await expect(page.locator("#checkoutCard")).toBeHidden();
+}
+
+async function expectQuoteReadError(page) {
+  const setRow = page.locator(".cart-volume-set");
+  await expect(setRow).toHaveAttribute("data-set-quote-state", "error");
+  await expect(page.locator("[data-cart-quote-error]")).toBeVisible();
+  await expect(page.locator("[data-set-quote-retry]")).toBeVisible();
+  await expect(page.locator(".cart-stock-block-note")).toHaveCount(0);
+  await expect(page.locator("#checkoutCard")).toBeHidden();
+  await expect(page.locator(".cart-total strong")).toHaveText("—");
+  await expectNoExactZeroPrice(page);
+  await expectGuestSetCart(page);
 }
 
 async function expectAuthoritative750(page) {
@@ -193,6 +246,53 @@ test.describe("set-cart quote settlement", () => {
     await expectQuotePending(page);
     holds.quote.release();
     await expectAuthoritative750(page);
+  });
+
+  test("quote 502 on an in-stock group shows a read error and retries the same cart", async ({ page }) => {
+    const holds = { group: defer(), quote: defer(), quoteFails: 1 };
+    holds.group.release();
+    holds.quote.release();
+    await openGuestSetCart(page, holds);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expectQuoteReadError(page);
+    await page.locator("[data-set-quote-retry]").click();
+    await expectAuthoritative750(page);
+    await expectGuestSetCart(page);
+    expect(holds.quoteCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  test("group 502 shows a read error, then retry loads the quote without changing the cart", async ({ page }) => {
+    const holds = { group: defer(), quote: defer(), groupFails: 1 };
+    holds.group.release();
+    holds.quote.release();
+    await openGuestSetCart(page, holds);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expectQuoteReadError(page);
+    await page.locator("[data-set-quote-retry]").click();
+    await expectAuthoritative750(page);
+    await expectGuestSetCart(page);
+  });
+
+  test("confirmed insufficient stock stays a stock block, not a quote retry", async ({ page }) => {
+    const holds = {
+      group: defer(),
+      quote: defer(),
+      groupBody: {
+        ...group,
+        members: members.map((member) => ({ ...member, stock: 0, stock_status: "out_of_stock" }))
+      }
+    };
+    holds.group.release();
+    holds.quote.release();
+    await openGuestSetCart(page, holds);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".cart-volume-set")).toHaveAttribute("data-set-quote-state", "blocked");
+    await expect(page.locator(".cart-stock-block-note")).toBeVisible();
+    await expect(page.locator("[data-cart-quote-error]")).toHaveCount(0);
+    await expect(page.getByText("بەزى قىسىملار تەمىنلەنمەيدۇ")).toBeVisible();
+    await expect(page.locator("#checkoutCard")).toBeHidden();
+    await expectGuestSetCart(page);
+    expect(holds.quoteCalls).toBe(0);
   });
 });
 
@@ -239,11 +339,11 @@ test.describe("set-cart live quote settlement", () => {
     const firstTotal = await page.locator(".cart-total strong").textContent();
     if (firstState === "pending") {
       await expect(page.locator(".cart-total strong")).toHaveText("جەزملەۋاتىدۇ…");
-      await expect(page.locator("#cartItems")).not.toContainText("0 ₺");
+      await expectNoExactZeroPrice(page);
     }
     await expectAuthoritative750(page);
     expect(firstState === "pending" || firstState === "ready").toBeTruthy();
-    expect(firstTotal).not.toMatch(/0\s*₺/);
+    expect(isExactZeroTry(firstTotal)).toBeFalsy();
     expect(blocked.some((item) => /analytics_events|visit-count|\/orders|create_member_order|admin_/i.test(item.url))).toBeFalsy();
     expect(await page.evaluate(() => window.__kutadguGuestGuard)).toBe(true);
   });
