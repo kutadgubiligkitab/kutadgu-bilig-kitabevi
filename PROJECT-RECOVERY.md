@@ -4,6 +4,24 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
+## Set-cart quote settlement — draft, not deployed
+
+`cursor/set-cart-loading-730e` is a small cart-only fix. It does not mix admin-form polish, category management, or the iPad catalog/cover repair. No SQL, production deploy, or flag change is part of this PR.
+
+`origin/main` is PR #301 merge `631264aeee99afc0e18b54a53f60692710da2954`. That remains the production runtime baseline until this cart change is reviewed, merged, and deployed. Production still serves `shop.js?v=170`. This branch pins the storefront to `shop.js?v=171`.
+
+The guest complete-set path already quotes **750 TRY** with `price_source` `"explicit"`. The first paint of `cart.html` treated a group that had not arrived yet as stock-blocked, painted **0 TRY** / `يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى`, and skipped the follow-up refresh while hydration was in flight. A later quantity click that then showed 750 does not verify initial loading. That 0 TRY state is a loading defect, not an optional race.
+
+This change keeps missing groups in a loading state (`جەزملەۋاتىدۇ…`) instead of 0, always chains `primeVolumeCart()` onto `cartPage()` after successful reads, and only then shows the authoritative quote on the set row and summary. Checkout stays hidden until that quote exists. Stock validation and explicit set pricing are unchanged.
+
+Local focused checks on this branch, `KUTADGU_USE_LOCAL_STATIC=1` and `http://127.0.0.1:4173`. They are not a Stage 10 run and they did not deploy. `node scripts/multi-volume-cart-contract-tests.js` passed. The new cart-page-boot assertion passed. `npx playwright test tests/e2e/set-cart-quote-settlement.spec.js --project=chromium` passed the delayed-group-then-quote cold load and reload, and the delayed-quote-after-group cold load: the set row and summary showed `جەزملەۋاتىدۇ…` rather than 0 TRY, then settled to 750 TRY without a click. With `KUTADGU_LIVE_SET_CART=1`, the write-guarded guest path added the full set from the series page, opened `cart.html`, and reached 750 TRY from the live group and quote RPCs. Analytics, visit, order, and admin writes were blocked; public read/quote RPCs were allowed. Checkout stayed hidden until the quote existed. No SQL, production deploy, or flag change was made.
+
+The owner backup retrieval remains pending. Original files at `/home/ubuntu/kutadgu-private-backups/20261021T192948Z` on Cloud Agent `bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97` stay in place. This session did not download, encrypt, transfer, delete, or test that dump. Do not mark it transferred or tested.
+
+## Multi-volume activation — merged PR #301; production runtime `631264ae`
+
+The heading below that still calls activation undeployed describes the branch before PR #301 merged. `origin/main` is `631264aeee99afc0e18b54a53f60692710da2954`. This cart PR does not reopen that release.
+
 ## Multi-volume activation — separate from draft PR #300, not deployed
 
 `cursor/series-activation-730e` is the reviewed activation candidate. It does not move the runtime baseline. PR #300 stays at `4de1384aa8e204e30b5b848543a6429f3bafb7fc` with both exposure flags off. This branch sets `wrangler.jsonc` production `MULTI_VOLUME_BOOKS_ENABLED` to `true` for Worker `kutadgu-cloudflare-production` and `app-config.js` `multiVolumeBooks` to `true`. The preview Worker variable is not set. Do not merge this branch into PR #300, deploy it, or enable the live flags before the sequence in `MULTI_VOLUME_BOOKS_RELEASE.md`: merge PR #300 through the normal path, apply `STAGE131_BOOK_VOLUME_SERIES_ENTRY.sql` once with both flags off, deploy that exact merge with `wrangler deploy --env production --keep-vars`, verify, then deploy this activation only after review.

@@ -56,6 +56,19 @@ test("static shell paints cart boot state before remote catalog hydrate", () => 
   assert.match(init, /cartPage\(\)/);
 });
 
+test("set cart paints a loading quote instead of 0 TRY and refreshes after in-flight group reads", () => {
+  const cartPage = sliceBetween(shop, "function cartPage()", "function changeQty(");
+  assert.match(shop, /function volumeGroupState\(/);
+  assert.match(cartPage, /const quotePending=!!setItems.length&&!volumeQuote&&!setGroupFailed&&!quoteFailed&&!unsupportedSets.length&&!setUnavailable/);
+  assert.doesNotMatch(cartPage, /setBlocked=setItems.some\(x=>!x\.group/);
+  assert.match(cartPage, /const amountLabel=quotePending\?"جەزملەۋاتىدۇ…"\:money\(total\)/);
+  assert.match(cartPage, /data-set-quote-state/);
+  assert.match(cartPage, /if\(quotePending\)\{\s*if\(!volumeCartPaintQueued\)/);
+  assert.doesNotMatch(cartPage, /quotePending&&!volumeGroupHydration/);
+  assert.match(cartPage, /blocked&&!preview&&!quotePending/);
+  assert.match(shop, /if\(setCartState\(\)\.lines\.some\(line=>volumeGroupState\(line\.group_id\)!=="ready"\)\)/);
+});
+
 test("cart boot helpers do not change persistence keys or WhatsApp builders", () => {
   assert.match(shop, /const CART_KEY="kutadgu-cart-v1"/);
   assert.match(shop, /CART_DISPLAY_KEY="kutadgu-cart-display-v1"/);
