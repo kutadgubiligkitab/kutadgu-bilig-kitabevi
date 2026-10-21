@@ -139,11 +139,11 @@ test("admin workflow preserves IDs and uses revisioned RPCs",()=>{
   assert.doesNotMatch(source,/\\.from\\(["']books["']\\)\\.update/);
 });
 
-test("storefront is dark by default and grouping is server paginated",()=>{
+test("activation turns the client flag on and grouping stays server paginated",()=>{
   const config=fs.readFileSync(path.join(root,"app-config.js"),"utf8");
   const shop=fs.readFileSync(path.join(root,"shop.js"),"utf8");
   const vercel=JSON.parse(fs.readFileSync(path.join(root,"vercel.json"),"utf8"));
-  assert.match(config,/multiVolumeBooks:false/);
+  assert.match(config,/multiVolumeBooks:true/);
   assert.match(shop,/grouped\.queryCatalog\(state/);
   assert.match(shop,/grouped&&usesSearchRelevance\(state\).*fetchRankedRemotePage/);
   assert.match(shop,/row&&row\.unit_key/);

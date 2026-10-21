@@ -4,6 +4,14 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
+## Multi-volume activation — separate from draft PR #300, not deployed
+
+`cursor/series-activation-730e` is the reviewed activation candidate. It does not move the runtime baseline. PR #300 stays at `4de1384aa8e204e30b5b848543a6429f3bafb7fc` with both exposure flags off. This branch sets `wrangler.jsonc` production `MULTI_VOLUME_BOOKS_ENABLED` to `true` for Worker `kutadgu-cloudflare-production` and `app-config.js` `multiVolumeBooks` to `true`. The preview Worker variable is not set. Do not merge this branch into PR #300, deploy it, or enable the live flags before the sequence in `MULTI_VOLUME_BOOKS_RELEASE.md`: merge PR #300 through the normal path, apply `STAGE131_BOOK_VOLUME_SERIES_ENTRY.sql` once with both flags off, deploy that exact merge with `wrangler deploy --env production --keep-vars`, verify, then deploy this activation only after review.
+
+The Supabase MCP and SQL session can read project `fxlojnqwyojqjskfggmh` and its WAL archiver. They cannot list a completed backup id. `SUPABASE_ACCESS_TOKEN` is unset, and this session did not call `restore_project`. The owner can read the latest completed backup without sending credentials in chat: open `https://supabase.com/dashboard/project/fxlojnqwyojqjskfggmh/database/backups/scheduled`, record the latest row whose status is Completed (numeric id, timestamp, and physical/logical coverage), then open `https://supabase.com/dashboard/project/fxlojnqwyojqjskfggmh/database/backups/pitr` and record whether Point in Time restore is enabled and its earliest and latest recovery points. Do not start a restore. Database backups do not include Storage or R2 cover objects. Healthy `pg_stat_archiver` counts are not that recovery point.
+
+`node scripts/multi-volume-activation-check.js` is the check for this branch. It is not Stage 10 run 39587824097, and that run is not evidence for this flag change. The check uses PGlite, not production Postgres 17.6. Only Chromium emulation is available for the storefront spec. That is not a physical iPad, and the separate iPad reliability repair remains deferred.
+
 ## Multi-volume series entry — draft PR #300, not deployed
 
 Draft PR #300 on `cursor/series-entry-prices-730e` finishes the customer price display and adds «قىسىملىق كىتاب قوشۇش». It is not deployed and its SQL is not applied. The runtime baseline stays the PR #299 merge `734c18cf232e6c49cf80f98390147cf6300f7d1c`. Live `app-config.js` stays `multiVolumeBooks:false`, and `MULTI_VOLUME_BOOKS_ENABLED` stays unset.

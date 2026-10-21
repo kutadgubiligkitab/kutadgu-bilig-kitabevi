@@ -79,6 +79,6 @@ assert.match(sql, /pg_advisory_xact_lock/);
 assert.match(sql, /submission_status = 'series_draft'/);
 assert.doesNotMatch(sql, /UPDATE public\.book_volume_groups\s+SET[\s\S]{0,80}WHERE id = 1/);
 assert.match(sql, /list_public_book_volume_part_prices/);
-assert.match(fs.readFileSync(path.join(root, "app-config.js"), "utf8"), /multiVolumeBooks:false/);
+assert.match(fs.readFileSync(path.join(root, "app-config.js"), "utf8"), /multiVolumeBooks:true/);
 
 console.log("multi-volume series entry: PASS");
