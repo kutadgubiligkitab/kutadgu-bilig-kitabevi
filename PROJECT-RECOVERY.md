@@ -4,9 +4,9 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-## Multi-volume series entry — draft, not deployed
+## Multi-volume series entry — draft PR #300, not deployed
 
-This change finishes the customer price display and adds «قىسىملىق كىتاب قوشۇش». It is not deployed and its SQL is not applied. The runtime baseline stays the PR #299 merge `734c18cf232e6c49cf80f98390147cf6300f7d1c`. Live `app-config.js` stays `multiVolumeBooks:false`, and `MULTI_VOLUME_BOOKS_ENABLED` stays unset.
+Draft PR #300 on `cursor/series-entry-prices-730e` finishes the customer price display and adds «قىسىملىق كىتاب قوشۇش». It is not deployed and its SQL is not applied. The runtime baseline stays the PR #299 merge `734c18cf232e6c49cf80f98390147cf6300f7d1c`. Live `app-config.js` stays `multiVolumeBooks:false`, and `MULTI_VOLUME_BOOKS_ENABLED` stays unset.
 
 The owner’s production series remains group 1, slug `series-156`, title ئويغانغان زېمىن, members 156 then 157, part prices 370 and 399 TRY, and the explicit `complete_set_price` 750 TRY. The public grouped catalog already returns `effective_set_price` 750 for that group. This change does not recreate or edit that row. A blank set price still means the current sum. An explicit price is never replaced by the sum.
 
