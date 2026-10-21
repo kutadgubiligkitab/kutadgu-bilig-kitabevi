@@ -53,13 +53,15 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
   const groupId=String(value("groupId","group_id","")||"").trim();
   const groupSlug=String(value("groupSlug","group_slug","")||"").trim();
   const groupHref=String(book.href||"").trim();
+  const explicitUnitKey=String(book.unitKey??book.unit_key??"").trim();
+  const unitKey=explicitUnitKey||(catalogKind==="group"&&groupId?`g:${groupId}`:"");
   const setPriceRaw=value("completeSetPrice","complete_set_price",null);
   const effectiveSetPriceRaw=value("effectiveSetPrice","effective_set_price",null);
   return {
     id,
     legacyId,
     catalogKind,
-    unitKey:String(value("unitKey","unit_key",catalogKind==="group"&&groupId?`g:${groupId}`:`b:${id}`)),
+    unitKey,
     groupId,
     groupSlug,
     representativeBookId:String(value("representativeBookId","representative_book_id",id)||id),

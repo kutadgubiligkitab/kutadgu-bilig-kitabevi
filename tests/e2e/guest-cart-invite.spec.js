@@ -329,12 +329,17 @@ test.describe("guest cart membership invitation", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBe(1);
-    const text = decodeURIComponent(opened[0].split("text=")[1]);
+    await expect.poll(() => opened.length).toBe(2);
+    expect(opened[0]).toBe("about:blank");
+    const text = decodeURIComponent(opened[1].split("text=")[1]);
     expect(text).toContain("1. مېھمان كىتاب — 1 دانە · 153 ₺");
     expect(text).toContain("*جەمئىي كىتاب سانى: 1 — جەمئىي: 153,00 ₺*");
     expect(text).not.toContain("×");
@@ -348,7 +353,7 @@ test.describe("guest cart membership invitation", () => {
     await page.goto("/cart.html?v=155", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await publish(page, GUEST);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=167/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=169/);
     const live = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
     expect(live).toContain("guestCartInviteDecision");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

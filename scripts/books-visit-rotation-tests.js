@@ -229,6 +229,25 @@ test("discovery applies only to the unfiltered default listing", () => {
   assert.strictEqual(api.DISCOVER_LABEL, "بۇ قېتىملىق بايقاش تەرتىپى");
 });
 
+test("a blank unit key matches the numeric visit id and an explicit unit key stays exact", async () => {
+  const resolved = await api.resolveIdWindow(["1", "2", "book:7"], async () => ({
+    rows: [
+      { id: "1", unitKey: "", isActive: true },
+      { id: "2", unitKey: "b:2", isActive: true },
+      { id: "7", unitKey: "book:7", isActive: true }
+    ],
+    count: 3,
+    status: 200,
+    contentRange: "0-2/3"
+  }));
+  assert.deepStrictEqual(resolved.map((book) => book.id), ["1", "7"]);
+  const visible = await api.collectVisiblePage(["1", "group:3"], 0, 12, async () => ([
+    { id: "1", unitKey: "   ", isActive: true },
+    { id: "3", unitKey: "group:3", isActive: true }
+  ]));
+  assert.deepStrictEqual(visible.items.map((book) => book.id), ["1", "3"]);
+});
+
 test("a frozen snapshot ignores books added after the visit", async () => {
   const snapshot = ["2", "1"];
   const page = await api.collectVisiblePage(snapshot, 0, 24, async () => ([
@@ -289,6 +308,8 @@ test("a capped full-record page still shows every eligible snapshot id once", as
 
 test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage", () => {
   assert.match(shop, /بۇ قېتىملىق بايقاش تەرتىپى/);
+  assert.doesNotMatch(shop, /`b:\$\{id\}`/);
+  assert.match(shop, /explicitUnitKey/);
   assert.match(shop, /function ensureDiscoveryVisit\(/);
   assert.match(shop, /function fetchDiscoveryRemotePage\(/);
   assert.match(shop, /resolveIdWindow\(windowIds/);

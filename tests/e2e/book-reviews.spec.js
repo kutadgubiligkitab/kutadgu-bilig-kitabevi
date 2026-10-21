@@ -1159,7 +1159,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   const oldDocument = currentHtml.replace("admin.css?v=58", "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
   expect(oldDocument).not.toContain("admin.css?v=58");
-  const hits = { v49: 0, v57: 0 };
+  const hits = { v49: 0, v58: 0 };
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -1178,7 +1178,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
         res.end(oldCssBuffer);
         return;
       }
-      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "57") hits.v57 += 1;
+      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "58") hits.v58 += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
         port: 4173,
@@ -1208,12 +1208,12 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
     const panel = page.locator(".admin-approval-panel");
     await expect(bell).toContainText("3");
     expect(hits.v49).toBe(1);
-    expect(hits.v57).toBe(0);
+    expect(hits.v58).toBe(0);
     await expect(bell).toHaveAttribute("aria-expanded", "false");
     expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
     expect(await panel.getByRole("button", { name: "كىتاب تەستىقى 1" }).evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
     await page.goto(origin.origin + "/admin.html", { waitUntil: "domcontentloaded" });
-    expect(hits.v57).toBe(1);
+    expect(hits.v58).toBe(1);
     expect(hits.v49).toBe(1);
     await expect(bell).toContainText("3");
     await expect(bell).toHaveAttribute("aria-expanded", "false");

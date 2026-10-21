@@ -210,6 +210,15 @@
     };
   }
 
+  function catalogMatchKey(book, fallback) {
+    if (book) {
+      var unit = book.unitKey != null ? String(book.unitKey).trim() : "";
+      if (unit) return unit;
+      if (book.id != null && String(book.id).trim()) return String(book.id).trim();
+    }
+    return String(fallback == null ? "" : fallback).trim();
+  }
+
   async function collectVisiblePage(ids, offset, pageSize, fetchWindow, maxCursor) {
     var list = Array.isArray(ids) ? ids : [];
     var start = Math.max(0, Number(offset) || 0);
@@ -228,7 +237,7 @@
       var byId = new Map();
       (books || []).forEach(function (book) {
         if (!book) return;
-        var id = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : "")).trim();
+        var id = catalogMatchKey(book, "");
         if (id) byId.set(id, book);
       });
       var n;
@@ -238,7 +247,7 @@
         cursor += 1;
         var book = byId.get(String(id));
         if (!book || book.isActive === false || book.is_active === false) continue;
-        var key = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : id)).trim();
+        var key = catalogMatchKey(book, id);
         if (!key || seen.has(key)) continue;
         seen.add(key);
         items.push(book);
@@ -279,7 +288,7 @@
       var progress = 0;
       chunk.forEach(function (book) {
         if (!book) return;
-        var id = String(book.unitKey != null ? book.unitKey : (book.id != null ? book.id : "")).trim();
+        var id = catalogMatchKey(book, "");
         if (!id || !wantedSet.has(id) || resolved.has(id)) return;
         resolved.add(id);
         progress += 1;
