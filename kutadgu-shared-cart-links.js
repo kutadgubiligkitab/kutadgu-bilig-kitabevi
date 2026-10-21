@@ -83,35 +83,61 @@ function normalizeCreateItems(body) {
   if (!Array.isArray(items) || items.length === 0) return { ok: false, error: "invalid" };
   if (items.length > MAX_ITEMS * 4) return { ok: false, error: "too_many" };
   const map = new Map();
+  let typed = false;
   for (const item of items) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return { ok: false, error: "invalid" };
-    const id = asCanonicalId(item.id);
+    const kind = item.kind === undefined ? "book" : String(item.kind);
+    if (item.kind !== undefined) typed = true;
+    if (kind !== "book" && kind !== "set") return { ok: false, error: "unsupported" };
+    if (item.kind !== undefined) {
+      const expectedKeys = kind === "set" ? ["group_id", "kind", "qty"] : ["id", "kind", "qty"];
+      if (Object.keys(item).sort().join(",") !== expectedKeys.slice().sort().join(",")) return { ok: false, error: "invalid" };
+    }
+    const id = asCanonicalId(kind === "set" ? item.group_id : item.id);
     const qty = asCreateQty(item.qty);
     if (!id || qty == null) return { ok: false, error: "invalid" };
     if (id.length > MAX_ID_LENGTH) return { ok: false, error: "invalid" };
-    const prev = map.get(id) || 0;
-    map.set(id, Math.min(MAX_QTY, prev + qty));
+    const key = (kind === "set" ? "s:" : "b:") + id;
+    const prev = map.get(key) || 0;
+    map.set(key, Math.min(MAX_QTY, prev + qty));
   }
   if (map.size > MAX_ITEMS) return { ok: false, error: "too_many" };
   const normalized = [];
-  for (const pair of map) normalized.push({ id: pair[0], qty: pair[1] });
+  for (const pair of map) {
+    const kind = pair[0].slice(0, 1);
+    const id = pair[0].slice(2);
+    normalized.push(kind === "s"
+      ? { kind: "set", group_id: id, qty: pair[1] }
+      : typed ? { kind: "book", id, qty: pair[1] } : { id, qty: pair[1] });
+  }
   return { ok: true, items: normalized };
 }
 
 function normalizeStoredItems(value) {
   if (!Array.isArray(value)) return [];
   const map = new Map();
+  let typed = false;
   for (const item of value) {
     if (!item || typeof item !== "object") continue;
-    const id = asCanonicalId(item.id);
+    const kind = item.kind === undefined ? "book" : String(item.kind);
+    if (item.kind !== undefined) typed = true;
+    if (kind !== "book" && kind !== "set") return [];
+    const id = asCanonicalId(kind === "set" ? item.group_id : (item.id || item.book_id));
     const qty = typeof item.qty === "number" ? item.qty : Number(item.qty);
     if (!id || !Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) continue;
-    const prev = map.get(id) || 0;
-    map.set(id, Math.min(MAX_QTY, prev + qty));
+    const key = (kind === "set" ? "s:" : "b:") + id;
+    const prev = map.get(key) || 0;
+    map.set(key, Math.min(MAX_QTY, prev + qty));
   }
   if (map.size === 0 || map.size > MAX_ITEMS) return [];
   const items = [];
-  for (const pair of map) items.push({ id: pair[0], qty: pair[1] });
+  for (const pair of map) {
+    const kind = pair[0].slice(0, 1);
+    const id = pair[0].slice(2);
+    items.push(kind === "s"
+      ? { kind: "set", group_id: id, qty: pair[1] }
+      : typed ? { kind: "book", id, qty: pair[1] } : { id, qty: pair[1] });
+  }
   return items;
 }
 
@@ -124,7 +150,11 @@ function isExpired(expiresAt, nowMs) {
 function insertRow(code, items, nowMs) {
   return {
     code,
-    items: items.map((item) => ({ id: item.id, qty: item.qty })),
+    items: items.map((item) => item.kind === "set"
+      ? { kind: "set", group_id: item.group_id, qty: item.qty }
+      : item.kind === "book"
+        ? { kind: "book", id: item.id, qty: item.qty }
+        : { id: item.id, qty: item.qty }),
     expires_at: new Date(nowMs + RETENTION_MS).toISOString()
   };
 }
@@ -133,9 +163,12 @@ function sharedCartItemsValid(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ITEMS) return false;
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const kind = item.kind === undefined ? "book" : String(item.kind);
     const keys = Object.keys(item);
-    if (keys.length !== 2 || keys.indexOf("id") === -1 || keys.indexOf("qty") === -1) return false;
-    if (typeof item.id !== "string" || !/^\d{1,18}$/.test(item.id)) return false;
+    const expected = kind === "set" ? ["group_id", "kind", "qty"] : kind === "book" && item.kind !== undefined ? ["id", "kind", "qty"] : ["id", "qty"];
+    if (keys.slice().sort().join(",") !== expected.slice().sort().join(",")) return false;
+    const id = kind === "set" ? item.group_id : item.id;
+    if (typeof id !== "string" || !/^\d{1,18}$/.test(id)) return false;
     if (typeof item.qty !== "number" || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > MAX_QTY) return false;
   }
   return true;

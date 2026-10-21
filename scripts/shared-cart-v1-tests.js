@@ -59,7 +59,8 @@ test("decode normal payload", () => {
 
 test("reject malformed version", () => {
   assert.strictEqual(codec.decodeSharedCart("v2.156x1").ok, false);
-  assert.strictEqual(codec.decodeSharedCart("v2.156x1").reason, "version");
+  assert.strictEqual(codec.decodeSharedCart("v2.156x1").reason, "malformed");
+  assert.strictEqual(codec.decodeSharedCart("v3.b156x1").reason, "version");
   assert.strictEqual(codec.decodeSharedCart("156x1").reason, "version");
 });
 
@@ -77,7 +78,7 @@ test("clamp qty to 1..99 and reject zero", () => {
   assert.strictEqual(codec.decodeSharedCart("v1.8x150").items[0].qty, 99);
   assert.strictEqual(codec.decodeSharedCart("v1.8x0").ok, false);
   assert.strictEqual(codec.decodeSharedCart("v1.8x-1").ok, false);
-  assert.strictEqual(codec.encodeSharedCart([{ id: "8", qty: 0 }]).reason, "empty");
+  assert.strictEqual(codec.encodeSharedCart([{ id: "8", qty: 0 }]).reason, "unsupported");
 });
 
 test("dedupe ids by summing then clamping", () => {
@@ -167,7 +168,7 @@ test("empty cart cannot be shared", () => {
   assert.strictEqual(codec.encodeSharedCart([]).reason, "empty");
   assert.strictEqual(codec.encodeSharedCart([{ id: "", qty: 1 }]).ok, false);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");
-  const empty = page.slice(page.indexOf("if(!items.length)"), page.indexOf('data-empty","false"'));
+  const empty = page.slice(page.indexOf("if(!items.length&&!setItems.length&&!unsupportedSets.length)"), page.indexOf('data-empty","false"'));
   assert.match(empty, /سېۋەت ھازىرچە بوش/);
   assert.doesNotMatch(empty, /shareCart/);
   const shareFn = sliceBetween(shop, "async function shareCartLink(){", "async function importSharedCartFromQuery(){");
@@ -207,8 +208,8 @@ test("member sync path is preserved and share query is removed once", () => {
 });
 
 test("dark light and mobile cart layout stay on existing classes", () => {
-  assert.match(cartHtml, /shop\.css\?v=55/);
-  assert.match(cartHtml, /shop\.js\?v=167/);
+  assert.match(cartHtml, /shop\.css\?v=57/);
+  assert.match(cartHtml, /shop\.js\?v=169/);
   assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");

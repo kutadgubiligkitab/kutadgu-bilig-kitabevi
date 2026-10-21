@@ -280,7 +280,7 @@ test("live price remains authoritative", () => {
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");
   assert.match(page, /b\.price/);
   const importer = sliceBetween(shop, "async function importSharedCartFromQuery(){", "function scheduleSharedCartImport(){");
-  assert.match(importer, /mergeSharedLines\(existing,incoming,lookup\)/);
+  assert.match(importer, /mergeSharedLines\(existing,incomingBooks,lookup\)/);
   assert.doesNotMatch(importer, /price|title|email|phone/);
 });
 
@@ -561,8 +561,8 @@ test("a streamed body is cancelled once it crosses 8192 bytes", async () => {
 });
 
 test("dark light and mobile cart layout stay unchanged", () => {
-  assert.match(cartHtml, /shop\.css\?v=55/);
-  assert.match(cartHtml, /shop\.js\?v=167/);
+  assert.match(cartHtml, /shop\.css\?v=57/);
+  assert.match(cartHtml, /shop\.js\?v=169/);
   assert.match(cartHtml, /kutadgu-shared-cart\.js\?v=3/);
   assert.doesNotMatch(cartHtml, /<style/);
   const page = sliceBetween(shop, "function cartPage(){", "function changeQty(");

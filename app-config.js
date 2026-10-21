@@ -30,6 +30,8 @@
       dailyRecommendation:false,
       autoCarousel:true,
       analyticsHooks:true,
+      /* Stage 127–130: keep grouped catalog and set commerce dark until release SQL is applied. */
+      multiVolumeBooks:false,
       ...(current.featureFlags||{}),
       /* Phase 2: storefront uses live stock. Prepared orders do not reserve. */
       stockEnforcement:true

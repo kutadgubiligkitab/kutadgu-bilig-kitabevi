@@ -655,7 +655,7 @@ test("storefront pages keep cart markup pin shop.js v=113",()=>{
   assert.match(html,/href="index.html#books"/);
   assert.match(fav,/shop\.js\?v=167/);
   assert.match(home,/shop\.js\?v=167/);
-  assert.match(shop,/member\.js\?v=34/);
+  assert.match(shop,/member\.js\?v=35/);
   assert.match(shop,/cart-item-cover/);
   assert.match(shop,/cart-item-toolbar/);
   assert.match(shop,/data-plus=/);

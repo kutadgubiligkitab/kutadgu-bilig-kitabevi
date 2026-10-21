@@ -16,6 +16,7 @@ const MATCH_COUNT = 12;
 const CANDIDATE_COUNT = 24;
 const MATCH_RPC = "match_active_books_ai";
 const CATEGORY_RPC = "list_active_books_by_categories_ai";
+const MAP_UNITS_RPC = "map_public_books_to_catalog_units";
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
 const MIN_QUERY_CHARS = 2;
 const MAX_QUERY_CHARS = 300;
@@ -229,7 +230,7 @@ function publicResult(row) {
   const similarity = Number(row.similarity);
   const priceNum = row.price == null || row.price === "" ? NaN : Number(row.price);
   const stockNum = row.stock == null || row.stock === "" ? NaN : Number(row.stock);
-  return {
+  const result = {
     id,
     title: String(row.title == null ? "" : row.title),
     author: String(row.author == null ? "" : row.author),
@@ -239,6 +240,13 @@ function publicResult(row) {
     stock: row.stock == null || row.stock === "" ? null : (Number.isFinite(stockNum) ? stockNum : null),
     similarity: Number.isFinite(similarity) ? similarity : 0
   };
+  if (row.kind === "group") {
+    result.kind = "group";
+    result.group_id = row.group_id == null ? null : Number(row.group_id);
+    result.group_slug = String(row.group_slug || row.slug || "");
+    result.member_count = Number(row.member_count) || 0;
+  }
+  return result;
 }
 
 function sanitizeResults(rows) {
@@ -365,6 +373,32 @@ function mergeAiCandidates(vectorRows, categoryRows) {
 
 function capRanked(ranked) {
   return ranked.slice(0, MATCH_COUNT).map((item) => item.row);
+}
+
+async function mapCandidatesToCatalogUnits(fetchImpl, candidates, timeoutMs, rpcKey) {
+  const ids = (candidates || []).map(row => Number(row && row.id)).filter(id => Number.isFinite(id) && id > 0);
+  if (!ids.length) return [];
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + MAP_UNITS_RPC;
+  const rows = await fetchJsonThen(fetchImpl, url, {
+    method: "POST",
+    headers: {
+      apikey: rpcKey,
+      Authorization: "Bearer " + rpcKey,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ p_book_ids: ids })
+  }, timeoutMs || RPC_TIMEOUT_MS, payload => {
+    const values = Array.isArray(payload) ? payload : (Array.isArray(payload && payload.items) ? payload.items : null);
+    if (!values) throw Object.assign(new Error("rpc_invalid"), { code: "rpc_invalid" });
+    return values;
+  });
+  const similarityById = new Map((candidates || []).map(row => [String(row.id), Number(row.similarity) || 0]));
+  return rows.map(row => {
+    const matched = Array.isArray(row && row.matched_book_ids) ? row.matched_book_ids : [row && (row.id || row.book_id)];
+    const similarity = matched.reduce((best, id) => Math.max(best, similarityById.get(String(id)) || 0), 0);
+    return publicResult({ ...row, id: row.representative_book_id || row.id, similarity });
+  }).filter(Boolean);
 }
 
 function selectRelevantResults(query, candidates) {
@@ -554,6 +588,9 @@ async function runSearch(options) {
       candidates = vectorRows;
     }
   }
+  if (String(env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
+    candidates = await mapCandidatesToCatalogUnits(fetchImpl, candidates, opts.rpcTimeoutMs, rpcKey);
+  }
   const results = selectRelevantResults(query, candidates);
   return {
     status: 200,
@@ -630,6 +667,7 @@ module.exports = {
   CANDIDATE_COUNT,
   MATCH_RPC,
   CATEGORY_RPC,
+  MAP_UNITS_RPC,
   ENABLED_ENV,
   MIN_QUERY_CHARS,
   MAX_QUERY_CHARS,
@@ -645,6 +683,7 @@ module.exports = {
   scoreAiCandidate,
   selectRelevantResults,
   mergeAiCandidates,
+  mapCandidatesToCatalogUnits,
   intendedCategories,
   resolveCategoryIntent,
   handleAiSearch,

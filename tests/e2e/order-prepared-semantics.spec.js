@@ -77,14 +77,63 @@ test.describe("order prepared semantics", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBeGreaterThan(0);
-    expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
-    const waText = decodeURIComponent(opened[0].split("text=")[1] || "");
+    await expect.poll(() => opened.length).toBeGreaterThan(1);
+    expect(opened[0]).toBe("about:blank");
+    expect(opened[1]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    const waText = decodeURIComponent(opened[1].split("text=")[1] || "");
     expect(waText).toContain(`زاكاز نومۇرى: ${preparedOrderNo}`);
+  });
+
+  test("signed-in WhatsApp waits for accepted history and closes on a stale quote", async ({ page }) => {
+    const book = await addBookOnce(page);
+    await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await H.waitForHydratedCartTitle(page, book.title);
+    await expect(page.locator("#checkoutCard")).toBeVisible();
+    await fillCheckout(page);
+    await expect(page.locator("#customerName")).toHaveValue("Playwright Test");
+    await expect(page.locator("#customerPhone")).toHaveValue("5550000111");
+    await expect(page.locator("#customerAddress")).toHaveValue("Test street 1");
+    const probe = await page.evaluate(async () => {
+      const member = window.KutadguMember;
+      if (member?.ready) await member.ready;
+      const uid = "11111111-1111-4111-8111-111111111111";
+      window.KutadguMember = member || {};
+      window.KutadguMember.ready = Promise.resolve();
+      window.KutadguMember.getUser = () => ({ id: uid });
+      window.KutadguMember.saveOrder = async () => { throw new Error("stale_quote"); };
+      localStorage.setItem("kutadgu-shop-owner-v1", uid);
+      window.__waProbe = { opened: [], navigated: [], closed: false };
+      window.open = (url) => {
+        window.__waProbe.opened.push(String(url));
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__waProbe.navigated.push(String(value)); }
+        });
+        return {
+          opener: null,
+          location,
+          close() { window.__waProbe.closed = true; }
+        };
+      };
+      await window.kutadguShop.orderWithWhatsApp();
+      window.__waProbe.notices = [...document.querySelectorAll(".shop-toast")].map((node) => node.textContent);
+      return window.__waProbe;
+    });
+    expect(probe.notices).toEqual([
+      "توپلام تەركىبى ياكى باھاسى ئۆزگەردى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى."
+    ]);
+    expect(probe.opened).toEqual(["about:blank"]);
+    expect(probe.navigated).toEqual([]);
+    expect(probe.closed).toBe(true);
   });
 
   for (const width of [390, 412, 768, 1280]) {

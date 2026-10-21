@@ -113,7 +113,11 @@ function load(state) {
       KUTADGU_WHATSAPP_NUMBER: "905368999888",
       open(url) {
         state.openCalls.push(String(url));
-        return { opener: window, close() {} };
+        const popupLocation = {};
+        Object.defineProperty(popupLocation, "href", {
+          set(value) { state.hrefs.push(String(value)); }
+        });
+        return { opener: window, location: popupLocation, close() {} };
       },
       location: {
         set href(url) { state.hrefs.push(String(url)); },
@@ -262,9 +266,10 @@ async function run() {
     assert.deepStrictEqual(state.copied, [preview.text]);
     assert.equal(state.shares[0].text, preview.text);
     assert.equal(state.openCalls.length, 1);
-    const decoded = decodeURIComponent(state.openCalls[0].split("text=")[1]);
+    assert.equal(state.openCalls[0], "about:blank");
+    const decoded = decodeURIComponent(state.hrefs[0].split("text=")[1]);
     assert.equal(decoded, preview.text);
-    assert.match(state.openCalls[0], /^https:\/\/wa\.me\/905368999888\?text=/);
+    assert.match(state.hrefs[0], /^https:\/\/wa\.me\/905368999888\?text=/);
     assert.equal(state.events[0].name, "whatsapp_order_click");
     assert.equal(state.events[0].payload.total, preview.total);
     state.customer = customer({ note: "باشقا ئىزاھات" });
@@ -379,7 +384,8 @@ async function run() {
     partialState.customer = customer({ name: "Aygul", phone: "0555", address: "Street 2", note: "ئىشىك" });
     await partial.orderWithWhatsApp();
     assert.equal(partialState.openCalls.length, 1);
-    const decoded = decodeURIComponent(partialState.openCalls[0].split("text=")[1]);
+    assert.equal(partialState.openCalls[0], "about:blank");
+    const decoded = decodeURIComponent(partialState.hrefs[0].split("text=")[1]);
     assert.match(decoded, /تېلېفون: 0555/);
     assert.match(decoded, /ئادرېس: Street 2/);
     assert.equal(decoded.includes("تېلېفون: -"), false);
@@ -421,7 +427,7 @@ async function run() {
     assert.doesNotMatch(buildFn, /money\(/);
     assert.match(buildFn, /price:Number\(x\.b\.price\)\|\|0/);
     assert.match(buildFn, /line_total:\(Number\(x\.b\.price\)\|\|0\)\*x\.qty/);
-    assert.match(cartHtml, /shop\.js\?v=167/);
+    assert.match(cartHtml, /shop\.js\?v=169/);
     assert.match(previewCss, /white-space:pre-wrap/);
     assert.match(previewCss, /word-break:break-word/);
     assert.match(previewCss, /direction:rtl/);

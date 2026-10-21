@@ -138,13 +138,14 @@ function cartButton(book, info) {
 
 function listingCardMarkup(book) {
   const id = String(book.id);
-  const href = `/book/${id}`;
+  const isGroup = book.kind === "group" && book.group_slug;
+  const href = isGroup ? `/volume-group/${book.group_slug}` : `/book/${id}`;
   const title = safeUrl.escapeHtml(book.title || "كىتاب");
   const authorName = displayAuthor(book.author);
   const authorBlock = authorName
     ? `<p class="book-author">ئاپتورى: ${safeUrl.escapeHtml(authorName)}</p>`
     : `<p class="book-author" hidden></p>`;
-  const info = stock.storefrontStockInfo(book, { stockEnforcement: true });
+  const info = isGroup ? { key: "unknown", label: "", canBuy: true } : stock.storefrontStockInfo(book, { stockEnforcement: true });
   const state = info.key === "out" ? "is-stock-out" : info.key === "low" ? "is-stock-low" : "";
   const stateClass = state ? ` ${state}` : "";
   const badge = info.label && info.key !== "in" && info.key !== "unknown"
@@ -159,12 +160,13 @@ function listingCardMarkup(book) {
       <h2 class="book-title">${title}</h2>
       ${authorBlock}
       ${badge}
-      <div class="book-price">${safeUrl.escapeHtml(priceText(book.price))}</div>
+      ${isGroup ? `<span class="volume-group-card-badge">${Number(book.member_count) || ""} جىلدلىق توپلام</span>` : ""}
+      <div class="book-price${isGroup ? " volume-group-starting-price" : ""}">${safeUrl.escapeHtml(isGroup ? `ھەر بىر جىلد ${priceText(book.price)} دىن` : priceText(book.price))}</div>
       <div class="book-actions">
-        <a class="detail-button" href="${href}">تەپسىلات</a>
-        ${cartButton(book, info)}
+        <a class="detail-button" href="${href}">${isGroup ? "جىلدلارنى تاللاش" : "تەپسىلات"}</a>
+        ${isGroup ? "" : `${cartButton(book, info)}
         <button type="button" class="favorite-button" data-fav-id="${safeUrl.escapeAttr(id)}" aria-label="ياقتۇرۇش">♡</button>
-        <button type="button" class="share-button" data-share-id="${safeUrl.escapeAttr(id)}" aria-label="ھەمبەھىرلەش">🔗</button>
+        <button type="button" class="share-button" data-share-id="${safeUrl.escapeAttr(id)}" aria-label="ھەمبەھىرلەش">🔗</button>`}
       </div>
     </div>
   </article>`;
@@ -178,7 +180,7 @@ function normalizeCategoryRow(row, allowedSources) {
   if (!allowedSources || allowedSources.indexOf(source) < 0) return null;
   const priceNum = row.price == null || row.price === "" ? null : Number(row.price);
   const stockNum = row.stock == null || row.stock === "" ? null : Number(row.stock);
-  return {
+  const book = {
     id,
     title: String(row.title == null ? "" : row.title).trim(),
     author: String(row.author == null ? "" : row.author).trim(),
@@ -189,6 +191,12 @@ function normalizeCategoryRow(row, allowedSources) {
     stockStatus: String(row.stock_status == null ? "" : row.stock_status).trim(),
     source
   };
+  if (row.kind === "group") {
+    book.kind = "group";
+    book.group_slug = String(row.group_slug || row.slug || "").trim();
+    book.member_count = Number(row.member_count) || (Array.isArray(row.member_book_ids) ? row.member_book_ids.length : 0);
+  }
+  return book;
 }
 
 function rowsToBooks(rows, allowedSources) {
@@ -207,6 +215,10 @@ function rowsToBooks(rows, allowedSources) {
 async function loadCategoryBooks(slug, options) {
   const sources = catalogSources(slug);
   if (!sources.length) throw new Error("unknown-category");
+  const env = options && options.env ? options.env : (typeof process !== "undefined" ? process.env : {});
+  if (String(env && env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
+    return loadGroupedCategoryBooks(sources, options);
+  }
   const fetchFn = (options && options.fetchImpl) || fetch;
   const timeoutMs = Number((options && options.timeoutMs) || FETCH_TIMEOUT_MS);
   const rows = [];
@@ -242,6 +254,43 @@ async function loadCategoryBooks(slug, options) {
     if (!Array.isArray(batch)) throw new Error("catalog-json");
     rows.push.apply(rows, batch);
     if (batch.length < PAGE_SIZE) break;
+  }
+  return rowsToBooks(rows, sources);
+}
+
+async function loadGroupedCategoryBooks(sources, options) {
+  const fetchFn = (options && options.fetchImpl) || fetch;
+  const timeoutMs = Number((options && options.timeoutMs) || FETCH_TIMEOUT_MS);
+  const rows = [];
+  const size = 100;
+  let total = null;
+  for (let page = 0; page < 50; page += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/query_public_book_catalog`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ p_query: { sources, sort: "new", offset: page * size, limit: size } }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!response || response.status !== 200) throw new Error("catalog-http");
+    const payload = await response.json();
+    const batch = Array.isArray(payload) ? payload : (Array.isArray(payload && payload.items) ? payload.items : null);
+    if (!batch) throw new Error("catalog-json");
+    rows.push(...batch);
+    const parsedTotal = Number(payload && payload.total);
+    if (Number.isFinite(parsedTotal)) total = parsedTotal;
+    if (batch.length < size || (Number.isFinite(total) && rows.length >= total)) break;
   }
   return rowsToBooks(rows, sources);
 }
@@ -419,6 +468,7 @@ module.exports = {
   normalizeCategoryRow,
   rowsToBooks,
   loadCategoryBooks,
+  loadGroupedCategoryBooks,
   breadcrumbList,
   applyCategoryDocument,
   failureDocument,

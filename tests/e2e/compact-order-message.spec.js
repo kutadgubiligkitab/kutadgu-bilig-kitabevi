@@ -83,7 +83,7 @@ test.describe("compact order message", () => {
     await mockBooks(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=167/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=169/);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
     await expect(page.locator("#checkoutCard")).toBeVisible();
@@ -129,13 +129,18 @@ test.describe("compact order message", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBe(1);
-    expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
-    expect(decodeURIComponent(opened[0].split("text=")[1])).toBe(preview);
+    await expect.poll(() => opened.length).toBe(2);
+    expect(opened[0]).toBe("about:blank");
+    expect(opened[1]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    expect(decodeURIComponent(opened[1].split("text=")[1])).toBe(preview);
 
     const payload = await page.evaluate(() => window.kutadguShop.buildOrderText(false));
     expect(payload.totalQty).toBe(7);
@@ -258,7 +263,11 @@ test.describe("compact order message", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
@@ -269,9 +278,10 @@ test.describe("compact order message", () => {
     await page.locator("#customerPhone").fill("0555 000 11 11", { force: true });
     await page.locator("#customerAddress").fill("Test street 1, door 4", { force: true });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBe(1);
-    expect(opened[0]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
-    const sent = decodeURIComponent(opened[0].split("text=")[1]);
+    await expect.poll(() => opened.length).toBe(2);
+    expect(opened[0]).toBe("about:blank");
+    expect(opened[1]).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
+    const sent = decodeURIComponent(opened[1].split("text=")[1]);
     expect(sent).toContain("ئىسمى: Aygul Test");
     expect(sent).toContain("تېلېفون: 0555 000 11 11");
     expect(sent).toContain("ئادرېس: Test street 1, door 4");

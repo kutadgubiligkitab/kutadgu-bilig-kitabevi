@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=57">
+  <link rel="stylesheet" href="admin.css?v=58">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -67,6 +67,7 @@
         <nav class="admin-sidenav" aria-label="باشقۇرۇش بۆلەكلىرى">
           <p class="admin-sidenav-title">باشقۇرۇش تىزىملىكى</p>
           <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="volume-groups">📚 جىلدلىق توپلاملار</button>
           <button type="button" class="admin-nav-item" data-admin-section="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="reviews">📝 كىتاب ئىنكاسلىرى</button>
           <button type="button" class="admin-nav-item" data-admin-section="feedback">💬 پىكىرلەر</button>
@@ -83,6 +84,7 @@
             <label for="adminSectionSelect">باشقۇرۇش بۆلىكى</label>
             <select id="adminSectionSelect" aria-label="باشقۇرۇش بۆلىكى">
               <option value="books">📚 كىتابلار</option>
+              <option value="volume-groups">📚 جىلدلىق توپلاملار</option>
               <option value="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</option>
               <option value="reviews">📝 كىتاب ئىنكاسلىرى</option>
               <option value="feedback">💬 پىكىرلەر</option>
@@ -381,6 +383,57 @@
         </div>
         <div id="adminBookList" class="admin-book-list"></div>
         <div id="adminPager" class="admin-pager"></div>
+      </section>
+
+      <section class="admin-card" id="volumeGroupsCard" data-admin-section-panel="volume-groups" hidden>
+        <div class="admin-toolbar">
+          <div>
+            <span class="admin-section-kicker">📚 جىلدلىق توپلام</span>
+            <h2 class="admin-section-title">بىر كاتالوگ كىرىش ئېغىزى، كۆپ جىلد</h2>
+            <p class="admin-help">ئورتاق ئۇچۇرنى بىر قېتىم كىرگۈزۈپ، مەۋجۇت كىتابلارنى ID ياكى ISBN بىلەن تەرتىپ بويىچە باغلاڭ. باغلاش كىتاب ID، مۇقاۋا، باھا، ئامبار، URL ياكى تارىخنى ئۆزگەرتمەيدۇ.</p>
+          </div>
+          <div class="admin-toolbar-group">
+            <button class="admin-primary" id="newVolumeGroupBtn" type="button">➕ يېڭى توپلام</button>
+            <button class="admin-secondary" id="reloadVolumeGroupsBtn" type="button">↻ يېڭىلاش</button>
+          </div>
+        </div>
+        <div id="volumeGroupStatus" class="admin-status" role="status">توپلاملارنى ئېچىش ئۈچۈن بۇ بۆلەككە كىرىڭ.</div>
+        <div class="volume-admin-layout">
+          <aside id="volumeGroupList" class="volume-group-list" aria-label="جىلدلىق توپلاملار"></aside>
+          <form id="volumeGroupForm" class="admin-form volume-group-form">
+            <input id="volumeGroupId" type="hidden">
+            <input id="volumeGroupRevision" type="hidden">
+            <input id="volumeGroupRepresentative" type="hidden">
+            <label><span>مۇقىم slug</span><input id="volumeGroupSlug" type="text" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" dir="ltr" placeholder="example-series"></label>
+            <label><span>توپلام نامى</span><input id="volumeGroupTitle" type="text" maxlength="500" required></label>
+            <label><span>ئاپتور</span><input id="volumeGroupAuthor" type="text" maxlength="500"></label>
+            <label><span>تۈر</span><input id="volumeGroupCategory" type="text" maxlength="200"></label>
+            <label><span>مەنبە بەت</span><input id="volumeGroupSource" type="text" maxlength="300" dir="ltr"></label>
+            <label><span>تولۇق توپلامنىڭ ئېنىق باھاسى</span><input id="volumeGroupSetPrice" type="number" min="0" step="0.01" dir="ltr" placeholder="بوش قالسا جىلد باھالىرى يىغىندىسى"></label>
+            <label class="admin-wide"><span>ئورتاق چۈشەندۈرۈش</span><textarea id="volumeGroupDescription" rows="4" maxlength="10000"></textarea></label>
+            <label class="admin-check admin-wide"><input id="volumeGroupActive" type="checkbox" checked><span>توپلامنى ئاكتىپ ساقلاش</span></label>
+
+            <div class="admin-wide volume-admin-lookup-box">
+              <h3>مەۋجۇت كىتابنى جىلد قىلىپ باغلاش</h3>
+              <div class="admin-toolbar-group">
+                <input id="volumeGroupBookLookup" class="admin-search" type="search" placeholder="دەل كىتاب ID ياكى ISBN" autocomplete="off">
+                <button class="admin-secondary" id="volumeGroupLookupBtn" type="button">تەكشۈرۈش</button>
+              </div>
+              <div id="volumeGroupLookupPreview"></div>
+            </div>
+
+            <div class="admin-wide">
+              <h3>جىلد تەرتىپى</h3>
+              <div id="volumeGroupMembers" class="volume-admin-members"></div>
+            </div>
+
+            <div class="admin-wide volume-admin-publish-row">
+              <span>ئاشكارىلىق: <strong id="volumeGroupVisibility">مەخپىي</strong></span>
+              <button class="admin-secondary" id="volumeGroupPublishBtn" type="button" disabled>ئاشكارىلاش</button>
+              <button class="admin-primary" type="submit">توپلامنى ساقلاش</button>
+            </div>
+          </form>
+        </div>
       </section>
 
       <section class="admin-card" id="submissionsCard" data-admin-section-panel="submissions" hidden>
@@ -1157,8 +1210,9 @@
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
+  <script defer src="admin-volume-groups.js?v=1"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=118"></script>
+  <script defer src="admin.js?v=119"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

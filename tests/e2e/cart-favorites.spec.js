@@ -167,12 +167,17 @@ test.describe("guest cart and favorites", () => {
     await page.evaluate(() => {
       window.open = (url) => {
         window.__kutadguCaptureWa(String(url));
-        return { opener: null, close() {} };
+        const location = {};
+        Object.defineProperty(location, "href", {
+          set(value) { window.__kutadguCaptureWa(String(value)); }
+        });
+        return { opener: null, location, close() {} };
       };
     });
     await page.locator("#whatsappOrder").click();
-    await expect.poll(() => opened.length).toBeGreaterThan(0);
-    const url = opened[0];
+    await expect.poll(() => opened.length).toBeGreaterThan(1);
+    expect(opened[0]).toBe("about:blank");
+    const url = opened[opened.length - 1];
     expect(url).toMatch(/^https:\/\/wa\.me\/905368999888\?text=/);
     const text = decodeURIComponent(url.split("text=")[1] || "");
     expect(text).toContain(book.title);

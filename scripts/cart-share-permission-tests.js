@@ -151,7 +151,7 @@ test("shop hides the action until the current account is confirmed", () => {
   assert.match(cartHtml, /id="copyOrder"/);
   assert.match(cartHtml, /id="shareOrder"/);
   assert.doesNotMatch(cartHtml, /id="shareCart"/);
-  assert.match(cartHtml, /shop\.js\?v=167/);
+  assert.match(cartHtml, /shop\.js\?v=169/);
 });
 
 test("admin reads one batched permission payload and ignores a stale write", () => {
@@ -174,8 +174,8 @@ test("admin reads one batched permission payload and ignores a stale write", () 
   assert.match(grantWrite, /key==="self"&&userId!==before\.id/);
   assert.match(adminHtml, /id="cartShareControls"/);
   assert.match(adminHtml, /id="cartShareGlobal"/);
-  assert.match(adminHtml, /admin\.js\?v=110/);
-  assert.match(adminHtml, /admin\.css\?v=56/);
+  assert.match(adminHtml, /admin\.js\?v=119/);
+  assert.match(adminHtml, /admin\.css\?v=58/);
   const members = sliceBetween(adminHtml, 'id="memberManagement"', 'id="adminMemberList"');
   assert.ok(members.indexOf("cartShareControls") > 0);
   assert.ok(members.indexOf("cartShareControls") < members.indexOf("adminMemberFilters"));

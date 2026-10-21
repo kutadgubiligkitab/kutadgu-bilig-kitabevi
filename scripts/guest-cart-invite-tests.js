@@ -84,8 +84,8 @@ test("cart.html keeps one hidden guest invitation outside checkout", () => {
   assert.match(cartHtml, /#guestCartInvite a\{[^}]*min-height:44px/);
   assert.match(cartHtml, /#guestCartInvite\{[^}]*direction:rtl/);
   assert.match(accountHtml, /account\.js\?v=8/);
-  assert.match(accountHtml, /member\.js\?v=34/);
-  assert.match(shop, /\/member\.js\?v=34/);
+  assert.match(accountHtml, /member\.js\?v=35/);
+  assert.match(shop, /\/member\.js\?v=35/);
   assert.doesNotMatch(sliceBetween(member, "async function signUp({email,password,fullName}){", "async function signIn({email,password}){"), /localStorage|member_cart_items/);
   assert.strictEqual(gitDiff("shop.css"), "");
 });

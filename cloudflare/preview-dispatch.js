@@ -117,6 +117,8 @@ function classifyPath(pathname, search) {
     return { kind: "redirect", location: HTML_REDIRECTS[path] + query };
   }
   if (isLegacyBookQuery(path, query)) return { kind: "legacy-redirect" };
+  const volumeGroup = path.match(/^\/volume-group\/([^/]+)\/?$/);
+  if (volumeGroup) return { kind: "volume-group", slug: volumeGroup[1] };
   if (
     path === "/api/book-public"
     || path === "/book"
@@ -282,6 +284,51 @@ async function handleBook(request, env, deps) {
   }, undefined, hostOf(request));
 }
 
+async function handleVolumeGroup(request, env, deps, route) {
+  const method = String(request.method || "GET").toUpperCase();
+  const groups = deps.publicVolumeGroup;
+  const publicBook = deps.publicBook;
+  if (String(env && env.MULTI_VOLUME_BOOKS_ENABLED || "") !== "true" || !groups) {
+    return textResponse(404, method === "HEAD" ? null : publicBook.missingBookHtml(), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store"
+    }, undefined, hostOf(request));
+  }
+  const slug = groups.validSlug(route && route.slug);
+  if (!slug) {
+    return textResponse(404, method === "HEAD" ? null : publicBook.missingBookHtml(), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store"
+    }, undefined, hostOf(request));
+  }
+  const result = await groups.lookupPublicVolumeGroup(slug, { fetchImpl: deps.fetchImpl });
+  if (result.outcome === "found") {
+    const bookResult = await publicBook.lookupPublicNumericBook(result.group.representative_book_id, { fetchImpl: deps.fetchImpl });
+    if (bookResult.outcome === "found") {
+      const shell = await readAsset(request, env, deps, "/book-shell.html");
+      if (shell && shell.status === 200) {
+        const template = await shell.text();
+        const html = decoratePreviewHtml(groups.applyGroupDocument(template, result.group, bookResult.book), request, env);
+        return textResponse(200, method === "HEAD" ? null : html, env, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate"
+        }, undefined, hostOf(request));
+      }
+    }
+  }
+  if (result.outcome === "error") {
+    return textResponse(503, method === "HEAD" ? null : publicBook.lookupFailureHtml(), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, follow"
+    }, undefined, hostOf(request));
+  }
+  return textResponse(404, method === "HEAD" ? null : publicBook.missingBookHtml(), env, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "public, s-maxage=60"
+  }, undefined, hostOf(request));
+}
+
 async function handleCategory(request, env, deps, route) {
   const method = String(request.method || "GET").toUpperCase();
   const listing = deps.listing;
@@ -305,7 +352,7 @@ async function handleCategory(request, env, deps, route) {
     }, undefined, hostOf(request));
   }
   try {
-    const books = await listing.loadCategoryBooks(slug, { fetchImpl: deps.fetchImpl });
+    const books = await listing.loadCategoryBooks(slug, { fetchImpl: deps.fetchImpl, env });
     const html = decoratePreviewHtml(listing.applyCategoryDocument(template, slug, books), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
@@ -324,8 +371,8 @@ async function handleSitemap(request, env, deps, route) {
   const method = String(request.method || "GET").toUpperCase();
   try {
     const xml = route.kind === "sitemap-index"
-      ? await deps.sitemap.buildIndexSitemapXml(deps.fetchImpl)
-      : await deps.sitemap.buildBooksSitemapXml(route.page, deps.fetchImpl);
+      ? await deps.sitemap.buildIndexSitemapXml(deps.fetchImpl, { env })
+      : await deps.sitemap.buildBooksSitemapXml(route.page, deps.fetchImpl, { env });
     return textResponse(200, method === "HEAD" ? null : xml, env, {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400"
@@ -573,6 +620,7 @@ async function dispatch(request, env, deps) {
   }
   if (route.kind === "shared-cart-page") return handleSharedCartPage(request, env, source);
   if (route.kind === "app-link") return appLinkResponse(request, env, route);
+  if (route.kind === "volume-group") return handleVolumeGroup(request, env, source, route);
   if (route.kind === "book") return handleBook(request, env, source);
   if (route.kind === "category") return handleCategory(request, env, source, route);
   if (route.kind === "rewrite") return finishAsset(request, env, source, route.file);

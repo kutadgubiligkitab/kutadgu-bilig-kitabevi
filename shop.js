@@ -49,9 +49,26 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
   const flag=(camel,snake,defaultValue=false)=>value(camel,snake,defaultValue)===true;
   const id=String(book.id||"").trim();
   const legacyId=String(value("legacyId","legacy_id","")||"").trim();
+  const catalogKind=String(value("catalogKind","kind","book"))==="group"?"group":"book";
+  const groupId=String(value("groupId","group_id","")||"").trim();
+  const groupSlug=String(value("groupSlug","group_slug","")||"").trim();
+  const groupHref=String(book.href||"").trim();
+  const explicitUnitKey=String(book.unitKey??book.unit_key??"").trim();
+  const unitKey=explicitUnitKey||(catalogKind==="group"&&groupId?`g:${groupId}`:"");
+  const setPriceRaw=value("completeSetPrice","complete_set_price",null);
+  const effectiveSetPriceRaw=value("effectiveSetPrice","effective_set_price",null);
   return {
     id,
     legacyId,
+    catalogKind,
+    unitKey,
+    groupId,
+    groupSlug,
+    representativeBookId:String(value("representativeBookId","representative_book_id",id)||id),
+    memberBookIds:(Array.isArray(value("memberBookIds","member_book_ids",[]))?value("memberBookIds","member_book_ids",[]):[]).map(String),
+    memberCount:Number(value("memberCount","member_count",0))||0,
+    completeSetPrice:setPriceRaw===null||setPriceRaw===undefined||setPriceRaw===""?null:Number(setPriceRaw),
+    effectiveSetPrice:effectiveSetPriceRaw===null||effectiveSetPriceRaw===undefined||effectiveSetPriceRaw===""?null:Number(effectiveSetPriceRaw),
     title:book.title||"",
     author:book.author||"",
     isbn:String(value("isbn","isbn","")||"").trim(),
@@ -62,7 +79,7 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     source:book.source||"universal.html",
     image:value("image","image_url","")||"",
     galleryImages:normalizeGalleryImages(value("galleryImages","gallery_images",[]),value("image","image_url","")||""),
-    href:bookDetailHref(id,isRemote?"":book.href),
+    href:catalogKind==="group"&&groupHref?groupHref:bookDetailHref(id,isRemote?"":book.href),
     pages:book.pages??null,
     translator:book.translator||"",
     language:book.language||"",
@@ -140,7 +157,7 @@ const remoteCatalog={configured:false,available:false,total:null};
 const CATALOG_BOOT_TIMEOUT_MS=8000;
 const CATALOG_RECOVERY_COOLDOWN_MS=2000;
 let catalogRecoveryBlockedUntil=0;
-const CART_KEY="kutadgu-cart-v1", CART_DISPLAY_KEY="kutadgu-cart-display-v1", CART_DISPLAY_VERSION=1, CART_DISPLAY_MAX_ITEMS=80, FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
+const CART_KEY="kutadgu-cart-v1", SET_CART_KEY="kutadgu-set-cart-v1", CART_DISPLAY_KEY="kutadgu-cart-display-v1", CART_DISPLAY_VERSION=1, CART_DISPLAY_MAX_ITEMS=80, FAV_KEY="kutadgu-favorites-v1", REC_KEY="kutadgu-recent-v1", CUSTOMER_KEY="kutadgu-customer-v1";
 const SHOP_OWNER_KEY="kutadgu-shop-owner-v1", SHOP_OWNER_GUEST="guest", SHOP_OWNER_STALE="stale";
 function isPreviewShopDebug(){
   try{
@@ -822,6 +839,7 @@ function canRecoverOrphanedOwnerForGuestWrite(){
 function recoverOrphanedOwnerForGuestWrite(){
   if(!canRecoverOrphanedOwnerForGuestWrite())return false;
   try{localStorage.removeItem(CART_KEY)}catch(e){}
+  try{localStorage.removeItem(SET_CART_KEY)}catch(e){}
   try{localStorage.removeItem(FAV_KEY)}catch(e){}
   try{localStorage.removeItem(CART_DISPLAY_KEY)}catch(e){}
   writeShopOwner(SHOP_OWNER_GUEST);
@@ -861,10 +879,10 @@ function alignCartDisplayAfterMemberSync(prevItems){
 const get=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const set=(k,v)=>{
   try{
-    if((k===CART_KEY||k===FAV_KEY)&&!shopStateWriteAllowed())return false;
+    if((k===CART_KEY||k===SET_CART_KEY||k===FAV_KEY)&&!shopStateWriteAllowed())return false;
     const ownerBefore=readShopOwner();
     localStorage.setItem(k,JSON.stringify(v));
-    if(k===CART_KEY||k===FAV_KEY)stampShopOwner();
+    if(k===CART_KEY||k===SET_CART_KEY||k===FAV_KEY)stampShopOwner();
     if(ownerBefore!==SHOP_OWNER_STALE)window.KutadguMember?.syncKey?.(k,v);
     return true;
   }catch(error){
@@ -1294,6 +1312,7 @@ function usesSearchRelevance(state){
 }
 function searchRankKey(state){
   return JSON.stringify({
+    grouped:!!volumeStorefront(),
     search:state.search||"",
     category:state.category||"",
     source:state.source||"",
@@ -1400,6 +1419,24 @@ async function loadSearchRankIndex(state,options={}){
   const Rank=searchRankApi();
   const key=searchRankKey(state);
   if(searchRankCache.key===key&&Array.isArray(searchRankCache.ids))return searchRankCache;
+  const grouped=volumeStorefront();
+  if(grouped&&!state.includeInactive){
+    const pageSize=grouped.MAX_PAGE_SIZE||100;
+    let from=0,rows=[],total=null;
+    for(;;){
+      const page=await grouped.queryCatalog({...state,offset:from,pageSize,sort:"title"},{signal:options.signal});
+      const chunk=Array.isArray(page.items)?page.items:[];
+      rows=rows.concat(chunk);
+      if(Number.isFinite(page.total))total=page.total;
+      if(chunk.length<pageSize||(Number.isFinite(total)&&rows.length>=total))break;
+      from+=pageSize;
+    }
+    const ranked=(Rank.rankHits?Rank.rankHits(rows,state.search):rows)
+      .map(row=>String(row&&row.unit_key||""))
+      .filter(value=>/^(?:book|group):[1-9][0-9]*$/.test(value));
+    searchRankCache={key,ids:ranked,total:ranked.length};
+    return searchRankCache;
+  }
   const pageSize=1000;
   let from=0,rows=[],total=null;
   for(;;){
@@ -1451,7 +1488,11 @@ async function fetchRankedRemotePage(state,options={}){
     sort:"new",
     includeInactive:state.includeInactive
   },{...options,_rankedPage:true});
-  const byId=new Map((page.items||[]).map(book=>[String(book.id),book]));
+  const grouped=volumeStorefront();
+  const byId=new Map((page.items||[]).map(book=>[
+    grouped?String(book.unitKey||""):String(book.id),
+    book
+  ]));
   const items=slice.map(id=>byId.get(String(id))).filter(Boolean);
   return {
     items,
@@ -1546,6 +1587,11 @@ async function loadDiscoveryIdIndexOnce(options,idOnly){
   });
 }
 async function loadDiscoveryIdIndex(options={}){
+  const grouped=volumeStorefront();
+  if(grouped){
+    const ids=await grouped.listUnitIds({signal:options.signal});
+    return {rows:ids.map(id=>({id})),total:ids.length};
+  }
   try{return await loadDiscoveryIdIndexOnce(options,false)}
   catch(error){
     if(error?.code==="retry-id-only")return loadDiscoveryIdIndexOnce(options,true);
@@ -1561,7 +1607,7 @@ async function ensureDiscoveryVisit(options={}){
   if(options.signal?.aborted)throw abortError();
   visit=store.load();
   if(visit&&Array.isArray(visit.ids))return visit;
-  const ids=api.canonicalIds(index.rows);
+  const ids=api.canonicalIds(index.rows,{allowNonCanonical:!!volumeStorefront()});
   const seed=api.newSeed();
   visit={seed,ids:api.permuteIds(ids,seed),cursor:0};
   store.save(visit);
@@ -1605,6 +1651,29 @@ async function fetchRemotePage(input={},options={}){
   if(!remoteCatalog.available&&!remoteCatalog.configured)throw new Error("Supabase catalog is unavailable");
   const state=widenDiscoveryPage(input,normalizeQueryState(input));
   if(isGlobalBooksDiscoveryState(state)&&!options._discoveryPage)return fetchDiscoveryRemotePage(state,options);
+  const grouped=volumeStorefront();
+  if(grouped&&usesSearchRelevance(state)&&!options._rankedPage)return fetchRankedRemotePage(state,options);
+  if(grouped&&!state.includeInactive){
+    const page=await grouped.queryCatalog(state,{signal:options.signal});
+    if(typeof options.accept==="function"&&options.accept()===false){
+      return {...page,items:[],total:0,hasMore:false,rowCount:0,stale:true};
+    }
+    if(!remoteCatalog.available){
+      remoteCatalog.available=true;
+      beginRemoteVisibleCatalog();
+    }
+    const items=(page.items||[]).map((row,index)=>normalizeRemoteBook(row,state.offset+index)).filter(book=>book.id);
+    items.filter(book=>book.catalogKind!=="group").forEach(indexCatalogBook);
+    catalogStatus={source:"supabase",remoteCount:C.length,total:page.total,migrated:true,error:""};
+    window.KUTADGU_CATALOG_STATUS=catalogStatus;
+    return {
+      ...page,
+      items,
+      status:200,
+      contentRange:`${state.offset}-${Math.max(state.offset,state.offset+items.length-1)}/${page.total}`,
+      rowCount:items.length
+    };
+  }
   if(usesSearchRelevance(state)&&!options._rankedPage)return fetchRankedRemotePage(state,options);
   const {url,cfg}=remoteBooksUrl(state),from=state.offset,to=from+state.pageSize-1;
   const response=await fetch(url,{
@@ -1777,6 +1846,13 @@ let pageBookBoot={seq:0,id:"",controller:null};
 let detailBootReady=false;
 let creditBootController=null;
 let appConfigState="pending";
+let activeVolumeGroup=null;
+let activeVolumeBookId="";
+function volumeGroupSlugFromLocation(){
+  const match=String(location&&location.pathname||"").match(/^\/volume-group\/([^/?#]+)\/?$/i);
+  if(!match)return "";
+  try{return decodeURIComponent(match[1])}catch(error){return ""}
+}
 function settleBoot(work,ms=CATALOG_BOOT_TIMEOUT_MS){
   return new Promise(resolve=>{
     let settled=false;
@@ -1864,7 +1940,30 @@ async function hydratePageBook(){
   try{
     if(isStorefrontHomepage())return;
     const Seo=window.KutadguBookSeo||{};
-    const id=(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
+    const grouped=volumeStorefront();
+    const groupSlug=grouped?volumeGroupSlugFromLocation():"";
+    let context=null;
+    if(groupSlug){
+      const group=await grouped.getGroupBySlug(groupSlug,{signal:controller.signal});
+      if(seq!==pageBookBoot.seq)return;
+      if(!group){
+        activeVolumeGroup=null;
+        pageBookAuthority="hidden";
+        if(detailBootReady&&isBookDetailDocument())decorateDetail();
+        return;
+      }
+      const requested=new URLSearchParams(location.search).get("volume");
+      const selected=group.members.some(member=>member.book_id===String(requested))
+        ?String(requested)
+        :group.representative_book_id;
+      context={group,selected_book_id:selected};
+    }
+    const id=context?.selected_book_id||(Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):"")||new URLSearchParams(location.search).get("id")||document.body.dataset.bookId;
+    if(context&&context.group){
+      activeVolumeGroup=context.group;
+      activeVolumeBookId=String(context.selected_book_id||id||"");
+      volumeGroupCache.set(String(context.group.id),context.group);
+    }
     pageBookBoot.id=String(id||"");
     if(!id){
       pageBookAuthority="idle";
@@ -1878,7 +1977,10 @@ async function hydratePageBook(){
     }
     pageBookAuthority="pending";
     if(isBookDetailDocument())paintDetailBootNotice("pending");
-    const promise=fetchRemotePage({ids:[id],pageSize:1,offset:0,sort:"new",includeInactive:true},{signal:controller.signal,accept:()=>seq===pageBookBoot.seq}).then(result=>({ok:true,result})).catch(error=>({ok:false,error}));
+    const hydrateIds=context&&context.group
+      ?context.group.members.map(member=>member.book_id)
+      :[id];
+    const promise=fetchRemotePage({ids:hydrateIds,pageSize:Math.max(1,hydrateIds.length),offset:0,sort:"new",includeInactive:true},{signal:controller.signal,accept:()=>seq===pageBookBoot.seq}).then(result=>({ok:true,result})).catch(error=>({ok:false,error}));
     const settled=await settleBoot(promise);
     if(seq!==pageBookBoot.seq)return;
     if(settled.timedOut){
@@ -1886,6 +1988,22 @@ async function hydratePageBook(){
       promise.then(result=>{applyPageBookResult(seq,id,result)});
       return;
     }
+    if(grouped&&!context&&/^\d+$/.test(String(id))){
+      try{context=await grouped.resolveBook(id,{signal:controller.signal})}catch(error){
+        if(error?.name==="AbortError")return;
+      }
+      if(context&&context.group){
+        const siblingIds=context.group.members.map(member=>member.book_id).filter(bookId=>String(bookId)!==String(id));
+        if(siblingIds.length){
+          try{await fetchRemotePage({ids:siblingIds,pageSize:siblingIds.length,offset:0,sort:"new",includeInactive:true},{signal:controller.signal,accept:()=>seq===pageBookBoot.seq})}
+          catch(error){if(error?.name==="AbortError")return}
+        }
+      }
+    }
+    if(seq!==pageBookBoot.seq)return;
+    activeVolumeGroup=context&&context.group||null;
+    activeVolumeBookId=context&&context.selected_book_id?String(context.selected_book_id):String(id||"");
+    if(activeVolumeGroup)volumeGroupCache.set(String(activeVolumeGroup.id),activeVolumeGroup);
     applyPageBookResult(seq,id,settled.error?{ok:false,error:settled.error}:settled.value);
   }finally{
     pageBookHydrationDone=true;
@@ -2014,6 +2132,111 @@ function cartButton(book,label="🛒 سېۋەتكە سېلىش",className="add-t
   const text=compact?`🛒${mark}`:`🛒 ${mark} تۈگەپ كەتتى`;
   return `<button type="button" class="${escapeAttr(className)} is-cart-unavailable" data-cart-id="${escapeAttr(book.id)}" disabled aria-disabled="true" aria-label="تۈگەپ كەتتى">${text}</button>`;
 }
+function volumeGroups(){
+  const api=window.KutadguVolumeGroups;
+  return api&&api.featureEnabled&&api.featureEnabled()?api:null;
+}
+function volumeStorefront(){
+  const api=window.KutadguVolumeStorefront;
+  return api&&api.enabled&&api.enabled()?api:null;
+}
+const volumeGroupCache=new Map();
+let volumeGroupHydration=null;
+function setCartState(){
+  const api=volumeGroups();
+  if(!api||!shopOwnerAllowsLocalDisplay())return {lines:[],unsupported:[]};
+  return api.splitSetCart(localStorage);
+}
+function setCartLines(){
+  return setCartState().lines.map(line=>({...line,group:volumeGroupCache.get(String(line.group_id))||null}));
+}
+function setCartUnsupported(){return setCartState().unsupported}
+function setCartPhysicalQty(lines=setCartLines()){
+  return lines.reduce((sum,line)=>{
+    const count=Array.isArray(line.group?.members)?line.group.members.length:0;
+    return sum+(count?count*line.qty:0);
+  },0);
+}
+function persistSetCart(lines){
+  const api=volumeGroups();
+  if(!api||!shopStateWriteAllowed())return false;
+  const state=setCartState();
+  const normalized=api.normalizeSetLines(lines).lines;
+  const payload=[...normalized,...state.unsupported];
+  if(!set(SET_CART_KEY,payload))return false;
+  api.invalidateQuote();
+  preparedOrder=null;
+  preparedOrderSignature="";
+  return true;
+}
+function addCompleteSet(groupId,qty=1,quoteRevision=""){
+  const api=volumeGroups();
+  if(!api)return false;
+  recoverOrphanedOwnerForGuestWrite();
+  const group=volumeGroupCache.get(String(groupId));
+  if(group&&!api.setAvailable(group,qty)){
+    toast("تولۇق توپلامنىڭ بەزى جىلدلىرى ھازىر تەمىنلەنمەيدۇ");
+    return false;
+  }
+  const merged=api.mergeSetLines(setCartState().lines,[{kind:"set",group_id:groupId,qty,quote_revision:quoteRevision}]);
+  if(!persistSetCart(merged.lines))return false;
+  updateBadge();
+  if(document.querySelector("#cartItems"))cartPage();
+  toast("تولۇق توپلام سېۋەتكە قوشۇلدى 🛒");
+  return true;
+}
+function removeCompleteSet(groupId){
+  const id=String(groupId||"");
+  if(!persistSetCart(setCartState().lines.filter(line=>String(line.group_id)!==id)))return;
+  updateBadge();
+}
+function changeCompleteSetQty(groupId,delta){
+  const id=String(groupId||"");
+  const api=volumeGroups();
+  if(!api)return;
+  const lines=setCartState().lines;
+  const line=lines.find(row=>String(row.group_id)===id);
+  if(!line)return;
+  const group=volumeGroupCache.get(id);
+  const next=Math.max(1,Math.min(api.MAX_SET_QTY,line.qty+Number(delta||0)));
+  if(group&&!api.setAvailable(group,next)&&delta>0){
+    toast("تولۇق توپلامغا يېتەرلىك ئامبار يوق");
+    return;
+  }
+  line.qty=next;
+  if(persistSetCart(lines)){
+    cartPage();
+    updateBadge();
+  }
+}
+async function hydrateSetCartGroups(){
+  const api=volumeGroups();
+  if(!api)return [];
+  const missing=setCartState().lines.map(line=>String(line.group_id)).filter(id=>!volumeGroupCache.has(id));
+  if(!missing.length)return setCartLines();
+  if(volumeGroupHydration)return volumeGroupHydration;
+  volumeGroupHydration=(async()=>{
+    await Promise.all([...new Set(missing)].map(async id=>{
+      try{
+        const group=await api.getPublicGroup(id);
+        volumeGroupCache.set(id,group||false);
+      }catch(error){
+        volumeGroupCache.set(id,false);
+      }
+    }));
+    return setCartLines();
+  })().finally(()=>{volumeGroupHydration=null});
+  return volumeGroupHydration;
+}
+function primeVolumeCart(){
+  const api=volumeGroups();
+  const sets=setCartState().lines;
+  if(!api||!sets.length||setCartUnsupported().length)return Promise.resolve(null);
+  return hydrateSetCartGroups().then(()=>{
+    if(setCartLines().some(line=>!line.group))throw new Error("volume_group_unavailable");
+    return api.requestQuote(cart(),sets);
+  }).catch(()=>null);
+}
 function cart(){
   if(!shopOwnerAllowsLocalDisplay())return [];
   const items=get(CART_KEY,[]);
@@ -2055,7 +2278,8 @@ function cartHas(id){
   return cartLines().some(line=>canonicalId(line.id)===want);
 }
 function updateBadge(){
-  const n=cartLines().reduce((s,x)=>s+(x.qty||1),0);
+  const sets=setCartLines();
+  const n=cartLines().reduce((s,x)=>s+(x.qty||1),0)+setCartPhysicalQty(sets);
   document.querySelectorAll(".cart-count").forEach(e=>{
     e.hidden=false;
     e.removeAttribute("hidden");
@@ -2063,6 +2287,9 @@ function updateBadge(){
     e.textContent=n;
     e.setAttribute("data-kutadgu-count-state","ready");
   });
+  if(sets.some(line=>!line.group)&&!volumeGroupHydration){
+    hydrateSetCartGroups().then(updateBadge,()=>{});
+  }
 }
 function add(id,qty=1){
   let b=find(id);if(!b)return;
@@ -2377,6 +2604,8 @@ function getDetailBook(){
   const Seo=window.KutadguBookSeo||{};
   let id=document.body.dataset.bookId;
   let b=find(id); if(b)return b;
+  if(activeVolumeBookId){b=find(activeVolumeBookId);if(b)return b}
+  if(pageBookBoot.id){b=find(pageBookBoot.id);if(b)return b}
   let queryId=Seo.parseBookIdFromLocation?Seo.parseBookIdFromLocation(location):new URLSearchParams(location.search).get("id");
   if(queryId){b=find(queryId);if(b)return b}
   let file=(location.pathname.split("/").pop()||"").split("?")[0];
@@ -2437,7 +2666,9 @@ function updateBookSeo(book){
   if(!book||!isBookDetailDocument())return;
   const Seo=window.KutadguBookSeo||{};
   const origin=siteOrigin();
-  const canonical=Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}${bookDetailHref(book.id)}`;
+  const groupPage=!!(activeVolumeGroup&&volumeGroupSlugFromLocation());
+  const groupPath=groupPage&&volumeStorefront()?.groupPath(activeVolumeGroup);
+  const canonical=groupPath?`${origin}${groupPath}`:(Seo.bookCanonicalUrl?Seo.bookCanonicalUrl(book.id,origin):`${origin}${bookDetailHref(book.id)}`);
   const title=`${book.title} - قۇتادغۇبىلىك كىتابخانىسى`;
   const authorName=storefrontAuthor(book);
   const description=Seo.metaDescription?Seo.metaDescription(book):(String(book.description||"").trim()||`${book.title} — قۇتادغۇبىلىك كىتابخانىسى`);
@@ -2464,9 +2695,13 @@ function updateBookSeo(book){
 
   let schema=document.head.querySelector("#kutadguBookSchema");
   if(!schema){schema=document.createElement("script");schema.id="kutadguBookSchema";schema.type="application/ld+json";document.head.appendChild(schema)}
-  const payload=Seo.buildBookJsonLd
-    ?Seo.buildBookJsonLd(book,{origin,canonical,authorName,image,visible:isStorefrontVisible(book),stockKey:stockInfo(book).key})
-    :{"@context":"https://schema.org","@graph":[{"@type":"Book",name:book.title,url:canonical}]};
+  const payload=groupPage
+    ?{"@context":"https://schema.org","@type":"BookSeries",name:book.title,url:canonical,description:description||undefined,
+      numberOfBooks:activeVolumeGroup.members.length,
+      hasPart:activeVolumeGroup.members.map(member=>({"@type":"Book",name:member.title||member.volume_label||`${member.position}-جىلد`,url:`${origin}/book/${member.book_id}`}))}
+    :(Seo.buildBookJsonLd
+      ?Seo.buildBookJsonLd(book,{origin,canonical,authorName,image,visible:isStorefrontVisible(book),stockKey:stockInfo(book).key})
+      :{"@context":"https://schema.org","@graph":[{"@type":"Book",name:book.title,url:canonical}]});
   schema.textContent=JSON.stringify(payload).replace(/</g,"\\u003c");
 }
 
@@ -2918,6 +3153,123 @@ async function retryDetailBoot(){
   await hydratePageBook();
 }
 
+function volumeMemberBook(member){
+  const book=find(member&&member.book_id);
+  if(book)return book;
+  return normalizeCatalogBook({
+    id:member&&member.book_id,
+    title:member&&member.title,
+    author:member&&member.author,
+    price:member&&member.price,
+    image_url:member&&member.image_url,
+    stock:member&&member.stock,
+    stock_status:member&&member.stock_status,
+    is_active:member&&member.is_active
+  },0,true);
+}
+function volumeMemberAvailable(member){
+  const api=volumeGroups();
+  return api&&api.memberAvailable?api.memberAvailable(member,1):stockInfo(volumeMemberBook(member)).canBuy;
+}
+function volumeGroupSetPrice(group){
+  const api=volumeGroups();
+  if(api&&api.groupSetPrice)return api.groupSetPrice(group);
+  if(Number.isFinite(Number(group&&group.complete_set_price)))return Number(group.complete_set_price);
+  const prices=(group&&group.members||[]).map(member=>Number(member.price));
+  return prices.every(Number.isFinite)?prices.reduce((sum,value)=>sum+value,0):null;
+}
+function volumePriceRange(group){
+  const prices=(group&&group.members||[])
+    .filter(volumeMemberAvailable)
+    .map(member=>Number(member.price))
+    .filter(Number.isFinite);
+  if(!prices.length)return "سېتىۋالغىلى بولىدىغان جىلد يوق";
+  const low=Math.min(...prices),high=Math.max(...prices);
+  return low===high?money(low):`${money(low)} – ${money(high)}`;
+}
+function updateVolumeSelectionPreview(group,member,panel){
+  const book=volumeMemberBook(member);
+  activeVolumeBookId=String(member.book_id);
+  const summary=panel.querySelector("[data-volume-selection-summary]");
+  if(summary){
+    summary.innerHTML=`<strong>${escapeHtml(member.volume_label||`${member.position}-جىلد`)}</strong>
+      <span>${escapeHtml(member.title||book.title||"")}</span>
+      <span>${money(member.price)}</span>
+      ${stockBadge(book)}`;
+  }
+  setDetailHeroImage(member.image_url||book.image,`${member.title||book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
+}
+function renderVolumeGroupPurchasePanel(box,book,group){
+  const panel=document.createElement("div");
+  panel.className="detail-purchase-panel volume-group-purchase-panel";
+  panel.dataset.volumeGroupId=group.id;
+  const setPrice=volumeGroupSetPrice(group);
+  const setAvailable=(group.members||[]).every(volumeMemberAvailable);
+  const selectedId=String(activeVolumeBookId||book.id);
+  const explicit=group.complete_set_price!=null;
+  const groupUrl=volumeStorefront()?.groupPath(group)||"";
+  panel.innerHTML=`
+    <div class="volume-group-heading">
+      <div>
+        <span class="detail-price-label">جىلد باھاسى</span>
+        <div class="detail-price volume-group-price-range">${escapeHtml(volumePriceRange(group))}</div>
+      </div>
+      <div class="volume-set-price">
+        <span>${explicit?"بېكىتىلگەن تولۇق توپلام باھاسى":"تولۇق توپلام باھاسى (جىلد باھالىرى يىغىندىسى)"}</span>
+        <strong>${setPrice==null?"باھا بېكىتىلمىگەن":money(setPrice)}</strong>
+      </div>
+    </div>
+    ${groupUrl&&!volumeGroupSlugFromLocation()?`<a class="volume-group-stable-link" href="${escapeAttr(groupUrl)}">توپلامنىڭ مۇقىم بېتىنى ئېچىش</a>`:""}
+    <fieldset class="volume-member-picker">
+      <legend>بىر ياكى بىر نەچچە جىلد تاللاڭ</legend>
+      ${(group.members||[]).map(member=>{
+        const memberBook=volumeMemberBook(member);
+        const available=volumeMemberAvailable(member);
+        const checked=String(member.book_id)===selectedId;
+        return `<label class="volume-member-option${available?"":" is-unavailable"}">
+          <input type="checkbox" data-volume-book-id="${escapeAttr(member.book_id)}"${checked?" checked":""}${available?"":" disabled"}>
+          <img src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}" alt="" loading="lazy" width="48" height="68">
+          <span class="volume-member-copy">
+            <strong>${escapeHtml(member.volume_label||`${member.position}-جىلد`)}</strong>
+            <small>${escapeHtml(member.title||memberBook.title||"")}</small>
+          </span>
+          <span class="volume-member-price">${money(member.price)}</span>
+          ${stockBadge(memberBook)}
+        </label>`;
+      }).join("")}
+    </fieldset>
+    <div class="volume-selection-summary" data-volume-selection-summary></div>
+    <div class="volume-group-actions">
+      <button type="button" class="add-to-cart detail-cart volume-add-selected">تاللانغان جىلدلارنى سېۋەتكە قوشۇش</button>
+      <button type="button" class="add-to-cart detail-cart volume-add-set"${setAvailable&&setPrice!=null?"":" disabled aria-disabled=\"true\""}>تولۇق توپلامنى سېۋەتكە قوشۇش</button>
+    </div>
+    ${setAvailable?"":'<p class="cart-stock-block-note">كەم بولغان جىلد بار بولغاچقا تولۇق توپلامنى سېتىۋالغىلى بولمايدۇ. بار جىلدلارنى ئايرىم تاللىغىلى بولىدۇ.</p>'}
+    <div class="detail-secondary-actions">
+      <button type="button" class="favorite-button" data-fav-id="${escapeAttr(book.id)}">♡ ياقتۇرۇش</button>
+      <button type="button" class="share-button" data-share-id="${escapeAttr(book.id)}">🔗 ھەمبەھىرلەش</button>
+    </div>`;
+  box.appendChild(panel);
+  const initial=group.members.find(member=>String(member.book_id)===selectedId)||group.members[0];
+  if(initial)updateVolumeSelectionPreview(group,initial,panel);
+  panel.querySelectorAll("[data-volume-book-id]").forEach(input=>{
+    input.addEventListener("change",()=>{
+      if(!input.checked)return;
+      const member=group.members.find(row=>String(row.book_id)===String(input.dataset.volumeBookId));
+      if(member)updateVolumeSelectionPreview(group,member,panel);
+    });
+  });
+  panel.querySelector(".volume-add-selected").onclick=()=>{
+    const ids=[...panel.querySelectorAll("[data-volume-book-id]:checked")].map(input=>input.dataset.volumeBookId);
+    if(!ids.length){toast("ئاز دېگەندە بىر جىلد تاللاڭ");return}
+    ids.forEach(id=>add(id,1));
+  };
+  const setButton=panel.querySelector(".volume-add-set");
+  if(setButton&&!setButton.disabled)setButton.onclick=()=>addCompleteSet(group.id,1,group.quote_revision);
+  panel.querySelector("[data-fav-id]").onclick=()=>toggleFav(book.id);
+  panel.querySelector("[data-share-id]").onclick=()=>shareBook({...book,href:groupUrl||book.href,title:group.title||book.title});
+  renderFavButtons();
+}
+
 function decorateDetail(){
   if(maybeRedirectLegacyBookUrl())return;
   if(isStorefrontHomepage()){
@@ -2941,8 +3293,17 @@ function decorateDetail(){
     paintUnauthorizedDetail();
     return;
   }
-  populateDynamicBookPage(b);
-  updateBookSeo(b);
+  const groupPage=!!(activeVolumeGroup&&volumeGroupSlugFromLocation());
+  const displayBook=groupPage?{
+    ...b,
+    title:activeVolumeGroup.title||b.title,
+    author:activeVolumeGroup.author||b.author,
+    category:activeVolumeGroup.category||b.category,
+    source:activeVolumeGroup.source||b.source,
+    description:activeVolumeGroup.description||b.description
+  }:b;
+  populateDynamicBookPage(displayBook);
+  updateBookSeo(displayBook);
   renderBookGallery(b);
   if(isStorefrontVisible(b))recent(b.id);
   trackBookViewOnce(b);
@@ -2976,6 +3337,12 @@ function decorateDetail(){
     `;
     box.appendChild(unavailable);
     unavailable.querySelector("[data-fav-id]")?.addEventListener("click",()=>{toggleFav(b.id);decorateDetail()});
+    renderDetailExtras(b);
+    return;
+  }
+
+  if(activeVolumeGroup&&activeVolumeGroup.members.some(member=>String(member.book_id)===String(b.id))){
+    renderVolumeGroupPurchasePanel(box,b,activeVolumeGroup);
     renderDetailExtras(b);
     return;
   }
@@ -3054,7 +3421,8 @@ function miniCover(b){
 function miniCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author);
   const state=stockStateClass(b);
-  return `<article class="shop-mini-card${state?" "+state:""}"><button type="button" class="mini-heart" data-fav-id="${id}">♡</button><a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div><div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div></a><div class="mini-actions">${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button></div></article>`;
+  const isGroup=b.catalogKind==="group"&&b.groupId;
+  return `<article class="shop-mini-card${state?" "+state:""}">${isGroup?"":`<button type="button" class="mini-heart" data-fav-id="${id}">♡</button>`}<a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div>${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:`<div class="mini-card-status">${stockBadge(b)}</div>`}<div class="shop-mini-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</div></a><div class="mini-actions">${isGroup?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`:`${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button>`}</div></article>`;
 }
 
 function favoriteCard(b){
@@ -3120,9 +3488,10 @@ function recommendedBooks(limit=12){
 
 function homeFeatureCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
-  const state=stockStateClass(b);
+  const isGroup=b.catalogKind==="group"&&b.groupId;
+  const state=isGroup?"":stockStateClass(b);
   return `<article class="home-feature-card${state?" "+state:""}">
-      <button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
+      ${isGroup?"":`<button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>`}
       <a href="${href}">
         <div class="home-feature-cover${state?" "+state:""}">
           <div class="home-feature-cover-frame">
@@ -3132,10 +3501,11 @@ function homeFeatureCard(b){
         <div class="home-feature-info">
           <div class="home-feature-title">${title}</div>
           <div class="home-feature-author">${author}</div>
+          ${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:""}
           <div class="home-feature-bottom">
-            <span class="home-feature-price">${money(b.price)}</span>
-            ${stockBadge(b)}
-            ${cartButton(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart")}
+            <span class="home-feature-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</span>
+            ${isGroup?`<span class="detail-button">جىلدلارنى تاللاش</span>`:`${stockBadge(b)}
+            ${cartButton(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart")}`}
           </div>
         </div>
       </a>
@@ -3273,21 +3643,31 @@ function bindDynamicActions(scope){
 function bookCardMarkup(b,variant="listing",coverOpts={}){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
-  const state=stockStateClass(b);
+  const isGroup=b.catalogKind==="group"&&b.groupId;
+  const state=isGroup?"":stockStateClass(b);
   const cover=wrapCoverHtml(b,coverImgHtml(b,coverOpts));
+  const priceLabel=isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:`${money(b.price)}`;
+  const groupBadge=isGroup?`<span class="volume-group-card-badge">${escapeHtml(b.memberCount||(b.memberBookIds||[]).length||"")} جىلدلىق توپلام</span>`:"";
+  const cardActions=isGroup
+    ?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`
+    :`<a class="detail-button" href="${href}">تەپسىلات</a>
+        ${cartButton(b)}
+        <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
+        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>`;
   if(variant==="search")return `<article class="advanced-search-result${state?" "+state:""}" data-live-book-id="${id}">
     <a class="advanced-search-cover${state?" "+state:""}" href="${href}">${cover}</a>
     <div class="advanced-search-info">
       <a class="advanced-search-title" href="${href}">${title}</a>
       ${authorBlock}
       <div class="advanced-search-meta">${category}</div>
-      <div class="advanced-search-price">${money(b.price)}</div>
-      ${stockBadge(b)}
+      ${groupBadge}
+      <div class="advanced-search-price${isGroup?" volume-group-starting-price":""}">${priceLabel}</div>
+      ${isGroup?"":stockBadge(b)}
       <div class="advanced-search-actions">
-        <a class="detail-button" href="${href}">تەپسىلات</a>
+        ${isGroup?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`:`<a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
         <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
-        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>
+        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>`}
       </div>
     </div>
   </article>`;
@@ -3298,13 +3678,11 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
     <div class="book-info">
       <h2 class="book-title">${title}</h2>
       ${authorName?`<p class="book-author">ئاپتورى: ${author}</p>`:`<p class="book-author" hidden></p>`}
-      ${stockBadge(b)}
-      <div class="book-price">${money(b.price)}</div>
+      ${groupBadge}
+      ${isGroup?"":stockBadge(b)}
+      <div class="book-price${isGroup?" volume-group-starting-price":""}">${priceLabel}</div>
       <div class="book-actions">
-        <a class="detail-button" href="${href}">تەپسىلات</a>
-        ${cartButton(b)}
-        <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
-        <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>
+        ${cardActions}
       </div>
     </div>
   </article>`;
@@ -4020,20 +4398,26 @@ function cartPage(){
     host.setAttribute("data-cart-hydration","ready");
   }
   let items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
+  let setItems=setCartLines();
+  const unsupportedSets=setCartUnsupported();
   if(!preview&&clampCartQuantitiesToStock()){
     toast("سېۋەتتىكى سان نۆۋەتتىكى ئامبارغا ماسلاشتۇرۇلدى");
     items=cartLines().map(line=>({...line,b:cartBookForLine(line)}));
   }
   const orderable=preview?[]:items.filter(x=>isStorefrontVisible(x.b)&&stockInfo(x.b).canBuy&&!x.b.__cartDisplayPreview);
-  let totalQty=orderable.reduce((s,x)=>s+x.qty,0);
-  let total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
+  const volumeApi=volumeGroups();
+  const volumeQuote=volumeApi&&setItems.length?volumeApi.cachedQuoteFor(cart(),setCartState().lines):null;
+  let totalQty=volumeQuote?Number(volumeQuote.total_qty)||0:orderable.reduce((s,x)=>s+x.qty,0)+setCartPhysicalQty(setItems);
+  let total=volumeQuote?Number(volumeQuote.total)||0:orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0)+setItems.reduce((s,x)=>s+(volumeApi?.groupSetPrice(x.group)||0)*x.qty,0);
   let checkout=document.querySelector("#checkoutCard");
   const layout=document.querySelector("#cartLayout");
   const aside=document.querySelector("#cartAside");
   const summaryHost=document.querySelector("#cartSummaryHost");
-  const blocked=preview||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
+  const setBlocked=setItems.some(x=>!x.group||!volumeApi?.setAvailable(x.group,x.qty));
+  const quotePending=!!setItems.length&&!volumeQuote&&!setBlocked&&!unsupportedSets.length;
+  const blocked=preview||unsupportedSets.length>0||setBlocked||quotePending||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
 
-  if(!items.length){
+  if(!items.length&&!setItems.length&&!unsupportedSets.length){
     host.innerHTML=`<div class="empty-state"><span aria-hidden="true">🛒</span><h2>سېۋەت ھازىرچە بوش</h2><p>ياقتۇرغان كىتابلىرىڭىزنى تاللاپ سېۋەتكە قوشۇڭ.</p><a class="empty-state-button" href="index.html#books">كىتابلارنى كۆرۈش</a></div>`;
     if(summaryHost)summaryHost.innerHTML="";
     if(layout)layout.setAttribute("data-empty","true");
@@ -4078,17 +4462,43 @@ function cartPage(){
         </div>
       </div>
     </div>`;
-  }).join("");
+  }).join("")+setItems.map((x,index)=>{
+    const group=x.group;
+    const representative=group&&group.members.find(member=>String(member.book_id)===String(group.representative_book_id))||group?.members?.[0];
+    const available=!!group&&volumeApi?.setAvailable(group,x.qty);
+    const setPrice=group?volumeApi?.groupSetPrice(group):null;
+    const plusDisabled=preview||!available;
+    return `<div class="cart-item cart-volume-set${available?"":" cart-item-unavailable"}" data-set-group="${escapeAttr(x.group_id)}">
+      <div class="cart-item-cover${available?"":" is-stock-out"}">
+        ${representative?`<img src="${escapeAttr(safeCoverUrl(representative.image_url))}" alt="${escapeAttr(group.title||"تولۇق توپلام")}" width="100" height="127" loading="${index<2?"eager":"lazy"}">`:""}
+      </div>
+      <div class="cart-item-body">
+        <div class="cart-title">${escapeHtml(group?.title||`توپلام #${x.group_id}`)}</div>
+        <div class="cart-meta">تولۇق توپلام · ${group?.members?.length||"—"} جىلد</div>
+        <div class="cart-stock">${available?"":`<span class="stock-badge stock-out">${group?"بەزى جىلدلار تەمىنلەنمەيدۇ":"توپلام ئۇچۇرى يۈكلەنمىدى"}</span>`}</div>
+        <div class="cart-item-toolbar">
+          <div class="cart-unit-price">توپلام باھاسى: ${Number.isFinite(setPrice)?money(setPrice):"—"}</div>
+          <div class="qty-control">
+            <button type="button" aria-label="توپلام سانىنى ئازايتىش" data-set-minus="${escapeAttr(x.group_id)}"${preview?" disabled aria-disabled=\"true\"":""}>−</button>
+            <span class="cart-qty-value">${x.qty}</span>
+            <button type="button" aria-label="توپلام سانىنى كۆپەيتىش" data-set-plus="${escapeAttr(x.group_id)}"${plusDisabled?" disabled aria-disabled=\"true\"":""}>+</button>
+          </div>
+          <div class="cart-line-price"><small>جەمئىي</small><strong>${Number.isFinite(setPrice)?money(setPrice*x.qty):"—"}</strong></div>
+          <button type="button" class="remove-cart" data-set-remove="${escapeAttr(x.group_id)}">ئۆچۈرۈش</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("")+(unsupportedSets.length?`<div class="cart-stock-block-note" role="alert">بۇ سېۋەتتە توربەتنىڭ ھازىرقى نەشرى تونۇمايدىغان ${unsupportedSets.length} توپلام قۇرى بار. ئۇلار ئۆزلۈكىدىن ئۆچۈرۈلمىدى؛ يېڭى نەشر بىلەن ئېچىڭ ياكى سېۋەتنى تازىلاڭ.</div>`:"");
 
   const summaryHtml=`<div class="cart-summary">
        <h2 class="cart-summary-heading">زاكاز خۇلاسىسى</h2>
        <div class="cart-summary-meta">
          <div class="cart-summary-row"><span>جەمئىي كىتاب سانى</span><strong>${totalQty}</strong></div>
-         <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
+         <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${quotePending?"جەزملەۋاتىدۇ…":money(total)}</strong></div>
        </div>
        <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
        ${blocked&&!preview?`<p class="cart-stock-block-note" role="status">سېۋەتتە تۈگەپ كەتكەن ياكى تەمىنلەنمەيدىغان كىتاب بار. زاكاز قىلىشتىن بۇرۇن ئۇنى ئۆچۈرۈڭ.</p>`:""}
-       <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${money(total)}</strong></div>
+       <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${quotePending?"جەزملەۋاتىدۇ…":money(total)}</strong></div>
        <div class="cart-summary-actions">
          ${blocked?"":`<button type="button" class="checkout-secondary" id="scrollCheckout">📦 زاكاز ئۇچۇرىنى تولدۇرۇش</button>`}
          ${cartShareVisible()?`<button type="button" class="checkout-secondary" id="shareCart">📤 سېۋەتنى ھەمبەھىرلەش</button>`:""}
@@ -4103,11 +4513,15 @@ function cartPage(){
   host.querySelectorAll("[data-plus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.plus,1));
   host.querySelectorAll("[data-minus]").forEach(b=>b.onclick=()=>changeQty(b.dataset.minus,-1));
   host.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{remove(b.dataset.remove);cartPage()});
+  host.querySelectorAll("[data-set-plus]").forEach(b=>b.onclick=()=>changeCompleteSetQty(b.dataset.setPlus,1));
+  host.querySelectorAll("[data-set-minus]").forEach(b=>b.onclick=()=>changeCompleteSetQty(b.dataset.setMinus,-1));
+  host.querySelectorAll("[data-set-remove]").forEach(b=>b.onclick=()=>{removeCompleteSet(b.dataset.setRemove);cartPage()});
 
   let clear=document.querySelector("#clearCart");
   if(clear)clear.onclick=()=>{
     if(confirm("سېۋەتتىكى بارلىق كىتابلارنى ئۆچۈرەمسىز؟")){
       set(CART_KEY,[]);
+      persistSetCart([]);
       pruneCartDisplaySnapshots();
       cartPage();
       toast("سېۋەت تازىلاندى");
@@ -4122,6 +4536,11 @@ function cartPage(){
   setupCheckout();
   updateBadge();
   syncGuestCartInvite();
+  if(quotePending&&!volumeGroupHydration){
+    primeVolumeCart().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+  }else if(setItems.some(line=>!line.group)&&!volumeGroupHydration){
+    hydrateSetCartGroups().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+  }
 }
 
 function changeQty(id,d){
@@ -4213,7 +4632,15 @@ function makeOrderId(){
 
 let preparedOrder=null,preparedOrderSignature="";
 function currentOrderSignature(customer){
-  return JSON.stringify({cart:cart(),customer});
+  const api=typeof volumeGroups==="function"?volumeGroups():null;
+  const sets=api&&typeof setCartState==="function"?setCartState().lines:[];
+  const quote=api&&sets.length?api.cachedQuoteFor(cart(),sets):null;
+  return JSON.stringify({
+    cart:cart(),
+    sets,
+    quote:quote?{fingerprint:quote.fingerprint,expires_at:quote.expires_at}:null,
+    customer
+  });
 }
 
 function orderMessageAmount(n,alwaysDecimals){
@@ -4229,7 +4656,14 @@ function orderGrandAmount(n){return orderMessageAmount(n,true)}
 function buildOrderText(requireCustomer=true){
   if(cartHydrationPending()){toast("كىتاب ئۇچۇرى يۈكلىنىۋاتىدۇ؛ سەل ساقلاڭ.");return null}
   let items=cartLines().map(line=>({...line,b:find(line.id)||null}));
-  if(!items.length){toast("سېۋەت بوش");return null}
+  const api=typeof volumeGroups==="function"?volumeGroups():null;
+  const setState=api&&typeof setCartState==="function"?setCartState():{lines:[],unsupported:[]};
+  const sets=setState.lines;
+  if(!items.length&&!sets.length){toast("سېۋەت بوش");return null}
+  if(setState.unsupported.length){
+    toast("سېۋەتتە بۇ نەشر تونۇمايدىغان توپلام قۇرى بار؛ ئۇ ئۆزلۈكىدىن ئۆچۈرۈلمىدى");
+    return null;
+  }
   if(items.some(x=>!x.b||x.b.__cartDisplayPreview)){toast("كىتاب ئۇچۇرى تېخى جەزملەنمىدى؛ سەل ساقلاڭ.");return null}
   if(items.some(x=>!isStorefrontVisible(x.b))){toast("سېۋەتتە ھازىرچە تەمىنلەنمەيدىغان كىتاب بار");return null}
   if(items.some(x=>!stockInfo(x.b).canBuy)){toast("سېۋەتتە تۈگەپ كەتكەن كىتاب بار؛ ئۇنى ئۆچۈرۈڭ");return null}
@@ -4248,8 +4682,15 @@ function buildOrderText(requireCustomer=true){
   if(requireCustomer&&form&&!form.reportValidity())return null;
 
   let c=saveCustomerData();
-  let total=items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
-  let totalQty=items.reduce((s,x)=>s+x.qty,0);
+  const quote=api&&sets.length?api.cachedQuoteFor(cart(),sets):null;
+  if(sets.length&&!quote){
+    if(typeof primeVolumeCart==="function")primeVolumeCart().then(()=>{if(document.querySelector("#cartItems"))cartPage()});
+    toast("باھا ۋە ئامبار جەزملەۋاتىدۇ؛ تاماملانغاندىن كېيىن قايتا بېسىڭ");
+    return null;
+  }
+  const authoritativeItems=quote&&Array.isArray(quote.items)?quote.items:null;
+  let total=quote?Number(quote.total)||0:items.reduce((s,x)=>s+(x.b.price||0)*x.qty,0);
+  let totalQty=quote?Number(quote.total_qty)||0:items.reduce((s,x)=>s+x.qty,0);
   let orderId=makeOrderId();
 
   let lines=[
@@ -4259,8 +4700,16 @@ function buildOrderText(requireCustomer=true){
     ""
   ];
 
-  items.forEach((x,i)=>{
-    lines.push(`${i+1}. ${x.b.title} — ${x.qty} دانە · ${orderItemAmount((Number(x.b.price)||0)*x.qty)}`);
+  (authoritativeItems||items).forEach((x,i)=>{
+    if(x.kind==="set"){
+      const componentCount=Array.isArray(x.components)?x.components.length:0;
+      lines.push(`${i+1}. ${x.title||"تولۇق توپلام"} — تولۇق توپلام × ${Number(x.qty)||1} (${componentCount} جىلد، ${Number(x.physical_qty)||componentCount} دانە كىتاب) · ${orderItemAmount(x.line_total)}`);
+      return;
+    }
+    const title=x.b?x.b.title:x.title;
+    const qty=x.qty;
+    const subtotal=x.b?(Number(x.b.price)||0)*qty:x.line_total;
+    lines.push(`${i+1}. ${title} — ${qty} دانە · ${orderItemAmount(subtotal)}`);
   });
 
   lines.push(
@@ -4283,14 +4732,15 @@ function buildOrderText(requireCustomer=true){
     total,
     totalQty,
     customer:c,
-    items:items.map(x=>({
+    items:authoritativeItems?authoritativeItems.map(x=>({...x})):items.map(x=>({
       book_id:x.b.id,
       title:x.b.title,
       author:x.b.author,
       price:Number(x.b.price)||0,
       qty:x.qty,
       line_total:(Number(x.b.price)||0)*x.qty
-    }))
+    })),
+    quote:quote?JSON.parse(JSON.stringify(quote)):null
   };
 }
 
@@ -4655,10 +5105,16 @@ async function shareCartLink(){
     if(!id)continue;
     items.push({id,qty:line.qty});
   }
+  if(setCartUnsupported().length){
+    cartShareBusy=false;cartShareBusySeq=0;
+    toast("تونۇلمىغان توپلام قۇرى بار سېۋەتنى ھەمبەھىرلىگىلى بولمايدۇ");
+    return;
+  }
+  setCartState().lines.forEach(line=>items.push({kind:"set",group_id:line.group_id,qty:line.qty}));
   const encoded=Codec.encodeSharedCart(items);
   if(!encoded.ok){
     if(cartShareBusySeq===shareSeq){cartShareBusy=false;cartShareBusySeq=0}
-    toast(encoded.reason==="too_many"?"سېۋەت بەك چوڭ، ھەمبەھىرلەشكە بولمايدۇ":"سېۋەت بوش، ھەمبەھىرلەشكە بولمايدۇ");
+    toast(encoded.reason==="too_many"?"سېۋەت بەك چوڭ، ھەمبەھىرلەشكە بولمايدۇ":encoded.reason==="unsupported"?"سېۋەتتە بۇ نەشر تونۇمايدىغان قۇر بار":"سېۋەت بوش، ھەمبەھىرلەشكە بولمايدۇ");
     return;
   }
   const decoded=Codec.decodeSharedCart(encoded.payload);
@@ -4784,7 +5240,23 @@ async function importSharedCartFromQuery(){
       }
       incoming=decoded.items;
     }
-    await hydrateBooksByIds(incoming.map(item=>item.id));
+    const incomingBooks=incoming.filter(item=>!item.kind||item.kind==="book");
+    const incomingSets=incoming.filter(item=>item&&item.kind==="set");
+    const unsupportedIncoming=incoming.filter(item=>item&&item.kind&&item.kind!=="book"&&item.kind!=="set");
+    if(unsupportedIncoming.length){
+      sharedCartImportClaimed=true;
+      toast("بۇ ئۇلانمىدا توربەتنىڭ ھازىرقى نەشرى تونۇمايدىغان قۇر بار؛ ھېچنەرسە ئۆزگەرتىلمىدى");
+      return;
+    }
+    if(incomingSets.length&&!volumeGroups()){
+      sharedCartImportClaimed=true;
+      toast("بۇ توپلام سېۋىتى توربەتنىڭ يېڭى نەشرىنى تەلەپ قىلىدۇ؛ ھېچنەرسە ئۆزگەرتىلمىدى");
+      return;
+    }
+    await hydrateBooksByIds(incomingBooks.map(item=>item.id));
+    if(incomingSets.length)await Promise.all(incomingSets.map(item=>volumeGroups()?.getPublicGroup(item.group_id).then(group=>{
+      if(group)volumeGroupCache.set(String(group.id),group);
+    }).catch(()=>{})));
     if(!sharedCartWriteReady())return;
     const lookup=id=>{
       const book=find(id);
@@ -4794,7 +5266,8 @@ async function importSharedCartFromQuery(){
       return {id:String(book.id),available:true,canBuy:true,stockQty:Number.isFinite(stock.qty)?stock.qty:null};
     };
     const existing=shopOwnerAllowsLocalDisplay()?cart():(Array.isArray(get(CART_KEY,[]))?get(CART_KEY,[]):[]);
-    const merged=Codec.mergeSharedLines(existing,incoming,lookup);
+    const merged=Codec.mergeSharedLines(existing,incomingBooks,lookup);
+    const setMerged=volumeGroups()?.mergeSetLines(setCartState().lines,incomingSets)||{lines:setCartState().lines,added:[],increased:[],unsupported:incomingSets};
     const persisted=merged.items.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
     const before=existing.map(row=>({id:String(row.id),qty:sanitizeQty(row.qty)}));
     if(JSON.stringify(persisted)!==JSON.stringify(before)){
@@ -4804,12 +5277,19 @@ async function importSharedCartFromQuery(){
         if(book)upsertCartDisplaySnapshot(book);
       }
     }
+    if(incomingSets.length){
+      if(setMerged.unsupported.length||!persistSetCart(setMerged.lines)){
+        toast("بەزى توپلاملارنى قوشقىلى بولمىدى؛ ئۇلار ئۆچۈرۈلمىدى");
+        return;
+      }
+    }
     if(shortCode)markShortCartImported(shortCode);
     else stripShareQuery();
     sharedCartImportClaimed=true;
     cartPage();
     updateBadge();
-    toast(Codec.sharedCartNotice(merged));
+    const setChanged=setMerged.added.length+setMerged.increased.length;
+    toast(setChanged?"ھەمبەھىرلەنگەن كىتاب ۋە توپلاملار سېۋىتىڭىزگە قوشۇلدى":Codec.sharedCartNotice(merged));
   }finally{
     sharedCartImportBusy=false;
   }
@@ -4909,12 +5389,30 @@ async function orderWithWhatsApp(){
   const bookIds=[...new Set(cart().map(line=>canonicalId(line.id)).filter(id=>id&&/^\d+$/.test(String(id))))];
   trackEvent("whatsapp_order_click",{bookId:bookIds[0]||"",bookIds,items:bookIds.length||o.items?.length||cart().length,total:o.total||0});
   const url=whatsappOrderUrl(o.text);
-  const popup=window.open(url,"_blank");
+  const member=window.KutadguMember;
+  const popup=window.open("about:blank","_blank");
   if(popup)popup.opener=null;
-  else location.href=url;
-  try{await savePreparedOrderHistory(o)}catch(err){
+  let signedIn=false;
+  try{
+    if(member?.ready)await member.ready;
+    signedIn=typeof member?.getUser==="function"&&!!member.getUser();
+    const history=await savePreparedOrderHistory(o);
+    if(signedIn&&!history?.saved)throw new Error(String(history?.reason||"order_history_not_saved"));
+    if(popup)popup.location.href=url;
+    else location.href=url;
+  }catch(err){
+    if(popup&&typeof popup.close==="function")popup.close();
     const blob=String(err&&(err.message||err.details||err.hint)||err||"");
     if(/insufficient_stock/i.test(blob))toast("ئامبار سانى يەتمىدى، ئەزا زاكاز تارىخى يېزىلمىدى.");
+    else if(/expired_quote/i.test(blob)){
+      volumeGroups()?.invalidateQuote?.();
+      toast("باھا جەزملەش ۋاقتى ئۆتتى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى.");
+      if(document.querySelector("#cartItems"))cartPage();
+    }else if(/stale_quote/i.test(blob)){
+      volumeGroups()?.invalidateQuote?.();
+      toast("توپلام تەركىبى ياكى باھاسى ئۆزگەردى. WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ؛ ئەزا زاكاز تارىخى يېزىلمىدى.");
+      if(document.querySelector("#cartItems"))cartPage();
+    }
     else console.warn("Order history save failed",err);
   }
 }
@@ -5437,16 +5935,17 @@ async function setupHomeCarousel(){
     const fetchpriority=i<2?"high":"";
     const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
     const authorName=storefrontAuthor(b);
-    const state=stockStateClass(b);
+    const isGroup=b.catalogKind==="group"&&b.groupId;
+    const state=isGroup?"":stockStateClass(b);
     return `<article class="home-carousel-card${state?" "+state:""}">
-      <button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
+      ${isGroup?"":`<button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>`}
       <a href="${href}" class="home-carousel-link">
         <div class="home-carousel-cover${state?" "+state:""}">${wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460,loading,fetchpriority}))}</div>
       </a>
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
-        ${stockBadge(b)}
-        <div class="home-carousel-bottom"><span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}</div>
+        ${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:stockBadge(b)}
+        <div class="home-carousel-bottom"><span class="home-carousel-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</span>${isGroup?`<a class="detail-button" href="${href}">جىلدلار</a>`:cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}</div>
       </div>
     </article>`;
   }
@@ -5815,7 +6314,7 @@ function loadMemberSystem(){
   if(window.KutadguMember)return;
   if(document.querySelector('script[data-kutadgu-member-script],script[src*="member.js"]'))return;
   const script=document.createElement("script");
-        script.src="/member.js?v=34";script.async=false;script.dataset.kutadguMemberScript="1";
+        script.src="/member.js?v=35";script.async=false;script.dataset.kutadguMemberScript="1";
   (document.body||document.documentElement).appendChild(script);
 }
 function refreshAfterMemberSync(){
@@ -6039,6 +6538,8 @@ async function boot(){
   const publicHeaderReady=loadPublicHeader();
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
+  await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=1","kutadguVolumeGroupsScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=1","kutadguVolumeStorefrontScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();
@@ -6068,5 +6569,5 @@ async function boot(){
   ensurePublicBookCardRowAlignmentCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage};
+window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage};
 })();

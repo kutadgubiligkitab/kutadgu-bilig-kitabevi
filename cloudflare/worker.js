@@ -1,4 +1,5 @@
 import publicBook from "../kutadgu-public-book.js";
+import publicVolumeGroup from "../kutadgu-public-volume-group.js";
 import listing from "../kutadgu-category-listing.js";
 import sitemap from "../kutadgu-sitemap.js";
 import seo from "../kutadgu-book-seo.js";
@@ -10,6 +11,7 @@ export default {
     try {
       return await preview.dispatch(request, env, {
         publicBook,
+        publicVolumeGroup,
         listing,
         sitemap,
         seo,

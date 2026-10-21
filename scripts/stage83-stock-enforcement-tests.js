@@ -379,9 +379,9 @@ test("read-only post-check is documented",()=>{
 });
 
 test("shop.js cache pins bumped for Phase 2",()=>{
-  assert.match(read("index.html"),/shop\.js\?v=148/);
-  assert.match(read("book-shell.html"),/shop\.js\?v=147/);
-  assert.match(shop,/app-config\.js\?v=5/);
+  assert.match(read("index.html"),/shop\.js\?v=169/);
+  assert.match(read("book-shell.html"),/shop\.js\?v=169/);
+  assert.match(shop,/app-config\.js\?v=6/);
 });
 
 if(failed){
