@@ -180,7 +180,7 @@ async function installBoundary(page, gates) {
   await page.route("**://*.supabase.co/**", async (route) => {
     const url = route.request().url();
     const method = route.request().method();
-    const handled = /\/auth\/v1\/|\/rest\/v1\/(books|profiles|orders|member_cart_items|member_favorites|rpc\/)/.test(url);
+    const handled = /\/auth\/v1\/|\/rest\/v1\/(books|profiles|orders|member_cart_items|member_favorites|member_volume_set_cart_items|rpc\/)/.test(url);
     if (handled) return route.fallback();
     if (method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE") {
       leaks.push(method + " " + url.split("?")[0]);
@@ -258,6 +258,16 @@ async function installBoundary(page, gates) {
     const urlUser = parseEq(route.request().url(), "user_id");
     mutations.push({ table: "favorites", method, user_id: urlUser, urlUser, authorization: requestBearer(route.request()) });
     return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+  });
+  await page.route("**/rest/v1/member_volume_set_cart_items**", async (route) => {
+    const method = route.request().method();
+    if (method === "OPTIONS") return route.fulfill({ status: 204, body: "" });
+    if (!bearerAllowed(route.request(), gates.userId)) return unauthorized(route);
+    if (method === "GET" || method === "HEAD") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    }
+    leaks.push(method + " " + route.request().url().split("?")[0]);
+    return route.fulfill({ status: 599, contentType: "application/json", body: JSON.stringify({ message: "unexpected set cart write" }) });
   });
   await page.route("**/rest/v1/member_cart_items**", async (route) => {
     const request = route.request();

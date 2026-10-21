@@ -6,6 +6,9 @@ async function blockWrites(page) {
     const request = route.request();
     const url = request.url();
     if (request.method() !== "GET" && request.method() !== "HEAD") {
+      if (/\/rest\/v1\/rpc\/(?:query_public_book_catalog|list_public_book_volume_discovery_unit_ids)(?:\?|$)/.test(url)) {
+        return route.fallback();
+      }
       posts.push(request.method() + " " + url);
       return route.abort();
     }

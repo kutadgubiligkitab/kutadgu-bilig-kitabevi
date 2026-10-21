@@ -450,7 +450,7 @@ async function bridgeQueryPublicBookCatalog(page, route) {
   let items = rows.map(catalogItemFromBookRow).filter(Boolean);
   if (offset === 0 && items.length > limit) items = items.slice(0, limit);
   const exact = totalFromContentRange(result.contentRange);
-  const total = Number.isFinite(exact) ? exact : offset + items.length;
+  const total = Number.isFinite(exact) ? exact : null;
   const hasMore = Number.isFinite(exact) ? offset + items.length < exact : items.length === limit;
   return route.fulfill({
     status: 200,
