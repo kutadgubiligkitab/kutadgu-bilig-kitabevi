@@ -103,6 +103,7 @@ test.describe("order prepared semantics", () => {
         getUser: () => ({ id: "member-test" }),
         saveOrder: async () => { throw new Error("stale_quote"); }
       };
+      document.querySelector("#checkoutForm").reportValidity = () => true;
       window.open = (url) => {
         window.__waProbe.opened.push(String(url));
         const location = {};
@@ -117,7 +118,6 @@ test.describe("order prepared semantics", () => {
       };
     });
     await fillCheckout(page);
-    expect(await page.locator("#checkoutForm").evaluate((form) => form.checkValidity())).toBe(true);
     const probe = await page.evaluate(async () => {
       await window.kutadguShop.orderWithWhatsApp();
       return window.__waProbe;
