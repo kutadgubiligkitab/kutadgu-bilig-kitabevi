@@ -1,4 +1,5 @@
 const { test, expect } = require("./playwright-test");
+const H = require("./helpers");
 
 const BOOK_ID = "252";
 
@@ -76,6 +77,7 @@ async function expectCompleteDetail(page) {
 
 test.beforeEach(async ({ page }) => {
   await silenceAnalytics(page);
+  H.allowLiveCatalogReads(page);
 });
 
 test("direct entry with saved books completes the detail page without reload", async ({ page }) => {

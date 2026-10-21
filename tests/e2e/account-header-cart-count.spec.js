@@ -139,6 +139,7 @@ async function bottomBadge(page) {
 test.describe("desktop account header safe cart count", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A desktop /account.html guest-owned cart shows total qty", async ({ page }) => {

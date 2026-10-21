@@ -22,6 +22,7 @@ async function openAnnouncementPage(page, path = "/") {
 test.describe("announcement bar", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("0 announcements leaves no bar and no gap", async ({ page }) => {
@@ -265,6 +266,7 @@ async function expandAndCollapse(page) {
 test.describe("announcement expandable text", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A short text stays static, centered, and untruncated", async ({ page }) => {

@@ -124,7 +124,9 @@ function memberCreds() {
  * Default also stubs Supabase public book-covers Storage GETs/HEADs with a tiny local PNG
  * so CI does not download real cover bytes. Pass { allowLiveBookCovers: true } to opt out.
  * Repeated read probes (view totals, catalog availability, inactive index, sales HEAD)
- * are fulfilled locally. Live select=* catalog queries still continue.
+ * are fulfilled locally. Live select=* book GETs still continue. A missing grouped
+ * catalog fixture is not forwarded as the original RPC; call allowLiveCatalogReads
+ * before a test that intentionally reads that RPC.
  */
 function isBookViewStatsRead(url, method) {
   const verb = String(method || "").toUpperCase();
@@ -174,6 +176,366 @@ function isInactiveIndexRead(url, method) {
   if (!parsed.pathname.endsWith("/books")) return false;
   const select = parsed.searchParams.get("select") || "";
   return select === "id,legacy_id" && (parsed.searchParams.get("is_active") || "") === "eq.false";
+}
+
+const CATALOG_BRIDGE_HEADER = "x-kutadgu-catalog-bridge";
+const CATALOG_INDEX_PAGE = 1000;
+
+function isCatalogBridgeProbe(req) {
+  const header = String(req.headers()[CATALOG_BRIDGE_HEADER] || "");
+  if (!header) return false;
+  try {
+    return new URL(req.url()).pathname.endsWith("/books");
+  } catch (err) {
+    return false;
+  }
+}
+
+function quotePostgrestValue(value) {
+  return `"${String(value).replace(/["\\]/g, "")}"`;
+}
+
+function remoteOrderForCatalogSort(mode) {
+  if (mode === "priceLow") return "price.asc.nullslast,id.asc";
+  if (mode === "priceHigh") return "price.desc.nullslast,id.asc";
+  if (mode === "title") return "title.asc,id.asc";
+  if (mode === "author") return "author.asc,id.asc";
+  if (mode === "bestseller") return "sales_count.desc,created_at.desc.nullslast,id.asc";
+  if (mode === "recommended") return "is_recommended.desc,created_at.desc.nullslast,id.asc";
+  return "created_at.desc.nullslast,id.asc";
+}
+
+function postgrestSearchPattern(value) {
+  const text = String(value || "").trim().replace(/[%\s]+/g, " ");
+  if (!text) return "";
+  return `*${text.split(" ").filter(Boolean).join("*")}*`;
+}
+
+function numericCatalogIds(ids) {
+  const out = [];
+  (Array.isArray(ids) ? ids : []).forEach((raw) => {
+    const text = String(raw == null ? "" : raw).trim();
+    const prefixed = /^(?:book|group):([1-9][0-9]*)$/.exec(text);
+    const id = prefixed ? prefixed[1] : (/^[1-9][0-9]*$/.test(text) ? text : "");
+    if (id && out.indexOf(id) < 0) out.push(id);
+  });
+  return out;
+}
+
+function catalogBooksUrl(origin, query, flags) {
+  const params = new URLSearchParams();
+  params.set("select", flags && flags.discoveryIndex ? "id,is_active" : "*");
+  params.set("is_active", "eq.true");
+  const ids = numericCatalogIds(query && query.ids);
+  if (query && Array.isArray(query.ids)) params.set("id", ids.length ? `in.(${ids.join(",")})` : "eq.-1");
+  if (query && query.source) params.set("source", `eq.${query.source}`);
+  else if (query && Array.isArray(query.sources) && query.sources.length) {
+    params.set("source", `in.(${query.sources.map(quotePostgrestValue).join(",")})`);
+  }
+  if (query && query.category) params.set("category", `eq.${query.category}`);
+  if (query && query.min_price != null && query.min_price !== "" && Number.isFinite(Number(query.min_price))) {
+    params.append("price", `gte.${query.min_price}`);
+  }
+  if (query && query.max_price != null && query.max_price !== "" && Number.isFinite(Number(query.max_price))) {
+    params.append("price", `lte.${query.max_price}`);
+  }
+  if (query && query.bestseller) params.set("sales_count", "gt.0");
+  if (query && query.new_only) params.set("is_new", "eq.true");
+  if (query && query.recommended) params.set("is_recommended", "eq.true");
+  const creditId = String(query && query.credit_id || "").trim().toLowerCase();
+  const creditRole = String(query && query.credit_role || "").trim();
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(creditId) && creditRole) {
+    params.set("select", "*,book_credits!inner(identity_id,role)");
+    params.set("book_credits.identity_id", `eq.${creditId}`);
+    params.set("book_credits.role", `eq.${creditRole}`);
+  }
+  const pattern = postgrestSearchPattern(query && query.search);
+  if (pattern) {
+    const columns = ["title", "author", "category", "translator", "publisher"];
+    const parts = columns.map((column) => `${column}.ilike.${pattern}`);
+    const digits = String(query.search || "").replace(/[\s-]+/g, "").toUpperCase();
+    if (/^[0-9X]{10}$/.test(digits) || /^[0-9X]{13}$/.test(digits)) {
+      parts.push(`isbn.ilike.*${digits}*`);
+      parts.push(`isbn.eq.${digits}`);
+    }
+    params.set("or", `(${parts.join(",")})`);
+  }
+  params.set("order", flags && flags.discoveryIndex ? "id.asc" : remoteOrderForCatalogSort(query && query.sort));
+  return `${origin}/rest/v1/books?${params.toString()}`;
+}
+
+function totalFromContentRange(value) {
+  const match = String(value || "").match(/\/(\d+|\*)$/);
+  if (!match || match[1] === "*") return null;
+  const total = Number(match[1]);
+  return Number.isFinite(total) ? total : null;
+}
+
+function nextIndexCursor(from, chunkLength, contentRange, status, requested) {
+  const header = String(contentRange || "").trim();
+  const ranged = /^(\d+)-(\d+)\/(\d+|\*)$/.exec(header);
+  const star = /^\*\/(\d+)$/.exec(header);
+  let total = null;
+  let end = null;
+  const code = Number(status) || 0;
+  const size = Math.max(0, Number(chunkLength) || 0);
+  const start = Math.max(0, Number(from) || 0);
+  const ask = Math.max(1, Number(requested) || CATALOG_INDEX_PAGE);
+  if (ranged) {
+    end = Number(ranged[2]);
+    if (ranged[3] !== "*") total = Number(ranged[3]);
+  } else if (star) total = Number(star[1]);
+  if (!size) {
+    if (Number.isFinite(total) && start < total) return { done: false, truncated: true, next: start, total };
+    return { done: true, truncated: false, next: start, total };
+  }
+  const next = Number.isFinite(end) ? end + 1 : start + size;
+  if (Number.isFinite(total)) {
+    if (next >= total) return { done: true, truncated: false, next, total };
+    if (next <= start) return { done: false, truncated: true, next: start, total };
+    return { done: false, truncated: false, next, total };
+  }
+  if (code === 206 && size < ask) return { done: false, truncated: true, next, total: null };
+  if (size < ask) return { done: true, truncated: false, next, total: null };
+  return { done: false, truncated: false, next, total: null };
+}
+
+function catalogItemFromBookRow(row) {
+  if (!row || typeof row !== "object") return null;
+  const kind = String(row.kind || row.catalogKind || "book") === "group" ? "group" : "book";
+  const id = String(row.id == null ? "" : row.id).trim();
+  const groupId = String(row.group_id == null ? "" : row.group_id).trim();
+  if (kind === "group" && !/^[1-9][0-9]*$/.test(groupId)) return null;
+  if (!/^[1-9][0-9]*$/.test(id)) return null;
+  const slug = String(row.group_slug || row.slug || "").trim();
+  const unitKey = kind === "group" ? `group:${groupId}` : `book:${id}`;
+  return {
+    ...row,
+    kind,
+    id,
+    group_id: kind === "group" ? groupId : null,
+    group_slug: kind === "group" ? slug : "",
+    slug: kind === "group" ? slug : row.slug,
+    unit_key: unitKey,
+    unit_id: unitKey,
+    representative_book_id: row.representative_book_id || id,
+    member_book_ids: Array.isArray(row.member_book_ids) ? row.member_book_ids : [],
+    member_prices: Array.isArray(row.member_prices) ? row.member_prices : [],
+    member_count: Number(row.member_count) || (Array.isArray(row.member_book_ids) ? row.member_book_ids.length : 0),
+    is_active: row.is_active !== false
+  };
+}
+
+async function readBridgedBooks(page, route, url, from, to) {
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const incoming = route.request().headers();
+  let contentRange = "";
+  const onResponse = (response) => {
+    if (response.request().headers()[CATALOG_BRIDGE_HEADER] !== token) return;
+    contentRange = response.headers()["content-range"] || contentRange;
+  };
+  page.on("response", onResponse);
+  try {
+    const result = await page.evaluate(async ({ url: target, from: start, to: end, header, token: marker, apikey, authorization }) => {
+      const headers = {
+        Accept: "application/json",
+        Prefer: "count=exact",
+        Range: `${start}-${end}`,
+        "Range-Unit": "items",
+        [header]: marker
+      };
+      if (apikey) headers.apikey = apikey;
+      if (authorization) headers.Authorization = authorization;
+      const response = await fetch(target, { method: "GET", headers });
+      return {
+        status: response.status,
+        contentRange: response.headers.get("content-range") || "",
+        body: await response.text()
+      };
+    }, {
+      url,
+      from,
+      to,
+      header: CATALOG_BRIDGE_HEADER,
+      token,
+      apikey: incoming.apikey || "",
+      authorization: incoming.authorization || ""
+    });
+    return { ...result, contentRange: contentRange || result.contentRange || "" };
+  } catch (err) {
+    return null;
+  } finally {
+    page.off("response", onResponse);
+  }
+}
+
+const LIVE_CATALOG_READS = Symbol.for("kutadgu.allowLiveCatalogReads");
+
+function allowLiveCatalogReads(page) {
+  if (page) page[LIVE_CATALOG_READS] = true;
+}
+
+function allowsLiveCatalogReads(page) {
+  return !!(page && page[LIVE_CATALOG_READS]);
+}
+
+async function continueOriginal(route) {
+  try { await route.continue(); } catch (err) {}
+}
+
+function unmockedBridge(result) {
+  if (!result || result.status !== 599) return false;
+  return /unmocked_catalog_bridge/.test(String(result.body || ""));
+}
+
+async function rejectCatalogBridge(route, result) {
+  const status = result && Number.isFinite(Number(result.status)) && Number(result.status) >= 400
+    ? Number(result.status)
+    : 599;
+  const body = result && result.body
+    ? String(result.body)
+    : JSON.stringify({ message: "catalog_bridge_failed", code: "catalog_bridge_failed" });
+  try {
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body
+    });
+  } catch (err) {}
+}
+
+async function bridgeQueryPublicBookCatalog(page, route) {
+  let payload = {};
+  try { payload = route.request().postDataJSON() || {}; } catch (err) { payload = {}; }
+  const query = payload.p_query && typeof payload.p_query === "object" ? payload.p_query : {};
+  const offset = Math.max(0, Number(query.offset) || 0);
+  const limit = Math.max(1, Math.min(100, Number(query.limit) || 24));
+  let origin = "https://fxlojnqwyojqjskfggmh.supabase.co";
+  try { origin = new URL(route.request().url()).origin; } catch (err) {}
+  const url = catalogBooksUrl(origin, query);
+  let result;
+  try {
+    result = await readBridgedBooks(page, route, url, offset, offset + limit - 1);
+  } catch (err) {
+    return rejectCatalogBridge(route, null);
+  }
+  if (!result || unmockedBridge(result)) {
+    if (unmockedBridge(result) && allowsLiveCatalogReads(page)) return continueOriginal(route);
+    return rejectCatalogBridge(route, result);
+  }
+  if (result.status === 416) {
+    const total = totalFromContentRange(result.contentRange);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], total: Number.isFinite(total) ? total : offset, has_more: false })
+    });
+  }
+  if (result.status >= 400) {
+    return route.fulfill({
+      status: result.status,
+      contentType: "application/json",
+      body: result.body || JSON.stringify({ message: "catalog_failed" })
+    });
+  }
+  let rows = [];
+  try { rows = JSON.parse(result.body || "[]"); } catch (err) { rows = null; }
+  if (!Array.isArray(rows)) {
+    return route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "catalog_invalid" })
+    });
+  }
+  let items = rows.map(catalogItemFromBookRow).filter(Boolean);
+  if (offset === 0 && items.length > limit) items = items.slice(0, limit);
+  const exact = totalFromContentRange(result.contentRange);
+  const total = Number.isFinite(exact) ? exact : null;
+  const hasMore = Number.isFinite(exact) ? offset + items.length < exact : items.length === limit;
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ items, total, has_more: hasMore })
+  });
+}
+
+async function bridgeDiscoveryUnitIds(page, route) {
+  let payload = {};
+  try { payload = route.request().postDataJSON() || {}; } catch (err) { payload = {}; }
+  const start = Math.max(0, Number(payload.p_offset) || 0);
+  const limit = Math.max(1, Math.min(5000, Number(payload.p_limit) || 5000));
+  let origin = "https://fxlojnqwyojqjskfggmh.supabase.co";
+  try { origin = new URL(route.request().url()).origin; } catch (err) {}
+  const url = catalogBooksUrl(origin, {}, { discoveryIndex: true });
+  const keys = [];
+  const seen = new Set();
+  let from = start;
+  let guard = 0;
+  while (keys.length < limit && guard < 10000) {
+    guard += 1;
+    const ask = Math.min(CATALOG_INDEX_PAGE, limit - keys.length);
+    let result;
+    try {
+      result = await readBridgedBooks(page, route, url, from, from + ask - 1);
+    } catch (err) {
+      return rejectCatalogBridge(route, null);
+    }
+    if (!result || unmockedBridge(result)) {
+      if (unmockedBridge(result) && allowsLiveCatalogReads(page)) return continueOriginal(route);
+      return rejectCatalogBridge(route, result);
+    }
+    if (result.status >= 400 && result.status !== 416) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: result.body || JSON.stringify({ message: "catalog_failed" })
+      });
+    }
+    let rows = [];
+    if (result.status !== 416) {
+      try { rows = JSON.parse(result.body || "[]"); } catch (err) { rows = null; }
+      if (!Array.isArray(rows)) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "catalog_invalid" })
+        });
+      }
+    }
+    rows.forEach((row) => {
+      if (!row || row.is_active === false) return;
+      const id = String(row.id == null ? "" : row.id).trim();
+      if (!/^[1-9][0-9]*$/.test(id)) return;
+      const key = String(row.kind || "") === "group" && /^[1-9][0-9]*$/.test(String(row.group_id || ""))
+        ? `group:${row.group_id}`
+        : `book:${id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      keys.push(key);
+    });
+    const step = nextIndexCursor(from, rows.length, result.contentRange, result.status, ask);
+    if (step.truncated) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Catalog id index was truncated" })
+      });
+    }
+    if (step.done || keys.length >= limit) break;
+    if (!(step.next > from)) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Catalog id index did not advance" })
+      });
+    }
+    from = step.next;
+  }
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(keys.slice(0, limit))
+  });
 }
 
 async function installReadSafeNetwork(page, opts = {}) {
@@ -264,7 +626,43 @@ async function installReadSafeNetwork(page, opts = {}) {
         body: "[]"
       });
     }
+    if (method === "POST" && /\/rpc\/query_public_book_catalog(?:\?|$)/.test(url)) {
+      return bridgeQueryPublicBookCatalog(page, route);
+    }
+    if (method === "POST" && /\/rpc\/list_public_book_volume_discovery_unit_ids(?:\?|$)/.test(url)) {
+      return bridgeDiscoveryUnitIds(page, route);
+    }
     return route.continue();
+  });
+  await installCatalogBridgeProbe(page);
+}
+
+function catalogBridgeMiss(route) {
+  if (!isCatalogBridgeProbe(route.request())) return route.fallback();
+  return route.fulfill({
+    status: 599,
+    contentType: "application/json",
+    body: JSON.stringify({ message: "unmocked_catalog_bridge", code: "unmocked_catalog_bridge" })
+  });
+}
+
+async function installCatalogBridgeProbe(target) {
+  await target.route("**/rest/v1/books**", catalogBridgeMiss);
+}
+
+async function installCatalogRpcBridge(context) {
+  await installCatalogBridgeProbe(context);
+  await context.route("**/rest/v1/rpc/query_public_book_catalog**", async (route) => {
+    const frame = route.request().frame();
+    const page = frame && frame.page();
+    if (!page) return rejectCatalogBridge(route, null);
+    return bridgeQueryPublicBookCatalog(page, route);
+  });
+  await context.route("**/rest/v1/rpc/list_public_book_volume_discovery_unit_ids**", async (route) => {
+    const frame = route.request().frame();
+    const page = frame && frame.page();
+    if (!page) return rejectCatalogBridge(route, null);
+    return bridgeDiscoveryUnitIds(page, route);
   });
 }
 
@@ -416,6 +814,7 @@ async function fetchFirstLegacyCatalogRow(page) {
  * Cached per Playwright page so a test does not repeat the lookup.
  */
 async function discoverLiveBook(page) {
+  allowLiveCatalogReads(page);
   const cached = page.__kutadguLiveBook;
   if (cached && cached.id) return cached;
   const shopReady = await page.evaluate(() => !!(window.kutadguShop && typeof window.kutadguShop.queryCatalog === "function")).catch(() => false);
@@ -714,10 +1113,12 @@ module.exports = {
   isInactiveIndexRead,
   mockedBookCoverRequests,
   allowLiveBookCovers,
+  allowLiveCatalogReads,
   stubNumericBookDocuments,
   installBookCoverEgressGuard,
   logMockedBookCoverSummary,
   installReadSafeNetwork,
+  installCatalogRpcBridge,
   installCarouselCatalogStub,
   installAnnouncementFixtures,
   waitForShop,

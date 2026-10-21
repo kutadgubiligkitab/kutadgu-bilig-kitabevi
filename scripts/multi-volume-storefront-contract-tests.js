@@ -73,6 +73,19 @@ test("catalog group keeps representative identity and stable group URL",()=>{
   assert.deepStrictEqual(value.member_book_ids,["1001","1002","1003","1004"]);
 });
 
+test("grouped search keeps words apart so punctuation in a title still matches",()=>{
+  const seen=[];
+  const query=storefront.catalogQuery({search:"بالىلار قامۇسى ئالەم سارىيى",sort:"relevance"});
+  return storefront.queryCatalog({search:query.search,sort:"relevance"},{
+    fetchImpl:async (_url,init)=>{
+      seen.push(JSON.parse(init.body).p_query.search);
+      return {ok:true,text:async()=>JSON.stringify({items:[],total:0,has_more:false})};
+    }
+  }).then(()=>{
+    assert.deepStrictEqual(seen,["بالىلار%قامۇسى%ئالەم%سارىيى"]);
+  });
+});
+
 test("catalog query carries grouped-before-pagination filters",()=>{
   assert.deepStrictEqual(storefront.catalogQuery({
     search:"  history ",source:"romanlar.html",sort:"priceLow",minPrice:10,maxPrice:90,
@@ -139,11 +152,11 @@ test("admin workflow preserves IDs and uses revisioned RPCs",()=>{
   assert.doesNotMatch(source,/\\.from\\(["']books["']\\)\\.update/);
 });
 
-test("storefront is dark by default and grouping is server paginated",()=>{
+test("activation turns the client flag on and grouping stays server paginated",()=>{
   const config=fs.readFileSync(path.join(root,"app-config.js"),"utf8");
   const shop=fs.readFileSync(path.join(root,"shop.js"),"utf8");
   const vercel=JSON.parse(fs.readFileSync(path.join(root,"vercel.json"),"utf8"));
-  assert.match(config,/multiVolumeBooks:false/);
+  assert.match(config,/multiVolumeBooks:true/);
   assert.match(shop,/grouped\.queryCatalog\(state/);
   assert.match(shop,/grouped&&usesSearchRelevance\(state\).*fetchRankedRemotePage/);
   assert.match(shop,/row&&row\.unit_key/);

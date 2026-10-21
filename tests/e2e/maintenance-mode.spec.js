@@ -51,6 +51,7 @@ function seedSession(page, userId) {
 test.describe("maintenance mode", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("A maintenance OFF keeps homepage, detail, search, cart, favorites, PR31 title", async ({ page }) => {

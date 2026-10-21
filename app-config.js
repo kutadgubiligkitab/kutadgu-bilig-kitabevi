@@ -30,8 +30,8 @@
       dailyRecommendation:false,
       autoCarousel:true,
       analyticsHooks:true,
-      /* Stage 127–130: keep grouped catalog and set commerce dark until release SQL is applied. */
-      multiVolumeBooks:false,
+      /* Reviewed activation. Deploy only after PR #300 is merged, Stage 131 is applied, and the dark merge is verified. */
+      multiVolumeBooks:true,
       ...(current.featureFlags||{}),
       /* Phase 2: storefront uses live stock. Prepared orders do not reserve. */
       stockEnforcement:true

@@ -25,6 +25,7 @@ async function fillCheckout(page) {
 test.describe("order prepared semantics", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("prepare/copy/share do not POST orders; WhatsApp still opens", async ({ page, context }) => {

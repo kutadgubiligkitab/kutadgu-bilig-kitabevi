@@ -50,6 +50,7 @@ async function clickVisibleRootNav(page, pageFile) {
 test.describe("book detail Google entry navigation", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("direct /book/:id add-to-cart then cart nav lands on /cart.html", async ({ page }) => {
@@ -129,11 +130,13 @@ test.describe("book detail Google entry navigation", () => {
 test.describe("book detail Google entry related books", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   async function discoverSameCategoryPair(page) {
     const setup = await page.context().newPage();
     await H.installReadSafeNetwork(setup);
+    H.allowLiveCatalogReads(setup);
     await H.openFresh(setup, "/");
     const pair = await setup.evaluate(async () => {
       const shop = window.kutadguShop;

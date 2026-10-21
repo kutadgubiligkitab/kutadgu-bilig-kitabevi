@@ -29,6 +29,7 @@ async function assertNoLoop(request, origin, slug) {
 test.describe("public info clean URLs", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   for (const pageInfo of PAGES) {

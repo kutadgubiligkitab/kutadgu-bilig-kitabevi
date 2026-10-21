@@ -6,6 +6,7 @@ const HOME_TITLE = "قۇتادغۇبىلىك كىتابخانىسى";
 test.describe("homepage title and root URL", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("open / keeps exact homepage title and clean URL", async ({ page }) => {

@@ -103,6 +103,7 @@ async function installAccountStub(page, { seedA = false, holdOrders = false } = 
 
 async function openAccount(page, opts) {
   await H.installReadSafeNetwork(page);
+  H.allowLiveCatalogReads(page);
   await installAccountStub(page, opts);
   await page.goto("/account.html", { waitUntil: "domcontentloaded" });
 }

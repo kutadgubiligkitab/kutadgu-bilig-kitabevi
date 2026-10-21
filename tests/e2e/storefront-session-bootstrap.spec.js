@@ -169,6 +169,14 @@ async function mockMemberShop(page, userId, { cartItems = [], favItems = [] } = 
   }));
   let cloudFav = favItems.map((id) => ({ user_id: userId, book_id: String(id) }));
   const writes = [];
+  await page.route("**/rest/v1/member_volume_set_cart_items**", async (route) => {
+    const method = String(route.request().method() || "GET").toUpperCase();
+    if (method === "GET" || method === "HEAD") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    }
+    writes.push("SET_" + method);
+    return route.fulfill({ status: 599, contentType: "application/json", body: JSON.stringify({ message: "unexpected set cart write" }) });
+  });
   await page.route("**/rest/v1/member_cart_items**", async (route) => {
     const method = String(route.request().method() || "GET").toUpperCase();
     if (method === "GET" || method === "HEAD") {

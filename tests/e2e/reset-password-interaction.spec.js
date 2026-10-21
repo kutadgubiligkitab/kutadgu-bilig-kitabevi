@@ -80,6 +80,7 @@ async function expectControlReceivesHit(page, selector) {
 test.describe("password reset form interaction", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("valid token_hash recovery enables real click/focus/tab without force", async ({ page }) => {
@@ -153,6 +154,7 @@ for (const [width, height] of [[390, 844], [412, 915], [768, 1024], [1280, 800]]
     test.use({ viewport: { width, height } });
     test(`controls are hittable after valid recovery at ${width}`, async ({ page }) => {
       await H.installReadSafeNetwork(page);
+      H.allowLiveCatalogReads(page);
       await mockVerifyOk(page);
       await page.goto("/reset-password.html?next=account&token_hash=ok-hash&type=recovery", { waitUntil: "domcontentloaded" });
       await expect(page.locator("#newPassword")).toBeEnabled({ timeout: 15_000 });

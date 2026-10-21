@@ -21,6 +21,7 @@ async function addBookOnce(page) {
 test.describe("guest cart and favorites", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("6 add to cart once — badge and cart page agree", async ({ page }) => {

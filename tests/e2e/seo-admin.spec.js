@@ -49,6 +49,7 @@ test.describe("seo + admin", () => {
     const creds = H.adminCreds();
     test.skip(!creds, "KUTADGU_ADMIN_EMAIL / KUTADGU_ADMIN_PASSWORD not set");
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#loginPanel")).toBeVisible({ timeout: 30_000 });
     await page.locator("#adminEmail").fill(creds.email);
@@ -62,6 +63,7 @@ test.describe("seo + admin", () => {
     const creds = H.memberCreds();
     test.skip(!creds, "KUTADGU_MEMBER_EMAIL / KUTADGU_MEMBER_PASSWORD not set");
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.goto("/account.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#loginEmail")).toBeVisible({ timeout: 30_000 });
     await page.locator("#loginEmail").fill(creds.email);

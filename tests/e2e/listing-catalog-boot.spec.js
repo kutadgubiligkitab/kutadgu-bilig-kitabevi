@@ -97,6 +97,24 @@ async function mockBooks(page, { delayMs = 0, fail = false, hang = false, books 
     }
     const parsed = new URL(url);
     let filtered = books.slice();
+    const wanted = [];
+    const collect = (raw) => {
+      const text = decodeURIComponent(String(raw || ""));
+      const inMatch = text.match(/in\.\(([^)]*)\)/i);
+      if (inMatch) {
+        inMatch[1].split(",").forEach((part) => {
+          const id = part.replace(/^"+|"+$/g, "").trim();
+          if (id) wanted.push(id);
+        });
+      }
+      const eqMatch = text.match(/eq\.([^,&)]+)/i);
+      if (eqMatch && !inMatch) wanted.push(eqMatch[1].replace(/^"+|"+$/g, "").trim());
+    };
+    collect(parsed.searchParams.get("id") || "");
+    if (wanted.length) {
+      const set = new Set(wanted.map(String));
+      filtered = filtered.filter((row) => set.has(String(row.id)) || set.has(String(row.legacy_id || "")));
+    }
     const source = parsed.searchParams.get("source");
     if (source && source.startsWith("eq.")) {
       filtered = filtered.filter((row) => row.source === source.slice(3));

@@ -69,6 +69,7 @@ async function openStorefrontAdmin(page) {
 test.describe("Stage Admin 1M shop hours", () => {
   test("A/H/I/J fallback keeps current Contact and JSON-LD hours", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await H.openFresh(page, "/");
     const hours = page.locator(CONTACT_HOURS).first();
     await expect(hours).toContainText("دۈشەنبە–شەنبە", { timeout: 20000 });
@@ -80,6 +81,7 @@ test.describe("Stage Admin 1M shop hours", () => {
 
   test("H/I live hours update Contact and JSON-LD from the same payload", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await mockHoursGet(page, LIVE);
     await H.openFresh(page, "/");
     const hours = page.locator(CONTACT_HOURS).first();
@@ -91,6 +93,7 @@ test.describe("Stage Admin 1M shop hours", () => {
   test("G public overlay never writes shop hours", async ({ page }) => {
     const writes = [];
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     page.on("request", (req) => {
       if (!String(req.url()).includes("/rest/v1/store_shop_hours")) return;
       if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method())) writes.push(req.method());
@@ -175,6 +178,7 @@ test.describe("Stage Admin 1M shop hours", () => {
 
   test("E/F Book Staff and Member pages have no shop-hours editor", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.goto("/book-staff.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator("#shopHoursForm")).toHaveCount(0);
     await page.goto("/account.html", { waitUntil: "domcontentloaded" });

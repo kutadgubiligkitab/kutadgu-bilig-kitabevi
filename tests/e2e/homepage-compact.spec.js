@@ -1,9 +1,16 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
+async function waitForSettledCarousel(page) {
+  const track = page.locator("#homeCarouselTrack");
+  await expect(track.locator(".home-carousel-card:not(.is-skeleton)").first()).toBeVisible();
+  await expect(track).not.toHaveAttribute("aria-busy", "true");
+}
+
 test.describe("homepage compact first-view", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("idle #searchResults does not consume vertical space", async ({ page }) => {
@@ -254,7 +261,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     const before = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
     await expect.poll(async () => page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform), { timeout: 8_000 }).not.toBe(before);
   });
@@ -263,7 +270,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 4 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     const before = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
     await page.waitForTimeout(5200);
     const after = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
@@ -274,7 +281,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     await page.locator("#newBooksCarousel").hover();
     const paused = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
     await page.waitForTimeout(5200);
@@ -288,7 +295,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     const before = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
     await page.locator("#carouselNext").click();
     await expect.poll(async () => page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform)).not.toBe(before);
@@ -302,7 +309,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     const before = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
     await page.waitForTimeout(5200);
     const after = await page.locator("#homeCarouselTrack").evaluate((el) => el.style.transform);
@@ -313,7 +320,7 @@ test.describe("homepage compact first-view", () => {
     await H.installCarouselCatalogStub(page, { recommended: true, newest: false, bestseller: false, bookCount: 6 });
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
+    await waitForSettledCarousel(page);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(4);
     const swipeReady = await page.locator("#homeCarouselViewport").evaluate((el) => el.dataset.mobileSwipe === "1");

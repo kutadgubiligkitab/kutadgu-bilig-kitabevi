@@ -4,6 +4,7 @@ const H = require("./helpers");
 test.describe("storefront smoke", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
   });
 
   test("1 homepage loads", async ({ page }) => {

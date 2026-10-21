@@ -20,6 +20,7 @@ function contrastRatio(a, b) {
 test.describe("design foundation", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await H.stubNumericBookDocuments(page, ["122"]);
   });
 

@@ -9,6 +9,7 @@ const OTHER_BODY = "not-a-book-cover";
 test.describe("CI Supabase book-covers egress protection", () => {
   test("installReadSafeNetwork fulfills public book-covers from the local stub", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
     const got = await page.evaluate(async (url) => {
       const res = await fetch(url);
@@ -52,6 +53,7 @@ test.describe("CI Supabase book-covers egress protection", () => {
 
   test("non-Storage GETs and other buckets are not broadly intercepted", async ({ page }) => {
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.route("**/storage/v1/object/public/other-bucket/**", async (route) => {
       return route.fulfill({
         status: 200,
@@ -80,6 +82,7 @@ test.describe("CI Supabase book-covers egress protection", () => {
   test("cover retry probe routes still control their own responses", async ({ page }) => {
     const hits = { n: 0 };
     await H.installReadSafeNetwork(page);
+    H.allowLiveCatalogReads(page);
     await page.route("**/cover-retry-probe.png", async (route) => {
       hits.n += 1;
       if (hits.n === 1) return route.abort();
