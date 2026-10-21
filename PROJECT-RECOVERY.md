@@ -4,9 +4,49 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-## Multi-volume activation — separate from draft PR #300, not deployed
+## Multi-volume activation — released PR #301; runtime baseline `631264ae`
 
-`cursor/series-activation-730e` is the reviewed activation candidate. It does not move the runtime baseline. PR #300 stays at `4de1384aa8e204e30b5b848543a6429f3bafb7fc` with both exposure flags off. This branch sets `wrangler.jsonc` production `MULTI_VOLUME_BOOKS_ENABLED` to `true` for Worker `kutadgu-cloudflare-production` and `app-config.js` `multiVolumeBooks` to `true`. The preview Worker variable is not set. Do not merge this branch into PR #300, deploy it, or enable the live flags before the sequence in `MULTI_VOLUME_BOOKS_RELEASE.md`: merge PR #300 through the normal path, apply `STAGE131_BOOK_VOLUME_SERIES_ENTRY.sql` once with both flags off, deploy that exact merge with `wrangler deploy --env production --keep-vars`, verify, then deploy this activation only after review.
+This is the closed multi-volume storefront release. The next separate task is iPad catalog and detail-cover reliability. Do not start that work in the same change as this record. This documentation commit is not a Worker deploy; do not redeploy it.
+
+PR #300 merged through the normal path as `80ab8477018af46fc906a5d326494cbc9b69d458`. PR #301, [Activate multi-volume books after the dark merge](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/pull/301), merged at 2026-10-21T19:47:03Z as `631264aeee99afc0e18b54a53f60692710da2954`. Its parents are `80ab8477018af46fc906a5d326494cbc9b69d458` and `2e3d578d155b40a35372bed86e680b0437e1592c`. The merge tree `abc10265854ea80441b2885878a1d0f69f6856c9` matches that approved head. `origin/main` is that merge. The reviewed production config has `wrangler.jsonc` env.production `MULTI_VOLUME_BOOKS_ENABLED=true` and `app-config.js` `featureFlags.multiVolumeBooks:true`. An independent review already confirmed that live `app-config.js`, `shop.js`, and `admin-volume-groups.js` match this merge, and that the public catalog returns one `series-156` group at 750 TRY. This session did not redeploy, reapply SQL, or change production rows.
+
+Live files measured in this session, 2026-10-21, guest Chromium against `https://www.kutadgubilik.com`:
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| `app-config.js` and `app-config.js?v=6` | 4318 | `10b76300fdaa623ed81b5ac04cc3ff49caed5f97c1102957b5bcd19a00eb16e4` |
+| `shop.js?v=170` | 307995 | `67006bf9bf640f45d1fee5290597a83662e1c64806129ec0db343c34074fa111` |
+| `admin-volume-groups.js?v=3` | 34437 | `a0861243eb21c56d62f695903d56fe0fd0e755193ddf012269669c32c616b0c7` |
+
+`admin.html` requests `admin-volume-groups.js?v=3`. The `?v=1` URL returned the same bytes. Served `app-config.js` has `multiVolumeBooks:true`. Storefront documents request `shop.js?v=170`.
+
+Guest set-cart check, same session, signed out (`كىرىش / ئەزا بولۇش`). `/volume-group/series-156` showed title ئويغانغان زېمىن, part prices 370 ₺ and 399 ₺, and the explicit set price 750 ₺. The set button `تولۇق يۈرۈشلۈكنى سېۋەتكە قوشۇش` was used. Individual part add was not used; 370+399=769 is not this path. After the click, `kutadgu-cart-v1` was empty and `kutadgu-set-cart-v1` was one line `{kind:"set",group_id:"1",qty:1,quote_revision:"bab14c487b0c7793723145e8f92ae492"}`. The header badge showed 2, the physical quantity of that one set. `quote_book_volume_cart` returned HTTP 200 with `total` 750, `total_qty` 2, `price_source` `"explicit"`, and `line_total` 750. Checkout was not submitted. After `cart.html` re-rendered, the set line and the order summary both showed **750 ₺**, book count 2, qty 1. That is not 769.
+
+The first paint of `cart.html` showed the set line as unloaded (`يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى`) and summary 0 ₺ while the storefront and quote RPCs were already HTTP 200. Clicking set-qty minus at qty 1 called `cartPage()` again and then showed 750 ₺. The quote and the set localStorage line were already correct. This is a first-paint race, not a wrong set price. It is not a reason to reopen the activation or to ship a docs deploy. A later cart-repaint fix is optional and is not this release.
+
+Public read/quote RPCs used: `get_public_book_volume_group_storefront` and `quote_book_volume_cart` (HTTP 200). Observed production writes that still left the guest tab: `POST /api/visit-count` HTTP 200 and `POST /cdn-cgi/rum` HTTP 204, because the write guard was not on the document that first loaded those beacons. No `analytics_events`, `/orders`, or `create_member_order` POST appeared in the performance log. No WhatsApp order was sent.
+
+### Owner retrieval of the private logical backup
+
+A VM path is not a download. The dump from the activation Cloud Agent remains private on that machine until the owner has an encrypted copy on a disk they control. Do not publish an unencrypted dump. Do not delete the VM copy while retrieval is pending.
+
+Recorded location, Cloud Agent [Final release preparation](https://cursor.com/agents?id=bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97) (`bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97`): `/home/ubuntu/kutadgu-private-backups/20261021T192948Z`, directory mode 0700, dump files mode 0600. Known files from that agent: `schema.sql` 810325 bytes, SHA-256 `1bde88907b89d9d41cfe40eb7d633551dda4af45a41d9a9cf60adb4f850e4edd`; `data.sql` 13109835 bytes, SHA-256 `9a4c9d162de9555fe580c2f612c98a875396cca530b7eee6e74a3264ffee9d07`. Postgres dumps do not include Storage or R2 cover bytes. This session could not resume that agent (parent mismatch) and did not copy, encrypt, upload, or delete those files.
+
+Do this on the owner’s computer, in that same Cloud Agent conversation, not in a new agent:
+
+1. Open Cursor → Cloud Agents → **Final release preparation**. If the agent is archived, unarchive it so the original VM/workspace comes back. Do not start a new Cloud Agent; a new VM will not have this dump.
+2. Send this follow-up, unchanged in intent: encrypt the directory with AES-256-CBC (or GPG) into one new file; put **only** that encrypted file in the agent workspace **and** under `artifacts/`; leave the original dumps in place; do not upload plaintext; do not put the passphrase in the filename, git, or a public URL; print the passphrase once in the agent reply.
+3. When the encrypted filename is in the reply, download it onto the owner’s private disk:
+   - **Files tab:** right-click the encrypted file in the agent workspace → Download. That is an owner download, not a public website.
+   - **Artifacts API, encrypted file only:** create a Cursor user API key at the dashboard (do not paste it in chat). `GET https://api.cursor.com/v1/agents/bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97/artifacts` with Basic auth (`-u "$CURSOR_API_KEY:"`). Then `GET https://api.cursor.com/v1/agents/bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97/artifacts/download?path=` the exact `artifacts/...` path from that list. The JSON `url` is a 15-minute presigned GET for that encrypted object. Save it locally before `expiresAt`.
+4. Decrypt on the owner’s machine. Confirm `schema.sql` and `data.sql` sizes and SHA-256 match the values above.
+5. Only after that confirmation, tell the Cloud Agent it may delete the VM plaintext. Keep the owner’s encrypted copy off-site. The dashboard physical backup from `2026-10-21 02:19:51 UTC` is earlier than Stages 127–131 and is not this dump.
+
+Do not use the public R2 book-covers bucket, git, or an unauthenticated public URL for this file.
+
+## Multi-volume activation — historical notes before PR #301
+
+`cursor/series-activation-730e` was the reviewed activation candidate. The sentences below that still say it is undeployed, or that PR #300 is still a draft with both flags off, describe the branch before the #300 and #301 merges recorded above. Preview Worker `MULTI_VOLUME_BOOKS_ENABLED` was not set. The reviewed apply order remains in `MULTI_VOLUME_BOOKS_RELEASE.md`.
 
 The owner checked both backup pages on 2026-10-21. The latest listed physical backup is `2026-10-21 02:19:51 UTC`, and Restore is available for that backup. The page does not show a numeric backup id. Point-in-Time Recovery is not enabled; the dashboard offers it as a paid add-on, and that add-on was not enabled. No restore was performed or tested. That physical backup is earlier than Stages 127–130 (`20261021050121` onward) and earlier than the owner’s saved series, so restoring it would not return the current baseline. It also does not include Storage or R2 cover objects. Healthy `pg_stat_archiver` counts remain separate from this backup and are not a verified recovery point.
 
@@ -22,9 +62,9 @@ Stage 10 run [39631463567](https://github.com/kutadgubiligkitab/kutadgu-bilig-ki
 
 `node scripts/multi-volume-activation-check.js` is the check for this branch. It is not Stage 10 run 39587824097, and that run is not evidence for this flag change. The check uses PGlite, not production Postgres 17.6. Only Chromium emulation is available for the storefront spec. That is not a physical iPad, and the separate iPad reliability repair remains deferred.
 
-## Multi-volume series entry — draft PR #300, not deployed
+## Multi-volume series entry — merged PR #300
 
-Draft PR #300 on `cursor/series-entry-prices-730e` finishes the customer price display and adds «قىسىملىق كىتاب قوشۇش». It is not deployed and its SQL is not applied. The runtime baseline stays the PR #299 merge `734c18cf232e6c49cf80f98390147cf6300f7d1c`. Live `app-config.js` stays `multiVolumeBooks:false`, and `MULTI_VOLUME_BOOKS_ENABLED` stays unset.
+PR #300 on `cursor/series-entry-prices-730e` finished the customer price display and added «قىسىملىق كىتاب قوشۇش». It merged as `80ab8477018af46fc906a5d326494cbc9b69d458` before the activation merge. The sentences below that still call it a draft, or say the SQL is unapplied and the flags are off, describe it before that merge and before PR #301. The current runtime baseline is `631264ae`, recorded above.
 
 The owner’s production series remains group 1, slug `series-156`, title ئويغانغان زېمىن, members 156 then 157, part prices 370 and 399 TRY, and the explicit `complete_set_price` 750 TRY. The public grouped catalog already returns `effective_set_price` 750 for that group. This change does not recreate or edit that row. A blank set price still means the current sum. An explicit price is never replaced by the sum.
 
@@ -515,16 +555,16 @@ A Chromium profile first stored the previously deployed `shop.js` at `?v=144`, `
 
 Read-only `book_view_stats` totals at or above 20, before and after the browser checks, were book 113 = 466, 122 = 98, 119 = 32, 126 = 31, 124 = 26, 127 = 25, 131 = 25, 111 = 21, and 129 = 20. Desktop Chromium at 1280×900 opened `/book/111` three more times, reloaded it, opened `/book/113`, and used Back. Detail 111 stayed 21, detail 113 stayed 466, and Back returned 111 at 21. `/book/129` left the detail count absent. A related card on that page showed book 111 at 21 and book 113 at 466, not a count for 129. `/book/122` showed 98. Homepage search for `36 تەدبىر` showed compact `👁 466` on book 113. Supabase POST, PUT, PATCH, and DELETE requests were aborted or answered locally, and the stored totals did not change. A separate local Chromium page, not production, held the stats responses and resolved both orders for 20 then 21, 21 then 22, and 22 then 21. Each case used two requests. The detail and the book 50 card showed the newer total, including the lower correction 21. `/book/252` showed price `1.362 ₺`, quantity `1`, the cart and favorite controls, and the contributor link opened `/author/ae013912-6f81-4549-9a57-638b8d3b6efb` with the heading `ئەنۋەر جاپپار`. `/book/111` showed price `264 ₺`, quantity `1`, and an enabled cart button. `cart.html` showed `🛒 سېۋىتىم`. `favorites.html` showed `ياقتۇرغان كىتابلىرىم` and has no `analytics.js` tag, which was already true. No order was submitted and no catalog row was written. No AAL2 session was opened. The viewport is desktop Chromium, not a physical phone. No production SQL was applied. The commit that records this paragraph is documentation only and is not the deployed commit.
 
-This table is the released PR #297 application. The previous table named the PR #296 merge `c7e0e9a25dde281f6c6a7c2e116ae600652856ae` and Worker version `650aa0cb-9eb2-4c3c-89e0-54b0e4afb51d`. That allocation is the rollback target captured immediately before this deploy: deployment `812615e1-bd78-4a20-a733-733213794128`. Compare this table with `origin/main` before substantial work. The documentation commit that records the release is not the deployed commit.
+This table is the released PR #301 multi-volume activation. The previous table named the PR #297 merge `530d5bfe815f520e149f450aeb1b432ec49b2227`. Compare this table with `origin/main` before substantial work. The documentation commit that records this verification is not the deployed commit and must not be redeployed.
 
 | | |
 |---|---|
-| Commit | `530d5bfe815f520e149f450aeb1b432ec49b2227` |
-| Subject | Merge pull request #297 from kutadgubiligkitab/cursor/optional-copy-order-details-e5d6 |
-| Date | 2026-10-19 |
+| Commit | `631264aeee99afc0e18b54a53f60692710da2954` |
+| Subject | Merge pull request #301 from kutadgubiligkitab/cursor/series-activation-730e |
+| Date | 2026-10-21 |
 | Branch | `main` |
-| PR | #297, head `c7ff7c30ccc505baee1868318f5a020688e73e5c` |
-| Why it stays | Copying the cart order no longer requires a name, phone, or address. WhatsApp, preview, and native sharing still do. Worker version `99be9791-c047-422d-b742-f8605ee33869` on deployment `de27bb60-b4cc-4360-b383-f44d36d0b0f4` is the live allocation. |
+| PR | #301, head `2e3d578d155b40a35372bed86e680b0437e1592c`, tree `abc10265854ea80441b2885878a1d0f69f6856c9` |
+| Why it stays | Live flags are on. Independent review matched live `app-config.js`, `shop.js`, and `admin-volume-groups.js` to this merge. The public catalog has one `series-156` group at 750 TRY. This session’s guest set-button path quoted and displayed 750 TRY, not 769. |
 
 Draft PR #272 on `cursor/pending-submission-page-5fba` pages the pending staff-submission queue at 10 books and keeps a failed read from looking like an empty queue. The application commit is `a7945abf2849ee83f49fbf128c63b652130b6e90`. `admin.html` requests `admin.js?v=103`. The books read stays `submission_status = pending`, orders by newest `submitted_at` then id with null timestamps last, and takes one `.range` of 10. The exact count must be a non-negative integer, or a digit string, and the returned page length must match that count. A missing or invalid count does not fall back to the page length. Search matches title, author, and ISBN through the existing `postgrestIlike` helper and ISBN digit normalization, and it returns to page one. Changing the search invalidates the previous request immediately; the 250ms debounce is unchanged. A response is kept only when its term, page, admin identity, and request generation are still current. The cards and the pager stay on the last committed page together. A failed read keeps that page, the exact total, and the search context, shows an error, and offers `قايتا سىناش`. Logout clears the rows, total, search, timer, and retry before sign-out finishes. An account change, session loss, idle lock, or loss of AAL2 does the same, and a late response cannot restore them. Approve, reject, and edit stay the original writes. A failed refresh after a successful write says the list did not refresh and the retry only reads. An older read cannot restore a processed row. A successful refresh uses the last valid page when the old page is gone, and an edited row that no longer matches the search leaves the list. An empty queue says `تەستىق كۈتۈۋاتقان كىتاب يوق.` A search with no matches says `بۇ ئىزدەشكە ماس كىتاب تېپىلمىدى.` Neither sentence is used for a failed read.
 
@@ -688,6 +728,10 @@ Last full local Stage 10 observed on the #209 revision (`9211ff09771c759b477c1b1
 
 | PR | Merge | Purpose |
 |---|---|---|
+| #301 | `631264ae` | Activate multi-volume books after the dark merge. Runtime baseline. Live flags on. Guest set path is 750 TRY. Do not redeploy the documentation commit that records this. |
+| #300 | `80ab8477` | Series entry, explicit set price, `shop.js?v=170`. Merged before activation. |
+| #299 | `734c18cf` | Admin volume entry UX. |
+| #298 | `03ef94e2` | Multi-volume schema and storefront with public exposure off. |
 | #247 | `237d2262` | Closed admin approval panel stays hidden, and its dropdown labels stay readable. Merged as `237d2262d460c4515d0536f62c2ef94eb412308d`. Reviewed head `3d979325898908e806d02b4678c42e964ecd03f8`. Production Worker `fdac1243-0424-4cd0-955f-1f8ed8e5a1db`. No SQL. |
 | #246 | `6c3e7bb6` | Review replies, hearts, notifications, and paged moderation. Merged as `6c3e7bb6768a0e005f1e5b88b70770e372e531d1`. Reviewed head `74cebd894ddcff76977499c7acbecf9d50885f1d`. Production Worker `34c3823b-0368-4e5a-9366-560fcd98991b`. `STAGE108` through `STAGE111` are applied. |
 | #245 | `4e07e95a` | Book reviews. Merged as `4e07e95a9fa2b9fe291a543a743bb9325096e902`. Production Worker `c9b4d359-d97c-4862-9f84-8e30480f45ba`. `STAGE107` is applied. |
@@ -728,7 +772,9 @@ Query pins are how cached storefront files change. Bump the pin when the file’
 
 | File | Pin at the runtime baseline |
 |---|---|
-| `shop.js` | `book-shell.html`, homepage, listings, `credit-books.html`, and the other storefront documents updated in PR #266 request `?v=147`. `cart.html` stays `?v=141`. `shop.js` requests `kutadgu-book-views.js?v=6`, `app-config.js?v=6`, and still loads `premium-ux.js?v=13`. |
+| `shop.js` | Live storefront documents request `?v=170`. Measured 2026-10-21: 307995 bytes, SHA-256 `67006bf9bf640f45d1fee5290597a83662e1c64806129ec0db343c34074fa111`. `shop.js` still loads `app-config.js?v=6`. |
+| `app-config.js` | Live `multiVolumeBooks:true`. 4318 bytes, SHA-256 `10b76300fdaa623ed81b5ac04cc3ff49caed5f97c1102957b5bcd19a00eb16e4`. |
+| `admin-volume-groups.js` | Live `admin.html` requests `?v=3`. 34437 bytes, SHA-256 `a0861243eb21c56d62f695903d56fe0fd0e755193ddf012269669c32c616b0c7`. |
 | `catalog-credits.js` | `?v=3` on `admin.html` and `book-staff.html`. `book-shell.html` and `credit-books.html` stay `?v=1` |
 | `catalog-credits.css` | `?v=1` on `book-shell.html` and `credit-books.html` |
 | `kutadgu-shared-cart.js` | `?v=3` on `cart.html` only |
@@ -858,6 +904,9 @@ This is not a runtime baseline move. `vercel.json`, the Vercel `api/*.js` routes
 
 The repo has no separate backlog file. These are cautions, not scheduled tasks:
 
+- Next separate task: iPad catalog and detail-cover reliability. Multi-volume activation on `631264ae` is closed aside from the owner backup download recorded above.
+- Owner backup retrieval is still pending. Keep `/home/ubuntu/kutadgu-private-backups/20261021T192948Z` on Cloud Agent `bc-aac412bf-bc50-41fc-b6e4-181bff3d3c97` until the owner has decrypted the encrypted copy and checked the SHA-256 values. Do not expose plaintext. Do not delete it first.
+- Optional later fix: `cart.html` can paint a guest set line as unloaded until a later `cartPage()`. The quote is already 750 TRY. Do not mix that into the iPad task.
 - PR #249 is released. `admin_member_directory_page(text, text, text, integer)` is live as migration `stage113_admin_member_directory` `20261005131355`. Do not apply `STAGE113_ADMIN_MEMBER_DIRECTORY.sql` again. Rollback is `STAGE113_ADMIN_MEMBER_DIRECTORY_ROLLBACK.sql`, run by itself. It drops only that function. It was not run.
 - Remaining production step: none for the already deployed cart view. The website is deployed. Do not run `apply_catalog_credit_corrections()` again. Three unmatched review rows remain, listed in the live SQL status. `catalog_credit_correction_map` already has forced row level security, and the repository file now contains those two statements. Rollback is `STAGE106_CATALOG_CREDITS_ROLLBACK.sql`, run by itself. It drops the credit policies before `book_credits`, then the new tables, functions, and trigger. It does not change `books.author`, `books.translator`, `books.publisher`, or book rows.
 - The reviewed author and translator strings from the 2026-10-03 active catalog are in `STAGE106_CATALOG_CREDIT_CORRECTIONS.sql`. Authors: `ھاجى مىرزاھىد كېرىمى، ساۋۇت داۋۇت`, `مۇھەممەد ئابدۇللا ئابدۇقادىر، بۈۋىنۇر بەكرى`, `ئەنۋەر جاپپار، پەرھات جىلانوۋ، قادىر قاۋۇز`, `ئىمام جالالۇددىين سۇيۇتى، ئىمام نەسرۇددىين ئەلبانى`, `مۇختار مامۇت، مۇھەممەت تۇرسۇن يۈسۈپ`, `ئەنۋەر بايتۇر، خەيرنىسا سىدىق`, `شى شۇەن، جىن چۈنمىڭ`. Translators: `تۇرسۇنگۈل ياسىن، نۇسرەت مەمتىمىن`, `ئابدۇرېھىم دۆلەت، ئادىل ئابدۇقادىر`, `قېيۇم تۇردى تۇرپانى، ئابدۇرېشىت ئىبراھىم، ئابدۇللا رېشىت`, `نۇرمۇھەممەد دۆلەتى، ھەلىمە مۇھەممەت`, `ئابدۇلغەنى ئابدۇلئەزىز، سابىرجان`, `قۇربان تۇران، ھۆرمەتجان فىكرەت`, `ئۆمەرجان نۇرى، ئابلىز ئورخۇن`, `ئەركىن ئىبراھىم پەيدا، ئابدۇقادىر جالالىددىن`, `نۇرمۇھەممەد ئۆمەر ئۇچقۇن، روزىتوختى نايىپ`, `تايىر ئابدۇۋەلى، شەمشىقەمەر يۈسۈپھاجى`, `تايىر ئابدۇۋەلى، ئېلى ئىلى`, `شەھىدە، خەدىچە`, `داۋۇت غازى، تاھىر تالىپ`, `مىجىت باۋدۇن، مۇرات پەرسا`. The two publisher strings stay unresolved: `شىنجاڭ خەلق باش نەشرىياتى، قەشقەر ئۇيغۇر نەشرىياتى` and `شىنجاڭ خەلق نەشرىياتى، قەشقەر ئۇيغۇر نەشرىياتى`. A review row whose text is not an exact map match also stays unresolved. Inactive books were not in that public scan. There is no general comma split.
