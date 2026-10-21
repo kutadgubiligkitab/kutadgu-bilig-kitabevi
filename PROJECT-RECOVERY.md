@@ -6,7 +6,7 @@ The runtime baseline below is the last verified application commit. It is not au
 
 ## Catalog and detail-cover reliability — unreleased
 
-Branch `cursor/catalog-cover-reliability` repairs storefront first paint and cover recovery. It does not move the runtime baseline. The released application remains merge `2c2c2c0048308f53d2f9459ca0ae616a3577a13a`, live `shop.js?v=172`. This branch requests `shop.js?v=173` and `premium-ux.js?v=17`. No production SQL, security-rule change, deploy, or merge is part of this change.
+Branch `cursor/catalog-cover-reliability` repairs storefront first paint and cover recovery. The repair commit is `97508d5b19014ebde0c1ca54a4b0b2511943eb54`. The commit that records this sentence is the draft pull request head. It does not move the runtime baseline. The released application remains merge `2c2c2c0048308f53d2f9459ca0ae616a3577a13a`, live `shop.js?v=172`. This branch requests `shop.js?v=173` and `premium-ux.js?v=17`. No production SQL, security-rule change, deploy, or merge is part of this change.
 
 On the released code, a controlled local trace showed the homepage catalog RPC had not started while the availability HEAD was still pending, and a failed book read replaced a server-rendered detail cover with the unavailable placeholder. A preview image whose source changed from book A to book B kept A's stored origin, so an error could restore A. Same-key refresh failures replaced featured, carousel, search, listing, and discovery results with the error state.
 
