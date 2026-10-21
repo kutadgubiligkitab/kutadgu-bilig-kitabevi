@@ -504,12 +504,34 @@
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=true;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=false;
   }
+  function seriesSaveMayStillCommit(error){
+    if(!error)return true;
+    const name=String(error.name||"");
+    if(error instanceof TypeError||name==="TypeError"||name==="AbortError"||name==="NetworkError")return true;
+    const status=Number(error.status||error.statusCode||0);
+    if(status===408||status===429||status>=500)return true;
+    const message=String(error.message||"");
+    return /failed to fetch|networkerror|network error|load failed|aborted|timeout|econn|socket hang|gateway timeout|\b502\b|\b503\b|\b504\b/i.test(message);
+  }
   async function discardSeriesKeys(keys){
     const discard=root.kutadguDiscardUnusedSeriesCover;
     if(typeof discard!=="function")return;
     for(const key of keys){
       try{await discard(key)}catch(error){}
     }
+  }
+  function seriesCoverKeys(rows){
+    const keys=[];
+    rows.forEach(row=>{
+      const key=text(row&&row.objectKey);
+      if(key&&!keys.includes(key))keys.push(key);
+    });
+    const pending=seriesState.pending;
+    (pending&&pending.objectKeys||[]).forEach(key=>{
+      const value=text(key);
+      if(value&&!keys.includes(value))keys.push(value);
+    });
+    return keys;
   }
   function clearSeriesUploads(rows){
     rows.forEach(row=>{
@@ -518,66 +540,102 @@
       delete row.row.dataset.objectKey;
     });
   }
+  function finishSavedSeries(saved){
+    seriesState.pending=null;
+    fillEditor(saved);
+    showLinkForm();
+    $("#volumeSeriesRequestId").value="";
+    seriesState.requestId="";
+    seriesStatus(saved&&saved.replayed?"بۇ يۈرۈشلۈك ئاللىقاچان ساقلانغان. قايتا قوشۇلمىدى.":"يۈرۈشلۈك ساقلاندى. خېرىدارلارغا تېخى چىقمىدى.","ok");
+  }
   async function saveSeries(event){
     event.preventDefault();
     if(seriesState.saving)return;
     syncSeriesCategory();
     const rows=readSeriesDom();
-    if(rows.some(row=>!row.file&&!row.imageUrl)){
+    const requestId=text($("#volumeSeriesRequestId").value).toLowerCase();
+    const pending=seriesState.pending&&seriesState.pending.requestId===requestId?seriesState.pending:null;
+    if(!pending&&rows.some(row=>!row.file&&!row.imageUrl)){
       seriesStatus("ھەر بىر قىسىمغا ئۆزىنىڭ مۇقاۋىسىنى تاللاڭ.","error");
       return;
     }
     const upload=root.kutadguUploadSeriesPartCover;
-    if(typeof upload!=="function"){seriesStatus("مۇقاۋا يوللاش تەييار ئەمەس.","error");return}
-    const requestId=text($("#volumeSeriesRequestId").value);
+    if(!pending&&typeof upload!=="function"){seriesStatus("مۇقاۋا يوللاش تەييار ئەمەس.","error");return}
     seriesState.saving=true;
     const created=[];
     try{
-      for(let index=0;index<rows.length;index+=1){
-        const row=rows[index];
-        if(row.imageUrl)continue;
-        seriesStatus(`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللىنىۋاتىدۇ…`,"");
-        const uploaded=await upload(requestId,index+1,row.file);
-        row.imageUrl=text(uploaded&&uploaded.url);
-        row.objectKey=text(uploaded&&uploaded.key);
-        row.row.dataset.imageUrl=row.imageUrl;
-        row.row.dataset.objectKey=row.objectKey;
-        if(row.objectKey)created.push(row.objectKey);
-      }
-      const built=seriesEntryPayload({
-        requestId,
-        title:$("#volumeSeriesTitle").value,
-        author:$("#volumeSeriesAuthor").value,
-        category:$("#volumeSeriesCategory").value,
-        source:$("#volumeSeriesSource").value,
-        description:$("#volumeSeriesDescription").value,
-        completeSetPrice:$("#volumeSeriesSetPrice").value,
-        allowPreviewUrls:root.__kutadguSkipAdminAuth===true,
-        parts:rows.map(row=>({title:row.title,price:row.price,stock:row.stock,isbn:row.isbn,imageUrl:row.imageUrl,main:row.main}))
-      });
-      if(!built.ok){
-        await discardSeriesKeys(created);
-        clearSeriesUploads(rows);
-        seriesStatus(built.message,"error");
-        return;
+      let built;
+      if(pending){
+        built={ok:true,requestId:pending.requestId,payload:pending.payload};
+      }else{
+        for(let index=0;index<rows.length;index+=1){
+          const row=rows[index];
+          if(row.imageUrl)continue;
+          seriesStatus(`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللىنىۋاتىدۇ…`,"");
+          const uploaded=await upload(requestId,index+1,row.file);
+          row.imageUrl=text(uploaded&&uploaded.url);
+          row.objectKey=text(uploaded&&uploaded.key);
+          row.row.dataset.imageUrl=row.imageUrl;
+          row.row.dataset.objectKey=row.objectKey;
+          if(row.objectKey)created.push(row.objectKey);
+        }
+        built=seriesEntryPayload({
+          requestId,
+          title:$("#volumeSeriesTitle").value,
+          author:$("#volumeSeriesAuthor").value,
+          category:$("#volumeSeriesCategory").value,
+          source:$("#volumeSeriesSource").value,
+          description:$("#volumeSeriesDescription").value,
+          completeSetPrice:$("#volumeSeriesSetPrice").value,
+          allowPreviewUrls:root.__kutadguSkipAdminAuth===true,
+          parts:rows.map(row=>({title:row.title,price:row.price,stock:row.stock,isbn:row.isbn,imageUrl:row.imageUrl,main:row.main}))
+        });
+        if(!built.ok){
+          await discardSeriesKeys(created);
+          clearSeriesUploads(rows);
+          seriesStatus(built.message,"error");
+          return;
+        }
+        seriesState.pending={
+          requestId:built.requestId,
+          payload:built.payload,
+          objectKeys:rows.map(row=>text(row.objectKey)).filter(Boolean)
+        };
       }
       seriesStatus("ساقلىنىۋاتىدۇ…","");
       const saved=await rpc("admin_create_book_volume_series",{p_request_id:built.requestId,p_payload:built.payload});
       const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
       if(saved&&saved.replayed===true)await discardSeriesKeys(created.filter(key=>!kept.has(rows.find(row=>row.objectKey===key)?.imageUrl||"")));
-      fillEditor(saved);
-      showLinkForm();
+      finishSavedSeries(saved);
       await load(true);
-      $("#volumeSeriesRequestId").value="";
-      seriesState.requestId="";
-      seriesStatus(saved&&saved.replayed?"بۇ يۈرۈشلۈك ئاللىقاچان ساقلانغان. قايتا قوشۇلمىدى.":"يۈرۈشلۈك ساقلاندى. خېرىدارلارغا تېخى چىقمىدى.","ok");
     }catch(error){
-      await discardSeriesKeys(created);
-      clearSeriesUploads(rows);
+      if(seriesSaveMayStillCommit(error)){
+        seriesStatus("جاۋاب يېتىپ كەلمىدى. قايتا ساقلىسىڭىز، ئوخشاش يۈرۈشلۈك ئەسلىگە كېلىدۇ. مۇقاۋا ئۆچۈرۈلمەيدۇ.","error");
+        return;
+      }
       const message=`${error&&error.message||error||""}`;
-      seriesStatus(/idempotency_payload_mismatch/.test(message)
-        ?"بۇ ساقلاش ئاللىقاچان تاماملانغان. ئۆزگەرتىش ئۈچۈن يېڭى يۈرۈشلۈك باشلاڭ."
-        :(/AAL2|42501/.test(message)?"2-باسقۇچلۇق دەلىللەش كېرەك.":message),"error");
+      if(/idempotency_payload_mismatch/.test(message)){
+        try{
+          const saved=await rpc("admin_get_book_volume_series_request",{p_request_id:requestId});
+          const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
+          await discardSeriesKeys(seriesCoverKeys(rows).filter(key=>{
+            const row=rows.find(item=>item.objectKey===key);
+            return !kept.has(text(row&&row.imageUrl));
+          }));
+          finishSavedSeries(saved);
+          await load(true);
+          return;
+        }catch(recoverError){
+          if(seriesSaveMayStillCommit(recoverError)){
+            seriesStatus("جاۋاب يېتىپ كەلمىدى. قايتا ساقلىسىڭىز، ئوخشاش يۈرۈشلۈك ئەسلىگە كېلىدۇ. مۇقاۋا ئۆچۈرۈلمەيدۇ.","error");
+            return;
+          }
+        }
+      }
+      seriesState.pending=null;
+      await discardSeriesKeys(seriesCoverKeys(rows));
+      clearSeriesUploads(rows);
+      seriesStatus(/AAL2|42501/.test(message)?"2-باسقۇچلۇق دەلىللەش كېرەك.":message,"error");
     }finally{
       seriesState.saving=false;
     }

@@ -16,7 +16,9 @@ async function main() {
   const db = new PGlite();
   const steps = [
     ["fixture", fs.readFileSync(path.join(root, "scripts/stage127-isolated-fixture.sql"), "utf8")],
+    ["fixture130", fs.readFileSync(path.join(root, "scripts/stage130-isolated-fixture.sql"), "utf8")],
     ["stage127", stripOuterTransaction(fs.readFileSync(path.join(root, "STAGE127_BOOK_VOLUME_GROUPS.sql"), "utf8"))],
+    ["stage130", stripOuterTransaction(fs.readFileSync(path.join(root, "STAGE130_BOOK_VOLUME_STOREFRONT.sql"), "utf8"))],
     ["stage131", fs.readFileSync(path.join(root, "STAGE131_BOOK_VOLUME_SERIES_ENTRY.sql"), "utf8")],
     ["assertions", fs.readFileSync(path.join(root, "scripts/stage131-isolated-assertions.sql"), "utf8")]
   ];

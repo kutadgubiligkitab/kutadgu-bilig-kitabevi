@@ -272,18 +272,20 @@ async function handleR2HeroDelete(request, env, deps) {
 async function seriesCoverReferenced(fetchImpl, token, key) {
   const url = canonicalCoverUrl(key);
   if (!url) return null;
-  const response = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/books?select=id&image_url=eq." + encodeURIComponent(url), {
-    method: "GET",
+  const response = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/rpc/series_draft_cover_is_referenced", {
+    method: "POST",
     headers: {
       apikey: images.SUPABASE_PUBLISHABLE_KEY,
       Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
       Accept: "application/json"
-    }
+    },
+    body: JSON.stringify({ p_image_url: url })
   });
   if (!response || !response.ok) return null;
-  const rows = await readJson(response);
-  if (!Array.isArray(rows)) return null;
-  return rows.length > 0;
+  const body = await readJson(response);
+  if (typeof body !== "boolean") return null;
+  return body;
 }
 
 async function handleR2SeriesCoverDelete(request, env, deps) {
