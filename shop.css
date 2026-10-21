@@ -34,6 +34,10 @@ body > header:not(.account-topbar):not(.admin-topbar){
 .detail-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:26px}
 .detail-price{font-size:23px;font-weight:700;color:var(--site-text,#44352d);margin-left:auto}
 .volume-group-card-badge{display:inline-flex;width:max-content;margin:4px 0;padding:4px 9px;border-radius:999px;background:#efe4d5;color:var(--site-brown-dark,#4b3327);font-size:11px;font-weight:800}
+.volume-series-prices{display:grid;gap:3px;margin:6px 0}
+.volume-series-full,.volume-series-parts{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.volume-series-full small,.volume-series-parts small{color:var(--site-text-soft,#806f62);font-size:11px;font-weight:700}
+.volume-series-full strong{font-size:16px;color:var(--site-brown-dark,#4b3327)}
 .volume-group-starting-price{font-size:.95em}
 .volume-group-purchase-panel{display:grid;gap:16px}
 .volume-group-heading{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:14px}

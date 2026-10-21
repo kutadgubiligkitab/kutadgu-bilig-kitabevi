@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=58">
+  <link rel="stylesheet" href="admin.css?v=59">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -398,8 +398,29 @@
           </div>
         </div>
         <div id="volumeGroupStatus" class="admin-status" role="status">قىسىملىق كىتابلار يۈكلىنىۋاتىدۇ…</div>
+        <div class="volume-entry-switch admin-toolbar-group">
+          <button class="admin-primary" id="showVolumeSeriesBtn" type="button">قىسىملىق كىتاب قوشۇش</button>
+          <button class="admin-secondary" id="showVolumeLinkBtn" type="button">بۇرۇن قوشقان كىتابلارنى باغلاش</button>
+        </div>
         <div class="volume-admin-layout">
           <aside id="volumeGroupList" class="volume-group-list" aria-label="قىسىملىق كىتابلار"></aside>
+          <div class="volume-admin-editor">
+          <form id="volumeSeriesForm" class="admin-form volume-series-form" hidden>
+            <input id="volumeSeriesRequestId" type="hidden">
+            <input id="volumeSeriesSource" type="hidden">
+            <p class="admin-help">يېڭى قىسىملارنى بىر قېتىمدا يېزىڭ. ساقلاش خېرىدارلارغا چىقارمايدۇ؛ تور بەتكە تەييارلاش ئايرىم.</p>
+            <label class="admin-wide"><span>كىتاب نامى</span><input id="volumeSeriesTitle" type="text" maxlength="500" required placeholder="مەسىلەن: ئويغانغان زېمىن"></label>
+            <label><span>ئاپتور</span><input id="volumeSeriesAuthor" type="text" maxlength="500"></label>
+            <label><span>كىتاب تۈرى</span><input id="volumeSeriesCategory" type="text" maxlength="200" placeholder="ھەرپ يېزىپ تىزىمدىن تاللاڭ"></label>
+            <label class="admin-wide"><span>يۈرۈشلۈكنىڭ باھاسى (ئىختىيارىي)</span><input id="volumeSeriesSetPrice" type="number" min="0" step="0.01" dir="ltr" placeholder="بوش قالدۇرسىڭىز، قىسىملارنىڭ باھاسى قوشۇلىدۇ"></label>
+            <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="volumeSeriesDescription" rows="4" maxlength="10000"></textarea></label>
+            <div id="volumeSeriesParts" class="volume-series-parts"></div>
+            <div class="admin-wide volume-admin-publish-row">
+              <button class="admin-secondary" id="volumeSeriesAddPart" type="button">قىسىم قوشۇش</button>
+              <button class="admin-primary" type="submit">يۈرۈشلۈكنى ساقلاش</button>
+            </div>
+            <div id="volumeSeriesStatus" class="admin-status" role="status"></div>
+          </form>
           <form id="volumeGroupForm" class="admin-form volume-group-form">
             <input id="volumeGroupId" type="hidden">
             <input id="volumeGroupRevision" type="hidden">
@@ -433,6 +454,7 @@
               <button class="admin-primary" type="submit">يۈرۈشلۈكنى ساقلاش</button>
             </div>
           </form>
+          </div>
         </div>
       </section>
 
@@ -1210,9 +1232,9 @@
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
-  <script defer src="admin-volume-groups.js?v=2"></script>
+  <script defer src="admin-volume-groups.js?v=3"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=119"></script>
+  <script defer src="admin.js?v=120"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

@@ -285,13 +285,19 @@
       p_child_book_id:null
     },options&&options.fetchImpl));
   }
+  function explicitSetPrice(group){
+    if(!group||group.complete_set_price==null||group.complete_set_price==="")return null;
+    const amount=Number(group.complete_set_price);
+    return Number.isFinite(amount)?amount:null;
+  }
   function groupSetPrice(group){
     if(!group)return null;
-    if(Number.isFinite(group.complete_set_price))return group.complete_set_price;
+    const explicit=explicitSetPrice(group);
+    if(explicit!=null)return explicit;
     let total=0;
     for(const member of group.members||[]){
-      if(!Number.isFinite(member.price))return null;
-      total+=member.price;
+      if(!Number.isFinite(Number(member.price)))return null;
+      total+=Number(member.price);
     }
     return total;
   }
@@ -313,6 +319,6 @@
     featureEnabled,positiveId,qty,normalizeSetLine,normalizeSetLines,splitSetCart,writeSetCart,
     mergeSetLines,cloudRowsToSetLines,addSet,removeSet,changeSetQty,cartInput,cartSignature,invalidateQuote,
     quoteUsable,requestQuote,cachedQuoteFor,normalizeGroup,getPublicGroup,
-    groupSetPrice,memberAvailable,setAvailable,quoteItemsForHistory
+    explicitSetPrice,groupSetPrice,memberAvailable,setAvailable,quoteItemsForHistory
   };
 });

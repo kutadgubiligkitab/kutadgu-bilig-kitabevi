@@ -5,6 +5,7 @@ const images = require("../kutadgu-image-storage.js");
 const MAX_BYTES = 50 * 1024 * 1024;
 const HERO_MAX_BYTES = 5 * 1024 * 1024;
 const HERO_KEY_RE = /^book-covers\/hero\/store-slides\/slot-[123]-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|jpeg|png|webp)$/i;
+const SERIES_DRAFT_KEY_RE = /^book-covers\/series-new\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/part-[1-9][0-9]{0,2}-[A-Za-z0-9._-]+\.(?:webp|jpe?g|png)$/i;
 const IMAGE_TYPES = Object.freeze({
   "image/webp": ".webp",
   "image/jpeg": ".jpg",
@@ -74,6 +75,10 @@ function decodeJwtPayload(token) {
 
 function isHeroObjectKey(raw) {
   return HERO_KEY_RE.test(String(raw || ""));
+}
+
+function isSeriesDraftKey(raw) {
+  return SERIES_DRAFT_KEY_RE.test(String(raw || "").trim());
 }
 
 function objectByteLimit(key) {
@@ -264,6 +269,68 @@ async function handleR2HeroDelete(request, env, deps) {
   return jsonResponse(200, { ok: true, key });
 }
 
+async function seriesCoverReferenced(fetchImpl, token, key) {
+  const url = canonicalCoverUrl(key);
+  if (!url) return null;
+  const response = await fetchImpl(images.SUPABASE_ORIGIN + "/rest/v1/books?select=id&image_url=eq." + encodeURIComponent(url), {
+    method: "GET",
+    headers: {
+      apikey: images.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: "Bearer " + token,
+      Accept: "application/json"
+    }
+  });
+  if (!response || !response.ok) return null;
+  const rows = await readJson(response);
+  if (!Array.isArray(rows)) return null;
+  return rows.length > 0;
+}
+
+async function handleR2SeriesCoverDelete(request, env, deps) {
+  const sourceEnv = env || {};
+  if (!productionUpload(request, sourceEnv)) {
+    return {
+      status: 404,
+      headers: new Headers({
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store"
+      }),
+      body: "not found"
+    };
+  }
+  const method = String(request.method || "GET").toUpperCase();
+  if (method !== "POST") return jsonResponse(405, { ok: false, error: "method_not_allowed" });
+  const token = bearerToken(request);
+  if (!token) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const fetchImpl = (deps && deps.fetchImpl) || fetch;
+  const userResponse = await fetchImpl(images.SUPABASE_ORIGIN + "/auth/v1/user", {
+    method: "GET",
+    headers: {
+      apikey: images.SUPABASE_PUBLISHABLE_KEY,
+      Authorization: "Bearer " + token
+    }
+  });
+  if (!userResponse || !userResponse.ok) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const user = await readJson(userResponse);
+  if (!user || !user.id) return jsonResponse(401, { ok: false, error: "auth_required" });
+  const payload = decodeJwtPayload(token);
+  const aal = String((payload && payload.aal) || "").toLowerCase();
+  if (aal !== "aal2") return jsonResponse(403, { ok: false, error: "aal2_required" });
+  const isAdmin = await rpcFlag(fetchImpl, token, "is_kutadgu_admin");
+  if (!isAdmin) return jsonResponse(403, { ok: false, error: "admin_required" });
+  const key = String(request.headers.get("x-kutadgu-object-key") || "").trim().replace(/^\/+/, "");
+  if (!isSeriesDraftKey(key) || isHeroObjectKey(key)) return jsonResponse(400, { ok: false, error: "invalid_object" });
+  const bucket = sourceEnv.COVERS;
+  if (!bucket || typeof bucket.delete !== "function") {
+    return jsonResponse(503, { ok: false, error: "r2_unbound" });
+  }
+  const referenced = await seriesCoverReferenced(fetchImpl, token, key);
+  if (referenced === null) return jsonResponse(503, { ok: false, error: "reference_check_failed" });
+  if (referenced) return jsonResponse(409, { ok: false, error: "still_referenced" });
+  await bucket.delete(key);
+  return jsonResponse(200, { ok: true, key });
+}
+
 module.exports = {
   MAX_BYTES,
   HERO_MAX_BYTES,
@@ -274,6 +341,8 @@ module.exports = {
   staffOwnedKey,
   safeObjectKey,
   isHeroObjectKey,
+  isSeriesDraftKey,
   handleR2CoverUpload,
-  handleR2HeroDelete
+  handleR2HeroDelete,
+  handleR2SeriesCoverDelete
 };
