@@ -47,9 +47,11 @@ test("static shell does not paint homepage books before remote catalog boot", ()
   const shell = sliceBetween(shop, "function initStaticShell()", "function init()");
   assert.doesNotMatch(shell, /renderHomeFeaturedBooks\(\)/);
   assert.match(shell, /renderHomeSections\(\)/);
-  assert.match(shop, /initStaticShell\(\);\n  if\(isStorefrontHomepage\(\)\)applyHomepageDocumentTitle\(\)/);
+  assert.match(shop, /initStaticShell\(\);\r?\n  if\(isStorefrontHomepage\(\)\)applyHomepageDocumentTitle\(\)/);
   const boot = sliceBetween(shop, "async function boot()", "window.kutadguShop=");
-  assert.match(boot, /initStaticShell\(\);\n  loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
+  assert.match(boot, /initStaticShell\(\);\r?\n  loadMemberSystem\(\);\r?\n  const catalogProbe=loadRemoteCatalog\(\)/);
+  assert.match(boot, /const catalogProbe=loadRemoteCatalog\(\);\r?\n  catalogProbe\.catch\(\(\)=>\{\}\);\r?\n  await hydratePageBook\(\)/);
+  assert.doesNotMatch(boot, /await loadRemoteCatalog\(\)/);
   const init = sliceBetween(shop, "function init()", "let bootStarted=false");
   assert.match(init, /setupHomeCarousel\(\)/);
   assert.match(init, /renderHomeFeaturedBooks\(\)/);

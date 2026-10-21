@@ -239,16 +239,32 @@
       section.querySelectorAll("[data-premium-group]").forEach(button=>button.classList.toggle("is-active",button.dataset.premiumGroup===group.id));
       subcategories.innerHTML=(group.categories||[]).map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
       subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
+      const discoveryKey=group.id+"\n"+(category||"");
+      const previousKey=results.dataset.discoveryKey||"";
+      const previousState=results.dataset.discoveryState||"";
+      const previousHtml=results.innerHTML;
+      const retainDiscovery=previousKey===discoveryKey&&(previousState==="results"||previousState==="empty");
+      results.dataset.discoveryState="loading";
       results.innerHTML=discoveryResultsLoadingMarkup();
       try{
         const names=category?[category]:(group.categories||[]);
         const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE,options);
         if(seq!==discoverySeq)return;
         const shown=(category?list.filter(book=>matchesSelectedCategory(book,category)):list).slice(0,DISCOVERY_PAGE_SIZE);
+        results.dataset.discoveryKey=discoveryKey;
+        results.dataset.discoveryState=shown.length?"results":"empty";
         results.innerHTML=shown.length?`<div class="premium-book-grid">${shown.map(compactCard).join("")}</div>`:discoveryEmptyMarkup();
         bindCards(results);
       }catch(error){
         if(seq!==discoverySeq||isAbortError(error))return;
+        if(retainDiscovery){
+          results.dataset.discoveryKey=discoveryKey;
+          results.dataset.discoveryState=previousState;
+          results.innerHTML=previousHtml;
+          bindCards(results);
+          return;
+        }
+        results.dataset.discoveryState="failed";
         results.innerHTML=discoveryErrorMarkup();
         results.querySelector("[data-discovery-retry]")?.addEventListener("click",()=>showGroup(group.id,category,{forceRecovery:true}));
       }
