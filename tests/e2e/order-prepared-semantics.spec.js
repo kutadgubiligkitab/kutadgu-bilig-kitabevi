@@ -97,12 +97,13 @@ test.describe("order prepared semantics", () => {
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
+      const member = window.KutadguMember;
+      if (member?.ready) await member.ready;
       window.__waProbe = { opened: [], navigated: [], closed: false };
-      window.KutadguMember = {
-        getUser: () => ({ id: "member-test" }),
-        saveOrder: async () => { throw new Error("stale_quote"); }
-      };
+      window.KutadguMember = member || {};
+      window.KutadguMember.getUser = () => ({ id: "member-test" });
+      window.KutadguMember.saveOrder = async () => { throw new Error("stale_quote"); };
       document.querySelector("#checkoutForm").reportValidity = () => true;
       window.open = (url) => {
         window.__waProbe.opened.push(String(url));
@@ -122,9 +123,9 @@ test.describe("order prepared semantics", () => {
       await window.kutadguShop.orderWithWhatsApp();
       return window.__waProbe;
     });
-    expect(probe.closed).toBe(true);
     expect(probe.opened).toEqual(["about:blank"]);
     expect(probe.navigated).toEqual([]);
+    expect(probe.closed).toBe(true);
   });
 
   for (const width of [390, 412, 768, 1280]) {
