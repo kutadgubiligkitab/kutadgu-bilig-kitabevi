@@ -97,14 +97,15 @@ test.describe("order prepared semantics", () => {
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
-    await page.evaluate(async () => {
+    await page.evaluate(async (bookId) => {
       const member = window.KutadguMember;
       if (member?.ready) await member.ready;
       window.__waProbe = { opened: [], navigated: [], closed: false };
       window.KutadguMember = member || {};
-      window.KutadguMember.getUser = () => ({ id: "member-test" });
+      window.KutadguMember.getUser = () => ({ id: "11111111-1111-4111-8111-111111111111" });
       window.KutadguMember.saveOrder = async () => { throw new Error("stale_quote"); };
-      localStorage.setItem("kutadgu-shop-owner-v1", "member-test");
+      localStorage.setItem("kutadgu-shop-owner-v1", "11111111-1111-4111-8111-111111111111");
+      localStorage.setItem("kutadgu-cart-v1", JSON.stringify([{ id: String(bookId), qty: 1 }]));
       document.querySelector("#checkoutForm").reportValidity = () => true;
       window.open = (url) => {
         window.__waProbe.opened.push(String(url));
@@ -118,7 +119,7 @@ test.describe("order prepared semantics", () => {
           close() { window.__waProbe.closed = true; }
         };
       };
-    });
+    }, book.id);
     await fillCheckout(page);
     const probe = await page.evaluate(async () => {
       await window.kutadguShop.orderWithWhatsApp();
