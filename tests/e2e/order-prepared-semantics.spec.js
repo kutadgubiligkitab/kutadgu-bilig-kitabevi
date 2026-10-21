@@ -104,6 +104,7 @@ test.describe("order prepared semantics", () => {
       window.KutadguMember = member || {};
       window.KutadguMember.getUser = () => ({ id: "member-test" });
       window.KutadguMember.saveOrder = async () => { throw new Error("stale_quote"); };
+      localStorage.setItem("kutadgu-shop-owner-v1", "member-test");
       document.querySelector("#checkoutForm").reportValidity = () => true;
       window.open = (url) => {
         window.__waProbe.opened.push(String(url));
