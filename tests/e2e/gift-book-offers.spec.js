@@ -145,6 +145,9 @@ async function installMemberBoundary(page, gates) {
     if (/\/rest\/v1\/(member_cart_items|member_favorites|orders)/.test(url)) {
       return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     }
+    if (/\/rest\/v1\/rpc\/(?:query_public_book_catalog|list_public_book_volume_discovery_unit_ids)(?:\?|$)/.test(url)) {
+      return route.fallback();
+    }
     if (/\/rest\/v1\/rpc\//.test(url)) {
       return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
     }
