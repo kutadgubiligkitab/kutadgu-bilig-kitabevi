@@ -81,4 +81,29 @@ assert.doesNotMatch(sql, /UPDATE public\.book_volume_groups\s+SET[\s\S]{0,80}WHE
 assert.match(sql, /list_public_book_volume_part_prices/);
 assert.match(fs.readFileSync(path.join(root, "app-config.js"), "utf8"), /multiVolumeBooks:true/);
 
+const gallery = require(path.join(root, "gallery-images.js"));
+assert.strictEqual(gallery.MAX_GALLERY_IMAGES, 4);
+assert.strictEqual(groups.seriesInteriorCap(), 4);
+global.KutadguGallery = Object.assign({}, gallery, { MAX_GALLERY_IMAGES: 5 });
+assert.strictEqual(groups.seriesInteriorCap(), 5);
+global.KutadguGallery = Object.assign({}, gallery, { MAX_GALLERY_IMAGES: 8 });
+assert.strictEqual(groups.seriesInteriorCap(), 5);
+global.KutadguGallery = gallery;
+assert.strictEqual(groups.seriesInteriorCap(), 4);
+
+const gallerySql = fs.readFileSync(path.join(root, "GALLERY_IMAGES_MIGRATION.sql"), "utf8");
+assert.match(gallerySql, /jsonb_array_length\(gallery_images\) <= 4/);
+const seriesInsert = sql.slice(sql.indexOf("INSERT INTO public.books"), sql.indexOf("RETURNING id"));
+assert.doesNotMatch(seriesInsert, /gallery_images/);
+
+const failed = groups.seriesUserError({ message: "series_create_failed", code: "P0001" });
+assert.strictEqual(failed.message, "يۈرۈشلۈك ساقلانمىدى. قايتا سىناڭ.");
+assert.ok(!failed.message.includes("series_create_failed"));
+assert.match(failed.diagnostic, /series_create_failed/);
+assert.match(failed.diagnostic, /P0001/);
+assert.strictEqual(groups.seriesUserError({ message: "Admin AAL2 required", code: "42501" }).message, "2-باسقۇچلۇق دەلىللەش كېرەك.");
+
+const priced = entry(2, 750);
+assert.strictEqual(Object.hasOwn(priced.payload.parts[0], "gallery_images"), false);
+
 console.log("multi-volume series entry: PASS");

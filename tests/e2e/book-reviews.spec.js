@@ -1155,10 +1155,10 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   expect(oldCss).toContain(".admin-approval-panel{position:absolute");
   expect(oldCss).not.toContain(".admin-approval-panel[hidden]");
   const currentHtml = fs.readFileSync(path.join(__dirname, "../../admin.html"), "utf8");
-  expect(currentHtml).toContain("admin.css?v=59");
-  const oldDocument = currentHtml.replace("admin.css?v=59", "admin.css?v=49");
+  expect(currentHtml).toContain("admin.css?v=60");
+  const oldDocument = currentHtml.replace("admin.css?v=60", "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
-  expect(oldDocument).not.toContain("admin.css?v=59");
+  expect(oldDocument).not.toContain("admin.css?v=60");
   const hits = { v49: 0, v58: 0 };
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
