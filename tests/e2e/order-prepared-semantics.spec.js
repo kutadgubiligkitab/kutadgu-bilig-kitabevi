@@ -117,9 +117,12 @@ test.describe("order prepared semantics", () => {
         };
       };
     });
-    await page.locator("#whatsappOrder").click();
-    await expect.poll(() => page.evaluate(() => window.__waProbe.closed)).toBe(true);
-    const probe = await page.evaluate(() => window.__waProbe);
+    expect(await page.locator("#checkoutForm").evaluate((form) => form.checkValidity())).toBe(true);
+    const probe = await page.evaluate(async () => {
+      await window.kutadguShop.orderWithWhatsApp();
+      return window.__waProbe;
+    });
+    expect(probe.closed).toBe(true);
     expect(probe.opened).toEqual(["about:blank"]);
     expect(probe.navigated).toEqual([]);
   });

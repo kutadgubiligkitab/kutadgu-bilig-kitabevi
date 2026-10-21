@@ -176,9 +176,9 @@ function mutationApi({
 }
 
 test("storefront pages still load shop.js without statically loading member.js", () => {
-  assert.match(indexHtml, /shop\.js\?v=167/);
+  assert.match(indexHtml, /shop\.js\?v=169/);
   assert.doesNotMatch(indexHtml, /src="member\.js/);
-  assert.match(cartHtml, /shop\.js\?v=167/);
+  assert.match(cartHtml, /shop\.js\?v=169/);
   assert.doesNotMatch(cartHtml, /src="member\.js/);
   assert.match(accountHtml, /member\.js\?v=35/);
   assert.doesNotMatch(accountHtml, /member\.js\?v=25/);
@@ -653,7 +653,7 @@ test("add/toggleFav recover orphaned owners after boot and never silent-fail a g
   assert.match(shop, /localStorage\.removeItem\(CART_KEY\)/);
   assert.match(shop, /localStorage\.removeItem\(FAV_KEY\)/);
   assert.match(shop, /localStorage\.removeItem\(CART_DISPLAY_KEY\)/);
-  assert.match(set, /if\(\(k===CART_KEY\|\|k===FAV_KEY\)&&!shopStateWriteAllowed\(\)\)return false/);
+  assert.match(set, /if\(\(k===CART_KEY\|\|k===SET_CART_KEY\|\|k===FAV_KEY\)&&!shopStateWriteAllowed\(\)\)return false/);
   assert.match(set, /if\(ownerBefore!==SHOP_OWNER_STALE\)window\.KutadguMember\?\.syncKey\?\.\(k,v\)/);
   assert.match(shop, /if\(current===SHOP_OWNER_STALE\)\{\s*writeShopOwner\(SHOP_OWNER_GUEST\);\s*return;/);
   assert.match(shop, /if\(!currentUid\)return false/);

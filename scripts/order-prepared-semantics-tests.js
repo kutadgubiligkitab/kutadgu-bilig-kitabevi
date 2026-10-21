@@ -93,7 +93,18 @@ function makeOrderActions(opts = {}) {
     open(url) {
       ctx.timeline.push({ type: "window.open", t: Date.now(), url: String(url) });
       ctx.openCalls.push(String(url));
-      return { opener: ctx.window, close() {} };
+      const popupLocation = {};
+      Object.defineProperty(popupLocation, "href", {
+        set(value) {
+          ctx.hrefs.push(String(value));
+          ctx.timeline.push({ type: "popup.href", t: Date.now(), url: String(value) });
+        }
+      });
+      return {
+        opener: ctx.window,
+        location: popupLocation,
+        close() { ctx.popupClosed = true; }
+      };
     },
     location: {
       set href(url) { ctx.hrefs.push(String(url)); ctx.timeline.push({ type: "location.href", t: Date.now(), url: String(url) }); },
@@ -163,10 +174,10 @@ async function run() {
     assert.doesNotMatch(getOrBuildFn, /saveOrder/);
   });
 
-  await test("WhatsApp remains the only storefront save path and opens first", () => {
-    assert.match(waFn, /window\.open\(url/);
+  await test("WhatsApp remains the only storefront save path and reserves its popup first", () => {
+    assert.match(waFn, /window\.open\("about:blank"/);
     assert.match(waFn, /savePreparedOrderHistory/);
-    assert.ok(waFn.indexOf("window.open(url") < waFn.indexOf("savePreparedOrderHistory"));
+    assert.ok(waFn.indexOf('window.open("about:blank"') < waFn.indexOf("savePreparedOrderHistory"));
     assert.match(saveFn, /historySaved/);
     assert.match(saveFn, /getUser/);
     assert.match(saveFn, /saveOrder/);
@@ -233,12 +244,14 @@ async function run() {
     const done = ok.api.orderWithWhatsApp();
     await new Promise((r) => setTimeout(r, 5));
     assert.equal(ok.ctx.openCalls.length, 1);
-    assert.match(ok.ctx.openCalls[0], /^https:\/\/wa\.me\/\?text=/);
-    assert.equal(decodeURIComponent(ok.ctx.openCalls[0].split("text=")[1] || ""), ok.ctx.order.text);
+    assert.equal(ok.ctx.openCalls[0], "about:blank");
+    assert.equal(ok.ctx.hrefs.length, 0);
     assert.equal(ok.ctx.saveOrderCalls.length, 0);
     const openAt = ok.ctx.timeline.find((x) => x.type === "window.open").t;
     await done;
     assert.equal(ok.ctx.saveOrderCalls.length, 1);
+    assert.match(ok.ctx.hrefs[0], /^https:\/\/wa\.me\/\?text=/);
+    assert.equal(decodeURIComponent(ok.ctx.hrefs[0].split("text=")[1] || ""), ok.ctx.order.text);
     const saveStart = ok.ctx.timeline.find((x) => x.type === "saveOrder:start").t;
     assert.ok(openAt <= saveStart, "WhatsApp navigation must start before history save");
     await ok.api.orderWithWhatsApp();
@@ -250,6 +263,8 @@ async function run() {
     await fail.api.orderWithWhatsApp();
     assert.equal(fail.ctx.openCalls.length, 1);
     assert.equal(fail.ctx.saveOrderCalls.length, 1);
+    assert.equal(fail.ctx.hrefs.length, 0);
+    assert.equal(fail.ctx.popupClosed, true);
   });
 
   await test("concurrent WhatsApp clicks share one in-flight saveOrder", async () => {
@@ -297,7 +312,8 @@ async function run() {
     const { ctx, api } = makeOrderActions({ signedIn: false });
     await api.orderWithWhatsApp();
     assert.equal(ctx.openCalls.length, 1);
-    assert.match(ctx.openCalls[0], /^https:\/\/wa\.me\/\?text=/);
+    assert.equal(ctx.openCalls[0], "about:blank");
+    assert.match(ctx.hrefs[0], /^https:\/\/wa\.me\/\?text=/);
     assert.equal(ctx.saveOrderCalls.length, 0);
     const result = await api.savePreparedOrderHistory(ctx.order);
     assert.equal(result.saved, false);

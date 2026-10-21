@@ -208,7 +208,7 @@ test("stale or expired WhatsApp quotes are invalidated with a visible retry mess
   assert.match(shop, /volumeGroups\(\)\?\.invalidateQuote\?\.\(\)/);
   assert.match(shop, /WhatsApp تېكىستىنى يېڭىلاپ قايتا يوللاڭ/);
   assert.match(shop, /window\.open\("about:blank","_blank"\)/);
-  assert.match(shop, /if\(!history\?\.saved\)throw new Error/);
+  assert.match(shop, /if\(signedIn&&!history\?\.saved\)throw new Error/);
   assert.match(shop, /popup\.location\.href=url/);
 });
 
