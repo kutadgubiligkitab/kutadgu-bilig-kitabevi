@@ -7,6 +7,100 @@ const shell = fs.readFileSync(path.join(__dirname, "..", "..", "book-shell.html"
 const appConfig = fs.readFileSync(path.join(__dirname, "..", "..", "app-config.js"), "utf8")
   .replace("multiVolumeBooks:false", "multiVolumeBooks:true");
 
+async function openVolumeEditor(page, existing) {
+  await H.installReadSafeNetwork(page);
+  await page.addInitScript(() => {
+    window.__kutadguSkipAdminAuth = true;
+    window.__kutadguSkipSuggestFetch = true;
+    window.__kutadguSuggestionRows = [{id:156,author:"ئابدۇرېھىم ئۆتكۈر"}];
+    window.__kutadguAdminPreviewBooks = [];
+  });
+  await page.goto("/admin.html", {waitUntil:"domcontentloaded"});
+  await expect(page.locator("#dashboardPanel")).toBeVisible();
+  await page.evaluate((saved) => {
+    window.__volumeEditorCalls = [];
+    const rows = [156,157].map((id,index)=>({book_id:id,title:`ئويغانغان زېمىن ${index+1}. قىسىم`,author:"ئابدۇرېھىم ئۆتكۈر",price:index?399:370,stock:20,is_active:true}));
+    window.KutadguAdminVolumeGroups.init({db:{rpc:async(name,args)=>{
+      window.__volumeEditorCalls.push({name,args});
+      if(name==="admin_preview_book_volume_members")return {data:rows.filter(b=>String(b.book_id)===String(args.p_book_id))};
+      if(name==="admin_get_book_volume_group")return {data:saved};
+      if(name==="admin_save_book_volume_group")return {data:{...args.p_group,id:args.p_group_id||77,revision:5,members:rows.map((b,i)=>({...b,position:i+1,volume_label:`${i+1}-قىسىم`}))}};
+      return {data:[]};
+    }}});
+  }, existing||null);
+  await page.locator('button[data-admin-section="volume-groups"]').click();
+  await page.locator("#newVolumeGroupBtn").click();
+}
+
+async function addEditorVolume(page,id) {
+  await page.locator("#volumeGroupBookLookup").fill(String(id));
+  await page.locator("#volumeGroupLookupBtn").click();
+  await page.locator(`[data-lookup-add="${id}"]`).click();
+}
+
+test.describe("plain-language multi-volume admin editor",()=>{
+  test("author and category use existing suggestions; refreshed author data appears",async({page})=>{
+    await openVolumeEditor(page);
+    await expect(page.locator("#volumeGroupSlug")).toBeHidden();
+    await expect(page.locator("#volumeGroupSource")).toBeHidden();
+    const author=page.locator("#volumeGroupAuthor");
+    await author.fill("ئابدۇر");
+    const options=page.locator("#volumeGroupAuthor").locator("..").getByRole("option");
+    await expect(options).toHaveText(["ئابدۇرېھىم ئۆتكۈر"]);
+    await author.press("Enter");
+    await expect(author).toHaveValue("ئابدۇرېھىم ئۆتكۈر");
+    await page.evaluate(()=>window.__kutadguSuggestionRows.push({id:9,author:"يېڭى ئاپتور"}));
+    await author.fill("يېڭى");
+    await expect(options).toHaveText(["يېڭى ئاپتور"]);
+    await options.click();
+    const category=page.locator("#volumeGroupCategory");
+    await category.fill("تارىخىي");
+    await category.locator("..").getByRole("option",{name:"تارىخىي رومانلار",exact:true}).click();
+    await expect(category).toHaveValue("تارىخىي رومانلار");
+    await expect(page.locator("#volumeGroupSource")).toHaveValue("tarikhiy-romanlar.html");
+    await expect(page.locator("#volumeGroupsCard")).not.toContainText("slug");
+  });
+
+  test("new series saves summed-price intent and an automatic link without publishing",async({page})=>{
+    await openVolumeEditor(page);
+    await page.locator("#volumeGroupTitle").fill("ئويغانغان زېمىن");
+    await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    await addEditorVolume(page,156);
+    await expect(page.locator("#volumeGroupAuthor")).toHaveValue("ئابدۇرېھىم ئۆتكۈر");
+    await addEditorVolume(page,157);
+    await page.locator('#volumeGroupForm button[type="submit"]').click();
+    await expect(page.locator("#volumeGroupStatus")).toContainText("ساقلاندى");
+    const calls=await page.evaluate(()=>window.__volumeEditorCalls);
+    const saves=calls.filter(c=>c.name==="admin_save_book_volume_group");
+    expect(saves).toHaveLength(1);
+    expect(saves[0].args).toMatchObject({p_group_id:null,p_expected_revision:null,p_group:{slug:"series-156",category:"تارىخىي رومانلار",source:"tarikhiy-romanlar.html",complete_set_price:null},p_members:[{book_id:"156",position:1},{book_id:"157",position:2}]});
+    expect(calls.some(c=>c.name==="admin_set_book_volume_group_publication")).toBe(false);
+  });
+
+  test("editing keeps the saved link, legacy routing, explicit price and revision",async({page})=>{
+    await openVolumeEditor(page,{id:88,revision:4,slug:"existing-series",title:"بۇرۇنقى نام",category:"بۇرۇنقى تۈر",source:"existing-category.html",complete_set_price:700,is_active:true,members:[{book_id:156,position:1},{book_id:157,position:2}]});
+    await page.evaluate(()=>window.KutadguAdminVolumeGroups.openGroup("88"));
+    await page.locator("#volumeGroupTitle").fill("يېڭى نام");
+    await page.locator('#volumeGroupForm button[type="submit"]').click();
+    await expect(page.locator("#volumeGroupStatus")).toContainText("ساقلاندى");
+    const args=await page.evaluate(()=>window.__volumeEditorCalls.find(c=>c.name==="admin_save_book_volume_group").args);
+    expect(args).toMatchObject({p_group_id:"88",p_expected_revision:4,p_group:{slug:"existing-series",category:"بۇرۇنقى تۈر",source:"existing-category.html",complete_set_price:700}});
+  });
+
+  test("unknown edited category blocks a save and mobile controls fit",async({page})=>{
+    await openVolumeEditor(page);
+    await page.setViewportSize({width:390,height:844});
+    await page.locator("#volumeGroupTitle").fill("ئويغانغان زېمىن");
+    await addEditorVolume(page,156);
+    await addEditorVolume(page,157);
+    await page.locator("#volumeGroupCategory").fill("تىزىمدە يوق");
+    await page.locator('#volumeGroupForm button[type="submit"]').click();
+    expect(await page.evaluate(()=>document.querySelector("#volumeGroupCategory").validity.valid)).toBe(false);
+    expect(await page.evaluate(()=>window.__volumeEditorCalls.filter(c=>c.name==="admin_save_book_volume_group").length)).toBe(0);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+  });
+});
+
 const members = [
   {
     book_id: "1001", position: 1, volume_label: "1-جىلد", title: "بىرىنچى جىلد",
