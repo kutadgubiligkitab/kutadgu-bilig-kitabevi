@@ -102,6 +102,13 @@ button{cursor:pointer}
 .volume-admin-publish-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;padding-top:10px;border-top:1px solid #e8dccb}
 .volume-admin-publish-row>span{margin-inline-end:auto}
 .admin-empty{padding:20px;border:1px dashed #dccdb9;border-radius:10px;color:#806f62;text-align:center}
+.volume-entry-switch{margin:0 0 14px}
+#volumeSeriesForm[hidden],#volumeGroupForm[hidden]{display:none !important}
+.volume-series-parts{display:grid;gap:10px}
+.volume-series-part{display:grid;gap:8px;padding:12px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
+.volume-series-part label{display:grid;gap:4px;min-width:0}
+.volume-series-part input,.volume-series-part input[type=file]{width:100%;max-width:100%;min-width:0}
+.volume-series-part-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 @media(max-width:1000px){.volume-admin-layout{grid-template-columns:1fr}.volume-group-list{max-height:260px}.volume-admin-member{grid-template-columns:auto 54px minmax(0,1fr)}.volume-admin-representative,.volume-admin-member>.admin-danger{grid-column:3}.volume-admin-member img{width:54px;height:78px}}
 .admin-card h1,.admin-card h2,.admin-card h3{margin-top:0}
 .admin-status{padding:12px 14px;border-radius:10px;background:#fbf8f2;border:1px solid #e8dccb;margin-bottom:16px}

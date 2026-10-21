@@ -117,6 +117,9 @@
     const stock=value.stock==null||value.stock===""?null:Number(value.stock);
     const memberIds=(Array.isArray(value.member_book_ids)?value.member_book_ids:[])
       .map(positiveId).filter(Boolean);
+    const memberPrices=(Array.isArray(value.member_prices)?value.member_prices:(Array.isArray(value.members)?value.members.map(member=>member&&member.price):[]))
+      .map(amount=>amount==null||amount===""?null:Number(amount))
+      .filter(amount=>Number.isFinite(amount));
     const path=kind==="group"
       ?groupPath({slug:value.group_slug||value.slug,group_id:groupId})
       :`/book/${id}`;
@@ -129,6 +132,7 @@
       unit_key:String(value.unit_key||value.unit_id||(kind==="group"?`group:${groupId}`:`book:${id}`)),
       representative_book_id:positiveId(value.representative_book_id)||id,
       member_book_ids:memberIds,
+      member_prices:memberPrices,
       member_count:Number(value.member_count)||memberIds.length,
       title:String(value.title||""),
       author:String(value.author||""),
@@ -178,6 +182,27 @@
     const result=await rpc("query_public_book_catalog",{p_query:query},options);
     const rows=Array.isArray(result)?result:Array.isArray(result&&result.items)?result.items:[];
     const items=rows.map(normalizeCatalogItem).filter(Boolean);
+    const missing=items.filter(item=>item.kind==="group"&&(!item.member_prices||!item.member_prices.length)).map(item=>Number(item.group_id)).filter(Number.isFinite);
+    if(missing.length){
+      try{
+        const extra=await rpc("list_public_book_volume_part_prices",{p_group_ids:missing},options);
+        const priceRows=Array.isArray(extra)?extra:(Array.isArray(extra&&extra.items)?extra.items:[]);
+        const byId=new Map(priceRows.map(row=>[String(row&&row.group_id),row]));
+        items.forEach(item=>{
+          if(item.kind!=="group"||item.member_prices&&item.member_prices.length)return;
+          const row=byId.get(String(item.group_id));
+          if(!row)return;
+          const prices=(Array.isArray(row.prices)?row.prices:[]).map(Number).filter(Number.isFinite);
+          if(prices.length)item.member_prices=prices;
+          if(item.complete_set_price==null&&row.effective_set_price!=null&&row.effective_set_price!==""){
+            const effective=Number(row.effective_set_price);
+            if(Number.isFinite(effective))item.effective_set_price=effective;
+          }
+        });
+      }catch(error){
+        if(options&&options.signal&&options.signal.aborted)throw error;
+      }
+    }
     const total=Number(result&&result.total);
     return {
       items,

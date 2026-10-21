@@ -129,6 +129,7 @@ test("public group SSR validates slug and emits BookSeries",()=>{
 
 test("admin workflow preserves IDs and uses revisioned RPCs",()=>{
   const source=fs.readFileSync(path.join(root,"admin-volume-groups.js"),"utf8");
+  assert.match(source,/admin_create_book_volume_series/);
   assert.match(source,/admin_save_book_volume_group/);
   assert.match(source,/p_expected_revision/);
   assert.match(source,/admin_set_book_volume_group_publication/);
@@ -150,6 +151,22 @@ test("storefront is dark by default and grouping is server paginated",()=>{
   assert.match(shop,/volumeGroupSlugFromLocation/);
   assert.match(shop,/renderVolumeGroupPurchasePanel/);
   assert.ok(vercel.rewrites.some(rule=>rule.source==="/volume-group/:slug"));
+});
+
+test("explicit series price is never replaced by the part sum",()=>{
+  const item=storefront.normalizeCatalogItem({
+    kind:"group",id:156,group_id:1,group_slug:"series-156",title:"ئويغانغان زېمىن",
+    price:370,complete_set_price:750,effective_set_price:750,member_prices:[370,399],member_book_ids:[156,157]
+  });
+  assert.strictEqual(item.complete_set_price,750);
+  assert.strictEqual(item.effective_set_price,750);
+  assert.deepStrictEqual(item.member_prices,[370,399]);
+  const blank=storefront.normalizeCatalogItem({
+    kind:"group",id:156,group_id:2,group_slug:"series-sum",title:"يىغىندا",
+    price:370,complete_set_price:null,effective_set_price:769,member_prices:[370,399],member_book_ids:[156,157]
+  });
+  assert.strictEqual(blank.complete_set_price,null);
+  assert.strictEqual(blank.effective_set_price,769);
 });
 
 test("public server exposure requires an explicit release flag",()=>{

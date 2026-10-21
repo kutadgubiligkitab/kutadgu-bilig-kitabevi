@@ -17,6 +17,12 @@ Apply manually, in order, after taking a database backup:
 2. `STAGE128_BOOK_VOLUME_COMMERCE.sql`
 3. `STAGE129_SHARED_CART_TYPED_LINES.sql`
 4. `STAGE130_BOOK_VOLUME_STOREFRONT.sql`
+5. `STAGE131_BOOK_VOLUME_SERIES_ENTRY.sql` after this review. It adds the
+   atomic new-series save and the public part-price list. It does not rewrite
+   Stages 127–130 and does not update an existing series. Do not apply it
+   until the draft is accepted. The production group `series-156` already has
+   explicit `complete_set_price` 750; leave that row, its members, covers,
+   stock, and URLs unchanged.
 
 Run each isolated PostgreSQL script before touching the target database. Verify
 the target schema against the migration prerequisites; do not substitute the
@@ -27,9 +33,14 @@ After SQL is applied:
 1. Deploy the application with both public exposure controls still off.
 2. Use the admin+AAL2 volume-group editor to link existing book IDs in explicit
    order. Confirm the previewed ID, ISBN, cover, price, stock, and URL before
-   each link.
+   each link. New parts that do not exist yet use «قىسىملىق كىتاب قوشۇش».
+   That save creates the books and the private series together. A repeated
+   request returns the same series. A failure leaves no public series and no
+   extra books. Covers use the existing authorized upload path; cleanup deletes
+   only unreferenced `book-covers/series-new/` objects from that failed attempt.
 3. Save the group privately. Confirm the representative volume and set price.
-   A null set price means the current sum of all member prices.
+   A null set price means the current sum of all member prices. An explicit
+   price, including the saved 750 for `series-156`, stays the series price.
 4. Use the separate revision-checked publish action. Publishing fails if any
    required member is inactive, unapproved, unpriced, duplicated, or missing.
 5. Exercise quotes, mixed volume/set orders, confirmation, cancellation, order

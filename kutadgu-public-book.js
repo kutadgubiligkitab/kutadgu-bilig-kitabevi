@@ -399,7 +399,7 @@ function missingBookHtml() {
   <meta name="robots" content="noindex, follow">
   <title>كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">
-  <link rel="stylesheet" href="/shop.css?v=57">
+  <link rel="stylesheet" href="/shop.css?v=58">
 </head>
 <body class="detail-page-body">
   <main class="book-detail-page" style="padding:48px 0">
@@ -422,7 +422,7 @@ function lookupFailureHtml() {
   <meta name="robots" content="noindex, follow">
   <title>ۋاقىتلىق خاتالىق - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">
-  <link rel="stylesheet" href="/shop.css?v=57">
+  <link rel="stylesheet" href="/shop.css?v=58">
 </head>
 <body class="detail-page-body">
   <main class="book-detail-page" style="padding:48px 0">

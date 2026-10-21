@@ -67,6 +67,7 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     representativeBookId:String(value("representativeBookId","representative_book_id",id)||id),
     memberBookIds:(Array.isArray(value("memberBookIds","member_book_ids",[]))?value("memberBookIds","member_book_ids",[]):[]).map(String),
     memberCount:Number(value("memberCount","member_count",0))||0,
+    memberPrices:(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[])).map(Number).filter(Number.isFinite),
     completeSetPrice:setPriceRaw===null||setPriceRaw===undefined||setPriceRaw===""?null:Number(setPriceRaw),
     effectiveSetPrice:effectiveSetPriceRaw===null||effectiveSetPriceRaw===undefined||effectiveSetPriceRaw===""?null:Number(effectiveSetPriceRaw),
     title:book.title||"",
@@ -2045,6 +2046,33 @@ function migratePersistedBookIds(){
 }
 
 function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}
+function finiteSeriesAmount(value){
+  if(value==null||value==="")return null;
+  const amount=Number(value);
+  return Number.isFinite(amount)?amount:null;
+}
+function seriesPriceLines(book){
+  const explicit=finiteSeriesAmount(book&&(book.completeSetPrice!=null?book.completeSetPrice:book.complete_set_price));
+  const effective=finiteSeriesAmount(book&&(book.effectiveSetPrice!=null?book.effectiveSetPrice:book.effective_set_price));
+  const rawParts=book&&(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]));
+  const parts=(rawParts||[]).map(finiteSeriesAmount).filter(amount=>amount!=null);
+  let full=null;
+  if(explicit!=null)full=explicit;
+  else if(effective!=null)full=effective;
+  else if(parts.length)full=parts.reduce((sum,amount)=>sum+amount,0);
+  return {explicit:explicit!=null,full,parts};
+}
+function seriesPriceMarkup(book){
+  const lines=seriesPriceLines(book);
+  const full=lines.full==null?"باھا تېخى بېكىتىلمىگەن":money(lines.full);
+  const partText=lines.parts.length
+    ?lines.parts.map(money).join(" · ")
+    :(finiteSeriesAmount(book&&book.price)!=null?`${money(book.price)} دىن`:"");
+  return `<span class="volume-series-prices"><span class="volume-series-full"><small>${lines.explicit?"بېكىتىلگەن يۈرۈشلۈك باھاسى":"تولۇق يۈرۈشلۈك"}</small><strong>${escapeHtml(full)}</strong></span>${partText?`<span class="volume-series-parts"><small>قىسىم باھاسى</small><span>${escapeHtml(partText)}</span></span>`:""}</span>`;
+}
+function seriesPartCount(book){
+  return book.memberCount||(book.memberBookIds||book.memberPrices||[]).length||"";
+}
 function isStockEnforcementEnabled(){
   const helper=window.KutadguStock;
   if(helper&&typeof helper.isStockEnforcementEnabled==="function")return helper.isStockEnforcementEnabled();
@@ -2175,14 +2203,14 @@ function addCompleteSet(groupId,qty=1,quoteRevision=""){
   recoverOrphanedOwnerForGuestWrite();
   const group=volumeGroupCache.get(String(groupId));
   if(group&&!api.setAvailable(group,qty)){
-    toast("تولۇق توپلامنىڭ بەزى جىلدلىرى ھازىر تەمىنلەنمەيدۇ");
+    toast("تولۇق يۈرۈشلۈكنىڭ بەزى قىسىملىرى ھازىر تەمىنلەنمەيدۇ");
     return false;
   }
   const merged=api.mergeSetLines(setCartState().lines,[{kind:"set",group_id:groupId,qty,quote_revision:quoteRevision}]);
   if(!persistSetCart(merged.lines))return false;
   updateBadge();
   if(document.querySelector("#cartItems"))cartPage();
-  toast("تولۇق توپلام سېۋەتكە قوشۇلدى 🛒");
+  toast("تولۇق يۈرۈشلۈك سېۋەتكە قوشۇلدى 🛒");
   return true;
 }
 function removeCompleteSet(groupId){
@@ -2200,7 +2228,7 @@ function changeCompleteSetQty(groupId,delta){
   const group=volumeGroupCache.get(id);
   const next=Math.max(1,Math.min(api.MAX_SET_QTY,line.qty+Number(delta||0)));
   if(group&&!api.setAvailable(group,next)&&delta>0){
-    toast("تولۇق توپلامغا يېتەرلىك ئامبار يوق");
+    toast("تولۇق يۈرۈشلۈككە يېتەرلىك ئامبار يوق");
     return;
   }
   line.qty=next;
@@ -2698,7 +2726,7 @@ function updateBookSeo(book){
   const payload=groupPage
     ?{"@context":"https://schema.org","@type":"BookSeries",name:book.title,url:canonical,description:description||undefined,
       numberOfBooks:activeVolumeGroup.members.length,
-      hasPart:activeVolumeGroup.members.map(member=>({"@type":"Book",name:member.title||member.volume_label||`${member.position}-جىلد`,url:`${origin}/book/${member.book_id}`}))}
+      hasPart:activeVolumeGroup.members.map(member=>({"@type":"Book",name:member.title||member.volume_label||`${member.position}-قىسىم`,url:`${origin}/book/${member.book_id}`}))}
     :(Seo.buildBookJsonLd
       ?Seo.buildBookJsonLd(book,{origin,canonical,authorName,image,visible:isStorefrontVisible(book),stockKey:stockInfo(book).key})
       :{"@context":"https://schema.org","@graph":[{"@type":"Book",name:book.title,url:canonical}]});
@@ -3174,25 +3202,21 @@ function volumeMemberAvailable(member){
 function volumeGroupSetPrice(group){
   const api=volumeGroups();
   if(api&&api.groupSetPrice)return api.groupSetPrice(group);
-  if(Number.isFinite(Number(group&&group.complete_set_price)))return Number(group.complete_set_price);
+  const explicit=finiteSeriesAmount(group&&group.complete_set_price);
+  if(explicit!=null)return explicit;
   const prices=(group&&group.members||[]).map(member=>Number(member.price));
-  return prices.every(Number.isFinite)?prices.reduce((sum,value)=>sum+value,0):null;
+  return prices.length&&prices.every(Number.isFinite)?prices.reduce((sum,value)=>sum+value,0):null;
 }
-function volumePriceRange(group){
-  const prices=(group&&group.members||[])
-    .filter(volumeMemberAvailable)
-    .map(member=>Number(member.price))
-    .filter(Number.isFinite);
-  if(!prices.length)return "سېتىۋالغىلى بولىدىغان جىلد يوق";
-  const low=Math.min(...prices),high=Math.max(...prices);
-  return low===high?money(low):`${money(low)} – ${money(high)}`;
+function volumePartPriceText(group){
+  const prices=(group&&group.members||[]).map(member=>finiteSeriesAmount(member.price)).filter(amount=>amount!=null);
+  return prices.length?prices.map(money).join(" · "):"";
 }
 function updateVolumeSelectionPreview(group,member,panel){
   const book=volumeMemberBook(member);
   activeVolumeBookId=String(member.book_id);
   const summary=panel.querySelector("[data-volume-selection-summary]");
   if(summary){
-    summary.innerHTML=`<strong>${escapeHtml(member.volume_label||`${member.position}-جىلد`)}</strong>
+    summary.innerHTML=`<strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
       <span>${escapeHtml(member.title||book.title||"")}</span>
       <span>${money(member.price)}</span>
       ${stockBadge(book)}`;
@@ -3206,22 +3230,23 @@ function renderVolumeGroupPurchasePanel(box,book,group){
   const setPrice=volumeGroupSetPrice(group);
   const setAvailable=(group.members||[]).every(volumeMemberAvailable);
   const selectedId=String(activeVolumeBookId||book.id);
-  const explicit=group.complete_set_price!=null;
+  const explicit=finiteSeriesAmount(group.complete_set_price)!=null;
+  const partPrices=volumePartPriceText(group);
   const groupUrl=volumeStorefront()?.groupPath(group)||"";
   panel.innerHTML=`
     <div class="volume-group-heading">
       <div>
-        <span class="detail-price-label">جىلد باھاسى</span>
-        <div class="detail-price volume-group-price-range">${escapeHtml(volumePriceRange(group))}</div>
+        <span class="detail-price-label">قىسىم باھاسى</span>
+        <div class="detail-price volume-group-price-range">${escapeHtml(partPrices||"سېتىۋالغىلى بولىدىغان قىسىم يوق")}</div>
       </div>
       <div class="volume-set-price">
-        <span>${explicit?"بېكىتىلگەن تولۇق توپلام باھاسى":"تولۇق توپلام باھاسى (جىلد باھالىرى يىغىندىسى)"}</span>
+        <span>${explicit?"بېكىتىلگەن يۈرۈشلۈك باھاسى":"تولۇق يۈرۈشلۈك (قىسىم باھالىرىنىڭ يىغىندىسى)"}</span>
         <strong>${setPrice==null?"باھا بېكىتىلمىگەن":money(setPrice)}</strong>
       </div>
     </div>
-    ${groupUrl&&!volumeGroupSlugFromLocation()?`<a class="volume-group-stable-link" href="${escapeAttr(groupUrl)}">توپلامنىڭ مۇقىم بېتىنى ئېچىش</a>`:""}
+    ${groupUrl&&!volumeGroupSlugFromLocation()?`<a class="volume-group-stable-link" href="${escapeAttr(groupUrl)}">يۈرۈشلۈكنىڭ مۇقىم بېتىنى ئېچىش</a>`:""}
     <fieldset class="volume-member-picker">
-      <legend>بىر ياكى بىر نەچچە جىلد تاللاڭ</legend>
+      <legend>بىر ياكى بىر نەچچە قىسىم تاللاڭ</legend>
       ${(group.members||[]).map(member=>{
         const memberBook=volumeMemberBook(member);
         const available=volumeMemberAvailable(member);
@@ -3230,7 +3255,7 @@ function renderVolumeGroupPurchasePanel(box,book,group){
           <input type="checkbox" data-volume-book-id="${escapeAttr(member.book_id)}"${checked?" checked":""}${available?"":" disabled"}>
           <img src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}" alt="" loading="lazy" width="48" height="68">
           <span class="volume-member-copy">
-            <strong>${escapeHtml(member.volume_label||`${member.position}-جىلد`)}</strong>
+            <strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
             <small>${escapeHtml(member.title||memberBook.title||"")}</small>
           </span>
           <span class="volume-member-price">${money(member.price)}</span>
@@ -3240,10 +3265,10 @@ function renderVolumeGroupPurchasePanel(box,book,group){
     </fieldset>
     <div class="volume-selection-summary" data-volume-selection-summary></div>
     <div class="volume-group-actions">
-      <button type="button" class="add-to-cart detail-cart volume-add-selected">تاللانغان جىلدلارنى سېۋەتكە قوشۇش</button>
-      <button type="button" class="add-to-cart detail-cart volume-add-set"${setAvailable&&setPrice!=null?"":" disabled aria-disabled=\"true\""}>تولۇق توپلامنى سېۋەتكە قوشۇش</button>
+      <button type="button" class="add-to-cart detail-cart volume-add-selected">تاللانغان قىسىملارنى سېۋەتكە قوشۇش</button>
+      <button type="button" class="add-to-cart detail-cart volume-add-set"${setAvailable&&setPrice!=null?"":" disabled aria-disabled=\"true\""}>تولۇق يۈرۈشلۈكنى سېۋەتكە قوشۇش</button>
     </div>
-    ${setAvailable?"":'<p class="cart-stock-block-note">كەم بولغان جىلد بار بولغاچقا تولۇق توپلامنى سېتىۋالغىلى بولمايدۇ. بار جىلدلارنى ئايرىم تاللىغىلى بولىدۇ.</p>'}
+    ${setAvailable?"":'<p class="cart-stock-block-note">كەم بولغان قىسىم بار بولغاچقا تولۇق يۈرۈشلۈكنى سېتىۋالغىلى بولمايدۇ. بار قىسىملارنى ئايرىم تاللىغىلى بولىدۇ.</p>'}
     <div class="detail-secondary-actions">
       <button type="button" class="favorite-button" data-fav-id="${escapeAttr(book.id)}">♡ ياقتۇرۇش</button>
       <button type="button" class="share-button" data-share-id="${escapeAttr(book.id)}">🔗 ھەمبەھىرلەش</button>
@@ -3260,7 +3285,7 @@ function renderVolumeGroupPurchasePanel(box,book,group){
   });
   panel.querySelector(".volume-add-selected").onclick=()=>{
     const ids=[...panel.querySelectorAll("[data-volume-book-id]:checked")].map(input=>input.dataset.volumeBookId);
-    if(!ids.length){toast("ئاز دېگەندە بىر جىلد تاللاڭ");return}
+    if(!ids.length){toast("ئاز دېگەندە بىر قىسىم تاللاڭ");return}
     ids.forEach(id=>add(id,1));
   };
   const setButton=panel.querySelector(".volume-add-set");
@@ -3422,7 +3447,7 @@ function miniCard(b){
   const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author);
   const state=stockStateClass(b);
   const isGroup=b.catalogKind==="group"&&b.groupId;
-  return `<article class="shop-mini-card${state?" "+state:""}">${isGroup?"":`<button type="button" class="mini-heart" data-fav-id="${id}">♡</button>`}<a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div>${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:`<div class="mini-card-status">${stockBadge(b)}</div>`}<div class="shop-mini-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</div></a><div class="mini-actions">${isGroup?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`:`${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button>`}</div></article>`;
+  return `<article class="shop-mini-card${state?" "+state:""}">${isGroup?"":`<button type="button" class="mini-heart" data-fav-id="${id}">♡</button>`}<a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div>${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:`<div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div>`}</a><div class="mini-actions">${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button>`}</div></article>`;
 }
 
 function favoriteCard(b){
@@ -3501,10 +3526,10 @@ function homeFeatureCard(b){
         <div class="home-feature-info">
           <div class="home-feature-title">${title}</div>
           <div class="home-feature-author">${author}</div>
-          ${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:""}
+          ${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:""}
           <div class="home-feature-bottom">
-            <span class="home-feature-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</span>
-            ${isGroup?`<span class="detail-button">جىلدلارنى تاللاش</span>`:`${stockBadge(b)}
+            ${isGroup?"":`<span class="home-feature-price">${money(b.price)}</span>`}
+            ${isGroup?`<span class="detail-button">قىسىملارنى كۆرۈش</span>`:`${stockBadge(b)}
             ${cartButton(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart")}`}
           </div>
         </div>
@@ -3646,10 +3671,10 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
   const isGroup=b.catalogKind==="group"&&b.groupId;
   const state=isGroup?"":stockStateClass(b);
   const cover=wrapCoverHtml(b,coverImgHtml(b,coverOpts));
-  const priceLabel=isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:`${money(b.price)}`;
-  const groupBadge=isGroup?`<span class="volume-group-card-badge">${escapeHtml(b.memberCount||(b.memberBookIds||[]).length||"")} جىلدلىق توپلام</span>`:"";
+  const priceLabel=isGroup?seriesPriceMarkup(b):`${money(b.price)}`;
+  const groupBadge=isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>`:"";
   const cardActions=isGroup
-    ?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`
+    ?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`
     :`<a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b)}
         <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
@@ -3664,7 +3689,7 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
       <div class="advanced-search-price${isGroup?" volume-group-starting-price":""}">${priceLabel}</div>
       ${isGroup?"":stockBadge(b)}
       <div class="advanced-search-actions">
-        ${isGroup?`<a class="detail-button" href="${href}">جىلدلارنى تاللاش</a>`:`<a class="detail-button" href="${href}">تەپسىلات</a>
+        ${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`<a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
         <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
         <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>`}
@@ -4474,10 +4499,10 @@ function cartPage(){
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(group?.title||`توپلام #${x.group_id}`)}</div>
-        <div class="cart-meta">تولۇق توپلام · ${group?.members?.length||"—"} جىلد</div>
-        <div class="cart-stock">${available?"":`<span class="stock-badge stock-out">${group?"بەزى جىلدلار تەمىنلەنمەيدۇ":"توپلام ئۇچۇرى يۈكلەنمىدى"}</span>`}</div>
+        <div class="cart-meta">تولۇق يۈرۈشلۈك · ${group?.members?.length||"—"} قىسىم</div>
+        <div class="cart-stock">${available?"":`<span class="stock-badge stock-out">${group?"بەزى قىسىملار تەمىنلەنمەيدۇ":"يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى"}</span>`}</div>
         <div class="cart-item-toolbar">
-          <div class="cart-unit-price">توپلام باھاسى: ${Number.isFinite(setPrice)?money(setPrice):"—"}</div>
+          <div class="cart-unit-price">يۈرۈشلۈك باھاسى: ${Number.isFinite(setPrice)?money(setPrice):"—"}</div>
           <div class="qty-control">
             <button type="button" aria-label="توپلام سانىنى ئازايتىش" data-set-minus="${escapeAttr(x.group_id)}"${preview?" disabled aria-disabled=\"true\"":""}>−</button>
             <span class="cart-qty-value">${x.qty}</span>
@@ -4703,7 +4728,7 @@ function buildOrderText(requireCustomer=true){
   (authoritativeItems||items).forEach((x,i)=>{
     if(x.kind==="set"){
       const componentCount=Array.isArray(x.components)?x.components.length:0;
-      lines.push(`${i+1}. ${x.title||"تولۇق توپلام"} — تولۇق توپلام × ${Number(x.qty)||1} (${componentCount} جىلد، ${Number(x.physical_qty)||componentCount} دانە كىتاب) · ${orderItemAmount(x.line_total)}`);
+      lines.push(`${i+1}. ${x.title||"تولۇق يۈرۈشلۈك"} — تولۇق يۈرۈشلۈك × ${Number(x.qty)||1} (${componentCount} قىسىم، ${Number(x.physical_qty)||componentCount} دانە كىتاب) · ${orderItemAmount(x.line_total)}`);
       return;
     }
     const title=x.b?x.b.title:x.title;
@@ -5944,8 +5969,8 @@ async function setupHomeCarousel(){
       </a>
       <div class="home-carousel-info">
         <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
-        ${isGroup?`<span class="volume-group-card-badge">${b.memberCount||(b.memberBookIds||[]).length} جىلدلىق توپلام</span>`:stockBadge(b)}
-        <div class="home-carousel-bottom"><span class="home-carousel-price${isGroup?" volume-group-starting-price":""}">${isGroup?`ھەر بىر جىلد ${money(b.price)} دىن`:money(b.price)}</span>${isGroup?`<a class="detail-button" href="${href}">جىلدلار</a>`:cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}</div>
+        ${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:stockBadge(b)}
+        <div class="home-carousel-bottom">${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`<span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}`}</div>
       </div>
     </article>`;
   }

@@ -5249,6 +5249,51 @@ async function uploadCover(id,file,opts){
   const prepared=await coverImageApi().prepareStorageUpload(optimized);
   return uploadPreparedBookImage(objectKey,prepared);
 }
+function seriesCoverKey(requestId,position,ext){
+  const id=String(requestId||"").toLowerCase();
+  const part=Number(position);
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))throw new Error("ساقلاش نومۇرى توغرا ئەمەس.");
+  if(!Number.isInteger(part)||part<1||part>100)throw new Error("قىسىم نومۇرى توغرا ئەمەس.");
+  return `book-covers/series-new/${id}/part-${part}-${coverImageApi().uniqueStorageStamp()}.${ext}`;
+}
+async function uploadSeriesPartCover(requestId,position,file){
+  if(!file)throw new Error("مۇقاۋا كېرەك.");
+  if(!db&&window.__kutadguSkipAdminAuth){
+    const ext=(String(file.name||"cover").split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
+    const key=seriesCoverKey(requestId,position,ext==="jpeg"?"jpg":ext);
+    const url="https://www.kutadgubilik.com/__r2/"+key.split("/").map(encodeURIComponent).join("/");
+    return {url,key};
+  }
+  assertCoverFileSize(file);
+  const optimized=await optimizeCover(file);
+  const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
+  const objectKey=seriesCoverKey(requestId,position,ext);
+  const prepared=await coverImageApi().prepareStorageUpload(optimized);
+  const url=await uploadPreparedBookImage(objectKey,prepared);
+  return {url,key:objectKey};
+}
+async function discardUnusedSeriesCover(key){
+  const objectKey=String(key||"").trim();
+  if(!/^book-covers\/series-new\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/part-[1-9][0-9]{0,2}-[A-Za-z0-9._-]+\.(?:webp|jpe?g|png)$/i.test(objectKey)){
+    throw new Error("بۇ رەسىم يولى تازىلانمايدۇ.");
+  }
+  if(!db&&window.__kutadguSkipAdminAuth){
+    window.__kutadguDiscardedSeriesCovers=window.__kutadguDiscardedSeriesCovers||[];
+    window.__kutadguDiscardedSeriesCovers.push(objectKey);
+    return {ok:true,key:objectKey};
+  }
+  const token=await adminAccessToken();
+  const response=await fetch("/api/r2-series-cover-delete",{
+    method:"POST",
+    headers:{Authorization:`Bearer ${token}`,"x-kutadgu-object-key":objectKey}
+  });
+  let payload=null;
+  try{payload=await response.json()}catch(error){payload=null}
+  if(!response.ok||!payload||payload.ok!==true)throw new Error(payload&&payload.error||"يېڭى مۇقاۋا تازىلانمىدى.");
+  return payload;
+}
+window.kutadguUploadSeriesPartCover=uploadSeriesPartCover;
+window.kutadguDiscardUnusedSeriesCover=discardUnusedSeriesCover;
 async function persistBookRow(payload,operation,editingBookId,signal){
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const op=Write.enforcePersistOperation?Write.enforcePersistOperation(operation,editingBookId):(canonicalBookId(editingBookId)?"UPDATE":(operation==="UPDATE"?"STOP":"INSERT"));
