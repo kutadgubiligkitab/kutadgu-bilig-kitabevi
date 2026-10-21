@@ -40,10 +40,10 @@ async function openVolumeEditor(page, existing) {
         if(window.__seriesCommitted){
           const same=JSON.stringify(window.__seriesCommitted.p_payload)===JSON.stringify(args.p_payload)
             && String(window.__seriesCommitted.p_request_id)===String(args.p_request_id);
-          if(!same)return {error:{message:"idempotency_payload_mismatch",code:"23505"}};
+          if(!same)return {data:null,error:{message:"idempotency_payload_mismatch",code:"23505",details:null,hint:null},status:409,statusText:"Conflict"};
           return {data:seriesResult(true)};
         }
-        if(window.__seriesCreateFails){window.__seriesCreateFails-=1;return {error:{message:"series_create_failed"}};}
+        if(window.__seriesCreateFails){window.__seriesCreateFails-=1;return {data:null,error:{message:"series_create_failed",code:"P0001",details:null,hint:null},status:400,statusText:"Bad Request"};}
         return {data:seriesResult(false)};
       }
       if(name==="admin_get_book_volume_series_request"){
@@ -268,6 +268,119 @@ test.describe("plain-language multi-volume admin editor",()=>{
     expect(await page.evaluate(()=>window.__kutadguDiscardedSeriesCovers||[])).toEqual([]);
     expect(await page.evaluate(()=>window.__seriesUploads)).toBe(2);
   });
+});
+
+async function openSupabaseSeries(page){
+  await H.installReadSafeNetwork(page);
+  await page.addInitScript(()=>{
+    window.__kutadguSkipAdminAuth=true;
+    window.__kutadguSkipSuggestFetch=true;
+    window.__kutadguSuggestionRows=[{id:156,author:"ئابدۇرېھىم ئۆتكۈر"}];
+    window.__kutadguAdminPreviewBooks=[];
+  });
+  await page.goto("/admin.html",{waitUntil:"domcontentloaded"});
+  await expect(page.locator("#dashboardPanel")).toBeVisible();
+  await page.evaluate(()=>{
+    window.__seriesCalls=[];
+    window.__seriesUploads=0;
+    window.__kutadguDiscardedSeriesCovers=[];
+    window.__seriesNextStatus=0;
+    const upload=window.kutadguUploadSeriesPartCover;
+    window.kutadguUploadSeriesPartCover=async(requestId,position,file)=>{
+      window.__seriesUploads+=1;
+      return upload(requestId,position,file);
+    };
+    const client=window.supabase.createClient("https://example.supabase.co","anon-key",{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:{
+        fetch:async(url,options)=>{
+          const href=String(url);
+          const name=(href.split("/rpc/")[1]||"").split("?")[0];
+          let args={};
+          try{args=JSON.parse(options&&options.body||"{}")}catch(error){args={}}
+          if(name==="admin_create_book_volume_series"){
+            const status=window.__seriesNextStatus||200;
+            window.__seriesNextStatus=0;
+            window.__seriesCalls.push({status,args});
+            if(status>=500){
+              const message=status===502?"Bad Gateway":"Internal Server Error";
+              window.__seriesCommitted=JSON.parse(JSON.stringify(args));
+              return new Response(JSON.stringify({message}),{status,statusText:message,headers:{"content-type":"application/json"}});
+            }
+            const committed=window.__seriesCommitted;
+            const same=committed
+              && JSON.stringify(committed.p_payload)===JSON.stringify(args.p_payload)
+              && String(committed.p_request_id)===String(args.p_request_id);
+            if(committed&&!same){
+              return new Response(JSON.stringify({code:"23505",details:null,hint:null,message:"idempotency_payload_mismatch"}),{status:409,statusText:"Conflict",headers:{"content-type":"application/json"}});
+            }
+            const payload=args.p_payload||{};
+            return new Response(JSON.stringify({
+              id:91,revision:1,slug:"series-new",title:payload.title,complete_set_price:payload.complete_set_price,
+              is_public:false,replayed:!!committed,
+              members:(payload.parts||[]).map((part,index)=>({book_id:900+index,position:index+1,image_url:part.image_url,price:part.price}))
+            }),{status:200,headers:{"content-type":"application/json"}});
+          }
+          return new Response("[]",{status:200,headers:{"content-type":"application/json"}});
+        }
+      }
+    });
+    window.KutadguAdminVolumeGroups.init({db:client});
+  });
+  await page.locator('button[data-admin-section="volume-groups"]').click();
+  await page.locator("#newVolumeGroupBtn").click();
+}
+
+async function fillSeriesParts(page){
+  const tinyPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==","base64");
+  await page.locator("#showVolumeSeriesBtn").click();
+  await page.locator("#volumeSeriesTitle").fill("ئويغانغان زېمىن");
+  await page.locator("#volumeSeriesCategory").fill("تارىخىي رومانلار");
+  await page.locator("#volumeSeriesSetPrice").fill("750");
+  const parts=page.locator(".volume-series-part");
+  for(const index of [0,1]){
+    await parts.nth(index).locator("[data-series-price]").fill(index?"399":"370");
+    await parts.nth(index).locator("[data-series-stock]").fill("8");
+    await parts.nth(index).locator("[data-series-cover]").setInputFiles({name:`part-${index+1}.png`,mimeType:"image/png",buffer:tinyPng});
+  }
+}
+
+test.describe("series save gateway responses",()=>{
+  for(const status of [502,500]){
+    test(`HTTP ${status} keeps the request, payload, and covers`,async({page})=>{
+      await openSupabaseSeries(page);
+      const message=status===502?"Bad Gateway":"Internal Server Error";
+      const shape=await page.evaluate(async(sample)=>{
+        const client=window.supabase.createClient("https://example.supabase.co","anon-key",{
+          auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+          global:{fetch:async()=>new Response(JSON.stringify({message:sample.message}),{status:sample.status,statusText:sample.message,headers:{"content-type":"application/json"}})}
+        });
+        const result=await client.rpc("admin_create_book_volume_series",{p_request_id:"00000000-0000-4000-8000-000000000000",p_payload:{}});
+        return {status:result.status,message:result.error&&result.error.message,errorStatus:result.error?Object.prototype.hasOwnProperty.call(result.error,"status"):false,code:result.error&&result.error.code||null};
+      },{status,message});
+      expect(shape).toEqual({status,message,errorStatus:false,code:null});
+      await fillSeriesParts(page);
+      const requestId=await page.locator("#volumeSeriesRequestId").inputValue();
+      await page.evaluate((next)=>window.__seriesNextStatus=next,status);
+      await page.locator('#volumeSeriesForm button[type="submit"]').click();
+      await expect(page.locator("#volumeSeriesStatus")).toContainText("جاۋاب يېتىپ كەلمىدى");
+      expect(await page.locator("#volumeSeriesRequestId").inputValue()).toBe(requestId);
+      expect(await page.evaluate(()=>window.__seriesUploads)).toBe(2);
+      expect(await page.evaluate(()=>window.__kutadguDiscardedSeriesCovers||[])).toEqual([]);
+      await page.locator("#volumeSeriesTitle").fill("باشقا نام");
+      await page.locator('#volumeSeriesForm button[type="submit"]').click();
+      await expect(page.locator("#volumeSeriesStatus")).toContainText("ئاللىقاچان ساقلانغان");
+      const calls=await page.evaluate(()=>window.__seriesCalls);
+      expect(calls.map(call=>call.status)).toEqual([status,200]);
+      expect(calls[0].args.p_request_id).toBe(requestId);
+      expect(calls[1].args).toEqual(calls[0].args);
+      expect(calls[1].args.p_payload.title).toBe("ئويغانغان زېمىن");
+      expect(calls[1].args.p_payload.complete_set_price).toBe(750);
+      expect(calls[1].args.p_payload.parts.map(part=>part.image_url)).toEqual(calls[0].args.p_payload.parts.map(part=>part.image_url));
+      expect(await page.evaluate(()=>window.__seriesUploads)).toBe(2);
+      expect(await page.evaluate(()=>window.__kutadguDiscardedSeriesCovers||[])).toEqual([]);
+    });
+  }
 });
 
 const members = [

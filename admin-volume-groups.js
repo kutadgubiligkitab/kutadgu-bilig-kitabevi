@@ -51,9 +51,17 @@
   }
   async function rpc(name,args){
     if(!state.db)throw new Error("admin_volume_groups_unavailable");
-    const {data,error}=await state.db.rpc(name,args||{});
-    if(error)throw error;
-    return data;
+    const result=await state.db.rpc(name,args||{});
+    if(!result||typeof result!=="object")throw new Error("admin_volume_groups_unavailable");
+    const error=result.error;
+    if(error){
+      // PostgREST leaves HTTP status on the result. Gateway 500/502 bodies are
+      // only {message} and do not carry error.status.
+      if(typeof error==="object"&&result.status!=null&&error.status==null)error.status=result.status;
+      if(typeof error==="object"&&result.statusText&&error.statusText==null)error.statusText=result.statusText;
+      throw error;
+    }
+    return result.data;
   }
   function normalizedMember(value,index){
     if(!value||typeof value!=="object")return null;
@@ -504,14 +512,14 @@
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=true;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=false;
   }
+  function seriesTransactionRolledBack(error){
+    if(!error||typeof error!=="object")return false;
+    const status=Number(error.status);
+    if(!Number.isInteger(status)||status<400||status>=500||status===408||status===429)return false;
+    return /^[0-9A-Z]{5}$/.test(String(error.code||""));
+  }
   function seriesSaveMayStillCommit(error){
-    if(!error)return true;
-    const name=String(error.name||"");
-    if(error instanceof TypeError||name==="TypeError"||name==="AbortError"||name==="NetworkError")return true;
-    const status=Number(error.status||error.statusCode||0);
-    if(status===408||status===429||status>=500)return true;
-    const message=String(error.message||"");
-    return /failed to fetch|networkerror|network error|load failed|aborted|timeout|econn|socket hang|gateway timeout|\b502\b|\b503\b|\b504\b/i.test(message);
+    return !seriesTransactionRolledBack(error);
   }
   async function discardSeriesKeys(keys){
     const discard=root.kutadguDiscardUnusedSeriesCover;
