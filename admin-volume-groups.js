@@ -118,7 +118,7 @@
     if(!host)return;
     const representative=positiveId($("#volumeGroupRepresentative")?.value);
     if(!state.members.length){
-      host.innerHTML='<div class="admin-empty">كىتاب نومۇرى ياكى ISBN بىلەن تېپىپ، ئاز دېگەندە 2 قىسىم قوشۇڭ.</div>';
+      host.innerHTML='<div class="admin-empty">كىتاب نامى، ئاپتور، نومۇر ياكى ISBN بىلەن تېپىپ، ئاز دېگەندە 2 قىسىم قوشۇڭ.</div>';
       return;
     }
     host.innerHTML=state.members.map((member,index)=>`<article class="volume-admin-member" data-volume-member-id="${escapeHtml(member.book_id)}">
@@ -277,45 +277,167 @@
     const rows=Array.isArray(value)?value:Array.isArray(value&&value.items)?value.items:(value&&value.id?[value]:[]);
     return rows.map((row,index)=>normalizedMember(row,index)).filter(Boolean);
   }
+  let lookupGeneration=0;
+  const lookupSelecting=new Set();
+  const LOOKUP_PAGE=40;
+  function catalogLookupFilter(query){
+    const api=root.__kutadguAdminTest;
+    if(!api||typeof api.searchOrFilter!=="function")throw new Error("admin_catalog_search_unavailable");
+    return api.searchOrFilter(query,true);
+  }
+  async function searchEligibleCatalog(query,offset){
+    // The admin book list is one filtered page. This query uses the same
+    // authorized ilike filter and then walks every match, not that page.
+    const filter=catalogLookupFilter(query);
+    if(!filter)return {rows:[],total:0};
+    if(!state.db||typeof state.db.from!=="function")throw new Error("admin_catalog_search_unavailable");
+    const start=Number(offset)>0?Number(offset):0;
+    const result=await state.db.from("books").select("id,title,author,price,stock,stock_status,image_url,isbn,is_active",{count:"exact"}).or(filter).order("id",{ascending:true}).range(start,start+LOOKUP_PAGE-1);
+    if(!result||result.error)throw (result&&result.error)||new Error("admin_catalog_search_unavailable");
+    const data=Array.isArray(result.data)?result.data:[];
+    const total=Number(result.count);
+    return {rows:data,total:Number.isFinite(total)?total:start+data.length};
+  }
+  function mergeLookup(previewRows,catalogRows){
+    const seen=new Set();
+    const out=[];
+    (previewRows||[]).forEach(row=>{
+      if(!row||seen.has(row.book_id))return;
+      seen.add(row.book_id);
+      out.push({...row,previewed:true});
+    });
+    (catalogRows||[]).forEach(row=>{
+      const member=normalizedMember({...row,book_id:row.book_id??row.id},out.length);
+      if(!member||seen.has(member.book_id))return;
+      seen.add(member.book_id);
+      out.push({...member,previewed:false,group_id:""});
+    });
+    return out;
+  }
   function renderLookup(rows){
     const host=$("#volumeGroupLookupPreview");
     if(!host)return;
-    if(!rows.length){host.innerHTML='<div class="admin-empty">دەل ماس كېلىدىغان كىتاب تېپىلمىدى.</div>';return}
+    state.lookupRows=rows||[];
+    host.setAttribute("aria-busy","false");
+    if(!state.lookupRows.length){
+      host.innerHTML='<div class="admin-empty">دەل ماس كېلىدىغان كىتاب تېپىلمىدى.</div>';
+      return;
+    }
     const currentId=positiveId($("#volumeGroupId")?.value);
-    host.innerHTML=rows.map(row=>{
+    host.innerHTML=state.lookupRows.map(row=>{
       const linked=positiveId(row.group_id);
       const linkedElsewhere=!!linked&&linked!==currentId;
       const alreadyPresent=state.members.some(member=>member.book_id===row.book_id);
       return `<article class="volume-admin-lookup">
       <img src="${escapeHtml(safeCover(row.image_url))}" alt="" width="54" height="78">
-      <span><strong>${escapeHtml(row.title||`كىتاب ${row.book_id}`)}</strong><small>ID ${escapeHtml(row.book_id)}${row.isbn?` · ISBN ${escapeHtml(row.isbn)}`:""}</small><small>${row.price==null?"باھاسىز":`${escapeHtml(row.price)} ₺`} · ئامبار ${row.stock==null?"بېكىتىلمىگەن":escapeHtml(row.stock)}</small>${linked?`<small class="${linkedElsewhere?"is-linked-elsewhere":"is-linked-current"}">${linkedElsewhere?"باشقا يۈرۈشلۈككە باغلانغان":"مۇشۇ يۈرۈشلۈككە باغلانغان"}: ${escapeHtml(row.group_title||row.group_slug||`ID ${linked}`)}</small>`:""}${row.href?`<a href="${escapeHtml(row.href)}" target="_blank" rel="noopener">كىتابنى ئېچىش</a>`:""}</span>
+      <span><strong>${escapeHtml(row.title||`كىتاب ${row.book_id}`)}</strong><small class="volume-admin-lookup-author">${escapeHtml(row.author||"—")}</small><small>${row.price==null?"باھاسىز":`${escapeHtml(row.price)} ₺`} · ئامبار ${row.stock==null?"بېكىتىلمىگەن":escapeHtml(row.stock)}</small>${row.isbn?`<small>ISBN ${escapeHtml(row.isbn)}</small>`:""}<small class="volume-admin-lookup-id">ئىچكى نومۇر ${escapeHtml(row.book_id)}</small>${linked?`<small class="${linkedElsewhere?"is-linked-elsewhere":"is-linked-current"}">${linkedElsewhere?"باشقا يۈرۈشلۈككە باغلانغان":"مۇشۇ يۈرۈشلۈككە باغلانغان"}: ${escapeHtml(row.group_title||row.group_slug||`ID ${linked}`)}</small>`:""}${row.href?`<a href="${escapeHtml(row.href)}" target="_blank" rel="noopener">كىتابنى ئېچىش</a>`:""}</span>
       <button type="button" class="admin-secondary" data-lookup-add="${escapeHtml(row.book_id)}"${linkedElsewhere||alreadyPresent?" disabled":""}>${linkedElsewhere?"باغلاشقا بولمايدۇ":alreadyPresent?"قوشۇلغان":"قىسىم قىلىپ قوشۇش"}</button>
     </article>`;
-    }).join("");
-    host.querySelectorAll("[data-lookup-add]").forEach(button=>button.onclick=()=>{
-      const row=rows.find(item=>item.book_id===button.dataset.lookupAdd);
-      if(!row)return;
-      const linked=positiveId(row.group_id);
-      if(linked&&linked!==currentId){setStatus("بۇ كىتاب باشقا يۈرۈشلۈككە باغلانغان. ئالدى بىلەن شۇ يۈرۈشلۈكتىن چىقىرىڭ.","error");return}
-      if(state.members.some(member=>member.book_id===row.book_id)){setStatus("بۇ كىتاب ئاللىقاچان قىسىم تىزىملىكىدە.","error");return}
-      if(!state.members.length&&!text($("#volumeGroupAuthor").value))$("#volumeGroupAuthor").value=row.author;
-      state.members=normalizeMembers([...state.members,{...row,volume_label:`${state.members.length+1}-قىسىم`}]);
+    }).join("")+(state.lookupQuery&&state.lookupCatalogCount<state.lookupTotal?'<button type="button" class="admin-secondary volume-admin-lookup-more" data-lookup-more>كېيىنكى ماس كىتابلار</button>':"");
+  }
+  function showLookupFailure(error){
+    const host=$("#volumeGroupLookupPreview");
+    if(!host)return;
+    host.setAttribute("aria-busy","false");
+    host.innerHTML=`<p class="volume-admin-lookup-status" role="alert">${escapeHtml(error&&error.message||String(error||"كىتاب تېپىلمىدى."))}</p><button type="button" class="admin-secondary" data-lookup-retry>قايتا سىناش</button>`;
+  }
+  async function addLookupCandidate(bookId){
+    const id=positiveId(bookId);
+    const row=(state.lookupRows||[]).find(item=>item.book_id===id);
+    if(!row||lookupSelecting.has(id))return;
+    lookupSelecting.add(id);
+    const currentId=positiveId($("#volumeGroupId")?.value);
+    try{
+      let chosen=row;
+      if(!row.previewed){
+        const checked=normalizeLookup(await rpc("admin_preview_book_volume_members",{p_book_id:id,p_isbn:null}));
+        const fresh=checked.find(item=>item.book_id===id);
+        if(!fresh){setStatus("بۇ كىتاب تېپىلمىدى.","error");return}
+        chosen={...fresh,previewed:true};
+        const index=state.lookupRows.findIndex(item=>item.book_id===id);
+        if(index>=0)state.lookupRows[index]=chosen;
+      }
+      const linked=positiveId(chosen.group_id);
+      if(linked&&linked!==currentId){
+        renderLookup(state.lookupRows);
+        setStatus("بۇ كىتاب باشقا يۈرۈشلۈككە باغلانغان. ئالدى بىلەن شۇ يۈرۈشلۈكتىن چىقىرىڭ.","error");
+        return;
+      }
+      if(state.members.some(member=>member.book_id===chosen.book_id)){
+        renderLookup(state.lookupRows);
+        setStatus("بۇ كىتاب ئاللىقاچان قىسىم تىزىملىكىدە.","error");
+        return;
+      }
+      if(!state.members.length&&!text($("#volumeGroupAuthor").value))$("#volumeGroupAuthor").value=chosen.author;
+      const nextLabel=`${state.members.length+1}-قىسىم`;
+      state.members=normalizeMembers([...state.members,{...chosen,volume_label:nextLabel}]);
       renderMembers();
-      host.innerHTML="";
-    });
+      const host=$("#volumeGroupLookupPreview");
+      if(host){host.innerHTML="";host.setAttribute("aria-busy","false")}
+    }catch(error){
+      setStatus(error.message||String(error),"error");
+    }finally{
+      lookupSelecting.delete(id);
+    }
+  }
+  async function lookupMore(){
+    const generation=lookupGeneration;
+    const query=state.lookupQuery;
+    if(!query||state.lookupCatalogCount>=state.lookupTotal)return;
+    const button=$("#volumeGroupLookupPreview [data-lookup-more]");
+    if(button)button.disabled=true;
+    try{
+      const found=await searchEligibleCatalog(query,state.lookupCatalogCount);
+      if(generation!==lookupGeneration)return;
+      const seen=new Set((state.lookupRows||[]).map(row=>row.book_id));
+      const extras=mergeLookup([],found.rows).filter(row=>!seen.has(row.book_id));
+      state.lookupCatalogCount+=found.rows.length;
+      state.lookupTotal=found.total;
+      renderLookup((state.lookupRows||[]).concat(extras));
+    }catch(error){
+      if(generation!==lookupGeneration)return;
+      setStatus(error.message||String(error),"error");
+      renderLookup(state.lookupRows||[]);
+    }
   }
   async function lookupBook(){
     const query=text($("#volumeGroupBookLookup").value);
     if(!query)return;
+    const generation=++lookupGeneration;
+    const host=$("#volumeGroupLookupPreview");
+    if(host){
+      host.setAttribute("aria-busy","true");
+      host.innerHTML='<p class="volume-admin-lookup-status" role="status">كىتاب تەكشۈرۈلۈۋاتىدۇ…</p>';
+    }
     setStatus("كىتاب تەكشۈرۈلۈۋاتىدۇ…","");
     try{
-      const rows=normalizeLookup(await rpc("admin_preview_book_volume_members",{
-        p_book_id:/^[1-9][0-9]*$/.test(query)?query:null,
+      const exactId=/^[1-9][0-9]*$/.test(query);
+      const previewRows=normalizeLookup(await rpc("admin_preview_book_volume_members",{
+        p_book_id:exactId?query:null,
         p_isbn:query
       }));
+      if(generation!==lookupGeneration)return;
+      let catalogRows=[];
+      if(exactId){
+        state.lookupQuery="";
+        state.lookupCatalogCount=0;
+        state.lookupTotal=0;
+      }else{
+        const found=await searchEligibleCatalog(query,0);
+        if(generation!==lookupGeneration)return;
+        catalogRows=found.rows;
+        state.lookupQuery=query;
+        state.lookupCatalogCount=found.rows.length;
+        state.lookupTotal=found.total;
+      }
+      const rows=mergeLookup(previewRows,catalogRows);
       renderLookup(rows);
-      setStatus(rows.length?"كىتاب نامى ۋە باھاسىنى تەكشۈرۈپ، قىسىم قىلىپ قوشۇڭ.":"بۇ نومۇردا كىتاب تېپىلمىدى.",rows.length?"ok":"warn");
-    }catch(error){setStatus(error.message||String(error),"error")}
+      setStatus(rows.length?"كىتاب نامى ۋە باھاسىنى تەكشۈرۈپ، قىسىم قىلىپ قوشۇڭ.":exactId?"بۇ نومۇردا كىتاب تېپىلمىدى.":"بۇ نام ياكى ئاپتور بويىچە كىتاب تېپىلمىدى.",rows.length?"ok":"warn");
+    }catch(error){
+      if(generation!==lookupGeneration)return;
+      showLookupFailure(error);
+      setStatus(error.message||String(error),"error");
+    }
   }
   async function load(force){
     if(state.loading||state.loaded&&!force)return;
@@ -938,6 +1060,12 @@
     $("#volumeGroupLookupBtn")?.addEventListener("click",lookupBook);
     $("#volumeGroupBookLookup")?.addEventListener("keydown",event=>{
       if(event.key==="Enter"){event.preventDefault();lookupBook()}
+    });
+    $("#volumeGroupLookupPreview")?.addEventListener("click",event=>{
+      if(event.target.closest("[data-lookup-retry]")){lookupBook();return}
+      if(event.target.closest("[data-lookup-more]")){lookupMore();return}
+      const button=event.target.closest("[data-lookup-add]");
+      if(button&&!button.disabled)addLookupCandidate(button.dataset.lookupAdd);
     });
   }
   function init(options){
