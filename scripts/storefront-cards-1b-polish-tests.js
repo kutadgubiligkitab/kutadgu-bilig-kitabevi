@@ -85,7 +85,7 @@ test("1B modest desktop title/author sizes stay at least Cards 1A and keep hiera
 
 test("featured and carousel cart CTAs show سېۋەتكە as compact brown pills", () => {
   const home = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  const carousel = sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>");
+  const carousel = sliceBetween(shop, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
   assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   assert.match(body, /#homeFeaturedBooks \.home-feature-cart,[\s\S]*#newBooksCarousel \.home-carousel-cart\{[\s\S]*width:\s*auto\s*!important/);
@@ -112,30 +112,25 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=167/);
-  assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
+  assert.match(indexHtml, /shop\.js\?v=174/);
+  assert.match(shop, /storefront-cards-1a-polish\.css\?v=3/);
 });
 
-test("generators match origin/main except the visible cart label", () => {
-  const mainShop = execSync("git show origin/main:shop.js", { cwd: root, encoding: "utf8" });
+test("ordinary generators keep cart labels and grouped cards stay compact", () => {
   const home = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  assert.strictEqual(stripCards1bCartLabel(home), stripCards1bCartLabel(mainHome));
+  assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   const carousel = sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>");
-  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(stripCards1bCartLabel(paidCarouselCard(carousel)), stripCards1bCartLabel(paidCarouselCard(mainCarousel)));
   assert.match(carousel, /function giftCard\(b,i=0\)/);
   const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
   assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
   assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
-  assert.strictEqual(
-    sliceBetween(shop, "function miniCard(b){", "function favoriteCard(b){"),
-    sliceBetween(mainShop, "function miniCard(b){", "function favoriteCard(b){")
-  );
+  const carouselCard = sliceBetween(shop, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
+  assert.match(carouselCard, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
+  const mini = sliceBetween(shop, "function miniCard(b){", "function favoriteCard(b){");
+  assert.match(mini, /\$\{cartButton\(b\)\}/);
+  assert.match(mini, /SERIES_CARD_DETAIL/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
-  const mainCompact = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });
   const compactSlice = compactCardSlice(compact);
-  const mainSlice = compactCardSlice(mainCompact);
   assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
   assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
   assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
@@ -144,7 +139,7 @@ test("generators match origin/main except the visible cart label", () => {
   assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
   assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
   assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
-  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
+  assert.match(compact, /<a class="premium-card-cart" href="/);
 });
 
 test("no Search Discovery SQL RLS auth admin or protected geometry changes", () => {

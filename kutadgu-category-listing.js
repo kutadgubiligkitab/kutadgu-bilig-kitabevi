@@ -106,6 +106,43 @@ function priceText(value) {
   return `${n.toLocaleString("tr-TR")} ₺`;
 }
 
+function finiteAmount(value) {
+  if (value == null || value === "") return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function seriesPartCount(book) {
+  if (!book) return 0;
+  const raw = book.memberCount != null && book.memberCount !== ""
+    ? book.memberCount
+    : (book.member_count != null && book.member_count !== "" ? book.member_count : null);
+  const direct = raw == null ? NaN : Number(raw);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  const ids = Array.isArray(book.memberBookIds) ? book.memberBookIds : (Array.isArray(book.member_book_ids) ? book.member_book_ids : []);
+  if (ids.length) return ids.length;
+  const prices = Array.isArray(book.memberPrices) ? book.memberPrices : (Array.isArray(book.member_prices) ? book.member_prices : []);
+  return prices.length || 0;
+}
+
+function seriesCardLabel(book) {
+  const title = String(book && book.title || "").trim();
+  const count = seriesPartCount(book);
+  if (!(count > 0)) return title;
+  return title ? `${title} — ${count} قىسىم` : `${count} قىسىم`;
+}
+
+function seriesSetAmount(book) {
+  const explicit = finiteAmount(book && (book.completeSetPrice != null ? book.completeSetPrice : book.complete_set_price));
+  const effective = finiteAmount(book && (book.effectiveSetPrice != null ? book.effectiveSetPrice : book.effective_set_price));
+  const raw = book && (Array.isArray(book.memberPrices) ? book.memberPrices : (Array.isArray(book.member_prices) ? book.member_prices : []));
+  const parts = (raw || []).map(finiteAmount).filter((amount) => amount != null);
+  if (explicit != null) return explicit;
+  if (effective != null) return effective;
+  if (parts.length) return parts.reduce((sum, amount) => sum + amount, 0);
+  return null;
+}
+
 function cardCoverSrc(book) {
   const abs = publicBook.publicCoverAbsoluteUrl(book);
   if (abs && !isSampleCover(abs)) return abs;
@@ -140,7 +177,9 @@ function listingCardMarkup(book) {
   const id = String(book.id);
   const isGroup = book.kind === "group" && book.group_slug;
   const href = isGroup ? `/volume-group/${book.group_slug}` : `/book/${id}`;
-  const title = safeUrl.escapeHtml(book.title || "كىتاب");
+  const visibleTitle = isGroup ? (seriesCardLabel(book) || book.title || "كىتاب") : (book.title || "كىتاب");
+  const title = safeUrl.escapeHtml(visibleTitle);
+  const titleAttr = isGroup ? ` title="${safeUrl.escapeAttr(visibleTitle)}"` : "";
   const authorName = displayAuthor(book.author);
   const authorBlock = authorName
     ? `<p class="book-author">ئاپتورى: ${safeUrl.escapeHtml(authorName)}</p>`
@@ -148,22 +187,22 @@ function listingCardMarkup(book) {
   const info = isGroup ? { key: "unknown", label: "", canBuy: true } : stock.storefrontStockInfo(book, { stockEnforcement: true });
   const state = info.key === "out" ? "is-stock-out" : info.key === "low" ? "is-stock-low" : "";
   const stateClass = state ? ` ${state}` : "";
-  const badge = info.label && info.key !== "in" && info.key !== "unknown"
+  const badge = !isGroup && info.label && info.key !== "in" && info.key !== "unknown"
     ? `<span class="stock-badge stock-${safeUrl.escapeAttr(info.key)}">${safeUrl.escapeHtml(info.label)}</span>`
     : "";
   const cover = `<span class="cover-stock-wrap${stateClass}">${coverHtml(book)}</span>`;
+  const priceLabel = isGroup ? priceText(seriesSetAmount(book)) : priceText(book.price);
   return `<article class="book-card${stateClass}" data-live-book-id="${safeUrl.escapeAttr(id)}">
     <a class="book-image${stateClass}" href="${href}">
       ${cover}
     </a>
     <div class="book-info">
-      <h2 class="book-title">${title}</h2>
+      <h2 class="book-title"${titleAttr}>${title}</h2>
       ${authorBlock}
       ${badge}
-      ${isGroup ? `<span class="volume-group-card-badge">${Number(book.member_count) || ""} جىلدلىق توپلام</span>` : ""}
-      <div class="book-price${isGroup ? " volume-group-starting-price" : ""}">${safeUrl.escapeHtml(isGroup ? `ھەر بىر جىلد ${priceText(book.price)} دىن` : priceText(book.price))}</div>
+      <div class="book-price">${safeUrl.escapeHtml(priceLabel)}</div>
       <div class="book-actions">
-        <a class="detail-button" href="${href}">${isGroup ? "جىلدلارنى تاللاش" : "تەپسىلات"}</a>
+        <a class="detail-button" href="${href}">${isGroup ? "تەپسىلاتى" : "تەپسىلات"}</a>
         ${isGroup ? "" : `${cartButton(book, info)}
         <button type="button" class="favorite-button" data-fav-id="${safeUrl.escapeAttr(id)}" aria-label="ياقتۇرۇش">♡</button>
         <button type="button" class="share-button" data-share-id="${safeUrl.escapeAttr(id)}" aria-label="ھەمبەھىرلەش">🔗</button>`}
@@ -194,7 +233,16 @@ function normalizeCategoryRow(row, allowedSources) {
   if (row.kind === "group") {
     book.kind = "group";
     book.group_slug = String(row.group_slug || row.slug || "").trim();
-    book.member_count = Number(row.member_count) || (Array.isArray(row.member_book_ids) ? row.member_book_ids.length : 0);
+    const rawCount = row.member_count == null || row.member_count === "" ? null : Number(row.member_count);
+    if (Number.isInteger(rawCount) && rawCount > 0) book.member_count = rawCount;
+    const ids = Array.isArray(row.member_book_ids) ? row.member_book_ids.map((value) => String(value)) : [];
+    if (ids.length) book.member_book_ids = ids;
+    const prices = Array.isArray(row.member_prices)
+      ? row.member_prices.map(finiteAmount).filter((amount) => amount != null)
+      : [];
+    if (prices.length) book.member_prices = prices;
+    book.complete_set_price = finiteAmount(row.complete_set_price);
+    book.effective_set_price = finiteAmount(row.effective_set_price);
   }
   return book;
 }

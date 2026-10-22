@@ -148,28 +148,22 @@ function stripCards1bCartLabel(src) {
   return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
 }
 
-test("card generators stay unchanged from origin/main except Cards 1B cart labels", () => {
-  const mainShop = gitShowMain("shop.js");
+test("ordinary homepage actions stay and grouped cards do not add a part cart", () => {
   const home = sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  assert.strictEqual(stripCards1bCartLabel(home), stripCards1bCartLabel(mainHome));
   assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
   // cartButton is not byte-pinned: L1 icon-only aria-label is covered by l1-home-cart-accessible-name-tests.js
   const cartBtn = sliceBetween(shopJs, "function cartButton(book,label=", "function cart(){");
   assert.match(cartBtn, /aria-label="تۈگەپ كەتتى"/);
   assert.match(cartBtn, /replace\(\/\\s\+\/g,""\)==="🛒"/);
   const carousel = sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>");
-  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(stripCards1bCartLabel(paidCarouselCard(carousel)), stripCards1bCartLabel(paidCarouselCard(mainCarousel)));
   assert.match(carousel, /function giftCard\(b,i=0\)/);
   const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
   assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
   assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
-  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
+  const carouselCard = sliceBetween(shopJs, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
+  assert.match(carouselCard, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
-  const mainCompact = gitShowMain("premium-ux.js");
   const compactSlice = compactCardSlice(compact);
-  const mainSlice = compactCardSlice(mainCompact);
   assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
   assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
   assert.match(compactSlice, /loading="lazy" decoding="async"/);
@@ -179,7 +173,6 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
   assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
   assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
   assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
-  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
   const bind = sliceBetween(compact, "function recoverCachedCoverFailure(img){", "const DISCOVERY_PAGE_SIZE=8;");
   assert.match(bind, /assignCoverImage\(img,src,\{bookId:bookId,loading:img\.getAttribute\("loading"\)\|\|"lazy"\}\)/);
   assert.match(bind, /recoverCachedCoverFailure\(img\)/);
@@ -194,7 +187,7 @@ test("card generators stay unchanged from origin/main except Cards 1B cart label
 
 test("Stage 4B-2 overlay is appended after premium-ux.css and covers.css reload", () => {
   assert.match(shopJs, /premium-ux\.css\?v=10/);
-  assert.match(shopJs, /premium-ux\.js\?v=16/);
+  assert.match(shopJs, /premium-ux\.js\?v=18/);
   assert.match(shopJs, /discovery-cover-space\.css\?v=1/);
   assert.match(shopJs, /stage4b2-homepage-discovery\.css\?v=1/);
   assert.match(shopJs, /data-kutadgu-stage4b2-homepage-discovery/);

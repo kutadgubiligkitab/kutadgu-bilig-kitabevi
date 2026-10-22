@@ -58,9 +58,71 @@
     }
   };
 
+  function isSeriesCard(book){
+    return !!(book&&(book.catalogKind==="group"||book.kind==="group")&&(book.groupId||book.group_id));
+  }
+  function localSeriesCount(book){
+    const raw=book&&book.memberCount!=null&&book.memberCount!==""?book.memberCount:(book&&book.member_count!=null&&book.member_count!==""?book.member_count:null);
+    const direct=raw==null?NaN:Number(raw);
+    if(Number.isInteger(direct)&&direct>0)return direct;
+    const ids=Array.isArray(book&&book.memberBookIds)?book.memberBookIds:(Array.isArray(book&&book.member_book_ids)?book.member_book_ids:[]);
+    if(ids.length)return ids.length;
+    const prices=Array.isArray(book&&book.memberPrices)?book.memberPrices:(Array.isArray(book&&book.member_prices)?book.member_prices:[]);
+    return prices.length||0;
+  }
+  function localSeriesAmount(book){
+    const finite=value=>{
+      if(value==null||value==="")return null;
+      const amount=Number(value);
+      return Number.isFinite(amount)?amount:null;
+    };
+    const explicit=finite(book&&(book.completeSetPrice!=null?book.completeSetPrice:book.complete_set_price));
+    const effective=finite(book&&(book.effectiveSetPrice!=null?book.effectiveSetPrice:book.effective_set_price));
+    const raw=Array.isArray(book&&book.memberPrices)?book.memberPrices:(Array.isArray(book&&book.member_prices)?book.member_prices:[]);
+    const parts=raw.map(finite).filter(amount=>amount!=null);
+    if(explicit!=null)return explicit;
+    if(effective!=null)return effective;
+    if(parts.length)return parts.reduce((sum,amount)=>sum+amount,0);
+    return null;
+  }
+  function seriesCardText(book){
+    const shop=window.kutadguShop;
+    if(shop&&typeof shop.seriesCardLabel==="function")return shop.seriesCardLabel(book);
+    const title=String(book&&book.title||"").trim();
+    const count=localSeriesCount(book);
+    if(!(count>0))return title;
+    return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;
+  }
+  function seriesCardPrice(book){
+    const shop=window.kutadguShop;
+    if(shop&&typeof shop.seriesPriceText==="function")return shop.seriesPriceText(book);
+    return money(localSeriesAmount(book));
+  }
+  function seriesCardHref(book){
+    const href=String(book&&book.href||"").trim();
+    if(href)return href;
+    const slug=String(book&&(book.groupSlug||book.group_slug)||"").trim();
+    if(slug)return `/volume-group/${encodeURIComponent(slug)}`;
+    return bookHref(book);
+  }
+  function seriesCompactCard(book,src,id){
+    const label=seriesCardText(book);
+    const href=escapeHtml(seriesCardHref(book));
+    return `<article class="premium-book-card" data-premium-book-id="${id}">
+      <a class="premium-card-link" href="${href}">
+        <span class="premium-card-cover"><img src="${src}" data-cover-src="${src}" data-cover-book="${id}" alt="${escapeHtml(label)} كىتاب مۇقاۋىسى" loading="lazy" decoding="async"></span>
+        ${badges(book)?`<span class="premium-card-badges">${badges(book)}</span>`:""}
+        <strong title="${escapeHtml(label)}">${escapeHtml(label)}</strong>
+        <small>${escapeHtml(book.author||"—")}</small>
+        <span class="premium-card-price">${escapeHtml(seriesCardPrice(book))}</span>
+      </a>
+      <a class="premium-card-cart" href="${href}">تەپسىلاتى</a>
+    </article>`;
+  }
   function compactCard(book){
     const src=cover(book);
     const id=escapeHtml(book.id);
+    if(isSeriesCard(book))return seriesCompactCard(book,src,id);
     return `<article class="premium-book-card" data-premium-book-id="${id}">
       <button type="button" class="premium-card-favorite" data-premium-favorite="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>
       <a class="premium-card-link" href="${escapeHtml(bookHref(book))}">
@@ -467,5 +529,6 @@
   }
 
   function init(){renderDiscovery();setupSearchSuggestions();setupSmartEmptyState();setupFilterUX();enhanceDetail()}
+  window.KutadguPremiumUx={compactCard};
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();

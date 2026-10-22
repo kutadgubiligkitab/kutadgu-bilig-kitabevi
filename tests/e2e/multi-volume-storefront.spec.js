@@ -934,16 +934,22 @@ test.describe("multi-volume storefront", () => {
     }));
     expect(card.match(/<article/g)).toHaveLength(1);
     expect(card).toContain("750");
-    expect(card).toContain("370");
-    expect(card).toContain("399");
+    expect(card).toContain("ئويغانغان زېمىن — 2 قىسىم");
+    expect(card).toContain("تەپسىلاتى");
+    expect(card).not.toContain("370");
+    expect(card).not.toContain("399");
     expect(card).not.toContain("769");
+    expect(card).not.toContain("بېكىتىلگەن يۈرۈشلۈك باھاسى");
+    expect(card).not.toContain("volume-group-card-badge");
     const summed = await page.evaluate(() => window.kutadguShop.bookCardMarkup({
       id: "200", catalogKind: "group", groupId: "2", title: "يىغىندا", memberCount: 2,
       memberPrices: [370, 399], completeSetPrice: null, effectiveSetPrice: 769, price: 370,
       href: "/volume-group/summed"
     }));
-    expect(summed).toContain("تولۇق يۈرۈشلۈك");
     expect(summed).toContain("769");
+    expect(summed).toContain("يىغىندا — 2 قىسىم");
+    expect(summed).not.toContain("تولۇق يۈرۈشلۈك");
+    expect(summed).not.toContain("370");
     expect(summed).not.toContain("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
@@ -1006,12 +1012,14 @@ test.describe("multi-volume storefront", () => {
     await expect(grid.locator('a[href="/book/156"], a[href="/book/157"]')).toHaveCount(0);
     const ownerCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-156"]') });
     await expect(ownerCard).toContainText("750");
-    await expect(ownerCard).toContainText("370");
-    await expect(ownerCard).toContainText("399");
-    await expect(ownerCard).toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
+    await expect(ownerCard).toContainText("ئويغانغان زېمىن — 2 قىسىم");
+    await expect(ownerCard).toContainText("تەپسىلاتى");
+    await expect(ownerCard).not.toContainText("370");
+    await expect(ownerCard).not.toContainText("399");
+    await expect(ownerCard).not.toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     await expect(ownerCard).not.toContainText("769");
     const summedCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-page-2"]') });
-    await expect(summedCard).toContainText("تولۇق يۈرۈشلۈك");
+    await expect(summedCard).not.toContainText("تولۇق يۈرۈشلۈك");
     await expect(summedCard).toContainText("769");
     await expect(summedCard).not.toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     expect(queries[0]).toMatchObject({ offset: 0, limit: 24, source: "tarikhiy-romanlar.html" });
