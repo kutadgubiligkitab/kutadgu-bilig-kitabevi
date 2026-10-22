@@ -6819,7 +6819,7 @@ function ensureStorefrontCards1aPolishCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="/storefront-cards-1a-polish.css?v=3";
+    el.href="/storefront-cards-1a-polish.css?v=4";
     el.setAttribute("data-kutadgu-storefront-cards-1a","1");
   }
   document.head.appendChild(el);

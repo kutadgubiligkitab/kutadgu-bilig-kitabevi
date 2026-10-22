@@ -74,6 +74,13 @@
   object-fit:contain !important;
   object-position:center center !important;
 }
+#premiumDiscoveryResults .premium-card-cover img.is-cover-retrying,
+#premiumWizardResults .premium-card-cover img.is-cover-retrying,
+[data-people-also-viewed] .premium-card-cover img.is-cover-retrying,
+#searchResults .premium-empty-books .premium-card-cover img.is-cover-retrying{
+  width:100% !important;
+  height:100% !important;
+}
 #premiumDiscoveryResults .premium-card-badges,
 #premiumWizardResults .premium-card-badges,
 [data-people-also-viewed] .premium-card-badges{
