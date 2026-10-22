@@ -330,6 +330,32 @@
     finally{state.loading=false}
   }
   const seriesState={requestId:"",saving:false};
+  let seriesPartSeq=0;
+  function seriesInteriorCap(){
+    // books.gallery_images and KutadguGallery both stop at 4. The form follows
+    // that stored cap and does not offer a fifth image. Raising it needs SQL.
+    const stored=Number(root.KutadguGallery&&root.KutadguGallery.MAX_GALLERY_IMAGES);
+    const persisted=Number.isFinite(stored)&&stored>0?stored:4;
+    return Math.min(5,persisted);
+  }
+  function seriesUserError(error){
+    const raw=text(error&&typeof error==="object"?error.message:error);
+    const code=text(error&&typeof error==="object"?error.code:"");
+    const blob=`${code} ${raw}`.trim();
+    let message="يۈرۈشلۈك ساقلانمىدى. قايتا سىناڭ.";
+    if(/AAL2|42501/.test(blob))message="2-باسقۇچلۇق دەلىللەش كېرەك.";
+    else if(/invalid_volume_count/.test(blob))message="قىسىم سانى 2 دىن 100 گىچە بولسۇن.";
+    else if(/invalid_series_isbn/.test(blob))message="كىتابنىڭ خەلقئارا نومۇرى توغرا ئەمەس.";
+    else if(/invalid_series_cover|series_cover_already_used/.test(blob))message="مۇقاۋا قوبۇل قىلىنمىدى.";
+    else if(/invalid_complete_set_price|explicit_price_replaced/.test(blob))message="يۈرۈشلۈك باھاسى ساقلانمىدى.";
+    else if(/gallery_images|interior_/.test(blob))message="ئىچ بەت رەسىمى ساقلانمىدى.";
+    else if(/invalid_series_part|invalid_series_payload|invalid_series_shared_fields|invalid_series_source|invalid_representative_volume|series_not_private/.test(blob))message="قىسىم ئۇچۇرى تولۇق ئەمەس.";
+    return {message,diagnostic:blob.slice(0,500)};
+  }
+  function safeFileLabel(name){
+    const clean=String(name||"").replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g,"").replace(/[<>"']/g,"").trim();
+    return clean.slice(0,80)||"رەسىم";
+  }
   function newRequestId(){
     if(root.crypto&&typeof root.crypto.randomUUID==="function")return root.crypto.randomUUID();
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,ch=>{
@@ -337,11 +363,13 @@
       return (ch==="x"?n:(n&0x3|0x8)).toString(16);
     });
   }
-  function seriesStatus(message,kind){
+  function seriesStatus(message,kind,diagnostic){
     const el=$("#volumeSeriesStatus");
     if(!el)return;
     el.textContent=message||"";
     el.className=`admin-status${kind?` ${kind}`:""}`;
+    if(diagnostic)el.dataset.diagnostic=String(diagnostic).slice(0,500);
+    else delete el.dataset.diagnostic;
   }
   function syncSeriesCategory(){
     const input=$("#volumeSeriesCategory");
@@ -381,7 +409,7 @@
       const preview=value.allowPreviewUrls===true&&image.startsWith("https://");
       if(!image||(!preview&&!image.startsWith(prefix)))return {ok:false,message:`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللانمىدى.`};
       const isbn=text(part.isbn).replace(/[^0-9Xx]/g,"");
-      if(isbn&&isbn.length!==10&&isbn.length!==13)return {ok:false,message:`${index+1}-قىسىمنىڭ ISBN نومۇرى 10 ياكى 13 خانە بولسۇن.`};
+      if(isbn&&isbn.length!==10&&isbn.length!==13)return {ok:false,message:`${index+1}-قىسىمنىڭ خەلقئارا نومۇرى 10 ياكى 13 خانە بولسۇن.`};
       if(part.main)representative=index+1;
       built.push({
         title:text(part.title),
@@ -408,6 +436,9 @@
     };
   }
   function seriesPartElement(){
+    seriesPartSeq+=1;
+    const n=seriesPartSeq;
+    const cap=seriesInteriorCap();
     const article=document.createElement("article");
     article.className="volume-series-part";
     article.innerHTML=`<div class="volume-series-part-tools">
@@ -417,12 +448,165 @@
       <button type="button" data-series-remove>چىقىرىش</button>
       <label class="volume-admin-representative"><input type="radio" name="volumeSeriesMain" data-series-main> باش مۇقاۋا</label>
     </div>
-    <label>مۇقاۋا<input type="file" accept="image/jpeg,image/png,image/webp" data-series-cover></label>
-    <label>باھاسى<input type="number" min="0" step="0.01" dir="ltr" data-series-price></label>
-    <label>ئامبار سانى<input type="number" min="0" step="1" dir="ltr" data-series-stock></label>
-    <label>قىسىم نامى (ئىختىيارىي)<input type="text" maxlength="500" data-series-title placeholder="بوش قالدۇرسىڭىز، ئورتاق نامغا قىسىم نومۇرى قوشۇلىدۇ"></label>
-    <label>ISBN (ئىختىيارىي)<input type="text" maxlength="32" dir="ltr" data-series-isbn></label>`;
+    <div class="volume-series-cover">
+      <span class="volume-series-cover-label" id="volumeSeriesCoverLabel${n}">مۇقاۋا</span>
+      <input id="volumeSeriesCover${n}" class="admin-gallery-file-input" type="file" accept="image/jpeg,image/png,image/webp" data-series-cover tabindex="-1" aria-labelledby="volumeSeriesCoverLabel${n}" aria-describedby="volumeSeriesCoverStatus${n}">
+      <button type="button" class="admin-secondary" data-series-cover-btn aria-controls="volumeSeriesCover${n}">مۇقاۋا تاللاش</button>
+      <span class="volume-series-cover-status" id="volumeSeriesCoverStatus${n}" data-series-cover-status role="status">تاللانمىدى</span>
+    </div>
+    <div class="volume-series-metrics">
+      <label>باھاسى<input type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" data-series-price></label>
+      <label>ئامبار سانى<input type="number" min="0" step="1" inputmode="numeric" dir="ltr" data-series-stock></label>
+    </div>
+    <details class="volume-series-extra" data-series-extra>
+      <summary>قوشۇمچە ئۇچۇر</summary>
+      <label>قىسىم نامى<input type="text" maxlength="500" data-series-title placeholder="بوش قالسا نومۇر قوشۇلىدۇ"></label>
+      <label>كىتابنىڭ خەلقئارا نومۇرى<input type="text" maxlength="32" dir="ltr" inputmode="text" data-series-isbn autocomplete="off"></label>
+      <div class="volume-series-pages">
+        <div class="volume-series-pages-head">
+          <span id="volumeSeriesPagesLabel${n}">ئىچ بەت رەسىملىرى</span>
+          <span data-series-page-count>0 / ${cap}</span>
+        </div>
+        <input id="volumeSeriesPages${n}" class="admin-gallery-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-series-pages-input tabindex="-1" aria-labelledby="volumeSeriesPagesLabel${n}" aria-describedby="volumeSeriesPagesStatus${n}">
+        <button type="button" class="admin-secondary" data-series-pages-btn aria-controls="volumeSeriesPages${n}">رەسىم تاللاش</button>
+        <span class="volume-series-pages-status" id="volumeSeriesPagesStatus${n}" data-series-pages-status role="status">تاللانمىدى</span>
+        <div class="volume-series-pages-list" data-series-pages-list></div>
+      </div>
+    </details>`;
     return article;
+  }
+  function releaseSeriesPage(node){
+    if(!node||!node._preview)return;
+    try{URL.revokeObjectURL(node._preview)}catch(error){}
+    node._preview="";
+  }
+  function refreshSeriesPages(row){
+    if(!row)return;
+    const pages=[...row.querySelectorAll(".volume-series-page")];
+    const cap=seriesInteriorCap();
+    pages.forEach((page,index)=>{
+      const up=page.querySelector('[data-page-move="-1"]');
+      const down=page.querySelector('[data-page-move="1"]');
+      if(up)up.disabled=index===0;
+      if(down)down.disabled=index===pages.length-1;
+    });
+    const count=row.querySelector("[data-series-page-count]");
+    if(count)count.textContent=`${pages.length} / ${cap}`;
+    const status=row.querySelector("[data-series-pages-status]");
+    if(status)status.textContent=pages.length?`${pages.length} رەسىم تاللاندى`:"تاللانمىدى";
+    const btn=row.querySelector("[data-series-pages-btn]");
+    if(btn)btn.disabled=pages.length>=cap;
+  }
+  function seriesPageElement(file){
+    const article=document.createElement("article");
+    article.className="volume-series-page";
+    article._file=file;
+    article._url="";
+    article._preview=URL.createObjectURL(file);
+    const img=document.createElement("img");
+    img.src=article._preview;
+    img.alt="ئىچ بەت رەسىمى";
+    const name=document.createElement("span");
+    name.className="volume-series-page-name";
+    name.textContent=safeFileLabel(file.name);
+    const tools=document.createElement("div");
+    tools.className="volume-series-page-tools";
+    const up=document.createElement("button");
+    up.type="button";
+    up.dataset.pageMove="-1";
+    up.setAttribute("aria-label","ئۈستىگە");
+    up.textContent="↑";
+    const down=document.createElement("button");
+    down.type="button";
+    down.dataset.pageMove="1";
+    down.setAttribute("aria-label","ئاستىغا");
+    down.textContent="↓";
+    const remove=document.createElement("button");
+    remove.type="button";
+    remove.dataset.pageRemove="1";
+    remove.setAttribute("aria-label","چىقىرىش");
+    remove.textContent="چىقىرىش";
+    tools.append(up,down,remove);
+    article.append(img,name,tools);
+    up.addEventListener("click",()=>moveSeriesPage(article,-1));
+    down.addEventListener("click",()=>moveSeriesPage(article,1));
+    remove.addEventListener("click",()=>removeSeriesPage(article));
+    return article;
+  }
+  function moveSeriesPage(node,delta){
+    const host=node&&node.parentElement;
+    if(!host)return;
+    const rows=[...host.children];
+    const index=rows.indexOf(node);
+    const target=index+delta;
+    if(index<0||target<0||target>=rows.length)return;
+    if(delta<0)host.insertBefore(node,rows[target]);
+    else host.insertBefore(rows[target],node);
+    refreshSeriesPages(node.closest(".volume-series-part"));
+  }
+  function removeSeriesPage(node){
+    const row=node&&node.closest(".volume-series-part");
+    releaseSeriesPage(node);
+    if(node)node.remove();
+    refreshSeriesPages(row);
+  }
+  function seriesPageRejection(file){
+    const lib=root.KutadguGallery||{};
+    const maxBytes=Number(lib.MAX_GALLERY_BYTES)||8*1024*1024;
+    if(Number(file&&file.size)>maxBytes)return "بۇ رەسىم بەك چوڭ.";
+    const mime=String(file&&file.type||"").toLowerCase();
+    const allowed=typeof lib.isAllowedGalleryMime==="function"
+      ?lib.isAllowedGalleryMime(mime)
+      :["image/jpeg","image/png","image/webp","image/gif"].indexOf(mime)>=0;
+    return allowed?"":"بۇ ھۆججەت رەسىم ئەمەس.";
+  }
+  function addSeriesPages(row,fileList){
+    const host=row&&row.querySelector("[data-series-pages-list]");
+    if(!host)return;
+    const incoming=[...(fileList||[])];
+    const cap=seriesInteriorCap();
+    const room=Math.max(0,cap-host.children.length);
+    const plan=root.KutadguGallery&&typeof root.KutadguGallery.planGallerySelection==="function"
+      ?root.KutadguGallery.planGallerySelection(host.children.length,incoming.length,cap)
+      :{ok:incoming.length<=room,take:Math.min(incoming.length,room)};
+    if(!plan.take){
+      seriesStatus(`ئىچ بەت رەسىمى ${cap} پارچىدىن ئاشمايدۇ.`,"error");
+      refreshSeriesPages(row);
+      return;
+    }
+    let rejected="";
+    incoming.slice(0,plan.take).forEach(file=>{
+      const why=seriesPageRejection(file);
+      if(why){rejected=why;return}
+      host.appendChild(seriesPageElement(file));
+    });
+    if(!plan.ok||rejected)seriesStatus(rejected||`ئىچ بەت رەسىمى ${cap} پارچىدىن ئاشمايدۇ.`,"error");
+    refreshSeriesPages(row);
+  }
+  function bindSeriesCover(row){
+    const input=row.querySelector("[data-series-cover]");
+    const btn=row.querySelector("[data-series-cover-btn]");
+    const status=row.querySelector("[data-series-cover-status]");
+    if(btn&&input)btn.addEventListener("click",()=>input.click());
+    if(!input)return;
+    input.addEventListener("change",()=>{
+      const file=input.files&&input.files[0];
+      if(!file)return;
+      row._coverFile=file;
+      if(status)status.textContent=`تاللاندى: ${safeFileLabel(file.name)}`;
+    });
+  }
+  function bindSeriesPages(row){
+    const input=row.querySelector("[data-series-pages-input]");
+    const btn=row.querySelector("[data-series-pages-btn]");
+    if(btn&&input)btn.addEventListener("click",()=>input.click());
+    if(!input)return;
+    input.addEventListener("change",()=>{
+      const files=[...(input.files||[])];
+      input.value="";
+      if(!files.length)return;
+      addSeriesPages(row,files);
+    });
   }
   function refreshSeriesParts(){
     const rows=[...($("#volumeSeriesParts")?.children||[])];
@@ -435,17 +619,24 @@
       if(up)up.disabled=index===0;
       if(down)down.disabled=index===rows.length-1;
       if(remove)remove.disabled=rows.length<=2;
+      refreshSeriesPages(row);
     });
+    const count=$("#volumeSeriesPartCount");
+    if(count)count.textContent=`${rows.length} / 100`;
+    const add=$("#volumeSeriesAddPart");
+    if(add)add.disabled=rows.length>=100;
   }
   function bindSeriesPart(row){
     row.querySelector('[data-series-move="-1"]').onclick=()=>moveSeriesPart(row,-1);
     row.querySelector('[data-series-move="1"]').onclick=()=>moveSeriesPart(row,1);
     row.querySelector("[data-series-remove]").onclick=()=>removeSeriesPart(row);
+    bindSeriesCover(row);
+    bindSeriesPages(row);
   }
   function addSeriesPart(){
     const host=$("#volumeSeriesParts");
     if(!host||host.children.length>=100){
-      seriesStatus("يۈرۈشلۈكتە ئەڭ كۆپ 100 قىسىم بولۇشى كېرەك.","error");
+      seriesStatus("100 قىسىم بولدى.","error");
       return;
     }
     const row=seriesPartElement();
@@ -468,6 +659,7 @@
     const host=$("#volumeSeriesParts");
     if(!host||host.children.length<=2)return;
     const wasMain=row.querySelector("[data-series-main]").checked;
+    row.querySelectorAll(".volume-series-page").forEach(releaseSeriesPage);
     row.remove();
     if(wasMain){
       const first=host.querySelector("[data-series-main]");
@@ -476,17 +668,25 @@
     refreshSeriesParts();
   }
   function readSeriesDom(){
-    return [...($("#volumeSeriesParts")?.children||[])].map(row=>({
-      row,
-      title:row.querySelector("[data-series-title]").value,
-      price:row.querySelector("[data-series-price]").value,
-      stock:row.querySelector("[data-series-stock]").value,
-      isbn:row.querySelector("[data-series-isbn]").value,
-      file:row.querySelector("[data-series-cover]").files&&row.querySelector("[data-series-cover]").files[0]||null,
-      imageUrl:row.dataset.imageUrl||"",
-      objectKey:row.dataset.objectKey||"",
-      main:row.querySelector("[data-series-main]").checked
-    }));
+    return [...($("#volumeSeriesParts")?.children||[])].map(row=>{
+      const input=row.querySelector("[data-series-cover]");
+      return {
+        row,
+        title:row.querySelector("[data-series-title]").value,
+        price:row.querySelector("[data-series-price]").value,
+        stock:row.querySelector("[data-series-stock]").value,
+        isbn:row.querySelector("[data-series-isbn]").value,
+        file:row._coverFile||input&&input.files&&input.files[0]||null,
+        imageUrl:row.dataset.imageUrl||"",
+        objectKey:row.dataset.objectKey||"",
+        main:row.querySelector("[data-series-main]").checked,
+        pages:[...row.querySelectorAll(".volume-series-page")].map(node=>({
+          node,
+          file:node._file||null,
+          url:node._url||""
+        }))
+      };
+    });
   }
   function resetSeriesForm(){
     seriesState.requestId=newRequestId();
@@ -498,10 +698,14 @@
     $("#volumeSeriesSource").value="";
     $("#volumeSeriesSetPrice").value="";
     $("#volumeSeriesDescription").value="";
-    $("#volumeSeriesParts").innerHTML="";
+    const host=$("#volumeSeriesParts");
+    if(host){
+      host.querySelectorAll(".volume-series-page").forEach(releaseSeriesPage);
+      host.replaceChildren();
+    }
     addSeriesPart();
     addSeriesPart();
-    seriesStatus("قىسىملارنى تولدۇرۇپ ساقلاڭ. بۇ خېرىدارلارغا تېخى كۆرۈنمەيدۇ.","");
+    seriesStatus("ساقلاش خېرىدارغا چىقارمايدۇ.","");
   }
   function showSeriesForm(){
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
@@ -548,6 +752,60 @@
       delete row.row.dataset.objectKey;
     });
   }
+  function snapshotSeriesInteriors(rows){
+    return (Array.isArray(rows)?rows:[]).map(row=>({
+      imageUrl:text(row&&row.imageUrl),
+      pages:(Array.isArray(row&&row.pages)?row.pages:[]).map(page=>({
+        file:page&&page.file||null,
+        url:text(page&&page.url),
+        node:page&&page.node||null
+      }))
+    })).filter(part=>part.imageUrl&&part.pages.some(page=>page.file||page.url));
+  }
+  function seriesMemberByCover(members, imageUrl){
+    const identity=text(imageUrl);
+    if(!identity)return null;
+    const matches=(Array.isArray(members)?members:[]).filter(item=>text(item&&item.image_url)===identity);
+    return matches.length===1?matches[0]:null;
+  }
+  async function persistSeriesInteriors(parts, saved){
+    const members=Array.isArray(saved&&saved.members)?saved.members:[];
+    const upload=root.kutadguUploadBookGallery;
+    const persist=root.kutadguPersistBookGallery;
+    for(const part of Array.isArray(parts)?parts:[]){
+      const pages=Array.isArray(part.pages)?part.pages:[];
+      if(!pages.length)continue;
+      const imageUrl=text(part.imageUrl);
+      if(!imageUrl)continue;
+      const member=seriesMemberByCover(members, imageUrl);
+      const bookId=member&&(member.book_id||member.id);
+      if(!bookId)throw new Error("interior_part_unmatched");
+      if(typeof upload!=="function"||typeof persist!=="function")throw new Error("interior_upload_unavailable");
+      const urls=[];
+      for(const page of pages){
+        let url=text(page.url);
+        if(!url&&page.file){
+          const position=Number(member.position);
+          seriesStatus(Number.isInteger(position)&&position>0?`${position}-قىسىمنىڭ ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…`:"ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…","");
+          url=text(await upload(bookId,page.file));
+          page.url=url;
+          if(page.node)page.node._url=url;
+        }
+        if(url)urls.push(url);
+      }
+      if(urls.length)await persist(bookId,urls,imageUrl);
+    }
+  }
+  async function saveInteriorsOrStop(rows, saved){
+    try{
+      await persistSeriesInteriors(rows, saved);
+      return true;
+    }catch(galleryError){
+      const shown=seriesUserError(galleryError);
+      seriesStatus("ئىچ بەت رەسىمى ساقلانمىدى. قايتا ساقلىسىڭىز، يۈرۈشلۈك قايتا قوشۇلمايدۇ.","error",shown.diagnostic);
+      return false;
+    }
+  }
   function finishSavedSeries(saved){
     seriesState.pending=null;
     fillEditor(saved);
@@ -569,6 +827,12 @@
     }
     const upload=root.kutadguUploadSeriesPartCover;
     if(!pending&&typeof upload!=="function"){seriesStatus("مۇقاۋا يوللاش تەييار ئەمەس.","error");return}
+    const interiorSource=pending&&Array.isArray(pending.interiors)?pending.interiors:rows;
+    const needsInterior=interiorSource.some(row=>(row.pages||[]).some(page=>page.file||page.url));
+    if(needsInterior&&(typeof root.kutadguUploadBookGallery!=="function"||typeof root.kutadguPersistBookGallery!=="function")){
+      seriesStatus("ئىچ بەت رەسىمى يوللاش تەييار ئەمەس.","error");
+      return;
+    }
     seriesState.saving=true;
     const created=[];
     try{
@@ -607,13 +871,16 @@
         seriesState.pending={
           requestId:built.requestId,
           payload:built.payload,
-          objectKeys:rows.map(row=>text(row.objectKey)).filter(Boolean)
+          objectKeys:rows.map(row=>text(row.objectKey)).filter(Boolean),
+          interiors:snapshotSeriesInteriors(rows)
         };
       }
       seriesStatus("ساقلىنىۋاتىدۇ…","");
       const saved=await rpc("admin_create_book_volume_series",{p_request_id:built.requestId,p_payload:built.payload});
       const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
       if(saved&&saved.replayed===true)await discardSeriesKeys(created.filter(key=>!kept.has(rows.find(row=>row.objectKey===key)?.imageUrl||"")));
+      const interiors=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
+      if(!(await saveInteriorsOrStop(interiors, saved)))return;
       finishSavedSeries(saved);
       await load(true);
     }catch(error){
@@ -630,6 +897,8 @@
             const row=rows.find(item=>item.objectKey===key);
             return !kept.has(text(row&&row.imageUrl));
           }));
+          const recovered=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
+          if(!(await saveInteriorsOrStop(recovered, saved)))return;
           finishSavedSeries(saved);
           await load(true);
           return;
@@ -643,7 +912,8 @@
       seriesState.pending=null;
       await discardSeriesKeys(seriesCoverKeys(rows));
       clearSeriesUploads(rows);
-      seriesStatus(/AAL2|42501/.test(message)?"2-باسقۇچلۇق دەلىللەش كېرەك.":message,"error");
+      const shown=seriesUserError(error);
+      seriesStatus(shown.message,"error",shown.diagnostic);
     }finally{
       seriesState.saving=false;
     }
@@ -671,5 +941,5 @@
     bind();
   }
 
-  root.KutadguAdminVolumeGroups={init,load,newGroup,openGroup,normalizeMembers,editorPayload,seriesEntryPayload,showSeriesForm,_state:state};
+  root.KutadguAdminVolumeGroups={init,load,newGroup,openGroup,normalizeMembers,editorPayload,seriesEntryPayload,seriesUserError,seriesInteriorCap,showSeriesForm,_state:state};
 })(typeof globalThis!=="undefined"?globalThis:this);

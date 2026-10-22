@@ -208,41 +208,81 @@ test.describe("admin book-detail gallery restore", () => {
 
 test.describe("storefront still uses image_url only for cards and empty gallery layout", () => {
   test("listing card ignores gallery extras", async ({ page }) => {
+    const book = {
+      id: 91001,
+      title: "Gallery Card Book",
+      author: "سىناق ئاپتور",
+      price: 88,
+      source: "romanlar.html",
+      category: "رومانلار",
+      image_url: LISTING_COVER,
+      gallery_images: [LISTING_EXTRA],
+      is_active: true,
+      is_recommended: true,
+      is_new: true,
+      stock: 5,
+      stock_status: "in_stock",
+      sales_count: 3,
+      created_at: "2026-08-01T00:00:00Z",
+      kind: "book",
+      unit_key: "book:91001",
+      representative_book_id: "91001"
+    };
+    const served = { catalog: 0, books: 0 };
     await H.installReadSafeNetwork(page);
+    await page.route("**/rest/v1/rpc/**", async (route) => {
+      const url = route.request().url();
+      if (/\/rpc\/query_public_book_catalog(?:\?|$)/.test(url)) return route.fallback();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]"
+      });
+    });
+    await page.route("**/rest/v1/rpc/query_public_book_catalog**", async (route) => {
+      served.catalog += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [book], total: 1, has_more: false })
+      });
+    });
     await page.route("**/rest/v1/books**", async (route) => {
-      const books = [
-        {
-          id: 91001,
-          title: "Gallery Card Book",
-          author: "سىناق ئاپتور",
-          price: 88,
-          source: "romanlar.html",
-          category: "رومانلار",
-          image_url: LISTING_COVER,
-          gallery_images: [LISTING_EXTRA],
-          is_active: true,
-          is_recommended: true,
-          is_new: true,
-          stock: 5,
-          stock_status: "in_stock",
-          sales_count: 3,
-          created_at: "2026-08-01T00:00:00Z"
-        }
-      ];
+      served.books += 1;
+      const url = route.request().url();
+      if (url.includes("is_active=eq.false")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "content-range": "*/0" },
+          body: "[]"
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         headers: { "content-range": "0-0/1" },
-        body: JSON.stringify(books)
+        body: JSON.stringify([book])
       });
     });
     await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    const card = page.locator(".book-card:not(.is-skeleton)", { hasText: "Gallery Card Book" });
+    const grid = page.locator('.books-grid[data-catalog-source="romanlar.html"]');
+    const card = grid.locator('[data-live-book-id="91001"]');
     await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(grid.locator(".book-card:not(.is-skeleton)")).toHaveCount(1);
     const src = await card.locator("img").first().getAttribute("src");
     expect(src).toContain("kutadgu-logo.png");
     expect(src).not.toContain("hero-brand-logo.png");
+    const stored = await page.evaluate(() => {
+      const rows = Array.isArray(window.KUTADGU_LIVE_CATALOG) ? window.KUTADGU_LIVE_CATALOG : [];
+      const row = rows.find((item) => String(item && item.id) === "91001");
+      return row ? { image: row.image || "", gallery: row.galleryImages || [] } : null;
+    });
+    expect(stored && stored.image).toContain("kutadgu-logo.png");
+    expect(stored && stored.gallery).toContain(LISTING_EXTRA);
+    expect(served.catalog).toBeGreaterThan(0);
+    expect(served.books).toBeGreaterThan(0);
   });
 
   test("empty gallery keeps single-cover detail layout", async ({ page }) => {

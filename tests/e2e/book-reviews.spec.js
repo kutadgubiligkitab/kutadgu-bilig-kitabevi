@@ -1155,11 +1155,21 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   expect(oldCss).toContain(".admin-approval-panel{position:absolute");
   expect(oldCss).not.toContain(".admin-approval-panel[hidden]");
   const currentHtml = fs.readFileSync(path.join(__dirname, "../../admin.html"), "utf8");
-  expect(currentHtml).toContain("admin.css?v=59");
-  const oldDocument = currentHtml.replace("admin.css?v=59", "admin.css?v=49");
+  const currentPinMatch = currentHtml.match(/admin\.css\?v=(\d+)/);
+  expect(currentPinMatch, "admin.html must pin admin.css").toBeTruthy();
+  const currentPin = currentPinMatch[1];
+  expect(currentPin).toBe("60");
+  const oldDocument = currentHtml.replace(`admin.css?v=${currentPin}`, "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
-  expect(oldDocument).not.toContain("admin.css?v=59");
-  const hits = { v49: 0, v58: 0 };
+  expect(oldDocument).not.toContain(`admin.css?v=${currentPin}`);
+  const hits = { v49: 0, current: 0 };
+  const proxyPort = (() => {
+    try {
+      const target = new URL(process.env.KUTADGU_BASE_URL || "");
+      if ((target.hostname === "127.0.0.1" || target.hostname === "localhost") && target.port) return Number(target.port);
+    } catch (err) {}
+    return 4173;
+  })();
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -1178,10 +1188,10 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
         res.end(oldCssBuffer);
         return;
       }
-      if (url.pathname === "/admin.css" && url.searchParams.get("v") === "59") hits.v58 += 1;
+      if (url.pathname === "/admin.css" && url.searchParams.get("v") === currentPin) hits.current += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
-        port: 4173,
+        port: proxyPort,
         path: req.url,
         method: req.method,
         headers: Object.assign({}, req.headers, { host: "127.0.0.1:4173" })
@@ -1208,12 +1218,12 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
     const panel = page.locator(".admin-approval-panel");
     await expect(bell).toContainText("3");
     expect(hits.v49).toBe(1);
-    expect(hits.v58).toBe(0);
+    expect(hits.current).toBe(0);
     await expect(bell).toHaveAttribute("aria-expanded", "false");
     expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
     expect(await panel.getByRole("button", { name: "كىتاب تەستىقى 1" }).evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 255, 255)");
     await page.goto(origin.origin + "/admin.html", { waitUntil: "domcontentloaded" });
-    expect(hits.v58).toBe(1);
+    expect(hits.current).toBe(1);
     expect(hits.v49).toBe(1);
     await expect(bell).toContainText("3");
     await expect(bell).toHaveAttribute("aria-expanded", "false");
@@ -1227,6 +1237,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
     await page.goto(origin.origin + "/admin-css-cache-old.html", { waitUntil: "domcontentloaded" });
     await expect(bell).toContainText("3");
     expect(hits.v49).toBe(1);
+    expect(hits.current).toBe(1);
     const cached = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("admin.css?v=49")).map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
     expect(cached.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");

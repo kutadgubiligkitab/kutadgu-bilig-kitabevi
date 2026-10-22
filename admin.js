@@ -5294,6 +5294,8 @@ async function discardUnusedSeriesCover(key){
 }
 window.kutadguUploadSeriesPartCover=uploadSeriesPartCover;
 window.kutadguDiscardUnusedSeriesCover=discardUnusedSeriesCover;
+window.kutadguUploadBookGallery=uploadBookGalleryFile;
+window.kutadguPersistBookGallery=persistBookGallery;
 async function persistBookRow(payload,operation,editingBookId,signal){
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
   const op=Write.enforcePersistOperation?Write.enforcePersistOperation(operation,editingBookId):(canonicalBookId(editingBookId)?"UPDATE":(operation==="UPDATE"?"STOP":"INSERT"));
@@ -5318,6 +5320,45 @@ async function persistBookRow(payload,operation,editingBookId,signal){
   const insertPayload={...payload};
   delete insertPayload.id;
   return applySaveAbort(db.from("books").insert(insertPayload).select("id"),signal);
+}
+async function uploadBookGalleryFile(bookId,file){
+  if(!file)throw new Error("رەسىم كېرەك.");
+  if(!db&&window.__kutadguSkipAdminAuth){
+    const ext=(String(file.name||"page").split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
+    const safeExt=/^(webp|png|gif|jpg|jpeg)$/.test(ext)?(ext==="jpeg"?"jpg":ext):"webp";
+    const objectKey=`book-covers/${storageToken(bookId)}/gallery/${coverImageApi().uniqueStorageStamp()}.${safeExt}`;
+    window.__kutadguGalleryUploads=window.__kutadguGalleryUploads||[];
+    window.__kutadguGalleryUploads.push({bookId:String(bookId),key:objectKey,name:String(file.name||"")});
+    return "https://www.kutadgubilik.com/__r2/"+objectKey.split("/").map(encodeURIComponent).join("/");
+  }
+  return uploadGalleryFile(bookId,file);
+}
+async function persistBookGallery(bookId,urls,coverUrl){
+  const max=galleryLib().MAX_GALLERY_IMAGES||4;
+  const incoming=(Array.isArray(urls)?urls:[]).map(value=>String(value||"").trim()).filter(Boolean);
+  if(incoming.length>max){
+    const error=new Error("gallery_images may contain at most 4 items");
+    error.code="22023";
+    throw error;
+  }
+  const list=normalizeGalleryField(incoming,coverUrl||"");
+  if(!db&&window.__kutadguSkipAdminAuth){
+    if(window.__galleryPersistFails){
+      window.__galleryPersistFails-=1;
+      throw new Error("gallery_persist_failed");
+    }
+    window.__kutadguPersistedGalleries=window.__kutadguPersistedGalleries||[];
+    window.__kutadguPersistedGalleries.push({bookId:String(bookId),gallery_images:list});
+    return {error:null,data:[{id:bookId}]};
+  }
+  if(typeof window.__kutadguAdminPersistBook==="function"){
+    return window.__kutadguAdminPersistBook({gallery_images:list},"UPDATE",bookId);
+  }
+  if(!db)throw new Error("كىتاب ئۇلانمىدى.");
+  const {data,error}=await db.from("books").update({gallery_images:list}).eq("id",bookId).select("id");
+  if(error)throw error;
+  if(!Array.isArray(data)||data.length!==1)throw new Error("ئىچ بەت رەسىمى ساقلانمىدى.");
+  return {error:null,data};
 }
 async function refreshCatalogAfterSave(attempt){
   if(attempt!==saveAttempt)return;

@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=59">
+  <link rel="stylesheet" href="admin.css?v=60">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -408,15 +408,20 @@
           <form id="volumeSeriesForm" class="admin-form volume-series-form" hidden>
             <input id="volumeSeriesRequestId" type="hidden">
             <input id="volumeSeriesSource" type="hidden">
-            <p class="admin-help">يېڭى قىسىملارنى بىر قېتىمدا يېزىڭ. ساقلاش خېرىدارلارغا چىقارمايدۇ؛ تور بەتكە تەييارلاش ئايرىم.</p>
+            <h2 class="admin-section-title volume-series-heading">قىسىملىق كىتاب قوشۇش</h2>
+            <p class="admin-help volume-series-note">ساقلاش خېرىدارغا چىقارمايدۇ. تور بەتكە چىقىرىش ئايرىم.</p>
             <label class="admin-wide"><span>كىتاب نامى</span><input id="volumeSeriesTitle" type="text" maxlength="500" required placeholder="مەسىلەن: ئويغانغان زېمىن"></label>
             <label><span>ئاپتور</span><input id="volumeSeriesAuthor" type="text" maxlength="500"></label>
-            <label><span>كىتاب تۈرى</span><input id="volumeSeriesCategory" type="text" maxlength="200" placeholder="ھەرپ يېزىپ تىزىمدىن تاللاڭ"></label>
-            <label class="admin-wide"><span>يۈرۈشلۈكنىڭ باھاسى (ئىختىيارىي)</span><input id="volumeSeriesSetPrice" type="number" min="0" step="0.01" dir="ltr" placeholder="بوش قالدۇرسىڭىز، قىسىملارنىڭ باھاسى قوشۇلىدۇ"></label>
+            <label><span>كىتاب تۈرى</span><input id="volumeSeriesCategory" type="text" maxlength="200" placeholder="تىزىمدىن تاللاڭ"></label>
+            <label class="admin-wide"><span>يۈرۈشلۈك باھاسى</span><input id="volumeSeriesSetPrice" type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="بوش قالسا قىسىم باھالىرى قوشۇلىدۇ"></label>
             <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="volumeSeriesDescription" rows="4" maxlength="10000"></textarea></label>
-            <div id="volumeSeriesParts" class="volume-series-parts"></div>
-            <div class="admin-wide volume-admin-publish-row">
-              <button class="admin-secondary" id="volumeSeriesAddPart" type="button">قىسىم قوشۇش</button>
+            <div class="volume-series-parts-head">
+              <h3 id="volumeSeriesPartsHeading">قىسىملار</h3>
+              <span id="volumeSeriesPartCount" aria-live="polite">2 / 100</span>
+              <button class="admin-primary volume-series-add" id="volumeSeriesAddPart" type="button">＋ قىسىم قوشۇش</button>
+            </div>
+            <div id="volumeSeriesParts" class="volume-series-parts" aria-labelledby="volumeSeriesPartsHeading"></div>
+            <div class="volume-series-submit">
               <button class="admin-primary" type="submit">يۈرۈشلۈكنى ساقلاش</button>
             </div>
             <div id="volumeSeriesStatus" class="admin-status" role="status"></div>
@@ -1232,9 +1237,9 @@
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
-  <script defer src="admin-volume-groups.js?v=3"></script>
+  <script defer src="admin-volume-groups.js?v=5"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=120"></script>
+  <script defer src="admin.js?v=121"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>
