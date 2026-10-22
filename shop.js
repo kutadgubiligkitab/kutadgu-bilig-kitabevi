@@ -313,21 +313,37 @@ function ensureDetailCoverImage(){
   else box.prepend(img);
   return img;
 }
+let detailHeroRecoveryGen=0;
+function bumpDetailHeroRecovery(box){
+  detailHeroRecoveryGen+=1;
+  if(box){
+    box.dataset.coverHeroGeneration=String(detailHeroRecoveryGen);
+    delete box.dataset.coverHeroSrc;
+  }
+  return detailHeroRecoveryGen;
+}
 function scheduleDetailHeroRecovery(box,src,bookId){
   if(!box||box.dataset.coverHeroRecovered==="1")return;
   if(pageBookAuthority==="hidden")return;
   const known=getDetailBook();
   if(known&&!isStorefrontVisible(known))return;
   if(!isRetryableCoverUrl(src)||isSampleDemoCover(src))return;
+  const generation=bumpDetailHeroRecovery(box);
   box.dataset.coverHeroRecovered="1";
   box.dataset.coverHeroBook=String(bookId||"");
+  box.dataset.coverHeroSrc=src;
   const expected=String(bookId||(document.body&&document.body.dataset&&document.body.dataset.bookId)||"");
   setTimeout(()=>{
     if(!box.isConnected||pageBookAuthority==="hidden")return;
+    if(box.dataset.coverHeroGeneration!==String(generation))return;
+    if(box.dataset.coverHeroSrc!==src)return;
     const current=String((document.body&&document.body.dataset&&document.body.dataset.bookId)||pageBookBoot.id||"");
     if(expected&&current&&expected!==current)return;
     const book=getDetailBook();
     if(book&&!isStorefrontVisible(book))return;
+    const live=box.querySelector("img");
+    const shown=String((live&&(live.getAttribute("data-cover-src")||live.getAttribute("src")))||"").trim();
+    if(live&&shown&&shown!==src)return;
     const img=ensureDetailCoverImage();
     if(!img)return;
     assignCoverImage(img,src,{loading:"eager",fetchpriority:"high",bookId:expected});
@@ -2890,6 +2906,7 @@ function populateDynamicBookPage(b){
 
   const coverBox=document.querySelector(".book-cover-box");
   if(coverBox&&coverBox.dataset.coverHeroBook&&coverBox.dataset.coverHeroBook!==String(b.id)){
+    bumpDetailHeroRecovery(coverBox);
     delete coverBox.dataset.coverHeroRecovered;
     delete coverBox.dataset.coverHeroBook;
   }
@@ -2900,9 +2917,14 @@ function populateDynamicBookPage(b){
     img.parentElement.classList.remove("no-cover");
     const src=coverSrc(b);
     if(!src){
-      if(keepDecodedDetailCover(img))return;
-      markCoverUnavailable(img);
-    }else assignCoverImage(img,src,{loading:"eager",fetchpriority:"high",bookId:b.id});
+      if(!keepDecodedDetailCover(img))markCoverUnavailable(img);
+    }else{
+      if(coverBox&&coverBox.dataset.coverHeroSrc&&coverBox.dataset.coverHeroSrc!==src){
+        bumpDetailHeroRecovery(coverBox);
+        delete coverBox.dataset.coverHeroRecovered;
+      }
+      assignCoverImage(img,src,{loading:"eager",fetchpriority:"high",bookId:b.id});
+    }
   }
 
   const info=document.querySelector(".book-detail-info");
@@ -3007,7 +3029,10 @@ function setDetailHeroImage(src,alt){
   const img=ensureDetailCoverImage();
   if(!img)return;
   const box=img.closest(".book-cover-box");
-  if(box)delete box.dataset.coverHeroRecovered;
+  if(box){
+    bumpDetailHeroRecovery(box);
+    delete box.dataset.coverHeroRecovered;
+  }
   const safe=isSafeCoverUrl(src)&&!isSampleDemoCover(src)?src:"";
   img.alt=alt||img.alt||"";
   img.hidden=false;
@@ -4376,12 +4401,20 @@ function setupCatalogFilters(){
           showCreditStop("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى. قايتا سىناڭ.",true);
           return;
         }
-        empty.hidden=true;controls.hidden=true;grid.hidden=false;
+        empty.hidden=true;grid.hidden=false;
         if(append){
+          controls.hidden=false;
           const button=controls.querySelector(".catalog-load-more");
-          if(button){button.disabled=false;button.textContent=`تېخىمۇ كۆپ — يەنە ${pageSize()} دانە`}
+          if(button){
+            button.disabled=false;
+            button.textContent=`تېخىمۇ كۆپ — يەنە ${pageSize()} دانە`;
+          }else{
+            controls.innerHTML=`<button type="button" class="catalog-load-more">تېخىمۇ كۆپ — يەنە ${pageSize()} دانە</button>`;
+            controls.querySelector(".catalog-load-more")?.addEventListener("click",()=>apply(true));
+          }
           return;
         }
+        controls.hidden=true;
         if(retainedListing){
           items=retainedListing.items;
           grid.innerHTML=retainedListing.html;

@@ -122,6 +122,20 @@ async function installGuards(page, state) {
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], total: 0, has_more: false }) });
       }
       const rows = (state.rows || [row()]).filter((item) => item.is_active !== false);
+      const offset = Number(query.offset) || 0;
+      if (state.paging && Number(query.limit) < 100) {
+        state.offsets = state.offsets || [];
+        state.offsets.push(offset);
+        if (state.failFromOffset != null && offset >= state.failFromOffset) {
+          return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "page down" }) });
+        }
+        const slice = rows.slice(offset, offset + 1);
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: slice.map(catalogItem), total: rows.length, has_more: offset + slice.length < rows.length })
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -140,6 +154,7 @@ async function installGuards(page, state) {
     if ((method === "GET" || method === "HEAD") && /\/rest\/v1\/books\?/.test(url)) {
       state.bookReads += 1;
       state.events.push({ t: Date.now(), kind: "book" });
+      if (state.book === "hold") await state.bookHold;
       if (state.book === "fail") {
         return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "book down" }) });
       }
@@ -274,6 +289,56 @@ test("a replaced hero recovers once and the gallery can change it", async ({ pag
   await shot(page, "hero-recovered");
 });
 
+test("selecting gallery B before A's recovery timer fires keeps B", async ({ page }) => {
+  const state = fresh({ head: "fail", book: "ok", coverOk: false, rows: [row({ image_url: "/fixture-cover.webp", gallery_images: [GALLERY] })] });
+  await installGuards(page, state);
+  await page.route("**/book/91001**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: detailHtml(91001)
+  }));
+  await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".book-cover-box .book-cover-unavailable")).toBeVisible({ timeout: 8000 });
+  const hitsAtFailure = state.coverHits;
+  const thumb = page.locator(".book-gallery-thumb").nth(1);
+  await expect(thumb).toBeVisible();
+  await thumb.click();
+  state.coverOk = true;
+  await expect.poll(() => page.locator(".book-cover-box img").getAttribute("src")).toContain("hero-brand-logo");
+  await page.waitForTimeout(1800);
+  await expect(page.locator(".book-cover-box img")).toHaveAttribute("src", /hero-brand-logo/);
+  await expect(page.locator(".book-cover-box img")).not.toHaveAttribute("src", /fixture-cover/);
+  expect(state.coverHits).toBe(hitsAtFailure);
+  await expect(page.locator(".book-cover-box .book-cover-unavailable")).toHaveCount(0);
+});
+
+test("a decoded cover still receives the authoritative title and description", async ({ page }) => {
+  let releaseBook = () => {};
+  const state = fresh({
+    head: "fail",
+    book: "hold",
+    rows: [row({ title: "يېڭى ماۋزۇ", description: "يېڭى چۈشەندۈرۈش", image_url: "", author: "يېڭى ئاپتور" })]
+  });
+  state.bookHold = new Promise((resolve) => { releaseBook = resolve; });
+  await installGuards(page, state);
+  await page.route("**/book/91001**", (route) => route.fulfill({
+    status: 200,
+    contentType: "text/html",
+    body: detailHtml(91001)
+  }));
+  await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
+  const img = page.locator(".book-cover-box img");
+  await expect.poll(() => img.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
+  releaseBook();
+  await expect(page.locator(".book-detail-info h1")).toHaveText("يېڭى ماۋزۇ");
+  await expect(page.locator(".dynamic-book-description")).toBeVisible();
+  await expect(page.locator(".dynamic-book-description p")).toHaveText("يېڭى چۈشەندۈرۈش");
+  await expect(page.locator(".book-author")).toContainText("يېڭى ئاپتور");
+  await expect(img).toHaveAttribute("src", /kutadgu-logo\.png/);
+  await expect.poll(() => img.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator(".book-cover-unavailable")).toHaveCount(0);
+});
+
 test("a source change does not fall back to the previous cover", async ({ page }) => {
   await page.route("**/origin-fixture.html", (route) => route.fulfill({
     status: 200,
@@ -397,6 +462,37 @@ test("listing and discovery keep a matching result and a real empty shelf", asyn
   await expect(page.locator("#premiumDiscoveryResults")).not.toContainText("ۋاقىتلىق خاتالىق");
 });
 
+test("a failed load-more keeps the rows and leaves the next page reachable", async ({ page }) => {
+  const second = "ئىككىنچى بەت كىتابى";
+  const state = fresh({
+    head: "fail",
+    paging: true,
+    failFromOffset: 1,
+    rows: [row(), row({ id: 91002, title: second })]
+  });
+  await installGuards(page, state);
+  await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
+  const grid = page.locator(".books-grid");
+  await page.locator("#catalogSort").selectOption("new");
+  await expect(grid.locator(".book-card")).toHaveCount(1);
+  await expect(grid).toContainText(TITLE);
+  await expect(grid).not.toContainText(second);
+  const more = page.locator(".catalog-load-more");
+  await expect(more).toBeVisible();
+  await more.click();
+  await expect(grid.locator(".book-card")).toHaveCount(1);
+  await expect(grid).toContainText(TITLE);
+  await expect(grid).not.toContainText(second);
+  await expect(more).toBeVisible();
+  await expect(more).toBeEnabled();
+  expect(state.offsets.filter((offset) => offset >= 1)).toEqual([1]);
+  state.failFromOffset = null;
+  await more.click();
+  await expect(grid.locator(".book-card", { hasText: TITLE })).toHaveCount(1);
+  await expect(grid.locator(".book-card", { hasText: second })).toHaveCount(1);
+  expect(state.offsets.filter((offset) => offset >= 1)).toEqual([1, 1]);
+});
+
 test("confirmed hidden detail removes the cover and does not keep a buy button", async ({ page }) => {
   const state = fresh({ head: "fail", book: "empty" });
   await installGuards(page, state);
@@ -407,6 +503,9 @@ test("confirmed hidden detail removes the cover and does not keep a buy button",
   }));
   await page.goto("/book/91001", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ.");
+  await expect(page.locator(".book-cover-box img")).toHaveCount(0);
+  await expect(page.locator(".add-to-cart, .detail-main-cart")).toHaveCount(0);
+  await page.waitForTimeout(1600);
   await expect(page.locator(".book-cover-box img")).toHaveCount(0);
   await expect(page.locator(".add-to-cart, .detail-main-cart")).toHaveCount(0);
   await shot(page, "hidden-book");
