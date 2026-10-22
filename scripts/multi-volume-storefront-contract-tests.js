@@ -180,6 +180,27 @@ test("explicit series price is never replaced by the part sum",()=>{
   });
   assert.strictEqual(blank.complete_set_price,null);
   assert.strictEqual(blank.effective_set_price,769);
+  const missing=storefront.normalizeGroup(group(2,{
+    complete_set_price:"  ",
+    effective_set_price:"",
+    member_count:"2",
+    members:[member(1,{price:null}),member(2,{price:"   "})]
+  }));
+  assert.deepStrictEqual(missing.members.map(member=>member.price),[null,null]);
+  assert.strictEqual(missing.complete_set_price,null);
+  assert.strictEqual(missing.effective_set_price,null);
+  assert.strictEqual(missing.member_count,2);
+  const priced=storefront.normalizeGroup(group(2,{
+    complete_set_price:"750",
+    members:[member(1,{price:"370"}),member(2,{price:"399"})]
+  }));
+  assert.strictEqual(priced.complete_set_price,750);
+  assert.deepStrictEqual(priced.members.map(member=>member.price),[370,399]);
+  const zero=storefront.normalizeCatalogItem({
+    kind:"group",id:1,group_id:1,group_slug:"zero-set",complete_set_price:"0",member_prices:[0,"0"],member_book_ids:[1,2]
+  });
+  assert.strictEqual(zero.complete_set_price,0);
+  assert.deepStrictEqual(zero.member_prices,[0,0]);
 });
 
 test("public server exposure requires an explicit release flag",()=>{
