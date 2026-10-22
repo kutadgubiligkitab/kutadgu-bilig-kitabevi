@@ -441,11 +441,13 @@
     const cap=seriesInteriorCap();
     const article=document.createElement("article");
     article.className="volume-series-part";
-    article.innerHTML=`<div class="volume-series-part-tools">
+    article.innerHTML=`<div class="volume-series-part-head">
       <strong>قىسىم</strong>
+      <button type="button" class="volume-series-remove" data-series-remove aria-describedby="volumeSeriesRemoveLimit">× بۇ قىسىمنى ئېلىۋېتىش</button>
+    </div>
+    <div class="volume-series-part-tools">
       <button type="button" data-series-move="-1" aria-label="ئۈستىگە">↑</button>
       <button type="button" data-series-move="1" aria-label="ئاستىغا">↓</button>
-      <button type="button" data-series-remove>چىقىرىش</button>
       <label class="volume-admin-representative"><input type="radio" name="volumeSeriesMain" data-series-main> باش مۇقاۋا</label>
     </div>
     <div class="volume-series-cover">
@@ -618,7 +620,10 @@
       const remove=row.querySelector("[data-series-remove]");
       if(up)up.disabled=index===0;
       if(down)down.disabled=index===rows.length-1;
-      if(remove)remove.disabled=rows.length<=2;
+      if(remove){
+        remove.disabled=rows.length<=2;
+        remove.setAttribute("aria-label",`${index+1}-قىسىمنى ئېلىۋېتىش`);
+      }
       refreshSeriesPages(row);
     });
     const count=$("#volumeSeriesPartCount");

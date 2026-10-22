@@ -341,6 +341,98 @@ test.describe("plain-language multi-volume admin editor",()=>{
     await expect(page.locator("#volumeSeriesAddPart")).toBeDisabled();
   });
 
+  test("extra part rows show a remove control and keep the surviving rows",async({page})=>{
+    await openVolumeEditor(page);
+    await page.locator("#showVolumeSeriesBtn").click();
+    const parts=page.locator(".volume-series-part");
+    const tinyPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==","base64");
+    await expect(page.locator("#volumeSeriesRemoveLimit")).toHaveText("ھەر قۇردىكى «× بۇ قىسىمنى ئېلىۋېتىش» ئارتۇق قىسىمنى ئېلىۋېتىدۇ. ئاز دېگەندە ئىككى قىسىم قېلىدۇ.");
+    await expect(parts).toHaveCount(2);
+    const shotDir=path.join(__dirname,"..","..","artifacts","series-part-remove");
+    fs.mkdirSync(shotDir,{recursive:true});
+    for(const size of [{width:1280,height:900,name:"desktop"},{width:390,height:844,name:"mobile"}]){
+      await page.setViewportSize(size);
+      const remove=parts.nth(0).locator("[data-series-remove]");
+      await expect(remove).toBeVisible();
+      await expect(remove).toBeDisabled();
+      await expect(remove).toHaveText("× بۇ قىسىمنى ئېلىۋېتىش");
+      await expect(remove).toHaveAttribute("aria-label","1-قىسىمنى ئېلىۋېتىش");
+      const box=await remove.boundingBox();
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(()=>document.documentElement.dir)).toBe("rtl");
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+      await parts.nth(0).screenshot({path:path.join(shotDir,`${size.name}-remove.png`)});
+    }
+    await page.setViewportSize({width:1280,height:900});
+    await parts.nth(0).locator("[data-series-remove]").click({force:true});
+    await expect(parts).toHaveCount(2);
+    await parts.nth(0).locator("[data-series-price]").fill("370");
+    await parts.nth(0).locator("[data-series-stock]").fill("20");
+    await parts.nth(0).locator("[data-series-cover]").setInputFiles({name:"keep-cover.png",mimeType:"image/png",buffer:tinyPng});
+    await parts.nth(0).locator("summary").click();
+    await parts.nth(0).locator("[data-series-title]").fill("بىرىنچى");
+    await parts.nth(0).locator("[data-series-pages-input]").setInputFiles([
+      {name:"inside-a.png",mimeType:"image/png",buffer:tinyPng},
+      {name:"inside-b.png",mimeType:"image/png",buffer:tinyPng}
+    ]);
+    await parts.nth(1).locator("[data-series-price]").fill("399");
+    await parts.nth(1).locator("[data-series-stock]").fill("8");
+    await parts.nth(1).locator("[data-series-cover]").setInputFiles({name:"second-cover.png",mimeType:"image/png",buffer:tinyPng});
+    await parts.nth(1).locator("summary").click();
+    await parts.nth(1).locator("[data-series-title]").fill("ئىككىنچى");
+    await page.locator("#volumeSeriesAddPart").click();
+    await expect(parts).toHaveCount(3);
+    await expect(parts.nth(2).locator("[data-series-remove]")).toBeEnabled();
+    await parts.nth(2).screenshot({path:path.join(shotDir,"desktop-remove-enabled.png")});
+    await page.setViewportSize({width:390,height:844});
+    await parts.nth(2).screenshot({path:path.join(shotDir,"mobile-remove-enabled.png")});
+    await page.setViewportSize({width:1280,height:900});
+    await parts.nth(2).locator("[data-series-remove]").focus();
+    await expect(parts.nth(2).locator("[data-series-remove]")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(parts).toHaveCount(2);
+    await page.locator("#volumeSeriesAddPart").click();
+    await page.locator("#volumeSeriesAddPart").click();
+    await expect(parts).toHaveCount(4);
+    await parts.nth(2).locator("[data-series-price]").fill("111");
+    await parts.nth(2).locator("[data-series-stock]").fill("3");
+    await parts.nth(2).locator("[data-series-cover]").setInputFiles({name:"third-cover.png",mimeType:"image/png",buffer:tinyPng});
+    await parts.nth(2).locator("[data-series-main]").check();
+    await parts.nth(3).locator("[data-series-price]").fill("222");
+    await parts.nth(3).locator("[data-series-stock]").fill("4");
+    await parts.nth(3).locator("[data-series-cover]").setInputFiles({name:"fourth-cover.png",mimeType:"image/png",buffer:tinyPng});
+    await page.getByRole("button",{name:"4-قىسىمنى ئېلىۋېتىش"}).click();
+    await expect(parts).toHaveCount(3);
+    await expect(page.locator("#volumeSeriesPartCount")).toHaveText("3 / 100");
+    await expect(parts.nth(2).locator("[data-series-main]")).toBeChecked();
+    await page.getByRole("button",{name:"3-قىسىمنى ئېلىۋېتىش"}).click();
+    await expect(parts).toHaveCount(2);
+    await expect(page.locator("#volumeSeriesPartCount")).toHaveText("2 / 100");
+    await expect(page.locator("#volumeSeriesAddPart")).toBeEnabled();
+    await expect(parts.nth(0).locator("[data-series-remove]")).toBeDisabled();
+    await expect(parts.nth(0).locator("[data-series-main]")).toBeChecked();
+    await expect(parts.nth(0).locator("[data-series-title]")).toHaveValue("بىرىنچى");
+    await expect(parts.nth(0).locator("[data-series-price]")).toHaveValue("370");
+    await expect(parts.nth(1).locator("[data-series-title]")).toHaveValue("ئىككىنچى");
+    await expect(parts.nth(1).locator("[data-series-price]")).toHaveValue("399");
+    expect(await parts.nth(0).locator("[data-series-cover]").evaluate(input=>input.files[0]&&input.files[0].name)).toBe("keep-cover.png");
+    expect(await parts.nth(1).locator("[data-series-cover]").evaluate(input=>input.files[0]&&input.files[0].name)).toBe("second-cover.png");
+    await expect(parts.nth(0).locator(".volume-series-page-name")).toHaveText(["inside-a.png","inside-b.png"]);
+    await page.locator("#volumeSeriesTitle").fill("ئويغانغان زېمىن");
+    await page.locator("#volumeSeriesCategory").fill("تارىخىي");
+    await page.locator("#volumeSeriesCategory").locator("..").getByRole("option",{name:"تارىخىي رومانلار",exact:true}).click();
+    await page.locator("#volumeSeriesSetPrice").fill("750");
+    await page.locator('#volumeSeriesForm button[type="submit"]').click();
+    await expect(page.locator("#volumeSeriesStatus")).toContainText("ساقلاندى");
+    const saved=await page.evaluate(()=>window.__volumeEditorCalls.filter(call=>call.name==="admin_create_book_volume_series"));
+    expect(saved).toHaveLength(1);
+    expect(saved[0].args.p_payload.parts.map(part=>part.price)).toEqual([370,399]);
+    expect(saved[0].args.p_payload.parts.map(part=>part.title)).toEqual(["بىرىنچى","ئىككىنچى"]);
+    expect(saved[0].args.p_payload.representative_position).toBe(1);
+    expect(await page.evaluate(()=>window.__volumeEditorCalls.some(call=>call.name==="admin_set_book_volume_group_publication"))).toBe(false);
+  });
+
   test("cover picker stays accessible and interior images stay with their part",async({page})=>{
     await openVolumeEditor(page);
     await page.locator("#showVolumeSeriesBtn").click();
