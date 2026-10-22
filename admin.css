@@ -126,7 +126,13 @@ button{cursor:pointer}
 .volume-series-part label{display:grid;gap:4px;min-width:0}
 .volume-series-part input,.volume-series-part input[type=file]{width:100%;max-width:100%;min-width:0}
 .volume-series-part input[type="number"],.volume-series-part input[data-series-isbn]{direction:ltr;text-align:left;unicode-bidi:isolate}
-.volume-series-part-tools,.volume-series-cover,.volume-series-page-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.volume-series-part-head,.volume-series-part-tools,.volume-series-cover,.volume-series-page-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.volume-series-part-head strong{font-size:16px}
+.volume-series-remove{margin-inline-start:auto;min-height:44px;min-width:44px;padding:8px 12px;border:1px solid #b84b4b;border-radius:9px;background:#fff5f3;color:#9d3030;font-weight:800;line-height:1.4}
+.volume-series-remove:disabled{opacity:.45;cursor:not-allowed}
+.volume-series-remove:focus-visible{outline:3px solid #70503d;outline-offset:2px}
+.volume-series-remove-note{margin:0}
+body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-color:#a86a62}
 .volume-series-cover,.volume-series-metrics,.volume-series-extra,.volume-series-pages{min-width:0;max-width:100%}
 .volume-series-cover-label,.volume-series-pages-head span:first-child{font-weight:700}
 .volume-series-cover-status,.volume-series-pages-status,.volume-series-page-name{overflow-wrap:anywhere;min-width:0}
