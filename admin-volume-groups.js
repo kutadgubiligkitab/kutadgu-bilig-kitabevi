@@ -345,7 +345,7 @@
     let message="يۈرۈشلۈك ساقلانمىدى. قايتا سىناڭ.";
     if(/AAL2|42501/.test(blob))message="2-باسقۇچلۇق دەلىللەش كېرەك.";
     else if(/invalid_volume_count/.test(blob))message="قىسىم سانى 2 دىن 100 گىچە بولسۇن.";
-    else if(/invalid_series_isbn/.test(blob))message="ISBN نومۇرى توغرا ئەمەس.";
+    else if(/invalid_series_isbn/.test(blob))message="كىتابنىڭ خەلقئارا نومۇرى توغرا ئەمەس.";
     else if(/invalid_series_cover|series_cover_already_used/.test(blob))message="مۇقاۋا قوبۇل قىلىنمىدى.";
     else if(/invalid_complete_set_price|explicit_price_replaced/.test(blob))message="يۈرۈشلۈك باھاسى ساقلانمىدى.";
     else if(/gallery_images|interior_/.test(blob))message="ئىچ بەت رەسىمى ساقلانمىدى.";
@@ -409,7 +409,7 @@
       const preview=value.allowPreviewUrls===true&&image.startsWith("https://");
       if(!image||(!preview&&!image.startsWith(prefix)))return {ok:false,message:`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللانمىدى.`};
       const isbn=text(part.isbn).replace(/[^0-9Xx]/g,"");
-      if(isbn&&isbn.length!==10&&isbn.length!==13)return {ok:false,message:`${index+1}-قىسىمنىڭ ISBN نومۇرى 10 ياكى 13 خانە بولسۇن.`};
+      if(isbn&&isbn.length!==10&&isbn.length!==13)return {ok:false,message:`${index+1}-قىسىمنىڭ خەلقئارا نومۇرى 10 ياكى 13 خانە بولسۇن.`};
       if(part.main)representative=index+1;
       built.push({
         title:text(part.title),
@@ -461,7 +461,7 @@
     <details class="volume-series-extra" data-series-extra>
       <summary>قوشۇمچە ئۇچۇر</summary>
       <label>قىسىم نامى<input type="text" maxlength="500" data-series-title placeholder="بوش قالسا نومۇر قوشۇلىدۇ"></label>
-      <label>ISBN<input type="text" maxlength="32" dir="ltr" inputmode="text" data-series-isbn autocomplete="off"></label>
+      <label>كىتابنىڭ خەلقئارا نومۇرى<input type="text" maxlength="32" dir="ltr" inputmode="text" data-series-isbn autocomplete="off"></label>
       <div class="volume-series-pages">
         <div class="volume-series-pages-head">
           <span id="volumeSeriesPagesLabel${n}">ئىچ بەت رەسىملىرى</span>
@@ -752,18 +752,32 @@
       delete row.row.dataset.objectKey;
     });
   }
-  async function persistSeriesInteriors(rows, saved){
+  function snapshotSeriesInteriors(rows){
+    return (Array.isArray(rows)?rows:[]).map(row=>({
+      imageUrl:text(row&&row.imageUrl),
+      pages:(Array.isArray(row&&row.pages)?row.pages:[]).map(page=>({
+        file:page&&page.file||null,
+        url:text(page&&page.url),
+        node:page&&page.node||null
+      }))
+    })).filter(part=>part.imageUrl&&part.pages.some(page=>page.file||page.url));
+  }
+  function seriesMemberByCover(members, imageUrl){
+    const identity=text(imageUrl);
+    if(!identity)return null;
+    const matches=(Array.isArray(members)?members:[]).filter(item=>text(item&&item.image_url)===identity);
+    return matches.length===1?matches[0]:null;
+  }
+  async function persistSeriesInteriors(parts, saved){
     const members=Array.isArray(saved&&saved.members)?saved.members:[];
     const upload=root.kutadguUploadBookGallery;
     const persist=root.kutadguPersistBookGallery;
-    for(let index=0;index<rows.length;index+=1){
-      const row=rows[index];
-      const pages=Array.isArray(row.pages)?row.pages:[];
+    for(const part of Array.isArray(parts)?parts:[]){
+      const pages=Array.isArray(part.pages)?part.pages:[];
       if(!pages.length)continue;
-      const imageUrl=text(row.imageUrl);
-      const member=members.find(item=>imageUrl&&text(item.image_url)===imageUrl)
-        ||members.find(item=>Number(item.position)===index+1)
-        ||null;
+      const imageUrl=text(part.imageUrl);
+      if(!imageUrl)continue;
+      const member=seriesMemberByCover(members, imageUrl);
       const bookId=member&&(member.book_id||member.id);
       if(!bookId)throw new Error("interior_part_unmatched");
       if(typeof upload!=="function"||typeof persist!=="function")throw new Error("interior_upload_unavailable");
@@ -771,8 +785,8 @@
       for(const page of pages){
         let url=text(page.url);
         if(!url&&page.file){
-          const position=member&&member.position?member.position:index+1;
-          seriesStatus(`${position}-قىسىمنىڭ ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…`,"");
+          const position=Number(member.position);
+          seriesStatus(Number.isInteger(position)&&position>0?`${position}-قىسىمنىڭ ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…`:"ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…","");
           url=text(await upload(bookId,page.file));
           page.url=url;
           if(page.node)page.node._url=url;
@@ -813,7 +827,8 @@
     }
     const upload=root.kutadguUploadSeriesPartCover;
     if(!pending&&typeof upload!=="function"){seriesStatus("مۇقاۋا يوللاش تەييار ئەمەس.","error");return}
-    const needsInterior=rows.some(row=>(row.pages||[]).some(page=>page.file||page.url));
+    const interiorSource=pending&&Array.isArray(pending.interiors)?pending.interiors:rows;
+    const needsInterior=interiorSource.some(row=>(row.pages||[]).some(page=>page.file||page.url));
     if(needsInterior&&(typeof root.kutadguUploadBookGallery!=="function"||typeof root.kutadguPersistBookGallery!=="function")){
       seriesStatus("ئىچ بەت رەسىمى يوللاش تەييار ئەمەس.","error");
       return;
@@ -856,14 +871,16 @@
         seriesState.pending={
           requestId:built.requestId,
           payload:built.payload,
-          objectKeys:rows.map(row=>text(row.objectKey)).filter(Boolean)
+          objectKeys:rows.map(row=>text(row.objectKey)).filter(Boolean),
+          interiors:snapshotSeriesInteriors(rows)
         };
       }
       seriesStatus("ساقلىنىۋاتىدۇ…","");
       const saved=await rpc("admin_create_book_volume_series",{p_request_id:built.requestId,p_payload:built.payload});
       const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
       if(saved&&saved.replayed===true)await discardSeriesKeys(created.filter(key=>!kept.has(rows.find(row=>row.objectKey===key)?.imageUrl||"")));
-      if(!(await saveInteriorsOrStop(rows, saved)))return;
+      const interiors=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
+      if(!(await saveInteriorsOrStop(interiors, saved)))return;
       finishSavedSeries(saved);
       await load(true);
     }catch(error){
@@ -880,7 +897,8 @@
             const row=rows.find(item=>item.objectKey===key);
             return !kept.has(text(row&&row.imageUrl));
           }));
-          if(!(await saveInteriorsOrStop(rows, saved)))return;
+          const recovered=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
+          if(!(await saveInteriorsOrStop(recovered, saved)))return;
           finishSavedSeries(saved);
           await load(true);
           return;

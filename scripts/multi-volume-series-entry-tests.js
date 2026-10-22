@@ -55,6 +55,18 @@ assert.strictEqual(explicit.ok, true);
 assert.strictEqual(explicit.payload.complete_set_price, 750);
 assert.notStrictEqual(explicit.payload.complete_set_price, 100 + 101);
 
+const badIsbn = groups.seriesEntryPayload({
+  requestId,
+  title: "نام",
+  category: "تارىخىي رومانلار",
+  source: "tarikhiy-romanlar.html",
+  completeSetPrice: "",
+  parts: [{ ...part(1, 10), isbn: "12345" }, part(2, 20)]
+});
+assert.strictEqual(badIsbn.ok, false);
+assert.strictEqual(badIsbn.message, "1-قىسىمنىڭ خەلقئارا نومۇرى 10 ياكى 13 خانە بولسۇن.");
+assert.ok(!String(badIsbn.message).includes("ISBN"));
+
 const missingCover = groups.seriesEntryPayload({
   requestId,
   title: "نام",
@@ -102,6 +114,10 @@ assert.ok(!failed.message.includes("series_create_failed"));
 assert.match(failed.diagnostic, /series_create_failed/);
 assert.match(failed.diagnostic, /P0001/);
 assert.strictEqual(groups.seriesUserError({ message: "Admin AAL2 required", code: "42501" }).message, "2-باسقۇچلۇق دەلىللەش كېرەك.");
+const isbnError = groups.seriesUserError({ message: "invalid_series_isbn", code: "P0001" });
+assert.strictEqual(isbnError.message, "كىتابنىڭ خەلقئارا نومۇرى توغرا ئەمەس.");
+assert.ok(!isbnError.message.includes("ISBN"));
+assert.match(isbnError.diagnostic, /invalid_series_isbn/);
 
 const priced = entry(2, 750);
 assert.strictEqual(Object.hasOwn(priced.payload.parts[0], "gallery_images"), false);
