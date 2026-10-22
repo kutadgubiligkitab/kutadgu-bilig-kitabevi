@@ -74,6 +74,13 @@
   object-fit:contain !important;
   object-position:center center !important;
 }
+#premiumDiscoveryResults .premium-card-cover img.is-cover-retrying,
+#premiumWizardResults .premium-card-cover img.is-cover-retrying,
+[data-people-also-viewed] .premium-card-cover img.is-cover-retrying,
+#searchResults .premium-empty-books .premium-card-cover img.is-cover-retrying{
+  width:100% !important;
+  height:100% !important;
+}
 #premiumDiscoveryResults .premium-card-badges,
 #premiumWizardResults .premium-card-badges,
 [data-people-also-viewed] .premium-card-badges{
@@ -89,7 +96,7 @@
 /* ----- Homepage carousel ----- */
 #newBooksCarousel .home-carousel-title{
   line-height:1.75 !important;
-  min-height:calc(1.75em * 2);
+  min-height:calc(1.75em * 2) !important;
   padding-block:0.08em 0.14em;
   box-sizing:content-box;
   overflow-wrap:anywhere;
@@ -322,4 +329,37 @@ body.dark-mode #newBooksCarousel .home-carousel-author{
     font-size:12px !important;
     padding:6px 10px !important;
   }
+}
+#homeShopSections .shop-mini-card .mini-actions .detail-button,
+#myBooksApp .shop-mini-card .mini-actions .detail-button,
+[data-detail-related] .detail-related-grid .shop-mini-card .mini-actions .detail-button,
+[data-recently-viewed] .shop-mini-card .mini-actions .detail-button{
+  flex:1 1 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  margin:0;
+  text-align:center;
+  text-decoration:none;
+  box-sizing:border-box;
+}
+#newBooksCarousel a.home-carousel-cart{
+  text-decoration:none;
+}
+#premiumDiscoveryResults a.premium-card-cart,
+#premiumWizardResults a.premium-card-cart,
+[data-people-also-viewed] a.premium-card-cart,
+#searchResults a.premium-card-cart{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  text-align:center;
+  text-decoration:none;
+}
+.books-grid[data-catalog-source] .book-card .book-actions > .detail-button:only-child,
+#searchResults .advanced-search-actions > .detail-button:only-child{
+  flex:1 1 auto;
+  grid-column:1 / -1;
 }

@@ -120,8 +120,8 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=167/);
-  assert.match(shop, /storefront-cards-1a-polish\.css\?v=2/);
+  assert.match(indexHtml, /shop\.js\?v=175/);
+  assert.match(shop, /storefront-cards-1a-polish\.css\?v=3/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
   assert.match(ensurePublic, /ensureStorefrontCards1aPolishCss\(\)/);
@@ -140,29 +140,26 @@ function stripCards1bCartLabel(src) {
   return src.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"");
 }
 
-test("card generators and Search 1A rank helper stay unchanged except Cards 1B cart labels", () => {
-  const mainShop = execSync("git show origin/main:shop.js", { cwd: root, encoding: "utf8" });
-  assert.strictEqual(
-    sliceBetween(shop, "function miniCard(b){", "function favoriteCard(b){"),
-    sliceBetween(mainShop, "function miniCard(b){", "function favoriteCard(b){")
-  );
+test("ordinary card actions stay while grouped cards use the compact series label", () => {
+  const mini = sliceBetween(shop, "function miniCard(b){", "function favoriteCard(b){");
+  assert.match(mini, /\$\{cartButton\(b\)\}/);
+  assert.match(mini, /SERIES_CARD_DETAIL/);
+  assert.doesNotMatch(mini, /volume-group-card-badge|قىسىملارنى كۆرۈش|بېكىتىلگەن يۈرۈشلۈك باھاسى/);
   const home = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  assert.strictEqual(stripCards1bCartLabel(home), stripCards1bCartLabel(mainHome));
   assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
+  assert.match(home, /home-feature-cart">\$\{SERIES_CARD_DETAIL\}/);
+  const carouselCard = sliceBetween(shop, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
+  assert.match(carouselCard, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
+  assert.match(carouselCard, /class="home-carousel-cart" href="/);
   const carousel = sliceBetween(shop, "function card(b,i=0){", "const isDual=()=>");
-  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(stripCards1bCartLabel(paidCarouselCard(carousel)), stripCards1bCartLabel(paidCarouselCard(mainCarousel)));
+  assert.match(carousel, /return homeCarouselCard\(b,i\)/);
   assert.match(carousel, /function giftCard\(b,i=0\)/);
   const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
   assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
   assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
-  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   assert.match(shop, /usesSearchRelevance/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
-  const mainCompact = execSync("git show origin/main:premium-ux.js", { cwd: root, encoding: "utf8" });
   const compactSlice = compactCardSlice(compact);
-  const mainSlice = compactCardSlice(mainCompact);
   assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
   assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
   assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
@@ -171,7 +168,10 @@ test("card generators and Search 1A rank helper stay unchanged except Cards 1B c
   assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
   assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
   assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
-  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
+  assert.match(compact, /function seriesCompactCard\(book,src,id\)/);
+  assert.match(compact, /data-cover-src="\$\{src\}" data-cover-book="\$\{id\}"/);
+  assert.match(compact, /تەپسىلاتى/);
+  assert.doesNotMatch(sliceBetween(compact, "function seriesCompactCard(book,src,id){", "function compactCard(book){"), /data-premium-cart|data-premium-favorite/);
   const cfg = fs.readFileSync(path.join(root, "app-config.js"), "utf8");
   assert.match(cfg, /id:"parenting"/);
   assert.match(cfg, /id:"textbooks"/);

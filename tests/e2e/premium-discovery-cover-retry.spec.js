@@ -105,7 +105,7 @@ async function mockBooks(page, books) {
 }
 
 function installProbe(page, initialMode) {
-  const hits = { n: 0, abort: 0, ok: 0 };
+  const hits = { n: 0, abort: 0, ok: 0, held: 0 };
   const state = { mode: initialMode, release: null };
   const ready = page.route(`**${PROBE}`, async (route) => {
     hits.n += 1;
@@ -120,6 +120,7 @@ function installProbe(page, initialMode) {
         hits.abort += 1;
         return route.abort("failed");
       }
+      hits.held += 1;
       await new Promise((resolve) => { state.release = resolve; });
     }
     hits.ok += 1;
@@ -207,7 +208,24 @@ test.describe("premium discovery cover retry", () => {
       const books = [bookRow(), religionRow()];
       const probe = await boot(page, books, "fail-then-hold", viewport);
       await showGroup(page, "history");
-      await expect(page.locator('#premiumDiscoveryResults [data-premium-book-id="88001"] img.is-cover-retrying')).toBeVisible({ timeout: 8_000 });
+      const pending = page.locator('#premiumDiscoveryResults [data-premium-book-id="88001"] img.is-cover-retrying');
+      await expect.poll(() => probe.hits.held, { timeout: 8_000 }).toBeGreaterThan(0);
+      await expect(pending).toBeVisible({ timeout: 8_000 });
+      const pendingBox = await pending.evaluate((img) => {
+        const image = img.getBoundingClientRect();
+        const frame = img.closest(".premium-card-cover").getBoundingClientRect();
+        return {
+          imageWidth: image.width,
+          imageHeight: image.height,
+          frameWidth: frame.width,
+          frameHeight: frame.height
+        };
+      });
+      expect(pendingBox.imageWidth).toBeGreaterThan(0);
+      expect(pendingBox.imageHeight).toBeGreaterThan(0);
+      expect(pendingBox.frameWidth).toBeGreaterThan(0);
+      expect(pendingBox.frameHeight).toBeGreaterThan(0);
+      console.log(`pending-cover ${viewport.width} ${JSON.stringify(pendingBox)}`);
       await showGroup(page, "religion");
       await expect(page.locator('#premiumDiscoveryResults [data-premium-book-id="88011"]')).toBeVisible();
       await expect.poll(() => cardImageWidth(page, "88011"), { timeout: 8_000 }).toBeGreaterThan(0);

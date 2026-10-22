@@ -145,9 +145,11 @@ test.describe("adabiyat books-first hub", () => {
     await expect(page.locator(".book-title", { hasText: POEM_TITLE })).toHaveCount(0);
     const series = page.locator(".book-card", { hasText: SERIES_TITLE });
     await expect(series).toHaveCount(1);
+    await expect(series).toContainText("سوغۇق يۈرۈشلۈك — 2 قىسىم");
     await expect(series).toContainText("750");
-    await expect(series).toContainText("370");
-    await expect(series).toContainText("399");
+    await expect(series).toContainText("تەپسىلاتى");
+    await expect(series).not.toContainText("370");
+    await expect(series).not.toContainText("399");
     await expect(series.locator("a[href*='/volume-group/']").first()).toHaveAttribute("href", `/volume-group/${SERIES_SLUG}`);
     await expect(page.locator("[data-live-book-id='91022']")).toHaveCount(0);
     await page.locator('.adabiyat-hub-pill[data-adabiyat-sub="sheirlar"]').click();

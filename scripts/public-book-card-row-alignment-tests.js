@@ -137,42 +137,27 @@ function paidCarouselCard(src) {
   return body.replace("    if(mode===\"gifts\")return giftCard(b,i);\n", "").replace(/\s+$/, "");
 }
 
-test("card generators stay unchanged from origin/main", () => {
+test("favorite cards stay unchanged and ordinary actions remain", () => {
   const mainShop = gitShowMain("shop.js");
-  assert.strictEqual(
-    sliceBetween(shopJs, "function miniCard(b){", "function favoriteCard(b){"),
-    sliceBetween(mainShop, "function miniCard(b){", "function favoriteCard(b){")
-  );
   assert.strictEqual(
     sliceBetween(shopJs, "function favoriteCard(b){", "function renderFavoritesPage(){"),
     sliceBetween(mainShop, "function favoriteCard(b){", "function renderFavoritesPage(){")
   );
   const home = sliceBetween(shopJs, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  const mainHome = sliceBetween(mainShop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-  assert.strictEqual(
-    home.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\""),
-    mainHome.replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"")
-  );
   assert.match(home, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);
-  assert.strictEqual(
-    sliceBetween(shopJs, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b){"),
-    sliceBetween(mainShop, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b){")
-  );
+  const listing = sliceBetween(shopJs, "function bookCardMarkup(b,variant=\"listing\",coverOpts={}){", "function searchResultCard(b){");
+  assert.match(listing, />تەپسىلات<\/a>/);
+  assert.match(listing, /SERIES_CARD_DETAIL/);
+  assert.doesNotMatch(listing, /volume-group-card-badge|قىسىملارنى كۆرۈش/);
   const carousel = sliceBetween(shopJs, "function card(b,i=0){", "const isDual=()=>");
-  const mainCarousel = sliceBetween(mainShop, "function card(b,i=0){", "const isDual=()=>");
-  assert.strictEqual(
-    paidCarouselCard(carousel).replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\""),
-    paidCarouselCard(mainCarousel).replace(/cartButton\(b,"🛒 سېۋەتكە"/g, "cartButton(b,\"🛒\"")
-  );
   assert.match(carousel, /function giftCard\(b,i=0\)/);
   const giftCard = carousel.slice(carousel.indexOf("function giftCard(b,i=0){"), carousel.indexOf("function giftStateMarkup"));
   assert.match(giftCard, /ھەقسىز قەغەز سوۋغا/);
   assert.doesNotMatch(giftCard, /home-carousel-price|data-cart-id/);
-  assert.match(carousel, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
+  const carouselCard = sliceBetween(shopJs, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
+  assert.match(carouselCard, /cartButton\(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart"\)/);
   const compact = fs.readFileSync(path.join(root, "premium-ux.js"), "utf8");
-  const mainCompact = gitShowMain("premium-ux.js");
   const compactSlice = compactCardSlice(compact);
-  const mainSlice = compactCardSlice(mainCompact);
   assert.match(compactSlice, /data-cover-src="\$\{src\}"/);
   assert.match(compactSlice, /data-cover-book="\$\{id\}"/);
   assert.match(compactSlice, /<strong>\$\{escapeHtml\(book\.title\)\}<\/strong>/);
@@ -181,7 +166,6 @@ test("card generators stay unchanged from origin/main", () => {
   assert.match(compactSlice, /href="\$\{escapeHtml\(bookHref\(book\)\)\}"/);
   assert.match(compactSlice, /data-premium-favorite="\$\{id\}"/);
   assert.match(compactSlice, /data-premium-cart="\$\{id\}"/);
-  assert.strictEqual(normalizePremiumCoverCard(compactSlice), normalizePremiumCoverCard(mainSlice));
 });
 
 test("public alignment CSS loads last after premium cart-row safety", () => {

@@ -26,7 +26,7 @@ function sliceBetween(src, startNeedle, endNeedle) {
 
 const cartSrc = sliceBetween(shop, "function cartButton(book,label=", "function cart(){");
 const homeSrc = sliceBetween(shop, "function homeFeatureCard(b){", "let homeFeaturedRequestId=0;");
-const carouselSrc = sliceBetween(shop, "async function setupHomeCarousel()", "function loadMemberSystem");
+const carouselSrc = sliceBetween(shop, "function homeCarouselCard(b,i=0){", "async function setupHomeCarousel(){");
 
 test("homepage featured and carousel pass a visible سېۋەتكە cart label", () => {
   assert.match(homeSrc, /cartButton\(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart"\)/);

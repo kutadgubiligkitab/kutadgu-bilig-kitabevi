@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=167/);
+  assert.match(index, /shop\.js\?v=175/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -131,9 +131,19 @@ test("homepage tab and shop read path stay on the member client", () => {
     const start = src.indexOf("function setupSmartEmptyState(){");
     const end = src.indexOf("function setupFilterUX(){");
     assert.ok(start >= 0 && end > start);
-    return src.slice(0, start) + src.slice(end);
+    let out = src.slice(0, start) + src.slice(end);
+    const cardStarts = ["function isSeriesCard(book){", "function compactCard(book){"]
+      .map((needle) => out.indexOf(needle))
+      .filter((index) => index >= 0);
+    const cardStart = cardStarts.length ? Math.min(...cardStarts) : -1;
+    const cardEnd = out.indexOf("function recoverCachedCoverFailure(img){");
+    assert.ok(cardStart >= 0 && cardEnd > cardStart);
+    out = out.slice(0, cardStart) + out.slice(cardEnd);
+    return out.replace(/\n  window\.KutadguPremiumUx=\{compactCard\};\n/, "\n");
   };
   assert.strictEqual(dropEmpty(premiumNow), dropEmpty(premiumMain));
+  assert.match(premiumNow, /function seriesCompactCard\(book,src,id\)/);
+  assert.match(premiumNow, /data-cover-src="\$\{src\}" data-cover-book="\$\{id\}"/);
   assert.match(premiumNow, /dataset\.searchState!=="empty"/);
   assert.strictEqual(gitDiff("kutadgu-public-book.js"), "");
 });

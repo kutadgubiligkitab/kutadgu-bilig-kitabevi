@@ -67,9 +67,9 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     representativeBookId:String(value("representativeBookId","representative_book_id",id)||id),
     memberBookIds:(Array.isArray(value("memberBookIds","member_book_ids",[]))?value("memberBookIds","member_book_ids",[]):[]).map(String),
     memberCount:Number(value("memberCount","member_count",0))||0,
-    memberPrices:(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[])).map(Number).filter(Number.isFinite),
-    completeSetPrice:setPriceRaw===null||setPriceRaw===undefined||setPriceRaw===""?null:Number(setPriceRaw),
-    effectiveSetPrice:effectiveSetPriceRaw===null||effectiveSetPriceRaw===undefined||effectiveSetPriceRaw===""?null:Number(effectiveSetPriceRaw),
+    memberPrices:(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[])).map(finiteSeriesAmount),
+    completeSetPrice:finiteSeriesAmount(setPriceRaw),
+    effectiveSetPrice:finiteSeriesAmount(effectiveSetPriceRaw),
     title:book.title||"",
     author:book.author||"",
     isbn:String(value("isbn","isbn","")||"").trim(),
@@ -2128,31 +2128,60 @@ function migratePersistedBookIds(){
 
 function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}
 function finiteSeriesAmount(value){
-  if(value==null||value==="")return null;
+  if(value==null)return null;
+  if(typeof value==="string"){
+    const text=value.trim();
+    if(!text)return null;
+    const amount=Number(text);
+    return Number.isFinite(amount)?amount:null;
+  }
   const amount=Number(value);
   return Number.isFinite(amount)?amount:null;
+}
+function seriesMemberPriceList(book){
+  const raw=book&&(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]));
+  return (raw||[]).map(finiteSeriesAmount);
+}
+function seriesMemberPricesComplete(book,parts){
+  const expected=seriesPartCount(book);
+  return expected>0&&parts.length===expected&&parts.every(amount=>amount!=null);
 }
 function seriesPriceLines(book){
   const explicit=finiteSeriesAmount(book&&(book.completeSetPrice!=null?book.completeSetPrice:book.complete_set_price));
   const effective=finiteSeriesAmount(book&&(book.effectiveSetPrice!=null?book.effectiveSetPrice:book.effective_set_price));
-  const rawParts=book&&(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]));
-  const parts=(rawParts||[]).map(finiteSeriesAmount).filter(amount=>amount!=null);
+  const parts=seriesMemberPriceList(book);
   let full=null;
   if(explicit!=null)full=explicit;
   else if(effective!=null)full=effective;
-  else if(parts.length)full=parts.reduce((sum,amount)=>sum+amount,0);
+  else if(seriesMemberPricesComplete(book,parts))full=parts.reduce((sum,amount)=>sum+amount,0);
   return {explicit:explicit!=null,full,parts};
 }
+function seriesPriceText(book){
+  return money(seriesPriceLines(book).full);
+}
 function seriesPriceMarkup(book){
-  const lines=seriesPriceLines(book);
-  const full=lines.full==null?"باھا تېخى بېكىتىلمىگەن":money(lines.full);
-  const partText=lines.parts.length
-    ?lines.parts.map(money).join(" · ")
-    :(finiteSeriesAmount(book&&book.price)!=null?`${money(book.price)} دىن`:"");
-  return `<span class="volume-series-prices"><span class="volume-series-full"><small>${lines.explicit?"بېكىتىلگەن يۈرۈشلۈك باھاسى":"تولۇق يۈرۈشلۈك"}</small><strong>${escapeHtml(full)}</strong></span>${partText?`<span class="volume-series-parts"><small>قىسىم باھاسى</small><span>${escapeHtml(partText)}</span></span>`:""}</span>`;
+  return escapeHtml(seriesPriceText(book));
 }
 function seriesPartCount(book){
-  return book.memberCount||(book.memberBookIds||book.memberPrices||[]).length||"";
+  if(!book)return 0;
+  const raw=book.memberCount!=null&&book.memberCount!==""?book.memberCount:(book.member_count!=null&&book.member_count!==""?book.member_count:null);
+  const direct=raw==null?NaN:Number(raw);
+  if(Number.isInteger(direct)&&direct>0)return direct;
+  const ids=Array.isArray(book.memberBookIds)?book.memberBookIds:(Array.isArray(book.member_book_ids)?book.member_book_ids:[]);
+  if(ids.length)return ids.length;
+  const prices=Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]);
+  return prices.length||0;
+}
+function seriesCardLabel(book){
+  const title=String(book&&book.title||"").trim();
+  const count=seriesPartCount(book);
+  if(!(count>0))return title;
+  return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;
+}
+const SERIES_CARD_DETAIL="تەپسىلاتى";
+function seriesTitleMarkup(book,tag,className,attrs=""){
+  const label=seriesCardLabel(book);
+  return `<${tag} class="${className}" title="${escapeAttr(label)}"${attrs}>${escapeHtml(label)}</${tag}>`;
 }
 function isStockEnforcementEnabled(){
   const helper=window.KutadguStock;
@@ -3623,10 +3652,13 @@ function miniCover(b){
 }
 
 function miniCard(b){
-  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author);
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),author=escapeHtml(b.author);
   const state=stockStateClass(b);
   const isGroup=b.catalogKind==="group"&&b.groupId;
-  return `<article class="shop-mini-card${state?" "+state:""}">${isGroup?"":`<button type="button" class="mini-heart" data-fav-id="${id}">♡</button>`}<a href="${href}">${miniCover(b)}<div class="shop-mini-title">${title}</div><div class="shop-mini-meta">${author}</div>${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:`<div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div>`}</a><div class="mini-actions">${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button>`}</div></article>`;
+  const title=isGroup?seriesTitleMarkup(b,"div","shop-mini-title"):`<div class="shop-mini-title">${escapeHtml(b.title)}</div>`;
+  const price=isGroup?`<div class="shop-mini-price">${seriesPriceMarkup(b)}</div>`:`<div class="mini-card-status">${stockBadge(b)}</div><div class="shop-mini-price">${money(b.price)}</div>`;
+  const actions=isGroup?`<a class="detail-button" href="${href}">${SERIES_CARD_DETAIL}</a>`:`${cartButton(b)}<button type="button" class="share-button" data-share-id="${id}">🔗</button>`;
+  return `<article class="shop-mini-card${state?" "+state:""}">${isGroup?"":`<button type="button" class="mini-heart" data-fav-id="${id}">♡</button>`}<a href="${href}">${miniCover(b)}${title}<div class="shop-mini-meta">${author}</div>${price}</a><div class="mini-actions">${actions}</div></article>`;
 }
 
 function favoriteCard(b){
@@ -3691,9 +3723,10 @@ function recommendedBooks(limit=12){
 
 
 function homeFeatureCard(b){
-  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),author=escapeHtml(b.author||"—");
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),author=escapeHtml(b.author||"—");
   const isGroup=b.catalogKind==="group"&&b.groupId;
   const state=isGroup?"":stockStateClass(b);
+  const title=isGroup?seriesTitleMarkup(b,"div","home-feature-title"):`<div class="home-feature-title">${escapeHtml(b.title)}</div>`;
   return `<article class="home-feature-card${state?" "+state:""}">
       ${isGroup?"":`<button type="button" class="home-feature-heart favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش" aria-pressed="false">♡</button>`}
       <a href="${href}">
@@ -3703,12 +3736,11 @@ function homeFeatureCard(b){
           </div>
         </div>
         <div class="home-feature-info">
-          <div class="home-feature-title">${title}</div>
+          ${title}
           <div class="home-feature-author">${author}</div>
-          ${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:""}
           <div class="home-feature-bottom">
-            ${isGroup?"":`<span class="home-feature-price">${money(b.price)}</span>`}
-            ${isGroup?`<span class="detail-button">قىسىملارنى كۆرۈش</span>`:`${stockBadge(b)}
+            <span class="home-feature-price">${isGroup?seriesPriceMarkup(b):money(b.price)}</span>
+            ${isGroup?`<span class="home-feature-cart">${SERIES_CARD_DETAIL}</span>`:`${stockBadge(b)}
             ${cartButton(b,"🛒 سېۋەتكە","add-to-cart home-feature-cart")}`}
           </div>
         </div>
@@ -3853,15 +3885,16 @@ function bindDynamicActions(scope){
   renderFavButtons();
 }
 function bookCardMarkup(b,variant="listing",coverOpts={}){
-  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),authorName=storefrontAuthor(b),author=escapeHtml(authorName),category=escapeHtml(b.category||"");
   const authorBlock=authorName?`<div class="${variant==="search"?"advanced-search-meta":"book-author"}">${variant==="search"?`ئاپتورى: ${author}`:`ئاپتورى: ${author}`}</div>`:(variant==="search"?"":`<p class="book-author" hidden></p>`);
   const isGroup=b.catalogKind==="group"&&b.groupId;
   const state=isGroup?"":stockStateClass(b);
   const cover=wrapCoverHtml(b,coverImgHtml(b,coverOpts));
   const priceLabel=isGroup?seriesPriceMarkup(b):`${money(b.price)}`;
-  const groupBadge=isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>`:"";
+  const listingTitle=isGroup?seriesTitleMarkup(b,"h2","book-title"):`<h2 class="book-title">${escapeHtml(b.title)}</h2>`;
+  const searchTitle=isGroup?seriesTitleMarkup(b,"a","advanced-search-title",` href="${href}"`):`<a class="advanced-search-title" href="${href}">${escapeHtml(b.title)}</a>`;
   const cardActions=isGroup
-    ?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`
+    ?`<a class="detail-button" href="${href}">${SERIES_CARD_DETAIL}</a>`
     :`<a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b)}
         <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
@@ -3869,14 +3902,13 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
   if(variant==="search")return `<article class="advanced-search-result${state?" "+state:""}" data-live-book-id="${id}">
     <a class="advanced-search-cover${state?" "+state:""}" href="${href}">${cover}</a>
     <div class="advanced-search-info">
-      <a class="advanced-search-title" href="${href}">${title}</a>
+      ${searchTitle}
       ${authorBlock}
       <div class="advanced-search-meta">${category}</div>
-      ${groupBadge}
-      <div class="advanced-search-price${isGroup?" volume-group-starting-price":""}">${priceLabel}</div>
+      <div class="advanced-search-price">${priceLabel}</div>
       ${isGroup?"":stockBadge(b)}
       <div class="advanced-search-actions">
-        ${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`<a class="detail-button" href="${href}">تەپسىلات</a>
+        ${isGroup?`<a class="detail-button" href="${href}">${SERIES_CARD_DETAIL}</a>`:`<a class="detail-button" href="${href}">تەپسىلات</a>
         ${cartButton(b,"🛒 سېۋەتكە")}
         <button type="button" class="favorite-button" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>
         <button type="button" class="share-button" data-share-id="${id}" aria-label="ھەمبەھىرلەش">🔗</button>`}
@@ -3888,11 +3920,10 @@ function bookCardMarkup(b,variant="listing",coverOpts={}){
       ${cover}
     </a>
     <div class="book-info">
-      <h2 class="book-title">${title}</h2>
+      ${listingTitle}
       ${authorName?`<p class="book-author">ئاپتورى: ${author}</p>`:`<p class="book-author" hidden></p>`}
-      ${groupBadge}
       ${isGroup?"":stockBadge(b)}
-      <div class="book-price${isGroup?" volume-group-starting-price":""}">${priceLabel}</div>
+      <div class="book-price">${priceLabel}</div>
       <div class="book-actions">
         ${cardActions}
       </div>
@@ -6200,7 +6231,30 @@ async function verifyGiftOffer(bookId,epoch){
   if(!offer.data||offer.data.enabled!==true||!giftBookRequestable(book.data))return {ok:false,reason:"unavailable"};
   return {ok:true,book:giftDisplayBook(book.data)};
 }
-
+function homeCarouselCard(b,i=0){
+  const loading=i<4?"eager":"lazy";
+  const fetchpriority=i<2?"high":"";
+  const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
+  const authorName=storefrontAuthor(b);
+  const isGroup=b.catalogKind==="group"&&b.groupId;
+  const state=isGroup?"":stockStateClass(b);
+  const titleHtml=isGroup?seriesTitleMarkup(b,"div","home-carousel-title"):`<div class="home-carousel-title">${title}</div>`;
+  const authorHtml=authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:"";
+  const bottom=isGroup
+    ?`<span class="home-carousel-price">${seriesPriceMarkup(b)}</span><a class="home-carousel-cart" href="${href}">${SERIES_CARD_DETAIL}</a>`
+    :`<span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}`;
+  return `<article class="home-carousel-card${state?" "+state:""}">
+      ${isGroup?"":`<button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>`}
+      <a href="${href}" class="home-carousel-link">
+        <div class="home-carousel-cover${state?" "+state:""}">${wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460,loading,fetchpriority}))}</div>
+      </a>
+      <div class="home-carousel-info">
+        <a href="${href}" class="home-carousel-meta-link">${titleHtml}${authorHtml}</a>
+        ${isGroup?"":stockBadge(b)}
+        <div class="home-carousel-bottom">${bottom}</div>
+      </div>
+    </article>`;
+}
 async function setupHomeCarousel(){
   const host=document.querySelector("#homeCarouselTrack");
   const viewport=document.querySelector("#homeCarouselViewport");
@@ -6266,23 +6320,7 @@ async function setupHomeCarousel(){
   }
   function card(b,i=0){
     if(mode==="gifts")return giftCard(b,i);
-    const loading=i<4?"eager":"lazy";
-    const fetchpriority=i<2?"high":"";
-    const id=escapeAttr(b.id),href=escapeAttr(safeHref(b.href)),title=escapeHtml(b.title||"كىتاب");
-    const authorName=storefrontAuthor(b);
-    const isGroup=b.catalogKind==="group"&&b.groupId;
-    const state=isGroup?"":stockStateClass(b);
-    return `<article class="home-carousel-card${state?" "+state:""}">
-      ${isGroup?"":`<button type="button" class="home-carousel-fav favorite-button mini-heart" data-fav-id="${id}" aria-label="ياقتۇرۇش">♡</button>`}
-      <a href="${href}" class="home-carousel-link">
-        <div class="home-carousel-cover${state?" "+state:""}">${wrapCoverHtml(b,coverImgHtml(b,{width:320,height:460,loading,fetchpriority}))}</div>
-      </a>
-      <div class="home-carousel-info">
-        <a href="${href}" class="home-carousel-meta-link"><div class="home-carousel-title">${title}</div>${authorName?`<div class="home-carousel-author">${escapeHtml(authorName)}</div>`:""}</a>
-        ${isGroup?`<span class="volume-group-card-badge">${escapeHtml(seriesPartCount(b))} قىسىملىق</span>${seriesPriceMarkup(b)}`:stockBadge(b)}
-        <div class="home-carousel-bottom">${isGroup?`<a class="detail-button" href="${href}">قىسىملارنى كۆرۈش</a>`:`<span class="home-carousel-price">${money(b.price)}</span>${cartButton(b,"🛒 سېۋەتكە","home-carousel-cart add-to-cart")}`}</div>
-      </div>
-    </article>`;
+    return homeCarouselCard(b,i);
   }
   function giftCard(b,i=0){
     const loading=i<4?"eager":"lazy";
@@ -6781,7 +6819,7 @@ function ensureStorefrontCards1aPolishCss(){
   if(!el){
     el=document.createElement("link");
     el.rel="stylesheet";
-    el.href="/storefront-cards-1a-polish.css?v=2";
+    el.href="/storefront-cards-1a-polish.css?v=4";
     el.setAttribute("data-kutadgu-storefront-cards-1a","1");
   }
   document.head.appendChild(el);
@@ -6816,7 +6854,7 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/premium-ux.js?v=17","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=19","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -6887,7 +6925,7 @@ async function boot(){
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
   await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=1","kutadguVolumeGroupsScript"));
-  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=1","kutadguVolumeStorefrontScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=2","kutadguVolumeStorefrontScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();
@@ -6918,5 +6956,5 @@ async function boot(){
   ensurePublicBookCardRowAlignmentCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,retryVolumeCartReads,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage,renderHomeFeaturedBooks};
+window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,retryVolumeCartReads,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage,renderHomeFeaturedBooks,seriesCardLabel,seriesPriceText,seriesPartCount,homeCarouselCard};
 })();

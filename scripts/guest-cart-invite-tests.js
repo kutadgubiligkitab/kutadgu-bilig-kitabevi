@@ -72,8 +72,8 @@ function guestState(overrides) {
 test("cart.html keeps one hidden guest invitation outside checkout", () => {
   assert.strictEqual((cartHtml.match(/id="guestCartInvite"/g) || []).length, 1);
   assert.strictEqual((cartHtml.match(/checkout-member-note/g) || []).length, 1);
-  assert.match(cartHtml, /shop\.js\?v=167/);
-  assert.match(cartHtml, /shop\.css\?v=55/);
+  assert.match(cartHtml, /shop\.js\?v=175/);
+  assert.match(cartHtml, /shop\.css\?v=58/);
   assert.doesNotMatch(cartHtml, /shop\.js\?v=154/);
   const aside = sliceBetween(cartHtml, 'id="cartAside"', 'id="checkoutCard"');
   assert.match(aside, /id="guestCartInvite"[^>]*hidden/);
@@ -364,11 +364,11 @@ test("existing foreign-owner merge still applies a local quantity change made du
   assert.deepStrictEqual(foreignDelta, [{ id: "21", qty: 3 }, { id: "11", qty: 9 }]);
 });
 
-test("storefront shop pins are v=167 and account.js stays the only signup entry", () => {
+test("storefront shop pins are v=175 and account.js stays the only signup entry", () => {
   const htmlPins = execSync("git grep -l 'shop.js?v=' -- '*.html'", { cwd: root, encoding: "utf8" }).trim().split("\n");
   htmlPins.forEach((rel) => {
     const html = fs.readFileSync(path.join(root, rel), "utf8");
-    assert.match(html, /shop\.js\?v=167/, rel);
+    assert.match(html, /shop\.js\?v=175/, rel);
     assert.doesNotMatch(html, /shop\.js\?v=154/, rel);
   });
   assert.match(accountJs, /function signupEntryRequested\(\)/);
