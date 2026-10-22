@@ -68,7 +68,7 @@ test("instant first paint uses snapshots before catalog settle; skeleton remains
   assert.match(page, /preview\|\|!visible/);
   assert.match(page, /disabled aria-disabled=\\"true\\"/);
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
-  assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("await loadRemoteCatalog()"));
+  assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("loadRemoteCatalog()"));
   assert.ok(boot.lastIndexOf("hydrateBooksByIds") < boot.indexOf("markCatalogBootSettled()"));
 });
 
@@ -76,7 +76,8 @@ test("authoritative refresh reuses existing hydrate and then re-renders cartPage
   const mark = sliceBetween(shop, "function markCatalogBootSettled(){", "function isCartDocument(){");
   assert.match(mark, /refreshCartDisplaySnapshotsFromCatalog\(\)/);
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
-  assert.match(boot, /await loadRemoteCatalog\(\)/);
+  assert.match(boot, /const catalogProbe=loadRemoteCatalog\(\)/);
+  assert.doesNotMatch(boot, /await loadRemoteCatalog\(\)/);
   assert.match(boot, /await hydrateBooksByIds/);
   assert.match(boot, /markCatalogBootSettled\(\)/);
   const init = sliceBetween(shop, "function init(){", "let bootStarted=false");
@@ -203,8 +204,8 @@ test("signed-in current owner with a persisted session is allowed to paint befor
   assert.strictEqual(api.currentShopUserId(), uid);
   assert.strictEqual(api.shopOwnerAllowsLocalDisplay(), true);
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
-  assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("await loadRemoteCatalog()"));
-  assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
+  assert.ok(boot.indexOf("initStaticShell()") < boot.indexOf("loadRemoteCatalog()"));
+  assert.match(boot, /loadMemberSystem\(\);\r?\n  const catalogProbe=loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
 });
 

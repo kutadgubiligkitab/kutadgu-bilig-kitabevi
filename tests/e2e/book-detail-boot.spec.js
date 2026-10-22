@@ -334,33 +334,20 @@ async function recoverAvailability(page, mode) {
   };
 }
 
-async function expectAvailabilityFailure(page) {
-  await expect.poll(async () => (await detailState(page)).boot, { timeout: 12000 }).toBe("unavailable");
-  const failed = await detailState(page);
-  expect(failed.purchase).toBe(false);
-  expect(failed.price).toBe("");
-  expect(failed.cartDisabled).toBe(null);
-  expect(failed.h1).toContain("لۇغەت");
-  expect(failed.h1).not.toContain("تەمىنلەنمەيدۇ");
-  return failed;
-}
-
-test("a failed catalog availability check keeps the server book and retry reloads it", async ({ page }) => {
+test("a failed catalog availability check still reads the book", async ({ page }) => {
   const gate = await recoverAvailability(page, "status");
   await page.goto(`/book/${BOOK_ID}`, { waitUntil: "commit" });
-  await expectAvailabilityFailure(page);
-  gate.recover();
-  await page.locator("[data-detail-boot='unavailable'] .catalog-retry-btn").click();
   const done = await expectCompleteDetail(page);
   expect(done.cartDisabled).toBe(false);
+  expect(done.h1).not.toContain("تەمىنلەنمەيدۇ");
+  gate.recover();
 });
 
-test("a timed-out catalog availability check keeps the server book and retry reloads it", async ({ page }) => {
+test("a timed-out catalog availability check still reads the book", async ({ page }) => {
   const gate = await recoverAvailability(page, "timeout");
   await page.goto(`/book/${BOOK_ID}`, { waitUntil: "commit" });
-  await expectAvailabilityFailure(page);
-  gate.recover();
-  await page.locator("[data-detail-boot='unavailable'] .catalog-retry-btn").click();
   const done = await expectCompleteDetail(page);
   expect(done.cartDisabled).toBe(false);
+  expect(done.h1).not.toContain("تەمىنلەنمەيدۇ");
+  gate.recover();
 });

@@ -238,7 +238,7 @@ test.describe("storefront still uses image_url only for cards and empty gallery 
     });
     await page.goto("/romanlar.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    const card = page.locator(".book-card:not(.is-skeleton)").first();
+    const card = page.locator(".book-card:not(.is-skeleton)", { hasText: "Gallery Card Book" });
     await expect(card).toBeVisible({ timeout: 20_000 });
     const src = await card.locator("img").first().getAttribute("src");
     expect(src).toContain("kutadgu-logo.png");

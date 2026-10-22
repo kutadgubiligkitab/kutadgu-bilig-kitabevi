@@ -243,7 +243,7 @@ test.describe("discovery cover space reservation", () => {
           return !!hit && (hit === el || el.contains(hit));
         });
         expect(groupHit).toBe(true);
-        await page.locator("#premiumDiscoveryResults").scrollIntoViewIfNeeded();
+        await page.locator("#premiumDiscoveryResults .premium-discovery-loading").scrollIntoViewIfNeeded();
         const pending = await pendingState(page);
         expect(pending.missing).toBe(false);
         expect(pending.inView).toBe(true);

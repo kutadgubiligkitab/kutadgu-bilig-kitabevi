@@ -253,7 +253,18 @@
       const quote = dq != null ? '"' : "'";
       return " " + attr + "=" + quote + mapped + quote;
     });
-    if (!origin || /data-kutadgu-cover-origin\s*=/i.test(next)) return next;
+    if (!origin) return next;
+    if (/data-kutadgu-cover-origin\s*=/i.test(next)) {
+      let changed = false;
+      const replaced = next.replace(/data-kutadgu-cover-origin\s*=\s*("([^"]*)"|'([^']*)')/i, (full, quoted, dq, sq) => {
+        const existing = dq != null ? dq : sq;
+        if (existing === origin) return full;
+        changed = true;
+        const quote = dq != null ? '"' : "'";
+        return "data-kutadgu-cover-origin=" + quote + escapeAttr(origin) + quote;
+      });
+      return changed ? replaced.replace(/\sdata-kutadgu-r2-fallback\s*=\s*(?:"1"|'1')/i, "") : replaced;
+    }
     return next.replace(/<img\b/i, '<img data-kutadgu-cover-origin="' + escapeAttr(origin) + '"');
   }
 
@@ -299,10 +310,19 @@
     let rewriting = false;
 
     function applyValue(img, value) {
-      if (!img || img.getAttribute(fallbackAttr) === "1") return value;
+      if (!img) return value;
+      const stored = img.getAttribute(originAttr) || "";
+      const storedKey = coverObjectKey(supabaseObjectKey(stored));
+      const sameCover = !!(stored && value && (stored === value || (storedKey && String(value).indexOf(storedKey) !== -1)));
+      if (stored && value && !sameCover) {
+        img.setAttribute(originAttr, value);
+        img.removeAttribute(fallbackAttr);
+      }
+      if (img.getAttribute(fallbackAttr) === "1") return value;
       const next = previewImageUrl(value, src);
       if (!next || next === value) return value;
       if (!img.getAttribute(originAttr)) img.setAttribute(originAttr, value);
+      img.setAttribute("data-kutadgu-cover-assigned", next);
       if (img.getAttribute("data-cover-src") === value) img.setAttribute("data-cover-src", next);
       return next;
     }
@@ -369,15 +389,22 @@
     doc.addEventListener("error", (event) => {
       const img = event && event.target;
       if (!img || String(img.tagName || "").toUpperCase() !== "IMG") return;
+      const currentSrc = img.getAttribute("src") || "";
+      const assigned = img.getAttribute("data-kutadgu-cover-assigned") || "";
+      if (assigned && assigned !== currentSrc) return;
+      const originValue = img.getAttribute(originAttr) || "";
+      const originKey = coverObjectKey(supabaseObjectKey(originValue));
+      if (originKey && currentSrc !== originValue && currentSrc.indexOf(originKey) === -1) return;
       const decision = previewFallbackTarget({
-        src: img.getAttribute("src") || "",
-        origin: img.getAttribute(originAttr) || "",
+        src: currentSrc,
+        origin: originValue,
         fallback: img.getAttribute(fallbackAttr) || ""
       });
       if (decision.action !== "fallback") return;
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
       img.setAttribute(fallbackAttr, "1");
       if (img.getAttribute("data-cover-src")) img.setAttribute("data-cover-src", decision.src);
+      img.setAttribute("data-kutadgu-cover-assigned", decision.src);
       rewriting = true;
       img.setAttribute("src", decision.src);
       rewriting = false;

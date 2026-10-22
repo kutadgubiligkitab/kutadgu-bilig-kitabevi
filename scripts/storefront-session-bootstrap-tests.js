@@ -219,7 +219,8 @@ test("account button is reused and skipped on the account page", () => {
 
 test("shop.js does not await member boot before catalog first paint", () => {
   const boot = sliceBetween(shop, "async function boot(){", "window.kutadguShop=");
-  assert.match(boot, /loadMemberSystem\(\);\n  await loadRemoteCatalog\(\)/);
+  assert.match(boot, /loadMemberSystem\(\);\r?\n  const catalogProbe=loadRemoteCatalog\(\)/);
+  assert.doesNotMatch(boot, /await loadRemoteCatalog\(\)/);
   assert.doesNotMatch(boot, /await loadMemberSystem/);
   assert.match(shop, /member\.js\?v=35/);
   assert.match(shop, /script\[src\*="member\.js"\]/);
