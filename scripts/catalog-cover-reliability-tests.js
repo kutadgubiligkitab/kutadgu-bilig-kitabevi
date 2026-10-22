@@ -36,6 +36,11 @@ assert.ok(same.includes("/__r2/book-covers/book/111.webp"), same);
 const fresh = images.rewritePreviewHtmlImages('<img src="' + A + '">', preview);
 assert.ok(fresh.includes('data-kutadgu-cover-origin="' + A + '"'), fresh);
 
+const pageBook = sliceBetween(shop, "function pageBookReadFailureAuthority", "async function attachPublicBookCredits");
+assert.match(pageBook, /if\(isBookDetailDocument\(\)&&\(requiresRemoteProductAuthority\(\)\|\|numericBook\)\)return "unavailable"/);
+assert.match(pageBook, /return "idle"/);
+assert.match(pageBook, /pageBookAuthority=pageBookReadFailureAuthority\(id\)/);
+
 const boot = sliceBetween(shop, "async function boot()", "window.kutadguShop=");
 assert.match(boot, /const catalogProbe=loadRemoteCatalog\(\);\r?\n  catalogProbe\.catch\(\(\)=>\{\}\);\r?\n  await hydratePageBook\(\)/);
 assert.doesNotMatch(boot, /await loadRemoteCatalog\(\)/);

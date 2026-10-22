@@ -1943,10 +1943,15 @@ function currentPageBook(id,payload){
     ||items.find(book=>book&&String(book.legacyId||"")===want)
     ||null;
 }
+function pageBookReadFailureAuthority(id){
+  const numericBook=isCanonicalBookId(id);
+  if(isBookDetailDocument()&&(requiresRemoteProductAuthority()||numericBook))return "unavailable";
+  return "idle";
+}
 function applyPageBookResult(seq,id,result){
   if(seq!==pageBookBoot.seq)return;
   if(result?.error?.name==="AbortError"||result?.result?.stale)return;
-  if(!result?.ok||!Array.isArray(result.result?.items))pageBookAuthority="unavailable";
+  if(!result?.ok||!Array.isArray(result.result?.items))pageBookAuthority=pageBookReadFailureAuthority(id);
   else{
     const book=currentPageBook(id,result.result);
     if(!book)pageBookAuthority="hidden";
