@@ -83,7 +83,7 @@ test.describe("compact order message", () => {
     await mockBooks(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=175/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=176/);
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
     await expect(page.locator("#checkoutCard")).toBeVisible();

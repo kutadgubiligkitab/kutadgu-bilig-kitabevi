@@ -290,6 +290,9 @@ test.describe("set-cart quote settlement", () => {
     await expect(page.locator(".cart-stock-block-note")).toBeVisible();
     await expect(page.locator("[data-cart-quote-error]")).toHaveCount(0);
     await expect(page.getByText("بەزى قىسىملار تەمىنلەنمەيدۇ")).toBeVisible();
+    await expect(page.locator(".cart-volume-set .cart-line-price strong")).toHaveText("750 ₺");
+    await expect(page.locator(".cart-total strong")).toHaveText("750 ₺");
+    await expect(page.locator("#cartItems")).not.toContainText("باھا تېخى بېكىتىلمىگەن");
     await expect(page.locator("#checkoutCard")).toBeHidden();
     await expectGuestSetCart(page);
     expect(holds.quoteCalls).toBe(0);

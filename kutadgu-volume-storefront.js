@@ -13,14 +13,11 @@
     return cfg.featureFlags&&cfg.featureFlags.multiVolumeBooks===true;
   }
   function catalogAmount(value){
-    if(value==null)return null;
-    if(typeof value==="string"){
-      const text=value.trim();
-      if(!text)return null;
-      const amount=Number(text);
-      return Number.isFinite(amount)?amount:null;
-    }
-    const amount=Number(value);
+    if(typeof value==="number")return Number.isFinite(value)?value:null;
+    if(typeof value!=="string")return null;
+    const text=value.trim();
+    if(!text)return null;
+    const amount=Number(text);
     return Number.isFinite(amount)?amount:null;
   }
   function positiveId(value){
@@ -69,7 +66,7 @@
     if(!value||typeof value!=="object")return null;
     const id=positiveId(value.book_id??value.id);
     const position=Number(value.position);
-    const price=value.price==null||value.price===""?null:Number(value.price);
+    const price=catalogAmount(value.price);
     const stock=value.stock==null||value.stock===""?null:Number(value.stock);
     if(!id||!Number.isInteger(position)||position<1||position>100)return null;
     return {
@@ -96,9 +93,11 @@
     const positions=new Set(members.map(member=>member.position));
     if(bookIds.size!==members.length||positions.size!==members.length)return null;
     members.sort((a,b)=>a.position-b.position);
-    const explicit=value.complete_set_price==null||value.complete_set_price===""?null:Number(value.complete_set_price);
-    const effectiveRaw=value.effective_set_price??value.set_price;
-    const effective=effectiveRaw==null||effectiveRaw===""?null:Number(effectiveRaw);
+    const explicit=catalogAmount(value.complete_set_price);
+    const effective=catalogAmount(value.effective_set_price??value.set_price);
+    const rawCount=value.member_count!=null?value.member_count:value.memberCount;
+    const countText=typeof rawCount==="string"?rawCount.trim():rawCount;
+    const memberCount=countText==null||countText===""?null:Number(countText);
     return {
       id,
       slug:slug(value.slug),
@@ -107,8 +106,9 @@
       category:String(value.category||""),
       source:String(value.source||""),
       description:String(value.description||""),
-      complete_set_price:Number.isFinite(explicit)?explicit:null,
-      effective_set_price:Number.isFinite(effective)?effective:null,
+      complete_set_price:explicit,
+      effective_set_price:effective,
+      member_count:Number.isInteger(memberCount)&&memberCount>0?memberCount:null,
       representative_book_id:positiveId(value.representative_book_id)||members[0].book_id,
       revision:Number(value.revision)||0,
       quote_revision:String(value.quote_revision||""),

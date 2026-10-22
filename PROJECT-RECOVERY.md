@@ -4,11 +4,31 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-## Series part removal — draft, not released
+Current `origin/main` is `8628db2196ef44df8bb1d2f3b1f715a80078b80c`, the PR #308 merge. The runtime baseline remains the PR #307 merge `70013f9bb2245743cdf0454465c15a4cd9b84c24`.
+
+## Missing set prices — unreleased
+
+Branch `cursor/missing-set-price-phase2` keeps a missing multi-volume price unavailable. Null, undefined, a blank or whitespace string, and an invalid or non-finite value stay unavailable through normalization. A real numeric zero and a valid numeric string stay prices. A valid explicit set price wins, including 750 and zero. Otherwise the non-quote fallback sums member prices only when every member price is valid and, when a member count is present, the list is that long. An empty or incomplete group does not become zero or a partial total.
+
+Without an authoritative quote, the affected cart row and the aggregate total show «باھا تېخى بېكىتىلمىگەن». A mixed cart does not present the known book subtotal as its complete total. Removing the unknown set restores that known total. Quote pending stays «جەزملەۋاتىدۇ…». A quote or group read error stays «—» and keeps retry. An authoritative quote, including 750, still settles the row and the total and can open checkout. A valid zero stays available and displays 0 ₺. Missing member prices keep the set unavailable and checkout closed. A confirmed stock block stays a stock block. Cart keys stay `kutadgu-cart-v1` and `kutadgu-set-cart-v1`.
+
+The detail fallback uses the same rule. series-156 keeps the explicit 750 beside part prices 370 and 399. A missing detail set price uses «باھا تېخى بېكىتىلمىگەن», not a partial sum. The released #306 note that `groupSetPrice` treats a null member price as zero describes the behavior this correction replaces.
+
+Changed runtime pins are `shop.js?v=176`, `kutadgu-volume-groups.js?v=2`, and `kutadgu-volume-storefront.js?v=3`. `premium-ux.js?v=19` and `shop.css?v=58` stay. This correction is not merged and not deployed. It does not move the runtime baseline.
+
+The tested head is the commit that records this paragraph. Local checks on 2026-10-23 used Chromium against `http://127.0.0.1:4173` with network guards. No production cart write, order, upload, SQL, or settings change was made. No physical phone or iPad was used.
+
+`node scripts/multi-volume-cart-contract-tests.js`, `multi-volume-storefront-contract-tests.js`, `multi-volume-series-entry-tests.js`, `compact-series-card-tests.js`, `web-app-manifest-tests.js`, `books-visit-rotation-tests.js`, and `cart-page-boot-tests.js` passed. Isolated Playwright passed `tests/e2e/missing-set-price.spec.js` (4), the five `set-cart quote settlement` tests, `tests/e2e/compact-series-cards.spec.js`, and the series-156 detail and incomplete-group tests in `tests/e2e/multi-volume-storefront.spec.js`. The live `KUTADGU_LIVE_SET_CART` test stayed skipped. On this Windows checkout, `scripts/guest-cart-invite-tests.js` still stops in `git grep` before its pin assertion, and `scripts/gift-book-offer-tests.js` still fails on a CRLF comparison and an older admin pin. Those failures are outside this price correction. Direct `git grep` shows the storefront HTML pins at `shop.js?v=176`.
+
+## Emergency runbook maintenance — merged PR #308, not deployed
+
+PR #308 merged at 2026-10-22T21:45:28Z. The merge commit is `8628db2196ef44df8bb1d2f3b1f715a80078b80c`. Its parents are `70013f9bb2245743cdf0454465c15a4cd9b84c24` and `b755367be051fb74bdb918c6df62a7dc81fa809b`. Its tree is `a2d1b17864ca0d5460a0cc3f167024f776fa6bb9`, the same as the reviewed head. The change is `docs/EMERGENCY.md` and one assertion in `scripts/cart-page-boot-tests.js`. It was not deployed. It does not move the runtime baseline.
+
+## Series part removal — released PR #307
 
 Branch `cursor/series-part-remove-306` makes an accidentally added series-entry row removable. Each part heading has `× بۇ قىسىمنى ئېلىۋېتىش`, still wired to `[data-series-remove]` and `removeSeriesPart()`. The accessible name includes the current part number. The button is at least 44px, keyboard reachable, and keeps a visible focus outline. Two rows stay, and the form says «ئاز دېگەندە ئىككى قىسىم قېلىدۇ». Removing a row updates the count, numbers, move buttons, and add button immediately. Typed values, covers, interior files, and image order stay on the surviving rows. If the representative row goes, the first remaining row becomes the representative. This only removes an unsaved form row. Saved books, remote images, the 100-part cap, four interior images, separate save and publication, and the frozen request after an uncertain save stay as they are.
 
-`admin.html` requests `admin.css?v=61` and `admin-volume-groups.js?v=6`. `admin.js?v=121` stays. The application commit is `1875daac9712e7c0bc1f1c0a39a5887f61fa99b8`. The tested head is the commit that records this paragraph. This change does not move the runtime baseline. No SQL, production save, merge, deploy, or auth setting change is in this draft.
+`admin.html` requests `admin.css?v=61` and `admin-volume-groups.js?v=6`. `admin.js?v=121` stays. The application commit is `1875daac9712e7c0bc1f1c0a39a5887f61fa99b8`. PR #307 merged at 2026-10-22T11:59:17Z. The merge commit is `70013f9bb2245743cdf0454465c15a4cd9b84c24`. Its parents are `92ef4856f452f191631dd7d8b38af9131243554c` and `f9071fbc755ccd79fa439ed66accadc03872dcf9`. Its tree is `d015112e6309aa53845614171648e519de882543`, the same as `f9071fbc755ccd79fa439ed66accadc03872dcf9`. That merge is the last verified application release and the runtime baseline. This session did not repeat its Worker deploy and does not record a new version id.
 
 Local checks on 2026-10-22, Chromium only, not a physical phone or iPad. `node scripts/multi-volume-series-entry-tests.js` passed. Isolated admin fixtures with write guards passed the new removal test, the 2-to-100 removal case, the new-series save, the failed-save retry, and the lost-response retry that still sends the frozen payload. The removal test clicked through 2→3 by keyboard, then 2→4→3→2, checked the two-row minimum, the saved prices and titles, surviving covers and interior order, and representative reassignment. RTL had no horizontal overflow at 1280×900 and 390×844. Screenshots are in `artifacts/series-part-remove/`. On this Windows checkout the warm admin-CSS test stops at the fixture blob hash before the pin assertion; that file was not edited, and the assertion now expects `admin.css?v=61`.
 

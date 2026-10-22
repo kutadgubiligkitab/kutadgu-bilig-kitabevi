@@ -3412,8 +3412,15 @@ function volumeGroupSetPrice(group){
   if(api&&api.groupSetPrice)return api.groupSetPrice(group);
   const explicit=finiteSeriesAmount(group&&group.complete_set_price);
   if(explicit!=null)return explicit;
-  const prices=(group&&group.members||[]).map(member=>Number(member.price));
-  return prices.length&&prices.every(Number.isFinite)?prices.reduce((sum,value)=>sum+value,0):null;
+  const members=group&&Array.isArray(group.members)?group.members:[];
+  if(!members.length)return null;
+  const rawCount=group.member_count!=null?group.member_count:group.memberCount;
+  const countText=typeof rawCount==="string"?rawCount.trim():rawCount;
+  const expected=countText==null||countText===""?null:Number(countText);
+  if(Number.isInteger(expected)&&expected>0&&members.length!==expected)return null;
+  const prices=members.map(member=>finiteSeriesAmount(member&&member.price));
+  if(prices.some(amount=>amount==null))return null;
+  return prices.reduce((sum,value)=>sum+value,0);
 }
 function volumePartPriceText(group){
   const prices=(group&&group.members||[]).map(member=>finiteSeriesAmount(member.price)).filter(amount=>amount!=null);
@@ -3449,7 +3456,7 @@ function renderVolumeGroupPurchasePanel(box,book,group){
       </div>
       <div class="volume-set-price">
         <span>${explicit?"بېكىتىلگەن يۈرۈشلۈك باھاسى":"تولۇق يۈرۈشلۈك (قىسىم باھالىرىنىڭ يىغىندىسى)"}</span>
-        <strong>${setPrice==null?"باھا بېكىتىلمىگەن":money(setPrice)}</strong>
+        <strong>${money(setPrice)}</strong>
       </div>
     </div>
     ${groupUrl&&!volumeGroupSlugFromLocation()?`<a class="volume-group-stable-link" href="${escapeAttr(groupUrl)}">يۈرۈشلۈكنىڭ مۇقىم بېتىنى ئېچىش</a>`:""}
@@ -4744,15 +4751,25 @@ function cartPage(){
   const readFailed=setGroupFailed||quoteFailed;
   const quotePending=!!setItems.length&&!volumeQuote&&!readFailed&&!unsupportedSets.length&&!setUnavailable;
   const setBlocked=setUnavailable;
+  function knownFallbackSetPrice(group){
+    if(!volumeApi||!group)return null;
+    const price=volumeApi.groupSetPrice(group);
+    return Number.isFinite(price)?price:null;
+  }
+  const priceUnresolved=!volumeQuote&&!quotePending&&!readFailed&&setItems.some(x=>x.group&&knownFallbackSetPrice(x.group)==null);
   let totalQty=volumeQuote?Number(volumeQuote.total_qty)||0:orderable.reduce((s,x)=>s+x.qty,0)+setCartPhysicalQty(setItems);
-  let total=volumeQuote?Number(volumeQuote.total)||0:orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0)+setItems.reduce((s,x)=>s+(volumeApi?.groupSetPrice(x.group)||0)*x.qty,0);
+  let total=null;
+  if(volumeQuote)total=finiteSeriesAmount(volumeQuote.total);
+  else if(!quotePending&&!readFailed&&!priceUnresolved){
+    total=orderable.reduce((s,x)=>s+(x.b.price||0)*x.qty,0)+setItems.reduce((s,x)=>s+knownFallbackSetPrice(x.group)*x.qty,0);
+  }
   const amountLabel=quotePending?"جەزملەۋاتىدۇ…":(readFailed?"—":money(total));
   const qtyLabel=quotePending?"جەزملەۋاتىدۇ…":(readFailed&&!setItems.some(x=>x.group)?"—":String(totalQty));
   let checkout=document.querySelector("#checkoutCard");
   const layout=document.querySelector("#cartLayout");
   const aside=document.querySelector("#cartAside");
   const summaryHost=document.querySelector("#cartSummaryHost");
-  const blocked=preview||unsupportedSets.length>0||setBlocked||quotePending||readFailed||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
+  const blocked=preview||unsupportedSets.length>0||setBlocked||quotePending||readFailed||priceUnresolved||items.some(x=>!isStorefrontVisible(x.b)||!stockInfo(x.b).canBuy||x.b.__cartDisplayPreview);
   if(quotePending){
     host.setAttribute("aria-busy","true");
     host.setAttribute("data-cart-quote","pending");
@@ -4816,15 +4833,16 @@ function cartPage(){
     const quoteLine=volumeQuote&&Array.isArray(volumeQuote.items)?volumeQuote.items.find(item=>String(item.group_id)===String(x.group_id)&&String(item.kind||"set")==="set"):null;
     let setPrice=null;
     if(quoteLine){
-      const lineTotal=Number(quoteLine.line_total);
-      const unit=Number(quoteLine.price);
-      if(Number.isFinite(lineTotal))setPrice=lineTotal/Math.max(1,x.qty);
-      else if(Number.isFinite(unit))setPrice=unit;
+      const lineTotal=finiteSeriesAmount(quoteLine.line_total);
+      const unit=finiteSeriesAmount(quoteLine.price);
+      if(lineTotal!=null)setPrice=lineTotal/Math.max(1,x.qty);
+      else if(unit!=null)setPrice=unit;
     }else if(!loading&&!readError&&group)setPrice=volumeApi?.groupSetPrice(group);
     const plusDisabled=preview||loading||readError||!available;
     const quoteState=loading?"pending":(readError?"error":(!available?"blocked":"ready"));
-    const priceLabel=loading?"جەزملەۋاتىدۇ…":(Number.isFinite(setPrice)?money(setPrice):"—");
-    const lineLabel=loading?"جەزملەۋاتىدۇ…":(Number.isFinite(setPrice)?money(setPrice*x.qty):"—");
+    const knownSetPrice=Number.isFinite(setPrice);
+    const priceLabel=loading?"جەزملەۋاتىدۇ…":(readError?"—":(knownSetPrice?money(setPrice):money(null)));
+    const lineLabel=loading?"جەزملەۋاتىدۇ…":(readError?"—":(knownSetPrice?money(setPrice*x.qty):money(null)));
     const stockNote=loading
       ?`<span class="stock-badge" data-set-loading="true">جەزملەۋاتىدۇ…</span>`
       :(readError?`<span class="stock-badge" data-set-read-error="true">${groupState==="failed"?"يۈرۈشلۈك ئۇچۇرى يۈكلەنمىدى":"باھا جەزملەنمىدى"}</span>`
@@ -6924,8 +6942,8 @@ async function boot(){
   const publicHeaderReady=loadPublicHeader();
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
-  await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=1","kutadguVolumeGroupsScript"));
-  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=2","kutadguVolumeStorefrontScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=2","kutadguVolumeGroupsScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=3","kutadguVolumeStorefrontScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();

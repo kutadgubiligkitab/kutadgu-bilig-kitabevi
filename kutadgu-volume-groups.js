@@ -232,6 +232,22 @@
     const signature=cartSignature(bookLines,setLines);
     return quoteUsable(cachedQuote,signature)?cachedQuote:null;
   }
+  function finiteAmount(value){
+    if(typeof value==="number")return Number.isFinite(value)?value:null;
+    if(typeof value!=="string")return null;
+    const text=value.trim();
+    if(!text)return null;
+    const amount=Number(text);
+    return Number.isFinite(amount)?amount:null;
+  }
+  function expectedMemberCount(group){
+    if(!group||typeof group!=="object")return null;
+    const raw=group.member_count!=null?group.member_count:group.memberCount;
+    if(typeof raw==="string"&&!raw.trim())return null;
+    if(raw==null)return null;
+    const count=typeof raw==="string"?Number(raw.trim()):Number(raw);
+    return Number.isInteger(count)&&count>0?count:null;
+  }
   function normalizeGroup(value){
     if(!value||typeof value!=="object"||Array.isArray(value))return null;
     const id=positiveId(value.id);
@@ -240,7 +256,7 @@
     const members=rawMembers.map(member=>{
       const bookId=positiveId(member&&member.book_id);
       const position=Number(member&&member.position);
-      const price=Number(member&&member.price);
+      const price=finiteAmount(member&&member.price);
       const stock=Number(member&&member.stock);
       if(!bookId||!Number.isInteger(position)||position<1||position>MAX_GROUP_VOLUMES)return null;
       return {
@@ -249,7 +265,7 @@
         volume_label:String(member.volume_label||""),
         title:String(member.title||""),
         author:String(member.author||""),
-        price:Number.isFinite(price)?price:null,
+        price,
         image_url:String(member.image_url||""),
         stock:Number.isInteger(stock)&&stock>=0?stock:null,
         stock_status:String(member.stock_status||""),
@@ -269,7 +285,8 @@
       category:String(value.category||""),
       source:String(value.source||""),
       description:String(value.description||""),
-      complete_set_price:value.complete_set_price==null?null:Number(value.complete_set_price),
+      complete_set_price:finiteAmount(value.complete_set_price),
+      member_count:expectedMemberCount(value),
       representative_book_id:positiveId(value.representative_book_id)||members[0].book_id,
       revision:Number(value.revision)||0,
       quote_revision:String(value.quote_revision||""),
@@ -286,24 +303,28 @@
     },options&&options.fetchImpl));
   }
   function explicitSetPrice(group){
-    if(!group||group.complete_set_price==null||group.complete_set_price==="")return null;
-    const amount=Number(group.complete_set_price);
-    return Number.isFinite(amount)?amount:null;
+    if(!group||typeof group!=="object")return null;
+    return finiteAmount(group.complete_set_price);
   }
   function groupSetPrice(group){
-    if(!group)return null;
+    if(!group||typeof group!=="object")return null;
     const explicit=explicitSetPrice(group);
     if(explicit!=null)return explicit;
+    const members=Array.isArray(group.members)?group.members:[];
+    if(!members.length)return null;
+    const expected=expectedMemberCount(group);
+    if(expected!=null&&members.length!==expected)return null;
     let total=0;
-    for(const member of group.members||[]){
-      if(!Number.isFinite(Number(member.price)))return null;
-      total+=Number(member.price);
+    for(const member of members){
+      const price=finiteAmount(member&&member.price);
+      if(price==null)return null;
+      total+=price;
     }
     return total;
   }
   function memberAvailable(member,quantity){
     const amount=qty(quantity)||1;
-    if(!member||member.is_active===false||member.price==null)return false;
+    if(!member||member.is_active===false||finiteAmount(member.price)==null)return false;
     if(String(member.stock_status||"").trim()==="out_of_stock")return false;
     return Number.isFinite(member.stock)?member.stock>=amount:true;
   }

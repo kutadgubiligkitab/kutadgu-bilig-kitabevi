@@ -138,6 +138,75 @@ test("explicit complete-set price overrides fallback sum", () => {
   assert.strictEqual(Volume.setAvailable(group, 1), false);
 });
 
+test("missing prices stay unavailable and never become a zero or partial total", () => {
+  const raw = {
+    id: 156,
+    slug: "series-156",
+    complete_set_price: "   ",
+    member_count: 2,
+    members: [
+      { book_id: 156, position: 1, price: null, stock: 4, stock_status: "in_stock", is_active: true },
+      { book_id: 157, position: 2, price: "   ", stock: 4, stock_status: "in_stock", is_active: true }
+    ]
+  };
+  const group = Volume.normalizeGroup(raw);
+  assert.deepStrictEqual(group.members.map((member) => member.price), [null, null]);
+  assert.strictEqual(group.complete_set_price, null);
+  assert.strictEqual(Volume.explicitSetPrice(group), null);
+  assert.strictEqual(Volume.groupSetPrice(group), null);
+  assert.strictEqual(Volume.memberAvailable(group.members[0], 1), false);
+  assert.strictEqual(Volume.setAvailable(group, 1), false);
+
+  assert.strictEqual(Volume.groupSetPrice({ members: [] }), null);
+  assert.strictEqual(Volume.groupSetPrice({
+    members: [{ price: 370 }, { price: null }]
+  }), null);
+  assert.strictEqual(Volume.groupSetPrice({
+    member_count: 3,
+    members: [{ price: 370 }, { price: 399 }]
+  }), null);
+  for (const missing of [undefined, "", " \n ", "nope", NaN, Infinity, [], true]) {
+    assert.strictEqual(Volume.explicitSetPrice({ complete_set_price: missing }), null, String(missing));
+    assert.strictEqual(Volume.memberAvailable({ price: missing, stock: 2, is_active: true }, 1), false);
+  }
+
+  const zero = Volume.normalizeGroup({
+    id: 2,
+    complete_set_price: 0,
+    members: [
+      { book_id: 1, position: 1, price: "0", stock: 2 },
+      { book_id: 2, position: 2, price: 0, stock: 2 }
+    ]
+  });
+  assert.strictEqual(zero.complete_set_price, 0);
+  assert.deepStrictEqual(zero.members.map((member) => member.price), [0, 0]);
+  assert.strictEqual(Volume.groupSetPrice(zero), 0);
+  assert.strictEqual(Volume.setAvailable(zero, 1), true);
+
+  const summed = Volume.normalizeGroup({
+    id: 3,
+    complete_set_price: "",
+    members: [
+      { book_id: 11, position: 1, price: "370", stock: 2 },
+      { book_id: 12, position: 2, price: "399", stock: 2 }
+    ]
+  });
+  assert.strictEqual(summed.complete_set_price, null);
+  assert.strictEqual(Volume.groupSetPrice(summed), 769);
+
+  const explicit = Volume.normalizeGroup({
+    id: 4,
+    complete_set_price: "750",
+    members: [
+      { book_id: 21, position: 1, price: "370", stock: 2 },
+      { book_id: 22, position: 2, price: "399", stock: 2 }
+    ]
+  });
+  assert.strictEqual(explicit.complete_set_price, 750);
+  assert.strictEqual(Volume.groupSetPrice(explicit), 750);
+  assert.notStrictEqual(Volume.groupSetPrice(explicit), 769);
+});
+
 test("five-minute quotes are cached only for the exact typed cart", async () => {
   const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   let calls = 0;
