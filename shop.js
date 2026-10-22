@@ -67,9 +67,9 @@ function normalizeCatalogBook(book,index=0,isRemote=false){
     representativeBookId:String(value("representativeBookId","representative_book_id",id)||id),
     memberBookIds:(Array.isArray(value("memberBookIds","member_book_ids",[]))?value("memberBookIds","member_book_ids",[]):[]).map(String),
     memberCount:Number(value("memberCount","member_count",0))||0,
-    memberPrices:(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[])).map(Number).filter(Number.isFinite),
-    completeSetPrice:setPriceRaw===null||setPriceRaw===undefined||setPriceRaw===""?null:Number(setPriceRaw),
-    effectiveSetPrice:effectiveSetPriceRaw===null||effectiveSetPriceRaw===undefined||effectiveSetPriceRaw===""?null:Number(effectiveSetPriceRaw),
+    memberPrices:(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[])).map(finiteSeriesAmount),
+    completeSetPrice:finiteSeriesAmount(setPriceRaw),
+    effectiveSetPrice:finiteSeriesAmount(effectiveSetPriceRaw),
     title:book.title||"",
     author:book.author||"",
     isbn:String(value("isbn","isbn","")||"").trim(),
@@ -2128,19 +2128,32 @@ function migratePersistedBookIds(){
 
 function money(n){return n!=null&&n!==""?`${Number(n).toLocaleString("tr-TR")} ₺`:"باھا تېخى بېكىتىلمىگەن"}
 function finiteSeriesAmount(value){
-  if(value==null||value==="")return null;
+  if(value==null)return null;
+  if(typeof value==="string"){
+    const text=value.trim();
+    if(!text)return null;
+    const amount=Number(text);
+    return Number.isFinite(amount)?amount:null;
+  }
   const amount=Number(value);
   return Number.isFinite(amount)?amount:null;
+}
+function seriesMemberPriceList(book){
+  const raw=book&&(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]));
+  return (raw||[]).map(finiteSeriesAmount);
+}
+function seriesMemberPricesComplete(book,parts){
+  const expected=seriesPartCount(book);
+  return expected>0&&parts.length===expected&&parts.every(amount=>amount!=null);
 }
 function seriesPriceLines(book){
   const explicit=finiteSeriesAmount(book&&(book.completeSetPrice!=null?book.completeSetPrice:book.complete_set_price));
   const effective=finiteSeriesAmount(book&&(book.effectiveSetPrice!=null?book.effectiveSetPrice:book.effective_set_price));
-  const rawParts=book&&(Array.isArray(book.memberPrices)?book.memberPrices:(Array.isArray(book.member_prices)?book.member_prices:[]));
-  const parts=(rawParts||[]).map(finiteSeriesAmount).filter(amount=>amount!=null);
+  const parts=seriesMemberPriceList(book);
   let full=null;
   if(explicit!=null)full=explicit;
   else if(effective!=null)full=effective;
-  else if(parts.length)full=parts.reduce((sum,amount)=>sum+amount,0);
+  else if(seriesMemberPricesComplete(book,parts))full=parts.reduce((sum,amount)=>sum+amount,0);
   return {explicit:explicit!=null,full,parts};
 }
 function seriesPriceText(book){
@@ -6841,7 +6854,7 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/premium-ux.js?v=18","kutadguPremiumUxScript");
+  return loadAssetScript("/premium-ux.js?v=19","kutadguPremiumUxScript");
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -6912,7 +6925,7 @@ async function boot(){
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
   await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=1","kutadguVolumeGroupsScript"));
-  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=1","kutadguVolumeStorefrontScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=2","kutadguVolumeStorefrontScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();

@@ -12,6 +12,17 @@
     const cfg=root.KUTADGU_APP_CONFIG||{};
     return cfg.featureFlags&&cfg.featureFlags.multiVolumeBooks===true;
   }
+  function catalogAmount(value){
+    if(value==null)return null;
+    if(typeof value==="string"){
+      const text=value.trim();
+      if(!text)return null;
+      const amount=Number(text);
+      return Number.isFinite(amount)?amount:null;
+    }
+    const amount=Number(value);
+    return Number.isFinite(amount)?amount:null;
+  }
   function positiveId(value){
     const text=String(value==null?"":value).trim();
     return /^[1-9][0-9]*$/.test(text)?text:"";
@@ -111,15 +122,14 @@
     if(!id)return null;
     const groupId=kind==="group"?positiveId(value.group_id):"";
     if(kind==="group"&&!groupId)return null;
-    const price=value.price==null||value.price===""?null:Number(value.price);
-    const setPrice=value.complete_set_price==null||value.complete_set_price===""?null:Number(value.complete_set_price);
-    const effectiveSetPrice=value.effective_set_price==null||value.effective_set_price===""?null:Number(value.effective_set_price);
+    const price=catalogAmount(value.price);
+    const setPrice=catalogAmount(value.complete_set_price);
+    const effectiveSetPrice=catalogAmount(value.effective_set_price);
     const stock=value.stock==null||value.stock===""?null:Number(value.stock);
     const memberIds=(Array.isArray(value.member_book_ids)?value.member_book_ids:[])
       .map(positiveId).filter(Boolean);
     const memberPrices=(Array.isArray(value.member_prices)?value.member_prices:(Array.isArray(value.members)?value.members.map(member=>member&&member.price):[]))
-      .map(amount=>amount==null||amount===""?null:Number(amount))
-      .filter(amount=>Number.isFinite(amount));
+      .map(catalogAmount);
     const path=kind==="group"
       ?groupPath({slug:value.group_slug||value.slug,group_id:groupId})
       :`/book/${id}`;
@@ -140,9 +150,9 @@
       source:String(value.source||""),
       description:String(value.description||""),
       image_url:String(value.image_url||""),
-      price:Number.isFinite(price)?price:null,
-      complete_set_price:Number.isFinite(setPrice)?setPrice:null,
-      effective_set_price:Number.isFinite(effectiveSetPrice)?effectiveSetPrice:null,
+      price,
+      complete_set_price:setPrice,
+      effective_set_price:effectiveSetPrice,
       stock:Number.isInteger(stock)&&stock>=0?stock:null,
       stock_status:String(value.stock_status||""),
       is_active:value.is_active!==false,
@@ -198,11 +208,11 @@
           if(item.kind!=="group"||item.member_prices&&item.member_prices.length)return;
           const row=byId.get(String(item.group_id));
           if(!row)return;
-          const prices=(Array.isArray(row.prices)?row.prices:[]).map(Number).filter(Number.isFinite);
+          const prices=(Array.isArray(row.prices)?row.prices:[]).map(catalogAmount);
           if(prices.length)item.member_prices=prices;
-          if(item.complete_set_price==null&&row.effective_set_price!=null&&row.effective_set_price!==""){
-            const effective=Number(row.effective_set_price);
-            if(Number.isFinite(effective))item.effective_set_price=effective;
+          if(item.complete_set_price==null){
+            const effective=catalogAmount(row.effective_set_price);
+            if(effective!=null)item.effective_set_price=effective;
           }
         });
       }catch(error){

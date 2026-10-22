@@ -107,8 +107,9 @@ function priceText(value) {
 }
 
 function finiteAmount(value) {
-  if (value == null || value === "") return null;
-  const amount = Number(value);
+  if (value == null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const amount = Number(typeof value === "string" ? value.trim() : value);
   return Number.isFinite(amount) ? amount : null;
 }
 
@@ -136,10 +137,13 @@ function seriesSetAmount(book) {
   const explicit = finiteAmount(book && (book.completeSetPrice != null ? book.completeSetPrice : book.complete_set_price));
   const effective = finiteAmount(book && (book.effectiveSetPrice != null ? book.effectiveSetPrice : book.effective_set_price));
   const raw = book && (Array.isArray(book.memberPrices) ? book.memberPrices : (Array.isArray(book.member_prices) ? book.member_prices : []));
-  const parts = (raw || []).map(finiteAmount).filter((amount) => amount != null);
+  const parts = (raw || []).map(finiteAmount);
   if (explicit != null) return explicit;
   if (effective != null) return effective;
-  if (parts.length) return parts.reduce((sum, amount) => sum + amount, 0);
+  const expected = seriesPartCount(book);
+  if (expected > 0 && parts.length === expected && parts.every((amount) => amount != null)) {
+    return parts.reduce((sum, amount) => sum + amount, 0);
+  }
   return null;
 }
 
@@ -237,10 +241,7 @@ function normalizeCategoryRow(row, allowedSources) {
     if (Number.isInteger(rawCount) && rawCount > 0) book.member_count = rawCount;
     const ids = Array.isArray(row.member_book_ids) ? row.member_book_ids.map((value) => String(value)) : [];
     if (ids.length) book.member_book_ids = ids;
-    const prices = Array.isArray(row.member_prices)
-      ? row.member_prices.map(finiteAmount).filter((amount) => amount != null)
-      : [];
-    if (prices.length) book.member_prices = prices;
+    if (Array.isArray(row.member_prices)) book.member_prices = row.member_prices.map(finiteAmount);
     book.complete_set_price = finiteAmount(row.complete_set_price);
     book.effective_set_price = finiteAmount(row.effective_set_price);
   }

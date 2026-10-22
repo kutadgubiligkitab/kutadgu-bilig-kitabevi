@@ -72,17 +72,19 @@
   }
   function localSeriesAmount(book){
     const finite=value=>{
-      if(value==null||value==="")return null;
-      const amount=Number(value);
+      if(value==null)return null;
+      if(typeof value==="string"&&value.trim()==="")return null;
+      const amount=Number(typeof value==="string"?value.trim():value);
       return Number.isFinite(amount)?amount:null;
     };
     const explicit=finite(book&&(book.completeSetPrice!=null?book.completeSetPrice:book.complete_set_price));
     const effective=finite(book&&(book.effectiveSetPrice!=null?book.effectiveSetPrice:book.effective_set_price));
     const raw=Array.isArray(book&&book.memberPrices)?book.memberPrices:(Array.isArray(book&&book.member_prices)?book.member_prices:[]);
-    const parts=raw.map(finite).filter(amount=>amount!=null);
+    const parts=raw.map(finite);
     if(explicit!=null)return explicit;
     if(effective!=null)return effective;
-    if(parts.length)return parts.reduce((sum,amount)=>sum+amount,0);
+    const expected=localSeriesCount(book);
+    if(expected>0&&parts.length===expected&&parts.every(amount=>amount!=null))return parts.reduce((sum,amount)=>sum+amount,0);
     return null;
   }
   function seriesCardText(book){

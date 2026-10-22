@@ -312,6 +312,132 @@ test("category listing first paint uses the explicit set and keeps the stored ti
   assert.doesNotMatch(ordinaryCard, /تەپسىلاتى/);
 });
 
+function loadNormalize() {
+  const amount = sliceBetween(shop, "function finiteSeriesAmount(value){", "function seriesMemberPriceList(book){");
+  const fn = sliceBetween(shop, "function normalizeCatalogBook(book,index=0,isRemote=false){", "const STATIC_CATALOG");
+  return new Function(`
+    function money(n){
+      return n != null && n !== "" ? Number(n).toLocaleString("tr-TR") + " ₺" : "باھا تېخى بېكىتىلمىگەن";
+    }
+    function bibliographicLib(){ return {}; }
+    function normalizeGalleryImages(){ return []; }
+    function bookDetailHref(id){ return "/book/" + id; }
+    ${amount}
+    ${fn}
+    return normalizeCatalogBook;
+  `)();
+}
+
+const normalizeCatalogBook = loadNormalize();
+const volumeStorefront = require(path.join(root, "kutadgu-volume-storefront.js"));
+const MISSING_PRICE = "باھا تېخى بېكىتىلمىگەن";
+
+function rawGroup(extra = {}) {
+  return {
+    id: "9",
+    kind: "group",
+    catalogKind: "group",
+    group_id: "9",
+    groupId: "9",
+    group_slug: "incomplete",
+    title: "تولۇقسىز",
+    author: "ئاپتور",
+    member_count: 2,
+    memberCount: 2,
+    member_book_ids: ["9", "10"],
+    memberBookIds: ["9", "10"],
+    price: 370,
+    image_url: "/kutadgu-logo.png",
+    is_active: true,
+    source: "tarikhiy-romanlar.html",
+    href: "/volume-group/incomplete",
+    ...extra
+  };
+}
+
+function assertMissingPrice(markup, label) {
+  assert.match(markup, new RegExp(MISSING_PRICE), label);
+  assert.doesNotMatch(markup, /370|0 ₺/, label);
+}
+
+test("normalization keeps missing member prices and cards sum only a complete set", () => {
+  const cases = [
+    { name: "partial null", member_prices: [370, null], expect: "missing" },
+    { name: "all missing", member_prices: [null, null], expect: "missing", preserved: [null, null] },
+    { name: "blank", member_prices: ["", "  ", "\t"], member_count: 3, member_book_ids: ["1", "2", "3"], expect: "missing", preserved: [null, null, null] },
+    { name: "short list", member_prices: [370], expect: "missing" },
+    { name: "valid zero", member_prices: [0, 0], expect: "0 ₺" },
+    { name: "complete", member_prices: [100, 120, 140], member_count: 3, member_book_ids: ["1", "2", "3"], expect: "360 ₺" },
+    { name: "explicit wins", member_prices: [370, null], complete_set_price: 750, expect: "750 ₺" },
+    { name: "effective wins", member_prices: [370], effective_set_price: 769, expect: "769 ₺" },
+    { name: "blank explicit falls through", member_prices: [100, 200], complete_set_price: "  ", effective_set_price: "", expect: "300 ₺" },
+    { name: "explicit zero", member_prices: [370, null], complete_set_price: 0, expect: "0 ₺" }
+  ];
+  const premiumFallback = loadPremium(null);
+  cases.forEach((item) => {
+    const raw = rawGroup({
+      member_prices: item.member_prices,
+      memberPrices: item.member_prices,
+      member_count: item.member_count || 2,
+      memberCount: item.member_count || 2,
+      member_book_ids: item.member_book_ids || ["9", "10"],
+      memberBookIds: item.member_book_ids || ["9", "10"],
+      complete_set_price: Object.prototype.hasOwnProperty.call(item, "complete_set_price") ? item.complete_set_price : null,
+      completeSetPrice: Object.prototype.hasOwnProperty.call(item, "complete_set_price") ? item.complete_set_price : null,
+      effective_set_price: Object.prototype.hasOwnProperty.call(item, "effective_set_price") ? item.effective_set_price : null,
+      effectiveSetPrice: Object.prototype.hasOwnProperty.call(item, "effective_set_price") ? item.effective_set_price : null
+    });
+    const catalogItem = volumeStorefront.normalizeCatalogItem({
+      kind: "group",
+      id: raw.id,
+      group_id: raw.group_id,
+      group_slug: raw.group_slug,
+      title: raw.title,
+      author: raw.author,
+      price: raw.price,
+      image_url: raw.image_url,
+      is_active: true,
+      member_count: raw.member_count,
+      member_book_ids: raw.member_book_ids,
+      member_prices: item.member_prices,
+      complete_set_price: raw.complete_set_price,
+      effective_set_price: raw.effective_set_price
+    });
+    const book = normalizeCatalogBook(catalogItem, 0, true);
+    if (item.preserved) assert.deepStrictEqual(book.memberPrices, item.preserved, item.name);
+    const card = api.bookCardMarkup(book);
+    const premium = premiumFallback.compactCard(book);
+    const row = listing.normalizeCategoryRow({
+      ...raw,
+      kind: "group",
+      is_active: true,
+      stock: 4,
+      stock_status: "in_stock"
+    }, ["tarikhiy-romanlar.html"]);
+    const ssr = listing.listingCardMarkup(row);
+    if (item.preserved) assert.deepStrictEqual(row.member_prices, item.preserved, item.name + " ssr");
+    [card, premium, ssr].forEach((markup) => {
+      if (item.expect === "missing") assertMissingPrice(markup, item.name);
+      else {
+        assert.match(markup, new RegExp(item.expect.replace("₺", "₺")), item.name);
+        assert.doesNotMatch(markup, new RegExp(MISSING_PRICE), item.name);
+      }
+    });
+  });
+  const series = normalizeCatalogBook(rawGroup({
+    id: "156",
+    group_id: "1",
+    group_slug: "series-156",
+    title: "ئويغانغان زېمىن",
+    member_prices: [370, 399],
+    complete_set_price: 750,
+    effective_set_price: 750,
+    href: "/volume-group/series-156"
+  }), 0, true);
+  assert.match(api.bookCardMarkup(series), /750 ₺/);
+  assert.doesNotMatch(api.bookCardMarkup(series), /769|370 ₺/);
+});
+
 if (failed) {
   console.error(failed + " compact series card test(s) failed");
   process.exit(1);
