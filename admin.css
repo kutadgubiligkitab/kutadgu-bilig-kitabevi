@@ -993,17 +993,54 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 .admin-approval-panel{position:absolute;z-index:5;top:calc(100% + 6px);inset-inline-end:0;min-width:180px;display:grid;gap:6px;padding:8px;border-radius:10px;background:#fffdf9;color:#44352d}
 .admin-top-actions .admin-approval-panel[hidden]{display:none}
 .admin-top-actions .admin-approval-panel button{min-height:36px;text-align:start;color:#44352d;background:#fffdf9;border-color:#e4d3c1}
-.book-category-list,.book-category-form,.book-category-books{display:grid;gap:8px}
-.book-category-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(68,53,45,.12)}
-.book-category-row p{margin:4px 0 0}
+#bookCategoryManager [hidden]{display:none!important}
+#bookCategoryManager .admin-help{color:#3f2e24;font-size:15px;line-height:1.7}
+#bookCategoryManager .admin-status.err{border-color:#9d3030;background:#fff1ee;color:#6d241c}
+.book-category-heading{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.book-category-heading h2{margin:0}
+.book-category-list,.book-category-form,.book-category-books,.book-category-manage{display:grid;gap:12px}
+.book-category-row{display:grid;gap:12px;padding:14px 0;border-bottom:1px solid rgba(68,53,45,.18)}
+.book-category-summary{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.book-category-summary strong{font-size:18px}
+.book-category-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0 0;color:#2b211b;font-weight:800}
+.book-category-badge{display:inline-flex;align-items:center;min-height:28px;padding:2px 10px;border-radius:999px;font-size:14px;font-weight:800}
+.book-category-badge-open{background:#e5f6ea;color:#14532d}
+.book-category-badge-hidden{background:#fff3d6;color:#5c3b00}
+.book-category-badge-retired{background:#f8e4e1;color:#6d241c}
+.book-category-manage{padding:12px;border:1px solid #e8dccb;border-radius:12px;background:#fff}
 .book-category-actions{display:flex;flex-wrap:wrap;gap:8px}
-.book-category-actions button,.book-category-form button,.book-category-book{min-height:44px}
-.book-category-hidden-note{display:block;margin-top:6px;color:#7a4b12;font-size:.92rem}
-.book-category-form label,.book-category-book{display:grid;gap:4px}
-.book-category-form input,.book-category-form button,select#bookCategoryRedirect,select#bookCategoryMoveDestination{width:100%;box-sizing:border-box}
+#bookCategoryManager button{min-height:44px;min-width:44px;padding:10px 14px;font-weight:800}
+#bookCategoryManager button.admin-danger{background:#7f1d1d!important;color:#fff!important;border-color:#7f1d1d!important}
+#bookCategoryManager input:not([type="checkbox"]),
+#bookCategoryManager textarea,
+#bookCategoryManager select{width:100%;min-height:44px;box-sizing:border-box;border:1px solid #6f5848;border-radius:9px;padding:10px 12px;background:#fff;color:#241911}
+.book-category-form label{display:grid;gap:6px;font-weight:700;color:#2b211b}
+#bookCategoryManager .book-category-book{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;box-sizing:border-box;padding:10px 12px;font-weight:700;color:#2b211b;cursor:pointer}
+#bookCategoryManager .book-category-book-title{flex:1 1 auto;min-width:0}
+#bookCategoryManager .book-category-book-meta{flex:0 0 auto;font-weight:650}
+#bookCategoryManager .book-category-book input[type="checkbox"]{width:20px;height:20px;min-width:20px;min-height:20px;flex:0 0 20px;margin:0;padding:0;accent-color:#70503d}
+#bookCategoryManager button:focus,
+#bookCategoryManager input:focus,
+#bookCategoryManager textarea:focus,
+#bookCategoryManager select:focus{outline:3px solid #70503d;outline-offset:2px}
 @media(max-width:420px){
-  .book-category-actions{display:grid;grid-template-columns:1fr 1fr}
-  .book-category-actions button{width:100%}
+  .book-category-actions{display:grid;grid-template-columns:1fr}
+  .book-category-actions button,.book-category-heading .admin-primary{width:100%}
+}
+@media(prefers-color-scheme:dark){
+  #bookCategoryManager .admin-card{background:#2b221c;border-color:#5a463a;color:#f6ecdf}
+  #bookCategoryManager .admin-help,#bookCategoryManager .book-category-meta{color:#f0e2d4}
+  #bookCategoryManager .book-category-form label,#bookCategoryManager .book-category-book{color:#f6ecdf}
+  #bookCategoryManager .book-category-manage{background:#241c17;border-color:#5a463a}
+  #bookCategoryManager .book-category-row{border-bottom-color:#5a463a}
+  #bookCategoryManager input,#bookCategoryManager textarea,#bookCategoryManager select{background:#3a2e26;color:#f6ecdf;border-color:#c3a48c}
+  #bookCategoryManager .admin-secondary{background:#4a3b32;color:#f6ecdf}
+  #bookCategoryManager .admin-status{background:#332820;border-color:#5a463a;color:#f6ecdf}
+  #bookCategoryManager .admin-status.err{background:#4a2420;border-color:#e0a197;color:#ffd7d0}
+  #bookCategoryManager .book-category-badge-open{background:#1d3b2c;color:#d9f5e3}
+  #bookCategoryManager .book-category-badge-hidden{background:#5c4318;color:#fff6df}
+  #bookCategoryManager .book-category-badge-retired{background:#5a2c28;color:#ffd7d0}
+  #bookCategoryManager button:focus,#bookCategoryManager input:focus,#bookCategoryManager textarea:focus,#bookCategoryManager select:focus{outline-color:#f0d8c0}
 }
 
 

@@ -64,3 +64,23 @@
     max-width: calc((100% - 8px) / 2) !important;
   }
 }
+
+/* Managed directory cards keep a regular grid. The legacy nth-child and last-card rules above stay for the static fallback. */
+@media (min-width: 1101px) {
+  #bookCategories .cards:has(> .card[data-category-source]) .card {
+    grid-column: span 2 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+}
+
+@media (max-width: 700px) {
+  #bookCategories .cards:has(> .card[data-category-source]) .card:last-child {
+    grid-column: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+}

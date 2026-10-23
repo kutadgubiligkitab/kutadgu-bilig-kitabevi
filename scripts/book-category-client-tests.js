@@ -157,6 +157,35 @@ async function repeatMove(fetchImpl) {
   return { first, second, seen, attempts: api.state.attempts };
 }
 
+{
+  const box = { document: { querySelector() { return null; } } };
+  box.window = box;
+  box.self = box;
+  box.globalThis = box;
+  vm.runInNewContext(
+    fs.readFileSync(path.join(__dirname, "../admin-book-categories.js"), "utf8"),
+    box,
+    { filename: "admin-book-categories.js" }
+  );
+  const categories = box.KutadguAdminBookCategories;
+  assert.strictEqual(categories.slugFor("مەشھۇر شەخسلەر", []), "meshhur-shexsler");
+  assert.strictEqual(categories.slugFor("باشقا تۈر", []), "bashqa-tur");
+  assert.strictEqual(categories.slugFor("مەشھۇر شەخسلەر", [{ slug: "meshhur-shexsler" }]), "meshhur-shexsler-2");
+  assert.strictEqual(categories.slugFor("admin", []), "admin-2");
+  const firstDraft = categories.rememberDraft("مەشھۇر شەخسلەر", "");
+  const secondDraft = categories.rememberDraft("مەشھۇر شەخسلەر", "قىسقىچە");
+  assert.strictEqual(firstDraft.slug, "meshhur-shexsler");
+  assert.strictEqual(secondDraft.slug, firstDraft.slug);
+  assert.strictEqual(secondDraft.summary, "قىسقىچە");
+  categories.state.pendingCreate = {
+    args: { p_label: "مەشھۇر شەخسلەر", p_slug: firstDraft.slug, p_summary: "قىسقىچە", p_icon: "📚" }
+  };
+  const frozen = categories.rememberDraft("مەشھۇر شەخسلەر", "باشقا چۈشەندۈرۈش");
+  assert.strictEqual(frozen.slug, firstDraft.slug);
+  assert.strictEqual(frozen.summary, "قىسقىچە");
+  categories.state.pendingCreate = null;
+}
+
 function samePayload(left, right) {
   assert.strictEqual(left.p_request_id, right.p_request_id);
   assert.deepStrictEqual(left.p_book_ids, right.p_book_ids);
@@ -210,6 +239,22 @@ function samePayload(left, right) {
   assert.notStrictEqual(refused.seen[0].p_request_id, refused.seen[1].p_request_id);
   assert.deepStrictEqual(refused.seen[0].p_book_ids, refused.seen[1].p_book_ids);
   assert.strictEqual(Object.keys(refused.attempts).length, 0);
+
+  const preserved = await (async () => {
+    const seen = [];
+    const api = adminApi(async (input, init) => {
+      seen.push(await requestBody(input, init));
+      return new Response("bad gateway", { status: 502, headers: { "content-type": "text/plain" } });
+    });
+    const args = { p_label: "مەشھۇر شەخسلەر", p_slug: "meshhur-shexsler", p_summary: "قىسقىچە", p_icon: "📚" };
+    await api.mutate("admin_create_book_category", args);
+    await api.mutate("admin_create_book_category", args);
+    return seen;
+  })();
+  assert.strictEqual(preserved.length, 2);
+  assert.strictEqual(preserved[0].p_slug, "meshhur-shexsler");
+  assert.strictEqual(preserved[0].p_request_id, preserved[1].p_request_id);
+  assert.deepStrictEqual(preserved[0].p_label, preserved[1].p_label);
 
   console.log("book category client: PASS");
 })().catch((error) => {
