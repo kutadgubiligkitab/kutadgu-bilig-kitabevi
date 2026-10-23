@@ -122,18 +122,146 @@
   function renderList(){
     const host=$("#volumeGroupList");
     if(!host)return;
+    const currentId=positiveId(state.current&&state.current.id);
     if(!state.groups.length){
       host.innerHTML='<div class="admin-empty">تېخى قىسىملىق كىتاب يوق.</div>';
       return;
     }
-    host.innerHTML=state.groups.map(group=>`<button type="button" class="volume-group-list-row" data-volume-group-edit="${escapeHtml(group.id)}">
+    host.innerHTML=state.groups.map(group=>{
+      const id=positiveId(group.id);
+      const current=id&&id===currentId;
+      return `<button type="button" class="volume-group-list-row" data-volume-group-edit="${escapeHtml(group.id)}" aria-current="${current?"true":"false"}">
       <span><strong>${escapeHtml(group.title||"نامى يېزىلمىغان يۈرۈشلۈك")}</strong><small>${escapeHtml(group.slug||`ID ${group.id}`)}</small></span>
       <span>${Number(group.member_count)||0} قىسىم</span>
       <span class="${group.is_public?"is-public":"is-private"}">${group.is_public?"كۆرسىتىشكە تەييار":"تېخى چىقىرىلمىغان"}</span>
-    </button>`).join("");
+    </button>`;
+    }).join("");
     host.querySelectorAll("[data-volume-group-edit]").forEach(button=>{
       button.onclick=()=>openGroup(button.dataset.volumeGroupEdit);
     });
+  }
+  let editorGeneration=0;
+  const metadataTouched={title:false,author:false,category:false,description:false};
+  let savedFingerprint="";
+  function editorFingerprint(){
+    return JSON.stringify({
+      id:positiveId($("#volumeGroupId")&&$("#volumeGroupId").value),
+      title:text($("#volumeGroupTitle")&&$("#volumeGroupTitle").value),
+      author:text($("#volumeGroupAuthor")&&$("#volumeGroupAuthor").value),
+      category:text($("#volumeGroupCategory")&&$("#volumeGroupCategory").value),
+      source:text($("#volumeGroupSource")&&$("#volumeGroupSource").value),
+      description:text($("#volumeGroupDescription")&&$("#volumeGroupDescription").value),
+      price:$("#volumeGroupSetPrice")?$("#volumeGroupSetPrice").value:"",
+      active:$("#volumeGroupActive")?$("#volumeGroupActive").checked:true,
+      representative:positiveId($("#volumeGroupRepresentative")&&$("#volumeGroupRepresentative").value),
+      members:state.members.map(member=>({id:member.book_id,label:text(member.volume_label)}))
+    });
+  }
+  function rememberSavedEditor(){
+    savedFingerprint=editorFingerprint();
+    syncAbandon();
+  }
+  function syncAbandon(){
+    const button=$("#volumeGroupAbandon");
+    if(!button)return;
+    const id=positiveId($("#volumeGroupId")&&$("#volumeGroupId").value);
+    button.hidden=!(id&&editorFingerprint()!==savedFingerprint);
+  }
+  function markMetadataTouched(field){
+    if(Object.prototype.hasOwnProperty.call(metadataTouched,field))metadataTouched[field]=true;
+    syncAbandon();
+  }
+  function resetMetadataTouched(){
+    Object.keys(metadataTouched).forEach(field=>{metadataTouched[field]=false});
+  }
+  function renderMode(){
+    const el=$("#volumeGroupMode");
+    const current=state.current;
+    const id=positiveId(current&&current.id);
+    if(!el)return;
+    if(!id){
+      el.dataset.mode="draft";
+      el.textContent="يېڭى يۈرۈشلۈك";
+    }else if(current.is_public===true){
+      el.dataset.mode="published";
+      el.textContent=`نەشر قىلىنغان يۈرۈشلۈك: ${text(current.title)||"نامى يېزىلمىغان"}`;
+    }else{
+      el.dataset.mode="saved";
+      el.textContent=`ساقلانغان يۈرۈشلۈك: ${text(current.title)||"نامى يېزىلمىغان"}`;
+    }
+    renderList();
+  }
+  function clearSlugRecovery(){
+    const host=$("#volumeGroupSlugRecovery");
+    if(!host)return;
+    host.hidden=true;
+    host.innerHTML="";
+  }
+  function categoryForBook(meta){
+    const source=text(meta&&meta.source);
+    const label=text(meta&&meta.category);
+    const entries=categoryEntries();
+    if(source){
+      const bySource=entries.find(item=>item.source===source);
+      if(bySource)return bySource;
+    }
+    if(label)return entries.find(item=>text(item.label)===label)||null;
+    return null;
+  }
+  function applySharedMetadata(chosen,meta){
+    if(state.current||state.members.length)return;
+    const title=text(chosen&&chosen.title);
+    const author=text(chosen&&chosen.author);
+    const description=text(meta&&meta.description);
+    if(!metadataTouched.title&&title)$("#volumeGroupTitle").value=title;
+    if(!metadataTouched.author&&author)$("#volumeGroupAuthor").value=author;
+    if(!metadataTouched.description&&description)$("#volumeGroupDescription").value=description;
+    if(!metadataTouched.category){
+      const entry=categoryForBook(meta);
+      if(entry){
+        $("#volumeGroupCategory").value=entry.label;
+        syncCategorySource();
+        markHiddenAssignment($("#volumeGroupCategory"),text($("#volumeGroupSource").value));
+      }
+    }
+  }
+  function retainGroup(saved){
+    const id=positiveId(saved&&saved.id);
+    if(!id)return;
+    const summary={
+      id:saved.id,
+      title:text(saved.title),
+      slug:text(saved.slug),
+      member_count:Array.isArray(saved.members)?saved.members.length:Number(saved.member_count)||0,
+      is_public:saved.is_public===true
+    };
+    const index=state.groups.findIndex(row=>positiveId(row.id)===id);
+    if(index>=0)state.groups[index]={...state.groups[index],...summary};
+    else state.groups=[summary,...state.groups];
+    renderList();
+  }
+  function memberTitle(member){
+    return text(member&&member.title)||`كىتاب ${member&&member.book_id||""}`;
+  }
+  function memberDetachControl(member,published){
+    const name=`يۈرۈشلۈكتىن ئايرىش: ${memberTitle(member)}`;
+    if(!published)return `<button type="button" class="volume-member-detach" data-member-remove aria-label="${escapeHtml(name)}">يۈرۈشلۈكتىن ئايرىش</button>`;
+    return `<div class="volume-member-detach-box"><button type="button" class="volume-member-detach" data-member-remove-ask aria-label="${escapeHtml(name)}">يۈرۈشلۈكتىن ئايرىش</button></div>`;
+  }
+  function bindMemberDetach(row,id){
+    const direct=row.querySelector("[data-member-remove]");
+    if(direct){direct.onclick=()=>removeMember(id);return}
+    const ask=row.querySelector("[data-member-remove-ask]");
+    if(!ask)return;
+    ask.onclick=()=>{
+      const member=state.members.find(item=>item.book_id===id);
+      const box=row.querySelector(".volume-member-detach-box");
+      if(!box||!member)return;
+      const name=memberTitle(member);
+      box.innerHTML=`<p class="volume-member-detach-note">«${escapeHtml(name)}» تىزىمدا قالىدۇ. بۇ ئۆزگەرتىش ساقلىغاندىن كېيىن ئاندىن يېزىلىدۇ.</p><button type="button" class="volume-member-detach" data-member-remove-confirm aria-label="ئايرىشنى جەزملەش: ${escapeHtml(name)}">ئايرىشنى جەزملەش</button><button type="button" class="admin-secondary volume-member-detach-cancel" data-member-remove-cancel>ۋاز كېچىش</button>`;
+      box.querySelector("[data-member-remove-confirm]").onclick=()=>removeMember(id);
+      box.querySelector("[data-member-remove-cancel]").onclick=()=>renderMembers();
+    };
   }
   function renderMembers(){
     const host=$("#volumeGroupMembers");
@@ -158,7 +286,7 @@
         <label>قىسىم بەلگىسى <input type="text" maxlength="120" value="${escapeHtml(member.volume_label)}" data-member-label></label>
       </div>
       <label class="volume-admin-representative"><input type="radio" name="volumeRepresentative" value="${escapeHtml(member.book_id)}" ${representative===member.book_id||(!representative&&index===0)?"checked":""}> باش مۇقاۋا</label>
-      <button type="button" class="admin-danger" data-member-remove>چىقىرىش</button>
+      ${memberDetachControl(member,!!(state.current&&state.current.is_public))}
     </article>`).join("");
     const checked=host.querySelector('input[name="volumeRepresentative"]:checked');
     if($("#volumeGroupRepresentative"))$("#volumeGroupRepresentative").value=checked?checked.value:state.members[0].book_id;
@@ -167,13 +295,18 @@
       row.querySelector("[data-member-label]").oninput=event=>{
         const member=state.members.find(item=>item.book_id===id);
         if(member)member.volume_label=event.target.value;
+        syncAbandon();
       };
       row.querySelectorAll("[data-member-move]").forEach(button=>button.onclick=()=>moveMember(id,Number(button.dataset.memberMove)));
-      row.querySelector("[data-member-remove]").onclick=()=>removeMember(id);
+      bindMemberDetach(row,id);
       row.querySelector('input[name="volumeRepresentative"]').onchange=event=>{
-        if(event.target.checked)$("#volumeGroupRepresentative").value=id;
+        if(event.target.checked){
+          $("#volumeGroupRepresentative").value=id;
+          syncAbandon();
+        }
       };
     });
+    syncAbandon();
   }
   function moveMember(id,delta){
     const index=state.members.findIndex(member=>member.book_id===String(id));
@@ -208,23 +341,98 @@
     $("#volumeGroupPublishBtn").disabled=!positiveId(value.id);
     state.current=value.id?value:null;
     state.members=normalizeMembers(value.members);
+    if(state.current)Object.keys(metadataTouched).forEach(field=>{metadataTouched[field]=true});
+    else resetMetadataTouched();
     renderMembers();
+    renderMode();
     resetLookup();
+    clearSlugRecovery();
+    rememberSavedEditor();
   }
   function newGroup(){
+    editorGeneration++;
     showLinkForm();
     fillEditor({is_active:true,members:[]});
     setStatus("قىسىملارنى قوشۇپ ساقلاڭ؛ تېخى خېرىدارلارغا كۆرۈنمەيدۇ.","");
   }
   async function openGroup(id){
+    editorGeneration++;
+    const generation=editorGeneration;
     resetLookup();
     setStatus("يۈرۈشلۈك يۈكلىنىۋاتىدۇ…","");
     try{
       const group=await rpc("admin_get_book_volume_group",{p_group_id:positiveId(id)});
+      if(generation!==editorGeneration)return;
       if(!group)throw new Error("volume_group_not_found");
       fillEditor(group);
-      setStatus("يۈرۈشلۈكنى ئۆزگەرتەلەيسىز.","ok");
-    }catch(error){setStatus(error.message||String(error),"error")}
+      setStatus(group.is_public?"نەشر قىلىنغان يۈرۈشلۈك ئېچىلدى. ئۆزگەرتىش ساقلىغاندىن كېيىن ئاندىن يېزىلىدۇ.":"يۈرۈشلۈكنى ئۆزگەرتەلەيسىز.","ok");
+    }catch(error){
+      if(generation!==editorGeneration)return;
+      setStatus(error.message||String(error),"error");
+    }
+  }
+  function duplicateSlugError(error){
+    const code=text(error&&typeof error==="object"?error.code:"");
+    const blob=`${code} ${error&&error.message||""} ${error&&error.details||""} ${error&&error.hint||""}`;
+    if(code!=="23505"&&!/23505/.test(blob))return false;
+    return /book_volume_groups_slug|slug/i.test(blob);
+  }
+  async function explainDuplicateSlug(error,slug,generation){
+    if(!duplicateSlugError(error))return false;
+    const wanted=text(slug);
+    let found=null;
+    let readable=false;
+    let detailState="absent";
+    try{
+      const rows=groupRows(await rpc("admin_list_book_volume_groups"));
+      if(generation!==editorGeneration)return true;
+      readable=true;
+      state.groups=rows;
+      state.loaded=true;
+      renderList();
+      const listed=rows.find(row=>text(row.slug)===wanted);
+      if(listed&&positiveId(listed.id)){
+        detailState="unverified";
+        try{
+          const detail=await rpc("admin_get_book_volume_group",{p_group_id:positiveId(listed.id)});
+          if(generation!==editorGeneration)return true;
+          if(detail&&positiveId(detail.id)===positiveId(listed.id)&&text(detail.slug)===wanted){
+            found=detail;
+            detailState="verified";
+          }
+        }catch(readError){
+          if(generation!==editorGeneration)return true;
+        }
+      }
+    }catch(listError){
+      if(generation!==editorGeneration)return true;
+      readable=false;
+    }
+    if(generation!==editorGeneration)return true;
+    const host=$("#volumeGroupSlugRecovery");
+    if(detailState==="verified"&&found&&positiveId(found.id)){
+      setStatus(`بۇ ئۇلانما «${text(found.title)||wanted}» يۈرۈشلۈكىدە. يېڭى ئۇلانما ياسالمىدى ۋە كىتابلار قايتا باغلانمىدى.`,"error");
+      if(host){
+        host.hidden=false;
+        host.innerHTML="";
+        const button=document.createElement("button");
+        button.type="button";
+        button.className="admin-secondary volume-slug-open";
+        button.textContent="شۇ يۈرۈشلۈكنى ئېچىش";
+        button.addEventListener("click",()=>openGroup(found.id));
+        host.appendChild(button);
+      }
+      return true;
+    }
+    const unverified=detailState==="unverified";
+    const message=unverified
+      ?"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. بۇ يۈرۈشلۈكنى جەزملەپ ئېچەلمىدىم."
+      :readable
+        ?"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. ماس يۈرۈشلۈكنىڭ خاتىرىسى تىزىمدا يوق."
+        :"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. بۇرۇنقى يۈرۈشلۈكنىڭ خاتىرىسىنى ئوقۇيالمىدىم.";
+    setStatus(message,"error");
+    clearSlugRecovery();
+    return true;
   }
   function editorPayload(){
     state.members=normalizeMembers(state.members);
@@ -257,7 +465,9 @@
   }
   async function saveGroup(event){
     event.preventDefault();
+    const generation=editorGeneration;
     const payload=editorPayload();
+    if(generation!==editorGeneration)return;
     if(!payload.group.title){setStatus("يۈرۈشلۈك نامىنى كىرگۈزۈڭ.","error");return}
     if(payload.members.length<2||payload.members.length>100){setStatus("يۈرۈشلۈكتە 2 دىن 100 گىچە قىسىم بولۇشى كېرەك.","error");return}
     if(!$("#volumeGroupCategory").checkValidity()||(!state.current&&!payload.group.source)){
@@ -273,15 +483,28 @@
         p_group:payload.group,
         p_members:payload.members
       });
+      if(generation!==editorGeneration){
+        retainGroup(saved);
+        return;
+      }
+      if(!saved||!positiveId(saved.id)){
+        setStatus("جاۋاب يېتىپ كەلمىدى. يۈرۈشلۈك تازىلانمىدى.","error");
+        return;
+      }
       fillEditor(saved);
-      await load(true);
+      await load(true,generation);
+      if(generation!==editorGeneration)return;
+      retainGroup(saved);
       setStatus("يۈرۈشلۈك ساقلاندى. كىتاب ئۇچۇرلىرى ئۆزگەرتىلمىدى.","ok");
     }catch(error){
+      if(generation!==editorGeneration)return;
+      if(await explainDuplicateSlug(error,payload.group.slug,generation))return;
       const stale=/stale|revision|40001/i.test(`${error.message||""} ${error.code||""}`);
       setStatus(stale?"بۇ يۈرۈشلۈك باشقا كۆزنەكتە ئۆزگەرتىلگەن. قايتا يۈكلەپ تەكرارلاڭ.":(error.message||String(error)),"error");
     }
   }
   async function publishGroup(){
+    const generation=editorGeneration;
     const id=positiveId($("#volumeGroupId").value);
     const revision=Number($("#volumeGroupRevision").value);
     if(!id||!revision)return;
@@ -291,10 +514,31 @@
       const saved=await rpc("admin_set_book_volume_group_publication",{
         p_group_id:id,p_expected_revision:revision,p_is_public:next
       });
+      if(generation!==editorGeneration){
+        retainGroup(saved);
+        return;
+      }
+      if(!saved||!positiveId(saved.id)||saved.is_public!==next){
+        setStatus("نەشر جاۋابى جەزملىنمىدى. ئېكران تازىلانمىدى.","error");
+        return;
+      }
+      await load(true,generation);
+      if(generation!==editorGeneration){
+        retainGroup(saved);
+        return;
+      }
+      retainGroup(saved);
+      if(next){
+        newGroup();
+        setStatus("يۈرۈشلۈك تىزىمدا ساقلاندى. بۇ ئېكران يېڭى يۈرۈشلۈككە تەييار.","ok");
+        return;
+      }
       fillEditor(saved);
-      await load(true);
-      setStatus(next?"يۈرۈشلۈك تەييارلاندى. قىسىملىق كىتاب ئىقتىدارى ئېچىلغاندا خېرىدارلار كۆرىدۇ.":"يۈرۈشلۈك خېرىدارلاردىن يوشۇرۇلدى.","ok");
-    }catch(error){setStatus(error.message||String(error),"error")}
+      setStatus("يۈرۈشلۈك خېرىدارلاردىن يوشۇرۇلدى.","ok");
+    }catch(error){
+      if(generation!==editorGeneration)return;
+      setStatus(error.message||String(error),"error");
+    }
   }
   function normalizeLookup(value){
     const rows=Array.isArray(value)?value:Array.isArray(value&&value.items)?value.items:(value&&value.id?[value]:[]);
@@ -386,6 +630,13 @@
     host.setAttribute("aria-busy","false");
     host.innerHTML=`<p class="volume-admin-lookup-status" role="alert">${escapeHtml(error&&error.message||String(error||"كىتاب تېپىلمىدى."))}</p><button type="button" class="admin-secondary" data-lookup-retry>قايتا سىناش</button>`;
   }
+  async function readAcceptedBookMetadata(bookId){
+    const id=positiveId(bookId);
+    if(!id||!state.db||typeof state.db.from!=="function")return null;
+    const result=await state.db.from("books").select("id,category,source,description").eq("id",id).maybeSingle();
+    if(!result||result.error||!result.data)return null;
+    return result.data;
+  }
   async function addLookupCandidate(bookId){
     const generation=lookupGeneration;
     const id=positiveId(bookId);
@@ -416,7 +667,11 @@
         setStatus("بۇ كىتاب ئاللىقاچان قىسىم تىزىملىكىدە.","error");
         return;
       }
-      if(!state.members.length&&!text($("#volumeGroupAuthor").value))$("#volumeGroupAuthor").value=chosen.author;
+      let shared=null;
+      try{shared=await readAcceptedBookMetadata(chosen.book_id)}catch(readError){shared=null}
+      if(generation!==lookupGeneration)return;
+      applySharedMetadata(chosen,shared);
+      if(generation!==lookupGeneration)return;
       const nextLabel=`${state.members.length+1}-قىسىم`;
       state.members=normalizeMembers([...state.members,{...chosen,volume_label:nextLabel}]);
       renderMembers();
@@ -492,16 +747,19 @@
       setStatus(error.message||String(error),"error");
     }
   }
-  async function load(force){
+  async function load(force,generation){
     if(state.loading||state.loaded&&!force)return;
+    const watch=generation==null?editorGeneration:generation;
     state.loading=true;
-    setStatus("يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…","");
+    if(watch===editorGeneration)setStatus("يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…","");
     try{
       state.groups=groupRows(await rpc("admin_list_book_volume_groups"));
       state.loaded=true;
       renderList();
-      setStatus("قىسىملىق كىتابلارنى باشقۇرالايسىز.","ok");
-    }catch(error){setStatus(error.message||String(error),"error")}
+      if(watch===editorGeneration)setStatus("قىسىملىق كىتابلارنى باشقۇرالايسىز.","ok");
+    }catch(error){
+      if(watch===editorGeneration)setStatus(error.message||String(error),"error");
+    }
     finally{state.loading=false}
   }
   const seriesState={requestId:"",saving:false};
@@ -888,12 +1146,14 @@
     seriesStatus("ساقلاش خېرىدارغا چىقارمايدۇ.","");
   }
   function showSeriesForm(){
+    if($("#volumeSeriesForm")?.hidden)editorGeneration++;
     resetLookup();
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=true;
     if(!text($("#volumeSeriesRequestId")?.value))resetSeriesForm();
   }
   function showLinkForm(){
+    if($("#volumeGroupForm")?.hidden)editorGeneration++;
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=true;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=false;
   }
@@ -1101,7 +1361,12 @@
   }
   function bind(){
     bindSuggestions();
-    $("#volumeGroupCategory")?.addEventListener("input",syncCategorySource);
+    $("#volumeGroupCategory")?.addEventListener("input",()=>{markMetadataTouched("category");syncCategorySource()});
+    $("#volumeGroupTitle")?.addEventListener("input",()=>markMetadataTouched("title"));
+    $("#volumeGroupAuthor")?.addEventListener("input",()=>markMetadataTouched("author"));
+    $("#volumeGroupDescription")?.addEventListener("input",()=>markMetadataTouched("description"));
+    $("#volumeGroupSetPrice")?.addEventListener("input",syncAbandon);
+    $("#volumeGroupActive")?.addEventListener("change",syncAbandon);
     $("#volumeSeriesCategory")?.addEventListener("input",syncSeriesCategory);
     $("#newVolumeGroupBtn")?.addEventListener("click",newGroup);
     $("#showVolumeSeriesBtn")?.addEventListener("click",showSeriesForm);
@@ -1111,6 +1376,10 @@
     $("#reloadVolumeGroupsBtn")?.addEventListener("click",()=>load(true));
     $("#volumeGroupForm")?.addEventListener("submit",saveGroup);
     $("#volumeGroupPublishBtn")?.addEventListener("click",publishGroup);
+    $("#volumeGroupAbandon")?.addEventListener("click",()=>{
+      const id=positiveId($("#volumeGroupId")&&$("#volumeGroupId").value);
+      if(id)openGroup(id);
+    });
     $("#volumeGroupLookupBtn")?.addEventListener("click",lookupBook);
     $("#volumeGroupBookLookup")?.addEventListener("keydown",event=>{
       if(event.key==="Enter"){event.preventDefault();lookupBook()}
