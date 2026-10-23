@@ -11,8 +11,12 @@ const books = [
   { id: 302, title: "ئالما داۋامى", author: "باشقا ئاپتور", price: 80, stock: 6, image_url: "/sample-book-cover.png", isbn: "", url: "/book/302", category: "رومانلار", source: "romanlar.html", description: "ئىككىنچى قىسىم" },
   { id: 303, title: "يېڭى قىسىم", author: "يېڭى ئاپتور", price: 40, stock: 2, image_url: "/sample-book-cover.png", isbn: "", url: "/book/303", category: "رومانلار", source: "romanlar.html", description: "باشقا چۈشەندۈرۈش" },
   { id: 304, title: "يېڭى داۋام", author: "يېڭى ئاپتور", price: 45, stock: 2, image_url: "/sample-book-cover.png", isbn: "", url: "/book/304", category: "رومانلار", source: "romanlar.html", description: "داۋام" },
-  { id: 410, title: "يوشۇرۇن تۈردىكى كىتاب", author: "يوشۇرۇن ئاپتور", price: 15, stock: 1, image_url: "/sample-book-cover.png", isbn: "", url: "/book/410", category: "يوشۇرۇن", source: "yoshurun.html", description: "يوشۇرۇن چۈشەندۈرۈش" }
+  { id: 410, title: "يوشۇرۇن تۈردىكى كىتاب", author: "يوشۇرۇن ئاپتور", price: 15, stock: 1, image_url: "/sample-book-cover.png", isbn: "", url: "/book/410", category: "يوشۇرۇن", source: "yoshurun.html", description: "يوشۇرۇن چۈشەندۈرۈش" },
+  { id: 139, title: "ئامەت ۋە ئاپەت 1-قىسىم", author: "جالالىدىن بەھرام", price: 180, stock: 3, image_url: "/sample-book-cover.png", isbn: "", url: "/book/139", category: "تارىخىي رومانلار", source: "tarikhiy-romanlar.html", description: "بىرىنچى قىسىم" },
+  { id: 140, title: "ئامەت ۋە ئاپەت 2-قىسىم", author: "جالالىدىن بەھرام", price: 190, stock: 3, image_url: "/sample-book-cover.png", isbn: "", url: "/book/140", category: "تارىخىي رومانلار", source: "tarikhiy-romanlar.html", description: "ئىككىنچى قىسىم" }
 ];
+
+const LINK_SLUG = /^series-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function contrast(foreground, background) {
   const parse = (value) => value.match(/\d+/g).slice(0, 3).map(Number);
@@ -92,6 +96,7 @@ async function openEditor(page) {
             window.__saveHeld = true;
             await new Promise((resolve) => { window.__releaseSave = resolve; });
           }
+          if (window.__loseSave) return { data: null };
           if (window.__duplicateSlug) {
             return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint \"book_volume_groups_slug_uidx\"", details: `Key (slug)=(${args.p_group.slug}) already exists.` }, status: 409 };
           }
@@ -141,6 +146,14 @@ async function addBook(page, id) {
   await expect(page.locator(`[data-volume-member-id="${id}"]`)).toBeVisible();
 }
 
+async function useDraftSlugForListedGroup(page) {
+  const slug = await page.locator("#volumeGroupSlug").inputValue();
+  await page.evaluate((value) => {
+    window.__groups = (window.__groups || []).map((row) => ({ ...row, slug: value }));
+  }, slug);
+  return slug;
+}
+
 async function saveDraft(page) {
   await page.locator("#volumeGroupForm button[type='submit']").click();
   await expect(page.locator("#volumeGroupStatus")).toContainText("ساقلاندى");
@@ -161,7 +174,8 @@ test.describe("volume editor draft recovery", () => {
     await expect(page.locator("#volumeGroupMode")).toHaveAttribute("data-mode", "draft");
     await expect(page.locator("#volumeGroupId")).toHaveValue("");
     await expect(page.locator("#volumeGroupTitle")).toHaveValue("");
-    await expect(page.locator("#volumeGroupSlug")).toHaveValue("");
+    const freshSlug = await page.locator("#volumeGroupSlug").inputValue();
+    expect(freshSlug).toMatch(LINK_SLUG);
     await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
     await expect(page.locator("[data-volume-group-edit='77']")).toContainText("كۆرسىتىشكە تەييار");
     await addBook(page, 303);
@@ -169,7 +183,11 @@ test.describe("volume editor draft recovery", () => {
     await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
     await saveDraft(page);
     const saves = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
-    expect(saves).toEqual(["series-301", "series-303"]);
+    expect(saves[0]).toMatch(LINK_SLUG);
+    expect(saves[1]).toBe(freshSlug);
+    expect(saves[1]).not.toBe(saves[0]);
+    expect(saves).not.toContain("series-301");
+    expect(saves).not.toContain("series-303");
     expect(await page.evaluate(() => window.__bookWrites)).toEqual([]);
   });
 
@@ -331,27 +349,31 @@ test.describe("volume editor draft recovery", () => {
     await addBook(page, 301);
     await addBook(page, 302);
     await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    const slug = await useDraftSlugForListedGroup(page);
     await page.locator("#volumeGroupForm button[type='submit']").click();
     await expect(page.locator("#volumeGroupStatus")).toContainText("كونا يۈرۈشلۈك");
     await expect(page.locator("#volumeGroupStatus")).not.toContainText("book_volume_groups_slug_uidx");
     await expect(page.locator(".volume-slug-open")).toHaveText("شۇ يۈرۈشلۈكنى ئېچىش");
     const slugs = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
-    expect(slugs).toEqual(["series-301"]);
+    expect(slugs).toEqual([slug]);
+    expect(slug).toMatch(LINK_SLUG);
     await page.locator(".volume-slug-open").click();
     await expect(page.locator("#volumeGroupId")).toHaveValue("55");
-    await expect(page.locator("#volumeGroupSlug")).toHaveValue("series-301");
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue(slug);
     await expect(page.locator("#volumeGroupTitle")).toHaveValue("كونا يۈرۈشلۈك");
     await page.evaluate(() => { window.__listFails = true; window.__duplicateSlug = true; });
     await page.locator("#newVolumeGroupBtn").click();
     await addBook(page, 303);
     await addBook(page, 304);
     await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    const second = await page.locator("#volumeGroupSlug").inputValue();
     await page.locator("#volumeGroupForm button[type='submit']").click();
     await expect(page.locator("#volumeGroupStatus")).toContainText("خاتىرىسىنى ئوقۇيالمىدىم");
     await expect(page.locator(".volume-slug-open")).toHaveCount(0);
     const later = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
-    expect(later).toEqual(["series-301", "series-303"]);
-    expect(later.some((slug) => /-2$/.test(slug))).toBe(false);
+    expect(later).toEqual([slug, second]);
+    expect(second).not.toBe(slug);
+    expect(later.some((value) => /-2$/.test(value))).toBe(false);
   });
 
   test("a late publication or save leaves the new-series form in place", async ({ page }) => {
@@ -399,6 +421,7 @@ test.describe("volume editor draft recovery", () => {
   test("a duplicate slug omits Open unless the detail read matches the listed group", async ({ page }) => {
     await openEditor(page);
     const modes = ["denied", "null", "mismatch-slug", "mismatch-id"];
+    const sent = [];
     for (let index = 0; index < modes.length; index += 1) {
       await page.evaluate((detailMode) => {
         window.__duplicateSlug = true;
@@ -410,6 +433,7 @@ test.describe("volume editor draft recovery", () => {
       await addBook(page, 302);
       await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
       const title = await page.locator("#volumeGroupTitle").inputValue();
+      const slug = await useDraftSlugForListedGroup(page);
       await page.locator("#volumeGroupForm button[type='submit']").click();
       await expect(page.locator("#volumeGroupStatus")).toContainText("جەزملەپ ئېچەلمىدىم");
       await expect(page.locator("#volumeGroupStatus")).not.toContainText("42501");
@@ -418,9 +442,94 @@ test.describe("volume editor draft recovery", () => {
       await expect(page.locator("#volumeGroupId")).toHaveValue("");
       await expect(page.locator("#volumeGroupTitle")).toHaveValue(title);
       await expect(page.locator("[data-volume-member-id]")).toHaveCount(2);
-      await expect(page.locator("#volumeGroupSlug")).toHaveValue("series-301");
+      await expect(page.locator("#volumeGroupSlug")).toHaveValue(slug);
+      sent.push(slug);
     }
     const slugs = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
-    expect(slugs).toEqual(["series-301", "series-301", "series-301", "series-301"]);
+    expect(slugs).toEqual(sent);
+    expect(new Set(sent).size).toBe(4);
+    expect(sent.every((slug) => LINK_SLUG.test(slug))).toBe(true);
+  });
+
+  test("unlinked books 139 and 140 keep an independent link when series-139 already exists", async ({ page }) => {
+    await openEditor(page);
+    const anna = {
+      id: 2,
+      revision: 8,
+      slug: "series-139",
+      title: "ئاننا كارېنىنا",
+      author: "بۇرۇنقى ئاپتور",
+      category: "تارىخىي رومانلار",
+      source: "tarikhiy-romanlar.html",
+      description: "بۇرۇنقى يۈرۈشلۈك",
+      is_public: true,
+      is_active: true,
+      members: [
+        { book_id: 147, position: 1, volume_label: "1-قىسىم", title: "ئاننا كارېنىنا 1", price: 200, url: "/book/147" },
+        { book_id: 148, position: 2, volume_label: "2-قىسىم", title: "ئاننا كارېنىنا 2", price: 210, url: "/book/148" }
+      ]
+    };
+    await page.evaluate((group) => { window.__groups = [group]; }, anna);
+    const slug = await page.locator("#volumeGroupSlug").inputValue();
+    expect(slug).toMatch(LINK_SLUG);
+    expect(slug).not.toBe("series-139");
+    await page.locator("#showVolumeSeriesBtn").click();
+    await page.locator("#showVolumeLinkBtn").click();
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue(slug);
+    await addBook(page, 139);
+    await addBook(page, 140);
+    await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue(slug);
+    await expect(page.locator("#volumeGroupSetPrice")).toHaveValue("");
+    const originalTitle = await page.locator("#volumeGroupTitle").inputValue();
+    await page.evaluate(() => { window.__holdSave = true; window.__saveHeld = false; window.__loseSave = true; });
+    await page.locator("#volumeGroupForm button[type='submit']").click();
+    await page.waitForFunction(() => window.__saveHeld === true);
+    await expect(page.locator("#volumeGroupForm button[type='submit']")).toBeDisabled();
+    await page.evaluate(() => document.querySelector("#volumeGroupForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").length)).toBe(1);
+    await page.evaluate(() => window.__releaseSave());
+    await expect(page.locator("#volumeGroupStatus")).toContainText("تازىلانمىدى");
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue(slug);
+    await expect(page.locator("#volumeGroupId")).toHaveValue("");
+    await page.locator("#volumeGroupTitle").fill("ئۆزگەرتىلگەن نام");
+    await page.evaluate(() => { window.__holdSave = false; window.__loseSave = false; });
+    await page.locator("#volumeGroupForm button[type='submit']").click();
+    await expect(page.locator("#volumeGroupStatus")).toContainText("ساقلاندى");
+    const creates = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group" && !call.args.p_group_id));
+    expect(creates).toHaveLength(2);
+    expect(creates[0].args).toEqual(creates[1].args);
+    expect(creates[0].args.p_group.slug).toBe(slug);
+    expect(creates[0].args.p_group.title).toBe(originalTitle);
+    expect(creates[0].args.p_group.complete_set_price).toBeNull();
+    expect(creates[0].args.p_members.map((member) => member.book_id)).toEqual(["139", "140"]);
+    const stored = await page.evaluate(() => window.__groups.map((group) => ({ id: group.id, revision: group.revision, slug: group.slug, title: group.title, members: (group.members || []).map((member) => String(member.book_id)) })));
+    expect(stored.find((group) => group.id === 2)).toEqual({ id: 2, revision: 8, slug: "series-139", title: "ئاننا كارېنىنا", members: ["147", "148"] });
+    expect(stored.filter((group) => group.slug === slug)).toHaveLength(1);
+    await expect(page.locator(".volume-slug-open")).toHaveCount(0);
+    await expect(page.locator("#volumeGroupId")).toHaveValue("77");
+    await page.locator("#volumeGroupPublishBtn").click();
+    await expect(page.locator("#volumeGroupMode")).toHaveAttribute("data-mode", "draft");
+    await expect(page.locator("#volumeGroupId")).toHaveValue("");
+    await expect(page.locator("#volumeGroupTitle")).toHaveValue("");
+    await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
+    const fresh = await page.locator("#volumeGroupSlug").inputValue();
+    expect(fresh).toMatch(LINK_SLUG);
+    expect(fresh).not.toBe(slug);
+    expect(fresh).not.toBe("series-139");
+    await page.evaluate(() => window.KutadguAdminVolumeGroups.openGroup("2"));
+    await expect(page.locator("#volumeGroupId")).toHaveValue("2");
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue("series-139");
+    await expect(page.locator("#volumeGroupTitle")).toHaveValue("ئاننا كارېنىنا");
+    await page.locator("#volumeGroupTitle").fill("ئاننا كارېنىنا تەھرىر");
+    await page.locator("#volumeGroupForm button[type='submit']").click();
+    await expect(page.locator("#volumeGroupStatus")).toContainText("ساقلاندى");
+    await expect(page.locator("#volumeGroupSlug")).toHaveValue("series-139");
+    await expect(page.locator("#volumeGroupId")).toHaveValue("2");
+    const edited = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group" && String(call.args.p_group_id) === "2").pop());
+    expect(edited.args.p_group.slug).toBe("series-139");
+    expect(edited.args.p_group.title).toBe("ئاننا كارېنىنا تەھرىر");
+    expect(edited.args.p_members.map((member) => member.book_id)).toEqual(["147", "148"]);
+    expect(await page.evaluate(() => window.__volumeEditorCalls.some((call) => /-2$/.test(String(call.args && call.args.p_group && call.args.p_group.slug || ""))))).toBe(false);
   });
 });
