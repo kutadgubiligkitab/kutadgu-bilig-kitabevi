@@ -1,6 +1,73 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
+const LEGACY_CATEGORY_HREFS = ["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"];
+const LITERATURE_SOURCES = ["romanlar.html", "tarikhiy-romanlar.html", "sheirlar.html", "hekayiler.html", "dastanlar.html", "dunya-edebiyati.html", "adabiyat-roman.html", "uyghur-adabiyati.html"];
+
+function directoryRows(visibleCount) {
+  const rows = [{
+    slug: "romanlar",
+    source: "romanlar.html",
+    label: "رومانلار يېڭى",
+    summary: "رومان",
+    icon: "📖",
+    sort_order: 1
+  }];
+  for (let index = 2; index <= visibleCount; index += 1) {
+    rows.push({
+      slug: "tur-" + index,
+      source: "tur-" + index + ".html",
+      label: "تۈر " + index,
+      summary: "قىسقىچە " + index,
+      icon: "📚",
+      sort_order: index
+    });
+  }
+  return rows;
+}
+
+function expectedDirectoryCards(rows) {
+  const visible = rows.filter((row) => !row.is_hidden && !row.retired);
+  const cards = visible.map((row) => ({ href: "/" + row.slug, label: row.label }));
+  if (visible.some((row) => LITERATURE_SOURCES.includes(row.source))) {
+    cards.unshift({ href: "/adabiyat", label: "ئەدەبىيات" });
+  }
+  return cards;
+}
+
+function installCategoryDirectory(page, response) {
+  return page.route("**/rpc/list_public_book_categories**", async (route) => {
+    if (response === "unavailable") {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "PGRST202", message: "Could not find the function public.list_public_book_categories" })
+      });
+    }
+    if (typeof response === "function") return response(route);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ categories: response, direct: response, redirects: [] })
+    });
+  });
+}
+
+function contrastRatio(foreground, background) {
+  const parse = (color) => {
+    const match = String(color).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [0, 0, 0];
+  };
+  const channel = (value) => {
+    const scaled = value / 255;
+    return scaled <= 0.04045 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (rgb) => 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+  const left = luminance(parse(foreground));
+  const right = luminance(parse(background));
+  return (Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05);
+}
+
 async function waitForSettledCarousel(page) {
   const track = page.locator("#homeCarouselTrack");
   await expect(track.locator(".home-carousel-card:not(.is-skeleton)").first()).toBeVisible();
@@ -11,6 +78,8 @@ test.describe("homepage compact first-view", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
     H.allowLiveCatalogReads(page);
+    await page.addInitScript(() => sessionStorage.removeItem("kutadgu-book-categories-v1"));
+    await installCategoryDirectory(page, "unavailable");
   });
 
   test("idle #searchResults does not consume vertical space", async ({ page }) => {
@@ -586,6 +655,181 @@ test.describe("homepage compact first-view", () => {
     await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
     const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
     expect(desktop).toBe(8);
+  });
+
+  test("a fresh session keeps the legacy category cards when the directory is unavailable", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await H.openFresh(page, "/");
+    const cards = page.locator("#bookCategories a.card");
+    await expect(cards).toHaveCount(LEGACY_CATEGORY_HREFS.length);
+    await expect(page.locator("#bookCategories a.card[data-category-source]")).toHaveCount(0);
+    const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    expect(hrefs).toEqual(LEGACY_CATEGORY_HREFS);
+    const placement = await page.evaluate(() => {
+      const grid = document.querySelector("#bookCategories .cards");
+      const nodes = [...document.querySelectorAll("#bookCategories a.card")];
+      const boxes = nodes.map((el) => el.getBoundingClientRect());
+      const last = boxes[boxes.length - 1];
+      const gridBox = grid.getBoundingClientRect();
+      return {
+        lastColumn: getComputedStyle(nodes[nodes.length - 1]).gridColumnStart,
+        centerDelta: Math.abs((last.left + last.width / 2) - (gridBox.left + gridBox.width / 2))
+      };
+    });
+    expect(placement.lastColumn).toBe("1");
+    expect(placement.centerDelta).toBeLessThan(8);
+  });
+
+  test("a managed directory hydrates the homepage from the fixture", async ({ page }) => {
+    const rows = directoryRows(3).concat([
+      { slug: "yoshurun", source: "yoshurun.html", label: "يوشۇرۇن تۈر", summary: "يوشۇرۇن", icon: "🙈", is_hidden: true, sort_order: 90 },
+      { slug: "eski", source: "eski.html", label: "كونا تۈر", summary: "كونا", icon: "📕", retired: true, sort_order: 91 }
+    ]);
+    const expected = expectedDirectoryCards(rows);
+    await installCategoryDirectory(page, rows);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await H.openFresh(page, "/");
+    const cards = page.locator("#bookCategories a.card");
+    await expect.poll(async () => cards.count()).toBe(expected.length);
+    const seen = await cards.evaluateAll((els) => els.map((el) => ({
+      href: el.getAttribute("href"),
+      label: el.querySelector("h3").textContent.trim(),
+      hiddenIcon: el.querySelector(".icon").getAttribute("aria-hidden")
+    })));
+    expect(seen.map((card) => card.href)).toEqual(expected.map((card) => card.href));
+    expect(seen.map((card) => card.label)).toEqual(expected.map((card) => card.label));
+    expect(seen.every((card) => card.hiddenIcon === "true")).toBe(true);
+    await expect(page.locator('#bookCategories a.card[href="/yoshurun"]')).toHaveCount(0);
+    await expect(page.locator('#bookCategories a.card[href="/eski"]')).toHaveCount(0);
+    await expect(page.locator('#bookCategories a.card[href="/adabiyat"]')).toHaveCount(1);
+  });
+
+  test("a delayed directory response replaces the legacy cards only after it arrives", async ({ page }) => {
+    const rows = directoryRows(4);
+    const expected = expectedDirectoryCards(rows);
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    await installCategoryDirectory(page, async (route) => {
+      await gate;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ categories: rows, direct: rows, redirects: [] })
+      });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect(page.locator("#bookCategories a.card")).toHaveCount(LEGACY_CATEGORY_HREFS.length);
+    const before = await page.locator("#bookCategories a.card").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+    expect(before).toEqual(LEGACY_CATEGORY_HREFS);
+    release();
+    await expect.poll(async () => page.locator("#bookCategories a.card").count()).toBe(expected.length);
+    const after = await page.locator("#bookCategories a.card").evaluateAll((els) => els.map((el) => ({
+      href: el.getAttribute("href"),
+      label: el.querySelector("h3").textContent.trim()
+    })));
+    expect(after).toEqual(expected);
+  });
+
+  for (const [name, visibleCount] of [["even", 3], ["odd", 4]]) {
+    for (const width of [390, 430, 768, 834, 1024, 1100, 1280, 1366, 1536]) {
+      test(`managed ${name} category rows flow at ${width}px`, async ({ page }) => {
+        const rows = directoryRows(visibleCount);
+        const expected = expectedDirectoryCards(rows);
+        await installCategoryDirectory(page, rows);
+        await page.setViewportSize({ width, height: 900 });
+        await H.openFresh(page, "/");
+        const cards = page.locator("#bookCategories a.card");
+        await expect.poll(async () => cards.count()).toBe(expected.length);
+        await page.locator("#bookCategories").scrollIntoViewIfNeeded();
+        await page.emulateMedia({ colorScheme: "dark" });
+        await page.evaluate(() => document.body.classList.add("dark-mode"));
+        await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards .card")).backgroundColor)).toBe("rgb(48, 40, 36)");
+        const metrics = await page.evaluate(() => {
+          const grid = document.querySelector("#bookCategories .cards");
+          const nodes = [...grid.querySelectorAll(":scope > a.card")];
+          const boxes = nodes.map((el) => {
+            const box = el.getBoundingClientRect();
+            return { top: box.top, left: box.left, right: box.right, width: box.width, height: box.height };
+          });
+          const rows = [];
+          boxes.forEach((box) => {
+            const row = rows.find((item) => Math.abs(item.top - box.top) < 3);
+            if (row) row.count += 1;
+            else rows.push({ top: box.top, count: 1 });
+          });
+          let overlap = false;
+          for (let i = 0; i < boxes.length; i += 1) {
+            for (let j = i + 1; j < boxes.length; j += 1) {
+              const a = boxes[i];
+              const b = boxes[j];
+              const separate = a.right <= b.left + 1 || b.right <= a.left + 1 || a.top + a.height <= b.top + 1 || b.top + b.height <= a.top + 1;
+              if (!separate) overlap = true;
+            }
+          }
+          const title = nodes[0].querySelector("h3");
+          const summary = nodes[0].querySelector("p");
+          const cardStyle = getComputedStyle(nodes[0]);
+          const titleStyle = getComputedStyle(title);
+          return {
+            rowCounts: rows.map((row) => row.count),
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            overlap,
+            minHeight: Math.min(...boxes.map((box) => box.height)),
+            widthDelta: Math.abs(boxes[0].width - boxes[boxes.length - 1].width),
+            rtl: boxes[0].left > boxes[1].left,
+            icons: nodes.every((el) => el.querySelector(".icon").getAttribute("aria-hidden") === "true"),
+            foreground: titleStyle.color,
+            summary: summary ? getComputedStyle(summary).color : titleStyle.color,
+            background: cardStyle.backgroundColor
+          };
+        });
+        const columns = width <= 700 ? 2 : (width <= 1100 ? 3 : 4);
+        const expectedRows = [];
+        let remaining = expected.length;
+        while (remaining > 0) {
+          const count = Math.min(columns, remaining);
+          expectedRows.push(count);
+          remaining -= count;
+        }
+        expect(metrics.rowCounts).toEqual(expectedRows);
+        expect(metrics.overflow).toBeLessThanOrEqual(4);
+        expect(metrics.overlap).toBe(false);
+        expect(metrics.minHeight).toBeGreaterThanOrEqual(44);
+        expect(metrics.widthDelta).toBeLessThan(12);
+        expect(metrics.rtl).toBe(true);
+        expect(metrics.icons).toBe(true);
+        expect(contrastRatio(metrics.foreground, metrics.background)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(metrics.summary, metrics.background)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  }
+
+  test("a larger managed directory does not keep the legacy desktop placement", async ({ page }) => {
+    const rows = directoryRows(17);
+    const expected = expectedDirectoryCards(rows);
+    await installCategoryDirectory(page, rows);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await expect.poll(async () => page.locator("#bookCategories a.card").count()).toBe(expected.length);
+    await page.locator("#bookCategories").scrollIntoViewIfNeeded();
+    const rowCounts = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll("#bookCategories .cards > a.card")].map((el) => el.getBoundingClientRect());
+      const rows = [];
+      boxes.forEach((box) => {
+        const row = rows.find((item) => Math.abs(item.top - box.top) < 3);
+        if (row) row.count += 1;
+        else rows.push({ top: box.top, count: 1 });
+      });
+      return rows.map((row) => row.count);
+    });
+    const expectedRows = [];
+    let remaining = expected.length;
+    while (remaining > 0) {
+      expectedRows.push(Math.min(4, remaining));
+      remaining -= Math.min(4, remaining);
+    }
+    expect(rowCounts).toEqual(expectedRows);
   });
 
   test("featured desktop marquee shows two visible rows without page overflow", async ({ page }) => {
