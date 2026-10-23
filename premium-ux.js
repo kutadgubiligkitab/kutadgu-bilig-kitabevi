@@ -501,8 +501,18 @@
   function setupFilterUX(){
     document.querySelectorAll(".advanced-search-panel,.catalog-filter-bar").forEach(panel=>{
       if(panel.dataset.premiumFilter==="1")return;panel.dataset.premiumFilter="1";
-      const toggle=document.createElement("button");toggle.type="button";toggle.className="premium-filter-toggle";toggle.textContent="⚙️ سۈزگۈچلەرنى ئېچىش / يىغىش";toggle.setAttribute("aria-expanded","false");
-      panel.before(toggle);panel.classList.add("is-collapsed");toggle.onclick=()=>{panel.classList.toggle("is-collapsed");toggle.setAttribute("aria-expanded",panel.classList.contains("is-collapsed")?"false":"true")};
+      const mobileToggle=panel.previousElementSibling&&panel.previousElementSibling.classList.contains("mobile-filter-toggle")?panel.previousElementSibling:null;
+      const mobileOwned=panel.dataset.mobileCollapsible==="1"||panel.classList.contains("mobile-collapsible");
+      const open=!!(mobileOwned&&panel.classList.contains("is-open")&&!panel.classList.contains("is-collapsed"));
+      const toggle=document.createElement("button");toggle.type="button";toggle.className="premium-filter-toggle";toggle.textContent="⚙️ سۈزگۈچلەرنى ئېچىش / يىغىش";toggle.setAttribute("aria-expanded",open?"true":"false");
+      panel.before(toggle);
+      if(!open)panel.classList.add("is-collapsed");
+      toggle.onclick=()=>{
+        if(mobileToggle&&panel.classList.contains("mobile-collapsible")){mobileToggle.click();return}
+        const nextOpen=panel.classList.contains("is-collapsed");
+        panel.classList.toggle("is-collapsed",!nextOpen);
+        toggle.setAttribute("aria-expanded",nextOpen?"true":"false");
+      };
       const chips=document.createElement("div");chips.className="premium-active-filters";panel.after(chips);
       const update=()=>{
         const active=[...panel.querySelectorAll("input,select")].filter(el=>el.value&&!(el.tagName==="SELECT"&&el.selectedIndex===0));
