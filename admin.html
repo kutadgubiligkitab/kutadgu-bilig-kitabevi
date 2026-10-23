@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=65">
+  <link rel="stylesheet" href="admin.css?v=66">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -432,6 +432,7 @@
           </div>
         </div>
         <div id="volumeGroupStatus" class="admin-status" role="status">قىسىملىق كىتابلار يۈكلىنىۋاتىدۇ…</div>
+        <div id="volumeGroupSlugRecovery" hidden></div>
         <div class="volume-entry-switch admin-toolbar-group">
           <button class="admin-primary" id="showVolumeSeriesBtn" type="button">قىسىملىق كىتاب قوشۇش</button>
           <button class="admin-secondary" id="showVolumeLinkBtn" type="button">بۇرۇن قوشقان كىتابلارنى باغلاش</button>
@@ -464,9 +465,10 @@
           <form id="volumeGroupForm" class="admin-form volume-group-form">
             <input id="volumeGroupId" type="hidden">
             <input id="volumeGroupRevision" type="hidden">
-            <input id="volumeGroupRepresentative" type="hidden">
             <input id="volumeGroupSlug" type="hidden">
+            <input id="volumeGroupRepresentative" type="hidden">
             <input id="volumeGroupSource" type="hidden">
+            <p id="volumeGroupMode" class="volume-group-mode admin-wide" data-mode="draft" role="status">يېڭى يۈرۈشلۈك</p>
             <label class="admin-wide"><span>كىتاب نامى</span><input id="volumeGroupTitle" type="text" maxlength="500" required placeholder="مەسىلەن: ئويغانغان زېمىن"></label>
             <label><span>ئاپتور</span><input id="volumeGroupAuthor" type="text" maxlength="500"></label>
             <label><span>كىتاب تۈرى</span><input id="volumeGroupCategory" type="text" maxlength="200" placeholder="ھەرپ يېزىپ تىزىمدىن تاللاڭ"></label>
@@ -485,12 +487,14 @@
 
             <div class="admin-wide">
               <h3>قىسىملارنىڭ تەرتىپى</h3>
+              <p id="volumeGroupMemberNote" class="admin-help volume-member-note">كىتاب تىزىمدا قالىدۇ. «يۈرۈشلۈكتىن ئايرىش» پەقەت بۇ ئېكراندا. ئۆزگەرتىش «يۈرۈشلۈكنى ساقلاش» بېسىلغاندىن كېيىن ئاندىن يېزىلىدۇ.</p>
               <div id="volumeGroupMembers" class="volume-admin-members"></div>
             </div>
 
             <div class="admin-wide volume-admin-publish-row">
               <span>ھالىتى: <strong id="volumeGroupVisibility">تېخى چىقىرىلمىغان</strong></span>
               <button class="admin-secondary" id="volumeGroupPublishBtn" type="button" disabled>تور بەتكە تەييارلاش</button>
+              <button class="admin-secondary" id="volumeGroupAbandon" type="button" hidden>ساقلىمىغان ئۆزگەرتىشنى تاشلاش</button>
               <button class="admin-primary" type="submit">يۈرۈشلۈكنى ساقلاش</button>
             </div>
           </form>
@@ -1274,7 +1278,7 @@
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
   <script defer src="admin-book-categories.js?v=6"></script>
-  <script defer src="admin-volume-groups.js?v=8"></script>
+  <script defer src="admin-volume-groups.js?v=9"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=122"></script>
   <script defer src="admin-member-cart.js?v=3"></script>

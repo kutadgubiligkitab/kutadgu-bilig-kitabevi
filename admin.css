@@ -84,7 +84,25 @@ button{cursor:pointer}
 .volume-group-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;width:100%;padding:11px;border:1px solid #e8dccb;border-radius:10px;background:#fbf8f2;color:#44352d;text-align:start}
 .volume-group-list-row>span:first-child{display:grid;min-width:0}
 .volume-group-list-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#806f62}
-.volume-group-list-row .is-public{color:#22683a}.volume-group-list-row .is-private{color:#8b5b00}
+.volume-group-list-row .is-public{color:#14532d}.volume-group-list-row .is-private{color:#7a4b00}
+.volume-group-list-row:focus-visible{outline:3px solid #70503d;outline-offset:2px}
+.volume-group-list-row[aria-current="true"]{border-color:#70503d;box-shadow:inset 0 0 0 2px #70503d}
+.volume-group-mode{margin:0;padding:10px 12px;border:1px solid #e8dccb;border-radius:10px;background:#f4ece4;color:#2b211b;font-weight:800}
+.volume-group-mode[data-mode="published"]{background:#e7f6ec;color:#14532d;border-color:#8fbf9c}
+.volume-member-note{margin:0 0 8px;color:#2b211b}
+.volume-member-detach,.volume-member-detach-cancel,.volume-slug-open,#volumeGroupAbandon{min-height:44px}
+.volume-member-detach{padding:8px 12px;border:1px solid #7f1d1d;border-radius:9px;background:#fff;color:#7f1d1d;font-weight:800}
+.volume-member-detach-box{display:grid;gap:8px;justify-items:start}
+.volume-member-detach-note{margin:0;color:#2b211b}
+.volume-member-detach:focus-visible,.volume-member-detach-cancel:focus-visible,.volume-slug-open:focus-visible,#volumeGroupAbandon:focus-visible,#volumeGroupPublishBtn:focus-visible{outline:3px solid #70503d;outline-offset:2px}
+body.dark-mode .volume-group-mode{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
+body.dark-mode .volume-group-mode[data-mode="published"]{background:#1a3324;color:#d8f3e2;border-color:#3d6b4e}
+body.dark-mode .volume-member-note,body.dark-mode .volume-member-detach-note{color:#f6ecdf}
+body.dark-mode .volume-member-detach{background:#3a2422;color:#f6ecdf;border-color:#f3d2cc}
+body.dark-mode .volume-group-list-row{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
+body.dark-mode .volume-group-list-row .is-public{color:#b7e4c7}
+body.dark-mode .volume-group-list-row .is-private{color:#f3d7a1}
+body.dark-mode .volume-admin-member,body.dark-mode .volume-group-form{background:#241c18;color:#f6ecdf;border-color:#6b5344}
 .volume-group-form{padding:16px;border:1px solid #e8dccb;border-radius:12px;background:#fbf8f2}
 .volume-admin-lookup-box{padding:14px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
 .volume-admin-lookup,.volume-admin-member{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px;border:1px solid #e8dccb;border-radius:10px;background:#fff}
@@ -155,7 +173,7 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 .volume-series-page img{width:52px;height:52px;object-fit:contain;background:#eee9e1;border-radius:6px}
 .volume-series-page-tools button{min-height:32px}
 @media(max-width:520px){.volume-series-metrics{grid-template-columns:1fr}.volume-series-page{grid-template-columns:44px minmax(0,1fr)}.volume-series-page-tools{grid-column:1/-1}}
-@media(max-width:1000px){.volume-admin-layout{grid-template-columns:1fr}.volume-group-list{max-height:260px}.volume-admin-member{grid-template-columns:auto 54px minmax(0,1fr)}.volume-admin-representative,.volume-admin-member>.admin-danger{grid-column:3}.volume-admin-member img{width:54px;height:78px}}
+@media(max-width:1000px){.volume-admin-layout{grid-template-columns:1fr}.volume-group-list{max-height:260px}.volume-admin-member{grid-template-columns:auto 54px minmax(0,1fr)}.volume-admin-representative,.volume-admin-member>.admin-danger,.volume-admin-member>.volume-member-detach,.volume-admin-member>.volume-member-detach-box{grid-column:1 / -1}.volume-admin-member img{width:54px;height:78px}}
 .admin-card h1,.admin-card h2,.admin-card h3{margin-top:0}
 .admin-status{padding:12px 14px;border-radius:10px;background:#fbf8f2;border:1px solid #e8dccb;margin-bottom:16px}
 .admin-status.ok{border-color:#96b89e;background:#f3faf4}
