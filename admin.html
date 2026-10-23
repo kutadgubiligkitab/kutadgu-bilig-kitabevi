@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=61">
+  <link rel="stylesheet" href="admin.css?v=62">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -443,10 +443,10 @@
             <div class="admin-wide volume-admin-lookup-box">
               <h3>بۇرۇن قوشقان كىتابتىن قىسىم قوشۇش</h3>
               <div class="admin-toolbar-group">
-                <input id="volumeGroupBookLookup" class="admin-search" type="search" placeholder="كىتاب نومۇرى ياكى ISBN نى يېزىڭ" aria-label="كىتاب نومۇرى ياكى ISBN" autocomplete="off">
+                <input id="volumeGroupBookLookup" class="admin-search" type="search" placeholder="كىتاب نامى، ئاپتور، نومۇر ياكى ISBN" aria-label="كىتاب نامى، ئاپتور، نومۇر ياكى ISBN" autocomplete="off">
                 <button class="admin-secondary" id="volumeGroupLookupBtn" type="button">كىتابنى تېپىش</button>
               </div>
-              <div id="volumeGroupLookupPreview"></div>
+              <div id="volumeGroupLookupPreview" role="region" aria-live="polite" aria-relevant="additions text"></div>
             </div>
 
             <div class="admin-wide">
@@ -1238,7 +1238,7 @@
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
-  <script defer src="admin-volume-groups.js?v=6"></script>
+  <script defer src="admin-volume-groups.js?v=7"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=121"></script>
   <script defer src="admin-member-cart.js?v=3"></script>

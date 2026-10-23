@@ -92,6 +92,14 @@ button{cursor:pointer}
 .volume-admin-lookup img,.volume-admin-member img{object-fit:contain;border-radius:6px;background:#f6f0e5}
 .volume-admin-lookup>span,.volume-admin-member-copy{display:grid;min-width:0}
 .volume-admin-lookup small,.volume-admin-member-copy small{color:#806f62}
+.volume-admin-lookup-status,.volume-admin-lookup-more{margin-top:10px}
+.volume-admin-lookup-status{margin-bottom:0;overflow-wrap:anywhere}
+@media(max-width:390px){
+  .volume-admin-lookup-box .admin-toolbar-group{display:grid;grid-template-columns:minmax(0,1fr)}
+  .volume-admin-lookup-box .admin-search,.volume-admin-lookup-box #volumeGroupLookupBtn,.volume-admin-lookup>button,.volume-admin-lookup-more{width:100%;min-height:44px;font-size:16px}
+  .volume-admin-lookup{grid-template-columns:54px minmax(0,1fr)}
+  .volume-admin-lookup>button{grid-column:1 / -1}
+}
 .volume-admin-members{display:grid;gap:10px}
 .volume-admin-member{grid-template-columns:auto 64px minmax(0,1fr) auto auto}
 .volume-admin-member-order{display:grid;gap:3px;justify-items:center}
