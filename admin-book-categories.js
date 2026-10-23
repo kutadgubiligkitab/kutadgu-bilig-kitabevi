@@ -30,6 +30,7 @@
     renameDirty: false,
     retireOpen: false,
     createDraft: null,
+    pendingCreate: null,
     lastCode: ""
   };
 
@@ -123,6 +124,10 @@
     return candidate;
   }
   function rememberDraft(label, summary) {
+    if (state.pendingCreate) {
+      const args = state.pendingCreate.args;
+      return { label: args.p_label, summary: args.p_summary, slug: args.p_slug };
+    }
     const current = state.createDraft;
     if (current && current.label === label && current.slug) {
       current.summary = summary;
@@ -130,6 +135,22 @@
     }
     state.createDraft = { label, summary, slug: slugFor(label, state.rows) };
     return state.createDraft;
+  }
+  function createFields() {
+    return { label: $("#bookCategoryLabel"), summary: $("#bookCategorySummary") };
+  }
+  function lockCreateFields(locked) {
+    const fields = createFields();
+    if (fields.label) fields.label.disabled = !!locked;
+    if (fields.summary) fields.summary.disabled = !!locked;
+  }
+  function showPendingCreate() {
+    const pending = state.pendingCreate;
+    const fields = createFields();
+    if (!pending || !fields.label || !fields.summary) return;
+    fields.label.value = pending.args.p_label;
+    fields.summary.value = pending.args.p_summary;
+    lockCreateFields(true);
   }
   async function call(name, args) {
     let result;
@@ -299,8 +320,22 @@
     const form = $("#bookCategoryCreate");
     if (!form) return;
     form.hidden = false;
+    if (state.pendingCreate) {
+      showPendingCreate();
+      return;
+    }
+    lockCreateFields(false);
     const input = $("#bookCategoryLabel");
     if (input) input.focus();
+  }
+  function finishCreate() {
+    state.pendingCreate = null;
+    state.createDraft = null;
+    lockCreateFields(false);
+    const form = $("#bookCategoryCreate");
+    if (!form) return;
+    form.reset();
+    form.hidden = true;
   }
   function createArgs() {
     const label = text($("#bookCategoryLabel") && $("#bookCategoryLabel").value);
@@ -320,21 +355,24 @@
   }
   async function createCategory(event) {
     event.preventDefault();
-    const prepared = createArgs();
+    const prepared = state.pendingCreate ? { args: state.pendingCreate.args } : createArgs();
     if (prepared.message) {
       status(prepared.message, "err");
       return;
     }
     const ok = await mutate("admin_create_book_category", prepared.args);
     if (ok) {
-      state.createDraft = null;
-      const form = $("#bookCategoryCreate");
-      if (form) {
-        form.reset();
-        form.hidden = true;
-      }
+      finishCreate();
       return;
     }
+    if (!state.lastCode) {
+      if (!state.pendingCreate) state.pendingCreate = { args: prepared.args };
+      showPendingCreate();
+      status("تۈر مەشغۇلاتى تاماملانمىدى. ئوخشاش ئۇچۇر قايتا ئەۋەتىلىدۇ.", "err");
+      return;
+    }
+    state.pendingCreate = null;
+    lockCreateFields(false);
     if (state.lastCode === "slug_in_use" && state.createDraft) {
       const used = state.rows.concat([{ slug: state.createDraft.slug }]);
       state.createDraft.slug = slugFor(state.createDraft.label, used);
@@ -365,6 +403,11 @@
   }
   function sourceById(id) {
     return activeRows().find((row) => String(row.id) === String(id));
+  }
+  function abandonSourceBooks() {
+    state.bookLoad += 1;
+    const host = $("#bookCategoryUniversal");
+    if (host) host.innerHTML = "";
   }
   async function loadSourceBooks(source) {
     const host = $("#bookCategoryUniversal");
@@ -397,7 +440,7 @@
     }
     if (token !== state.bookLoad) return;
     host.innerHTML = rows.length ? rows.map((book) => (
-      `<label class="book-category-book"><input type="checkbox" data-universal-book value="${escapeHtml(book.id)}"> ${escapeHtml(book.title)} <span>#${escapeHtml(book.id)}${book.is_active === false ? " · يوشۇرۇن" : ""}${book.submission_status && book.submission_status !== "approved" ? " · " + escapeHtml(book.submission_status) : ""}</span></label>`
+      `<label class="book-category-book"><input type="checkbox" data-universal-book value="${escapeHtml(book.id)}"><span class="book-category-book-title">${escapeHtml(book.title)}</span><span class="book-category-book-meta">#${escapeHtml(book.id)}${book.is_active === false ? " · يوشۇرۇن" : ""}${book.submission_status && book.submission_status !== "approved" ? " · " + escapeHtml(book.submission_status) : ""}</span></label>`
     )).join("") : "<p>بۇ تۈردە كىتاب يوق.</p>";
     status("");
   }
@@ -531,6 +574,7 @@
     if (button.id === "bookCategoryMoveClose") {
       const panel = $("#bookCategoryMovePanel");
       if (panel) panel.hidden = true;
+      abandonSourceBooks();
       invalidatePreview();
       return;
     }
@@ -615,10 +659,7 @@
         invalidatePreview();
         const row = sourceById(target.value);
         if (row) loadSourceBooks(row.source);
-        else {
-          const host = $("#bookCategoryUniversal");
-          if (host) host.innerHTML = "";
-        }
+        else abandonSourceBooks();
       }
     });
     $("#bookCategoryPreviewMove")?.addEventListener("click", previewMove);

@@ -177,6 +177,13 @@ async function repeatMove(fetchImpl) {
   assert.strictEqual(firstDraft.slug, "meshhur-shexsler");
   assert.strictEqual(secondDraft.slug, firstDraft.slug);
   assert.strictEqual(secondDraft.summary, "قىسقىچە");
+  categories.state.pendingCreate = {
+    args: { p_label: "مەشھۇر شەخسلەر", p_slug: firstDraft.slug, p_summary: "قىسقىچە", p_icon: "📚" }
+  };
+  const frozen = categories.rememberDraft("مەشھۇر شەخسلەر", "باشقا چۈشەندۈرۈش");
+  assert.strictEqual(frozen.slug, firstDraft.slug);
+  assert.strictEqual(frozen.summary, "قىسقىچە");
+  categories.state.pendingCreate = null;
 }
 
 function samePayload(left, right) {

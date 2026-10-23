@@ -1009,13 +1009,16 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 .book-category-badge-retired{background:#f8e4e1;color:#6d241c}
 .book-category-manage{padding:12px;border:1px solid #e8dccb;border-radius:12px;background:#fff}
 .book-category-actions{display:flex;flex-wrap:wrap;gap:8px}
-#bookCategoryManager button,
-#bookCategoryManager .book-category-book{min-height:44px;min-width:44px}
-#bookCategoryManager button{padding:10px 14px;font-weight:800}
-#bookCategoryManager input,
+#bookCategoryManager button{min-height:44px;min-width:44px;padding:10px 14px;font-weight:800}
+#bookCategoryManager button.admin-danger{background:#7f1d1d!important;color:#fff!important;border-color:#7f1d1d!important}
+#bookCategoryManager input:not([type="checkbox"]),
 #bookCategoryManager textarea,
 #bookCategoryManager select{width:100%;min-height:44px;box-sizing:border-box;border:1px solid #6f5848;border-radius:9px;padding:10px 12px;background:#fff;color:#241911}
-.book-category-form label,.book-category-book{display:grid;gap:6px;font-weight:700;color:#2b211b}
+.book-category-form label{display:grid;gap:6px;font-weight:700;color:#2b211b}
+#bookCategoryManager .book-category-book{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;box-sizing:border-box;padding:10px 12px;font-weight:700;color:#2b211b;cursor:pointer}
+#bookCategoryManager .book-category-book-title{flex:1 1 auto;min-width:0}
+#bookCategoryManager .book-category-book-meta{flex:0 0 auto;font-weight:650}
+#bookCategoryManager .book-category-book input[type="checkbox"]{width:20px;height:20px;min-width:20px;min-height:20px;flex:0 0 20px;margin:0;padding:0;accent-color:#70503d}
 #bookCategoryManager button:focus,
 #bookCategoryManager input:focus,
 #bookCategoryManager textarea:focus,
@@ -1027,6 +1030,7 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 @media(prefers-color-scheme:dark){
   #bookCategoryManager .admin-card{background:#2b221c;border-color:#5a463a;color:#f6ecdf}
   #bookCategoryManager .admin-help,#bookCategoryManager .book-category-meta{color:#f0e2d4}
+  #bookCategoryManager .book-category-form label,#bookCategoryManager .book-category-book{color:#f6ecdf}
   #bookCategoryManager .book-category-manage{background:#241c17;border-color:#5a463a}
   #bookCategoryManager .book-category-row{border-bottom-color:#5a463a}
   #bookCategoryManager input,#bookCategoryManager textarea,#bookCategoryManager select{background:#3a2e26;color:#f6ecdf;border-color:#c3a48c}

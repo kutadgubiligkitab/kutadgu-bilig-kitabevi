@@ -83,6 +83,26 @@ async function installDirectory(page) {
           return { data: window.__categoryRows.slice().sort((a, b) => a.sort_order - b.sort_order || a.id - b.id) };
         }
         if (name === "admin_create_book_category") {
+          window.__lostCreateIds = window.__lostCreateIds || {};
+          const existing = window.__categoryRows.find((row) => row.slug === args.p_slug);
+          if (window.__commitThenLose && args.p_request_id && !window.__lostCreateIds[args.p_request_id]) {
+            if (!existing) {
+              window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
+              remember();
+            }
+            window.__lostCreateIds[args.p_request_id] = true;
+            return { data: null, error: { message: "gateway" }, status: 502 };
+          }
+          if (existing) {
+            if (window.__lostCreateIds[args.p_request_id]) {
+              return { data: { id: existing.id, slug: existing.slug, source: existing.source, label: existing.label, revision: existing.revision } };
+            }
+            return { data: null, error: { code: "23505", message: "slug_in_use" }, status: 409 };
+          }
+          if (window.__collideCreateOnce) {
+            window.__collideCreateOnce = false;
+            return { data: null, error: { code: "23505", message: "slug_in_use" }, status: 409 };
+          }
           if (window.__failCreateOnce) {
             window.__failCreateOnce = false;
             return { data: null, error: { message: "gateway" }, status: 502 };
@@ -154,17 +174,25 @@ async function installDirectory(page) {
           order() { return chain; },
           range(from, to) { chain.bounds = [from, to]; window.__categoryRanges.push([from, to]); return chain; },
           then(resolve) {
-            if (window.__categoryBookError) {
-              resolve({ data: null, error: { message: "read failed" } });
+            const deliver = () => {
+              if (window.__categoryBookError) {
+                resolve({ data: null, error: { message: "read failed" } });
+                return;
+              }
+              if (!chain.filters.source) {
+                resolve({ data: [], error: null });
+                return;
+              }
+              const rows = window.__categoryBooks || [{ id: 1, title: "ساقلانغان كىتاب", source: chain.filters.source, category: "ئۇنىۋېرسال", is_active: false, submission_status: "pending" }];
+              const slice = chain.bounds ? rows.filter((row) => row.source === chain.filters.source).slice(chain.bounds[0], chain.bounds[1] + 1) : rows;
+              resolve({ data: slice, error: null });
+            };
+            if (window.__holdCategoryBooks) {
+              window.__heldCategoryReads = window.__heldCategoryReads || [];
+              window.__heldCategoryReads.push({ source: chain.filters.source, deliver });
               return;
             }
-            if (!chain.filters.source) {
-              resolve({ data: [], error: null });
-              return;
-            }
-            const rows = window.__categoryBooks || [{ id: 1, title: "ساقلانغان كىتاب", source: chain.filters.source, category: "ئۇنىۋېرسال", is_active: false, submission_status: "pending" }];
-            const slice = chain.bounds ? rows.filter((row) => row.source === chain.filters.source).slice(chain.bounds[0], chain.bounds[1] + 1) : rows;
-            resolve({ data: slice, error: null });
+            deliver();
           }
         };
         return chain;
@@ -369,6 +397,206 @@ test("adding a category needs only its name and keeps that draft across a lost r
   await page.screenshot({ path: path.join(shotDir, "categories-simple-1280-dark.png"), fullPage: false });
   await page.emulateMedia({ colorScheme: "light" });
   await page.screenshot({ path: path.join(shotDir, "categories-simple-1280-light.png"), fullPage: false });
+});
+
+test("a committed create whose response was lost is retried with the original payload", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.locator("#bookCategoryAdd").click();
+  await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
+  await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.evaluate(() => { window.__commitThenLose = true; window.__lostCreateIds = {}; });
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
+  await expect(page.locator("#bookCategorySummary")).toBeDisabled();
+  await page.evaluate(() => { document.querySelector("#bookCategorySummary").value = "باشقا چۈشەندۈرۈش"; });
+  await page.locator("#bookCategoryCreateCancel").click();
+  await expect(page.locator("#bookCategoryCreate")).toBeHidden();
+  await page.locator("#bookCategoryAdd").click();
+  await expect(page.locator("#bookCategoryLabel")).toHaveValue("مەشھۇر شەخسلەر");
+  await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
+  await expect(page.locator("#bookCategorySummary")).toBeDisabled();
+  await page.evaluate(() => { document.querySelector("#bookCategorySummary").value = "يەنە بىر ئۆزگەرتىش"; });
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
+    const named = window.__categoryRows.filter((row) => row.label === "مەشھۇر شەخسلەر");
+    return calls.length === 2
+      && calls[0].args.p_slug === "meshhur-shexsler"
+      && calls[1].args.p_slug === "meshhur-shexsler"
+      && calls[0].args.p_request_id === calls[1].args.p_request_id
+      && calls[0].args.p_summary === "قىسقىچە"
+      && calls[1].args.p_summary === "قىسقىچە"
+      && calls[1].args.p_label === "مەشھۇر شەخسلەر"
+      && named.length === 1
+      && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
+  })).toBe(true);
+  await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
+  await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toHaveCount(1);
+});
+
+test("a replacement slug is generated only after a definitive collision", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.locator("#bookCategoryAdd").click();
+  await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
+  await page.evaluate(() => { window.__collideCreateOnce = true; });
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect(page.locator("#bookCategoryStatus")).toContainText("يەنە بىر قېتىم ساقلاڭ");
+  await expect(page.locator("#bookCategoryLabel")).toBeEnabled();
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
+    return calls.length === 2
+      && calls[0].args.p_slug === "meshhur-shexsler"
+      && calls[1].args.p_slug === "meshhur-shexsler-2"
+      && calls[0].args.p_request_id !== calls[1].args.p_request_id;
+  })).toBe(true);
+});
+
+async function releaseHeldRead(page, source) {
+  await page.evaluate(async (wanted) => {
+    const queue = window.__heldCategoryReads || [];
+    const index = queue.findIndex((item) => item.source === wanted);
+    if (index < 0) throw new Error("missing held read for " + wanted);
+    const [item] = queue.splice(index, 1);
+    item.deliver();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }, source);
+}
+
+test("a late source read stays discarded after clearing, switching, and reopening", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.evaluate(() => {
+    window.__holdCategoryBooks = true;
+    window.__heldCategoryReads = [];
+    window.__categoryBooks = [
+      { id: 11, title: "بىرىنچى كىتاب", source: "universal.html", category: "ئۇنىۋېرسال", is_active: true, submission_status: "approved" },
+      { id: 12, title: "ئىككىنچى كىتاب", source: "romanlar.html", category: "رومانلار", is_active: true, submission_status: "approved" }
+    ];
+  });
+  await page.getByRole("button", { name: "باشقۇرۇش: ئۇنىۋېرسال" }).click();
+  await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+  await expect.poll(() => page.evaluate(() => (window.__heldCategoryReads || []).map((item) => item.source))).toEqual(["universal.html"]);
+  await page.locator("#bookCategoryMoveSource").selectOption("");
+  await releaseHeldRead(page, "universal.html");
+  await expect(page.locator("#bookCategoryMoveSource")).toHaveValue("");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("بىرىنچى كىتاب");
+
+  await page.locator("#bookCategoryMoveSource").selectOption("1");
+  await expect.poll(() => page.evaluate(() => (window.__heldCategoryReads || []).some((item) => item.source === "romanlar.html"))).toBe(true);
+  await page.locator("#bookCategoryMoveSource").selectOption("9");
+  await expect.poll(() => page.evaluate(() => (window.__heldCategoryReads || []).some((item) => item.source === "universal.html"))).toBe(true);
+  await releaseHeldRead(page, "romanlar.html");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("ئىككىنچى كىتاب");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("بىرىنچى كىتاب");
+  await releaseHeldRead(page, "universal.html");
+  await expect(page.locator("#bookCategoryUniversal")).toContainText("بىرىنچى كىتاب");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("ئىككىنچى كىتاب");
+
+  await page.locator("#bookCategoryMoveSource").selectOption("1");
+  await expect.poll(() => page.evaluate(() => (window.__heldCategoryReads || []).some((item) => item.source === "romanlar.html"))).toBe(true);
+  await page.locator("#bookCategoryMoveClose").click();
+  await releaseHeldRead(page, "romanlar.html");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("ئىككىنچى كىتاب");
+  await expect(page.locator("#bookCategoryMovePanel")).toBeHidden();
+  await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+  await expect.poll(() => page.evaluate(() => (window.__heldCategoryReads || []).some((item) => item.source === "universal.html"))).toBe(true);
+  await releaseHeldRead(page, "universal.html");
+  await expect(page.locator("#bookCategoryUniversal")).toContainText("بىرىنچى كىتاب");
+  await expect(page.locator("#bookCategoryUniversal")).not.toContainText("ئىككىنچى كىتاب");
+});
+
+function contrastRatio(foreground, background) {
+  const parse = (color) => {
+    const match = String(color).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
+    if (!match) return null;
+    return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] == null ? 1 : Number(match[4])];
+  };
+  const channel = (value) => {
+    const scaled = value / 255;
+    return scaled <= 0.04045 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (rgb) => 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+  const left = parse(foreground);
+  const right = parse(background);
+  const lighter = Math.max(luminance(left), luminance(right));
+  const darker = Math.min(luminance(left), luminance(right));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+async function paintContrast(page, selector) {
+  const colors = await page.locator(selector).first().evaluate((el) => {
+    const opaque = (node) => {
+      let current = node;
+      while (current) {
+        const color = getComputedStyle(current).backgroundColor;
+        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
+        if (match && Number(match[4] == null ? 1 : match[4]) > 0.95) return color;
+        current = current.parentElement;
+      }
+      return "rgb(255, 255, 255)";
+    };
+    return { foreground: getComputedStyle(el).color, background: opaque(el) };
+  });
+  return { selector, ...colors, ratio: contrastRatio(colors.foreground, colors.background) };
+}
+
+test("category manager text and checkboxes stay readable in both themes", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const readings = [];
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.locator("#bookCategoryAdd").click();
+    readings.push({ scheme, screen: "create", ...(await paintContrast(page, "#bookCategoryCreate label")) });
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-create-390-${scheme}.png`) });
+    await page.locator("#bookCategoryCreateCancel").click();
+    await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
+    readings.push({ scheme, screen: "manage", ...(await paintContrast(page, "#bookCategoryRename label")) });
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-manage-390-${scheme}.png`) });
+    await page.getByRole("button", { name: "ئېلىۋېتىش", exact: true }).click();
+    readings.push({ scheme, screen: "retire", ...(await paintContrast(page, "[data-category-retire-confirm]")) });
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-retire-390-${scheme}.png`) });
+    await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+    await expect(page.locator(".book-category-book")).toBeVisible();
+    readings.push({ scheme, screen: "transfer", ...(await paintContrast(page, ".book-category-book-title")) });
+    const box = await page.locator(".book-category-book input").evaluate((el) => {
+      const input = el.getBoundingClientRect();
+      const row = el.closest(".book-category-book").getBoundingClientRect();
+      return { inputWidth: input.width, inputHeight: input.height, rowHeight: row.height, rowWidth: row.width };
+    });
+    expect(box.inputWidth).toBeLessThan(32);
+    expect(box.inputHeight).toBeLessThan(32);
+    expect(box.rowHeight).toBeGreaterThanOrEqual(44);
+    expect(box.rowWidth).toBeGreaterThan(200);
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-transfer-390-${scheme}.png`) });
+    await page.locator("#bookCategoryMoveClose").click();
+    await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.locator("#bookCategoryAdd").click();
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-create-1280-${scheme}.png`) });
+    await page.locator("#bookCategoryCreateCancel").click();
+    await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
+    await page.getByRole("button", { name: "ئېلىۋېتىش", exact: true }).click();
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-retire-1280-${scheme}.png`) });
+    await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+    await page.locator("#bookCategoryManager").screenshot({ path: path.join(shotDir, `categories-transfer-1280-${scheme}.png`) });
+    await page.locator("#bookCategoryMoveClose").click();
+    await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
+  }
+  const fs = require("fs");
+  fs.writeFileSync(path.join(shotDir, "category-contrast.json"), JSON.stringify(readings, null, 2));
+  for (const reading of readings) expect(reading.ratio).toBeGreaterThanOrEqual(4.5);
 });
 
 test("a rendered category hydrates, filters, and paginates from its own source", async ({ page }) => {
