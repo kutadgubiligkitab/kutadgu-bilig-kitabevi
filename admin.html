@@ -7,7 +7,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=62">
+  <link rel="stylesheet" href="admin.css?v=63">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -67,6 +67,7 @@
         <nav class="admin-sidenav" aria-label="باشقۇرۇش بۆلەكلىرى">
           <p class="admin-sidenav-title">باشقۇرۇش تىزىملىكى</p>
           <button type="button" class="admin-nav-item is-active" data-admin-section="books" aria-current="page">📚 كىتابلار</button>
+          <button type="button" class="admin-nav-item" data-admin-section="categories">🗂️ كىتاب تۈرلىرى</button>
           <button type="button" class="admin-nav-item" data-admin-section="volume-groups">📚 قىسىملىق كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</button>
           <button type="button" class="admin-nav-item" data-admin-section="reviews">📝 كىتاب ئىنكاسلىرى</button>
@@ -84,6 +85,7 @@
             <label for="adminSectionSelect">باشقۇرۇش بۆلىكى</label>
             <select id="adminSectionSelect" aria-label="باشقۇرۇش بۆلىكى">
               <option value="books">📚 كىتابلار</option>
+              <option value="categories">🗂️ كىتاب تۈرلىرى</option>
               <option value="volume-groups">📚 قىسىملىق كىتابلار</option>
               <option value="submissions">📥 تەستىق ساقلاۋاتقان كىتابلار</option>
               <option value="reviews">📝 كىتاب ئىنكاسلىرى</option>
@@ -97,6 +99,41 @@
               <option value="system">⚙️ سىستېما</option>
             </select>
           </div>
+      <div id="bookCategoryManager" data-admin-section-panel="categories" hidden>
+        <section class="admin-card">
+          <h2>كىتاب تۈرلىرى</h2>
+          <p class="admin-help">نام ئۆزگەرسە كىتاب ۋە ئادرېس ساقلىنىدۇ. يوشۇرۇلغان تۈردىكى كىتابلار ئۆچمەيدۇ. ئېلىۋېتىش پەقەت بوش تۈردە، كونا ئادرېس يېڭى تۈرگە يۆتكىلىدۇ.</p>
+          <div id="bookCategoryStatus" class="admin-status" role="status"></div>
+          <div id="bookCategoryList" class="book-category-list" aria-live="polite"></div>
+          <form id="bookCategoryCreate" class="book-category-form">
+            <label>كۆرۈنىدىغان نامى<input id="bookCategoryLabel" maxlength="80" required></label>
+            <label>ئادرېس<input id="bookCategorySlug" maxlength="64" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" dir="ltr" required></label>
+            <label>قىسقىچە<input id="bookCategorySummary" maxlength="240"></label>
+            <button class="admin-primary" type="submit">تۈر قوشۇش</button>
+          </form>
+          <form id="bookCategoryRename" class="book-category-form">
+            <label>يېڭى نامى<input id="bookCategoryRenameInput" maxlength="80" required></label>
+            <button class="admin-secondary" type="submit">نامىنى ساقلاش</button>
+          </form>
+          <label>ئېلىۋەتكەندىن كېيىنكى ئادرېس<select id="bookCategoryRedirect"></select></label>
+        </section>
+        <section class="admin-card">
+          <h2>ئۇنىۋېرسال كىتابلارنى يۆتكەش</h2>
+          <p class="admin-help">تاللانغان كىتاب يۈرۈشلۈككە تەۋە بولسا، شۇ يۈرۈشلۈكنىڭ قالغان قىسىملىرىمۇ ئالدىن كۆرۈشكە كىرىدۇ. جەزملەش بىر قېتىمدا تاماملىنىدۇ.</p>
+          <label>مەنبە تۈر<select id="bookCategoryMoveSource"></select></label>
+          <div class="book-category-actions">
+            <button class="admin-secondary" id="bookCategoryLoadSource" type="button">بۇ تۈردىكى كىتابلارنى كۆرسەت</button>
+            <button class="admin-secondary" id="bookCategoryLoadUniversal" type="button">ئۇنىۋېرسال كىتابلارنى كۆرسەت</button>
+          </div>
+          <div id="bookCategoryUniversal" class="book-category-books"></div>
+          <label>نىشان تۈر<select id="bookCategoryMoveDestination"></select></label>
+          <div class="book-category-actions">
+            <button class="admin-secondary" id="bookCategoryPreviewMove" type="button">ئالدىن كۆرۈش</button>
+            <button class="admin-primary" id="bookCategoryConfirmMove" type="button" disabled>جەزملەپ يۆتكەش</button>
+          </div>
+          <div id="bookCategoryMovePreview" class="admin-help" hidden></div>
+        </section>
+      </div>
       <div id="overviewSection" data-admin-section-panel="overview" hidden>
       <div id="adminStatus" class="admin-status ok">Admin ھالىتى تەييار.</div>
 
@@ -1238,9 +1275,11 @@
 <script defer src="kutadgu-cover-image.js?v=2"></script>
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
-  <script defer src="admin-volume-groups.js?v=7"></script>
+  <script defer src="kutadgu-book-categories.js?v=1"></script>
+  <script defer src="admin-book-categories.js?v=3"></script>
+  <script defer src="admin-volume-groups.js?v=8"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=121"></script>
+  <script defer src="admin.js?v=122"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

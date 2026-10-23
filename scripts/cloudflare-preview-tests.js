@@ -239,6 +239,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
     "/kbg",
     "/kbg/*",
     "/sitemap.xml",
+    "/sitemap-pages.xml",
     "/sitemap-books.xml",
     "/sitemap-books-*.xml",
     "/books",
@@ -358,8 +359,16 @@ jobs.push(test("static homepage, books rewrite, cache headers, and 404 stay inta
   const font = await preview.dispatch(request("http://127.0.0.1:8787/UKIJCJK.woff2"), {}, deps);
   assert.strictEqual(font.headers.get("Cache-Control"), headers.LONG_ASSET);
   const missing = await preview.dispatch(request("http://127.0.0.1:8787/missing-page"), {}, deps);
-  assert.strictEqual(missing.status, 404);
-  assert.match(await missing.text(), /404/);
+  assert.strictEqual(missing.status, 503);
+  assert.notStrictEqual(await missing.text(), "not found");
+  const absent = await preview.dispatch(request("http://127.0.0.1:8787/missing-page"), {}, baseDeps(async (url) => {
+    if (String(url).includes("list_public_book_categories")) {
+      return httpResponse(200, { categories: [], direct: [], redirects: [] });
+    }
+    return catalogFetch("ok")(url);
+  }));
+  assert.strictEqual(absent.status, 404);
+  assert.strictEqual(await absent.text(), "not found");
   const posted = await preview.dispatch(request("http://127.0.0.1:8787/", "POST"), {}, deps);
   assert.strictEqual(posted.status, 405);
   const head = await preview.dispatch(request("http://127.0.0.1:8787/", "HEAD"), {}, deps);
@@ -1239,6 +1248,79 @@ jobs.push(test("web app manifest stays a same-origin asset", async () => {
   assert.strictEqual(parsed.icons[0].sizes, "any");
   assert.strictEqual(parsed.icons[0].type, "image/png");
   assert.strictEqual(parsed.icons[0].src, "/kutadgu-logo.png");
+}));
+
+jobs.push(test("managed category documents, hidden links, and the served sitemap use the worker", async () => {
+  const directory = {
+    categories: [
+      { slug: "romanlar", source: "romanlar.html", label: "رومانلار يېڭى", summary: "يېڭى قىسقىچە", is_hidden: false },
+      { slug: "yengi-tur", source: "yengi-tur.html", label: "يېڭى تۈر", summary: "يېڭى تۈر قىسقىچە", is_hidden: false }
+    ],
+    direct: [
+      { slug: "romanlar", source: "romanlar.html", label: "رومانلار يېڭى", summary: "يېڭى قىسقىچە", is_hidden: false },
+      { slug: "yengi-tur", source: "yengi-tur.html", label: "يېڭى تۈر", summary: "يېڭى تۈر قىسقىچە", is_hidden: false },
+      { slug: "yoshurun", source: "yoshurun.html", label: "يوشۇرۇن تۈر", summary: "بىۋاسىتە", is_hidden: true }
+    ],
+    redirects: []
+  };
+  const seen = [];
+  const fetchImpl = async (url) => {
+    const href = String(url);
+    seen.push(href);
+    if (href.includes("list_public_book_categories")) return httpResponse(200, directory);
+    if (href.includes("source=eq.yengi-tur.html")) {
+      const offset = Number((href.match(/offset=(\d+)/) || [])[1] || 0);
+      if (offset === 0) {
+        return httpResponse(200, Array.from({ length: 1000 }, (_, index) => ({
+          id: index + 1, title: "بەت", author: "A", source: "yengi-tur.html", is_active: true, price: 1, stock: 1
+        })));
+      }
+      return httpResponse(200, [{ id: 2001, title: "ئىككىنچى بەت", author: "A", source: "yengi-tur.html", is_active: true, price: 1, stock: 1 }]);
+    }
+    if (href.includes("source=eq.")) {
+      return httpResponse(200, [{ id: 2, title: "رومان كىتاب", author: "A", source: "romanlar.html", is_active: true, price: 1, stock: 1 }]);
+    }
+    return httpResponse(404, {});
+  };
+  const deps = baseDeps(fetchImpl);
+  const existing = await preview.dispatch(request("http://127.0.0.1:8787/romanlar"), {}, deps);
+  const existingHtml = await existing.text();
+  assert.strictEqual(existing.status, 200);
+  assert.ok(existingHtml.includes("<h1>رومانلار يېڭى</h1>"));
+  assert.ok(existingHtml.includes('data-catalog-source="romanlar.html"'));
+  assert.ok(existingHtml.includes("يېڭى قىسقىچە"));
+  const created = await preview.dispatch(request("http://127.0.0.1:8787/yengi-tur"), {}, deps);
+  const createdHtml = await created.text();
+  assert.strictEqual(created.status, 200);
+  assert.ok(createdHtml.includes("<h1>يېڭى تۈر</h1>"));
+  assert.ok(createdHtml.includes('data-catalog-source="yengi-tur.html"'));
+  assert.ok(createdHtml.includes("ئىككىنچى بەت"));
+  assert.ok(seen.some((href) => href.includes("source=eq.yengi-tur.html") && href.includes("offset=1000")));
+  const hidden = await preview.dispatch(request("http://127.0.0.1:8787/yoshurun"), {}, deps);
+  const hiddenHtml = await hidden.text();
+  assert.strictEqual(hidden.status, 200);
+  assert.ok(hiddenHtml.includes("<h1>يوشۇرۇن تۈر</h1>"));
+  assert.ok(hiddenHtml.includes('data-catalog-source="yoshurun.html"'));
+  const absent = await preview.dispatch(request("http://127.0.0.1:8787/yoq-tur"), {}, deps);
+  assert.strictEqual(absent.status, 404);
+  const down = await preview.dispatch(request("http://127.0.0.1:8787/yengi-tur"), {}, baseDeps(async () => { throw new Error("directory down"); }));
+  assert.strictEqual(down.status, 503);
+  assert.notStrictEqual(await down.text(), "not found");
+  const staticDuringOutage = await preview.dispatch(request("http://127.0.0.1:8787/romanlar"), {}, baseDeps(async (url) => {
+    if (String(url).includes("list_public_book_categories")) throw new Error("directory down");
+    return httpResponse(200, []);
+  }));
+  const staticHtml = await staticDuringOutage.text();
+  assert.strictEqual(staticDuringOutage.status, 200);
+  assert.notStrictEqual(staticHtml, "not found");
+  assert.ok(staticHtml.includes("رومان"));
+  const xml = await preview.dispatch(request("http://127.0.0.1:8787/sitemap-pages.xml"), {}, deps);
+  const xmlText = await xml.text();
+  assert.strictEqual(xml.status, 200);
+  assert.strictEqual(xml.headers.get("Content-Type"), "application/xml; charset=utf-8");
+  assert.ok(xmlText.includes("https://www.kutadgubilik.com/yengi-tur</loc>"));
+  assert.ok(xmlText.includes("https://www.kutadgubilik.com/romanlar</loc>"));
+  assert.ok(!xmlText.includes("https://www.kutadgubilik.com/yoshurun</loc>"));
 }));
 
 Promise.all(jobs).then(() => {

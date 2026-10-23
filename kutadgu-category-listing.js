@@ -262,7 +262,9 @@ function rowsToBooks(rows, allowedSources) {
 }
 
 async function loadCategoryBooks(slug, options) {
-  const sources = catalogSources(slug);
+  const sources = options && Array.isArray(options.sources) && options.sources.length
+    ? options.sources
+    : catalogSources(slug);
   if (!sources.length) throw new Error("unknown-category");
   const env = options && options.env ? options.env : (typeof process !== "undefined" ? process.env : {});
   if (String(env && env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
@@ -458,10 +460,108 @@ function replaceBooksGrid(html, cardsHtml) {
   throw new Error("unclosed-grid");
 }
 
-function applyCategoryDocument(html, slug, books) {
+function escapeMeta(value) {
+  return String(value ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+}
+
+function replaceMetaContent(html, key, content) {
+  const safe = escapeMeta(content);
+  const nameFirst = new RegExp(`(<meta\\b[^>]*\\b(?:name|property)=["']${key}["'][^>]*\\bcontent=["'])[^"']*(["'])`, "i");
+  const contentFirst = new RegExp(`(<meta\\b[^>]*\\bcontent=["'])[^"']*(["'][^>]*\\b(?:name|property)=["']${key}["'])`, "i");
+  if (nameFirst.test(html)) return html.replace(nameFirst, `$1${safe}$2`);
+  if (contentFirst.test(html)) return html.replace(contentFirst, `$1${safe}$2`);
+  return html;
+}
+
+function rewriteCollectionJson(html, label, summary, url) {
+  const re = /<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/i;
+  const match = String(html || "").match(re);
+  if (!match) return html;
+  let data;
+  try { data = JSON.parse(match[1]); } catch (err) { return html; }
+  const applyNode = (node) => {
+    if (!node || typeof node !== "object" || nodeTypes(node).indexOf("CollectionPage") < 0) return;
+    node.name = label;
+    node.description = summary;
+    node.url = url;
+  };
+  applyNode(data);
+  if (Array.isArray(data["@graph"])) data["@graph"].forEach(applyNode);
+  return String(html).replace(re, scriptJson(data));
+}
+
+function applyManagedCategoryChrome(html, category) {
+  const slug = String(category && category.slug || "").trim();
+  const source = String(category && category.source || `${slug}.html`).trim();
+  const label = String(category && category.label || slug).trim();
+  const summary = String(category && category.summary || "").trim() || `بۇ بۆلۈمدە ${label} كىتابلىرى كۆرۈنىدۇ.`;
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("unknown-category");
+  if (source !== `${slug}.html`) throw new Error("unknown-category");
+  const safeLabel = escapeMeta(label);
+  const safeSummary = escapeMeta(summary);
+  const url = `https://www.kutadgubilik.com/${slug}`;
+  const title = `${label} | قۇتادغۇبىلىك كىتابخانىسى`;
+  let out = String(html || "");
+  out = out.replace(/<title>[^<]*<\/title>/i, `<title>${escapeMeta(title)}</title>`);
+  out = replaceMetaContent(out, "description", summary);
+  out = replaceMetaContent(out, "og:title", title);
+  out = replaceMetaContent(out, "og:description", summary);
+  out = replaceMetaContent(out, "og:url", url);
+  out = replaceMetaContent(out, "twitter:title", title);
+  out = replaceMetaContent(out, "twitter:description", summary);
+  out = out.replace(/(<link rel="canonical" href=")[^"]+(")/i, `$1${url}$2`);
+  out = out.replace(/(<h1[^>]*>)[^<]*(<\/h1>)/i, `$1${safeLabel}$2`);
+  out = out.replace(/(<p class="category-hub-intro">)[^<]*(<\/p>)/i, `$1${safeSummary}$2`);
+  out = out.replace(/(<a\b[^>]*\baria-current="page"[^>]*>)[^<]*(<\/a>)/i, `$1${safeLabel}$2`);
+  if (/<div class="books-grid"[^>]*\sdata-catalog-source="/i.test(out)) {
+    out = out.replace(/(<div class="books-grid"[^>]*\sdata-catalog-source=")[^"]*(")/gi, `$1${escapeMeta(source)}$2`);
+  } else {
+    out = out.replace(/<div class="books-grid"/i, `<div class="books-grid" data-catalog-source="${escapeMeta(source)}"`);
+  }
+  out = rewriteCollectionJson(out, label, summary, url);
+  return out;
+}
+
+function applyCategoryDocument(html, slug, books, category) {
   if (!isCategorySlug(slug)) throw new Error("unknown-category");
+  let out = String(html || "");
+  if (category) out = applyManagedCategoryChrome(out, Object.assign({ slug }, category));
   const cards = (books || []).map(listingCardMarkup).join("");
-  return upsertStructuredData(replaceBooksGrid(html, cards), slug);
+  return upsertStructuredData(replaceBooksGrid(out, cards), slug);
+}
+
+function applyDynamicCategoryDocument(html, category, books) {
+  const slug = String(category && category.slug || "").trim();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("unknown-category");
+  const out = applyManagedCategoryChrome(html, category);
+  const cards = (books || []).map(listingCardMarkup).join("");
+  const replaced = replaceBooksGrid(out, cards);
+  try {
+    return upsertStructuredData(replaced, slug);
+  } catch (err) {
+    if (err && err.message === "missing-jsonld") return replaced;
+    throw err;
+  }
+}
+
+async function fetchPublicCategoryDirectory(fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/list_public_book_categories`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: "{}"
+  });
+  if (!response) return { status: 0, body: null };
+  let body = null;
+  if (response.status === 200) {
+    try { body = await response.json(); } catch (err) { body = null; }
+  }
+  return { status: response.status, body };
 }
 
 function failureDocument(html) {
@@ -520,6 +620,8 @@ module.exports = {
   loadGroupedCategoryBooks,
   breadcrumbList,
   applyCategoryDocument,
+  applyDynamicCategoryDocument,
+  fetchPublicCategoryDirectory,
   failureDocument,
   readTemplate,
   parseCategorySlug

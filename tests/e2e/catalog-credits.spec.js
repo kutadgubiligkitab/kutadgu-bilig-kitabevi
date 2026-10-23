@@ -118,6 +118,68 @@ async function boot(page) {
   return seen;
 }
 
+function mobileFilterToggle(page) {
+  return page.locator("#catalogFilterBar").locator("xpath=preceding-sibling::button[contains(@class,'mobile-filter-toggle')]");
+}
+
+async function holdCategoryDirectory(page) {
+  let resolveGate = () => {};
+  let settled = false;
+  const gate = new Promise((resolve) => { resolveGate = resolve; });
+  const release = () => {
+    if (settled) return;
+    settled = true;
+    resolveGate();
+  };
+  let arrived = false;
+  await page.route("**/rpc/list_public_book_categories**", async (route) => {
+    arrived = true;
+    await gate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ categories: [], redirects: [] })
+    }).catch(() => {});
+  });
+  return { release, arrived: () => arrived };
+}
+
+async function openCreditWhilePremiumWaits(page, width) {
+  await boot(page);
+  await page.setViewportSize({ width, height: width >= 1000 ? 900 : 800 });
+  const held = await holdCategoryDirectory(page);
+  await H.openFresh(page, `/author/${A}`);
+  await expect.poll(() => held.arrived()).toBe(true);
+  await expect.poll(() => page.evaluate(() => ({
+    bar: !!document.querySelector("#catalogFilterBar"),
+    premium: !!window.KutadguPremiumUx
+  }))).toEqual({ bar: true, premium: false });
+  return held;
+}
+
+async function readFilterChrome(page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector("#catalogFilterBar");
+    const before = panel ? [...panel.parentElement.querySelectorAll(".mobile-filter-toggle, .premium-filter-toggle")] : [];
+    const preceding = before.filter((button) => panel.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_PRECEDING);
+    const mobile = preceding.find((button) => button.classList.contains("mobile-filter-toggle")) || null;
+    const premium = preceding.find((button) => button.classList.contains("premium-filter-toggle")) || null;
+    const input = document.querySelector("#catalogFilterText");
+    return {
+      open: !!(panel && panel.classList.contains("is-open")),
+      collapsed: !!(panel && panel.classList.contains("is-collapsed")),
+      hidden: panel ? panel.getAttribute("aria-hidden") : null,
+      mobileExpanded: mobile ? mobile.getAttribute("aria-expanded") : null,
+      premiumExpanded: premium ? premium.getAttribute("aria-expanded") : null,
+      display: panel ? getComputedStyle(panel).display : "",
+      premiumDisplay: premium ? getComputedStyle(premium).display : "",
+      value: input ? input.value : "",
+      focused: !!(input && document.activeElement === input),
+      premiumReady: !!(panel && panel.dataset.premiumFilter === "1")
+    };
+  });
+}
+
 test.describe("catalog credit browsing", () => {
   test("detail links, role listings, pagination, stock, and navigation", async ({ page }) => {
     const seen = await boot(page);
@@ -171,10 +233,16 @@ test.describe("catalog credit browsing", () => {
     expect(page.url()).not.toContain("book_credits");
 
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.locator(".mobile-filter-toggle").click();
+    await expect.poll(() => page.evaluate(() => ({
+      premium: !!window.KutadguPremiumUx,
+      bar: !!document.querySelector("#catalogFilterBar")
+    }))).toEqual({ premium: true, bar: true });
+    await page.locator("#catalogFilterBar").locator("xpath=preceding-sibling::button[contains(@class,'mobile-filter-toggle')]").click();
+    await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterText").fill("ئىككى");
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(1);
     expect(seen.urls.some((url) => url.includes("book_credits.identity_id=eq." + A) && url.includes("ilike"))).toBe(true);
+    await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterReset").click();
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(12);
 
@@ -229,5 +297,130 @@ test.describe("catalog credit browsing", () => {
     await page.goto("/books.html");
     await expect(page.locator(".book-card[data-live-book-id='101']")).toBeVisible();
     expect(seen.urls.some((url) => url.includes("/rest/v1/books") && !url.includes("book_credits") && !url.includes("select=id"))).toBe(true);
+  });
+
+  test("late premium initialization keeps an opened mobile filter", async ({ page }) => {
+    const held = await openCreditWhilePremiumWaits(page, 390);
+    try {
+      const toggle = mobileFilterToggle(page);
+      await expect(toggle).toBeVisible();
+      await toggle.click();
+      const field = page.locator("#catalogFilterText");
+      await expect(field).toBeVisible();
+      await field.click();
+      await field.fill("ئىككى");
+      await expect(field).toBeFocused();
+      await expect.poll(() => page.evaluate(() => !!window.KutadguPremiumUx)).toBe(false);
+      held.release();
+      await expect.poll(() => page.evaluate(() => document.querySelector("#catalogFilterBar")?.dataset.premiumFilter || "")).toBe("1");
+      const open = await readFilterChrome(page);
+      expect(open.open).toBe(true);
+      expect(open.collapsed).toBe(false);
+      expect(open.hidden).toBe("false");
+      expect(open.mobileExpanded).toBe("true");
+      expect(open.premiumExpanded).toBe("true");
+      expect(open.display).not.toBe("none");
+      expect(open.value).toBe("ئىككى");
+      expect(open.focused).toBe(true);
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+      await expect(page.locator("#catalogFilterBar + .premium-active-filters")).toContainText("ئىككى");
+
+      await page.locator("#catalogFilterReset").click();
+      await expect(field).toHaveValue("");
+      await expect(page.locator("#catalogFilterBar + .premium-active-filters")).not.toContainText("ئىككى");
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+      const cleared = await readFilterChrome(page);
+      expect(cleared.open).toBe(true);
+      expect(cleared.collapsed).toBe(false);
+      expect(cleared.mobileExpanded).toBe("true");
+      expect(cleared.premiumExpanded).toBe("true");
+
+      await toggle.click();
+      await expect(page.locator("#catalogFilterReset")).toBeHidden();
+      const closed = await readFilterChrome(page);
+      expect(closed.open).toBe(false);
+      expect(closed.collapsed).toBe(true);
+      expect(closed.hidden).toBe("true");
+      expect(closed.mobileExpanded).toBe("false");
+      expect(closed.premiumExpanded).toBe("false");
+      expect(closed.display).toBe("none");
+
+      await toggle.click();
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+      const reopened = await readFilterChrome(page);
+      expect(reopened.open).toBe(true);
+      expect(reopened.collapsed).toBe(false);
+      expect(reopened.hidden).toBe("false");
+      expect(reopened.mobileExpanded).toBe("true");
+      expect(reopened.premiumExpanded).toBe("true");
+      expect(reopened.value).toBe("");
+    } finally {
+      held.release();
+    }
+  });
+
+  test("late premium initialization leaves a closed mobile filter closed", async ({ page }) => {
+    const held = await openCreditWhilePremiumWaits(page, 390);
+    try {
+      await expect(mobileFilterToggle(page)).toBeVisible();
+      await expect(page.locator("#catalogFilterReset")).toBeHidden();
+      const before = await readFilterChrome(page);
+      expect(before.open).toBe(false);
+      expect(before.collapsed).toBe(true);
+      expect(before.hidden).toBe("true");
+      expect(before.mobileExpanded).toBe("false");
+      expect(before.premiumExpanded).toBe(null);
+      held.release();
+      await expect.poll(() => page.evaluate(() => document.querySelector("#catalogFilterBar")?.dataset.premiumFilter || "")).toBe("1");
+      const after = await readFilterChrome(page);
+      expect(after.open).toBe(false);
+      expect(after.collapsed).toBe(true);
+      expect(after.hidden).toBe("true");
+      expect(after.mobileExpanded).toBe("false");
+      expect(after.premiumExpanded).toBe("false");
+      expect(after.display).toBe("none");
+      await expect(page.locator("#catalogFilterReset")).toBeHidden();
+
+      await mobileFilterToggle(page).click();
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+      await page.locator("#catalogFilterText").fill("ئىككى");
+      await page.locator("#catalogFilterReset").click();
+      await expect(page.locator("#catalogFilterText")).toHaveValue("");
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+      await mobileFilterToggle(page).click();
+      await expect(page.locator("#catalogFilterReset")).toBeHidden();
+      await mobileFilterToggle(page).click();
+      await expect(page.locator("#catalogFilterReset")).toBeVisible();
+    } finally {
+      held.release();
+    }
+  });
+
+  test("late premium initialization keeps desktop filter fields visible", async ({ page }) => {
+    const held = await openCreditWhilePremiumWaits(page, 1280);
+    try {
+      const field = page.locator("#catalogFilterText");
+      await expect(field).toBeVisible();
+      await field.click();
+      await field.fill("ئىككى");
+      await expect(field).toBeFocused();
+      await expect.poll(() => page.evaluate(() => !!window.KutadguPremiumUx)).toBe(false);
+      held.release();
+      await expect.poll(() => page.evaluate(() => document.querySelector("#catalogFilterBar")?.dataset.premiumFilter || "")).toBe("1");
+      const open = await readFilterChrome(page);
+      expect(open.display).not.toBe("none");
+      expect(open.premiumDisplay).toBe("none");
+      expect(open.value).toBe("ئىككى");
+      expect(open.focused).toBe(true);
+      await expect(field).toBeVisible();
+      await page.locator("#catalogFilterReset").click();
+      await expect(field).toHaveValue("");
+      await expect(field).toBeVisible();
+      const cleared = await readFilterChrome(page);
+      expect(cleared.display).not.toBe("none");
+      expect(cleared.premiumDisplay).toBe("none");
+    } finally {
+      held.release();
+    }
   });
 });
