@@ -382,6 +382,7 @@
     const wanted=text(slug);
     let found=null;
     let readable=false;
+    let detailState="absent";
     try{
       const rows=groupRows(await rpc("admin_list_book_volume_groups"));
       if(generation!==editorGeneration)return true;
@@ -391,14 +392,16 @@
       renderList();
       const listed=rows.find(row=>text(row.slug)===wanted);
       if(listed&&positiveId(listed.id)){
+        detailState="unverified";
         try{
           const detail=await rpc("admin_get_book_volume_group",{p_group_id:positiveId(listed.id)});
           if(generation!==editorGeneration)return true;
-          if(detail&&text(detail.slug)===wanted)found=detail;
-          else if(!detail)found=listed;
+          if(detail&&positiveId(detail.id)===positiveId(listed.id)&&text(detail.slug)===wanted){
+            found=detail;
+            detailState="verified";
+          }
         }catch(readError){
           if(generation!==editorGeneration)return true;
-          found=listed;
         }
       }
     }catch(listError){
@@ -407,7 +410,7 @@
     }
     if(generation!==editorGeneration)return true;
     const host=$("#volumeGroupSlugRecovery");
-    if(found&&positiveId(found.id)){
+    if(detailState==="verified"&&found&&positiveId(found.id)){
       setStatus(`بۇ ئۇلانما «${text(found.title)||wanted}» يۈرۈشلۈكىدە. يېڭى ئۇلانما ياسالمىدى ۋە كىتابلار قايتا باغلانمىدى.`,"error");
       if(host){
         host.hidden=false;
@@ -421,7 +424,13 @@
       }
       return true;
     }
-    setStatus(readable?"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. ماس يۈرۈشلۈكنىڭ خاتىرىسى تىزىمدا يوق.":"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. بۇرۇنقى يۈرۈشلۈكنىڭ خاتىرىسىنى ئوقۇيالمىدىم.","error");
+    const unverified=detailState==="unverified";
+    const message=unverified
+      ?"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. بۇ يۈرۈشلۈكنى جەزملەپ ئېچەلمىدىم."
+      :readable
+        ?"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. ماس يۈرۈشلۈكنىڭ خاتىرىسى تىزىمدا يوق."
+        :"بۇ ئۇلانما ئىشلىتىلىۋاتىدۇ. يېڭى ئۇلانما ياسالمىدى. بۇرۇنقى يۈرۈشلۈكنىڭ خاتىرىسىنى ئوقۇيالمىدىم.";
+    setStatus(message,"error");
     clearSlugRecovery();
     return true;
   }
@@ -1137,12 +1146,14 @@
     seriesStatus("ساقلاش خېرىدارغا چىقارمايدۇ.","");
   }
   function showSeriesForm(){
+    if($("#volumeSeriesForm")?.hidden)editorGeneration++;
     resetLookup();
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=true;
     if(!text($("#volumeSeriesRequestId")?.value))resetSeriesForm();
   }
   function showLinkForm(){
+    if($("#volumeGroupForm")?.hidden)editorGeneration++;
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=true;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=false;
   }

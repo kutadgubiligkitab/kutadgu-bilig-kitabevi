@@ -80,7 +80,11 @@ async function openEditor(page) {
           return { data: window.__groups };
         }
         if (name === "admin_get_book_volume_group") {
+          if (window.__detailMode === "denied") return { data: null, error: { message: "permission denied", code: "42501" }, status: 403 };
           const group = window.__groups.find((row) => String(row.id) === String(args.p_group_id));
+          if (window.__detailMode === "null") return { data: null };
+          if (window.__detailMode === "mismatch-slug") return { data: group ? { ...group, slug: "other-slug" } : null };
+          if (window.__detailMode === "mismatch-id") return { data: group ? { ...group, id: 999 } : null };
           return { data: group || null };
         }
         if (name === "admin_save_book_volume_group") {
@@ -348,5 +352,75 @@ test.describe("volume editor draft recovery", () => {
     const later = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
     expect(later).toEqual(["series-301", "series-303"]);
     expect(later.some((slug) => /-2$/.test(slug))).toBe(false);
+  });
+
+  test("a late publication or save leaves the new-series form in place", async ({ page }) => {
+    await openEditor(page);
+    await addBook(page, 301);
+    await addBook(page, 302);
+    await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    await saveDraft(page);
+    await page.evaluate(() => { window.__holdPublish = true; window.__publishHeld = false; });
+    await page.locator("#volumeGroupPublishBtn").click();
+    await page.waitForFunction(() => window.__publishHeld === true);
+    await page.locator("#showVolumeSeriesBtn").click();
+    const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await page.locator("#volumeSeriesTitle").fill("يېڭى يۈرۈش");
+    await page.locator(".volume-series-part").nth(0).locator("[data-series-cover]").setInputFiles({ name: "part-1.png", mimeType: "image/png", buffer: tinyPng });
+    const requestId = await page.locator("#volumeSeriesRequestId").inputValue();
+    await page.evaluate(() => window.__releasePublish());
+    await expect(page.locator("#volumeSeriesForm")).toBeVisible();
+    await expect(page.locator("#volumeGroupForm")).toBeHidden();
+    await expect(page.locator("#volumeSeriesTitle")).toHaveValue("يېڭى يۈرۈش");
+    await expect(page.locator("#volumeSeriesRequestId")).toHaveValue(requestId);
+    expect(await page.locator(".volume-series-part").nth(0).locator("[data-series-cover]").evaluate((input) => input.files[0] && input.files[0].name)).toBe("part-1.png");
+    await expect(page.locator("[data-volume-group-edit='77']")).toContainText("كۆرسىتىشكە تەييار");
+
+    await page.locator("#showVolumeLinkBtn").click();
+    await page.locator("#newVolumeGroupBtn").click();
+    await addBook(page, 303);
+    await addBook(page, 304);
+    await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+    await page.evaluate(() => { window.__holdPublish = false; window.__holdSave = true; window.__saveHeld = false; });
+    await page.locator("#volumeGroupForm button[type='submit']").click();
+    await page.waitForFunction(() => window.__saveHeld === true);
+    await page.locator("#showVolumeSeriesBtn").click();
+    await page.locator("#volumeSeriesTitle").fill("ساقلاش كېچىككەن");
+    await page.locator(".volume-series-part").nth(0).locator("[data-series-cover]").setInputFiles({ name: "late-part.png", mimeType: "image/png", buffer: tinyPng });
+    const seriesRequest = await page.locator("#volumeSeriesRequestId").inputValue();
+    await page.evaluate(() => window.__releaseSave());
+    await expect(page.locator("#volumeSeriesForm")).toBeVisible();
+    await expect(page.locator("#volumeGroupForm")).toBeHidden();
+    await expect(page.locator("#volumeSeriesTitle")).toHaveValue("ساقلاش كېچىككەن");
+    await expect(page.locator("#volumeSeriesRequestId")).toHaveValue(seriesRequest);
+    expect(await page.locator(".volume-series-part").nth(0).locator("[data-series-cover]").evaluate((input) => input.files[0] && input.files[0].name)).toBe("late-part.png");
+  });
+
+  test("a duplicate slug omits Open unless the detail read matches the listed group", async ({ page }) => {
+    await openEditor(page);
+    const modes = ["denied", "null", "mismatch-slug", "mismatch-id"];
+    for (let index = 0; index < modes.length; index += 1) {
+      await page.evaluate((detailMode) => {
+        window.__duplicateSlug = true;
+        window.__detailMode = detailMode;
+        window.__groups = [{ id: 55, revision: 2, slug: "series-301", title: "كونا يۈرۈشلۈك", author: "كونا", category: "تارىخىي رومانلار", source: "tarikhiy-romanlar.html", description: "كونا", is_public: true, is_active: true, members: [{ book_id: 301, position: 1, volume_label: "1-قىسىم", title: "ئالما خاتىرىسى", price: 120, url: "/book/301" }, { book_id: 302, position: 2, volume_label: "2-قىسىم", title: "ئالما داۋامى", price: 80, url: "/book/302" }] }];
+      }, modes[index]);
+      if (index > 0) await page.locator("#newVolumeGroupBtn").click();
+      await addBook(page, 301);
+      await addBook(page, 302);
+      await page.locator("#volumeGroupCategory").fill("تارىخىي رومانلار");
+      const title = await page.locator("#volumeGroupTitle").inputValue();
+      await page.locator("#volumeGroupForm button[type='submit']").click();
+      await expect(page.locator("#volumeGroupStatus")).toContainText("جەزملەپ ئېچەلمىدىم");
+      await expect(page.locator("#volumeGroupStatus")).not.toContainText("42501");
+      await expect(page.locator("#volumeGroupStatus")).not.toContainText("book_volume_groups_slug");
+      await expect(page.locator(".volume-slug-open")).toHaveCount(0);
+      await expect(page.locator("#volumeGroupId")).toHaveValue("");
+      await expect(page.locator("#volumeGroupTitle")).toHaveValue(title);
+      await expect(page.locator("[data-volume-member-id]")).toHaveCount(2);
+      await expect(page.locator("#volumeGroupSlug")).toHaveValue("series-301");
+    }
+    const slugs = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_save_book_volume_group").map((call) => call.args.p_group.slug));
+    expect(slugs).toEqual(["series-301", "series-301", "series-301", "series-301"]);
   });
 });

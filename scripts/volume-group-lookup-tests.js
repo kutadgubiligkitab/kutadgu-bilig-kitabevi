@@ -46,7 +46,7 @@ assert.match(source, /readAcceptedBookMetadata/);
 assert.match(source, /select\("id,category,source,description"\)/);
 assert.doesNotMatch(catalog, /category,source,description/);
 
-assert.match(html, /admin-volume-groups\.js\?v=9/);
+assert.match(html, /admin-volume-groups\.js\?v=10/);
 assert.match(html, /admin\.css\?v=66/);
 assert.match(html, /admin\.js\?v=122/);
 assert.match(source, /function resetLookup/);
