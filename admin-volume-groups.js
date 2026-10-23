@@ -186,15 +186,15 @@
     state.current=value.id?value:null;
     state.members=normalizeMembers(value.members);
     renderMembers();
+    resetLookup();
   }
   function newGroup(){
     showLinkForm();
     fillEditor({is_active:true,members:[]});
-    $("#volumeGroupLookupPreview").innerHTML="";
-    $("#volumeGroupBookLookup").value="";
     setStatus("قىسىملارنى قوشۇپ ساقلاڭ؛ تېخى خېرىدارلارغا كۆرۈنمەيدۇ.","");
   }
   async function openGroup(id){
+    resetLookup();
     setStatus("يۈرۈشلۈك يۈكلىنىۋاتىدۇ…","");
     try{
       const group=await rpc("admin_get_book_volume_group",{p_group_id:positiveId(id)});
@@ -280,6 +280,28 @@
   let lookupGeneration=0;
   const lookupSelecting=new Set();
   const LOOKUP_PAGE=40;
+  function resetLookup(){
+    lookupGeneration++;
+    lookupSelecting.clear();
+    state.lookupRows=[];
+    state.lookupQuery="";
+    state.lookupCatalogCount=0;
+    state.lookupTotal=0;
+    const host=$("#volumeGroupLookupPreview");
+    if(host){
+      host.innerHTML="";
+      host.setAttribute("aria-busy","false");
+    }
+    const input=$("#volumeGroupBookLookup");
+    if(input)input.value="";
+  }
+  function isbnLookupQuery(query){
+    const raw=text(query);
+    if(!raw||raw.length>32||!/^[0-9Xx\s-]+$/.test(raw))return "";
+    const digits=raw.replace(/[\s-]+/g,"").toUpperCase();
+    if(digits.length!==10&&digits.length!==13)return "";
+    return raw;
+  }
   function catalogLookupFilter(query){
     const api=root.__kutadguAdminTest;
     if(!api||typeof api.searchOrFilter!=="function")throw new Error("admin_catalog_search_unavailable");
@@ -342,21 +364,24 @@
     host.innerHTML=`<p class="volume-admin-lookup-status" role="alert">${escapeHtml(error&&error.message||String(error||"كىتاب تېپىلمىدى."))}</p><button type="button" class="admin-secondary" data-lookup-retry>قايتا سىناش</button>`;
   }
   async function addLookupCandidate(bookId){
+    const generation=lookupGeneration;
     const id=positiveId(bookId);
     const row=(state.lookupRows||[]).find(item=>item.book_id===id);
-    if(!row||lookupSelecting.has(id))return;
+    if(!row||lookupSelecting.has(id)||generation!==lookupGeneration)return;
     lookupSelecting.add(id);
     const currentId=positiveId($("#volumeGroupId")?.value);
     try{
       let chosen=row;
       if(!row.previewed){
         const checked=normalizeLookup(await rpc("admin_preview_book_volume_members",{p_book_id:id,p_isbn:null}));
+        if(generation!==lookupGeneration)return;
         const fresh=checked.find(item=>item.book_id===id);
         if(!fresh){setStatus("بۇ كىتاب تېپىلمىدى.","error");return}
         chosen={...fresh,previewed:true};
         const index=state.lookupRows.findIndex(item=>item.book_id===id);
         if(index>=0)state.lookupRows[index]=chosen;
       }
+      if(generation!==lookupGeneration)return;
       const linked=positiveId(chosen.group_id);
       if(linked&&linked!==currentId){
         renderLookup(state.lookupRows);
@@ -375,6 +400,7 @@
       const host=$("#volumeGroupLookupPreview");
       if(host){host.innerHTML="";host.setAttribute("aria-busy","false")}
     }catch(error){
+      if(generation!==lookupGeneration)return;
       setStatus(error.message||String(error),"error");
     }finally{
       lookupSelecting.delete(id);
@@ -412,11 +438,15 @@
     setStatus("كىتاب تەكشۈرۈلۈۋاتىدۇ…","");
     try{
       const exactId=/^[1-9][0-9]*$/.test(query);
-      const previewRows=normalizeLookup(await rpc("admin_preview_book_volume_members",{
-        p_book_id:exactId?query:null,
-        p_isbn:query
-      }));
-      if(generation!==lookupGeneration)return;
+      const isbnQuery=exactId?"":isbnLookupQuery(query);
+      let previewRows=[];
+      if(exactId||isbnQuery){
+        previewRows=normalizeLookup(await rpc("admin_preview_book_volume_members",{
+          p_book_id:exactId?query:null,
+          p_isbn:exactId?query:isbnQuery
+        }));
+        if(generation!==lookupGeneration)return;
+      }
       let catalogRows=[];
       if(exactId){
         state.lookupQuery="";
@@ -835,6 +865,7 @@
     seriesStatus("ساقلاش خېرىدارغا چىقارمايدۇ.","");
   }
   function showSeriesForm(){
+    resetLookup();
     if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
     if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=true;
     if(!text($("#volumeSeriesRequestId")?.value))resetSeriesForm();

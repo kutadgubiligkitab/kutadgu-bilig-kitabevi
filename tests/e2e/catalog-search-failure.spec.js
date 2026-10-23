@@ -388,7 +388,11 @@ test.describe("catalog search failure stays distinct from an empty result", () =
       el.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await expect(chips).toContainText("10");
-    await page.locator("#searchReset").click();
+    // The price field schedules a catalog read after 400ms. On a 390px viewport
+    // the reset control is outside the visible box, so a pointer click keeps
+    // retrying until that read has already started. Deliver the click to the
+    // same button handler before the timer.
+    await page.locator("#searchReset").dispatchEvent("click");
     await expect(page.locator("#searchMinPrice")).toHaveValue("");
     await expect(results).toHaveAttribute("data-search-state", "idle");
     await expect(chips).not.toContainText("10");

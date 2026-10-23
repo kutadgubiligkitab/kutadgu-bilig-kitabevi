@@ -34,7 +34,8 @@ const lookup = sliceBetween("async function lookupBook", "async function load");
 assert.match(lookup, /lookupGeneration/);
 assert.match(lookup, /admin_preview_book_volume_members/);
 assert.match(lookup, /searchEligibleCatalog/);
-assert.match(lookup, /exactId/);
+assert.match(lookup, /isbnLookupQuery/);
+assert.match(lookup, /exactId\|\|isbnQuery/);
 
 const add = sliceBetween("async function addLookupCandidate", "async function lookupBook");
 assert.match(add, /admin_preview_book_volume_members/);
@@ -45,6 +46,7 @@ assert.doesNotMatch(add, /insert\(/);
 assert.match(html, /admin-volume-groups\.js\?v=7/);
 assert.match(html, /admin\.css\?v=62/);
 assert.match(html, /admin\.js\?v=121/);
-assert.match(html, /كىتاب نامى، ئاپتور، نومۇر ياكى ISBN/);
+assert.match(source, /function resetLookup/);
+assert.match(source, /resetLookup\(\)/);
 
 console.log("volume-group lookup contract: ok");

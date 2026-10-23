@@ -89,10 +89,16 @@ async function openLookupEditor(page) {
         if (name === "admin_preview_book_volume_members") {
           const id = args && args.p_book_id != null ? String(args.p_book_id) : "";
           const isbn = args && args.p_isbn != null ? String(args.p_isbn) : "";
+          if (window.__holdPreviewId && id === String(window.__holdPreviewId)) {
+            window.__holdPreviewId = "";
+            window.__previewHeld = true;
+            await new Promise((resolve) => { window.__releasePreview = resolve; });
+          }
           const found = window.__lookupBooks.filter((book) => (id && String(book.id) === id) || (isbn && book.isbn && String(book.isbn) === isbn));
           return { data: found.map((book) => ({ book_id: book.id, isbn: book.isbn, title: book.title, author: book.author, price: book.price, image_url: book.image_url, stock: book.stock, url: book.url, group_id: book.group_id || null, group_title: book.group_title || null })) };
         }
-        if (name === "admin_list_book_volume_groups") return { data: [] };
+        if (name === "admin_list_book_volume_groups") return { data: [{ id: 88, title: "باشقا يۈرۈشلۈك", slug: "other", member_count: 0, is_public: false }] };
+        if (name === "admin_get_book_volume_group") return { data: { id: args.p_group_id, revision: 2, title: "باشقا يۈرۈشلۈك", slug: "other", is_public: false, is_active: true, members: [] } };
         if (name === "admin_save_book_volume_group") {
           const members = (args.p_members || []).map((member) => {
             const book = window.__lookupBooks.find((row) => String(row.id) === String(member.book_id)) || {};
@@ -142,6 +148,7 @@ test.describe("volume-group existing book lookup", () => {
     expect(calls[0].orFilter).toContain("ئالما خاتىرىسى");
     expect(calls[0].orFilter).not.toContain("باشقا بەت");
     expect(calls[0].orFilter).not.toContain("should-not-apply");
+    expect(await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_preview_book_volume_members"))).toEqual([]);
     const box = await page.locator("#volumeGroupLookupBtn").boundingBox();
     expect(box.height).toBeGreaterThanOrEqual(44);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -189,16 +196,46 @@ test.describe("volume-group existing book lookup", () => {
     await searchLookup(page, "توپ ئاپتور");
     await expect(page.locator(".volume-admin-lookup")).toHaveCount(40);
     await expect(page.locator("[data-lookup-add='1041']")).toHaveCount(0);
+    await page.evaluate(() => { window.__holdNextCatalog = true; window.__lookupHeld = false; });
+    await page.locator("[data-lookup-more]").click();
+    await page.waitForFunction(() => window.__lookupHeld === true);
+    await page.locator("[data-volume-group-edit='88']").click();
+    await page.evaluate(() => window.__releaseLookup());
+    await expect(page.locator("#volumeGroupId")).toHaveValue("88");
+    await expect(page.locator("#volumeGroupLookupPreview")).toBeEmpty();
+    await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
+    await searchLookup(page, "توپ ئاپتور");
+    await expect(page.locator(".volume-admin-lookup")).toHaveCount(40);
     await page.locator("[data-lookup-more]").click();
     await expect(page.locator("[data-lookup-add='1041']")).toBeVisible();
     await expect(page.locator(".volume-admin-lookup")).toHaveCount(41);
     await expect(page.locator("[data-lookup-more]")).toHaveCount(0);
     const ranges = await page.evaluate(() => window.__catalogCalls.map((call) => call.range));
-    expect(ranges).toEqual([[0, 39], [40, 79]]);
+    expect(ranges).toEqual([[0, 39], [40, 79], [0, 39], [40, 79]]);
     await page.locator("[data-lookup-add='1041']").click();
     await expect(page.locator("[data-volume-member-id]")).toHaveCount(1);
     const only = await page.evaluate(() => window.KutadguAdminVolumeGroups._state.members.map((member) => member.book_id));
     expect(only).toEqual(["1041"]);
+  });
+
+  test("a long title goes to the catalog and a late selection cannot join another draft", async ({ page }) => {
+    await openLookupEditor(page);
+    const longTitle = "ئۇزۇن نام ".repeat(6).trim();
+    expect(longTitle.length).toBeGreaterThan(32);
+    await page.evaluate((title) => {
+      window.__lookupBooks.push({ id: 777, title, author: "ئۇزۇن ئاپتور", price: 33, stock: 2, image_url: "/sample-book-cover.png", isbn: null, url: "/book/777" });
+    }, longTitle);
+    await searchLookup(page, longTitle);
+    await expect(page.locator("[data-lookup-add='777']")).toBeVisible();
+    expect(await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_preview_book_volume_members"))).toEqual([]);
+
+    await page.evaluate(() => { window.__holdPreviewId = "777"; window.__previewHeld = false; });
+    await page.locator("[data-lookup-add='777']").click();
+    await page.waitForFunction(() => window.__previewHeld === true);
+    await page.locator("[data-volume-group-edit='88']").click();
+    await page.evaluate(() => window.__releasePreview());
+    await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
+    await expect(page.locator("#volumeGroupLookupPreview")).toBeEmpty();
   });
 
   test("exact id and ISBN lookup stay on the authoritative preview", async ({ page }) => {
