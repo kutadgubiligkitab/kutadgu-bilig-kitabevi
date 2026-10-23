@@ -71,6 +71,61 @@ BEGIN
 END;
 $$;
 
+-- An older form, a category-only edit, and a new row keep the directory label.
+UPDATE public.books
+SET title = 'edited from an older form',
+    source = 'romanlar.html',
+    category = 'رومانلار'
+WHERE id = 2;
+UPDATE public.books
+SET category = 'رومانلار'
+WHERE id = 2;
+UPDATE public.books
+SET title = 'edited unknown source',
+    source = 'other.html',
+    category = 'Older custom'
+WHERE id = 3;
+INSERT INTO public.books (id, title, author, category, source, price, image_url, stock, is_active, submission_status)
+VALUES (7, 'created from an older directory', 'Author', 'رومانلار', 'romanlar.html', 12, '/cover-7.webp', 1, true, 'approved');
+INSERT INTO public.book_volume_groups (id, slug, title, category, source, complete_set_price, revision)
+VALUES (11, 'series-stale', 'Stale group', 'رومانلار', 'romanlar.html', 44, 1);
+UPDATE public.book_volume_groups
+SET title = 'edited group',
+    source = 'romanlar.html',
+    category = 'رومانلار'
+WHERE id = 11;
+DO $$
+DECLARE
+  v_book public.books%ROWTYPE;
+  v_created public.books%ROWTYPE;
+  v_unknown public.books%ROWTYPE;
+  v_group public.book_volume_groups%ROWTYPE;
+BEGIN
+  SELECT * INTO v_book FROM public.books WHERE id = 2;
+  IF v_book.title <> 'edited from an older form' OR v_book.source <> 'romanlar.html'
+     OR v_book.category <> 'رومانلار يېڭى' OR v_book.price <> 370 OR v_book.stock <> 4
+     OR v_book.image_url <> '/cover-2.webp' THEN
+    RAISE EXCEPTION 'an older form did not keep the directory label: %', v_book;
+  END IF;
+  SELECT * INTO v_created FROM public.books WHERE id = 7;
+  IF v_created.source <> 'romanlar.html' OR v_created.category <> 'رومانلار يېڭى'
+     OR v_created.price <> 12 OR v_created.stock <> 1 OR v_created.title <> 'created from an older directory' THEN
+    RAISE EXCEPTION 'a new book kept the stale directory label: %', v_created;
+  END IF;
+  SELECT * INTO v_unknown FROM public.books WHERE id = 3;
+  IF v_unknown.source <> 'other.html' OR v_unknown.category <> 'Older custom'
+     OR v_unknown.title <> 'edited unknown source' OR v_unknown.price <> 5 THEN
+    RAISE EXCEPTION 'an unknown source was rewritten: %', v_unknown;
+  END IF;
+  SELECT * INTO v_group FROM public.book_volume_groups WHERE id = 11;
+  IF v_group.title <> 'edited group' OR v_group.source <> 'romanlar.html'
+     OR v_group.category <> 'رومانلار يېڭى' OR v_group.complete_set_price <> 44
+     OR v_group.slug <> 'series-stale' THEN
+    RAISE EXCEPTION 'a group write did not keep the directory label: %', v_group;
+  END IF;
+END;
+$$;
+
 DO $$
 BEGIN
   PERFORM public.admin_rename_book_category(

@@ -47,15 +47,44 @@
   function unresolved(error) {
     return !!(error && error.unresolved);
   }
+  function databaseRejection(result) {
+    const error = result && result.error;
+    const status = Number(result && result.status);
+    const code = String(error && error.code || "");
+    if (!error || !Number.isFinite(status) || status < 400 || status >= 500 || status === 408 || status === 429) return false;
+    return /^[0-9A-Z]{5}$/.test(code) || /^PGRST/.test(code);
+  }
+  function markUnresolved(error, status) {
+    const failure = error instanceof Error ? error : new Error(String(error && (error.message || error.details) || "unresolved"));
+    try {
+      failure.unresolved = true;
+      if (error && error !== failure) {
+        if (error.code) failure.code = error.code;
+        if (error.details) failure.details = error.details;
+        if (error.hint) failure.hint = error.hint;
+      }
+      if (status != null) failure.status = status;
+    } catch (ignored) {
+      const wrapped = new Error(failure.message || "unresolved");
+      wrapped.unresolved = true;
+      wrapped.status = status;
+      return wrapped;
+    }
+    return failure;
+  }
   async function call(name, args) {
     let result;
     try {
       result = await state.db.rpc(name, args);
     } catch (error) {
-      error.unresolved = true;
-      throw error;
+      throw markUnresolved(error, 0);
     }
-    if (result && result.error) throw result.error;
+    if (result && result.error) {
+      if (!databaseRejection(result)) throw markUnresolved(result.error, result.status);
+      throw result.error;
+    }
+    const status = Number(result && result.status);
+    if (!result || (Number.isFinite(status) && status >= 400)) throw markUnresolved(new Error("unresolved"), status || 0);
     return result && Object.prototype.hasOwnProperty.call(result, "data") ? result.data : result;
   }
   function activeRows() {
@@ -388,5 +417,5 @@
     bind();
     syncConfirm();
   }
-  root.KutadguAdminBookCategories = { init, load, state };
+  root.KutadguAdminBookCategories = { init, load, mutate, state };
 })(window);

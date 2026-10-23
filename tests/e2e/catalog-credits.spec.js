@@ -171,10 +171,16 @@ test.describe("catalog credit browsing", () => {
     expect(page.url()).not.toContain("book_credits");
 
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.locator(".mobile-filter-toggle").click();
+    await expect.poll(() => page.evaluate(() => ({
+      premium: !!window.KutadguPremiumUx,
+      bar: !!document.querySelector("#catalogFilterBar")
+    }))).toEqual({ premium: true, bar: true });
+    await page.locator("#catalogFilterBar").locator("xpath=preceding-sibling::button[contains(@class,'mobile-filter-toggle')]").click();
+    await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterText").fill("ئىككى");
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(1);
     expect(seen.urls.some((url) => url.includes("book_credits.identity_id=eq." + A) && url.includes("ilike"))).toBe(true);
+    await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterReset").click();
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(12);
 

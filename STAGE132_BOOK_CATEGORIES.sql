@@ -895,14 +895,12 @@ SET search_path = pg_catalog, public
 AS $guard_source$
 DECLARE
   v_retired timestamptz;
+  v_label text;
 BEGIN
-  IF TG_OP = 'UPDATE' AND OLD.source IS NOT DISTINCT FROM NEW.source THEN
-    RETURN NEW;
-  END IF;
   IF NEW.source IS NULL OR btrim(NEW.source) = '' THEN
     RETURN NEW;
   END IF;
-  SELECT retired_at INTO v_retired
+  SELECT retired_at, label INTO v_retired, v_label
   FROM public.book_categories
   WHERE source = NEW.source
   FOR UPDATE;
@@ -912,6 +910,7 @@ BEGIN
   IF v_retired IS NOT NULL THEN
     RAISE EXCEPTION 'category_retired' USING ERRCODE = '55000';
   END IF;
+  NEW.category := v_label;
   RETURN NEW;
 END;
 $guard_source$;
@@ -937,23 +936,23 @@ $assert_open_source$;
 
 DROP TRIGGER IF EXISTS zzz_book_categories_books_source_guard ON public.books;
 CREATE TRIGGER zzz_book_categories_books_source_guard
-BEFORE INSERT OR UPDATE OF source ON public.books
+BEFORE INSERT OR UPDATE OF source, category ON public.books
 FOR EACH ROW EXECUTE FUNCTION public.book_categories_guard_source();
 
 DROP TRIGGER IF EXISTS zzz_book_categories_groups_source_guard ON public.book_volume_groups;
 CREATE TRIGGER zzz_book_categories_groups_source_guard
-BEFORE INSERT OR UPDATE OF source ON public.book_volume_groups
+BEFORE INSERT OR UPDATE OF source, category ON public.book_volume_groups
 FOR EACH ROW EXECUTE FUNCTION public.book_categories_guard_source();
 
 DROP TRIGGER IF EXISTS book_categories_books_source_commit ON public.books;
 CREATE CONSTRAINT TRIGGER book_categories_books_source_commit
-AFTER INSERT OR UPDATE OF source ON public.books
+AFTER INSERT OR UPDATE OF source, category ON public.books
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW EXECUTE FUNCTION public.book_categories_assert_open_source();
 
 DROP TRIGGER IF EXISTS book_categories_groups_source_commit ON public.book_volume_groups;
 CREATE CONSTRAINT TRIGGER book_categories_groups_source_commit
-AFTER INSERT OR UPDATE OF source ON public.book_volume_groups
+AFTER INSERT OR UPDATE OF source, category ON public.book_volume_groups
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW EXECUTE FUNCTION public.book_categories_assert_open_source();
 
