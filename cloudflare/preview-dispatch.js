@@ -366,6 +366,13 @@ async function handleManagedSitemap(request, env, deps) {
   }, undefined, hostOf(request));
 }
 
+function directCategory(directory, slug) {
+  const body = directory && directory.body;
+  if (!body) return null;
+  const rows = Array.isArray(body.direct) ? body.direct : (Array.isArray(body.categories) ? body.categories : []);
+  return rows.find((row) => row && row.slug === slug) || null;
+}
+
 async function handleDynamicCategory(request, env, deps, slug) {
   const method = String(request.method || "GET").toUpperCase();
   const listing = deps.listing;
@@ -376,14 +383,15 @@ async function handleDynamicCategory(request, env, deps, slug) {
     directory = null;
   }
   if (!directory || directory.status !== 200 || !directory.body) {
-    return textResponse(404, method === "HEAD" ? null : "not found", env, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store"
+    return textResponse(503, method === "HEAD" ? null : listing.failureDocument(""), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, follow"
     }, undefined, hostOf(request));
   }
   const redirect = await categoryRedirect(request, env, deps, slug);
   if (redirect) return redirect;
-  const category = (directory.body.categories || []).find((row) => row && row.slug === slug);
+  const category = directCategory(directory, slug);
   if (!category) {
     return textResponse(404, method === "HEAD" ? null : "not found", env, {
       "Content-Type": "text/plain; charset=utf-8",
@@ -441,9 +449,20 @@ async function handleCategory(request, env, deps, route) {
       "X-Robots-Tag": "noindex, follow"
     }, undefined, hostOf(request));
   }
+  let category = null;
   try {
-    const books = await listing.loadCategoryBooks(slug, { fetchImpl: deps.fetchImpl, env });
-    const html = decoratePreviewHtml(listing.applyCategoryDocument(template, slug, books), request, env);
+    const directory = await listing.fetchPublicCategoryDirectory(deps.fetchImpl);
+    if (directory && directory.status === 200 && directory.body) category = directCategory(directory, slug);
+  } catch (err) {
+    category = null;
+  }
+  try {
+    const books = await listing.loadCategoryBooks(slug, {
+      fetchImpl: deps.fetchImpl,
+      env,
+      sources: category && category.source ? [category.source] : undefined
+    });
+    const html = decoratePreviewHtml(listing.applyCategoryDocument(template, slug, books, category), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": listing.SUCCESS_CACHE_CONTROL

@@ -55,6 +55,20 @@ const universal = listing.applyDynamicCategoryDocument(
   []
 );
 assert.ok(universal.includes("<h1>يېڭى تۈر</h1>"));
-assert.ok(universal.includes("https://www.kutadgubilik.com/yeni-tur"));
+assert.ok(universal.includes('data-catalog-source="yeni-tur.html"'));
+assert.ok(!universal.includes('data-catalog-source="universal.html"'));
+assert.ok(universal.includes('content="https://www.kutadgubilik.com/yeni-tur"'));
+assert.ok(!universal.includes("https://www.kutadgubilik.com/universal"));
+assert.ok(!universal.includes("ئۇنىۋېرسال ئەسەرلەر"));
+const roman = listing.applyCategoryDocument(
+  fs.readFileSync(path.join(__dirname, "../romanlar.html"), "utf8"),
+  "romanlar",
+  [],
+  { slug: "romanlar", source: "romanlar.html", label: "رومانلار يېڭى", summary: "يېڭى قىسقىچە" }
+);
+assert.ok(roman.includes("<h1>رومانلار يېڭى</h1>"));
+assert.ok(roman.includes('data-catalog-source="romanlar.html"'));
+assert.ok(roman.includes("يېڭى قىسقىچە"));
+assert.ok(!roman.includes("<h1>\n            رومان"));
 
 console.log("book category client: PASS");

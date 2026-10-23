@@ -132,6 +132,20 @@ AS $public_categories$
       FROM public.book_categories AS c
       WHERE c.retired_at IS NULL AND c.is_hidden IS FALSE
     ), '[]'::jsonb),
+    'direct', coalesce((
+      SELECT jsonb_agg(jsonb_build_object(
+        'id', c.id,
+        'slug', c.slug,
+        'source', c.source,
+        'label', c.label,
+        'summary', c.summary,
+        'icon', c.icon,
+        'sort_order', c.sort_order,
+        'is_hidden', c.is_hidden
+      ) ORDER BY c.sort_order, c.id)
+      FROM public.book_categories AS c
+      WHERE c.retired_at IS NULL
+    ), '[]'::jsonb),
     'redirects', coalesce((
       SELECT jsonb_agg(jsonb_build_object(
         'slug', c.slug,
@@ -276,6 +290,7 @@ DECLARE
   v_saved jsonb;
   v_row public.book_categories%ROWTYPE;
   v_label text := btrim(coalesce(p_label, ''));
+  v_source text;
   v_books integer := 0;
   v_groups integer := 0;
   v_result jsonb;
@@ -296,6 +311,22 @@ BEGIN
   IF char_length(v_label) < 1 OR char_length(v_label) > 80 THEN
     RAISE EXCEPTION 'invalid_category' USING ERRCODE = '22023';
   END IF;
+  SELECT source INTO v_source
+  FROM public.book_categories
+  WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'category_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1
+  FROM public.books
+  WHERE source = v_source
+  ORDER BY id
+  FOR UPDATE;
+  PERFORM 1
+  FROM public.book_volume_groups
+  WHERE source = v_source
+  ORDER BY id
+  FOR UPDATE;
   SELECT * INTO v_row
   FROM public.book_categories
   WHERE id = p_id
@@ -498,6 +529,7 @@ DECLARE
   v_saved jsonb;
   v_row public.book_categories%ROWTYPE;
   v_dest public.book_categories%ROWTYPE;
+  v_source text;
   v_books bigint;
   v_groups bigint;
   v_result jsonb;
@@ -515,6 +547,29 @@ BEGIN
   IF FOUND THEN
     RETURN v_saved;
   END IF;
+  SELECT source INTO v_source
+  FROM public.book_categories
+  WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'category_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  PERFORM 1
+  FROM public.books
+  WHERE source = v_source
+  ORDER BY id
+  FOR UPDATE;
+  PERFORM 1
+  FROM public.book_volume_groups
+  WHERE source = v_source
+  ORDER BY id
+  FOR UPDATE;
+  PERFORM 1
+  FROM public.book_volume_group_members AS member
+  WHERE member.group_id IN (
+    SELECT id FROM public.book_volume_groups WHERE source = v_source
+  )
+  ORDER BY member.group_id, member.book_id
+  FOR UPDATE;
   SELECT * INTO v_row
   FROM public.book_categories
   WHERE id = p_id
@@ -584,6 +639,9 @@ DECLARE
   v_dest public.book_categories%ROWTYPE;
   v_ids bigint[];
   v_groups bigint[];
+  v_selected bigint[];
+  v_source_count integer;
+  v_source text;
 BEGIN
   IF coalesce(public.is_kutadgu_admin(), false) IS NOT TRUE
      OR (SELECT auth.jwt()->>'aal') IS DISTINCT FROM 'aal2' THEN
@@ -592,49 +650,97 @@ BEGIN
   IF p_book_ids IS NULL OR cardinality(p_book_ids) < 1 THEN
     RAISE EXCEPTION 'no_books' USING ERRCODE = '22023';
   END IF;
+  SELECT coalesce(array_agg(DISTINCT id ORDER BY id), '{}')
+  INTO v_selected
+  FROM unnest(p_book_ids) AS id
+  WHERE id IS NOT NULL;
+  IF cardinality(v_selected) < 1
+     OR (SELECT count(*) FROM public.books WHERE id = ANY(v_selected)) IS DISTINCT FROM cardinality(v_selected) THEN
+    RAISE EXCEPTION 'books_missing' USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO v_dest FROM public.book_categories WHERE id = p_destination_id;
-  IF NOT FOUND OR v_dest.retired_at IS NOT NULL OR v_dest.is_hidden OR v_dest.slug = 'universal' THEN
+  IF NOT FOUND OR v_dest.retired_at IS NOT NULL OR v_dest.is_hidden THEN
     RAISE EXCEPTION 'destination_unavailable' USING ERRCODE = '22023';
   END IF;
-  IF EXISTS (
-    SELECT 1
-    FROM public.books AS b
-    WHERE b.id = ANY(p_book_ids)
-      AND b.source IS DISTINCT FROM 'universal.html'
-  ) OR (
-    SELECT count(*) FROM public.books WHERE id = ANY(p_book_ids)
-  ) IS DISTINCT FROM cardinality(p_book_ids) THEN
-    RAISE EXCEPTION 'not_universal' USING ERRCODE = '22023';
-  END IF;
-  SELECT coalesce(array_agg(DISTINCT m.group_id), '{}')
+  SELECT coalesce(array_agg(DISTINCT m.group_id ORDER BY m.group_id), '{}')
   INTO v_groups
   FROM public.book_volume_group_members AS m
-  WHERE m.book_id = ANY(p_book_ids);
+  WHERE m.book_id = ANY(v_selected);
   SELECT coalesce(array_agg(DISTINCT book_id ORDER BY book_id), '{}')
   INTO v_ids
   FROM (
-    SELECT unnest(p_book_ids) AS book_id
+    SELECT unnest(v_selected) AS book_id
     UNION
     SELECT m.book_id
     FROM public.book_volume_group_members AS m
     WHERE m.group_id = ANY(v_groups)
   ) AS expanded;
+  SELECT count(DISTINCT source), min(source)
+  INTO v_source_count, v_source
+  FROM public.books
+  WHERE id = ANY(v_selected);
   RETURN jsonb_build_object(
-    'source', jsonb_build_object('slug', 'universal', 'source', 'universal.html', 'label', (
-      SELECT label FROM public.book_categories WHERE slug = 'universal'
-    )),
+    'source', CASE WHEN v_source_count = 1 THEN jsonb_build_object(
+      'source', v_source,
+      'label', coalesce(
+        (SELECT label FROM public.book_categories WHERE source = v_source),
+        (SELECT min(category) FROM public.books WHERE id = ANY(v_selected))
+      )
+    ) ELSE NULL END,
+    'origins', coalesce((
+      SELECT jsonb_agg(jsonb_build_object(
+        'source', origin.source,
+        'label', origin.label,
+        'book_count', origin.book_count
+      ) ORDER BY origin.source)
+      FROM (
+        SELECT b.source,
+               coalesce(c.label, min(b.category), b.source) AS label,
+               count(*) AS book_count
+        FROM public.books AS b
+        LEFT JOIN public.book_categories AS c ON c.source = b.source
+        WHERE b.id = ANY(v_ids)
+        GROUP BY b.source, c.label
+      ) AS origin
+    ), '[]'::jsonb),
     'destination', jsonb_build_object(
       'id', v_dest.id, 'slug', v_dest.slug, 'source', v_dest.source, 'label', v_dest.label
     ),
-    'selected_book_count', cardinality(p_book_ids),
+    'selected_book_count', cardinality(v_selected),
     'book_count', cardinality(v_ids),
+    'added_book_count', cardinality(v_ids) - cardinality(v_selected),
     'group_count', cardinality(v_groups),
     'book_ids', to_jsonb(v_ids),
+    'added_books', coalesce((
+      SELECT jsonb_agg(jsonb_build_object(
+        'id', b.id,
+        'title', b.title,
+        'source', b.source,
+        'category', coalesce(c.label, b.category, b.source),
+        'is_active', b.is_active,
+        'submission_status', b.submission_status
+      ) ORDER BY b.id)
+      FROM public.books AS b
+      LEFT JOIN public.book_categories AS c ON c.source = b.source
+      WHERE b.id = ANY(v_ids)
+        AND NOT (b.id = ANY(v_selected))
+    ), '[]'::jsonb),
     'groups', coalesce((
       SELECT jsonb_agg(jsonb_build_object(
-        'id', g.id, 'slug', g.slug, 'title', g.title, 'source', g.source
+        'id', g.id,
+        'slug', g.slug,
+        'title', g.title,
+        'source', g.source,
+        'category', coalesce(c.label, g.category, g.source),
+        'expanded', EXISTS (
+          SELECT 1
+          FROM public.book_volume_group_members AS extra
+          WHERE extra.group_id = g.id
+            AND NOT (extra.book_id = ANY(v_selected))
+        )
       ) ORDER BY g.id)
       FROM public.book_volume_groups AS g
+      LEFT JOIN public.book_categories AS c ON c.source = g.source
       WHERE g.id = ANY(v_groups)
     ), '[]'::jsonb)
   );
@@ -656,11 +762,11 @@ DECLARE
   v_saved jsonb;
   v_preview jsonb;
   v_ids bigint[];
+  v_groups bigint[];
   v_expected bigint[];
-  v_dest_source text;
-  v_dest_label text;
+  v_dest public.book_categories%ROWTYPE;
   v_books integer := 0;
-  v_groups integer := 0;
+  v_group_writes integer := 0;
   v_result jsonb;
 BEGIN
   IF coalesce(public.is_kutadgu_admin(), false) IS NOT TRUE
@@ -676,6 +782,16 @@ BEGIN
   IF FOUND THEN
     RETURN v_saved;
   END IF;
+  IF p_book_ids IS NULL OR cardinality(p_book_ids) < 1 THEN
+    RAISE EXCEPTION 'no_books' USING ERRCODE = '22023';
+  END IF;
+  IF (
+    SELECT count(*) FROM public.books WHERE id = ANY(p_book_ids)
+  ) IS DISTINCT FROM (
+    SELECT count(DISTINCT id) FROM unnest(p_book_ids) AS id WHERE id IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'books_missing' USING ERRCODE = '22023';
+  END IF;
   PERFORM 1
   FROM public.books
   WHERE id = ANY(p_book_ids)
@@ -688,6 +804,7 @@ BEGIN
          WHERE selected.book_id = ANY(p_book_ids)
        )
      )
+  ORDER BY id
   FOR UPDATE;
   PERFORM 1
   FROM public.book_volume_group_members
@@ -695,46 +812,73 @@ BEGIN
      OR group_id IN (
        SELECT group_id FROM public.book_volume_group_members WHERE book_id = ANY(p_book_ids)
      )
+  ORDER BY group_id, book_id
   FOR UPDATE;
   PERFORM 1
   FROM public.book_volume_groups
   WHERE id IN (
     SELECT group_id FROM public.book_volume_group_members WHERE book_id = ANY(p_book_ids)
   )
+  ORDER BY id
   FOR UPDATE;
-  v_preview := public.admin_preview_book_category_move(p_book_ids, p_destination_id);
-  SELECT coalesce(array_agg(value::bigint ORDER BY value::bigint), '{}')
+  SELECT coalesce(array_agg(DISTINCT m.group_id ORDER BY m.group_id), '{}')
+  INTO v_groups
+  FROM public.book_volume_group_members AS m
+  WHERE m.book_id = ANY(p_book_ids);
+  SELECT coalesce(array_agg(DISTINCT book_id ORDER BY book_id), '{}')
   INTO v_ids
-  FROM jsonb_array_elements(v_preview->'book_ids') AS value;
+  FROM (
+    SELECT id AS book_id FROM unnest(p_book_ids) AS id WHERE id IS NOT NULL
+    UNION
+    SELECT m.book_id
+    FROM public.book_volume_group_members AS m
+    WHERE m.group_id = ANY(v_groups)
+  ) AS expanded;
   SELECT coalesce(array_agg(value ORDER BY value), '{}')
   INTO v_expected
   FROM unnest(coalesce(p_expected_book_ids, '{}')) AS value;
   IF v_ids IS DISTINCT FROM v_expected THEN
     RAISE EXCEPTION 'category_move_changed' USING ERRCODE = '40001';
   END IF;
-  v_dest_source := v_preview->'destination'->>'source';
-  v_dest_label := v_preview->'destination'->>'label';
+  SELECT * INTO v_dest
+  FROM public.book_categories
+  WHERE id = p_destination_id
+  FOR UPDATE;
+  IF NOT FOUND OR v_dest.retired_at IS NOT NULL OR v_dest.is_hidden THEN
+    RAISE EXCEPTION 'destination_unavailable' USING ERRCODE = '22023';
+  END IF;
   UPDATE public.books
-  SET source = v_dest_source,
-      category = v_dest_label
+  SET source = v_dest.source,
+      category = v_dest.label
   WHERE id = ANY(v_ids)
-    AND (source IS DISTINCT FROM v_dest_source OR category IS DISTINCT FROM v_dest_label);
+    AND (source IS DISTINCT FROM v_dest.source OR category IS DISTINCT FROM v_dest.label);
   GET DIAGNOSTICS v_books = ROW_COUNT;
+  IF EXISTS (
+    SELECT 1 FROM public.book_categories
+    WHERE id = v_dest.id
+      AND (retired_at IS NOT NULL OR is_hidden IS TRUE)
+  ) THEN
+    RAISE EXCEPTION 'category_retired' USING ERRCODE = '55000';
+  END IF;
   UPDATE public.book_volume_groups AS g
-  SET source = v_dest_source,
-      category = v_dest_label,
+  SET source = v_dest.source,
+      category = v_dest.label,
       revision = g.revision + 1,
       updated_at = now()
-  WHERE g.id IN (
-    SELECT DISTINCT m.group_id
-    FROM public.book_volume_group_members AS m
-    WHERE m.book_id = ANY(v_ids)
-  )
-    AND (g.source IS DISTINCT FROM v_dest_source OR g.category IS DISTINCT FROM v_dest_label);
-  GET DIAGNOSTICS v_groups = ROW_COUNT;
+  WHERE g.id = ANY(v_groups)
+    AND (g.source IS DISTINCT FROM v_dest.source OR g.category IS DISTINCT FROM v_dest.label);
+  GET DIAGNOSTICS v_group_writes = ROW_COUNT;
+  IF EXISTS (
+    SELECT 1 FROM public.book_categories
+    WHERE id = v_dest.id
+      AND retired_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'category_retired' USING ERRCODE = '55000';
+  END IF;
+  v_preview := public.admin_preview_book_category_move(p_book_ids, p_destination_id);
   v_result := v_preview || jsonb_build_object(
     'applied_books', v_books,
-    'applied_groups', v_groups,
+    'applied_groups', v_group_writes,
     'request_id', p_request_id
   );
   INSERT INTO public.book_category_operations (request_id, result)
@@ -742,6 +886,83 @@ BEGIN
   RETURN v_result;
 END;
 $admin_move_books$;
+
+CREATE OR REPLACE FUNCTION public.book_categories_guard_source()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $guard_source$
+DECLARE
+  v_retired timestamptz;
+BEGIN
+  IF TG_OP = 'UPDATE' AND OLD.source IS NOT DISTINCT FROM NEW.source THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.source IS NULL OR btrim(NEW.source) = '' THEN
+    RETURN NEW;
+  END IF;
+  SELECT retired_at INTO v_retired
+  FROM public.book_categories
+  WHERE source = NEW.source
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
+  IF v_retired IS NOT NULL THEN
+    RAISE EXCEPTION 'category_retired' USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$guard_source$;
+
+CREATE OR REPLACE FUNCTION public.book_categories_assert_open_source()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $assert_open_source$
+BEGIN
+  IF NEW.source IS NOT NULL AND btrim(NEW.source) <> '' AND EXISTS (
+    SELECT 1
+    FROM public.book_categories
+    WHERE source = NEW.source
+      AND retired_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'category_retired' USING ERRCODE = '55000';
+  END IF;
+  RETURN NULL;
+END;
+$assert_open_source$;
+
+DROP TRIGGER IF EXISTS zzz_book_categories_books_source_guard ON public.books;
+CREATE TRIGGER zzz_book_categories_books_source_guard
+BEFORE INSERT OR UPDATE OF source ON public.books
+FOR EACH ROW EXECUTE FUNCTION public.book_categories_guard_source();
+
+DROP TRIGGER IF EXISTS zzz_book_categories_groups_source_guard ON public.book_volume_groups;
+CREATE TRIGGER zzz_book_categories_groups_source_guard
+BEFORE INSERT OR UPDATE OF source ON public.book_volume_groups
+FOR EACH ROW EXECUTE FUNCTION public.book_categories_guard_source();
+
+DROP TRIGGER IF EXISTS book_categories_books_source_commit ON public.books;
+CREATE CONSTRAINT TRIGGER book_categories_books_source_commit
+AFTER INSERT OR UPDATE OF source ON public.books
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION public.book_categories_assert_open_source();
+
+DROP TRIGGER IF EXISTS book_categories_groups_source_commit ON public.book_volume_groups;
+CREATE CONSTRAINT TRIGGER book_categories_groups_source_commit
+AFTER INSERT OR UPDATE OF source ON public.book_volume_groups
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION public.book_categories_assert_open_source();
+
+REVOKE ALL ON FUNCTION public.book_categories_guard_source()
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.book_categories_assert_open_source()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.book_categories_guard_source() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.book_categories_assert_open_source() TO authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.list_public_book_categories()
   FROM PUBLIC, anon, authenticated, service_role;

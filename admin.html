@@ -120,12 +120,16 @@
         <section class="admin-card">
           <h2>ئۇنىۋېرسال كىتابلارنى يۆتكەش</h2>
           <p class="admin-help">تاللانغان كىتاب يۈرۈشلۈككە تەۋە بولسا، شۇ يۈرۈشلۈكنىڭ قالغان قىسىملىرىمۇ ئالدىن كۆرۈشكە كىرىدۇ. جەزملەش بىر قېتىمدا تاماملىنىدۇ.</p>
-          <button class="admin-secondary" id="bookCategoryLoadUniversal" type="button">ئۇنىۋېرسال كىتابلارنى كۆرسەت</button>
+          <label>مەنبە تۈر<select id="bookCategoryMoveSource"></select></label>
+          <div class="book-category-actions">
+            <button class="admin-secondary" id="bookCategoryLoadSource" type="button">بۇ تۈردىكى كىتابلارنى كۆرسەت</button>
+            <button class="admin-secondary" id="bookCategoryLoadUniversal" type="button">ئۇنىۋېرسال كىتابلارنى كۆرسەت</button>
+          </div>
           <div id="bookCategoryUniversal" class="book-category-books"></div>
           <label>نىشان تۈر<select id="bookCategoryMoveDestination"></select></label>
           <div class="book-category-actions">
             <button class="admin-secondary" id="bookCategoryPreviewMove" type="button">ئالدىن كۆرۈش</button>
-            <button class="admin-primary" id="bookCategoryConfirmMove" type="button">جەزملەپ يۆتكەش</button>
+            <button class="admin-primary" id="bookCategoryConfirmMove" type="button" disabled>جەزملەپ يۆتكەش</button>
           </div>
           <div id="bookCategoryMovePreview" class="admin-help" hidden></div>
         </section>
@@ -1272,7 +1276,7 @@
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
-  <script defer src="admin-book-categories.js?v=1"></script>
+  <script defer src="admin-book-categories.js?v=2"></script>
   <script defer src="admin-volume-groups.js?v=8"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=122"></script>

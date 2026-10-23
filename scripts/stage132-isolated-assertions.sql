@@ -102,6 +102,9 @@ BEGIN
   IF (SELECT jsonb_path_exists(public.list_public_book_categories(), '$.categories[*] ? (@.slug == "tibb")')) THEN
     RAISE EXCEPTION 'hidden category stayed public';
   END IF;
+  IF NOT (SELECT jsonb_path_exists(public.list_public_book_categories(), '$.direct[*] ? (@.slug == "tibb" && @.is_hidden == true)')) THEN
+    RAISE EXCEPTION 'hidden category lost its direct link';
+  END IF;
   IF NOT (SELECT jsonb_path_exists(public.list_public_book_categories(), '$.categories[*] ? (@.slug == "romanlar")')) THEN
     RAISE EXCEPTION 'visible category disappeared';
   END IF;
@@ -162,6 +165,24 @@ BEGIN
   END IF;
   IF (SELECT book_id FROM public.orders WHERE id = 70) <> 1 THEN
     RAISE EXCEPTION 'order history changed';
+  END IF;
+  v_preview := public.admin_preview_book_category_move(
+    ARRAY[2]::bigint[],
+    (SELECT id FROM public.book_categories WHERE slug = 'iqtisad')
+  );
+  IF (v_preview->'source'->>'source') <> 'romanlar.html'
+     OR (v_preview->>'added_book_count')::int <> 0
+     OR (v_preview->'origins'->0->>'label') <> 'رومانلار يېڭى' THEN
+    RAISE EXCEPTION 'a non-universal category could not be previewed: %', v_preview;
+  END IF;
+  PERFORM public.admin_move_books_to_category(
+    '10000000-0000-4000-8000-000000000018',
+    ARRAY[2]::bigint[],
+    (v_preview->'destination'->>'id')::bigint,
+    ARRAY[2]::bigint[]
+  );
+  IF (SELECT source FROM public.books WHERE id = 2) <> 'iqtisad.html' OR (SELECT price FROM public.books WHERE id = 2) <> 370 THEN
+    RAISE EXCEPTION 'moving a Romanlar book changed more than its category';
   END IF;
   PERFORM public.admin_move_books_to_category(
     '10000000-0000-4000-8000-000000000008',
@@ -257,6 +278,61 @@ BEGIN
   END IF;
 END;
 $$;
+
+DO $$
+BEGIN
+  UPDATE public.books SET source = 'dictionary.html', category = 'لۇغەت' WHERE id = 3;
+  RAISE EXCEPTION 'a retired source accepted a later assignment';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM <> 'category_retired' THEN
+    RAISE;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.stage132_inject_retire()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.source = 'grammar.html' THEN
+    UPDATE public.book_categories
+    SET retired_at = now(),
+        is_hidden = true,
+        redirect_category_id = (SELECT id FROM public.book_categories WHERE slug = 'romanlar')
+    WHERE slug = 'grammar'
+      AND retired_at IS NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS zzz_inject_retire ON public.books;
+CREATE TRIGGER zzz_inject_retire
+BEFORE UPDATE OF source ON public.books
+FOR EACH ROW EXECUTE FUNCTION public.stage132_inject_retire();
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.admin_move_books_to_category(
+      '10000000-0000-4000-8000-000000000019',
+      ARRAY[3]::bigint[],
+      (SELECT id FROM public.book_categories WHERE slug = 'grammar'),
+      ARRAY[3]::bigint[]
+    );
+    RAISE EXCEPTION 'a destination retired during the move was committed';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'category_retired' THEN
+      RAISE;
+    END IF;
+  END;
+  IF (SELECT source FROM public.books WHERE id = 3) <> 'other.html'
+     OR (SELECT retired_at FROM public.book_categories WHERE slug = 'grammar') IS NOT NULL THEN
+    RAISE EXCEPTION 'the injected retirement left a partial assignment';
+  END IF;
+END;
+$$;
+DROP TRIGGER IF EXISTS zzz_inject_retire ON public.books;
 
 SET ROLE anon;
 SELECT public.list_public_book_categories();
