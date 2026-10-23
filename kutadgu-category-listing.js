@@ -262,7 +262,9 @@ function rowsToBooks(rows, allowedSources) {
 }
 
 async function loadCategoryBooks(slug, options) {
-  const sources = catalogSources(slug);
+  const sources = options && Array.isArray(options.sources) && options.sources.length
+    ? options.sources
+    : catalogSources(slug);
   if (!sources.length) throw new Error("unknown-category");
   const env = options && options.env ? options.env : (typeof process !== "undefined" ? process.env : {});
   if (String(env && env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
@@ -464,6 +466,39 @@ function applyCategoryDocument(html, slug, books) {
   return upsertStructuredData(replaceBooksGrid(html, cards), slug);
 }
 
+function applyDynamicCategoryDocument(html, category, books) {
+  const slug = String(category && category.slug || "").trim();
+  const label = String(category && category.label || slug).trim();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("unknown-category");
+  const safeLabel = label.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+  let out = String(html || "");
+  out = out.replace(/<title>[^<]*<\/title>/i, `<title>${safeLabel} | قۇتادغۇبىلىك كىتابخانىسى</title>`);
+  out = out.replace(/(<link rel="canonical" href=")[^"]+(")/i, `$1https://www.kutadgubilik.com/${slug}$2`);
+  out = out.replace(/(<h1[^>]*>)[^<]*(<\/h1>)/i, `$1${safeLabel}$2`);
+  const cards = (books || []).map(listingCardMarkup).join("");
+  return replaceBooksGrid(out, cards);
+}
+
+async function fetchPublicCategoryDirectory(fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/list_public_book_categories`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: "{}"
+  });
+  if (!response) return { status: 0, body: null };
+  let body = null;
+  if (response.status === 200) {
+    try { body = await response.json(); } catch (err) { body = null; }
+  }
+  return { status: response.status, body };
+}
+
 function failureDocument(html) {
   const fallback = "<!DOCTYPE html><html lang=\"ug\"><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex, follow\"><title>قۇتادغۇبىلىك كىتابخانىسى</title></head><body></body></html>";
   let out = String(html || "");
@@ -520,6 +555,8 @@ module.exports = {
   loadGroupedCategoryBooks,
   breadcrumbList,
   applyCategoryDocument,
+  applyDynamicCategoryDocument,
+  fetchPublicCategoryDirectory,
   failureDocument,
   readTemplate,
   parseCategorySlug

@@ -190,12 +190,35 @@ function applyFieldDirections(){
 }
 function idForNew(){return `book-${Date.now().toString(36)}`}
 function categoryOptions(){
+  const directory=window.KutadguBookCategories;
+  if(directory&&directory.authoritative&&directory.authoritative())return directory.selectionPairs();
   const map=new Map();
   (window.KUTADGU_APP_CONFIG?.catalogCategories||[]).forEach(item=>{if(item?.source&&!map.has(item.source))map.set(item.source,item.label||item.source)});
   STATIC.forEach(b=>{if(b.source&&!map.has(b.source))map.set(b.source,b.category||b.source)});
   return [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1],"ug"));
 }
+function categoryPairs(preserveSource){
+  const directory=window.KutadguBookCategories;
+  if(directory&&directory.authoritative&&directory.authoritative())return directory.selectionPairs({includeSource:preserveSource||""});
+  return categoryOptions();
+}
+function selectedCategoryLabel(select){
+  const option=select&&select.selectedOptions&&select.selectedOptions[0];
+  return String(option&&option.textContent||"").replace(/\s*\(يوشۇرۇن\)\s*$/,"").trim();
+}
 function sourceCategory(source){
+  const controls=["#bookSource","#quickSource","#bulkValueSelect"];
+  for(let i=0;i<controls.length;i++){
+    const el=$(controls[i]);
+    if(!el||el.value!==source)continue;
+    const label=selectedCategoryLabel(el);
+    if(label&&label!=="تۈر تاللاڭ")return label;
+  }
+  const directory=window.KutadguBookCategories;
+  if(directory&&directory.authoritative&&directory.authoritative()){
+    const pair=directory.selectionPairs({includeSource:source}).find(x=>x[0]===source);
+    if(pair&&pair[1])return pair[1];
+  }
   return categoryOptions().find(x=>x[0]===source)?.[1]||source;
 }
 function resolveCategory(value){
@@ -208,12 +231,16 @@ function resolveCategory(value){
   if(byLabel)return {source:byLabel[0],category:byLabel[1]};
   return null;
 }
-function renderSourceOptions(){
-  const html='<option value="">تۈر تاللاڭ</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
-  const sel=$("#bookSource");if(sel)sel.innerHTML=html;
-  const quick=$("#quickSource");if(quick)quick.innerHTML=html;
+function renderSourceOptions(explicit){
+  const override=explicit&&typeof explicit==="object"?explicit:null;
+  const bookPreserve=override&&Object.prototype.hasOwnProperty.call(override,"book")?override.book:($("#bookSource")?$("#bookSource").value:"");
+  const quickPreserve=override&&Object.prototype.hasOwnProperty.call(override,"quick")?override.quick:($("#quickSource")?$("#quickSource").value:"");
+  const filterPreserve=override&&Object.prototype.hasOwnProperty.call(override,"filter")?override.filter:($("#adminFilterSource")?$("#adminFilterSource").value:"");
+  const htmlFor=(preserve,label)=>'<option value="">تۈر تاللاڭ</option>'+(window.KutadguBookCategories&&window.KutadguBookCategories.authoritative&&window.KutadguBookCategories.authoritative()?window.KutadguBookCategories.selectionPairs({includeSource:preserve||"",includeLabel:label||""}):categoryPairs(preserve)).map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}${preserve&&preserve===source&&window.KutadguBookCategories&&window.KutadguBookCategories.authoritative&&window.KutadguBookCategories.authoritative()&&!window.KutadguBookCategories.visible().some(row=>row.source===source)?" (يوشۇرۇن)":""}</option>`).join("");
+  const sel=$("#bookSource");if(sel){sel.innerHTML=htmlFor(bookPreserve,override&&override.bookLabel);if(bookPreserve)sel.value=bookPreserve;}
+  const quick=$("#quickSource");if(quick){quick.innerHTML=htmlFor(quickPreserve,override&&override.quickLabel);if(quickPreserve)quick.value=quickPreserve;}
   const filter=$("#adminFilterSource");
-  if(filter)filter.innerHTML='<option value="">بارلىق تۈرلەر</option>'+categoryOptions().map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");
+  if(filter){filter.innerHTML='<option value="">بارلىق تۈرلەر</option>'+categoryPairs(filterPreserve).map(([source,cat])=>`<option value="${esc(source)}">${esc(cat)}</option>`).join("");if(filterPreserve)filter.value=filterPreserve;}
 }
 function show(id){
   ["setupPanel","loginPanel","mfaGatePanel","idleLockPanel","dashboardPanel"].forEach(x=>{
@@ -221,7 +248,7 @@ function show(id){
     if(el)el.hidden=x!==id;
   });
 }
-const ADMIN_SECTIONS=["overview","books","volume-groups","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"];
+const ADMIN_SECTIONS=["overview","books","categories","volume-groups","submissions","reviews","feedback","storefront","import-covers","insights","customers","orders","system"];
 const DEFAULT_ADMIN_SECTION="books";
 let applyingAdminSection=false;
 function parseAdminSectionHash(hash){
@@ -254,6 +281,10 @@ function showAdminSection(sectionId,opts){
     if(id==="submissions")loadPendingSubmissions();
     if(id==="reviews"&&window.KutadguAdminReviews&&typeof window.KutadguAdminReviews.load==="function")window.KutadguAdminReviews.load();
     if(id==="feedback"&&window.KutadguAdminFeedback&&typeof window.KutadguAdminFeedback.load==="function")window.KutadguAdminFeedback.load();
+    if(id==="categories"&&window.KutadguAdminBookCategories){
+      window.KutadguAdminBookCategories.init(db);
+      window.KutadguAdminBookCategories.load();
+    }
     if(id==="volume-groups"&&window.KutadguAdminVolumeGroups&&typeof window.KutadguAdminVolumeGroups.load==="function")window.KutadguAdminVolumeGroups.load();
     if(id==="system")loadBookStaffAccounts();
   }
@@ -3784,6 +3815,7 @@ async function openEdit(id){
   setStockStatusSelect($("#bookStockStatus"),b.stock_status);
   syncDerivedStockStatus();
   $("#bookSalesCount").value=b.sales_count??0;
+  renderSourceOptions({book:b.source||"",bookLabel:b.category||""});
   $("#bookSource").value=b.source||"";
   $("#bookPages").value=b.pages??"";
   $("#bookTranslator").value=b.translator||"";
@@ -4510,7 +4542,7 @@ async function openQuickEdit(id,trigger){
   }
   if(!b)return;
   quickEditReturnFocus=trigger||document.activeElement;
-  renderSourceOptions();
+  renderSourceOptions({quick:b.source||"",quickLabel:b.category||""});
   $("#quickEditId").value=b.id;
   $("#quickTitle").value=b.title||"";
   $("#quickAuthor").value=b.author||"";
@@ -8257,6 +8289,8 @@ function scheduleSearch(){
 
 function init(){
   if(window.__kutadguAdminInit)return;
+  window.__kutadguRefreshCategoryOptions=renderSourceOptions;
+  if(window.KutadguBookCategories&&typeof window.KutadguBookCategories.boot==="function")window.KutadguBookCategories.boot();
   window.__kutadguAdminInit=true;
   if(window.__kutadguCreditFormTest){
     if(window.__kutadguAnalyticsDb)db=window.__kutadguAnalyticsDb;

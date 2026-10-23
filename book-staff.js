@@ -76,7 +76,9 @@ function showPanel(id,token){
 function setStatus(el,message,type){
   if(!el)return;el.hidden=!message;el.textContent=message||"";el.className=("account-status "+(type||"")).trim();
 }
-function categoryOptions(){
+function categoryOptions(preserveSource){
+  const directory=window.KutadguBookCategories;
+  if(directory&&directory.authoritative&&directory.authoritative())return directory.selectionPairs({includeSource:preserveSource||""});
   const map=new Map();
   (window.KUTADGU_APP_CONFIG&&window.KUTADGU_APP_CONFIG.catalogCategories||[]).forEach(item=>{
     if(item&&item.source&&!map.has(item.source))map.set(item.source,item.label||item.source);
@@ -86,7 +88,8 @@ function categoryOptions(){
 function fillSourceOptions(){
   const sel=$("#staffSource");if(!sel)return;
   const current=sel.value;
-  sel.innerHTML='<option value="">تۈر تاللاڭ</option>'+categoryOptions().map(([source,label])=>`<option value="${esc(source)}">${esc(label)}</option>`).join("");
+  const hidden=window.KutadguBookCategories&&window.KutadguBookCategories.authoritative&&window.KutadguBookCategories.authoritative()&&current&&!window.KutadguBookCategories.visible().some(row=>row.source===current);
+  sel.innerHTML='<option value="">تۈر تاللاڭ</option>'+categoryOptions(current).map(([source,label])=>`<option value="${esc(source)}">${esc(label)}${hidden&&source===current?" (يوشۇرۇن)":""}</option>`).join("");
   if(current)sel.value=current;
 }
 function esc(value){return String(value??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
@@ -896,6 +899,8 @@ window.KutadguBookStaff={
 };
 
 async function init(){
+  window.__kutadguRefreshCategoryOptions=fillSourceOptions;
+  if(window.KutadguBookCategories&&typeof window.KutadguBookCategories.boot==="function")window.KutadguBookCategories.boot();
   fillSourceOptions();
   bindCoverPicker();
   bindGalleryPicker();

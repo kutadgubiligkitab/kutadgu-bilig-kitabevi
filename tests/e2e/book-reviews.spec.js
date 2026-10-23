@@ -1158,7 +1158,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   const currentPinMatch = currentHtml.match(/admin\.css\?v=(\d+)/);
   expect(currentPinMatch, "admin.html must pin admin.css").toBeTruthy();
   const currentPin = currentPinMatch[1];
-  expect(currentPin).toBe("62");
+  expect(currentPin).toBe("63");
   const oldDocument = currentHtml.replace(`admin.css?v=${currentPin}`, "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
   expect(oldDocument).not.toContain(`admin.css?v=${currentPin}`);

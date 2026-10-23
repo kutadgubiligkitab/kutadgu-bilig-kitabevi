@@ -243,22 +243,30 @@
   function isAbortError(error){
     return error&&(error.name==="AbortError"||/abort/i.test(String(error.message||error)));
   }
+  function liveCategoryName(name){
+    const raw=String(name||"").trim();
+    const directory=window.KutadguBookCategories;
+    if(!directory||typeof directory.currentLabel!=="function"||!directory.authoritative||!directory.authoritative())return raw;
+    return directory.currentLabel(raw);
+  }
   async function queryCategoryAuthoritative(category,pageSize,signal,options={}){
-    const name=String(category||"").trim();
-    if(!name)return [];
+    const raw=String(category||"").trim();
+    const directory=window.KutadguBookCategories;
+    const live=directory&&typeof directory.currentLabel==="function"?directory.currentLabel(raw):raw;
+    if(!live)return [];
     const size=Math.max(1,Number(pageSize)||DISCOVERY_PAGE_SIZE);
-    const cached=discoveryCache.get(name);
+    const cached=discoveryCache.get(live);
     if(cached&&cached.ok&&cached.pageSize>=size&&options.forceRecovery!==true)return cached.items.slice(0,size);
     const shop=window.kutadguShop;
     if(!shop||typeof shop.queryCatalog!=="function")throw new Error("كىتابلارنى يۈكلەشتە خاتالىق كۆرۈلدى.");
-    const result=await shop.queryCatalog({category:name,offset:0,pageSize:size,sort:"new"},{signal:signal||undefined,forceRecovery:options.forceRecovery===true});
+    const result=await shop.queryCatalog({category:live,offset:0,pageSize:size,sort:"new"},{signal:signal||undefined,forceRecovery:options.forceRecovery===true});
     if(signal&&signal.aborted){
       const abort=new Error("Aborted");
       abort.name="AbortError";
       throw abort;
     }
     const items=(result&&Array.isArray(result.items)?result.items:[]).filter(discoveryVisible);
-    discoveryCache.set(name,{ok:true,pageSize:size,items});
+    discoveryCache.set(live,{ok:true,pageSize:size,items});
     return items.slice();
   }
   async function queryDiscoveryCategories(categories,pageSize,signal,limit,options={}){
@@ -301,7 +309,8 @@
       if(discoveryAbort)discoveryAbort.abort();
       discoveryAbort=typeof AbortController==="function"?new AbortController():null;
       section.querySelectorAll("[data-premium-group]").forEach(button=>button.classList.toggle("is-active",button.dataset.premiumGroup===group.id));
-      subcategories.innerHTML=(group.categories||[]).map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
+      const subNames=(group.categories||[]).map(liveCategoryName).filter(Boolean);
+      subcategories.innerHTML=subNames.map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
       subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
       const discoveryKey=group.id+"\n"+(category||"");
       const previousKey=results.dataset.discoveryKey||"";

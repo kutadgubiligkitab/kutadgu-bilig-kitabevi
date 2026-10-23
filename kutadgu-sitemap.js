@@ -280,6 +280,18 @@ async function fetchActiveBookRows(rangeStart = 0, limit = URLS_PER_SITEMAP, fet
   return { rows, total };
 }
 
+function appendManagedCategories(xml, categories) {
+  const source = String(xml || "");
+  if (!source.includes("</urlset>")) return source;
+  const extras = (categories || []).filter((row) => {
+    const slug = String(row && row.slug || "").trim();
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && !source.includes("/" + slug + "<");
+  });
+  if (!extras.length) return source;
+  const block = extras.map((row) => `  <url><loc>${escapeXml(SITE_ORIGIN + "/" + row.slug)}</loc></url>`).join("\n");
+  return source.replace("</urlset>", block + "\n</urlset>");
+}
+
 async function buildPagesSitemapXml() {
   return buildUrlsetXml(publicPageEntries());
 }
@@ -311,6 +323,7 @@ const api = {
   PUBLIC_INFO_SLUGS,
   PUBLIC_PAGE_PATHS,
   PRIVATE_PATH_MARKERS,
+  appendManagedCategories,
   productionOrigin,
   escapeXml,
   isCanonicalBookId,

@@ -330,12 +330,101 @@ async function handleVolumeGroup(request, env, deps, route) {
   }, undefined, hostOf(request));
 }
 
+async function categoryRedirect(request, env, deps, slug) {
+  const listing = deps.listing;
+  if (!listing || typeof listing.fetchPublicCategoryDirectory !== "function") return null;
+  let directory;
+  try {
+    directory = await listing.fetchPublicCategoryDirectory(deps.fetchImpl);
+  } catch (err) {
+    return null;
+  }
+  if (!directory || directory.status !== 200 || !directory.body) return null;
+  const redirect = (directory.body.redirects || []).find((row) => row && row.slug === slug);
+  if (!redirect || !redirect.target_slug) return null;
+  const url = new URL(request.url);
+  return textResponse(308, null, env, {
+    Location: "/" + redirect.target_slug + url.search,
+    "Cache-Control": "public, max-age=0, must-revalidate"
+  }, undefined, hostOf(request));
+}
+
+async function handleManagedSitemap(request, env, deps) {
+  const method = String(request.method || "GET").toUpperCase();
+  const asset = await readAsset(request, env, deps, "/sitemap-pages.xml");
+  if (!asset || asset.status !== 200) return finishAsset(request, env, deps, "/sitemap-pages.xml");
+  let xml = await asset.text();
+  try {
+    const directory = await deps.listing.fetchPublicCategoryDirectory(deps.fetchImpl);
+    if (directory && directory.status === 200 && directory.body && deps.sitemap.appendManagedCategories) {
+      xml = deps.sitemap.appendManagedCategories(xml, directory.body.categories || []);
+    }
+  } catch (err) {}
+  return textResponse(200, method === "HEAD" ? null : xml, env, {
+    "Content-Type": "application/xml; charset=utf-8",
+    "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"
+  }, undefined, hostOf(request));
+}
+
+async function handleDynamicCategory(request, env, deps, slug) {
+  const method = String(request.method || "GET").toUpperCase();
+  const listing = deps.listing;
+  let directory;
+  try {
+    directory = await listing.fetchPublicCategoryDirectory(deps.fetchImpl);
+  } catch (err) {
+    directory = null;
+  }
+  if (!directory || directory.status !== 200 || !directory.body) {
+    return textResponse(404, method === "HEAD" ? null : "not found", env, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store"
+    }, undefined, hostOf(request));
+  }
+  const redirect = await categoryRedirect(request, env, deps, slug);
+  if (redirect) return redirect;
+  const category = (directory.body.categories || []).find((row) => row && row.slug === slug);
+  if (!category) {
+    return textResponse(404, method === "HEAD" ? null : "not found", env, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store"
+    }, undefined, hostOf(request));
+  }
+  const templateResponse = await readAsset(request, env, deps, "/universal.html");
+  const template = templateResponse && templateResponse.status === 200 ? await templateResponse.text() : "";
+  if (!template) {
+    return textResponse(503, method === "HEAD" ? null : listing.failureDocument(""), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": listing.FAILURE_CACHE_CONTROL
+    }, undefined, hostOf(request));
+  }
+  try {
+    const books = await listing.loadCategoryBooks(slug, {
+      fetchImpl: deps.fetchImpl,
+      env,
+      sources: [category.source || `${slug}.html`]
+    });
+    const html = decoratePreviewHtml(listing.applyDynamicCategoryDocument(template, category, books), request, env);
+    return textResponse(200, method === "HEAD" ? null : html, env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": listing.SUCCESS_CACHE_CONTROL
+    }, undefined, hostOf(request));
+  } catch (err) {
+    return textResponse(503, method === "HEAD" ? null : listing.failureDocument(template), env, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": listing.FAILURE_CACHE_CONTROL
+    }, undefined, hostOf(request));
+  }
+}
+
 async function handleCategory(request, env, deps, route) {
   const method = String(request.method || "GET").toUpperCase();
   const listing = deps.listing;
   const url = new URL(request.url);
   const req = { url: url.pathname + url.search, method };
   const slug = route.slug || listing.parseCategorySlug(req);
+  const redirect = slug ? await categoryRedirect(request, env, deps, slug) : null;
+  if (redirect) return redirect;
   if (!slug) {
     return textResponse(404, method === "HEAD" ? null : listing.failureDocument(""), env, {
       "Content-Type": "text/html; charset=utf-8",
@@ -627,6 +716,16 @@ async function dispatch(request, env, deps) {
   if (route.kind === "book") return handleBook(request, env, source);
   if (route.kind === "category") return handleCategory(request, env, source, route);
   if (route.kind === "rewrite") return finishAsset(request, env, source, route.file);
+  const dynamicSlug = /^\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(route.file || ""))
+    ? String(route.file).slice(1)
+    : "";
+  if (route.kind === "asset" && route.file === "/sitemap-pages.xml") {
+    return handleManagedSitemap(request, env, source);
+  }
+  if (route.kind === "asset" && dynamicSlug && !CATEGORY_SLUGS.has(dynamicSlug)) {
+    const asset = await readAsset(request, env, source, route.file);
+    if (!asset || asset.status !== 200) return handleDynamicCategory(request, env, source, dynamicSlug);
+  }
   return finishAsset(request, env, source, route.file);
 }
 

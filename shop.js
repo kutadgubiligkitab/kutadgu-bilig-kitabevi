@@ -6872,7 +6872,10 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/premium-ux.js?v=19","kutadguPremiumUxScript");
+  return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
+    const directory=window.KutadguBookCategories;
+    return directory&&directory.boot?directory.boot():null;
+  }).then(()=>loadAssetScript("/premium-ux.js?v=20","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;
 function initStaticShell(){

@@ -17,8 +17,30 @@
   }
   function categoryEntries(){
     const options=Array.from($("#bookSource")?.options||[])
-      .filter(option=>option.value).map(option=>({source:option.value,label:option.textContent.trim()}));
-    return options.length?options:(root.KUTADGU_APP_CONFIG?.catalogCategories||[]);
+      .filter(option=>option.value).map(option=>({
+        source:option.value,
+        label:option.textContent.replace(/\s*\(يوشۇرۇن\)\s*$/,"").trim()
+      }));
+    const base=options.length?options:(root.KUTADGU_APP_CONFIG?.catalogCategories||[]);
+    const directory=root.KutadguBookCategories;
+    if(!directory||typeof directory.authoritative!=="function"||!directory.authoritative())return base;
+    const current=text(state.current&&state.current.source);
+    return base.filter(item=>{
+      const visible=directory.visible().some(row=>row.source===item.source);
+      return visible||item.source===current;
+    });
+  }
+  function markHiddenAssignment(input,source){
+    if(!input)return;
+    let note=input.parentElement&&input.parentElement.querySelector(".book-category-hidden-note");
+    if(!note){
+      note=document.createElement("span");
+      note.className="book-category-hidden-note";
+      input.insertAdjacentElement("afterend",note);
+    }
+    const directory=root.KutadguBookCategories;
+    const hidden=!!(directory&&typeof directory.authoritative==="function"&&directory.authoritative()&&source&&!directory.visible().some(row=>row.source===source));
+    note.textContent=hidden?"بۇ تۈر يوشۇرۇن. ئۆزگەرتمىسىڭىز ساقلىنىدۇ.":"";
   }
   function syncCategorySource(){
     const input=$("#volumeGroupCategory");
@@ -176,6 +198,7 @@
     $("#volumeGroupCategory").value=text(value.category);
     $("#volumeGroupCategory").setCustomValidity("");
     $("#volumeGroupSource").value=text(value.source);
+    markHiddenAssignment($("#volumeGroupCategory"),text(value.source));
     $("#volumeGroupDescription").value=text(value.description);
     $("#volumeGroupSetPrice").value=value.complete_set_price==null?"":value.complete_set_price;
     $("#volumeGroupActive").checked=value.is_active!==false;
