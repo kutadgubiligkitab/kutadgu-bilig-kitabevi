@@ -252,7 +252,30 @@ async function waitForMyBooksGrid(page, tab, cardSelector) {
     const btn = host.querySelector(`[data-mybooks-tab="${tab}"]`);
     if (!btn || btn.getAttribute("aria-selected") !== "true") return 0;
     if (content.querySelector(".catalog-loading-state")) return 0;
-    return document.querySelectorAll(cardSelector).length;
+    const cards = [...document.querySelectorAll(cardSelector)];
+    if (cards.length < 2) return 0;
+    if (document.fonts.status !== "loaded") return 0;
+    for (const attr of ["data-kutadgu-public-book-card-row-alignment", "data-kutadgu-storefront-cards-1a"]) {
+      const link = document.querySelector(`link[${attr}]`);
+      if (!link || !link.sheet) return 0;
+      try {
+        if (!link.sheet.cssRules.length) return 0;
+      } catch (error) {
+        return 0;
+      }
+    }
+    if (cards[0].classList.contains("shop-mini-card")) {
+      const title = cards[0].querySelector(".shop-mini-title");
+      const clamp = title ? String(getComputedStyle(title).webkitLineClamp || getComputedStyle(title).lineClamp || "") : "";
+      if (getComputedStyle(cards[0]).display !== "flex") return 0;
+      if (clamp !== "2" && clamp !== "2.0") return 0;
+      const coversReady = cards.every((card) => {
+        const img = card.querySelector("img");
+        return img && img.getBoundingClientRect().height > 0;
+      });
+      if (!coversReady) return 0;
+    }
+    return cards.length;
   }, { tab, cardSelector }), { timeout: 20000 }).toBeGreaterThan(1);
 }
 
