@@ -83,6 +83,10 @@ async function installDirectory(page) {
           return { data: window.__categoryRows.slice().sort((a, b) => a.sort_order - b.sort_order || a.id - b.id) };
         }
         if (name === "admin_create_book_category") {
+          if (window.__failCreateOnce) {
+            window.__failCreateOnce = false;
+            return { data: null, error: { message: "gateway" }, status: 502 };
+          }
           window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
           remember();
           return { data: { id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, revision: 1 } };
@@ -188,12 +192,18 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect(page.locator("#dashboardPanel")).toBeVisible();
   await page.locator("[data-admin-section='categories']").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toBeVisible();
+  await expect(page.locator("#bookCategoryList")).toContainText("كىتاب 0");
+  await expect(page.locator("#bookCategoryList")).not.toContainText("/yeni-tur");
+  await expect(page.locator("#bookCategorySlug")).toHaveCount(0);
+  await expect(page.locator("#bookCategoryCreate")).toBeHidden();
+  await expect(page.locator("#bookCategoryMovePanel")).toBeHidden();
+  await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
   await page.locator("[data-category-up='2']").focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.__categoryCalls.some((call) => call.name === "admin_move_book_category_order" && call.args.p_direction === "up"))).toBe(true);
   await expect(page.locator("[data-category-source='tibb.html']")).toContainText("يوشۇرۇن");
+  await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("باشقا تۈر");
-  await page.locator("#bookCategorySlug").fill("bashqa-tur");
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect.poll(() => page.evaluate(() => window.__categoryCalls.some((call) => call.name === "admin_create_book_category" && call.args.p_slug === "bashqa-tur"))).toBe(true);
   await expect.poll(() => page.evaluate(() => !!(window.KutadguBookCategories && window.KutadguBookCategories.authoritative && window.KutadguBookCategories.authoritative()))).toBe(true);
@@ -202,10 +212,19 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   });
   await expect(page.locator("#bookSource option[value='tibb.html']")).toContainText("يوشۇرۇن");
   await expect(page.locator("#bookSource")).toHaveValue("tibb.html");
+  await page.getByRole("button", { name: "باشقۇرۇش: رومانلار يېڭى" }).click();
   await page.locator("[data-category-retire='1']").click();
+  await expect(page.locator("#bookCategoryRetire")).toContainText("كىتاب 1");
+  await expect(page.locator("#bookCategoryRetire")).toContainText("كونا ئۇلىنىش");
+  await page.locator("#bookCategoryRedirect").selectOption("2");
+  await page.locator("[data-category-retire-confirm='1']").click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("بۇ تۈردە يەنىلا كىتاب");
-  await page.locator("#bookCategoryLoadUniversal").click();
+  await page.getByRole("button", { name: "باشقۇرۇش: ئۇنىۋېرسال" }).click();
+  await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+  await expect(page.locator("#bookCategoryMoveSource")).toHaveValue("9");
+  await expect(page.locator("#bookCategoryMoveDestination")).toHaveValue("");
   await page.locator("[data-universal-book]").check();
+  await page.locator("#bookCategoryMoveDestination").selectOption("2");
   await page.evaluate(() => {
     window.__delayPreview = new Promise((resolve) => { window.__releasePreview = resolve; });
   });
@@ -230,7 +249,7 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
     button.disabled = false;
     button.click();
   });
-  await expect(page.locator("#bookCategoryStatus")).toContainText("ئالدىن كۆرۈشنى ئېچىڭ");
+  await expect(page.locator("#bookCategoryStatus")).toContainText("تەسىرگە ئۇچرايدىغانلىرىنى كۆرۈڭ");
   await expect.poll(() => page.evaluate(() => window.__moveIds.length)).toBe(0);
   await page.locator("#bookCategoryMoveDestination").selectOption(reviewedDestination);
   await page.locator("#bookCategoryPreviewMove").click();
@@ -239,22 +258,30 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect.poll(() => page.evaluate(() => window.__moveIds.length)).toBe(1);
   await page.locator("#bookCategoryConfirmMove").click();
   await expect.poll(() => page.evaluate(() => window.__moveIds.length === 2 && window.__moveIds[0] === window.__moveIds[1])).toBe(true);
-  await page.locator("[data-category-rename='1']").click();
+  await page.getByRole("button", { name: "باشقۇرۇش: رومانلار يېڭى" }).click();
+  await expect(page.locator("#bookCategoryRenameInput")).toHaveValue("رومانلار يېڭى");
   await page.locator("#bookCategoryRenameInput").fill("رومانلار باشقا");
   await page.locator("#bookCategoryRename").locator("button[type=submit]").click();
   await expect(page.locator("[data-category-source='romanlar.html']")).toContainText("رومانلار باشقا");
+  expect(await page.evaluate(() => {
+    const row = window.__categoryRows.find((item) => item.id === 1);
+    return row.slug + " " + row.source;
+  })).toBe("romanlar romanlar.html");
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("[data-admin-section='categories']").click();
   await expect(page.locator("[data-category-source='romanlar.html']")).toContainText("رومانلار باشقا");
+  await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
   await page.locator("[data-category-hide='2']").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toContainText("يوشۇرۇن");
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("[data-admin-section='categories']").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toContainText("يوشۇرۇن");
+  await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
   await page.locator("[data-category-hide='2']").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).not.toContainText("يوشۇرۇن");
+  await page.getByRole("button", { name: "باشقۇرۇش: ئۇنىۋېرسال" }).click();
   await page.evaluate(() => { window.__categoryBookError = true; });
-  await page.locator("#bookCategoryLoadUniversal").click();
+  await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("كىتاب تىزىمى يۈكلەنمىدى");
   await expect(page.locator("#bookCategoryUniversal")).not.toContainText("بۇ تۈردە كىتاب يوق");
   await page.evaluate(() => {
@@ -297,6 +324,51 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   expect(overflow).toBe(false);
   await page.keyboard.press("Tab");
   expect(page._categoryWrites.filter((entry) => /\/rest\/v1\/books|storage/.test(entry))).toEqual([]);
+});
+
+test("adding a category needs only its name and keeps that draft across a lost response", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.locator("#bookCategoryAdd").click();
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect(page.locator("#bookCategoryStatus")).toContainText("تۈر نامىنى كىرگۈزۈڭ");
+  await expect.poll(() => page.evaluate(() => window.__categoryCalls.filter((call) => call.name === "admin_create_book_category").length)).toBe(0);
+  await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
+  await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.evaluate(() => { window.__failCreateOnce = true; });
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
+  await expect(page.locator("#bookCategoryLabel")).toHaveValue("مەشھۇر شەخسلەر");
+  await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
+    return calls.length === 2
+      && calls[0].args.p_slug === "meshhur-shexsler"
+      && calls[1].args.p_slug === "meshhur-shexsler"
+      && calls[0].args.p_request_id === calls[1].args.p_request_id
+      && calls[0].args.p_summary === "قىسقىچە";
+  })).toBe(true);
+  await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
+  await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toContainText("مەشھۇر شەخسلەر");
+  await page.locator("#bookCategoryAdd").click();
+  await page.locator("#bookCategoryLabel").fill("يېڭى نام");
+  await page.getByRole("button", { name: "باشقۇرۇش: مەشھۇر شەخسلەر" }).click();
+  await expect(page.locator("#bookCategoryRenameInput")).toHaveValue("مەشھۇر شەخسلەر");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const control = page.locator("#bookCategoryAdd");
+  expect(await control.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+  await control.focus();
+  expect(await control.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBe(false);
+  await page.screenshot({ path: path.join(shotDir, "categories-simple-390-light.png"), fullPage: true });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: path.join(shotDir, "categories-simple-390-dark.png"), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: path.join(shotDir, "categories-simple-1280-dark.png"), fullPage: false });
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.screenshot({ path: path.join(shotDir, "categories-simple-1280-light.png"), fullPage: false });
 });
 
 test("a rendered category hydrates, filters, and paginates from its own source", async ({ page }) => {
