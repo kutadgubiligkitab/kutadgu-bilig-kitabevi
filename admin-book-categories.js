@@ -144,6 +144,14 @@
     if (fields.label) fields.label.disabled = !!locked;
     if (fields.summary) fields.summary.disabled = !!locked;
   }
+  function createSubmit() {
+    const form = $("#bookCategoryCreate");
+    return form ? form.querySelector("button[type=submit]") : null;
+  }
+  function lockCreateSubmission(locked) {
+    const button = createSubmit();
+    if (button) button.disabled = !!locked;
+  }
   function showPendingCreate() {
     const pending = state.pendingCreate;
     const fields = createFields();
@@ -151,6 +159,7 @@
     fields.label.value = pending.args.p_label;
     fields.summary.value = pending.args.p_summary;
     lockCreateFields(true);
+    lockCreateSubmission(state.busy);
   }
   async function call(name, args) {
     let result;
@@ -296,7 +305,7 @@
     return { key, id: state.attempts[key] };
   }
   async function mutate(name, args) {
-    if (state.busy) return false;
+    if (state.busy) return null;
     state.busy = true;
     state.lastCode = "";
     syncConfirm();
@@ -325,6 +334,7 @@
       return;
     }
     lockCreateFields(false);
+    lockCreateSubmission(false);
     const input = $("#bookCategoryLabel");
     if (input) input.focus();
   }
@@ -332,6 +342,7 @@
     state.pendingCreate = null;
     state.createDraft = null;
     lockCreateFields(false);
+    lockCreateSubmission(false);
     const form = $("#bookCategoryCreate");
     if (!form) return;
     form.reset();
@@ -355,24 +366,32 @@
   }
   async function createCategory(event) {
     event.preventDefault();
-    const prepared = state.pendingCreate ? { args: state.pendingCreate.args } : createArgs();
-    if (prepared.message) {
-      status(prepared.message, "err");
-      return;
+    if (state.busy) return;
+    if (!state.pendingCreate) {
+      const prepared = createArgs();
+      if (prepared.message) {
+        status(prepared.message, "err");
+        return;
+      }
+      const attempt = attemptFor("admin_create_book_category", prepared.args);
+      state.pendingCreate = { args: prepared.args, id: attempt.id };
     }
-    const ok = await mutate("admin_create_book_category", prepared.args);
+    showPendingCreate();
+    lockCreateSubmission(true);
+    const ok = await mutate("admin_create_book_category", state.pendingCreate.args);
+    if (ok == null) return;
     if (ok) {
       finishCreate();
       return;
     }
     if (!state.lastCode) {
-      if (!state.pendingCreate) state.pendingCreate = { args: prepared.args };
       showPendingCreate();
       status("تۈر مەشغۇلاتى تاماملانمىدى. ئوخشاش ئۇچۇر قايتا ئەۋەتىلىدۇ.", "err");
       return;
     }
     state.pendingCreate = null;
     lockCreateFields(false);
+    lockCreateSubmission(false);
     if (state.lastCode === "slug_in_use" && state.createDraft) {
       const used = state.rows.concat([{ slug: state.createDraft.slug }]);
       state.createDraft.slug = slugFor(state.createDraft.label, used);

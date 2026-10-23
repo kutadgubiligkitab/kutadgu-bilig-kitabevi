@@ -85,6 +85,15 @@ async function installDirectory(page) {
         if (name === "admin_create_book_category") {
           window.__lostCreateIds = window.__lostCreateIds || {};
           const existing = window.__categoryRows.find((row) => row.slug === args.p_slug);
+          if (window.__holdCommittedCreate && !existing) {
+            window.__holdCommittedCreate = false;
+            window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
+            remember();
+            window.__lostCreateIds[args.p_request_id] = true;
+            return await new Promise((resolve) => {
+              window.__releaseHeldCreate = () => resolve({ data: null, error: { message: "gateway" }, status: 502 });
+            });
+          }
           if (window.__commitThenLose && args.p_request_id && !window.__lostCreateIds[args.p_request_id]) {
             if (!existing) {
               window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
@@ -433,6 +442,62 @@ test("a committed create whose response was lost is retried with the original pa
       && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
   })).toBe(true);
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
+  await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toHaveCount(1);
+});
+
+test("an in-flight create keeps the original payload when save is pressed again", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.locator("#bookCategoryAdd").click();
+  await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
+  await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.evaluate(() => { window.__holdCommittedCreate = true; window.__lostCreateIds = {}; });
+  const submit = page.locator("#bookCategoryCreate").locator("button[type=submit]");
+  await submit.click();
+  await expect.poll(() => page.evaluate(() => window.__categoryCalls.filter((call) => call.name === "admin_create_book_category").length)).toBe(1);
+  await expect(page.locator("#bookCategoryLabel")).toBeDisabled();
+  await expect(page.locator("#bookCategorySummary")).toBeDisabled();
+  await expect(submit).toBeDisabled();
+  await page.evaluate(() => {
+    const summary = document.querySelector("#bookCategorySummary");
+    summary.value = "باشقا چۈشەندۈرۈش";
+    document.querySelector("#bookCategoryCreate").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
+    const pending = window.KutadguAdminBookCategories.state.pendingCreate;
+    return calls.length === 1
+      && calls[0].args.p_summary === "قىسقىچە"
+      && pending
+      && pending.args.p_summary === "قىسقىچە"
+      && pending.args.p_slug === "meshhur-shexsler"
+      && pending.id === calls[0].args.p_request_id
+      && window.__categoryRows.filter((row) => row.label === "مەشھۇر شەخسلەر").length === 1;
+  })).toBe(true);
+  await page.locator("#bookCategoryCreateCancel").click();
+  await page.locator("#bookCategoryAdd").click();
+  await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
+  await expect(page.locator("#bookCategorySummary")).toBeDisabled();
+  await expect(submit).toBeDisabled();
+  await page.evaluate(() => window.__releaseHeldCreate());
+  await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
+  await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
+  await expect(submit).toBeEnabled();
+  await page.evaluate(() => { document.querySelector("#bookCategorySummary").value = "يەنە بىر ئۆزگەرتىش"; });
+  await submit.click();
+  await expect.poll(() => page.evaluate(() => {
+    const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
+    const named = window.__categoryRows.filter((row) => row.label === "مەشھۇر شەخسلەر");
+    return calls.length === 2
+      && calls[0].args.p_request_id === calls[1].args.p_request_id
+      && calls[1].args.p_slug === "meshhur-shexsler"
+      && calls[1].args.p_summary === "قىسقىچە"
+      && calls[1].args.p_label === "مەشھۇر شەخسلەر"
+      && named.length === 1
+      && named[0].summary === "قىسقىچە"
+      && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
+  })).toBe(true);
   await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toHaveCount(1);
 });
 
