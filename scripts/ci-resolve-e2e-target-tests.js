@@ -29,10 +29,27 @@ test("failed CI scenario: empty env on pull_request does not select production",
   assert.strictEqual(T.isProductionOrigin(decision.url), false);
 });
 
-test("reachable Vercel preview wins on pull_request", () => {
+test("pull_request ignores a reachable Vercel preview unless preview testing is requested", () => {
   const preview = "https://kutadgu-bilig-kitab-abc-kutadgu-bilig-kitabhanisi.vercel.app";
   const decision = T.decideTarget({
     eventName: "pull_request",
+    previewOptIn: "",
+    previewUrl: preview,
+    baseUrl: "https://kutadgu-bilig-kitab.vercel.app",
+    vercelPreviewUrl: preview,
+    vercelReachable: true
+  });
+  assert.strictEqual(decision.url, T.LOCAL_ORIGIN);
+  assert.strictEqual(decision.source, "pr-checkout-static");
+  assert.strictEqual(decision.useLocalStatic, true);
+  assert.strictEqual(T.isProductionOrigin(decision.url), false);
+});
+
+test("opt-in reachable Vercel preview wins on pull_request", () => {
+  const preview = "https://kutadgu-bilig-kitab-abc-kutadgu-bilig-kitabhanisi.vercel.app";
+  const decision = T.decideTarget({
+    eventName: "pull_request",
+    previewOptIn: "1",
     previewUrl: "",
     baseUrl: "https://kutadgu-bilig-kitab.vercel.app",
     vercelPreviewUrl: preview,
@@ -43,10 +60,57 @@ test("reachable Vercel preview wins on pull_request", () => {
   assert.strictEqual(decision.useLocalStatic, false);
 });
 
+test("opt-in pull_request still refuses a production origin", () => {
+  const decision = T.decideTarget({
+    eventName: "pull_request",
+    previewOptIn: "1",
+    previewUrl: T.PRODUCTION,
+    baseUrl: T.PRODUCTION,
+    vercelPreviewUrl: "https://www.kutadgubilik.com",
+    vercelReachable: true
+  });
+  assert.strictEqual(decision.url, T.LOCAL_ORIGIN);
+  assert.strictEqual(decision.source, "pr-checkout-static");
+  assert.strictEqual(T.pullRequestRefusesProduction("pull_request", decision), false);
+  assert.strictEqual(T.pullRequestRefusesProduction("pull_request", { url: T.PRODUCTION }), true);
+});
+
+test("a normal pull_request does not wait for Vercel", () => {
+  assert.strictEqual(T.shouldWaitForVercelPreview({
+    eventName: "pull_request",
+    previewOptIn: "",
+    repo: "kutadgubiligkitab/kutadgu-bilig-kitabevi",
+    sha: "abc",
+    token: "token"
+  }), false);
+  assert.strictEqual(T.shouldWaitForVercelPreview({
+    eventName: "pull_request",
+    previewOptIn: "1",
+    repo: "kutadgubiligkitab/kutadgu-bilig-kitabevi",
+    sha: "abc",
+    token: "token"
+  }), true);
+  assert.strictEqual(T.shouldWaitForVercelPreview({
+    eventName: "pull_request",
+    previewOptIn: "1",
+    repo: "",
+    sha: "abc",
+    token: "token"
+  }), false);
+  assert.strictEqual(T.shouldWaitForVercelPreview({
+    eventName: "workflow_dispatch",
+    previewOptIn: "1",
+    repo: "kutadgubiligkitab/kutadgu-bilig-kitabevi",
+    sha: "abc",
+    token: "token"
+  }), false);
+});
+
 test("SSO/unreachability does not fall back to production", () => {
   const preview = "https://kutadgu-bilig-kitab-abc-kutadgu-bilig-kitabhanisi.vercel.app";
   const decision = T.decideTarget({
     eventName: "pull_request",
+    previewOptIn: "1",
     previewUrl: preview,
     baseUrl: "https://kutadgu-bilig-kitab.vercel.app",
     vercelPreviewUrl: preview,
@@ -54,16 +118,35 @@ test("SSO/unreachability does not fall back to production", () => {
   });
   assert.strictEqual(decision.url, T.LOCAL_ORIGIN);
   assert.strictEqual(decision.source, "pr-checkout-static");
+  assert.match(decision.note, /refusing production fallback/);
 });
 
-test("workflow_dispatch keeps production default", () => {
-  const decision = T.decideTarget({
+test("workflow_dispatch keeps preview, base URL, then production", () => {
+  const preview = "https://kutadgu-bilig-kitab-abc-kutadgu-bilig-kitabhanisi.vercel.app";
+  const withPreview = T.decideTarget({
     eventName: "workflow_dispatch",
+    previewOptIn: "1",
+    previewUrl: preview,
+    baseUrl: "https://example.test"
+  });
+  assert.strictEqual(withPreview.url, preview);
+  assert.strictEqual(withPreview.source, "env-preview");
+  const withBase = T.decideTarget({
+    eventName: "workflow_dispatch",
+    previewOptIn: "1",
+    previewUrl: "",
+    baseUrl: "https://example.test"
+  });
+  assert.strictEqual(withBase.url, "https://example.test");
+  assert.strictEqual(withBase.source, "env-base");
+  const production = T.decideTarget({
+    eventName: "workflow_dispatch",
+    previewOptIn: "1",
     previewUrl: "",
     baseUrl: ""
   });
-  assert.strictEqual(decision.url, T.PRODUCTION);
-  assert.strictEqual(decision.source, "production-default");
+  assert.strictEqual(production.url, T.PRODUCTION);
+  assert.strictEqual(production.source, "production-default");
 });
 
 test("pickPreviewFromStatuses ignores production and dashboard URLs", () => {
@@ -92,8 +175,20 @@ test("logTarget prints origin/host without secrets", () => {
 test("workflow no longer silently assigns production on pull_request", () => {
   const yml = require("fs").readFileSync(require("path").join(__dirname, "..", ".github/workflows/stage10-regression.yml"), "utf8");
   assert.match(yml, /ci-resolve-e2e-target\.js/);
+  assert.match(yml, /KUTADGU_E2E_PREVIEW/);
+  assert.match(yml, /fail-fast:\s*false/);
+  assert.match(yml, /--shard=\$\{\{ matrix\.shard \}\}\/2/);
+  assert.match(yml, /playwright-report-shard-/);
+  assert.match(yml, /ci-e2e-gate\.js check/);
+  assert.match(yml, /name: e2e\r?\n/);
+  assert.match(yml, /needs: e2e-shard\r?\n\s+if: always\(\)/);
+  assert.doesNotMatch(yml, /runs-on: (ubuntu-22\.04-4core|ubuntu-latest-4core|ubuntu-24\.04-4core|windows-|macos-)/);
+  assert.doesNotMatch(yml, /npx playwright test(?! --shard=)/);
   assert.doesNotMatch(yml, /Using production \(read-safe Playwright routes block catalog writes\)/);
   assert.doesNotMatch(yml, /KUTADGU_BASE_URL=https:\/\/kutadgu-bilig-kitab\.vercel\.app/);
+  const config = require("fs").readFileSync(require("path").join(__dirname, "..", "playwright.config.js"), "utf8");
+  assert.match(config, /retries: process\.env\.CI \? 1 : 0/);
+  assert.match(config, /workers: process\.env\.CI \? 2 : undefined/);
 });
 
 if (failed) process.exit(1);
