@@ -8,13 +8,22 @@ permissions:
   contents: read
   deployments: read
 
+# Normal pull requests use the checked-out candidate. Set the repository variable
+# KUTADGU_E2E_PREVIEW to 1 to wait for a Vercel preview on pull_request runs.
+# workflow_dispatch keeps its preview URL, base URL, or production default.
 jobs:
-  e2e:
+  e2e-shard:
+    name: e2e-shard
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     env:
       KUTADGU_PREVIEW_URL: ${{ vars.KUTADGU_PREVIEW_URL }}
       KUTADGU_BASE_URL: ${{ vars.KUTADGU_BASE_URL }}
+      KUTADGU_E2E_PREVIEW: ${{ vars.KUTADGU_E2E_PREVIEW }}
       KUTADGU_ADMIN_EMAIL: ${{ secrets.KUTADGU_ADMIN_EMAIL }}
       KUTADGU_ADMIN_PASSWORD: ${{ secrets.KUTADGU_ADMIN_PASSWORD }}
       KUTADGU_MEMBER_EMAIL: ${{ secrets.KUTADGU_MEMBER_EMAIL }}
@@ -46,12 +55,47 @@ jobs:
           done
           echo "[e2e-target] local checkout server failed to start" >&2
           exit 1
-      - run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: failure()
+      - name: Run Playwright shard
+        id: playwright
+        run: npx playwright test --shard=${{ matrix.shard }}/2
+      - name: Record shard result
+        if: always()
+        run: node scripts/ci-e2e-gate.js record --shard ${{ matrix.shard }} --total 2 --outcome "${{ steps.playwright.outcome }}"
+      - name: Upload shard result
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: e2e-shard-${{ matrix.shard }}-result
+          path: e2e-shard-result.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload shard failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
           path: |
             playwright-report
             test-results
           retention-days: 7
+          if-no-files-found: ignore
+
+  e2e:
+    name: e2e
+    needs: e2e-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download shard results
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-shard-*-result
+          path: shard-results
+      - name: Require every shard
+        env:
+          NEEDS_RESULT: ${{ needs.e2e-shard.result }}
+        run: node scripts/ci-e2e-gate.js check --dir shard-results --needs "$NEEDS_RESULT"

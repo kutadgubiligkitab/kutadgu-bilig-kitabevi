@@ -2,8 +2,9 @@
 "use strict";
 /**
  * Resolve the Stage 10 Playwright origin.
- * pull_request: never silently use production.
- * workflow_dispatch / local: keep the previous production default.
+ * pull_request: use the checked-out candidate. KUTADGU_E2E_PREVIEW=1 restores the Vercel wait.
+ * A pull_request never silently uses production.
+ * workflow_dispatch / local: keep the previous preview, base URL, or production default.
  */
 const fs = require("fs");
 
@@ -42,6 +43,17 @@ function pickPreviewFromStatuses(statuses) {
   return hit ? trimUrl(hit.environment_url || hit.target_url) : "";
 }
 
+function previewRequested(value) {
+  return String(value || "").trim() === "1";
+}
+
+function shouldWaitForVercelPreview(input) {
+  const eventName = String(input && input.eventName || "");
+  if (eventName !== "pull_request") return false;
+  if (!previewRequested(input && input.previewOptIn)) return false;
+  return !!(input && input.repo && input.sha && input.token);
+}
+
 function decideTarget(input) {
   const eventName = String(input && input.eventName || "");
   const explicitPreview = trimUrl(input && input.previewUrl);
@@ -49,12 +61,13 @@ function decideTarget(input) {
   const vercelPreviewUrl = trimUrl(input && input.vercelPreviewUrl);
   const vercelReachable = !!(input && input.vercelReachable);
   const localOrigin = trimUrl(input && input.localOrigin) || LOCAL_ORIGIN;
+  const previewOptIn = previewRequested(input && input.previewOptIn);
 
   if (eventName === "pull_request") {
-    if (vercelPreviewUrl && vercelReachable && !isProductionOrigin(vercelPreviewUrl)) {
+    if (previewOptIn && vercelPreviewUrl && vercelReachable && !isProductionOrigin(vercelPreviewUrl)) {
       return { ok: true, url: vercelPreviewUrl, source: "vercel-preview", useLocalStatic: false };
     }
-    if (explicitPreview && vercelReachable && !isProductionOrigin(explicitPreview)) {
+    if (previewOptIn && explicitPreview && vercelReachable && !isProductionOrigin(explicitPreview)) {
       return { ok: true, url: explicitPreview, source: "env-preview", useLocalStatic: false };
     }
     return {
@@ -62,7 +75,9 @@ function decideTarget(input) {
       url: localOrigin,
       source: "pr-checkout-static",
       useLocalStatic: true,
-      note: "Vercel Preview missing or not publicly reachable; refusing production fallback"
+      note: previewOptIn
+        ? "Vercel Preview missing or not publicly reachable; refusing production fallback"
+        : "pull_request uses the checked-out candidate; set KUTADGU_E2E_PREVIEW=1 to test a Vercel preview"
     };
   }
 
@@ -171,6 +186,10 @@ async function probePreview(url, bypassSecret) {
   }
 }
 
+function pullRequestRefusesProduction(eventName, decision) {
+  return String(eventName || "") === "pull_request" && isProductionOrigin(decision && decision.url);
+}
+
 function writeEnv(decision) {
   const githubEnv = process.env.GITHUB_ENV;
   if (!githubEnv) return;
@@ -189,15 +208,18 @@ async function main() {
   const sha = process.env.PR_HEAD_SHA || process.env.GITHUB_SHA || "";
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "";
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "";
+  const previewOptIn = String(process.env.KUTADGU_E2E_PREVIEW || "").trim();
   const extra = { eventName, commit: sha, vercelPreviewHost: "", vercelPreviewReachable: null, vercelPreviewReason: "" };
 
   let vercelPreviewUrl = "";
-  if (eventName === "pull_request" && repo && sha && token) {
+  if (shouldWaitForVercelPreview({ eventName, previewOptIn, repo, sha, token })) {
     const found = await waitForVercelPreview({ repo, sha, token });
     vercelPreviewUrl = found.url;
     extra.vercelPreviewReason = vercelPreviewUrl ? "found" : (found.error || "not-found");
-  } else if (eventName === "pull_request") {
+  } else if (eventName === "pull_request" && previewRequested(previewOptIn)) {
     extra.vercelPreviewReason = "missing-repo-sha-or-token";
+  } else if (eventName === "pull_request") {
+    extra.vercelPreviewReason = "preview-not-requested";
   }
 
   let vercelReachable = false;
@@ -211,6 +233,7 @@ async function main() {
 
   const decision = decideTarget({
     eventName,
+    previewOptIn,
     previewUrl: process.env.KUTADGU_PREVIEW_URL,
     baseUrl: process.env.KUTADGU_BASE_URL,
     vercelPreviewUrl,
@@ -218,7 +241,7 @@ async function main() {
     localOrigin: LOCAL_ORIGIN
   });
 
-  if (eventName === "pull_request" && isProductionOrigin(decision.url)) {
+  if (pullRequestRefusesProduction(eventName, decision)) {
     console.error(logTarget(decision, extra));
     console.error("[e2e-target] refusing to test production on pull_request");
     process.exit(1);
@@ -236,6 +259,9 @@ module.exports = {
   pickPreviewFromStatuses,
   decideTarget,
   logTarget,
+  previewRequested,
+  shouldWaitForVercelPreview,
+  pullRequestRefusesProduction,
   waitForVercelPreview,
   probePreview
 };
