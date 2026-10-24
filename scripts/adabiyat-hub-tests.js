@@ -30,9 +30,13 @@ assert.ok(start >= 0 && end > start, "adabiyat hub helpers must exist");
 const helpers = new Function(`${shop.slice(start, end)}; return {ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,normalizeSourceList};`)();
 
 test("sheirlar uses the shared woff2 face with ttf only as fallback", () => {
-  const face = /@font-face\s*\{[^}]*font-family:\s*"UKIJ CJK";[^}]*src:\s*url\("UKIJCJK\.woff2"\)\s*format\("woff2"\),\s*url\("UKIJCJK\.ttf"\)\s*format\("truetype"\);[^}]*font-display:\s*swap;[^}]*\}/;
-  assert.match(sheirlar, face);
-  assert.match(romanlar, face);
+  const primary = /@font-face\s*\{[^}]*font-family:\s*"UKIJ CJK";[^}]*src:\s*url\("UKIJCJK-primary\.woff2"\)\s*format\("woff2"\),\s*url\("UKIJCJK-primary\.ttf"\)\s*format\("truetype"\);[^}]*font-weight:\s*normal;[^}]*font-display:\s*swap;[^}]*unicode-range:[^}]+\}/;
+  const complementary = /@font-face\s*\{[^}]*font-family:\s*"UKIJ CJK";[^}]*src:\s*url\("UKIJCJK\.woff2"\)\s*format\("woff2"\),\s*url\("UKIJCJK\.ttf"\)\s*format\("truetype"\);[^}]*font-weight:\s*normal;[^}]*font-display:\s*swap;[^}]*unicode-range:[^}]+\}/;
+  assert.match(sheirlar, primary);
+  assert.match(sheirlar, complementary);
+  assert.match(romanlar, primary);
+  assert.match(romanlar, complementary);
+  assert.doesNotMatch(sheirlar, /rel="preload"[^>]+UKIJCJK\.woff2"/);
 });
 
 test("authoritative literature sources match the six dedicated listing files", () => {

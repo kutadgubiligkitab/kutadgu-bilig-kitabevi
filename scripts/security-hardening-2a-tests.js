@@ -150,6 +150,8 @@ test("specific no-store script rules win over the general css/js cache",()=>{
   });
   assert.strictEqual(cacheControl("/admin-idle.js"),storefront);
   assert.strictEqual(cacheControl("/UKIJCJK.woff2"),"public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800");
+  assert.strictEqual(cacheControl("/UKIJCJK-primary.woff2"),"public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800");
+  assert.strictEqual(cacheControl("/UKIJCJK-primary.ttf"),"public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800");
 });
 
 test("static-preview-server mirrors catch-all security headers including CSP Report-Only",()=>{

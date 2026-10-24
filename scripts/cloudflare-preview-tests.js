@@ -358,6 +358,9 @@ jobs.push(test("static homepage, books rewrite, cache headers, and 404 stay inta
   assert.strictEqual(idle.headers.get("Cache-Control"), headers.STOREFRONT_CODE);
   const font = await preview.dispatch(request("http://127.0.0.1:8787/UKIJCJK.woff2"), {}, deps);
   assert.strictEqual(font.headers.get("Cache-Control"), headers.LONG_ASSET);
+  const primaryFont = await preview.dispatch(request("http://127.0.0.1:8787/UKIJCJK-primary.woff2"), {}, deps);
+  assert.strictEqual(primaryFont.status, 200);
+  assert.strictEqual(primaryFont.headers.get("Cache-Control"), headers.LONG_ASSET);
   const missing = await preview.dispatch(request("http://127.0.0.1:8787/missing-page"), {}, deps);
   assert.strictEqual(missing.status, 503);
   assert.notStrictEqual(await missing.text(), "not found");
