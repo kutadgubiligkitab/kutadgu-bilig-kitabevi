@@ -57,7 +57,7 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /mobile\.css\?v=26/);
   assert.match(html, /shop\.js\?v=148/);
   assert.match(html, /kutadgu-search-rank\.js\?v=1/);
-  assert.match(html, /mobile\.js\?v=9/);
+  assert.match(html, /mobile\.js\?v=10/);
   assert.match(html, /public-header\.js\?v=2/);
   assert.match(html, /stage3-shop-identity\.css\?v=6/);
   assert.match(html, /home-hero-slideshow\.js\?v=4/);
@@ -66,7 +66,7 @@ test("homepage assets bumped; real shop hero photos replace the CSS scene", () =
   assert.match(html, /assets\/store\/shop-exterior\.webp/);
   assert.doesNotMatch(html, /class="bookstore-scene"/);
   assert.doesNotMatch(html, /srcset="hero-brand-logo\.webp"/);
-  assert.match(html, /srcset="\/kutadgu-logo\.webp"/);
+  assert.match(html, /srcset="\/kutadgu-logo-128\.webp"/);
 });
 
 test("carousel opens the first enabled mode that has books", () => {

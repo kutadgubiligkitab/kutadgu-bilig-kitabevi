@@ -11,8 +11,13 @@
   "theme_color": "#4b3327",
   "icons": [
     {
-      "src": "/kutadgu-logo.png",
-      "sizes": "any",
+      "src": "/kutadgu-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/kutadgu-icon-512.png",
+      "sizes": "512x512",
       "type": "image/png"
     }
   ]

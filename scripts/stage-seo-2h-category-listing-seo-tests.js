@@ -10,7 +10,11 @@ const root = path.join(__dirname, "..");
 const sitemap = require("../kutadgu-sitemap.js");
 const seo = require("../kutadgu-book-seo.js");
 
-const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
+const ICONS = [
+  '<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">',
+  '<link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">',
+  '<link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">'
+];
 const LIT_CHILDREN = [
   "romanlar",
   "tarikhiy-romanlar",
@@ -31,8 +35,8 @@ const FROZEN = {
   "api/ai-search.js": "fc348f57a3b85bd2699164fbf300b28a4292b7c5c2240f3065446e486f532147",
   "kutadgu-book-seo.js": "c711ddb3f14b15c302f7b82e71276d1a865cd74118530837fe309ec442154a2d",
   "api/book-public.js": "95ad0b3468e160f5f8571d8ed838b61d917bb08c77991ce47062c9c96860df57",
-  "book-shell.html": "25415203a847e17234ea5403dd374899632f146e6f667b2bbaa610a24ce908fc",
-  "index.html": "3c8a0af7ceab5806ebaad828153a18b0349025c900be90b1de9000689f2c9c75",
+  "book-shell.html": "ac77fdb9ce83b4df0b37207a0978b4c8d23c5798e4e55bdc6f52f7c09a5baf3c",
+  "index.html": "cf8f6359258cf6539fd7b33818e24ead24fa92624ad303815b44ff9a4c39244e",
   "home-hero-content.js": "321456761d14ebc084304539d81dc24e666a637e488e3e8014491c937dce064a",
   "vercel.json": "74c6400d2e60e1c2daa94c52692d5f51319dfe313600cef36095c3902aa4c585",
   "kutadgu-logo.png": "ca0afbb2b5f4a7552073520c13215cfbf4254eb5a81eca7ac0b53b10f6e777c9"
@@ -155,8 +159,8 @@ HUBS.forEach((slug) => {
       `https://www.kutadgubilik.com/${slug}`
     );
     assert.match(html, /<meta name="robots" content="index, follow"/);
-    assert.strictEqual(count(html, /rel=["']icon["']/gi), 1);
-    assert.ok(html.includes(ICON), "exact favicon tag");
+    assert.strictEqual(count(html, /rel=["']icon["']/gi), 2);
+    assert.ok(ICONS.every((tag) => html.includes(tag)), "exact favicon tags");
     const title = attr(html, /<title>([\s\S]*?)<\/title>/);
     const oldTitle = attr(old, /<title>([\s\S]*?)<\/title>/);
     const description = attr(html, /<meta name="description" content="([^"]*)"/);
@@ -233,8 +237,8 @@ test("/books public global listing gets first-byte favicon and intro without bec
     "https://www.kutadgubilik.com/books"
   );
   assert.match(html, /<meta name="robots" content="index, follow"/);
-  assert.strictEqual(count(html, /rel=["']icon["']/gi), 1);
-  assert.ok(html.includes(ICON), "exact favicon tag");
+  assert.strictEqual(count(html, /rel=["']icon["']/gi), 2);
+  assert.ok(ICONS.every((tag) => html.includes(tag)), "exact favicon tags");
   assert.strictEqual(attr(html, /<title>([\s\S]*?)<\/title>/), attr(old, /<title>([\s\S]*?)<\/title>/));
   assert.strictEqual(
     attr(html, /<meta name="description" content="([^"]*)"/),
@@ -834,7 +838,25 @@ test("protected product files stay frozen and out of this diff", () => {
     "scripts/catalog-search-state-tests.js",
     "tests/e2e/catalog-search-failure.spec.js",
     "tests/e2e/member-last-visit.spec.js",
-    "tests/e2e/admin-member-last-visit.spec.js"
+    "tests/e2e/admin-member-last-visit.spec.js",
+    "favicon.ico",
+    "kutadgu-favicon-32.png",
+    "kutadgu-apple-touch-icon.png",
+    "kutadgu-icon-192.png",
+    "kutadgu-icon-512.png",
+    "kutadgu-logo-128.png",
+    "kutadgu-logo-128.webp",
+    "public-header.js",
+    "mobile.js",
+    "cloudflare/preview-dispatch.js",
+    "PROJECT-RECOVERY.md",
+    "scripts/public-header-tests.js",
+    "scripts/homepage-compact-ux-tests.js",
+    "scripts/homepage-title-root-url-tests.js",
+    "scripts/book-detail-google-entry-tests.js",
+    "tests/e2e/instagram-header-flow.spec.js",
+    "404.html",
+    "admin-quality-preview.html"
   ]);
   const unexpected = files.filter((file) => !allowed.has(file) && !file.startsWith(".vercel/"));
   assert.deepStrictEqual(unexpected, [], unexpected.join(", "));

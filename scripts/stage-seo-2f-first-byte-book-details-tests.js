@@ -11,7 +11,11 @@ const publicBook = require("../kutadgu-public-book.js");
 const seo = require("../kutadgu-book-seo.js");
 const handler = require("../api/book-public.js");
 
-const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
+const ICONS = [
+  '<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">',
+  '<link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">',
+  '<link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">'
+];
 const META_LABELS = [
   "ئاپتورى",
   "تەرجىمە قىلغۇچى",
@@ -257,8 +261,8 @@ async function run() {
     assert.match(withDesc.body, /alt="تارىخىمىزدىكى خاقانلار كىتاب مۇقاۋىسى"/);
     assert.match(withDesc.body, /<section class="dynamic-book-description">/);
     assert.match(withDesc.body, /<p>تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش\.<\/p>/);
-    assert.ok(withDesc.body.includes(ICON));
-    assert.strictEqual((withDesc.body.match(/rel=["']icon["']/gi) || []).length, 1);
+    assert.ok(ICONS.every((tag) => withDesc.body.includes(tag)));
+    assert.strictEqual((withDesc.body.match(/rel=["']icon["']/gi) || []).length, 2);
 
     const noDesc = await invoke("/book/217", async () => jsonResponse(200, [sampleBook({ description: "" })]));
     assert.match(noDesc.body, /<section class="dynamic-book-description" hidden>/);

@@ -229,7 +229,7 @@
     const brand = document.createElement("a");
     brand.className = "mobile-site-brand";
     brand.href = "/";
-    brand.innerHTML = `<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo.webp"><img src="/kutadgu-logo.png" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32" decoding="async"></picture><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
+    brand.innerHTML = `<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo-128.webp"><img src="/kutadgu-logo-128.png" alt="قۇتادغۇبىلىك لوگوسى" width="32" height="32" decoding="async"></picture><span>قۇتادغۇبىلىك كىتابخانىسى</span>`;
     const menu = buildMenu();
     header.append(brand, menu);
     document.body.prepend(header);

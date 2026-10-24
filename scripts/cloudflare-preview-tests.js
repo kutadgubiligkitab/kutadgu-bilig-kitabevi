@@ -1253,9 +1253,25 @@ jobs.push(test("web app manifest stays a same-origin asset", async () => {
   assert.strictEqual(parsed.start_url, "/");
   assert.strictEqual(parsed.scope, "/");
   assert.strictEqual(parsed.display, "standalone");
-  assert.strictEqual(parsed.icons[0].sizes, "any");
-  assert.strictEqual(parsed.icons[0].type, "image/png");
-  assert.strictEqual(parsed.icons[0].src, "/kutadgu-logo.png");
+  assert.deepStrictEqual(parsed.icons, [
+    { src: "/kutadgu-icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/kutadgu-icon-512.png", sizes: "512x512", type: "image/png" }
+  ]);
+  assert.ok(!/maskable/.test(text));
+}));
+
+jobs.push(test("favicon ico is a same-origin image", async () => {
+  assert.strictEqual(preview.classifyPath("/favicon.ico", "").kind, "asset");
+  const deps = baseDeps(async () => {
+    throw new Error("favicon does not call upstream");
+  });
+  const response = await preview.dispatch(request("http://127.0.0.1:8787/favicon.ico"), {}, deps);
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(response.headers.get("content-type"), "image/x-icon");
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert.strictEqual(bytes.readUInt16LE(0), 0);
+  assert.strictEqual(bytes.readUInt16LE(2), 1);
+  assert.strictEqual(bytes.readUInt16LE(4), 3);
 }));
 
 jobs.push(test("managed category documents, hidden links, and the served sitemap use the worker", async () => {

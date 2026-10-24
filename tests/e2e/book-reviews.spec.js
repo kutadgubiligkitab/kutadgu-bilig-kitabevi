@@ -1379,7 +1379,7 @@ test("a warm cached header delivers the member bell on the first navigation", as
   blob.update(oldHeaderBuffer);
   expect(blob.digest("hex")).toBe("460793eb0974f59e7fa5cc02b4e30298ad6d1b0b");
   expect(oldHeader).not.toContain("ensureReviewNotices");
-  const hits = { v3: 0, v4: 0, notes: [] };
+  const hits = { v3: 0, v4: 0, v5: 0, v6: 0, notes: [] };
   const fixture = "<!doctype html><html lang=\"ug\" dir=\"rtl\"><head><title>fixture</title></head><body><a class=\"member-account-button\" href=\"/account.html\">كىرىش</a><script src=\"/public-header.js?v=3\"></script></body></html>";
   const origin = await new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -1401,6 +1401,8 @@ test("a warm cached header delivers the member bell on the first navigation", as
         return;
       }
       if (url.pathname === "/public-header.js" && url.searchParams.get("v") === "4") hits.v4 += 1;
+      if (url.pathname === "/public-header.js" && url.searchParams.get("v") === "5") hits.v5 += 1;
+      if (url.pathname === "/public-header.js" && url.searchParams.get("v") === "6") hits.v6 += 1;
       const proxy = http.request({
         hostname: "127.0.0.1",
         port: 4173,
@@ -1432,7 +1434,9 @@ test("a warm cached header delivers the member bell on the first navigation", as
     expect(cached.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     await expect(page.locator("script[src*='book-reviews.js']")).toHaveCount(0);
     await page.goto(origin.origin + "/account.html", { waitUntil: "domcontentloaded" });
-    expect(hits.v4).toBe(1);
+    expect(hits.v6).toBe(1);
+    expect(hits.v5).toBe(0);
+    expect(hits.v4).toBe(0);
     expect(hits.v3).toBe(1);
     await page.waitForFunction(() => window.KutadguBookReviews && window.KutadguMember);
     await page.evaluate((memberId) => {

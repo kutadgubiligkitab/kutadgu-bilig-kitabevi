@@ -57,11 +57,10 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
   expect(data.display).toBe("standalone");
   expect(data.lang).toBe("ug");
   expect(data.dir).toBe("rtl");
-  expect(data.icons).toEqual([{
-    src: "/kutadgu-logo.png",
-    sizes: "any",
-    type: "image/png"
-  }]);
+  expect(data.icons).toEqual([
+    { src: "/kutadgu-icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/kutadgu-icon-512.png", sizes: "512x512", type: "image/png" }
+  ]);
   const app = parsed.manifest;
   expect(app.name).toBe(NAME);
   expect(app.id).toBe(new URL("/", page.url()).href);
@@ -69,36 +68,46 @@ test("ordinary tab parses the manifest and keeps storefront navigation online", 
   expect(app.scope).toBe(new URL("/", page.url()).href);
   expect(app.display).toBe("kStandalone");
   expect(app.orientation).toBe("DEFAULT");
-  expect(app.icons).toEqual([{
-    url: new URL("/kutadgu-logo.png", page.url()).href,
-    sizes: "0x0",
-    type: "image/png"
-  }]);
+  expect(app.icons).toEqual([
+    { url: new URL("/kutadgu-icon-192.png", page.url()).href, sizes: "192x192", type: "image/png" },
+    { url: new URL("/kutadgu-icon-512.png", page.url()).href, sizes: "512x512", type: "image/png" }
+  ]);
   const icon = await page.evaluate(async () => {
-    const response = await fetch("/kutadgu-logo.png");
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const view = new DataView(bytes.buffer);
-    const image = new Image();
-    const url = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
-    const dimensions = await new Promise((resolve, reject) => {
-      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-      image.onerror = () => reject(new Error("logo failed to decode"));
-      image.src = url;
-    });
-    URL.revokeObjectURL(url);
+    async function readPng(href) {
+      const response = await fetch(href);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const view = new DataView(bytes.buffer);
+      const image = new Image();
+      const url = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
+      const dimensions = await new Promise((resolve, reject) => {
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = () => reject(new Error(href + " failed to decode"));
+        image.src = url;
+      });
+      URL.revokeObjectURL(url);
+      return {
+        type: response.headers.get("content-type"),
+        ihdr: String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]),
+        width: view.getUint32(16),
+        height: view.getUint32(20),
+        decoded: dimensions
+      };
+    }
     return {
-      type: response.headers.get("content-type"),
-      ihdr: String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]),
-      width: view.getUint32(16),
-      height: view.getUint32(20),
-      decoded: dimensions
+      original: await readPng("/kutadgu-logo.png"),
+      icon192: await readPng("/kutadgu-icon-192.png"),
+      icon512: await readPng("/kutadgu-icon-512.png")
     };
   });
-  expect(icon.type).toContain("image/png");
-  expect(icon.ihdr).toBe("IHDR");
-  expect(icon.width).toBe(1254);
-  expect(icon.height).toBe(1254);
-  expect(icon.decoded).toEqual({ width: 1254, height: 1254 });
+  for (const entry of [icon.original, icon.icon192, icon.icon512]) {
+    expect(entry.type).toContain("image/png");
+    expect(entry.ihdr).toBe("IHDR");
+    expect(entry.decoded).toEqual({ width: entry.width, height: entry.height });
+  }
+  expect(icon.original.width).toBe(1254);
+  expect(icon.original.height).toBe(1254);
+  expect(icon.icon192.width).toBe(192);
+  expect(icon.icon512.width).toBe(512);
 
   const workers = await page.evaluate(async () => ({
     registrations: navigator.serviceWorker ? (await navigator.serviceWorker.getRegistrations()).length : 0,
