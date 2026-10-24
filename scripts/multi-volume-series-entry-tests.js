@@ -108,6 +108,20 @@ assert.match(gallerySql, /jsonb_array_length\(gallery_images\) <= 4/);
 const seriesInsert = sql.slice(sql.indexOf("INSERT INTO public.books"), sql.indexOf("RETURNING id"));
 assert.doesNotMatch(seriesInsert, /gallery_images/);
 
+const repair = fs.readFileSync(path.join(root, "STAGE133_BOOK_VOLUME_SERIES_CREATE_SCHEMA.sql"), "utf8");
+const repairInsert = repair.slice(repair.indexOf("INSERT INTO public.books"), repair.indexOf("RETURNING id"));
+assert.match(repair, /Admin AAL2 required/);
+assert.match(repair, /book_volume_series_requests/);
+assert.match(repair, /submission_status/);
+assert.match(repair, /series_draft/);
+assert.match(repair, /publish_year/);
+assert.match(repair, /pages/);
+assert.match(repairInsert, /isbn/);
+assert.match(repairInsert, /publish_year, pages/);
+assert.doesNotMatch(repair, /\bhref\b|\blanguage\b|\bpublish_date\b/);
+assert.doesNotMatch(repairInsert, /''\s*,\s*''/);
+assert.match(repair, /GRANT EXECUTE ON FUNCTION public\.admin_create_book_volume_series\(uuid, jsonb\) TO authenticated/);
+
 const failed = groups.seriesUserError({ message: "series_create_failed", code: "P0001" });
 assert.strictEqual(failed.message, "يۈرۈشلۈك ساقلانمىدى. قايتا سىناڭ.");
 assert.ok(!failed.message.includes("series_create_failed"));
