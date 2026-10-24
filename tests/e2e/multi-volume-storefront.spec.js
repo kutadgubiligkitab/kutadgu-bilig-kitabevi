@@ -95,6 +95,16 @@ async function openVolumeEditor(page, existing) {
           if(!same)return {data:null,error:{message:"idempotency_payload_mismatch",code:"23505",details:null,hint:null},status:409,statusText:"Conflict"};
           return {data:seriesResult(true)};
         }
+        if(window.__seriesSqlstate){
+          const code=window.__seriesSqlstate;
+          window.__seriesSqlstate="";
+          return {data:null,error:{message:'column "href" of relation "books" does not exist',code,details:null,hint:null},status:400,statusText:"Bad Request"};
+        }
+        if(window.__seriesSqlstate){
+          const code=window.__seriesSqlstate;
+          window.__seriesSqlstate="";
+          return {data:null,error:{message:'column "href" of relation "books" does not exist',code,details:null,hint:null},status:400,statusText:"Bad Request"};
+        }
         if(window.__seriesCreateFails){window.__seriesCreateFails-=1;return {data:null,error:{message:"series_create_failed",code:"P0001",details:null,hint:null},status:400,statusText:"Bad Request"};}
         return {data:seriesResult(false)};
       }
@@ -680,6 +690,80 @@ test.describe("plain-language multi-volume admin editor",()=>{
     expect(second.galleries[0].gallery_images).toHaveLength(4);
     expect(second.saves).toHaveLength(2);
     expect(second.saves[1].p_payload).toEqual(second.saves[0].p_payload);
+  });
+
+  test("SQLSTATE 42703 keeps the typed draft and selected files",async({page})=>{
+    await openVolumeEditor(page);
+    await page.evaluate(()=>{
+      window.__seriesSqlstate="42703";
+      window.__seriesUploads=0;
+      window.__kutadguDiscardedSeriesCovers=[];
+      window.__kutadguGalleryUploads=[];
+      window.__kutadguPersistedGalleries=[];
+      const upload=window.kutadguUploadSeriesPartCover;
+      window.kutadguUploadSeriesPartCover=async(requestId,position,file)=>{
+        window.__seriesUploads+=1;
+        return upload(requestId,position,file);
+      };
+    });
+    await page.locator("#showVolumeSeriesBtn").click();
+    const tinyPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==","base64");
+    await page.locator("#volumeSeriesTitle").fill("ئويغانغان زېمىن");
+    await page.locator("#volumeSeriesCategory").fill("تارىخىي رومانلار");
+    await page.locator("#volumeSeriesSetPrice").fill("750.75");
+    const parts=page.locator(".volume-series-part");
+    await parts.nth(0).locator("summary").click();
+    await parts.nth(1).locator("summary").click();
+    await parts.nth(0).locator("[data-series-isbn]").fill("");
+    await parts.nth(1).locator("[data-series-isbn]").fill("9781234567890");
+    for(const index of [0,1]){
+      await parts.nth(index).locator("[data-series-price]").fill(index?"0.25":"370.50");
+      await parts.nth(index).locator("[data-series-stock]").fill(index?"0":"8");
+      await parts.nth(index).locator("[data-series-cover]").setInputFiles({name:`kept-${index+1}.png`,mimeType:"image/png",buffer:tinyPng});
+    }
+    await parts.nth(0).locator("[data-series-pages-input]").setInputFiles({name:"inside-kept.png",mimeType:"image/png",buffer:tinyPng});
+    const requestId=await page.locator("#volumeSeriesRequestId").inputValue();
+    await page.locator('#volumeSeriesForm button[type="submit"]').click();
+    await expect(page.locator("#volumeSeriesStatus")).toContainText("يۈرۈشلۈك ساقلانمىدى");
+    await expect(page.locator("#volumeSeriesStatus")).not.toContainText("href");
+    expect(await page.locator("#volumeSeriesTitle").inputValue()).toBe("ئويغانغان زېمىن");
+    expect(await page.locator("#volumeSeriesSetPrice").inputValue()).toBe("750.75");
+    expect(await parts.nth(0).locator("[data-series-price]").inputValue()).toBe("370.50");
+    expect(await parts.nth(1).locator("[data-series-price]").inputValue()).toBe("0.25");
+    expect(await parts.nth(0).locator("[data-series-stock]").inputValue()).toBe("8");
+    expect(await parts.nth(1).locator("[data-series-stock]").inputValue()).toBe("0");
+    expect(await parts.nth(1).locator("[data-series-isbn]").inputValue()).toBe("9781234567890");
+    await expect(parts.nth(0).locator("[data-series-cover-status]")).toContainText("kept-1.png");
+    await expect(parts.nth(1).locator("[data-series-cover-status]")).toContainText("kept-2.png");
+    await expect(parts.nth(0).locator(".volume-series-page")).toHaveCount(1);
+    const kept=await page.evaluate(()=>({
+      files:Array.from(document.querySelectorAll(".volume-series-part")).map(row=>row._coverFile&&row._coverFile.name),
+      pages:document.querySelectorAll(".volume-series-page").length,
+      discarded:(window.__kutadguDiscardedSeriesCovers||[]).length,
+      interiors:(window.__kutadguGalleryUploads||[]).length
+    }));
+    expect(kept.files).toEqual(["kept-1.png","kept-2.png"]);
+    expect(kept.pages).toBe(1);
+    expect(kept.discarded).toBe(2);
+    expect(kept.interiors).toBe(0);
+    expect(await page.locator("#volumeSeriesRequestId").inputValue()).toBe(requestId);
+    await page.locator('#volumeSeriesForm button[type="submit"]').click();
+    await expect(page.locator("#volumeSeriesStatus")).toContainText("ساقلاندى");
+    const retry=await page.evaluate(()=>({
+      covers:window.__seriesUploads,
+      uploads:(window.__kutadguGalleryUploads||[]).map(item=>({bookId:item.bookId,name:item.name})),
+      galleries:window.__kutadguPersistedGalleries||[],
+      calls:window.__volumeEditorCalls.filter(call=>call.name==="admin_create_book_volume_series").map(call=>call.args.p_payload)
+    }));
+    expect(retry.covers).toBe(4);
+    expect(retry.calls).toHaveLength(2);
+    expect(retry.calls[1].title).toBe("ئويغانغان زېمىن");
+    expect(retry.calls[1].complete_set_price).toBe(750.75);
+    expect(retry.calls[1].parts.map(part=>part.price)).toEqual([370.5,0.25]);
+    expect(retry.calls[1].parts.map(part=>part.stock)).toEqual([8,0]);
+    expect(retry.calls[1].parts.map(part=>part.isbn)).toEqual(["","9781234567890"]);
+    expect(retry.uploads).toEqual([{bookId:"900",name:"inside-kept.png"}]);
+    expect(retry.galleries.map(item=>item.bookId)).toEqual(["900"]);
   });
 
   test("a lost response keeps original interiors after the form is edited",async({page})=>{
