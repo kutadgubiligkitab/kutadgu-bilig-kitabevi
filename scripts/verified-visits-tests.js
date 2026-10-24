@@ -365,7 +365,13 @@ async function proof(env, fetchImpl, token, extra) {
   assert.ok(!JSON.stringify(configBody).includes(TURNSTILE));
   assert.ok(!JSON.stringify(configBody).includes(SIGNING));
 
-  assert.match(require("fs").readFileSync(require("path").join(__dirname, "..", "visit-proof.js"), "utf8"), /زىيارەت سانىنى دەلىللەش/);
+  const visitClient = require("fs").readFileSync(require("path").join(__dirname, "..", "visit-proof.js"), "utf8");
+  assert.match(visitClient, /زىيارەت سانىنى دەلىللەش/);
+  assert.doesNotMatch(visitClient, /position:\s*fixed/);
+  assert.match(visitClient, /appearance:"interaction-only"/);
+  assert.match(visitClient, /retry:"never"/);
+  assert.match(visitClient, /size:"normal"/);
+  assert.match(require("fs").readFileSync(require("path").join(__dirname, "..", "analytics.js"), "utf8"), /visit-proof\.js\?v=4/);
   assert.doesNotMatch(require("fs").readFileSync(require("path").join(__dirname, "..", "analytics.js"), "utf8"), /remoteTrack\("page_view"/);
   console.log("verified visits worker: PASS (mocked siteverify)");
 })().catch((err) => {

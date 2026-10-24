@@ -167,7 +167,7 @@
   window.KutadguAnalytics={...(window.KutadguAnalytics||{}),__remoteReady:true,track:remoteTrack};
   if(document.head&&typeof document.createElement==="function"){
     const proof=document.createElement("script");
-    proof.src="/visit-proof.js?v=2";
+    proof.src="/visit-proof.js?v=4";
     proof.defer=true;
     document.head.appendChild(proof);
   }
