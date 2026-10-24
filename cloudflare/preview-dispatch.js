@@ -245,6 +245,13 @@ async function finishAsset(request, env, deps, filePath, statusOverride) {
   });
 }
 
+async function brandedNotFound(request, env, deps) {
+  const missing = await finishAsset(request, env, deps, "/404.html", 404);
+  const outHeaders = new Headers(missing.headers);
+  outHeaders.set("Cache-Control", "no-store");
+  return new Response(missing.body, { status: 404, headers: outHeaders });
+}
+
 async function handleBook(request, env, deps) {
   const method = String(request.method || "GET").toUpperCase();
   const publicBook = deps.publicBook;
@@ -392,12 +399,7 @@ async function handleDynamicCategory(request, env, deps, slug) {
   const redirect = await categoryRedirect(request, env, deps, slug);
   if (redirect) return redirect;
   const category = directCategory(directory, slug);
-  if (!category) {
-    return textResponse(404, method === "HEAD" ? null : "not found", env, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store"
-    }, undefined, hostOf(request));
-  }
+  if (!category) return brandedNotFound(request, env, deps);
   const templateResponse = await readAsset(request, env, deps, "/universal.html");
   const template = templateResponse && templateResponse.status === 200 ? await templateResponse.text() : "";
   if (!template) {

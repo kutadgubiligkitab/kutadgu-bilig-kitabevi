@@ -4,13 +4,19 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-Current `origin/main` is `84c61e0a7269cef10cbbf9bdf81748027939f905`, the PR #316 merge. Production Worker version `c2f90f0d-ee93-492b-98bc-9190a6947d11` serves it. The selection summary and mobile-navigation change below is unreleased and does not move the baseline.
+Current `origin/main` is `f6503034a42ba5a88b053779395f5300f13eecc8`, the PR #317 merge. Production Worker version `08d48308-356f-48f2-ba00-4dea8221c05f` serves it. That merge is the released runtime baseline. The branded missing-category 404 below is a draft and does not move it.
 
-## Selected parts and mobile navigation — unreleased
+## Branded missing-category 404 — draft
+
+An unknown single-segment extensionless path whose category directory loads and contains no match serves the existing `/404.html` at that URL. The status stays HTTP 404, the body is the branded page, and the cache is `no-store`. A directory outage stays HTTP 503. Valid, hidden, and retired categories stay on their existing routes. This draft does not change `assets.not_found_handling`. The 404 card keeps its layout. `body` uses `border-box`, so the existing padding stays inside `100vh` and the short page does not gain a scrollbar at 390×844 or 1280×900.
+
+## Selected parts and mobile navigation — released PR #317
 
 The purchase summary shows the checked count and the total of those parts, and it updates when a box changes. The cover still follows the part just checked. The full-set price stays in its own place, so an explicit 750 is not shown as a 769 selection. A genuine zero stays zero. A missing selected price stays missing instead of a partial sum. Cart, quotes, stock, and the initial checked part stay as they are.
 
-Storefront pages use `viewport-fit=cover` and `mobile.css?v=28`. The shared bottom navigation keeps one safe-area inset. Its bar and links use `border-box`, so the same padding stays inside the same height on the homepage, catalog, book shell, cart, favorites, and account pages. The changed pins are `shop.js?v=180` and `shop.css?v=60`. Historical shop cache fixtures stay. The tested branch is `cursor/selection-and-nav`. The tested head is the commit that records this paragraph.
+Storefront pages use `viewport-fit=cover` and `mobile.css?v=28`. The shared bottom navigation keeps one safe-area inset. Its bar and links use `border-box`, so the same padding stays inside the same height on the homepage, catalog, book shell, cart, favorites, and account pages. The changed pins are `shop.js?v=180` and `shop.css?v=60`. Historical shop cache fixtures stay.
+
+PR #317 merged through the normal merge path. The reviewed head stayed `b99a23a27230edb05b3c685758168fec529753f9`. Stage 10 run [40074143145](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/40074143145) succeeded on that head and was reused. It was not restarted. 1176 passed, 5 skipped, and 1 flaky. The flaky test was the narrow dark gift-carousel invitation; it passed on retry #1. The merge commit is `f6503034a42ba5a88b053779395f5300f13eecc8`. Its parents are `84c61e0a7269cef10cbbf9bdf81748027939f905` and `b99a23a27230edb05b3c685758168fec529753f9`. Its tree is `b48951d4cf86a8710a1c4bff0a18d0aab9bc7ed0`. Immediately before deployment, traffic was 100% on version `c2f90f0d-ee93-492b-98bc-9190a6947d11`, deployment `23719ce9-bef9-42b3-a57a-3ca757875580`, created 2026-10-24T02:36:13.666364Z. That is the rollback target. `wrangler deploy --env production --keep-vars` from a clean checkout created version `08d48308-356f-48f2-ba00-4dea8221c05f`, deployment `ed2f4646-daf3-40f8-bd9c-5d35e0b63fc7`, at 100%, created 2026-10-24T08:03:16.943854Z. No SQL was applied.
 
 ## Multi-volume presentation — released PR #316
 

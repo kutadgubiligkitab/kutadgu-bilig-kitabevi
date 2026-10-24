@@ -368,7 +368,15 @@ jobs.push(test("static homepage, books rewrite, cache headers, and 404 stay inta
     return catalogFetch("ok")(url);
   }));
   assert.strictEqual(absent.status, 404);
-  assert.strictEqual(await absent.text(), "not found");
+  assert.match(absent.headers.get("Content-Type"), /^text\/html;\s*charset=utf-8$/i);
+  assert.strictEqual(absent.headers.get("Cache-Control"), "no-store");
+  assert.strictEqual(absent.headers.get("Location"), null);
+  const absentHtml = await absent.text();
+  assert.match(absentHtml, /dir="rtl"/);
+  assert.match(absentHtml, /noindex/i);
+  assert.match(absentHtml, /بۇ بەت تېپىلمىدى/);
+  assert.match(absentHtml, /href="\/"/);
+  assert.notStrictEqual(absentHtml.trim(), "not found");
   const posted = await preview.dispatch(request("http://127.0.0.1:8787/", "POST"), {}, deps);
   assert.strictEqual(posted.status, 405);
   const head = await preview.dispatch(request("http://127.0.0.1:8787/", "HEAD"), {}, deps);
@@ -1303,6 +1311,7 @@ jobs.push(test("managed category documents, hidden links, and the served sitemap
   assert.ok(hiddenHtml.includes('data-catalog-source="yoshurun.html"'));
   const absent = await preview.dispatch(request("http://127.0.0.1:8787/yoq-tur"), {}, deps);
   assert.strictEqual(absent.status, 404);
+  assert.match(await absent.text(), /بۇ بەت تېپىلمىدى/);
   const down = await preview.dispatch(request("http://127.0.0.1:8787/yengi-tur"), {}, baseDeps(async () => { throw new Error("directory down"); }));
   assert.strictEqual(down.status, 503);
   assert.notStrictEqual(await down.text(), "not found");
@@ -1321,6 +1330,77 @@ jobs.push(test("managed category documents, hidden links, and the served sitemap
   assert.ok(xmlText.includes("https://www.kutadgubilik.com/yengi-tur</loc>"));
   assert.ok(xmlText.includes("https://www.kutadgubilik.com/romanlar</loc>"));
   assert.ok(!xmlText.includes("https://www.kutadgubilik.com/yoshurun</loc>"));
+}));
+
+jobs.push(test("a missing category serves the branded 404 without replacing other responses", async () => {
+  const empty = baseDeps(async (url) => {
+    if (String(url).includes("list_public_book_categories")) {
+      return httpResponse(200, { categories: [], direct: [], redirects: [] });
+    }
+    return catalogFetch("ok")(url);
+  });
+  async function branded(url, method) {
+    const response = await preview.dispatch(request(url, method), {}, empty);
+    assert.strictEqual(response.status, 404, url);
+    assert.match(response.headers.get("Content-Type"), /^text\/html;\s*charset=utf-8$/i, url);
+    assert.strictEqual(response.headers.get("Cache-Control"), "no-store", url);
+    assert.strictEqual(response.headers.get("X-Content-Type-Options"), "nosniff", url);
+    assert.strictEqual(response.headers.get("Content-Security-Policy"), "frame-ancestors 'none'", url);
+    assert.strictEqual(response.headers.get("Location"), null, url);
+    const body = await response.text();
+    if (method === "HEAD") {
+      assert.strictEqual(body, "", url);
+      return;
+    }
+    assert.match(body, /dir="rtl"/, url);
+    assert.match(body, /noindex/i, url);
+    assert.match(body, /بۇ بەت تېپىلمىدى/, url);
+    assert.match(body, /href="\/"/, url);
+    assert.notStrictEqual(body.trim(), "not found", url);
+  }
+  await branded("http://127.0.0.1:8787/missing-page", "GET");
+  await branded("http://127.0.0.1:8787/missing-page?q=1", "GET");
+  await branded("http://127.0.0.1:8787/missing-page?q=1", "HEAD");
+  const nested = await preview.dispatch(request("http://127.0.0.1:8787/missing/nested?q=1"), {}, empty);
+  assert.strictEqual(nested.status, 404);
+  assert.match(nested.headers.get("Content-Type"), /^text\/html;\s*charset=utf-8$/i);
+  assert.strictEqual(nested.headers.get("Location"), null);
+  const nestedHtml = await nested.text();
+  assert.match(nestedHtml, /noindex/i);
+  assert.match(nestedHtml, /بۇ بەت تېپىلمىدى/);
+  const nestedHead = await preview.dispatch(request("http://127.0.0.1:8787/missing/nested", "HEAD"), {}, empty);
+  assert.strictEqual(nestedHead.status, 404);
+  assert.strictEqual(await nestedHead.text(), "");
+  const retired = await preview.dispatch(request("http://127.0.0.1:8787/eski-tur?x=1"), {}, baseDeps(async (url) => {
+    if (String(url).includes("list_public_book_categories")) {
+      return httpResponse(200, {
+        categories: [],
+        direct: [{ slug: "romanlar", source: "romanlar.html", label: "رومانلار", is_hidden: false }],
+        redirects: [{ slug: "eski-tur", target_slug: "romanlar" }]
+      });
+    }
+    return catalogFetch("ok")(url);
+  }));
+  assert.strictEqual(retired.status, 308);
+  assert.strictEqual(retired.headers.get("Location"), "/romanlar?x=1");
+  const managed = await preview.dispatch(request("http://127.0.0.1:8787/romanlar"), {}, baseDeps(catalogFetch("ok")));
+  assert.strictEqual(managed.status, 200);
+  assert.doesNotMatch(await managed.text(), /بۇ بەت تېپىلمىدى/);
+  const down = await preview.dispatch(request("http://127.0.0.1:8787/missing-page"), {}, baseDeps(async () => {
+    throw new Error("directory down");
+  }));
+  assert.strictEqual(down.status, 503);
+  assert.doesNotMatch(await down.text(), /بۇ بەت تېپىلمىدى/);
+  const denied = await preview.dispatch(request("http://127.0.0.1:8787/.env"), {}, empty);
+  assert.strictEqual(denied.status, 404);
+  assert.strictEqual(denied.headers.get("Content-Type"), "text/plain; charset=utf-8");
+  assert.strictEqual(await denied.text(), "not found");
+  const posted = await preview.dispatch(request("http://127.0.0.1:8787/missing-page", "POST"), {}, empty);
+  assert.strictEqual(posted.status, 405);
+  assert.strictEqual(await posted.text(), "method not allowed");
+  const api = await preview.dispatch(request("http://127.0.0.1:8787/api/ai-search", "POST", "{}"), {}, empty);
+  assert.notStrictEqual(api.status, 404);
+  assert.doesNotMatch(await api.text(), /بۇ بەت تېپىلمىدى/);
 }));
 
 Promise.all(jobs).then(() => {
