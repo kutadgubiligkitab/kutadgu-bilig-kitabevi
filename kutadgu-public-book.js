@@ -395,11 +395,11 @@ function missingBookHtml() {
 <html lang="ug" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex, follow">
   <title>كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">
-  <link rel="stylesheet" href="/shop.css?v=59">
+  <link rel="stylesheet" href="/shop.css?v=60">
 </head>
 <body class="detail-page-body">
   <main class="book-detail-page" style="padding:48px 0">
@@ -418,11 +418,11 @@ function lookupFailureHtml() {
 <html lang="ug" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex, follow">
   <title>ۋاقىتلىق خاتالىق - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">
-  <link rel="stylesheet" href="/shop.css?v=59">
+  <link rel="stylesheet" href="/shop.css?v=60">
 </head>
 <body class="detail-page-body">
   <main class="book-detail-page" style="padding:48px 0">

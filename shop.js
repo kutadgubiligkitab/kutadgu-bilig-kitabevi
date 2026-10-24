@@ -3422,16 +3422,27 @@ function volumeGroupSetPrice(group){
   if(prices.some(amount=>amount==null))return null;
   return prices.reduce((sum,value)=>sum+value,0);
 }
+function selectedVolumeMembers(group,panel){
+  const ids=new Set([...panel.querySelectorAll("[data-volume-book-id]:checked")].map(input=>String(input.dataset.volumeBookId)));
+  return (group&&group.members||[]).filter(member=>ids.has(String(member.book_id)));
+}
+function selectedVolumeTotal(members){
+  const prices=(members||[]).map(member=>finiteSeriesAmount(member&&member.price));
+  if(prices.some(amount=>amount==null))return null;
+  return prices.reduce((sum,value)=>sum+value,0);
+}
+function updateVolumeSelectionSummary(group,panel){
+  const summary=panel.querySelector("[data-volume-selection-summary]");
+  if(!summary)return;
+  const selected=selectedVolumeMembers(group,panel);
+  const total=selectedVolumeTotal(selected);
+  summary.innerHTML=`<span data-volume-selection-count>${escapeHtml(`تاللانغان: ${selected.length} قىسىم`)}</span>
+    <strong data-volume-selection-total>${escapeHtml(`تاللانغان قىسىملار جەمئىي: ${total==null?"باھا تېخى بېكىتىلمىگەن":money(total)}`)}</strong>`;
+}
 function updateVolumeSelectionPreview(group,member,panel){
+  if(!member)return;
   const book=volumeMemberBook(member);
   activeVolumeBookId=String(member.book_id);
-  const summary=panel.querySelector("[data-volume-selection-summary]");
-  if(summary){
-    summary.innerHTML=`<strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
-      <span>${escapeHtml(member.title||book.title||"")}</span>
-      <span>${money(member.price)}</span>
-      ${stockBadge(book)}`;
-  }
   setDetailHeroImage(member.image_url||book.image,`${member.title||book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
 }
 function renderVolumeGroupPurchasePanel(box,book,group){
@@ -3482,8 +3493,10 @@ function renderVolumeGroupPurchasePanel(box,book,group){
   box.appendChild(panel);
   const initial=group.members.find(member=>String(member.book_id)===selectedId)||group.members[0];
   if(initial)updateVolumeSelectionPreview(group,initial,panel);
+  updateVolumeSelectionSummary(group,panel);
   panel.querySelectorAll("[data-volume-book-id]").forEach(input=>{
     input.addEventListener("change",()=>{
+      updateVolumeSelectionSummary(group,panel);
       if(!input.checked)return;
       const member=group.members.find(row=>String(row.book_id)===String(input.dataset.volumeBookId));
       if(member)updateVolumeSelectionPreview(group,member,panel);

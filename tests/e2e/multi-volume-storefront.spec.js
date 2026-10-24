@@ -1028,7 +1028,9 @@ test.describe("multi-volume storefront", () => {
     await expect(page.locator("[data-volume-book-id='1003']")).toBeDisabled();
 
     await page.locator("[data-volume-book-id='1002']").check();
-    await expect(page.locator("[data-volume-selection-summary]")).toContainText("55");
+    await expect(page.locator("[data-volume-selection-count]")).toHaveText("تاللانغان: 2 قىسىم");
+    await expect(page.locator("[data-volume-selection-total]")).toContainText("90");
+    await expect(page.locator(".volume-set-price")).toContainText("125");
     await expect(page.locator(".book-cover-box img")).toHaveAttribute("src", /volume-cover-2\.svg/);
     await page.locator(".volume-add-selected").click();
     await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]")))
@@ -1072,7 +1074,9 @@ test.describe("multi-volume storefront", () => {
     await expect(page.locator(".detail-price-label", { hasText: "قىسىم باھاسى" })).toHaveCount(0);
     await expect(page.locator(".volume-member-price").nth(0)).toContainText("370");
     await expect(page.locator(".volume-member-price").nth(1)).toContainText("399");
-    await expect(page.locator("[data-volume-selection-summary]")).toContainText("370");
+    await expect(page.locator("[data-volume-selection-count]")).toHaveText("تاللانغان: 1 قىسىم");
+    await expect(page.locator("[data-volume-selection-total]")).toContainText("370");
+    await expect(page.locator("[data-volume-selection-summary]")).not.toContainText("769");
     await expect(page.locator(".volume-set-price")).not.toContainText("769");
     await expectSetPriceContrast(page, "small-1280-light");
     await page.evaluate(() => {
@@ -1189,6 +1193,86 @@ test.describe("multi-volume storefront", () => {
     }
   });
 
+  test("selected part summary counts checked prices and leaves the set price alone", async ({ page }) => {
+    const rows = [
+      { book_id: "501", position: 1, volume_label: "1-قىسىم", title: "بىرىنچى", author: "ئاپتور", price: 374.25, image_url: "/volume-cover-1.svg", stock: 4, stock_status: "in_stock", is_active: true },
+      { book_id: "502", position: 2, volume_label: "2-قىسىم", title: "ئىككىنچى", author: "ئاپتور", price: 374.25, image_url: "/volume-cover-2.svg", stock: 4, stock_status: "in_stock", is_active: true },
+      { book_id: "503", position: 3, volume_label: "3-قىسىم", title: "ئۈچىنچى", author: "ئاپتور", price: 374.25, image_url: "/volume-cover-3.svg", stock: 4, stock_status: "in_stock", is_active: true },
+      { book_id: "504", position: 4, volume_label: "4-قىسىم", title: "نۆل", author: "ئاپتور", price: 0, image_url: "/volume-cover-1.svg", stock: 4, stock_status: "in_stock", is_active: true },
+      { book_id: "505", position: 5, volume_label: "5-قىسىم", title: "نامەلۇم", author: "ئاپتور", price: null, image_url: "/volume-cover-2.svg", stock: 4, stock_status: "in_stock", is_active: true }
+    ];
+    const priced = {
+      id: "9", slug: "series-selection", title: "تاللاش", author: "ئاپتور",
+      category: "رومانلار", source: "romanlar.html", description: "",
+      complete_set_price: 750, effective_set_price: 750, representative_book_id: "501",
+      revision: 1, quote_revision: "quote-selection", members: rows
+    };
+    await page.route("**/rpc/get_public_book_volume_group_storefront", (route) => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify(priced)
+    }));
+    await page.route("**/rest/v1/books**", (route) => {
+      if (route.request().method() === "HEAD") {
+        return route.fulfill({ status: 200, headers: { "content-range": "0-4/5" }, body: "" });
+      }
+      return route.fulfill({
+        status: 200, contentType: "application/json", body: JSON.stringify(rows.map(book))
+      });
+    });
+    await page.route("**/volume-group/series-selection**", (route) => route.fulfill({
+      status: 200, contentType: "text/html; charset=utf-8", body: shell
+    }));
+    await page.goto("/volume-group/series-selection", { waitUntil: "domcontentloaded" });
+    const count = page.locator("[data-volume-selection-count]");
+    const total = page.locator("[data-volume-selection-total]");
+    const setPrice = page.locator(".volume-set-price");
+    const cover = page.locator(".book-cover-box img");
+    await expect(count).toHaveText("تاللانغان: 1 قىسىم");
+    await expect(total).toContainText("374,25");
+    await expect(setPrice).toContainText("750");
+    await expect(setPrice).not.toContainText("1.122,75");
+    for (const id of ["501", "502", "503", "504", "505"]) {
+      await page.locator(`[data-volume-book-id='${id}']`).uncheck();
+    }
+    await expect(count).toHaveText("تاللانغان: 0 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: 0 ₺");
+    await page.locator("[data-volume-book-id='501']").check();
+    await expect(cover).toHaveAttribute("src", /volume-cover-1\.svg/);
+    await page.locator("[data-volume-book-id='502']").check();
+    await page.locator("[data-volume-book-id='503']").check();
+    await expect(count).toHaveText("تاللانغان: 3 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: 1.122,75 ₺");
+    await expect(setPrice).toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
+    await expect(setPrice).toContainText("750");
+    await expect(cover).toHaveAttribute("src", /volume-cover-3\.svg/);
+    await page.locator("[data-volume-book-id='503']").uncheck();
+    await expect(cover).toHaveAttribute("src", /volume-cover-3\.svg/);
+    await expect(count).toHaveText("تاللانغان: 2 قىسىم");
+    await page.locator("[data-volume-book-id='504']").check();
+    await page.locator("[data-volume-book-id='503']").check();
+    await expect(count).toHaveText("تاللانغان: 4 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: 1.122,75 ₺");
+    await expect(page.locator("[data-volume-book-id='505']")).toBeDisabled();
+    for (const id of ["501", "502", "503", "504"]) {
+      await page.locator(`[data-volume-book-id='${id}']`).uncheck();
+    }
+    await page.locator("[data-volume-book-id='504']").check();
+    await expect(count).toHaveText("تاللانغان: 1 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: 0 ₺");
+    await expect(total).not.toContainText("باھا تېخى بېكىتىلمىگەن");
+    await page.goto("/volume-group/series-selection?volume=505", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("[data-volume-book-id='505']")).toBeChecked();
+    await expect(page.locator("[data-volume-book-id='505']")).toBeDisabled();
+    await expect(count).toHaveText("تاللانغان: 1 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: باھا تېخى بېكىتىلمىگەن");
+    await expect(total).not.toContainText("₺");
+    await page.locator("[data-volume-book-id='501']").check();
+    await expect(count).toHaveText("تاللانغان: 2 قىسىم");
+    await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: باھا تېخى بېكىتىلمىگەن");
+    await expect(total).not.toContainText("374,25");
+    await expect(total).not.toContainText("₺");
+    await expect(setPrice).toContainText("750");
+  });
+
   test("grouped catalog shows one series card per page and keeps the explicit price", async ({ page }) => {
     const units = Array.from({ length: 25 }, (_, index) => {
       const number = index + 1;
@@ -1278,7 +1362,9 @@ test.describe("multi-volume storefront", () => {
     await page.goto("/book/1002", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-group-purchase-panel")).toBeVisible();
     await expect(page.locator("[data-volume-book-id='1002']")).toBeChecked();
-    await expect(page.locator("[data-volume-selection-summary]")).toContainText("ئىككىنچى جىلد");
+    await expect(page.locator("[data-volume-selection-count]")).toHaveText("تاللانغان: 1 قىسىم");
+    await expect(page.locator("[data-volume-selection-total]")).toContainText("55");
+    await expect(page.locator(".book-cover-box img")).toHaveAttribute("src", /volume-cover-2\.svg/);
     await expect(page.locator(".volume-group-stable-link")).toHaveAttribute("href", "/volume-group/sample-series");
   });
 });
