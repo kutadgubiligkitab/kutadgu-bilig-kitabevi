@@ -353,7 +353,7 @@ test.describe("guest cart membership invitation", () => {
     await page.goto("/cart.html?v=155", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await publish(page, GUEST);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=179/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=180/);
     const live = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
     expect(live).toContain("guestCartInviteDecision");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

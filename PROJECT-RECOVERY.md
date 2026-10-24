@@ -4,11 +4,19 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-Current `origin/main` is `1e67e6a8d76ddb8c96c19727a0277dc85a6cf7e7`, the PR #315 merge. That merge changes CI only. The deployed runtime baseline remains the PR #314 merge `7021e02c67540e8bd3850b29f39f65227cca26c8`. Production Worker version `726296cc-ec95-4037-a871-663d6196599b` serves that application. The presentation change below is unreleased and does not move the baseline.
+Current `origin/main` is `84c61e0a7269cef10cbbf9bdf81748027939f905`, the PR #316 merge. Production Worker version `c2f90f0d-ee93-492b-98bc-9190a6947d11` serves it. The selection summary and mobile-navigation change below is unreleased and does not move the baseline.
 
-## Multi-volume presentation — unreleased
+## Selected parts and mobile navigation — unreleased
 
-The purchase panel no longer repeats part prices above the member picker. The full-set price, each member price, and the selected-part summary stay. The full-set amount uses the existing text color so it stays readable on the light and dark surfaces. A series card shows the stored title and the part count as `كىتاب نامى 2 قىسىم`. The generated dash is gone from homepage sections, listings, discovery, the premium fallback, and server-rendered category cards. Punctuation stored in a title stays. Pricing, stock, selection, cart, and quotes are unchanged. The changed pins are `shop.js?v=179`, `shop.css?v=59`, and `premium-ux.js?v=22`. Historical shop cache fixtures stay. The tested branch is `cursor/volume-presentation`. The tested head is the commit that records this paragraph.
+The purchase summary shows the checked count and the total of those parts, and it updates when a box changes. The cover still follows the part just checked. The full-set price stays in its own place, so an explicit 750 is not shown as a 769 selection. A genuine zero stays zero. A missing selected price stays missing instead of a partial sum. Cart, quotes, stock, and the initial checked part stay as they are.
+
+Storefront pages use `viewport-fit=cover` and `mobile.css?v=28`. The shared bottom navigation keeps one safe-area inset. Its bar and links use `border-box`, so the same padding stays inside the same height on the homepage, catalog, book shell, cart, favorites, and account pages. The changed pins are `shop.js?v=180` and `shop.css?v=60`. Historical shop cache fixtures stay. The tested branch is `cursor/selection-and-nav`. The tested head is the commit that records this paragraph.
+
+## Multi-volume presentation — released PR #316
+
+The purchase panel no longer repeats part prices above the member picker. The full-set price, each member price, and the selected-part summary stay. The full-set amount uses the existing text color so it stays readable on the light and dark surfaces. A series card shows the stored title and the part count as `كىتاب نامى 2 قىسىم`. The generated dash is gone from homepage sections, listings, discovery, the premium fallback, and server-rendered category cards. Punctuation stored in a title stays. Pricing, stock, selection, cart, and quotes are unchanged. The pins shipped with PR #316 are `shop.js?v=179`, `shop.css?v=59`, and `premium-ux.js?v=22`. Historical shop cache fixtures stay.
+
+PR #316 merged through the normal merge path. The reviewed head stayed `ef148be5e64ee70b231c081657e6edbb80baa434`. Stage 10 run [40050583437](https://github.com/kutadgubiligkitab/kutadgu-bilig-kitabevi/actions/runs/40050583437) succeeded on that head and was reused. It was not restarted. 1174 passed, 5 skipped, and no flakes. The merge commit is `84c61e0a7269cef10cbbf9bdf81748027939f905`. Its parents are `1e67e6a8d76ddb8c96c19727a0277dc85a6cf7e7` and `ef148be5e64ee70b231c081657e6edbb80baa434`. Its tree is `61f475664dc57fcb7db029e872b7e17d85ce1c86`. Immediately before deployment, traffic was 100% on version `726296cc-ec95-4037-a871-663d6196599b`, deployment `32c4ca01-3e94-45d8-ad91-4a688a3f50d9`. That is the rollback target. The first upload session returned Cloudflare error 10013 and created no deployment. The retry deployed Worker version `c2f90f0d-ee93-492b-98bc-9190a6947d11`, deployment `23719ce9-bef9-42b3-a57a-3ca757875580`, at 100%, created 2026-10-24T02:36:13.666364Z.
 
 ## Stage 10 wall-clock — released PR #315
 

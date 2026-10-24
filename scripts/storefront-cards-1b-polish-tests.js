@@ -112,7 +112,7 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=179/);
+  assert.match(indexHtml, /shop\.js\?v=180/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=3/);
 });
 
@@ -194,7 +194,13 @@ test("no Search Discovery SQL RLS auth admin or protected geometry changes", () 
     const volumeSetPriceOnly = lines.length === 2
       && lines[0] === "-.volume-set-price strong{font-size:18px;color:var(--site-brown-dark,#4b3327)}"
       && lines[1] === "+.volume-set-price strong{font-size:18px;color:var(--site-text,#44352d)}";
-    if (volumeSetPriceOnly) {
+    const selectionSummaryOnly = lines.length === 3
+      && lines[0] === "-.volume-selection-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}"
+      && lines[1] === "+.volume-selection-summary{display:grid;gap:4px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}"
+      && lines[2] === "+.volume-selection-summary strong{color:var(--site-text,#44352d)}";
+    if (selectionSummaryOnly) {
+      assert.match(lines[2], /var\(--site-text,#44352d\)/);
+    } else if (volumeSetPriceOnly) {
       assert.match(lines[1], /var\(--site-text,#44352d\)/);
     } else if (!exactDarkCartOnly) {
       const body = lines.join("\n");

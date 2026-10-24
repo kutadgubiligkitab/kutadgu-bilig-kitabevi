@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=179/);
+  assert.match(index, /shop\.js\?v=180/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -151,10 +151,14 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(premiumNow, /dataset\.searchState!=="empty"/);
   const publicLines = gitDiff("kutadgu-public-book.js").replace(/\r\n/g, "\n").split("\n").filter((line) => /^[+-]/.test(line) && !line.startsWith("+++") && !line.startsWith("---"));
   assert.deepStrictEqual(publicLines, [
-    '-  <link rel="stylesheet" href="/shop.css?v=58">',
-    '+  <link rel="stylesheet" href="/shop.css?v=59">',
-    '-  <link rel="stylesheet" href="/shop.css?v=58">',
-    '+  <link rel="stylesheet" href="/shop.css?v=59">'
+    '-  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    '+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">',
+    '-  <link rel="stylesheet" href="/shop.css?v=59">',
+    '+  <link rel="stylesheet" href="/shop.css?v=60">',
+    '-  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    '+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">',
+    '-  <link rel="stylesheet" href="/shop.css?v=59">',
+    '+  <link rel="stylesheet" href="/shop.css?v=60">'
   ]);
 });
 

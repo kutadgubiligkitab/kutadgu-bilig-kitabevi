@@ -72,8 +72,8 @@ function guestState(overrides) {
 test("cart.html keeps one hidden guest invitation outside checkout", () => {
   assert.strictEqual((cartHtml.match(/id="guestCartInvite"/g) || []).length, 1);
   assert.strictEqual((cartHtml.match(/checkout-member-note/g) || []).length, 1);
-  assert.match(cartHtml, /shop\.js\?v=179/);
-  assert.match(cartHtml, /shop\.css\?v=59/);
+  assert.match(cartHtml, /shop\.js\?v=180/);
+  assert.match(cartHtml, /shop\.css\?v=60/);
   assert.doesNotMatch(cartHtml, /shop\.js\?v=154/);
   const aside = sliceBetween(cartHtml, 'id="cartAside"', 'id="checkoutCard"');
   assert.match(aside, /id="guestCartInvite"[^>]*hidden/);
@@ -88,7 +88,8 @@ test("cart.html keeps one hidden guest invitation outside checkout", () => {
   assert.match(shop, /\/member\.js\?v=35/);
   assert.doesNotMatch(sliceBetween(member, "async function signUp({email,password,fullName}){", "async function signIn({email,password}){"), /localStorage|member_cart_items/);
   const cssDiff = gitDiff("shop.css");
-  assert.match(cssDiff, /\.volume-set-price strong\{font-size:18px;color:var\(--site-text,#44352d\)\}/);
+  assert.match(cssDiff, /\.volume-selection-summary\{display:grid;gap:4px;align-items:start;/);
+  assert.match(cssDiff, /\.volume-selection-summary strong\{color:var\(--site-text,#44352d\)\}/);
   assert.doesNotMatch(cssDiff, /guestCartInvite|#guestCartInvite/);
 });
 
@@ -366,11 +367,11 @@ test("existing foreign-owner merge still applies a local quantity change made du
   assert.deepStrictEqual(foreignDelta, [{ id: "21", qty: 3 }, { id: "11", qty: 9 }]);
 });
 
-test("storefront shop pins are v=179 and account.js stays the only signup entry", () => {
+test("storefront shop pins are v=180 and account.js stays the only signup entry", () => {
   const htmlPins = execSync("git grep -l 'shop.js?v=' -- '*.html'", { cwd: root, encoding: "utf8" }).trim().split("\n");
   htmlPins.forEach((rel) => {
     const html = fs.readFileSync(path.join(root, rel), "utf8");
-    assert.match(html, /shop\.js\?v=179/, rel);
+    assert.match(html, /shop\.js\?v=180/, rel);
     assert.doesNotMatch(html, /shop\.js\?v=154/, rel);
   });
   assert.match(accountJs, /function signupEntryRequested\(\)/);

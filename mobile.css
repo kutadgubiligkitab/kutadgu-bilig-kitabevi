@@ -320,6 +320,7 @@
     inset-inline: 0;
     inset-block-end: 0;
     z-index: 11800;
+    box-sizing: border-box;
     min-height: calc(var(--mobile-bottom-height) + var(--mobile-bottom-safe));
     padding: 5px max(7px, env(safe-area-inset-left, 0px)) calc(5px + var(--mobile-bottom-safe)) max(7px, env(safe-area-inset-right, 0px));
     display: grid;
@@ -334,6 +335,7 @@
 
   .mobile-bottom-nav a {
     position: relative;
+    box-sizing: border-box;
     min-width: 0;
     min-height: 50px;
     padding: 4px 3px;

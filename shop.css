@@ -54,7 +54,8 @@ body > header:not(.account-topbar):not(.admin-topbar){
 .volume-member-copy{display:grid;min-width:0}
 .volume-member-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--site-text-soft,#806f62)}
 .volume-member-price{font-weight:800;white-space:nowrap}
-.volume-selection-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}
+.volume-selection-summary{display:grid;gap:4px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}
+.volume-selection-summary strong{color:var(--site-text,#44352d)}
 .volume-group-actions{display:flex;flex-wrap:wrap;gap:10px}
 @media(max-width:640px){.volume-member-option{grid-template-columns:auto 42px minmax(0,1fr);}.volume-member-option img{width:42px;height:60px}.volume-member-price,.volume-member-option>.stock-badge{grid-column:3}.volume-group-actions>*{width:100%}}
 .cover-placeholder,.book-cover-box.no-cover{min-height:320px;display:flex;align-items:center;justify-content:center;background:var(--site-bg-soft,#fbf8f2);font-size:60px;color:var(--site-text-soft,#806f62)}
