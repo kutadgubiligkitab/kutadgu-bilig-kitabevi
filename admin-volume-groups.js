@@ -3,6 +3,7 @@
 
   const $=selector=>document.querySelector(selector);
   const state={db:null,loaded:false,loading:false,groups:[],current:null,members:[],lookup:null};
+  const linkSave={saving:false,pending:null};
 
   function text(value){return String(value==null?"":value).trim()}
   function positiveId(value){const v=text(value);return /^[1-9][0-9]*$/.test(v)?v:""}
@@ -322,6 +323,7 @@
     renderMembers();
   }
   function fillEditor(group){
+    linkSave.pending=null;
     const value=group||{};
     $("#volumeGroupId").value=positiveId(value.id);
     $("#volumeGroupRevision").value=Number(value.revision)||0;
@@ -353,6 +355,7 @@
     editorGeneration++;
     showLinkForm();
     fillEditor({is_active:true,members:[]});
+    assignLinkSlug();
     setStatus("قىسىملارنى قوشۇپ ساقلاڭ؛ تېخى خېرىدارلارغا كۆرۈنمەيدۇ.","");
   }
   async function openGroup(id){
@@ -434,13 +437,25 @@
     clearSlugRecovery();
     return true;
   }
+  function newLinkSlug(){
+    return `series-${newRequestId()}`;
+  }
+  function assignLinkSlug(){
+    const input=$("#volumeGroupSlug");
+    if(!input||text(input.value)||state.current||positiveId($("#volumeGroupId").value))return;
+    input.value=newLinkSlug();
+  }
+  function linkSaveRejected(error){
+    if(!error||typeof error!=="object")return false;
+    const status=Number(error.status);
+    if(!Number.isInteger(status)||status<400||status>=500||status===408||status===429)return false;
+    return /^[0-9A-Z]{5}$/.test(String(error.code||""));
+  }
   function editorPayload(){
     state.members=normalizeMembers(state.members);
     syncCategorySource();
-    // Generate only for an unsaved group; never rename an existing group URL.
-    if(!state.current&&!text($("#volumeGroupSlug").value)&&state.members.length){
-      $("#volumeGroupSlug").value=`series-${state.members[0].book_id}`;
-    }
+    // A new linking draft gets one identifier. An existing group keeps its saved URL.
+    if(!state.current&&!positiveId($("#volumeGroupId").value))assignLinkSlug();
     const representative=positiveId($("#volumeGroupRepresentative").value)||state.members[0]?.book_id||"";
     return {
       id:positiveId($("#volumeGroupId").value)||null,
@@ -465,16 +480,34 @@
   }
   async function saveGroup(event){
     event.preventDefault();
+    if(linkSave.saving)return;
     const generation=editorGeneration;
-    const payload=editorPayload();
-    if(generation!==editorGeneration)return;
-    if(!payload.group.title){setStatus("يۈرۈشلۈك نامىنى كىرگۈزۈڭ.","error");return}
-    if(payload.members.length<2||payload.members.length>100){setStatus("يۈرۈشلۈكتە 2 دىن 100 گىچە قىسىم بولۇشى كېرەك.","error");return}
-    if(!$("#volumeGroupCategory").checkValidity()||(!state.current&&!payload.group.source)){
-      setStatus("كىتاب تۈرىنى تىزىمدىن تاللاڭ.","error");
-      $("#volumeGroupCategory").reportValidity();
-      return;
+    const creating=!positiveId($("#volumeGroupId").value)&&!state.current;
+    const frozen=creating&&linkSave.pending&&text(linkSave.pending.group&&linkSave.pending.group.slug)===text($("#volumeGroupSlug").value)?linkSave.pending:null;
+    let payload;
+    if(frozen)payload=frozen;
+    else{
+      payload=editorPayload();
+      if(generation!==editorGeneration)return;
+      if(!payload.group.title){setStatus("يۈرۈشلۈك نامىنى كىرگۈزۈڭ.","error");return}
+      if(payload.members.length<2||payload.members.length>100){setStatus("يۈرۈشلۈكتە 2 دىن 100 گىچە قىسىم بولۇشى كېرەك.","error");return}
+      if(!$("#volumeGroupCategory").checkValidity()||(!state.current&&!payload.group.source)){
+        setStatus("كىتاب تۈرىنى تىزىمدىن تاللاڭ.","error");
+        $("#volumeGroupCategory").reportValidity();
+        return;
+      }
+      if(creating){
+        if(!text(payload.group.slug)){
+          setStatus("ئۇلانما ياسالمىدى. يۈرۈشلۈك ساقلانمىدى.","error");
+          return;
+        }
+        linkSave.pending=JSON.parse(JSON.stringify(payload));
+        payload=linkSave.pending;
+      }
     }
+    const button=$("#volumeGroupForm")?.querySelector("button[type='submit']");
+    linkSave.saving=true;
+    if(button)button.disabled=true;
     setStatus("ساقلىنىۋاتىدۇ…","");
     try{
       const saved=await rpc("admin_save_book_volume_group",{
@@ -491,6 +524,7 @@
         setStatus("جاۋاب يېتىپ كەلمىدى. يۈرۈشلۈك تازىلانمىدى.","error");
         return;
       }
+      linkSave.pending=null;
       fillEditor(saved);
       await load(true,generation);
       if(generation!==editorGeneration)return;
@@ -498,9 +532,17 @@
       setStatus("يۈرۈشلۈك ساقلاندى. كىتاب ئۇچۇرلىرى ئۆزگەرتىلمىدى.","ok");
     }catch(error){
       if(generation!==editorGeneration)return;
+      if(creating&&!linkSaveRejected(error)){
+        setStatus("جاۋاب يېتىپ كەلمىدى. يۈرۈشلۈك تازىلانمىدى.","error");
+        return;
+      }
+      if(creating)linkSave.pending=null;
       if(await explainDuplicateSlug(error,payload.group.slug,generation))return;
       const stale=/stale|revision|40001/i.test(`${error.message||""} ${error.code||""}`);
       setStatus(stale?"بۇ يۈرۈشلۈك باشقا كۆزنەكتە ئۆزگەرتىلگەن. قايتا يۈكلەپ تەكرارلاڭ.":(error.message||String(error)),"error");
+    }finally{
+      linkSave.saving=false;
+      if(button)button.disabled=false;
     }
   }
   async function publishGroup(){
@@ -1375,6 +1417,11 @@
     $("#volumeSeriesForm")?.addEventListener("submit",saveSeries);
     $("#reloadVolumeGroupsBtn")?.addEventListener("click",()=>load(true));
     $("#volumeGroupForm")?.addEventListener("submit",saveGroup);
+    $("#volumeGroupForm")?.querySelector("button[type='submit']")?.addEventListener("click",event=>{
+      if(!linkSave.saving&&!linkSave.pending)return;
+      event.preventDefault();
+      saveGroup(event);
+    });
     $("#volumeGroupPublishBtn")?.addEventListener("click",publishGroup);
     $("#volumeGroupAbandon")?.addEventListener("click",()=>{
       const id=positiveId($("#volumeGroupId")&&$("#volumeGroupId").value);

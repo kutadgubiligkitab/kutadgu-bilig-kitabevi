@@ -99,7 +99,9 @@ test.describe("plain-language multi-volume admin editor",()=>{
     const calls=await page.evaluate(()=>window.__volumeEditorCalls);
     const saves=calls.filter(c=>c.name==="admin_save_book_volume_group");
     expect(saves).toHaveLength(1);
-    expect(saves[0].args).toMatchObject({p_group_id:null,p_expected_revision:null,p_group:{slug:"series-156",category:"تارىخىي رومانلار",source:"tarikhiy-romanlar.html",complete_set_price:null},p_members:[{book_id:"156",position:1},{book_id:"157",position:2}]});
+    expect(saves[0].args).toMatchObject({p_group_id:null,p_expected_revision:null,p_group:{category:"تارىخىي رومانلار",source:"tarikhiy-romanlar.html",complete_set_price:null},p_members:[{book_id:"156",position:1},{book_id:"157",position:2}]});
+    expect(saves[0].args.p_group.slug).toMatch(/^series-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(saves[0].args.p_group.slug).not.toBe("series-156");
     expect(calls.some(c=>c.name==="admin_set_book_volume_group_publication")).toBe(false);
   });
 
