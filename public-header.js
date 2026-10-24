@@ -114,7 +114,7 @@
   }
 
   function logoInnerHtml() {
-    return '<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo.webp"><img src="/kutadgu-logo.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo" width="38" height="38" decoding="async"></picture><span class="kutadgu-brand-text">قۇتادغۇبىلىك كىتابخانىسى</span>';
+    return '<picture class="kutadgu-site-logo-picture"><source type="image/webp" srcset="/kutadgu-logo-128.webp"><img src="/kutadgu-logo-128.png" alt="قۇتادغۇبىلىك كىتابخانىسى" class="kutadgu-site-logo" width="38" height="38" decoding="async"></picture><span class="kutadgu-brand-text">قۇتادغۇبىلىك كىتابخانىسى</span>';
   }
 
   function fixMediaUrls(rootEl) {

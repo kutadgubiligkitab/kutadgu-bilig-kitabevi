@@ -200,7 +200,7 @@ test.describe("cached mobile.css does not drop the sticky header", () => {
     await page.goto("/books");
     await expect(page.locator("header.is-mobile-enhanced")).toBeVisible();
     await expect(page.locator("link[href='mobile.css?v=28']")).toHaveCount(1);
-    await expect(page.locator("script[src='public-header.js?v=4']")).toHaveCount(1);
+    await expect(page.locator("script[src='public-header.js?v=5']")).toHaveCount(1);
     await expect(page.locator("#kutadguPublicHeaderCss")).toHaveAttribute("href", "/public-header.css?v=8");
     expect(requests.some((entry) => entry.includes("/mobile.css?v=28"))).toBe(true);
 

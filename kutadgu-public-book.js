@@ -396,6 +396,9 @@ function missingBookHtml() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">
   <meta name="robots" content="noindex, follow">
   <title>كىتاب تېپىلمىدى - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">
@@ -419,6 +422,9 @@ function lookupFailureHtml() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">
   <meta name="robots" content="noindex, follow">
   <title>ۋاقىتلىق خاتالىق - قۇتادغۇبىلىك كىتابخانىسى</title>
   <link rel="stylesheet" href="/theme.css?v=9">

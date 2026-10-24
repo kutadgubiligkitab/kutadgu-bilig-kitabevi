@@ -9,7 +9,11 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const handler = require("../api/book-public.js");
 
-const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
+const ICONS = [
+  '<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">',
+  '<link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">',
+  '<link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">'
+];
 const HOME_TITLE = "قۇتادغۇبىلىك كىتابخانىسى";
 const HOME_SNIPPET = "قۇتادغۇبىلىك كىتابخانىسى — ئۇيغۇرچە كىتابلار، ئەدەبىيات، تارىخ، دىن، تەربىيە ۋە پەن-مائارىپقا دائىر نادىر ئەسەرلەرنى بىر يەردىن تېپىش ۋە زاكاز قىلىشقا بولىدىغان ئىشەنچلىك كىتابخانا.";
 
@@ -50,6 +54,35 @@ function headOf(html) {
 
 function iconCount(html) {
   return (String(html || "").match(/rel=["']icon["']/gi) || []).length;
+}
+
+function assertIcons(html) {
+  const head = headOf(html);
+  ICONS.forEach((tag) => assert.ok(head.includes(tag), tag));
+  assert.strictEqual(iconCount(html), 2);
+  assert.strictEqual(iconCount(head), 2);
+  assert.strictEqual((html.match(/rel=["']apple-touch-icon["']/gi) || []).length, 1);
+  assert.doesNotMatch(html, /rel=["']shortcut icon["']/i);
+  assert.doesNotMatch(html, /maskable/i);
+}
+
+function pngSize(buf) {
+  assert.strictEqual(buf.slice(0, 8).toString("binary"), "\x89PNG\r\n\x1a\n");
+  assert.strictEqual(buf.toString("ascii", 12, 16), "IHDR");
+  assert.strictEqual(buf.readUInt8(25), 6);
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+function webpSize(buf) {
+  assert.strictEqual(buf.toString("ascii", 0, 4), "RIFF");
+  assert.strictEqual(buf.toString("ascii", 8, 12), "WEBP");
+  const kind = buf.toString("ascii", 12, 16);
+  if (kind === "VP8X") return { width: 1 + buf.readUIntLE(24, 3), height: 1 + buf.readUIntLE(27, 3) };
+  if (kind === "VP8L") {
+    const bits = buf.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+  }
+  throw new Error("unexpected webp chunk " + kind);
 }
 
 function mockRes() {
@@ -96,29 +129,18 @@ function sampleBook(extra) {
 }
 
 async function run() {
-  await test("homepage has exactly one first-byte favicon in head", () => {
+  await test("homepage head declares the favicon, png icon, and apple touch icon", () => {
     const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-    const head = headOf(html);
-    assert.ok(head.includes(ICON));
-    assert.strictEqual(iconCount(html), 1);
-    assert.strictEqual(iconCount(head), 1);
-    assert.doesNotMatch(html, /rel=["']shortcut icon["']/i);
-    assert.doesNotMatch(html, /rel=["']apple-touch-icon["']/i);
+    assertIcons(html);
     assert.doesNotMatch(html, /href=["']kutadgu-logo\.png["']/);
     assert.doesNotMatch(html, /href=["']\/kutadgu-logo\.png\?/);
     const png = fs.readFileSync(path.join(root, "kutadgu-logo.png"));
-    assert.strictEqual(png.slice(0, 8).toString("binary"), "\x89PNG\r\n\x1a\n");
-    assert.strictEqual(png.readUInt32BE(16), 1254);
-    assert.strictEqual(png.readUInt32BE(20), 1254);
+    assert.deepStrictEqual(pngSize(png), { width: 1254, height: 1254 });
   });
 
-  await test("book-shell first HTML has exactly one matching favicon", () => {
+  await test("book-shell first HTML uses the same icon links", () => {
     const html = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
-    const head = headOf(html);
-    assert.ok(head.includes(ICON));
-    assert.strictEqual(iconCount(html), 1);
-    assert.strictEqual(iconCount(head), 1);
-    assert.doesNotMatch(html, /rel=["']shortcut icon["']/i);
+    assertIcons(html);
     assert.doesNotMatch(html, /href=["']kutadgu-logo\.png["']/);
   });
 
@@ -126,8 +148,7 @@ async function run() {
     const row = sampleBook();
     const out = await invoke("/book/217", async () => jsonResponse(200, [row]));
     assert.strictEqual(out.status, 200);
-    assert.ok(headOf(out.body).includes(ICON));
-    assert.strictEqual(iconCount(out.body), 1);
+    assertIcons(out.body);
     assert.match(out.body, /<title>تارىخىمىزدىكى خاقانلار - قۇتادغۇبىلىك كىتابخانىسى<\/title>/);
     assert.ok(out.body.includes('<link rel="canonical" href="https://www.kutadgubilik.com/book/217">'));
     assert.match(out.body, /<meta\s+name=["']robots["']\s+content=["']index,\s*follow["']/i);
@@ -148,6 +169,35 @@ async function run() {
     const data = JSON.parse(jsonLd[1]);
     assert.ok(data["@graph"].some((n) => n["@type"] === "BookStore"));
     assert.ok(data["@graph"].some((n) => n["@type"] === "WebSite"));
+  });
+
+  await test("small derivatives and the icon file decode at their declared sizes", () => {
+    assert.deepStrictEqual(pngSize(fs.readFileSync(path.join(root, "kutadgu-logo-128.png"))), { width: 128, height: 128 });
+    assert.deepStrictEqual(webpSize(fs.readFileSync(path.join(root, "kutadgu-logo-128.webp"))), { width: 128, height: 128 });
+    assert.deepStrictEqual(pngSize(fs.readFileSync(path.join(root, "kutadgu-favicon-32.png"))), { width: 32, height: 32 });
+    assert.deepStrictEqual(pngSize(fs.readFileSync(path.join(root, "kutadgu-apple-touch-icon.png"))), { width: 180, height: 180 });
+    assert.deepStrictEqual(pngSize(fs.readFileSync(path.join(root, "kutadgu-icon-192.png"))), { width: 192, height: 192 });
+    assert.deepStrictEqual(pngSize(fs.readFileSync(path.join(root, "kutadgu-icon-512.png"))), { width: 512, height: 512 });
+    const ico = fs.readFileSync(path.join(root, "favicon.ico"));
+    assert.strictEqual(ico.readUInt16LE(0), 0);
+    assert.strictEqual(ico.readUInt16LE(2), 1);
+    assert.strictEqual(ico.readUInt16LE(4), 3);
+    [16, 32, 48].forEach((size, index) => {
+      const at = 6 + index * 16;
+      assert.strictEqual(ico.readUInt8(at), size);
+      assert.strictEqual(ico.readUInt8(at + 1), size);
+      const bytes = ico.readUInt32LE(at + 8);
+      const offset = ico.readUInt32LE(at + 12);
+      assert.deepStrictEqual(pngSize(ico.subarray(offset, offset + bytes)), { width: size, height: size });
+    });
+  });
+
+  await test("category, cart, branded 404, and generated book errors share the icon links", () => {
+    ["romanlar.html", "cart.html", "404.html"].forEach((rel) => {
+      assertIcons(fs.readFileSync(path.join(root, rel), "utf8"));
+    });
+    const generated = fs.readFileSync(path.join(root, "kutadgu-public-book.js"), "utf8");
+    ICONS.forEach((tag) => assert.strictEqual(generated.split(tag).length - 1, 2, tag));
   });
 
   await test("existing logo files stay unchanged and protected files stay frozen", () => {

@@ -61,13 +61,13 @@ test("public pages load the shared header helper before shop/mobile", () => {
     const shopAt = html.search(/shop\.js\?v=\d+/);
     if (shopAt >= 0) assert.ok(helper >= 0 && helper < shopAt);
   });
-  assert.match(accountHtml, /public-header\.js\?v=4/);
+  assert.match(accountHtml, /public-header\.js\?v=5/);
   assert.match(accountHtml, /theme\.js\?v=5/);
   assert.match(accountHtml, /href="\/"/);
   assert.match(indexHtml, /href="\/cart\.html"/);
   assert.match(indexHtml, /href="\/favorites\.html"/);
   assert.match(indexHtml, /href="\/account\.html"/);
-  assert.match(indexHtml, /src="\/kutadgu-logo\.png"/);
+  assert.match(indexHtml, /src="\/kutadgu-logo-128\.png"/);
 });
 
 test("shop and mobile keep using storefrontAppHref and call the helper", () => {
@@ -76,7 +76,7 @@ test("shop and mobile keep using storefrontAppHref and call the helper", () => {
   assert.match(shop, /new URLSearchParams\(location\.search\)\.get\("q"\)/);
   assert.match(shop, /\.kutadgu-public-header nav/);
   assert.match(mobile, /KutadguPublicHeader\.ensure/);
-  assert.match(mobile, /srcset="\/kutadgu-logo\.webp"/);
+  assert.match(mobile, /srcset="\/kutadgu-logo-128\.webp"/);
   assert.match(mobile, /"index.html": "\/"/);
   assert.doesNotMatch(mobile, /JSON\.parse\(localStorage\.getItem\("kutadgu-cart-v1"/);
 });

@@ -228,6 +228,9 @@ async function finishAsset(request, env, deps, filePath, statusOverride) {
   if (!outHeaders.get("Content-Type") && /\.html$/i.test(filePath)) {
     outHeaders.set("Content-Type", "text/html; charset=utf-8");
   }
+  if (!outHeaders.get("Content-Type") && /\.ico$/i.test(filePath)) {
+    outHeaders.set("Content-Type", "image/x-icon");
+  }
   const htmlFile = /\.html$/i.test(filePath);
   if (method !== "HEAD" && htmlFile) {
     const decorated = decoratePreviewHtml(await asset.text(), request, env);

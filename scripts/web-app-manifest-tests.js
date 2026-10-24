@@ -27,13 +27,11 @@ assert.strictEqual(manifest.dir, "rtl");
 assert.strictEqual(manifest.background_color, "#f6f0e5");
 assert.strictEqual(manifest.theme_color, "#4b3327");
 assert.strictEqual(Object.prototype.hasOwnProperty.call(manifest, "orientation"), false);
-assert.strictEqual(manifest.icons.length, 1);
-assert.deepStrictEqual(manifest.icons[0], {
-  src: "/kutadgu-logo.png",
-  sizes: "any",
-  type: "image/png"
-});
-assert.ok(!/192x192|512x512|maskable|serviceWorker|beforeinstallprompt/i.test(JSON.stringify(manifest)));
+assert.deepStrictEqual(manifest.icons, [
+  { src: "/kutadgu-icon-192.png", sizes: "192x192", type: "image/png" },
+  { src: "/kutadgu-icon-512.png", sizes: "512x512", type: "image/png" }
+]);
+assert.ok(!/maskable|sizes"\s*:\s*"any"|serviceWorker|beforeinstallprompt/i.test(JSON.stringify(manifest)));
 
 assert.strictEqual(png.toString("ascii", 12, 16), "IHDR");
 assert.strictEqual(png.readUInt32BE(16), 1254);
@@ -42,8 +40,16 @@ assert.strictEqual(crypto.createHash("sha256").update(png).digest("hex"), "ca0af
 
 assert.strictEqual((index.match(/rel="manifest"/g) || []).length, 1);
 assert.ok(index.includes('<link rel="manifest" href="/kutadgu.webmanifest">'));
-assert.strictEqual((index.match(/rel="icon"/g) || []).length, 1);
-assert.ok(!index.includes("apple-touch-icon"));
+assert.strictEqual((index.match(/rel="icon"/g) || []).length, 2);
+assert.strictEqual((index.match(/rel="apple-touch-icon"/g) || []).length, 1);
+function pngSize(name, width) {
+  const body = read(name);
+  assert.strictEqual(body.toString("ascii", 12, 16), "IHDR");
+  assert.strictEqual(body.readUInt32BE(16), width);
+  assert.strictEqual(body.readUInt32BE(20), width);
+}
+pngSize("kutadgu-icon-192.png", 192);
+pngSize("kutadgu-icon-512.png", 512);
 assert.ok(index.includes('shop.js?v=180'));
 assert.ok(!/serviceWorker|beforeinstallprompt/i.test(index));
 assert.ok(!read("shop.js").toString("utf8").includes("serviceWorker.register"));

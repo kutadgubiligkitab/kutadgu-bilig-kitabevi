@@ -10,7 +10,11 @@ const root = path.join(__dirname, "..");
 const seo = require("../kutadgu-book-seo.js");
 const handler = require("../api/book-public.js");
 
-const ICON = '<link rel="icon" type="image/png" href="/kutadgu-logo.png">';
+const ICONS = [
+  '<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">',
+  '<link rel="icon" type="image/png" href="/kutadgu-favicon-32.png" sizes="32x32">',
+  '<link rel="apple-touch-icon" type="image/png" href="/kutadgu-apple-touch-icon.png" sizes="180x180">'
+];
 const STORE = "قۇتادغۇبىلىك كىتابخانىسى";
 
 const FROZEN = {
@@ -234,8 +238,8 @@ async function run() {
     const bookNode = bookNodeOf(payload);
     assert.strictEqual(bookNode.description, "تارىخىي رومان ھەققىدە قىسقىچە چۈشەندۈرۈش.");
     assert.ok(payload["@graph"].some((node) => node["@type"] === "BreadcrumbList"));
-    assert.ok(out.body.includes(ICON));
-    assert.strictEqual((out.body.match(/rel=["']icon["']/gi) || []).length, 1);
+    assert.ok(ICONS.every((tag) => out.body.includes(tag)));
+    assert.strictEqual((out.body.match(/rel=["']icon["']/gi) || []).length, 2);
     assert.match(out.body, /<div class="book-detail-info">\s*<h1>تارىخىمىزدىكى خاقانلار<\/h1>/);
     assert.match(out.body, /<section class="dynamic-book-description">/);
     const missing = await invoke("/book/999999999", async () => jsonResponse(200, []));
