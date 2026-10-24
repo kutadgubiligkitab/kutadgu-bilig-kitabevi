@@ -61,7 +61,7 @@ test("public pages load the shared header helper before shop/mobile", () => {
     const shopAt = html.search(/shop\.js\?v=\d+/);
     if (shopAt >= 0) assert.ok(helper >= 0 && helper < shopAt);
   });
-  assert.match(accountHtml, /public-header\.js\?v=5/);
+  assert.match(accountHtml, /public-header\.js\?v=6/);
   assert.match(accountHtml, /theme\.js\?v=5/);
   assert.match(accountHtml, /href="\/"/);
   assert.match(indexHtml, /href="\/cart\.html"/);
@@ -107,8 +107,8 @@ test("header CSS keeps search compact, theme in-flow, and mobile spacing", () =>
   assert.match(mobileCss, /position: sticky !important;/);
   assert.match(mobileCss, /html\.kutadgu-ig-iphone body\.has-mobile-fixed-header \{\s*\n\s*padding-top: 0 !important;/);
   assert.match(indexHtml, /mobile\.css\?v=27/);
-  assert.match(indexHtml, /public-header\.js\?v=5/);
-  assert.match(bookShell, /public-header\.js\?v=4/);
+  assert.match(indexHtml, /public-header\.js\?v=6/);
+  assert.match(bookShell, /public-header\.js\?v=6/);
   const helperJs = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
   assert.match(helperJs, /public-header\.css\?v=8/);
   assert.match(helperJs, /function instagramIphone\(\)/);
