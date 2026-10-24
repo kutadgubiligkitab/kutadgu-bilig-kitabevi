@@ -11,6 +11,7 @@ import re
 import sys
 import tempfile
 
+import brotli
 from fontTools.ttLib import TTFont
 from fontTools.unicodedata import script
 import uharfbuzz as hb
@@ -264,16 +265,29 @@ def main():
                     failures += 1
                     print("range drift", path.name, kind)
                 covered |= values
-            if covered & original_set != original_set or (reference["primary"] & reference["original"]):
+            mapped = covered & original_set
+            raw_overlap = reference["primary"] & reference["original"]
+            if mapped != original_set or raw_overlap:
                 failures += 1
                 print("coverage gap or overlap", path.name)
-    if reference["primary"] & original_set != expected or reference["original"] & original_set != deferred:
+    mapped_primary = reference["primary"] & original_set
+    mapped_complementary = reference["original"] & original_set
+    mapped_overlap = reference["primary"] & reference["original"] & original_set
+    if mapped_primary != expected or mapped_complementary != deferred or mapped_overlap:
         failures += 1
         print("css range does not match cmap partition")
-    outside = (reference["primary"] | reference["original"]) - original_set
-    if outside:
+    primary_holes = reference["primary"] - original_set
+    if primary_holes:
         failures += 1
-        print("css range includes codepoints absent from the font", len(outside))
+        print("primary css range includes unmapped codepoints", len(primary_holes))
+    complementary_holes = reference["original"] - original_set
+    ui_samples = [ord(char) for char in "★✓•→❤🎁📚😀🏠©™"] + [0xFE0F, 0x200D, 0x20E3, 0x2714, 0x25CF, 0x2B50]
+    ui_triggers = [value for value in ui_samples if value in reference["original"] and value not in deferred]
+    if ui_triggers:
+        failures += 1
+        print("ui or emoji selects the complementary font", " ".join(f"U+{value:04X}" for value in ui_triggers))
+    print(f"complementary_unmapped_holes {len(complementary_holes)}")
+    print(f"ui_emoji_complementary_triggers {len(ui_triggers)}")
     for table in ("GSUB", "GPOS"):
         if features(original_woff, table) != features(primary_woff, table):
             failures += 1
@@ -316,6 +330,10 @@ def main():
         if any(ord(char) in expected for char in text):
             failures += 1
             print("cjk sample leaked into primary", text)
+    theme = (ROOT / "theme.css").read_bytes()
+    print(f"theme_css_bytes {len(theme)}")
+    print(f"theme_css_brotli {len(brotli.compress(theme))}")
+    print(f"complementary_range_chars {len((ROOT / 'scripts' / 'ukij-font-ranges' / 'complementary.txt').read_text(encoding='utf-8').strip())}")
     print(f"primary_woff2_bytes { (ROOT / 'UKIJCJK-primary.woff2').stat().st_size }")
     print(f"primary_ttf_bytes {(ROOT / 'UKIJCJK-primary.ttf').stat().st_size}")
     print(f"original_woff2_sha256 {sha256(ROOT / 'UKIJCJK.woff2')}")

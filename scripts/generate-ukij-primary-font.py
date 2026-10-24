@@ -14,6 +14,7 @@ root:
 Then run scripts/check-ukij-primary-font.py.
 """
 from pathlib import Path
+import bisect
 import hashlib
 import os
 import re
@@ -40,14 +41,14 @@ DERIVATIVE = {
 RANGE_DIR = ROOT / "scripts" / "ukij-font-ranges"
 SKIP_PARTS = ("node_modules", ".git", "test-results", "playwright-report", "tests/e2e/fixtures", "tests\\e2e\\fixtures")
 PIN_REPLACEMENTS = (
-    ("theme.css?v=11", "theme.css?v=12"),
-    ("theme.css?v=9", "theme.css?v=12"),
-    ("index.css?v=21", "index.css?v=22"),
-    ("admin.css?v=66", "admin.css?v=67"),
-    ("admin.css?v=9", "admin.css?v=67"),
-    ("admin.css?v=4", "admin.css?v=67"),
-    ("account.css?v=7", "account.css?v=8"),
-    ("book-staff.css?v=8", "book-staff.css?v=9"),
+    ("theme.css?v=11", "theme.css?v=13"),
+    ("theme.css?v=9", "theme.css?v=13"),
+    ("index.css?v=21", "index.css?v=23"),
+    ("admin.css?v=66", "admin.css?v=68"),
+    ("admin.css?v=9", "admin.css?v=68"),
+    ("admin.css?v=4", "admin.css?v=68"),
+    ("account.css?v=7", "account.css?v=9"),
+    ("book-staff.css?v=8", "book-staff.css?v=10"),
 )
 FACE_RE = re.compile(r"@font-face\s*\{[^{}]*\}", re.S)
 PRELOAD_RE = re.compile(
@@ -62,18 +63,31 @@ def codepoints(path):
     return font, set(mapping)
 
 
-def css_ranges(values):
+def css_ranges(values, blocked=()):
+    """Format codepoints as a CSS unicode-range.
+
+    A blocked codepoint splits the range. Other gaps stay inside one range,
+    including codepoints the font does not map. The complementary face passes
+    the primary repertoire as blocked so the declaration stays short and still
+    excludes every primary glyph.
+    """
     ordered = sorted(values)
     if not ordered:
         raise SystemExit("unicode range is empty")
+    blocked_ordered = sorted(set(blocked))
     ranges = []
     start = previous = ordered[0]
     for value in ordered[1:]:
-        if value == previous + 1:
-            previous = value
+        if blocked_ordered:
+            index = bisect.bisect_right(blocked_ordered, previous)
+            split = index < len(blocked_ordered) and blocked_ordered[index] < value
+        else:
+            split = value != previous + 1
+        if split:
+            ranges.append((start, previous))
+            start = previous = value
             continue
-        ranges.append((start, previous))
-        start = previous = value
+        previous = value
     ranges.append((start, previous))
     parts = []
     for start, end in ranges:
@@ -257,7 +271,7 @@ def main():
     if not primary or not deferred:
         raise SystemExit("primary or complementary coverage is empty")
     primary_range = css_ranges(primary)
-    complementary_range = css_ranges(deferred)
+    complementary_range = css_ranges(deferred, primary)
     RANGE_DIR.mkdir(parents=True, exist_ok=True)
     (RANGE_DIR / "primary.txt").write_text(primary_range + "\n", encoding="utf-8", newline="\n")
     (RANGE_DIR / "complementary.txt").write_text(complementary_range + "\n", encoding="utf-8", newline="\n")
