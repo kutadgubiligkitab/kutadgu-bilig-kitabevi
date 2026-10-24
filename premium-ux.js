@@ -93,7 +93,7 @@
     const title=String(book&&book.title||"").trim();
     const count=localSeriesCount(book);
     if(!(count>0))return title;
-    return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;
+    return title?`${title} ${count} قىسىم`:`${count} قىسىم`;
   }
   function seriesCardPrice(book){
     const shop=window.kutadguShop;

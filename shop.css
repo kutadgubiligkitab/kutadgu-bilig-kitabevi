@@ -43,7 +43,7 @@ body > header:not(.account-topbar):not(.admin-topbar){
 .volume-group-heading{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:14px}
 .volume-set-price{display:grid;gap:3px;padding:10px 12px;border:1px solid var(--site-border,#e8dccb);border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}
 .volume-set-price span{font-size:11px;color:var(--site-text-soft,#806f62)}
-.volume-set-price strong{font-size:18px;color:var(--site-brown-dark,#4b3327)}
+.volume-set-price strong{font-size:18px;color:var(--site-text,#44352d)}
 .volume-group-stable-link{width:max-content;color:var(--site-brown,#70503d);font-size:12px;font-weight:800;text-decoration:underline}
 .volume-member-picker{display:grid;gap:8px;margin:0;padding:12px;border:1px solid var(--site-border,#e8dccb);border-radius:12px}
 .volume-member-picker legend{padding:0 7px;font-weight:800}

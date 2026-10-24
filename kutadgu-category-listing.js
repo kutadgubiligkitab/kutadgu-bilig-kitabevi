@@ -130,7 +130,7 @@ function seriesCardLabel(book) {
   const title = String(book && book.title || "").trim();
   const count = seriesPartCount(book);
   if (!(count > 0)) return title;
-  return title ? `${title} — ${count} قىسىم` : `${count} قىسىم`;
+  return title ? `${title} ${count} قىسىم` : `${count} قىسىم`;
 }
 
 function seriesSetAmount(book) {

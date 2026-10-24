@@ -1,11 +1,63 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const shotDir = path.join(os.tmpdir(), "kutadgu-volume-presentation");
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
 
 const shell = fs.readFileSync(path.join(__dirname, "..", "..", "book-shell.html"), "utf8");
 const appConfig = fs.readFileSync(path.join(__dirname, "..", "..", "app-config.js"), "utf8")
   .replace("multiVolumeBooks:false", "multiVolumeBooks:true");
+
+function contrastRatio(foreground, background) {
+  const parse = (value) => {
+    const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  };
+  const channel = (value) => {
+    const scaled = value / 255;
+    return scaled <= 0.04045 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (rgb) => (0.2126 * channel(rgb[0])) + (0.7152 * channel(rgb[1])) + (0.0722 * channel(rgb[2]));
+  const fg = luminance(parse(foreground));
+  const bg = luminance(parse(background));
+  const lighter = Math.max(fg, bg);
+  const darker = Math.min(fg, bg);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+async function settleTheme(page) {
+  await page.evaluate(() => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    document.body.addEventListener("transitionend", (event) => {
+      if (event.target === document.body && (event.propertyName === "background-color" || event.propertyName === "color")) finish();
+    });
+    setTimeout(finish, 400);
+  }));
+}
+
+async function expectSetPriceContrast(page, name) {
+  fs.mkdirSync(shotDir, { recursive: true });
+  const colors = await page.evaluate(() => {
+    const text = document.querySelector(".volume-set-price strong");
+    const box = document.querySelector(".volume-set-price");
+    const panel = document.querySelector(".volume-group-purchase-panel");
+    return {
+      color: getComputedStyle(text).color,
+      background: getComputedStyle(box).backgroundColor,
+      overflow: panel.scrollWidth <= panel.clientWidth + 1 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1
+    };
+  });
+  const ratio = contrastRatio(colors.color, colors.background);
+  expect(ratio, `${name} ${colors.color} on ${colors.background}`).toBeGreaterThanOrEqual(4.5);
+  expect(colors.overflow, name).toBe(true);
+  await page.locator(".volume-group-purchase-panel").screenshot({ path: path.join(shotDir, `${name}.png`) });
+}
 
 async function openVolumeEditor(page, existing) {
   await H.installReadSafeNetwork(page);
@@ -1016,11 +1068,19 @@ test.describe("multi-volume storefront", () => {
     await page.goto("/volume-group/series-156", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-set-price")).toContainText("750");
     await expect(page.locator(".volume-set-price")).toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
-    await expect(page.locator(".volume-group-price-range")).toContainText("370");
-    await expect(page.locator(".volume-group-price-range")).toContainText("399");
+    await expect(page.locator(".volume-group-price-range")).toHaveCount(0);
+    await expect(page.locator(".detail-price-label", { hasText: "قىسىم باھاسى" })).toHaveCount(0);
     await expect(page.locator(".volume-member-price").nth(0)).toContainText("370");
     await expect(page.locator(".volume-member-price").nth(1)).toContainText("399");
+    await expect(page.locator("[data-volume-selection-summary]")).toContainText("370");
     await expect(page.locator(".volume-set-price")).not.toContainText("769");
+    await expectSetPriceContrast(page, "small-1280-light");
+    await page.evaluate(() => {
+      document.body.classList.add("dark-mode");
+      document.documentElement.classList.add("dark-mode");
+    });
+    await settleTheme(page);
+    await expectSetPriceContrast(page, "small-1280-dark");
     const card = await page.evaluate(() => window.kutadguShop.bookCardMarkup({
       id: "156", catalogKind: "group", groupId: "1", title: "ئويغانغان زېمىن", author: "ئابدۇرېھىم ئۆتكۈر",
       memberCount: 2, memberPrices: [370, 399], completeSetPrice: 750, effectiveSetPrice: 750,
@@ -1028,7 +1088,7 @@ test.describe("multi-volume storefront", () => {
     }));
     expect(card.match(/<article/g)).toHaveLength(1);
     expect(card).toContain("750");
-    expect(card).toContain("ئويغانغان زېمىن — 2 قىسىم");
+    expect(card).toContain("ئويغانغان زېمىن 2 قىسىم");
     expect(card).toContain("تەپسىلاتى");
     expect(card).not.toContain("370");
     expect(card).not.toContain("399");
@@ -1041,12 +1101,92 @@ test.describe("multi-volume storefront", () => {
       href: "/volume-group/summed"
     }));
     expect(summed).toContain("769");
-    expect(summed).toContain("يىغىندا — 2 قىسىم");
+    expect(summed).toContain("يىغىندا 2 قىسىم");
     expect(summed).not.toContain("تولۇق يۈرۈشلۈك");
     expect(summed).not.toContain("370");
     expect(summed).not.toContain("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => {
+      document.body.classList.remove("dark-mode");
+      document.documentElement.classList.remove("dark-mode");
+    });
+    await settleTheme(page);
+    await expectSetPriceContrast(page, "small-390-light");
+    await page.evaluate(() => {
+      document.body.classList.add("dark-mode");
+      document.documentElement.classList.add("dark-mode");
+    });
+    await settleTheme(page);
+    await expectSetPriceContrast(page, "small-390-dark");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  });
+
+  test("a many-part group keeps the set price readable without a top part-price summary", async ({ page }) => {
+    const manyMembers = Array.from({ length: 8 }, (_, index) => ({
+      book_id: String(800 + index),
+      position: index + 1,
+      volume_label: `${index + 1}-قىسىم`,
+      title: `ئۇزۇن قىسىم نامى ${index + 1}`,
+      author: "ئابدۇرېھىم ئۆتكۈر",
+      price: 40 + index,
+      image_url: "/volume-cover-1.svg",
+      stock: 4,
+      stock_status: "in_stock",
+      is_active: true
+    }));
+    const many = {
+      id: "8",
+      slug: "series-many",
+      title: "كۆپ قىسىملىق",
+      author: "ئابدۇرېھىم ئۆتكۈر",
+      category: "رومانلار",
+      source: "romanlar.html",
+      description: "",
+      complete_set_price: 750,
+      effective_set_price: 750,
+      representative_book_id: "800",
+      revision: 1,
+      quote_revision: "quote-many",
+      members: manyMembers
+    };
+    await page.route("**/rpc/get_public_book_volume_group_storefront", (route) => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify(many)
+    }));
+    await page.route("**/rest/v1/books**", (route) => {
+      if (route.request().method() === "HEAD") {
+        return route.fulfill({ status: 200, headers: { "content-range": "0-7/8" }, body: "" });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(manyMembers.map(book))
+      });
+    });
+    await page.route("**/volume-group/series-many**", (route) => route.fulfill({
+      status: 200, contentType: "text/html; charset=utf-8", body: shell
+    }));
+    const sizes = [
+      ["many-1280-light", 1280, 800, false],
+      ["many-1280-dark", 1280, 800, true],
+      ["many-390-light", 390, 844, false],
+      ["many-390-dark", 390, 844, true]
+    ];
+    for (const [name, width, height, dark] of sizes) {
+      await page.setViewportSize({ width, height });
+      if (name === "many-1280-light") {
+        await page.goto("/volume-group/series-many", { waitUntil: "domcontentloaded" });
+      }
+      await page.evaluate((isDark) => {
+        document.body.classList.toggle("dark-mode", isDark);
+        document.documentElement.classList.toggle("dark-mode", isDark);
+      }, dark);
+      await settleTheme(page);
+      await expect(page.locator(".volume-member-option")).toHaveCount(8);
+      await expect(page.locator(".volume-set-price")).toContainText("750");
+      await expect(page.locator(".volume-group-price-range")).toHaveCount(0);
+      await expect(page.locator(".volume-member-price").nth(7)).toContainText("47");
+      await expectSetPriceContrast(page, name);
+    }
   });
 
   test("grouped catalog shows one series card per page and keeps the explicit price", async ({ page }) => {
@@ -1106,7 +1246,7 @@ test.describe("multi-volume storefront", () => {
     await expect(grid.locator('a[href="/book/156"], a[href="/book/157"]')).toHaveCount(0);
     const ownerCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-156"]') });
     await expect(ownerCard).toContainText("750");
-    await expect(ownerCard).toContainText("ئويغانغان زېمىن — 2 قىسىم");
+    await expect(ownerCard).toContainText("ئويغانغان زېمىن 2 قىسىم");
     await expect(ownerCard).toContainText("تەپسىلاتى");
     await expect(ownerCard).not.toContainText("370");
     await expect(ownerCard).not.toContainText("399");

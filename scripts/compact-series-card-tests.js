@@ -80,10 +80,10 @@ function ownerBook(extra = {}) {
 }
 
 function assertCompact(markup, label) {
-  assert.match(markup, /ئويغانغان زېمىن — 2 قىسىم/, label);
+  assert.match(markup, /ئويغانغان زېمىن 2 قىسىم/, label);
   assert.match(markup, /750 ₺/, label);
   assert.match(markup, /تەپسىلاتى/, label);
-  assert.match(markup, /title="ئويغانغان زېمىن — 2 قىسىم"/, label);
+  assert.match(markup, /title="ئويغانغان زېمىن 2 قىسىم"/, label);
   FORBIDDEN.forEach((token) => assert.doesNotMatch(markup, new RegExp(token), label + " " + token));
   assert.doesNotMatch(markup, /تەپسىلات</, label);
 }
@@ -118,7 +118,8 @@ test("counts come from metadata and missing prices stay unset", () => {
   assert.strictEqual(api.seriesPartCount({ member_count: 0, member_book_ids: ["a", "b", "c"] }), 3);
   assert.strictEqual(api.seriesPartCount({ memberPrices: [1, 2, 3, 4] }), 4);
   assert.strictEqual(api.seriesPartCount({ memberCount: 100 }), 100);
-  assert.strictEqual(api.seriesCardLabel({ title: "نام", memberCount: 100 }), "نام — 100 قىسىم");
+  assert.strictEqual(api.seriesCardLabel({ title: "نام", memberCount: 100 }), "نام 100 قىسىم");
+  assert.strictEqual(api.seriesCardLabel({ title: "كىتاب — نامى", memberCount: 2 }), "كىتاب — نامى 2 قىسىم");
   assert.doesNotMatch(api.seriesCardLabel({ title: "نام", memberCount: 0, memberBookIds: [] }), /0 قىسىم/);
 
   const summed = ownerBook({
@@ -148,7 +149,7 @@ test("counts come from metadata and missing prices stay unset", () => {
   };
   const partsCard = api.miniCard(parts);
   assert.match(partsCard, /360 ₺/);
-  assert.match(partsCard, /ئۈچ قىسىم — 3 قىسىم/);
+  assert.match(partsCard, /ئۈچ قىسىم 3 قىسىم/);
   assert.doesNotMatch(partsCard, /55 ₺|100 ₺|120 ₺|140 ₺/);
 
   const missing = ownerBook({
@@ -168,7 +169,7 @@ test("counts come from metadata and missing prices stay unset", () => {
   const longTitle = "بۇ ناھايىتى ئۇزۇن يۈرۈشلۈك نامى بولۇپ بىر قۇرغا سىغمەيدۇ ۋە ئىككىنچى قۇرغا چۈشىدۇ";
   const longBook = ownerBook({ title: longTitle });
   const longCard = api.bookCardMarkup(longBook);
-  const expected = `${longTitle} — 2 قىسىم`;
+  const expected = `${longTitle} 2 قىسىم`;
   assert.match(longCard, new RegExp(`title="${expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
   assert.strictEqual(longBook.title, longTitle);
   assert.match(api.homeCarouselCard(ownerBook({ memberCount: 100, memberPrices: [1], completeSetPrice: 750, price: 1 }), 5), /100 قىسىم/);
@@ -231,8 +232,8 @@ test("category listing first paint uses the explicit set and keeps the stored ti
   const book = listing.normalizeCategoryRow(row, ["tarikhiy-romanlar.html"]);
   const card = listing.listingCardMarkup(book);
   assert.strictEqual(book.title, "ئويغانغان زېمىن");
-  assert.match(card, /ئويغانغان زېمىن — 2 قىسىم/);
-  assert.match(card, /title="ئويغانغان زېمىن — 2 قىسىم"/);
+  assert.match(card, /ئويغانغان زېمىن 2 قىسىم/);
+  assert.match(card, /title="ئويغانغان زېمىن 2 قىسىم"/);
   assert.match(card, /750 ₺/);
   assert.match(card, />تەپسىلاتى</);
   assert.doesNotMatch(card, /370|399|769|جىلدلىق|ھەر بىر جىلد|بېكىتىلگەن|data-cart-id/);
@@ -262,7 +263,7 @@ test("category listing first paint uses the explicit set and keeps the stored ti
     price: 40
   }, ["tarikhiy-romanlar.html"]);
   const partsCard = listing.listingCardMarkup(parts);
-  assert.match(partsCard, /ئۈچ — 3 قىسىم/);
+  assert.match(partsCard, /ئۈچ 3 قىسىم/);
   assert.match(partsCard, /600 ₺/);
   assert.doesNotMatch(partsCard, /40 ₺|100 ₺/);
 
@@ -274,7 +275,16 @@ test("category listing first paint uses the explicit set and keeps the stored ti
     member_count: 100,
     complete_set_price: 750
   }, ["tarikhiy-romanlar.html"]);
-  assert.match(listing.listingCardMarkup(hundred), /يۈز — 100 قىسىم/);
+  assert.match(listing.listingCardMarkup(hundred), /يۈز 100 قىسىم/);
+  const dashed = listing.normalizeCategoryRow({
+    ...row,
+    id: "204",
+    title: "كىتاب — نامى",
+    group_slug: "dashed-title",
+    member_count: 2
+  }, ["tarikhiy-romanlar.html"]);
+  assert.match(listing.listingCardMarkup(dashed), /كىتاب — نامى 2 قىسىم/);
+  assert.doesNotMatch(listing.listingCardMarkup(dashed), /كىتاب — نامى —/);
 
   const missing = listing.normalizeCategoryRow({
     ...row,
@@ -294,7 +304,7 @@ test("category listing first paint uses the explicit set and keeps the stored ti
   const longTitle = "بۇ ناھايىتى ئۇزۇن يۈرۈشلۈك نامى بولۇپ بىر قۇرغا سىغمەيدۇ";
   const longBook = listing.normalizeCategoryRow({ ...row, title: longTitle }, ["tarikhiy-romanlar.html"]);
   assert.strictEqual(longBook.title, longTitle);
-  assert.match(listing.listingCardMarkup(longBook), new RegExp(`title="${longTitle} — 2 قىسىم"`));
+  assert.match(listing.listingCardMarkup(longBook), new RegExp(`title="${longTitle} 2 قىسىم"`));
 
   const ordinary = listing.normalizeCategoryRow({
     id: "11",

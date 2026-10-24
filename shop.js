@@ -2176,7 +2176,7 @@ function seriesCardLabel(book){
   const title=String(book&&book.title||"").trim();
   const count=seriesPartCount(book);
   if(!(count>0))return title;
-  return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;
+  return title?`${title} ${count} قىسىم`:`${count} قىسىم`;
 }
 const SERIES_CARD_DETAIL="تەپسىلاتى";
 function seriesTitleMarkup(book,tag,className,attrs=""){
@@ -3422,10 +3422,6 @@ function volumeGroupSetPrice(group){
   if(prices.some(amount=>amount==null))return null;
   return prices.reduce((sum,value)=>sum+value,0);
 }
-function volumePartPriceText(group){
-  const prices=(group&&group.members||[]).map(member=>finiteSeriesAmount(member.price)).filter(amount=>amount!=null);
-  return prices.length?prices.map(money).join(" · "):"";
-}
 function updateVolumeSelectionPreview(group,member,panel){
   const book=volumeMemberBook(member);
   activeVolumeBookId=String(member.book_id);
@@ -3446,14 +3442,9 @@ function renderVolumeGroupPurchasePanel(box,book,group){
   const setAvailable=(group.members||[]).every(volumeMemberAvailable);
   const selectedId=String(activeVolumeBookId||book.id);
   const explicit=finiteSeriesAmount(group.complete_set_price)!=null;
-  const partPrices=volumePartPriceText(group);
   const groupUrl=volumeStorefront()?.groupPath(group)||"";
   panel.innerHTML=`
     <div class="volume-group-heading">
-      <div>
-        <span class="detail-price-label">قىسىم باھاسى</span>
-        <div class="detail-price volume-group-price-range">${escapeHtml(partPrices||"سېتىۋالغىلى بولىدىغان قىسىم يوق")}</div>
-      </div>
       <div class="volume-set-price">
         <span>${explicit?"بېكىتىلگەن يۈرۈشلۈك باھاسى":"تولۇق يۈرۈشلۈك (قىسىم باھالىرىنىڭ يىغىندىسى)"}</span>
         <strong>${money(setPrice)}</strong>
@@ -6875,7 +6866,7 @@ function loadPremiumUX(){
   return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
     const directory=window.KutadguBookCategories;
     return directory&&directory.boot?directory.boot():null;
-  }).then(()=>loadAssetScript("/premium-ux.js?v=21","kutadguPremiumUxScript"));
+  }).then(()=>loadAssetScript("/premium-ux.js?v=22","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;
 function initStaticShell(){

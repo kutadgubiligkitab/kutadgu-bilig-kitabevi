@@ -108,7 +108,7 @@ test("dark cart and checkout text does not use the near-black brown token", () =
   assert.doesNotMatch(dark, /#fff|white|--site-brown-dark|--site-brown[^-]/);
   const placeholder = css.slice(css.indexOf("body.dark-mode .checkout-form input::placeholder"));
   assert.match(placeholder, /color:var\(--site-text-soft\)/);
-  assert.match(html, /shop\.css\?v=58/);
+  assert.match(html, /shop\.css\?v=59/);
   assert.match(css, /\.whatsapp-order\{[^}]*background:#168b4b/);
   assert.match(css, /\.remove-cart\{[^}]*color:#a94a3b/);
 });

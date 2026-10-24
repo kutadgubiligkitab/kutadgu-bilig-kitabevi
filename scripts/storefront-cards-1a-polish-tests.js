@@ -120,7 +120,7 @@ test("dark mode uses theme tokens", () => {
 });
 
 test("shop.js loads polish CSS last after public row-alignment overlay", () => {
-  assert.match(indexHtml, /shop\.js\?v=178/);
+  assert.match(indexHtml, /shop\.js\?v=179/);
   assert.match(shop, /storefront-cards-1a-polish\.css\?v=3/);
   assert.match(shop, /data-kutadgu-storefront-cards-1a/);
   const ensurePublic = sliceBetween(shop, "function ensurePublicBookCardRowAlignmentCss(){", "function ensureStorefrontCards1aPolishCss(){");
@@ -220,7 +220,12 @@ test("14 no SQL RLS auth or database-record changes; protected geometry files un
     const rest = at < 0 ? lines : lines.slice(0, at).concat(lines.slice(at + knownDarkCart.length));
     const repeated = rest.findIndex((_, i) => knownDarkCart.every((line, j) => rest[i + j] === line));
     const exactDarkCartOnly = at >= 0 && repeated < 0 && rest.length === 0;
-    if (!exactDarkCartOnly) {
+    const volumeSetPriceOnly = lines.length === 2
+      && lines[0] === "-.volume-set-price strong{font-size:18px;color:var(--site-brown-dark,#4b3327)}"
+      && lines[1] === "+.volume-set-price strong{font-size:18px;color:var(--site-text,#44352d)}";
+    if (volumeSetPriceOnly) {
+      assert.match(lines[1], /var\(--site-text,#44352d\)/);
+    } else if (!exactDarkCartOnly) {
       const body = lines.join("\n");
       assert.ok(lines.length && lines.every((line) => line.startsWith("-")), body);
       assert.match(body, /\.cover-stock-overlay/);

@@ -145,7 +145,7 @@ test.describe("adabiyat books-first hub", () => {
     await expect(page.locator(".book-title", { hasText: POEM_TITLE })).toHaveCount(0);
     const series = page.locator(".book-card", { hasText: SERIES_TITLE });
     await expect(series).toHaveCount(1);
-    await expect(series).toContainText("سوغۇق يۈرۈشلۈك — 2 قىسىم");
+    await expect(series).toContainText("سوغۇق يۈرۈشلۈك 2 قىسىم");
     await expect(series).toContainText("750");
     await expect(series).toContainText("تەپسىلاتى");
     await expect(series).not.toContainText("370");

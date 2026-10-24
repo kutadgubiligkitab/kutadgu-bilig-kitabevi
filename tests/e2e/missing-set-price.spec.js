@@ -307,8 +307,10 @@ test.describe("missing set prices", () => {
     await page.goto("/volume-group/series-156", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-set-price")).toContainText("750");
     await expect(page.locator(".volume-set-price")).toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
-    await expect(page.locator(".volume-group-price-range")).toContainText("370");
-    await expect(page.locator(".volume-group-price-range")).toContainText("399");
+    await expect(page.locator(".volume-group-price-range")).toHaveCount(0);
+    await expect(page.locator(".detail-price-label", { hasText: "قىسىم باھاسى" })).toHaveCount(0);
+    await expect(page.locator(".volume-member-price").nth(0)).toContainText("370");
+    await expect(page.locator(".volume-member-price").nth(1)).toContainText("399");
     await expect(page.locator(".volume-set-price")).not.toContainText("769");
   });
 });

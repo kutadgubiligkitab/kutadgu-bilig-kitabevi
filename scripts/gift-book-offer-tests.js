@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=178/);
+  assert.match(index, /shop\.js\?v=179/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -141,11 +141,21 @@ test("homepage tab and shop read path stay on the member client", () => {
     out = out.slice(0, cardStart) + out.slice(cardEnd);
     return out.replace(/\n  window\.KutadguPremiumUx=\{compactCard\};\n/, "\n");
   };
-  assert.strictEqual(dropEmpty(premiumNow), dropEmpty(premiumMain));
+  const normalizePremium = (src) => src.replace(/\r\n/g, "\n").replace(
+    "return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;",
+    "return title?`${title} ${count} قىسىم`:`${count} قىسىم`;"
+  );
+  assert.strictEqual(normalizePremium(dropEmpty(premiumNow)), normalizePremium(dropEmpty(premiumMain)));
   assert.match(premiumNow, /function seriesCompactCard\(book,src,id\)/);
   assert.match(premiumNow, /data-cover-src="\$\{src\}" data-cover-book="\$\{id\}"/);
   assert.match(premiumNow, /dataset\.searchState!=="empty"/);
-  assert.strictEqual(gitDiff("kutadgu-public-book.js"), "");
+  const publicLines = gitDiff("kutadgu-public-book.js").replace(/\r\n/g, "\n").split("\n").filter((line) => /^[+-]/.test(line) && !line.startsWith("+++") && !line.startsWith("---"));
+  assert.deepStrictEqual(publicLines, [
+    '-  <link rel="stylesheet" href="/shop.css?v=58">',
+    '+  <link rel="stylesheet" href="/shop.css?v=59">',
+    '-  <link rel="stylesheet" href="/shop.css?v=58">',
+    '+  <link rel="stylesheet" href="/shop.css?v=59">'
+  ]);
 });
 
 test("admin gift writes stay outside the book payload", () => {
