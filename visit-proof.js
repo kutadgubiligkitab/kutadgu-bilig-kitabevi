@@ -71,7 +71,7 @@
     text.style.cssText="margin:0 0 12px;line-height:1.6;";
     const slot=document.createElement("div");
     slot.setAttribute("data-turnstile","");
-    slot.style.cssText="overflow:visible;transform:none;max-height:none;";
+    slot.style.cssText="display:block;width:100%;max-width:100%;overflow:visible;transform:none;max-height:none;";
     const retry=document.createElement("button");
     retry.type="button";
     retry.hidden=true;
@@ -83,20 +83,36 @@
     document.body.appendChild(host);
     return host;
   }
-  function showCheck(){
+  function activeFlow(){
+    return !!(flow&&!flow.done&&!flow.stopped);
+  }
+  function owns(generation){
+    return !!(flow&&flow.generation===generation&&!flow.done&&!flow.stopped);
+  }
+  function paintOpen(noteText){
     const host=ensureHost();
     host.setAttribute("data-open","true");
-    host.style.margin="16px auto";
-    host.style.padding="12px 16px";
+    host.style.margin="12px auto";
+    host.style.padding="12px 0";
     host.style.border="1px solid var(--site-border,#e8dccb)";
     host.style.borderRadius="14px";
     host.style.background="var(--site-card,#fffdf9)";
+    host.style.width="min(100%,28rem)";
+    host.style.maxWidth="100%";
     const note=host.querySelector("[data-visit-note]");
     if(note){
       note.hidden=false;
-      if(!note.textContent)note.textContent=NOTE;
+      note.style.padding="0 12px";
+      if(noteText)note.textContent=noteText;
+      else if(!note.textContent)note.textContent=NOTE;
     }
+    const retry=host.querySelector("[data-visit-retry]");
+    if(retry)retry.style.margin="12px 12px 0";
     return host.querySelector("[data-turnstile]");
+  }
+  function showCheck(){
+    if(!activeFlow())return null;
+    return paintOpen("");
   }
   function clearCheck(){
     const host=document.getElementById("kutadgu-visit-check");
@@ -109,15 +125,13 @@
     host.remove();
   }
   function offerRetry(message){
-    if(!flow||flow.done||flow.busy)return;
-    const host=showCheck();
-    const panel=host&&host.parentElement;
-    const note=panel&&panel.querySelector("[data-visit-note]");
-    const button=panel&&panel.querySelector("[data-visit-retry]");
+    if(!activeFlow()||flow.busy)return;
     if(flow.retries>=MAX_RETRIES){
-      if(note)note.textContent=STOP_NOTE;
+      flow.stopped=true;
+      const slot=paintOpen(STOP_NOTE);
+      const panel=slot&&slot.parentElement;
+      const button=panel&&panel.querySelector("[data-visit-retry]");
       if(button)button.hidden=true;
-      const slot=panel&&panel.querySelector("[data-turnstile]");
       try{
         if(flow.widgetId!=null&&window.turnstile&&typeof window.turnstile.remove==="function")window.turnstile.remove(flow.widgetId);
       }catch(err){}
@@ -125,14 +139,15 @@
       if(slot)slot.replaceChildren();
       return;
     }
-    if(note)note.textContent=message||RETRY_NOTE;
+    const slot=paintOpen(message||RETRY_NOTE);
+    const button=slot&&slot.parentElement&&slot.parentElement.querySelector("[data-visit-retry]");
     if(button)button.hidden=false;
   }
   async function finish(id){
     return post("/api/visit-count",{event_id:id});
   }
-  async function acceptToken(token){
-    if(!flow||flow.done||flow.busy)return;
+  async function acceptToken(token,generation){
+    if(!owns(generation)||flow.busy)return;
     if(!token||flow.usedTokens.has(token)||flow.proofAccepted)return;
     flow.busy=true;
     flow.usedTokens.add(token);
@@ -141,6 +156,10 @@
       proof=await post("/api/visit-proof",{token,action:ACTION});
     }catch(err){
       proof=null;
+    }
+    if(!owns(generation)){
+      flow.busy=false;
+      return;
     }
     if(!proof||proof.ok!==true){
       flow.busy=false;
@@ -154,6 +173,10 @@
     }catch(err){
       result=null;
     }
+    if(!owns(generation)){
+      flow.busy=false;
+      return;
+    }
     flow.busy=false;
     if(settled(result)){
       flow.done=true;
@@ -163,23 +186,36 @@
     offerRetry();
   }
   function render(siteKey){
+    if(!activeFlow())return;
+    const generation=(flow.generation||0)+1;
+    flow.generation=generation;
     const slot=ensureHost().querySelector("[data-turnstile]");
     // appearance "interaction-only" shows the widget only when a challenge
     // needs a person. before-interactive-callback is the documented signal
-    // for that moment. retry "never" and refresh-expired "never" keep
-    // recovery on the explicit button instead of an automatic loop.
+    // for that moment. size "normal" is the documented 300 by 65 widget.
+    // retry "never" and refresh-expired "never" keep recovery on the
+    // explicit button instead of an automatic loop. Ownership is recorded
+    // before render so a synchronous interaction callback still belongs
+    // to this widget, and a later callback from a finished widget does not.
     const widgetId=window.turnstile.render(slot,{
       sitekey:siteKey,
       action:ACTION,
+      size:"normal",
       appearance:"interaction-only",
       retry:"never",
       "refresh-expired":"never",
-      callback(token){acceptToken(token);},
-      "before-interactive-callback"(){showCheck();},
-      "error-callback"(){offerRetry();},
-      "expired-callback"(){offerRetry();},
-      "timeout-callback"(){offerRetry();}
+      callback(token){acceptToken(token,generation);},
+      "before-interactive-callback"(){if(owns(generation))showCheck();},
+      "error-callback"(){if(owns(generation))offerRetry();},
+      "expired-callback"(){if(owns(generation))offerRetry();},
+      "timeout-callback"(){if(owns(generation))offerRetry();}
     });
+    if(!owns(generation)){
+      try{
+        if(window.turnstile&&typeof window.turnstile.remove==="function")window.turnstile.remove(widgetId);
+      }catch(err){}
+      return;
+    }
     flow.widgetId=widgetId;
   }
   function loadWidget(siteKey){
@@ -210,7 +246,7 @@
     loadWidget(config.siteKey);
   }
   async function onRetry(){
-    if(!flow||flow.done||flow.busy||flow.retries>=MAX_RETRIES)return;
+    if(!flow||flow.done||flow.stopped||flow.busy||flow.retries>=MAX_RETRIES)return;
     flow.retries+=1;
     const button=document.querySelector("#kutadgu-visit-check [data-visit-retry]");
     if(button)button.hidden=true;
@@ -228,6 +264,10 @@
       return;
     }
     if(flow.proofAccepted){
+      offerRetry();
+      return;
+    }
+    if(flow.retries>=MAX_RETRIES){
       offerRetry();
       return;
     }
@@ -261,6 +301,8 @@
         proofAccepted:false,
         widgetRequested:false,
         widgetId:null,
+        generation:0,
+        stopped:false,
         usedTokens:new Set()
       };
       let existing=null;

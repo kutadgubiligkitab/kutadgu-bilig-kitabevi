@@ -370,7 +370,8 @@ async function proof(env, fetchImpl, token, extra) {
   assert.doesNotMatch(visitClient, /position:\s*fixed/);
   assert.match(visitClient, /appearance:"interaction-only"/);
   assert.match(visitClient, /retry:"never"/);
-  assert.match(require("fs").readFileSync(require("path").join(__dirname, "..", "analytics.js"), "utf8"), /visit-proof\.js\?v=3/);
+  assert.match(visitClient, /size:"normal"/);
+  assert.match(require("fs").readFileSync(require("path").join(__dirname, "..", "analytics.js"), "utf8"), /visit-proof\.js\?v=4/);
   assert.doesNotMatch(require("fs").readFileSync(require("path").join(__dirname, "..", "analytics.js"), "utf8"), /remoteTrack\("page_view"/);
   console.log("verified visits worker: PASS (mocked siteverify)");
 })().catch((err) => {

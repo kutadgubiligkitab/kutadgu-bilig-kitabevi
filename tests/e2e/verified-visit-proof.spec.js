@@ -4,6 +4,11 @@ const { test, expect } = require("./playwright-test");
 // load https://challenges.cloudflare.com, and do not submit a production
 // proof or count. window.turnstile is a local stand-in marked
 // data-mocked-turnstile="true".
+//
+// REALISTIC TURNSTILE FOOTPRINT. Cloudflare documents the default normal
+// widget as 300 by 65, flexible as a minimum width of 300, and compact as
+// 150 by 140. The labelled fixture below is the normal 300 by 65 stand-in
+// this page requests. It is not a live challenge.
 
 const NOTE = "زىيارەت سانىنى دەلىللەش ئۈچۈن بۇ تەكشۈرۈشنى تاماملاڭ.";
 
@@ -19,11 +24,11 @@ function exercisePage(disabled) {
     + "<a href=\"/cart.html\"><span>سېۋەت</span></a>"
     + "<a href=\"/favorites.html\"><span>ياقتۇرغانلىرىم</span></a>"
     + "<a href=\"/account.html\"><span>كىرىش / ئەزا</span></a>"
-    + "</nav><script src=\"/visit-proof.js?v=3\"></script></body></html>";
+    + "</nav><script src=\"/visit-proof.js?v=4\"></script></body></html>";
 }
 
-async function installTurnstile(page, holdInteraction) {
-  await page.addInitScript((hold) => {
+async function installTurnstile(page, holdInteraction, realistic) {
+  await page.addInitScript(({ hold, realistic }) => {
     window.__holdInteraction = hold;
     window.turnstile = {
       render(slot, options) {
@@ -32,10 +37,20 @@ async function installTurnstile(page, holdInteraction) {
           appearance: options.appearance,
           retry: options.retry,
           refreshExpired: options["refresh-expired"],
-          action: options.action
+          action: options.action,
+          size: options.size
         };
+        window.__heldInteractive = options["before-interactive-callback"] || null;
         window.__mockedTurnstile = true;
         if (hold && typeof options["before-interactive-callback"] === "function") options["before-interactive-callback"]();
+        if (realistic) {
+          const box = document.createElement("div");
+          box.setAttribute("data-mocked-turnstile", "true");
+          box.setAttribute("data-turnstile-fixture", "realistic-normal");
+          box.style.cssText = "display:block;width:300px;height:65px;min-width:300px;max-width:none;margin:0;box-sizing:content-box;transform:none;overflow:visible;";
+          box.textContent = "REALISTIC TURNSTILE FIXTURE 300x65";
+          slot.appendChild(box);
+        }
         window.__mockedTurnstileComplete = (token) => options.callback(token || "mocked-token");
         window.__mockedTurnstileAgain = (token) => options.callback(token || "mocked-token-2");
         window.__mockedTurnstileError = () => options["error-callback"] && options["error-callback"]("network");
@@ -50,7 +65,7 @@ async function installTurnstile(page, holdInteraction) {
         window.__widgetRemoved = (window.__widgetRemoved || 0) + 1;
       }
     };
-  }, holdInteraction);
+  }, { hold: holdInteraction, realistic: !!realistic });
 }
 
 async function serveExercise(page, disabled) {
@@ -144,7 +159,8 @@ test("mocked Turnstile widget is removed after successful verification and count
     appearance: "interaction-only",
     retry: "never",
     refreshExpired: "never",
-    action: "visit"
+    action: "visit",
+    size: "normal"
   });
   const placed = await layoutFacts(page);
   expect(placed.position).toBe("static");
@@ -202,6 +218,124 @@ test("mocked interaction stays in flow at phone and desktop widths in both theme
   }
   expect(backgrounds[0]).not.toBe(backgrounds[1]);
   expect(backgrounds[2]).not.toBe(backgrounds[3]);
+});
+
+async function footprint(page) {
+  return page.evaluate(() => {
+    const widget = document.querySelector("[data-turnstile-fixture='realistic-normal']");
+    const slot = document.querySelector("[data-turnstile]");
+    const panel = document.getElementById("kutadgu-visit-check");
+    const widgetRect = widget.getBoundingClientRect();
+    const slotRect = slot.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const view = document.documentElement.clientWidth;
+    const style = getComputedStyle(widget);
+    const slotStyle = getComputedStyle(slot);
+    const contains = (inner, outer) => inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
+    return {
+      label: widget.textContent,
+      width: widgetRect.width,
+      height: widgetRect.height,
+      left: widgetRect.left,
+      right: widgetRect.right,
+      view,
+      insideSlot: contains(widgetRect, slotRect),
+      insidePanel: contains(widgetRect, panelRect),
+      insideViewport: widgetRect.left >= -0.5 && widgetRect.right <= view + 0.5 && widgetRect.top >= -0.5 && widgetRect.bottom <= window.innerHeight + 0.5,
+      overflow: style.overflow,
+      transform: style.transform,
+      slotOverflow: slotStyle.overflow,
+      open: panel.getAttribute("data-open"),
+      scrollGap: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+}
+
+test("realistic normal widget stays inside its slot and the viewport", async ({ page }) => {
+  await installTurnstile(page, true, true);
+  await page.route("**/api/visit-count", (route) => route.fulfill(jsonResult({ ok: false, counted: false, reason: "cookie_missing" })));
+  await page.route("**/api/visit-proof", (route) => route.abort());
+  await page.route("**/api/visit-config", (route) => route.fulfill(jsonResult({ configured: true, siteKey: "mocked-site-key", action: "visit" })));
+  await page.route("**/challenges.cloudflare.com/**", (route) => route.abort());
+  await serveExercise(page, false);
+  const widths = [320, 390, 1280];
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 });
+    if (width === widths[0]) await page.goto("/visit-proof-exercise.html");
+    const facts = await footprint(page);
+    expect(facts.label).toBe("REALISTIC TURNSTILE FIXTURE 300x65");
+    expect(facts.open).toBe("true");
+    expect(facts.width).toBeGreaterThanOrEqual(299);
+    expect(facts.width).toBeLessThanOrEqual(301);
+    expect(facts.height).toBeGreaterThanOrEqual(64);
+    expect(facts.height).toBeLessThanOrEqual(66);
+    expect(facts.insideSlot).toBe(true);
+    expect(facts.insidePanel).toBe(true);
+    expect(facts.insideViewport).toBe(true);
+    expect(facts.scrollGap).toBeLessThanOrEqual(1);
+    expect(facts.overflow).not.toBe("hidden");
+    expect(facts.slotOverflow).not.toBe("hidden");
+    expect(facts.transform === "none" || facts.transform === "matrix(1, 0, 0, 1, 0, 0)").toBe(true);
+    expect(facts.left).toBeGreaterThanOrEqual(0);
+    expect(facts.right).toBeLessThanOrEqual(facts.view + 0.5);
+  }
+});
+
+test("a late interaction callback does not rebuild a completed check", async ({ page }) => {
+  await installTurnstile(page, true);
+  await page.route("**/api/visit-count", (route) => {
+    const calls = (page.__countCalls || 0) + 1;
+    page.__countCalls = calls;
+    return route.fulfill(jsonResult(calls === 1
+      ? { ok: false, counted: false, reason: "cookie_missing" }
+      : { ok: true, counted: true, reason: "accepted" }));
+  });
+  await page.route("**/api/visit-proof", (route) => route.fulfill(jsonResult({ ok: true, counted: false, reason: "proof_accepted" })));
+  await page.route("**/api/visit-config", (route) => route.fulfill(jsonResult({ configured: true, siteKey: "mocked-site-key", action: "visit" })));
+  await page.route("**/challenges.cloudflare.com/**", (route) => route.abort());
+  await serveExercise(page, false);
+  await page.goto("/visit-proof-exercise.html");
+  await expect(page.locator("#kutadgu-visit-check")).toBeVisible();
+  await page.evaluate(() => window.__mockedTurnstileComplete("mocked-token"));
+  await expect(page.locator("#kutadgu-visit-check")).toHaveCount(0);
+  await page.evaluate(() => window.__heldInteractive && window.__heldInteractive());
+  await page.evaluate(() => window.__mockedTurnstileError());
+  await expect(page.locator("#kutadgu-visit-check")).toHaveCount(0);
+});
+
+test("a late interaction callback does not rebuild a check after retry exhaustion", async ({ page }) => {
+  const STOP = "ساناش بۇ قېتىم تاماملانمىدى. بەت ئىشلىتىشكە ئوچۇق.";
+  await installTurnstile(page, true);
+  await page.route("**/api/visit-count", (route) => route.fulfill(jsonResult({ ok: false, counted: false, reason: "cookie_missing" })));
+  await page.route("**/api/visit-proof", (route) => route.abort());
+  await page.route("**/api/visit-config", (route) => route.fulfill(jsonResult({ configured: true, siteKey: "mocked-site-key", action: "visit" })));
+  await page.route("**/challenges.cloudflare.com/**", (route) => route.abort());
+  await serveExercise(page, false);
+  await page.goto("/visit-proof-exercise.html");
+  const panel = page.locator("#kutadgu-visit-check");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(NOTE);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await page.evaluate(() => window.__mockedTurnstileError());
+    await expect(page.locator("[data-visit-retry]")).toBeVisible();
+    const resetsBefore = await page.evaluate(() => window.__widgetResets || 0);
+    await page.locator("[data-visit-retry]").click();
+    if (attempt < 3) {
+      await expect.poll(() => page.evaluate(() => window.__widgetResets || 0)).toBe(resetsBefore + 1);
+    }
+  }
+  await expect(panel).toHaveCount(1);
+  await expect(panel).toContainText(STOP);
+  await expect(page.locator("[data-visit-retry]")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-turnstile]").childElementCount)).toBe(0);
+  await page.evaluate(() => window.__heldInteractive && window.__heldInteractive());
+  await page.evaluate(() => window.__mockedTurnstileError());
+  await expect(panel).toHaveCount(1);
+  await expect(panel).toContainText(STOP);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-turnstile]").childElementCount)).toBe(0);
+  await page.evaluate(() => document.getElementById("kutadgu-visit-check").remove());
+  await page.evaluate(() => window.__heldInteractive && window.__heldInteractive());
+  await expect(page.locator("#kutadgu-visit-check")).toHaveCount(0);
 });
 
 test("mocked silent success never opens the check and removes its space", async ({ page }) => {
@@ -336,7 +470,7 @@ test("analyticsHooks false skips counting, configuration, and Turnstile", async 
     calls.push(route.request().url());
     return route.abort();
   });
-  await page.route("**/visit-proof.js?v=3", (route) => route.continue());
+  await page.route("**/visit-proof.js?v=4", (route) => route.continue());
   await serveExercise(page, true);
   await page.goto("/visit-proof-exercise.html");
   await expect(page.locator("#browsing")).toBeVisible();
@@ -353,7 +487,7 @@ test("localhost without the exercise attribute does not count", async ({ page })
   await page.route("**/visit-proof-exercise.html", (route) => route.fulfill({
     status: 200,
     contentType: "text/html; charset=utf-8",
-    body: "<!DOCTYPE html><html><head><script>window.KUTADGU_APP_CONFIG={featureFlags:{analyticsHooks:true}};</script></head><body><p id=\"browsing\">ok</p><script src=\"/visit-proof.js?v=3\"></script></body></html>"
+    body: "<!DOCTYPE html><html><head><script>window.KUTADGU_APP_CONFIG={featureFlags:{analyticsHooks:true}};</script></head><body><p id=\"browsing\">ok</p><script src=\"/visit-proof.js?v=4\"></script></body></html>"
   }));
   await page.goto("/visit-proof-exercise.html");
   await expect(page.locator("#browsing")).toBeVisible();
