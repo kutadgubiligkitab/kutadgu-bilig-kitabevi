@@ -1158,8 +1158,8 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
   const currentPinMatch = currentHtml.match(/admin\.css\?v=(\d+)/);
   expect(currentPinMatch, "admin.html must pin admin.css").toBeTruthy();
   const currentPin = currentPinMatch[1];
-  expect(currentPin).toBe("66");
-  const oldDocument = currentHtml.replace(`admin.css?v=${currentPin}`, "admin.css?v=679");
+  expect(currentPin).toBe("67");
+  const oldDocument = currentHtml.replace(`admin.css?v=${currentPin}`, "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
   expect(oldDocument).not.toContain(`admin.css?v=${currentPin}`);
   const hits = { v49: 0, current: 0 };
@@ -1238,7 +1238,7 @@ test("a warm cached admin stylesheet stays broken until the new pin loads", asyn
     await expect(bell).toContainText("3");
     expect(hits.v49).toBe(1);
     expect(hits.current).toBe(1);
-    const cached = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("admin.css?v=679")).map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
+    const cached = await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => entry.name.includes("admin.css?v=49")).map((entry) => ({ transferSize: entry.transferSize, decodedBodySize: entry.decodedBodySize })));
     expect(cached.some((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0)).toBe(true);
     expect(await panel.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
   } finally {

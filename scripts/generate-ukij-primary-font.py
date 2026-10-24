@@ -227,7 +227,7 @@ def patch_tree(primary_range, complementary_range):
         updated, preload_count = patch_preload(updated)
         if path.suffix.lower() in {".html", ".js"}:
             for old, new in PIN_REPLACEMENTS:
-                updated = updated.replace(old, new)
+                updated = re.sub(re.escape(old) + r"(?!\d)", new, updated)
         if updated != original:
             path.write_text(updated, encoding="utf-8", newline="\n")
             if face_count:
