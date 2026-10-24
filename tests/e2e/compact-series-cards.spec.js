@@ -152,7 +152,7 @@ async function measurePair(page, cardSelector, coverSelector, actionSelector, or
   return page.evaluate(({ cardSelector: cardsQuery, coverSelector: coverQuery, actionSelector: actionQuery, ordinaryText: ordinaryLabel }) => {
     const cardsInView = [...document.querySelectorAll(cardsQuery)];
     const ordinary = cardsInView.find((card) => (card.innerText || "").includes(ordinaryLabel));
-    const series = cardsInView.find((card) => (card.innerText || "").includes("ئويغانغان زېمىن — 2 قىسىم"));
+    const series = cardsInView.find((card) => (card.innerText || "").includes("ئويغانغان زېمىن 2 قىسىم"));
     if (!ordinary || !series) return { problems: [`${cardsQuery} missing ordinary/series pair`] };
     const cards = [ordinary, series];
     const covers = cards.map((card) => card.querySelector(coverQuery));
@@ -192,13 +192,13 @@ test.describe("compact series cards", () => {
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expectStylesLoaded(page);
-    const featured = page.locator("#homeFeaturedBooks .home-feature-card", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first();
+    const featured = page.locator("#homeFeaturedBooks .home-feature-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first();
     await expect(featured).toBeVisible({ timeout: 30000 });
     await expect(featured).toContainText("750");
     await expect(featured).toContainText("تەپسىلاتى");
     await expect(featured).not.toContainText("370");
     await expect(featured).not.toContainText("399");
-    const carousel = page.locator("#newBooksCarousel .home-carousel-card", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first();
+    const carousel = page.locator("#newBooksCarousel .home-carousel-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first();
     await expect(carousel).toBeVisible();
     await expect(carousel).toContainText("750");
     await expect(page.locator("#homeFeaturedBooks")).toContainText("360");
@@ -208,10 +208,10 @@ test.describe("compact series cards", () => {
 
     await page.locator("#searchInput").fill("ئابدۇرېھىم");
     await page.locator("#searchButton").click();
-    await expect(page.locator("#searchResults .advanced-search-result", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first()).toBeVisible();
+    await expect(page.locator("#searchResults .advanced-search-result", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first()).toBeVisible();
 
     await page.locator("[data-premium-group='literature']").click();
-    await expect(page.locator("#premiumDiscoveryResults .premium-book-card", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first()).toBeVisible();
+    await expect(page.locator("#premiumDiscoveryResults .premium-book-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first()).toBeVisible();
 
     const homeSurfaces = [
       ["#homeFeaturedBooks .home-feature-card", ".home-feature-cover", ".home-feature-bottom"],
@@ -242,7 +242,7 @@ test.describe("compact series cards", () => {
 
     await page.goto("/book-shell.html?id=11", { waitUntil: "domcontentloaded" });
     await expectStylesLoaded(page);
-    const related = page.locator("[data-detail-related] .shop-mini-card", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first();
+    const related = page.locator("[data-detail-related] .shop-mini-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first();
     await expect(related).toBeVisible({ timeout: 30000 });
     for (const [name, width, height] of sizes) {
       await page.setViewportSize({ width, height });
@@ -256,13 +256,14 @@ test.describe("compact series cards", () => {
 
     await page.goto("/books", { waitUntil: "domcontentloaded" });
     await expectStylesLoaded(page);
-    const listing = page.locator(".books-grid .book-card", { hasText: "ئويغانغان زېمىن — 2 قىسىم" }).first();
+    const listing = page.locator(".books-grid .book-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first();
     await expect(listing).toBeVisible({ timeout: 30000 });
     await expect(listing).toContainText("750");
     await expect(listing).toContainText("تەپسىلاتى");
     await expect(listing).not.toContainText("370");
     const longTitle = page.locator(".books-grid .book-title[title*='سىغمەيدۇ']");
-    await expect(longTitle).toHaveAttribute("title", /— 2 قىسىم$/);
+    await expect(longTitle).toHaveAttribute("title", / 2 قىسىم$/);
+    await expect(longTitle).not.toHaveAttribute("title", /— 2 قىسىم$/);
     for (const [name, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => document.body.classList.remove("dark-mode"));
