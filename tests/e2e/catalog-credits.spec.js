@@ -302,7 +302,7 @@ test.describe("catalog credit browsing", () => {
   test("late premium initialization keeps an opened mobile filter", async ({ page }) => {
     const held = await openCreditWhilePremiumWaits(page, 390);
     try {
-      const toggle = mobileFilterToggle(page);
+      const toggle = page.locator("#catalogFilterBar .category-filter-toggle");
       await expect(toggle).toBeVisible();
       await toggle.click();
       const field = page.locator("#catalogFilterText");
@@ -363,7 +363,7 @@ test.describe("catalog credit browsing", () => {
   test("late premium initialization leaves a closed mobile filter closed", async ({ page }) => {
     const held = await openCreditWhilePremiumWaits(page, 390);
     try {
-      await expect(mobileFilterToggle(page)).toBeVisible();
+      await expect(page.locator("#catalogFilterBar .category-filter-toggle")).toBeVisible();
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
       const before = await readFilterChrome(page);
       expect(before.open).toBe(false);
@@ -382,15 +382,15 @@ test.describe("catalog credit browsing", () => {
       expect(after.display).not.toBe("none");
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
 
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
       await page.locator("#catalogFilterText").fill("ئىككى");
       await page.locator("#catalogFilterReset").click();
       await expect(page.locator("#catalogFilterText")).toHaveValue("");
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
     } finally {
       held.release();
