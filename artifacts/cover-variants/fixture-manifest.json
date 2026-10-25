@@ -1,0 +1,63 @@
+{
+  "dryRun": true,
+  "version": "v1",
+  "widths": [
+    480,
+    960
+  ],
+  "quality": 0.82,
+  "generatedAt": "2026-10-25T20:14:54.850Z",
+  "count": 5,
+  "uploadCount": 2,
+  "plans": [
+    {
+      "sourceKey": "book-covers/311/cover.webp",
+      "sourceUrl": "https://www.kutadgubilik.com/__r2/book-covers/311/cover.webp",
+      "widths": [
+        480,
+        960
+      ],
+      "variants": [
+        {
+          "width": 480,
+          "key": "book-covers/variants/v1/w480/311/cover.webp",
+          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w480/311/cover.webp"
+        },
+        {
+          "width": 960,
+          "key": "book-covers/variants/v1/w960/311/cover.webp",
+          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w960/311/cover.webp"
+        }
+      ],
+      "skip": ""
+    },
+    {
+      "sourceKey": "book-covers/312/cover.jpg",
+      "sourceUrl": "https://www.kutadgubilik.com/__r2/book-covers/312/cover.jpg",
+      "widths": [],
+      "variants": [],
+      "skip": "not-larger-than-variant"
+    },
+    {
+      "sourceKey": "",
+      "sourceUrl": "https://www.kutadgubilik.com/__r2/book-covers/hero/banner.webp",
+      "widths": [],
+      "variants": [],
+      "skip": "ineligible"
+    },
+    {
+      "sourceKey": "",
+      "sourceUrl": "https://www.kutadgubilik.com/__r2/book-covers/313/cover.gif",
+      "widths": [],
+      "variants": [],
+      "skip": "ineligible"
+    },
+    {
+      "sourceKey": "",
+      "sourceUrl": "https://example.invalid/cover.webp",
+      "widths": [],
+      "variants": [],
+      "skip": "ineligible"
+    }
+  ]
+}

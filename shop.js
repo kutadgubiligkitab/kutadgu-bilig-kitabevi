@@ -370,8 +370,48 @@ function handleCoverLoad(img){
   if(state&&state.replaying)return;
   clearCoverRetry(img);
 }
+function dropFailedDeliveryCandidate(img){
+  if(!img||!img.getAttribute||!img.getAttribute("srcset"))return false;
+  const original=(img.getAttribute("data-cover-src")||"").trim();
+  img.removeAttribute("srcset");
+  img.removeAttribute("sizes");
+  if(!original||!isRetryableCoverUrl(original))return true;
+  img.removeAttribute("src");
+  try{void img.offsetWidth}catch(e){}
+  img.src=original;
+  return true;
+}
+function coverDeliveryApi(){
+  return typeof window!=="undefined"?window.KutadguCoverVariants:null;
+}
+function coverDeliverySizes(img,opts){
+  if(opts&&opts.sizes)return opts.sizes;
+  if(img&&img.closest&&img.closest(".cover-zoom-overlay"))return "";
+  if(img&&img.closest&&img.closest(".book-cover-box"))return coverDeliveryApi()?.DETAIL_SIZES||"(max-width: 700px) min(92vw, 560px), 560px";
+  if(img&&img.closest&&(img.closest(".volume-member-option")||img.closest(".book-gallery-thumb")))return coverDeliveryApi()?.THUMB_SIZES||"48px";
+  if(img&&img.closest&&img.closest(".cart-item-cover"))return coverDeliveryApi()?.CART_SIZES||"108px";
+  return coverDeliveryApi()?.CARD_SIZES||"(max-width: 650px) 46vw, (max-width: 900px) 30vw, 240px";
+}
+function applyCoverDelivery(img,url,opts){
+  if(!img)return;
+  const sizes=coverDeliverySizes(img,opts);
+  const set=sizes&&coverDeliveryApi()?coverDeliveryApi().srcsetFor(url):"";
+  if(!set){
+    img.removeAttribute("srcset");
+    img.removeAttribute("sizes");
+    return;
+  }
+  img.setAttribute("srcset",set);
+  img.setAttribute("sizes",sizes);
+}
+function coverDeliveryAttributeHtml(url,sizes){
+  const api=coverDeliveryApi();
+  if(!api||!url)return "";
+  return api.deliveryAttributes(url,sizes||api.CARD_SIZES);
+}
 function handleCoverError(img){
   if(!img)return;
+  if(dropFailedDeliveryCandidate(img))return;
   const boundBook=img.getAttribute&&img.getAttribute("data-cover-book");
   const stateBook=coverRetryStates.get(img);
   if(boundBook&&stateBook&&stateBook.bookId&&boundBook!==stateBook.bookId)return;
@@ -456,6 +496,8 @@ function replayApprovedCover(job){
     handleCoverError(img);
   };
   state.replaying=true;
+  img.removeAttribute("srcset");
+  img.removeAttribute("sizes");
   img.removeAttribute("src");
   try{void img.offsetWidth}catch(e){}
   img.src=src;
@@ -477,6 +519,7 @@ function assignCoverImage(img,src,opts={}){
   img.onerror=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverError(img)};
   if(opts.loading)img.loading=opts.loading;
   if(opts.fetchpriority)img.setAttribute("fetchpriority",opts.fetchpriority);
+  applyCoverDelivery(img,approved,opts);
   state.replaying=true;
   img.src=approved;
   state.replaying=false;
@@ -535,7 +578,7 @@ function coverImgHtml(book,opts={}){
   if(!src)return `<span class="book-cover-unavailable" aria-hidden="true"></span>`;
   const bookId=book&&book.id!=null?String(book.id):"";
   const bookAttr=bookId?` data-cover-book="${escapeAttr(bookId)}"`:"";
-  return `<img src="${escapeAttr(src)}" alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${bookAttr}${prio}>`;
+  return `<img src="${escapeAttr(src)}"${coverDeliveryAttributeHtml(src,opts.sizes)} alt="${alt}" width="${width}" height="${height}" loading="${loading}" decoding="async" data-cover-src="${escapeAttr(src)}"${bookAttr}${prio}>`;
 }
 function listingCardSkeletonMarkup(){
   return `<article class="book-card is-skeleton" aria-hidden="true">
@@ -3189,7 +3232,7 @@ function renderBookGallery(book){
   strip.innerHTML=slides.map((src,index)=>{
     if(!isSafeCoverUrl(src)||isSampleDemoCover(src))return "";
     return `<button type="button" class="book-gallery-thumb${index===0?" is-active":""}" role="listitem" data-gallery-index="${index}" aria-label="${index===0?"ئاساسىي مۇقاۋا":"قوشۇمچە رەسىم "+index}">
-      <img src="${escapeAttr(src)}" alt="" data-cover-src="${escapeAttr(src)}" ${index===0?"":'loading="lazy"'} decoding="async">
+      <img src="${escapeAttr(src)}"${coverDeliveryAttributeHtml(src,coverDeliveryApi()?.THUMB_SIZES||"48px")} alt="" data-cover-src="${escapeAttr(src)}" ${index===0?"":'loading="lazy"'} decoding="async">
     </button>`;
   }).filter(Boolean).join("");
   col.appendChild(strip);
@@ -3493,7 +3536,7 @@ function renderVolumeGroupPurchasePanel(box,book,group){
         const checked=String(member.book_id)===selectedId;
         return `<label class="volume-member-option${available?"":" is-unavailable"}">
           <input type="checkbox" data-volume-book-id="${escapeAttr(member.book_id)}"${checked?" checked":""}${available?"":" disabled"}>
-          <img src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}" alt="" loading="lazy" width="48" height="68">
+          <img src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}"${coverDeliveryAttributeHtml(safeCoverUrl(member.image_url||memberBook.image),coverDeliveryApi()?.THUMB_SIZES||"48px")} alt="" loading="lazy" width="48" height="68" decoding="async" data-cover-src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}" data-cover-book="${escapeAttr(member.book_id)}">
           <span class="volume-member-copy">
             <strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
             <small>${escapeHtml(member.title||memberBook.title||"")}</small>
@@ -4916,7 +4959,7 @@ function cartPage(){
       :(available?"":`<span class="stock-badge stock-out">بەزى قىسىملار تەمىنلەنمەيدۇ</span>`));
     return `<div class="cart-item cart-volume-set${available||loading||readError?"":" cart-item-unavailable"}${loading?" is-quote-pending":""}${readError?" is-quote-error":""}" data-set-group="${escapeAttr(x.group_id)}" data-set-quote-state="${quoteState}">
       <div class="cart-item-cover${available||loading?"":" is-stock-out"}">
-        ${representative?`<img src="${escapeAttr(safeCoverUrl(representative.image_url))}" alt="${escapeAttr(group.title||"تولۇق توپلام")}" width="100" height="127" loading="${index<2?"eager":"lazy"}">`:""}
+        ${representative?`<img src="${escapeAttr(safeCoverUrl(representative.image_url))}"${coverDeliveryAttributeHtml(safeCoverUrl(representative.image_url),coverDeliveryApi()?.CART_SIZES||"108px")} alt="${escapeAttr(group.title||"تولۇق توپلام")}" width="100" height="127" loading="${index<2?"eager":"lazy"}" decoding="async" data-cover-src="${escapeAttr(safeCoverUrl(representative.image_url))}">`:""}
       </div>
       <div class="cart-item-body">
         <div class="cart-title">${escapeHtml(group?.title||`توپلام #${x.group_id}`)}</div>

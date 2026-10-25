@@ -232,7 +232,34 @@ async function postR2CoverUpload(opts){
   if(!response||!response.ok||!payload||payload.ok!==true||payload.url!==expected||payload.key!==objectKey){
     throw new Error(r2UploadError(payload&&payload.error));
   }
+  try{await uploadDeliveryVariants(options,fetchImpl);}catch(error){}
   return expected;
+}
+async function uploadDeliveryVariants(options,fetchImpl){
+  const variantsApi=root.KutadguCoverVariants;
+  if(!variantsApi||typeof variantsApi.encodeDeliveryVariants!=="function"||typeof variantsApi.deliverySourceKey!=="function")return;
+  if(!variantsApi.deliverySourceKey(options.objectKey))return;
+  if(typeof document==="undefined"||typeof createImageBitmap!=="function"||typeof Blob==="undefined")return;
+  const encoded=await variantsApi.encodeDeliveryVariants(new Blob([options.body],{type:String(options.contentType||"")}));
+  for(let i=0;i<(encoded||[]).length;i++){
+    const item=encoded[i];
+    const variantKey=variantsApi.variantObjectKey(options.objectKey,item.width);
+    if(!variantKey||!item.body)continue;
+    try{
+      const response=await fetchImpl(options.url||R2_UPLOAD_PATH,{
+        method:"POST",
+        headers:{
+          Authorization:"Bearer "+String(options.token||""),
+          "Content-Type":"image/webp",
+          "x-kutadgu-object-key":variantKey
+        },
+        body:item.body
+      });
+      if(response&&typeof response.json==="function"){
+        try{await response.json();}catch(error){}
+      }
+    }catch(error){}
+  }
 }
 function cacheControlStoredBySupabase(body,options){
   const opts=options||{};

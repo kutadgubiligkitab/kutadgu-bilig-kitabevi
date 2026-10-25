@@ -1,0 +1,130 @@
+{
+  "readOnly": true,
+  "uploaded": false,
+  "rows": [
+    {
+      "key": "book-covers/107/1788094588301.webp",
+      "originalBytes": 50120,
+      "width": 471,
+      "height": 672,
+      "results": [
+        {
+          "quality": 0.82,
+          "width": 480,
+          "skipped": true
+        },
+        {
+          "quality": 0.82,
+          "width": 960,
+          "skipped": true
+        },
+        {
+          "quality": 0.92,
+          "width": 480,
+          "skipped": true
+        },
+        {
+          "quality": 0.92,
+          "width": 960,
+          "skipped": true
+        }
+      ]
+    },
+    {
+      "key": "book-covers/132/1789315153076.webp",
+      "originalBytes": 168478,
+      "width": 795,
+      "height": 1125,
+      "results": [
+        {
+          "quality": 0.82,
+          "width": 480,
+          "height": 679,
+          "bytes": 63428,
+          "skipped": false
+        },
+        {
+          "quality": 0.82,
+          "width": 960,
+          "skipped": true
+        },
+        {
+          "quality": 0.92,
+          "width": 480,
+          "height": 679,
+          "bytes": 114318,
+          "skipped": false
+        },
+        {
+          "quality": 0.92,
+          "width": 960,
+          "skipped": true
+        }
+      ]
+    },
+    {
+      "key": "book-covers/165/1789224059997.webp",
+      "originalBytes": 163674,
+      "width": 630,
+      "height": 898,
+      "results": [
+        {
+          "quality": 0.82,
+          "width": 480,
+          "height": 684,
+          "bytes": 84140,
+          "skipped": false
+        },
+        {
+          "quality": 0.82,
+          "width": 960,
+          "skipped": true
+        },
+        {
+          "quality": 0.92,
+          "width": 480,
+          "height": 684,
+          "bytes": 134076,
+          "skipped": false
+        },
+        {
+          "quality": 0.92,
+          "width": 960,
+          "skipped": true
+        }
+      ]
+    },
+    {
+      "key": "book-covers/282/1789596347386.webp",
+      "originalBytes": 149430,
+      "width": 798,
+      "height": 1138,
+      "results": [
+        {
+          "quality": 0.82,
+          "width": 480,
+          "height": 685,
+          "bytes": 57758,
+          "skipped": false
+        },
+        {
+          "quality": 0.82,
+          "width": 960,
+          "skipped": true
+        },
+        {
+          "quality": 0.92,
+          "width": 480,
+          "height": 685,
+          "bytes": 92546,
+          "skipped": false
+        },
+        {
+          "quality": 0.92,
+          "width": 960,
+          "skipped": true
+        }
+      ]
+    }
+  ]
+}

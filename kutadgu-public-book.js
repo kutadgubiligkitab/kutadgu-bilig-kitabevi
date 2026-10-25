@@ -6,6 +6,7 @@ const safeUrl = require("./kutadgu-safe-url.js");
 const bib = require("./catalog-bibliography.js");
 const credits = require("./catalog-credits.js");
 const stock = require("./kutadgu-stock.js");
+const coverVariants = require("./kutadgu-cover-variants.js");
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
@@ -353,7 +354,7 @@ function applyBookSpecificBody(html, book) {
     out = replaceFirst(
       out,
       /<div class="book-cover-box">\s*<img\b[^>]*>\s*<\/div>/,
-      `<div class="book-cover-box"><img src="${escapeAttr(image)}" alt="${alt}"></div>`
+      `<div class="book-cover-box"><img src="${escapeAttr(image)}"${coverVariants.deliveryAttributes(image, coverVariants.DETAIL_SIZES)} alt="${alt}" decoding="async"></div>`
     );
   }
 

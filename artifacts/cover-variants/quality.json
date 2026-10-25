@@ -1,0 +1,254 @@
+{
+  "qualities": [
+    0.75,
+    0.82,
+    0.86,
+    0.92
+  ],
+  "widths": [
+    480,
+    960
+  ],
+  "rows": [
+    {
+      "kind": "light",
+      "width": 480,
+      "height": 720,
+      "quality": 0.75,
+      "bytes": 5272,
+      "masterBytes": 7538,
+      "changedRatio": 0.0035,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 480,
+      "height": 720,
+      "quality": 0.82,
+      "bytes": 6134,
+      "masterBytes": 7538,
+      "changedRatio": 0.0007,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 480,
+      "height": 720,
+      "quality": 0.86,
+      "bytes": 6568,
+      "masterBytes": 7538,
+      "changedRatio": 0.0005,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 480,
+      "height": 720,
+      "quality": 0.92,
+      "bytes": 7538,
+      "masterBytes": 7538,
+      "changedRatio": 0.0001,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 480,
+      "height": 720,
+      "quality": 0.75,
+      "bytes": 5752,
+      "masterBytes": 7464,
+      "changedRatio": 0.1641,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 480,
+      "height": 720,
+      "quality": 0.82,
+      "bytes": 6098,
+      "masterBytes": 7464,
+      "changedRatio": 0.1621,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 480,
+      "height": 720,
+      "quality": 0.86,
+      "bytes": 7460,
+      "masterBytes": 7464,
+      "changedRatio": 0.1612,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 480,
+      "height": 720,
+      "quality": 0.92,
+      "bytes": 7464,
+      "masterBytes": 7464,
+      "changedRatio": 0.1603,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 480,
+      "height": 720,
+      "quality": 0.75,
+      "bytes": 3690,
+      "masterBytes": 4612,
+      "changedRatio": 0.0011,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 480,
+      "height": 720,
+      "quality": 0.82,
+      "bytes": 3906,
+      "masterBytes": 4612,
+      "changedRatio": 0.0004,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 480,
+      "height": 720,
+      "quality": 0.86,
+      "bytes": 4144,
+      "masterBytes": 4612,
+      "changedRatio": 0.0004,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 480,
+      "height": 720,
+      "quality": 0.92,
+      "bytes": 4612,
+      "masterBytes": 4612,
+      "changedRatio": 0.0003,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.75,
+      "bytes": 11096,
+      "masterBytes": 13180,
+      "changedRatio": 0.0022,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.82,
+      "bytes": 13454,
+      "masterBytes": 13180,
+      "changedRatio": 0.0005,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.86,
+      "bytes": 11712,
+      "masterBytes": 13180,
+      "changedRatio": 0.0003,
+      "alphaLost": 0
+    },
+    {
+      "kind": "light",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.92,
+      "bytes": 13180,
+      "masterBytes": 13180,
+      "changedRatio": 0.0002,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.75,
+      "bytes": 13582,
+      "masterBytes": 13844,
+      "changedRatio": 0.1912,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.82,
+      "bytes": 11784,
+      "masterBytes": 13844,
+      "changedRatio": 0.1906,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.86,
+      "bytes": 16636,
+      "masterBytes": 13844,
+      "changedRatio": 0.1904,
+      "alphaLost": 0
+    },
+    {
+      "kind": "dark",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.92,
+      "bytes": 13844,
+      "masterBytes": 13844,
+      "changedRatio": 0.1902,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.75,
+      "bytes": 6000,
+      "masterBytes": 6920,
+      "changedRatio": 0.0003,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.82,
+      "bytes": 6214,
+      "masterBytes": 6920,
+      "changedRatio": 0.0001,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.86,
+      "bytes": 6448,
+      "masterBytes": 6920,
+      "changedRatio": 0.0001,
+      "alphaLost": 0
+    },
+    {
+      "kind": "transparent",
+      "width": 960,
+      "height": 1440,
+      "quality": 0.92,
+      "bytes": 6920,
+      "masterBytes": 6920,
+      "changedRatio": 0.0001,
+      "alphaLost": 0
+    }
+  ]
+}
