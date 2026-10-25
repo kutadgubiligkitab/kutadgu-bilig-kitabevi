@@ -268,6 +268,18 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#bookCategories [data-category-group]").count()).toBeGreaterThan(0);
     await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => {
+      const ready = (selector) => {
+        const link = document.querySelector(selector);
+        if (!link) return false;
+        const sheet = [...document.styleSheets].find((item) => item.ownerNode === link);
+        if (!sheet) return false;
+        try { return sheet.cssRules.length > 0; } catch (err) { return false; }
+      };
+      return ready('link[href*="theme.css"]')
+        && ready('link[data-kutadgu-stage4b2-homepage-discovery]')
+        && ready('link[data-kutadgu-storefront-cards-1a]');
+    })).toBe(true);
     await page.evaluate(() => document.fonts && document.fonts.ready);
   }
 
@@ -328,7 +340,30 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       document.body.classList.add("dark-mode");
       document.documentElement.classList.add("dark-mode");
     });
-    await expect.poll(async () => page.evaluate(() => document.body.classList.contains("dark-mode"))).toBeTruthy();
+    await expect.poll(async () => page.evaluate(() => {
+      if (!document.body.classList.contains("dark-mode")) return false;
+      const token = (name) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${name})`;
+        document.body.appendChild(probe);
+        const value = getComputedStyle(probe).color.replace(/\s+/g, "");
+        probe.remove();
+        return value;
+      };
+      const text = token("--site-text");
+      const soft = token("--site-text-soft");
+      const pairs = [
+        ["#homeFeaturedBooks .home-feature-title", text],
+        ["#homeFeaturedBooks .home-feature-price", text],
+        ["#newBooksCarousel .home-carousel-title", text],
+        ["#homeFeaturedBooks .home-feature-author", soft],
+        ["#newBooksCarousel .home-carousel-author", soft]
+      ];
+      return pairs.every(([selector, color]) => {
+        const node = document.querySelector(selector);
+        return !!node && getComputedStyle(node).color.replace(/\s+/g, "") === color;
+      });
+    })).toBe(true);
   }
 
   async function captureFamily(page, width, mode, outDir) {

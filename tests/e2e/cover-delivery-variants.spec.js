@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const fs = require("fs");
 const path = require("path");
 const variants = require("../../kutadgu-cover-variants.js");
 const books = require("../../kutadgu-public-book.js");
@@ -135,24 +136,105 @@ test("cards and narrow sources follow the same availability", async ({ browser }
 });
 
 test("a deleted published variant still falls back to the original once", async ({ page }) => {
-  const hits = [];
-  await page.route("**/__r2/**", (route) => {
-    const url = route.request().url();
-    hits.push(url);
-    if (url.includes("/variants/")) return route.fulfill({ status: 404, body: "missing" });
-    return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
+  const root = path.join(__dirname, "..", "..");
+  const sourceKey = "book-covers/311/cover.webp";
+  const record = published(sourceKey, 1600, [480, 960]);
+  const book = {
+    id: "311",
+    title: "قۇتادغۇ بىلىك",
+    author: "سىناق ئاپتور",
+    price: 42,
+    source: "romanlar.html",
+    category: "رومانلار",
+    image_url: ORIGINAL,
+    is_active: true,
+    submission_status: "approved",
+    stock: 4,
+    stock_status: "in_stock"
+  };
+  variants.resetAvailabilityMemory();
+  variants.useAvailability(record);
+  const html = books.applyFoundPublicBookHead(fs.readFileSync(path.join(root, "book-shell.html"), "utf8"), "311", book)
+    .replace("<body", '<body data-book-id="311"');
+  variants.resetAvailabilityMemory();
+  expect(html).toContain("data-book-id=\"311\"");
+  expect(html).toContain("/w480/");
+  expect(html).toContain("/w960/");
+
+  const variantHits = [];
+  const pageErrors = [];
+  let releaseCatalog = function(){};
+  const catalogReady = new Promise((resolve) => { releaseCatalog = resolve; });
+  page.on("pageerror", (error) => pageErrors.push(String(error && error.message || error)));
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    const url = request.url();
+    const method = request.method();
+    const pathname = new URL(url).pathname;
+    if (method === "GET" && /^\/book\/311\/?$/.test(pathname)) {
+      return route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: html });
+    }
+    if (/\/availability\.json(?:$|\?)/.test(pathname)) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({ version: "v1", sources: record.sources })
+      });
+    }
+    if (/\/variants\/v1\/w(?:480|960)\//.test(pathname)) {
+      variantHits.push(url);
+      return route.fulfill({ status: 404, body: "missing" });
+    }
+    if (pathname.includes("/__r2/") || pathname.endsWith("/311/cover.webp")) {
+      return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
+    }
+    if (method === "GET" && /\/rest\/v1\/books(?:\?|$)/.test(url)) {
+      await catalogReady;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "content-range": "0-0/1" },
+        body: JSON.stringify([book])
+      });
+    }
+    if (method === "POST" && /\/rpc\/query_public_book_catalog(?:\?|$)/.test(url)) {
+      await catalogReady;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [book], total: 1, has_more: false })
+      });
+    }
+    if (method === "POST" && /\/rpc\/(?:resolve_public_book_volume_context|get_public_book_volume_group_storefront|list_public_book_volume_part_prices|map_public_books_to_catalog_units|list_public_book_volume_discovery_unit_ids|quote_book_volume_cart)(?:\?|$)/.test(url)) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
+    }
+    if (/\/rest\/v1\/book_credits(?:\?|$)/.test(url)) {
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+    }
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      return route.fulfill({ status: 204, body: "" });
+    }
+    return route.continue();
   });
-  await page.setContent(detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 1600, [480, 960])));
-  await page.addScriptTag({ path: path.join(__dirname, "..", "..", "kutadgu-cover-variants.js") });
-  await page.addScriptTag({ path: path.join(__dirname, "..", "..", "shop.js") });
-  await page.evaluate((original) => {
-    const img = document.querySelector(".book-cover-box img");
-    window.KutadguCoverVariants.useAvailability({ sources: {} });
-    window.kutadguShop.assignCoverImage(img, original, { bookId: "311" });
-    img.setAttribute("srcset", img.getAttribute("srcset") || "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w960/311/cover.webp.webp 960w");
-    img.src = original;
-  }, ORIGINAL);
-  await expect.poll(() => page.locator(".book-cover-box img").evaluate((img) => img.getAttribute("srcset"))).toBeNull();
-  await expect.poll(() => page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/311/cover.webp");
-  expect(hits.filter((url) => url.includes("/variants/")).length).toBeLessThan(4);
+
+  const response = await page.goto("/book/311", { waitUntil: "domcontentloaded" });
+  expect(response.status()).toBe(200);
+  const cover = page.locator(".book-cover-box img");
+  await expect(cover).toHaveCount(1);
+  await expect.poll(() => variantHits.length).toBeGreaterThan(0);
+  expect(await cover.evaluate((img) => img.getAttribute("src") || "")).toContain("/311/cover.webp");
+  await expect(page.locator(".book-cover-unavailable")).toHaveCount(0);
+  releaseCatalog();
+
+  await page.waitForFunction(() => Array.isArray(window.KUTADGU_LIVE_CATALOG));
+  await expect(page.locator(".book-detail-info h1")).toHaveText(book.title);
+  await expect(page.locator(".detail-unavailable-panel")).toHaveCount(0);
+  await expect(page.locator(".book-cover-unavailable")).toHaveCount(0);
+  await expect.poll(() => cover.evaluate((img) => img.getAttribute("srcset"))).toBeNull();
+  await expect.poll(() => cover.evaluate((img) => img.currentSrc)).toContain("/311/cover.webp");
+  await expect.poll(() => cover.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+  expect(await cover.evaluate((img) => img.currentSrc)).not.toContain("/variants/");
+  expect(variantHits.length).toBeGreaterThan(0);
+  expect(variantHits.length).toBeLessThan(4);
+  expect(pageErrors).toEqual([]);
 });
