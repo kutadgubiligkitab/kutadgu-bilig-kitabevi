@@ -38,6 +38,19 @@ test.describe("compact category navigation", () => {
           await expect(groups.first()).toBeHidden();
           await toggle.click();
           await expect(groups.first()).toBeVisible();
+          const columns = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .category-nav-groups")).gridTemplateColumns.split(" ").filter(Boolean).length);
+          expect(columns).toBe(2);
+          const step = await page.evaluate(() => {
+            const nav = document.querySelector("#bookCategories");
+            const panel = document.querySelector("#categoryNavPanel");
+            return {
+              nav: nav.getBoundingClientRect().width,
+              panel: panel.getBoundingClientRect().width,
+              height: panel.getBoundingClientRect().height
+            };
+          });
+          expect(step.panel).toBeGreaterThan(step.nav * 0.92);
+          expect(step.height).toBeLessThan(420);
           await groups.first().click();
           await expect(page.locator("#bookCategories [data-category-back]")).toBeVisible();
           await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
@@ -58,11 +71,31 @@ test.describe("compact category navigation", () => {
           }).toBeGreaterThanOrEqual(57);
           expect(rowHeight).toBeLessThan(96);
           await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
-          await groups.first().click();
+          const family = groups.first();
+          const familyId = await family.getAttribute("data-category-group");
+          await family.click();
           await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
           await page.keyboard.press("Escape");
           await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
+          await expect(page.locator(`#bookCategories [data-category-group="${familyId}"]`)).toBeFocused();
+          await page.locator(`#bookCategories [data-category-group="${familyId}"]`).click();
+          await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
+          await page.locator("#bookCategories [data-category-close]").click();
+          await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
+          await expect(page.locator(`#bookCategories [data-category-group="${familyId}"]`)).toBeFocused();
         }
+        const place = await page.evaluate(() => {
+          const search = document.querySelector(".home-search-card .search-box");
+          const nav = document.querySelector("#bookCategories");
+          const card = document.querySelector(".home-search-card");
+          return {
+            gap: nav.getBoundingClientRect().top - search.getBoundingClientRect().bottom,
+            inside: card.contains(nav)
+          };
+        });
+        expect(place.inside).toBe(true);
+        expect(place.gap).toBeGreaterThan(-2);
+        expect(place.gap).toBeLessThan(48);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow).toBeLessThanOrEqual(4);
         await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
@@ -96,5 +129,16 @@ test.describe("compact category navigation", () => {
     await expect(page).toHaveURL(/\/dastanlar$/);
     expect(requests.some((url) => url.includes("premium-ux.js?v=22"))).toBe(false);
     await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+  });
+
+  test("a category listing keeps the breadcrumb and drops the duplicate hub strip", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/romanlar");
+    await expect(page.locator(".category-hub-nav a[href='/']")).toBeVisible();
+    await expect(page.locator(".category-hub-nav a[href='/adabiyat']")).toBeVisible();
+    await expect(page.locator(".category-hub-nav a[href='/romanlar']")).toBeVisible();
+    await expect(page.locator(".category-hub-nav a[href='/sheirlar']")).toHaveCount(0);
+    await expect(page.locator(".back-button")).toHaveAttribute("href", "/adabiyat");
+    await expect.poll(async () => page.locator("#bookCategories [data-category-group='literature']").count()).toBeGreaterThan(0);
   });
 });

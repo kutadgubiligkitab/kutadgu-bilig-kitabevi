@@ -268,9 +268,35 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#bookCategories [data-category-group]").count()).toBeGreaterThan(0);
     await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    await page.evaluate(() => document.fonts && document.fonts.ready);
   }
 
-  function expectDiscoveryChrome(featured, carousel, _tokens, width) {
+  function expectType(geo, tokens, width) {
+    expect(geo.missing).toBeFalsy();
+    expect(geo.titleColor).toBe(tokens.siteText);
+    expect(geo.authorColor).toBe(tokens.siteTextSoft);
+    expect(geo.priceColor).toBe(tokens.siteText);
+    expect(Math.abs(geo.titleSize - tokens.md)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(geo.authorSize - tokens.xs)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(geo.priceSize - tokens.md)).toBeLessThanOrEqual(1.5);
+    expect(geo.objectFit).toBe("contain");
+    expect(geo.coverTitleGap).toBeGreaterThanOrEqual(-1);
+    expect(geo.coverTitleGap).toBeLessThan(28);
+    expect(geo.overflowX).toBeLessThanOrEqual(2);
+    expect(geo.hasInStockLabel).toBeFalsy();
+    expect(geo.exactQty).toBeFalsy();
+    if (width >= 1366) {
+      expect(geo.favW).toBeLessThanOrEqual(48);
+      expect(geo.favH).toBeLessThanOrEqual(48);
+    } else {
+      expect(geo.favW).toBeLessThan(72);
+      expect(geo.favH).toBeLessThan(72);
+    }
+  }
+
+  function expectDiscoveryChrome(featured, carousel, tokens, width) {
+    expectType(featured, tokens, width);
+    expectType(carousel, tokens, width);
     expect(featured.missing).toBeFalsy();
     expect(carousel.missing).toBeFalsy();
     expect(featured.objectFit).toBe("contain");

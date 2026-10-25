@@ -3990,7 +3990,7 @@ function searchEnhance(){
       <button type="button" class="advanced-search-reset" id="searchReset">↺ تازىلاش</button>
       </div>`;
     panel.querySelector(".category-filter-toggle")?.addEventListener("click",()=>{
-      const mobile=panel.previousElementSibling&&panel.previousElementSibling.classList.contains("mobile-filter-toggle")?panel.previousElementSibling:null;
+      const mobile=[...(panel.parentElement?.children||[])].find((el)=>el.classList.contains("mobile-filter-toggle"))||null;
       if(mobile){mobile.click();return}
       const next=!panel.classList.contains("is-open");
       panel.classList.toggle("is-open",next);
@@ -4000,6 +4000,10 @@ function searchEnhance(){
     });
     const panelAnchor=box||res;
     panelAnchor.insertAdjacentElement("afterend",panel);
+    if(box){
+      const categoryNav=document.querySelector("[data-category-nav]");
+      if(categoryNav)box.insertAdjacentElement("afterend",categoryNav);
+    }
   }
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
   const fallbackNotice=()=>(!remoteCatalog.configured&&catalogStatus.error)?'<div class="catalog-data-notice">تور سانلىق مەلۇماتى ۋاقىتلىق يۈكلەنمىدى؛ ساقلانغان كىتاب تىزىملىكى كۆرسىتىلدى.</div>':"";
@@ -4202,7 +4206,7 @@ function setupCatalogFilters(){
     </div>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
     bar.querySelector(".category-filter-toggle")?.addEventListener("click",()=>{
-      const mobile=bar.previousElementSibling&&bar.previousElementSibling.classList.contains("mobile-filter-toggle")?bar.previousElementSibling:null;
+      const mobile=[...(bar.parentElement?.children||[])].find((el)=>el.classList.contains("mobile-filter-toggle"))||null;
       if(mobile){mobile.click();return}
       const next=!bar.classList.contains("is-open");
       bar.classList.toggle("is-open",next);
@@ -6917,7 +6921,7 @@ function loadPremiumUX(){
   return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
     const directory=window.KutadguBookCategories;
     const boot=directory&&directory.boot?directory.boot():null;
-    return loadAssetScript("/kutadgu-category-nav.js?v=1","kutadguCategoryNavScript").then(()=>boot);
+    return loadAssetScript("/kutadgu-category-nav.js?v=2","kutadguCategoryNavScript").then(()=>boot);
   }).then(()=>loadAssetScript("/premium-ux.js?v=23","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;

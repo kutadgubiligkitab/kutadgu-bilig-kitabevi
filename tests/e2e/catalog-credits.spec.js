@@ -237,7 +237,7 @@ test.describe("catalog credit browsing", () => {
       premium: !!window.KutadguPremiumUx,
       bar: !!document.querySelector("#catalogFilterBar")
     }))).toEqual({ premium: true, bar: true });
-    await page.locator("#catalogFilterBar").locator("xpath=preceding-sibling::button[contains(@class,'mobile-filter-toggle')]").click();
+    await page.locator("#catalogFilterBar .category-filter-toggle").click();
     await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterText").fill("ئىككى");
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(1);

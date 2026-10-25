@@ -856,12 +856,12 @@ test.describe("homepage compact first-view", () => {
       await page.setViewportSize({ width, height: 844 });
       await H.openFresh(page, "/");
       await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
-      await expect(page.locator(".mobile-filter-toggle")).toBeVisible();
+      await expect(page.locator(".home-search-card .category-filter-toggle")).toBeVisible();
       await expect(page.locator("#homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
       await page.waitForTimeout(800);
 
-      await expect(page.locator(".home-search-card .mobile-filter-toggle")).toBeVisible();
-      const visibleCount = await page.locator(".home-search-card .mobile-filter-toggle, .home-search-card .premium-filter-toggle").evaluateAll((els) => els.filter((el) => {
+      await expect(page.locator(".home-search-card .category-filter-toggle")).toBeVisible();
+      const visibleCount = await page.locator(".home-search-card .category-filter-toggle, .home-search-card .mobile-filter-toggle, .home-search-card .premium-filter-toggle").evaluateAll((els) => els.filter((el) => {
         const style = getComputedStyle(el);
         return style.display !== "none" && style.visibility !== "hidden" && !el.hidden && el.getClientRects().length > 0;
       }).length);
@@ -869,11 +869,11 @@ test.describe("homepage compact first-view", () => {
 
       const panel = page.locator("#advancedSearchPanel, .home-search-card .advanced-search-panel").first();
       await expect(panel).toHaveClass(/is-collapsed/);
-      await page.locator(".mobile-filter-toggle").click();
+      await page.locator(".home-search-card .category-filter-toggle").click();
       await expect(panel).not.toHaveClass(/is-collapsed/);
       await expect.poll(async () => panel.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(20);
       await expect(page.locator("#searchCategory, .advanced-search-panel select, .advanced-search-panel input").first()).toBeVisible();
-      await page.locator(".mobile-filter-toggle").click();
+      await page.locator(".home-search-card .category-filter-toggle").click();
       await expect(panel).toHaveClass(/is-collapsed/);
 
       const metrics = await page.evaluate(() => {

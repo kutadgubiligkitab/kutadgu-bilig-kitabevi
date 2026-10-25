@@ -68,7 +68,7 @@
     if (root.document.querySelector("link[data-kutadgu-category-nav]")) return;
     const link = root.document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/category-nav.css?v=1";
+    link.href = "/category-nav.css?v=2";
     link.setAttribute("data-kutadgu-category-nav", "1");
     root.document.head.appendChild(link);
   }
@@ -82,14 +82,27 @@
       nav.setAttribute("data-category-nav", "1");
       nav.id = "bookCategories";
     }
-    const bar = doc.querySelector("#catalogFilterBar");
-    const chips = bar && bar.nextElementSibling && bar.nextElementSibling.classList.contains("premium-active-filters") ? bar.nextElementSibling : null;
-    const anchor = chips || bar || doc.querySelector("#advancedSearchPanel") || doc.querySelector(".home-search-card .search-box") || doc.querySelector(".books-grid");
-    if (anchor && anchor !== nav) {
-      if (anchor.classList.contains("books-grid")) anchor.parentElement.insertBefore(nav, anchor);
-      else anchor.insertAdjacentElement("afterend", nav);
+    const homeSearch = doc.querySelector(".home-search-card .search-box");
+    const catalogSearch = doc.querySelector("#catalogFilterBar .catalog-filter-search");
+    const anchor = homeSearch || catalogSearch;
+    if (anchor && anchor !== nav) anchor.insertAdjacentElement("afterend", nav);
+    else if (!anchor) {
+      const grid = doc.querySelector(".books-grid");
+      if (grid && grid.parentElement && grid.previousElementSibling !== nav) grid.parentElement.insertBefore(nav, grid);
     }
     return nav;
+  }
+
+  function consolidateHubNav() {
+    const hub = root.document.querySelector(".category-hub-nav");
+    if (!hub) return;
+    const back = root.document.querySelector(".back-button")?.getAttribute("href") || "";
+    const path = currentSlug() ? "/" + currentSlug() : "";
+    hub.querySelectorAll("a").forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      const keep = href === "/" || href === back || href === path || link.getAttribute("aria-current") === "page";
+      if (!keep) link.remove();
+    });
   }
 
   function leafLink(leaf, selected) {
@@ -101,6 +114,7 @@
     if (!doc || !doc.body) return;
     if (!doc.querySelector(".books-grid[data-catalog-source], #newBooksCarousel, #advancedSearchPanel, #searchInput")) return;
     doc.querySelector(".home-search-quick-links")?.remove();
+    consolidateHubNav();
     ensureCss();
     const nav = host();
     const data = model();
@@ -121,7 +135,7 @@
       <button type="button" class="category-nav-toggle" aria-expanded="${mobileOpen ? "true" : "false"}" aria-controls="categoryNavPanel">${escapeHtml(toggleLabel)}</button>
       <div class="category-nav-panel" id="categoryNavPanel">
         <div class="category-nav-groups" role="group" aria-label="كىتاب تۈرلىرى">
-          <button type="button" class="category-nav-group${allSelected ? " is-selected" : ""}" data-category-all="1" aria-pressed="${showAll ? "true" : "false"}">ھەممە تۈرلەر</button>
+          <button type="button" class="category-nav-group category-nav-all${allSelected ? " is-selected" : ""}" data-category-all="1" aria-pressed="${showAll ? "true" : "false"}">ھەممە تۈرلەر</button>
           ${data.groups.map((item) => {
             const expanded = item.id === openGroup && !showAll;
             const marked = expanded || (!showAll && selectedGroup && selectedGroup.id === item.id);
@@ -130,6 +144,7 @@
         </div>
         <div class="category-nav-leaves" ${leaves.length ? "" : "hidden"}>
           <button type="button" class="category-nav-back" data-category-back="1">قايتىش</button>
+          <button type="button" class="category-nav-close" data-category-close="1">يىغىش</button>
           ${leaves.map((leaf) => leafLink(leaf, leaf.slug === selected)).join("")}
         </div>
       </div>`;
@@ -152,21 +167,38 @@
     });
     nav.querySelectorAll("[data-category-group]").forEach((button) => {
       button.addEventListener("click", () => {
-        nav.dataset.focusReturn = "group:" + button.dataset.categoryGroup;
-        nav.dataset.openGroup = button.dataset.categoryGroup;
+        const id = button.dataset.categoryGroup;
+        const mobile = root.matchMedia("(max-width: 767px)").matches;
+        if (nav.dataset.openGroup === id && nav.dataset.showAll !== "1") {
+          nav.dataset.openGroup = "";
+          nav.dataset.showAll = "";
+          nav.dataset.focusReturn = "group:" + id;
+          render();
+          root.document.querySelector(`[data-category-nav] [data-category-group="${id}"]`)?.focus();
+          return;
+        }
+        nav.dataset.focusReturn = "group:" + id;
+        nav.dataset.openGroup = id;
         nav.dataset.showAll = "";
-        nav.dataset.mobileOpen = "1";
+        if (mobile) nav.dataset.mobileOpen = "1";
         render();
         const fresh = root.document.querySelector("[data-category-nav]");
-        const mobile = root.matchMedia("(max-width: 767px)").matches;
         (mobile ? fresh.querySelector("[data-category-back]") : fresh.querySelector(".category-nav-leaf"))?.focus();
       });
     });
     nav.querySelector("[data-category-all]")?.addEventListener("click", () => {
+      if (nav.dataset.showAll === "1") {
+        nav.dataset.showAll = "";
+        nav.dataset.openGroup = "";
+        nav.dataset.focusReturn = "all";
+        render();
+        root.document.querySelector("[data-category-nav] [data-category-all]")?.focus();
+        return;
+      }
       nav.dataset.focusReturn = "all";
       nav.dataset.showAll = "1";
       nav.dataset.openGroup = "";
-      nav.dataset.mobileOpen = "1";
+      if (root.matchMedia("(max-width: 767px)").matches) nav.dataset.mobileOpen = "1";
       render();
       const freshAll = root.document.querySelector("[data-category-nav]");
       const mobileAll = root.matchMedia("(max-width: 767px)").matches;
@@ -183,19 +215,34 @@
         : fresh.querySelector(`[data-category-group="${backTo.slice(6)}"]`);
       (target || fresh.querySelector(".category-nav-toggle"))?.focus();
     });
+    nav.querySelector("[data-category-close]")?.addEventListener("click", () => {
+      const backTo = nav.dataset.focusReturn || (nav.dataset.openGroup ? "group:" + nav.dataset.openGroup : "");
+      nav.dataset.openGroup = "";
+      nav.dataset.showAll = "";
+      render();
+      const fresh = root.document.querySelector("[data-category-nav]");
+      const target = backTo === "all"
+        ? fresh.querySelector("[data-category-all]")
+        : fresh.querySelector(`[data-category-group="${backTo.slice(6)}"]`);
+      (target || fresh.querySelector(".category-nav-group"))?.focus();
+    });
     if (!nav.dataset.escapeBound) {
       nav.dataset.escapeBound = "1";
       root.document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         const current = root.document.querySelector("[data-category-nav]");
         if (!current || (!current.classList.contains("is-open") && current.dataset.mobileOpen !== "1")) return;
+        const invoker = current.dataset.focusReturn || (current.dataset.openGroup ? "group:" + current.dataset.openGroup : "");
         current.dataset.mobileOpen = "";
         current.dataset.openGroup = "";
         current.dataset.showAll = "";
         render();
         const fresh = root.document.querySelector("[data-category-nav]");
         const mobile = root.matchMedia("(max-width: 767px)").matches;
-        (mobile ? fresh.querySelector(".category-nav-toggle") : fresh.querySelector(".category-nav-group"))?.focus();
+        const target = invoker === "all"
+          ? fresh.querySelector("[data-category-all]")
+          : fresh.querySelector(`[data-category-group="${invoker.slice(6)}"]`);
+        (mobile ? fresh.querySelector(".category-nav-toggle") : (target || fresh.querySelector("[data-category-group]")))?.focus();
       });
     }
     void focusReturn;
