@@ -193,9 +193,12 @@ test.describe("compact category navigation", () => {
       await openHome(page, width);
       await page.locator("#bookCategories [data-category-all]").click();
       await expect(page.locator("#bookCategories [data-category-close]")).toBeVisible();
-      let close = await closeMetrics();
+      let close;
+      await expect.poll(async () => {
+        close = await closeMetrics();
+        return close.display;
+      }).toMatch(/^(inline-)?flex$/);
       expect(close.text).toBe("يىغىش");
-      expect(["flex", "inline-flex"]).toContain(close.display);
       expect(close.fontFamily.toLowerCase()).toContain("ukij");
       expect(close.lineHeight).toBeGreaterThanOrEqual(close.fontSize);
       expect(close.padInline).toBeGreaterThanOrEqual(24);
@@ -207,7 +210,10 @@ test.describe("compact category navigation", () => {
       const family = page.locator("#bookCategories [data-category-group]").first();
       const familyId = await family.getAttribute("data-category-group");
       await family.click();
-      close = await closeMetrics();
+      await expect.poll(async () => {
+        close = await closeMetrics();
+        return close.display;
+      }).toMatch(/^(inline-)?flex$/);
       expect(close.text).toBe("يىغىش");
       expect(close.clipped).toBeLessThanOrEqual(1);
       await page.keyboard.press("Escape");
