@@ -46,7 +46,7 @@ assert.match(source, /readAcceptedBookMetadata/);
 assert.match(source, /select\("id,category,source,description"\)/);
 assert.doesNotMatch(catalog, /category,source,description/);
 
-assert.match(html, /admin-volume-groups\.js\?v=12/);
+assert.match(html, /admin-volume-groups\.js\?v=13/);
 assert.match(source, /function newLinkSlug/);
 assert.match(source, /linkSave\.pending/);
 assert.doesNotMatch(source, /series-\$\{state\.members\[0\]\.book_id\}/);

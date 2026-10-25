@@ -6,6 +6,7 @@ const path = require("path");
 
 const root = path.join(__dirname, "..");
 global.KUTADGU_APP_CONFIG = { featureFlags: { multiVolumeBooks: false } };
+require(path.join(root, "catalog-credits.js"));
 require(path.join(root, "admin-volume-groups.js"));
 const groups = global.KutadguAdminVolumeGroups;
 const volumes = require(path.join(root, "kutadgu-volume-groups.js"));
@@ -168,6 +169,16 @@ assert.strictEqual(metadata.payload.parts[1].pages, 88);
 assert.strictEqual(metadata.payload.parts[1].publisher, "باشقا نەشرىيات");
 assert.strictEqual(metadata.payload.parts[1].cover_type, "hardcover");
 assert.strictEqual(metadata.payload.publisher, "ئورتاق نەشرىيات");
+const duplicateAuthors = groups.seriesEntryPayload({
+  requestId,
+  title: "تەكرار",
+  authors: ["بىرىنچى ئاپتور", "بىرىنچى ئاپتور"],
+  category: "تارىخىي رومانلار",
+  source: "tarikhiy-romanlar.html",
+  parts: [part(1, 10), part(2, 12)]
+});
+assert.strictEqual(duplicateAuthors.ok, false);
+assert.match(duplicateAuthors.message, /قايتا قوشقىلى بولمايدۇ/);
 
 const blankPages = groups.seriesEntryPayload({
   requestId,
@@ -205,5 +216,32 @@ const staticList = publicGroup.renderStaticMemberList({
 assert.match(staticList, /240 بەت/);
 assert.strictEqual((staticList.match(/volume-member-pages/g) || []).length, 1);
 assert.match(staticList, /data-volume-static-members/);
+const rendered = publicGroup.applyGroupDocument(publicGroup.readShell(), {
+  id: "9",
+  slug: "sample-series",
+  title: "بەت سىنىقى",
+  author: "ئاپتور",
+  description: "چۈشەندۈرۈش",
+  category: "رومانلار",
+  source: "romanlar.html",
+  members: [
+    { book_id: "1001", position: 1, volume_label: "1-جىلد", title: "بىرىنچى", pages: 120 },
+    { book_id: "1002", position: 2, volume_label: "2-جىلد", title: "ئىككىنچى", pages: 80 }
+  ]
+}, {
+  id: "1001",
+  title: "بىرىنچى",
+  author: "ئاپتور",
+  pages: 120,
+  price: 35,
+  category: "رومانلار",
+  source: "romanlar.html",
+  description: "چۈشەندۈرۈش"
+});
+assert.match(rendered, /data-volume-static-members/);
+assert.match(rendered, /120 بەت/);
+assert.match(rendered, /80 بەت/);
+assert.doesNotMatch(rendered, /<div class="book-meta"><\/div>/);
+assert.match(rendered, /بەت سانى/);
 
 console.log("multi-volume series entry: PASS");

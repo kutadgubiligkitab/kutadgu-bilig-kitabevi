@@ -916,6 +916,18 @@
       Suggest.attachCombobox(input,()=>Suggest.uniqueValuesFromRows(typeof state.suggestionRows==="function"?state.suggestionRows():[],field));
     }
   }
+  function seriesStructuredCreditPlan(authors,translators,publisher){
+    if(!authors.length&&!translators.length)return {ok:true};
+    const Credits=root.KutadguCredits;
+    if(!Credits||typeof Credits.planCreditSave!=="function")return {ok:false,message:"ئاپتور ئۇچۇرى تەكشۈرۈلمىدى."};
+    const plan=Credits.planCreditSave({
+      authors:authors.length?authors:[],
+      translators,
+      publisher:publisher||""
+    });
+    if(!plan||plan.ok===false||plan.writeCredits!==true)return {ok:false,message:plan&&plan.message||"ئاپتور ئۇچۇرى توغرا ئەمەس."};
+    return plan;
+  }
   function seriesEntryPayload(input){
     const value=input&&typeof input==="object"?input:{};
     const requestId=text(value.requestId).toLowerCase();
@@ -948,6 +960,8 @@
     if(!sharedCover.ok)return {ok:false,message:"مۇقاۋا تۈرىنى تىزىمدىن تاللاڭ."};
     const sharedSize=seriesOptionalChoice(value.bookSize,SERIES_BOOK_SIZES);
     if(!sharedSize.ok)return {ok:false,message:"كىتاب ئۆلچىمىنى تىزىمدىن تاللاڭ."};
+    const sharedCredits=seriesStructuredCreditPlan(authors,translators,sharedPublisher);
+    if(!sharedCredits.ok)return {ok:false,message:sharedCredits.message};
     const parts=Array.isArray(value.parts)?value.parts:[];
     if(parts.length<2||parts.length>100)return {ok:false,message:"يۈرۈشلۈكتە 2 دىن 100 گىچە قىسىم بولۇشى كېرەك."};
     let representative=0;
@@ -981,6 +995,8 @@
       if(!size.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ كىتاب ئۆلچىمىنى تىزىمدىن تاللاڭ.`};
       const stockStatus=seriesOptionalChoice(part.stockStatus!=null?part.stockStatus:part.stock_status,SERIES_STOCK_STATUSES);
       if(!stockStatus.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ سېتىش ھالىتىنى تىزىمدىن تاللاڭ.`};
+      const partCredits=seriesStructuredCreditPlan(partAuthors,partTranslators,publisher);
+      if(!partCredits.ok)return {ok:false,message:partCredits.message};
       if(part.main)representative=index+1;
       const row={
         title:text(part.title),
@@ -1425,9 +1441,15 @@
       return false;
     }
   }
+  function showCreditRecovery(message){
+    if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
+    if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=true;
+    seriesStatus(message,"error");
+    setStatus(message,"error");
+  }
   async function persistSeriesCredits(saved,payload){
     const Credits=root.KutadguCredits;
-    if(!Credits||typeof Credits.planCreditSave!=="function"||!saved||!payload)return;
+    if(!saved||!payload)return;
     const members=Array.isArray(saved.members)?saved.members:[];
     const parts=Array.isArray(payload.parts)?payload.parts:[];
     for(let index=0;index<members.length;index+=1){
@@ -1435,14 +1457,19 @@
       const bookId=Number(members[index]&&(members[index].book_id||members[index].id));
       if(!Number.isInteger(bookId)||bookId<1)continue;
       const authors=Array.isArray(part.authors)&&part.authors.length?part.authors:(Array.isArray(payload.authors)&&payload.authors.length?payload.authors:(payload.author?[payload.author]:[]));
-      if(!authors.length)continue;
       const translators=Array.isArray(part.translators)&&part.translators.length?part.translators:(Array.isArray(payload.translators)?payload.translators:[]);
-      const plan=Credits.planCreditSave({
-        authors,
-        translators,
-        publisher:part.publisher||payload.publisher||""
-      });
-      if(!plan||plan.ok===false||plan.writeCredits!==true)continue;
+      if(!authors.length&&!translators.length)continue;
+      const plan=seriesStructuredCreditPlan(authors,translators,part.publisher||payload.publisher||"");
+      if(!plan.ok){
+        const error=new Error(plan.message||"ئاپتور ئۇلانمىسى ساقلانمىدى.");
+        error.creditPlan=true;
+        throw error;
+      }
+      if(!Credits||typeof Credits.planCreditSave!=="function"){
+        const error=new Error("ئاپتور ئۇچۇرى تەكشۈرۈلمىدى.");
+        error.creditPlan=true;
+        throw error;
+      }
       await rpc("set_book_credits",{
         p_book_id:bookId,
         p_authors:plan.authors,
@@ -1485,17 +1512,6 @@
       if(pending){
         built={ok:true,requestId:pending.requestId,payload:pending.payload};
       }else{
-        for(let index=0;index<rows.length;index+=1){
-          const row=rows[index];
-          if(row.imageUrl)continue;
-          seriesStatus(`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللىنىۋاتىدۇ…`,"");
-          const uploaded=await upload(requestId,index+1,row.file);
-          row.imageUrl=text(uploaded&&uploaded.url);
-          row.objectKey=text(uploaded&&uploaded.key);
-          row.row.dataset.imageUrl=row.imageUrl;
-          row.row.dataset.objectKey=row.objectKey;
-          if(row.objectKey)created.push(row.objectKey);
-        }
         const metadata=seriesEntryPayload({
           requestId,
           title:$("#volumeSeriesTitle").value,
@@ -1521,7 +1537,19 @@
         });
         if(!metadata.ok){
           seriesStatus(metadata.message,"error");
+          setStatus(metadata.message,"error");
           return;
+        }
+        for(let index=0;index<rows.length;index+=1){
+          const row=rows[index];
+          if(row.imageUrl)continue;
+          seriesStatus(`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللىنىۋاتىدۇ…`,"");
+          const uploaded=await upload(requestId,index+1,row.file);
+          row.imageUrl=text(uploaded&&uploaded.url);
+          row.objectKey=text(uploaded&&uploaded.key);
+          row.row.dataset.imageUrl=row.imageUrl;
+          row.row.dataset.objectKey=row.objectKey;
+          if(row.objectKey)created.push(row.objectKey);
         }
         built=seriesEntryPayload({
           requestId,
@@ -1563,16 +1591,21 @@
       const saved=await rpc("admin_create_book_volume_series",{p_request_id:built.requestId,p_payload:built.payload});
       const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
       if(saved&&saved.replayed===true)await discardSeriesKeys(created.filter(key=>!kept.has(rows.find(row=>row.objectKey===key)?.imageUrl||"")));
+      const creditRetry=!!(seriesState.pending&&seriesState.pending.creditsIncomplete&&seriesState.pending.interiorsSaved);
       const interiors=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
-      if(!(await saveInteriorsOrStop(interiors, saved)))return;
-      let creditNote="";
+      if(!creditRetry){
+        if(!(await saveInteriorsOrStop(interiors, saved)))return;
+        if(seriesState.pending)seriesState.pending.interiorsSaved=true;
+      }
       try{
         await persistSeriesCredits(saved, built.payload);
       }catch(error){
-        creditNote=" ئاپتور ئۇلانمىسى ساقلانمىدى. كىتاب تېكىستى ساقلاندى.";
+        if(seriesState.pending)seriesState.pending.creditsIncomplete=true;
+        const creditMessage=error&&error.creditPlan&&error.message?error.message:"يۈرۈشلۈك ساقلاندى، ئاپتور ئۇلانمىسى ساقلانمىدى. قايتا ساقلىسىڭىز كىتاب قايتا قوشۇلمايدۇ.";
+        showCreditRecovery(creditMessage);
+        return;
       }
       finishSavedSeries(saved);
-      if(creditNote)seriesStatus(`${$("#volumeSeriesStatus")&&$("#volumeSeriesStatus").textContent||""}${creditNote}`,"error");
       await load(true);
     }catch(error){
       if(seriesSaveMayStillCommit(error)){
