@@ -13,7 +13,10 @@ const SITE_ORIGIN = "https://www.kutadgubilik.com";
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
 const FETCH_PAGE_SIZE = 1000;
+const CATALOG_PAGE_SIZE = 100;
 const URLS_PER_SITEMAP = 40000;
+const SITEMAP_URL_LIMIT = 50000;
+const SITEMAP_BYTE_LIMIT = 50 * 1024 * 1024;
 const PRIVATE_PATH_MARKERS = [
   "/admin.html",
   "/admin-quality-preview.html",
@@ -112,7 +115,7 @@ function groupedSitemapEnabled(options) {
 function groupedRowToSitemapEntry(row) {
   if (!row || typeof row !== "object") return null;
   const kind = String(row.kind || "book");
-  const slug = String(row.slug || "").trim().toLowerCase();
+  const slug = String(row.slug || row.group_slug || "").trim().toLowerCase();
   const id = String((row.book_id == null ? row.id : row.book_id) == null ? "" : (row.book_id == null ? row.id : row.book_id)).trim();
   let loc = "";
   if (kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) loc = `${SITE_ORIGIN}/volume-group/${slug}`;
@@ -120,6 +123,61 @@ function groupedRowToSitemapEntry(row) {
   if (!loc) return null;
   const lastmod = trustworthyLastmod(row.updated_at) || trustworthyLastmod(row.created_at);
   return lastmod ? { loc, lastmod, id: `${kind}:${kind === "group" ? slug : id}` } : { loc, id: `${kind}:${kind === "group" ? slug : id}` };
+}
+
+function memberBookIds(row) {
+  const raw = row && row.member_book_ids;
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const ids = [];
+  const seen = new Set();
+  for (let i = 0; i < raw.length; i += 1) {
+    const id = String(raw[i] == null ? "" : raw[i]).trim();
+    if (!isCanonicalBookId(id) || seen.has(id)) return null;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function rememberSitemapEntry(entries, seen, entry) {
+  if (!entry || !entry.loc || locLooksPrivate(entry.loc)) return;
+  const previous = seen.get(entry.loc);
+  if (!previous) {
+    seen.set(entry.loc, entry);
+    entries.push(entry);
+    return;
+  }
+  if (!previous.lastmod && entry.lastmod) previous.lastmod = entry.lastmod;
+}
+
+function entriesFromCatalogUnits(units) {
+  const entries = [];
+  const seen = new Map();
+  (units || []).forEach(row => {
+    if (!row || typeof row !== "object") throw new Error("Catalog sitemap unit is incomplete");
+    const kind = String(row.kind || "");
+    if (kind === "group") {
+      const ids = memberBookIds(row);
+      if (!ids) throw new Error("Catalog sitemap group omitted its public members");
+      const count = Number(row.member_count);
+      if (Number.isFinite(count) && count !== ids.length) throw new Error("Catalog sitemap group member count does not match");
+      rememberSitemapEntry(entries, seen, groupedRowToSitemapEntry(row));
+      ids.forEach(id => {
+        const loc = bookCanonicalUrl(id);
+        if (!loc) throw new Error("Catalog sitemap member has no canonical URL");
+        rememberSitemapEntry(entries, seen, { loc, id: `book:${id}` });
+      });
+      return;
+    }
+    if (kind === "book") {
+      const entry = groupedRowToSitemapEntry(row);
+      if (!entry) throw new Error("Catalog sitemap book has no canonical URL");
+      rememberSitemapEntry(entries, seen, entry);
+      return;
+    }
+    throw new Error("Catalog sitemap unit is not a public book or group");
+  });
+  return entries;
 }
 
 async function fetchGroupedSitemapRows(offset, limit, fetchImpl) {
@@ -151,6 +209,86 @@ async function fetchGroupedSitemapRows(offset, limit, fetchImpl) {
     if (batch.length < pageSize || (Number.isFinite(total) && start + rows.length >= total)) break;
   }
   return { rows, total: Number.isFinite(total) ? total : rows.length };
+}
+
+async function fetchPublicCatalogUnits(fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  const units = [];
+  const seen = new Set();
+  let total = null;
+  let offset = 0;
+  while (offset <= 1000000) {
+    const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/query_public_book_catalog`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        p_query: { offset, limit: CATALOG_PAGE_SIZE, sort: "title" }
+      })
+    });
+    const text = await response.text();
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch (err) {}
+    if (!response.ok || !payload || !Array.isArray(payload.items) || !Number.isFinite(Number(payload.total))) {
+      throw new Error(`Catalog sitemap fetch failed (${response && response.status})`);
+    }
+    const parsedTotal = Number(payload.total);
+    if (total == null) total = parsedTotal;
+    else if (parsedTotal !== total) throw new Error("Catalog sitemap total changed during the read");
+    let added = 0;
+    payload.items.forEach(row => {
+      const key = String(row && row.unit_id || "");
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      units.push(row);
+      added += 1;
+    });
+    const hasMore = payload.has_more === true;
+    if (!hasMore) break;
+    if (!payload.items.length || added === 0) throw new Error("Catalog sitemap page made no progress");
+    offset += payload.items.length;
+  }
+  if (seen.size !== total) throw new Error("Catalog sitemap read did not match the reported total");
+  return units;
+}
+
+function sitemapEntryBytes(entry) {
+  const lastmod = entry && entry.lastmod
+    ? `\n    <lastmod>${escapeXml(entry.lastmod)}</lastmod>`
+    : "";
+  return Buffer.byteLength(
+    `  <url>\n    <loc>${escapeXml(entry && entry.loc)}</loc>${lastmod}\n  </url>`,
+    "utf8"
+  );
+}
+
+function paginateSitemapEntries(entries, options) {
+  const requested = Number(options && options.perPage) || URLS_PER_SITEMAP;
+  const perPage = Math.min(Math.max(1, requested), SITEMAP_URL_LIMIT);
+  const maxBytes = Number(options && options.maxBytes) || SITEMAP_BYTE_LIMIT;
+  const overhead = Buffer.byteLength(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n\n</urlset>\n",
+    "utf8"
+  );
+  const pages = [];
+  let current = [];
+  let bytes = overhead;
+  const sizeWith = (entry, count) => sitemapEntryBytes(entry) + (count ? 1 : 0);
+  (entries || []).forEach(entry => {
+    if (current.length && (current.length >= perPage || bytes + sizeWith(entry, current.length) > maxBytes)) {
+      pages.push(current);
+      current = [];
+      bytes = overhead;
+    }
+    bytes += sizeWith(entry, current.length);
+    current.push(entry);
+  });
+  if (!pages.length || current.length) pages.push(current);
+  return pages;
 }
 
 function uniqueBookEntries(rows) {
@@ -204,6 +342,12 @@ function sitemapPageCount(total, perPage = URLS_PER_SITEMAP) {
 
 function bookSitemapLocs(total) {
   const pages = sitemapPageCount(total);
+  if (pages === 1) return [`${SITE_ORIGIN}/sitemap-books.xml`];
+  return Array.from({ length: pages }, (_, i) => `${SITE_ORIGIN}/sitemap-books-${i + 1}.xml`);
+}
+
+function bookSitemapLocsForPages(pageCount) {
+  const pages = Math.max(1, Number(pageCount) || 1);
   if (pages === 1) return [`${SITE_ORIGIN}/sitemap-books.xml`];
   return Array.from({ length: pages }, (_, i) => `${SITE_ORIGIN}/sitemap-books-${i + 1}.xml`);
 }
@@ -296,20 +440,27 @@ async function buildPagesSitemapXml() {
   return buildUrlsetXml(publicPageEntries());
 }
 
+async function groupedSitemapPages(fetchImpl) {
+  const units = await fetchPublicCatalogUnits(fetchImpl);
+  return paginateSitemapEntries(entriesFromCatalogUnits(units));
+}
+
 async function buildIndexSitemapXml(fetchImpl, options) {
-  const total = groupedSitemapEnabled(options)
-    ? (await fetchGroupedSitemapRows(0, 1, fetchImpl)).total
-    : await countActiveBooks(fetchImpl);
+  if (groupedSitemapEnabled(options)) {
+    const pages = await groupedSitemapPages(fetchImpl);
+    return buildSitemapIndexXml([`${SITE_ORIGIN}/sitemap-pages.xml`, ...bookSitemapLocsForPages(pages.length)]);
+  }
+  const total = await countActiveBooks(fetchImpl);
   return buildSitemapIndexXml(indexLocs(total));
 }
 
 async function buildBooksSitemapXml(page, fetchImpl, options) {
   const p = parsePageParam(page);
-  const start = (p - 1) * URLS_PER_SITEMAP;
   if (groupedSitemapEnabled(options)) {
-    const { rows } = await fetchGroupedSitemapRows(start, URLS_PER_SITEMAP, fetchImpl);
-    return buildUrlsetXml(rows.map(groupedRowToSitemapEntry).filter(Boolean));
+    const pages = await groupedSitemapPages(fetchImpl);
+    return buildUrlsetXml(pages[p - 1] || []);
   }
+  const start = (p - 1) * URLS_PER_SITEMAP;
   const { rows } = await fetchActiveBookRows(start, URLS_PER_SITEMAP, fetchImpl);
   const entries = uniqueBookEntries(rows);
   return buildUrlsetXml(entries);
@@ -318,7 +469,10 @@ async function buildBooksSitemapXml(page, fetchImpl, options) {
 const api = {
   SITE_ORIGIN,
   FETCH_PAGE_SIZE,
+  CATALOG_PAGE_SIZE,
   URLS_PER_SITEMAP,
+  SITEMAP_URL_LIMIT,
+  SITEMAP_BYTE_LIMIT,
   CATEGORY_HUB_SLUGS,
   PUBLIC_INFO_SLUGS,
   PUBLIC_PAGE_PATHS,
@@ -334,7 +488,12 @@ const api = {
   uniqueBookEntries,
   groupedSitemapEnabled,
   groupedRowToSitemapEntry,
+  memberBookIds,
+  entriesFromCatalogUnits,
   fetchGroupedSitemapRows,
+  fetchPublicCatalogUnits,
+  paginateSitemapEntries,
+  bookSitemapLocsForPages,
   locLooksPrivate,
   buildUrlsetXml,
   buildSitemapIndexXml,
