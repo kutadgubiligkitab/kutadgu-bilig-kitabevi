@@ -62,6 +62,17 @@
     const key=slug(value&&value.slug)||positiveId(value&&(value.group_id??value.id));
     return key?`/volume-group/${encodeURIComponent(key)}`:"";
   }
+  function memberPageCount(value){
+    const raw=value&&typeof value==="object"?value.pages:value;
+    if(raw==null||raw==="")return null;
+    const number=typeof raw==="number"?raw:Number(String(raw).trim());
+    if(!Number.isInteger(number)||number<1)return null;
+    return number;
+  }
+  function memberPageCountLabel(value){
+    const number=memberPageCount(value);
+    return number==null?"":`${number} بەت`;
+  }
   function normalizeMember(value){
     if(!value||typeof value!=="object")return null;
     const id=positiveId(value.book_id??value.id);
@@ -79,6 +90,7 @@
       image_url:String(value.image_url||""),
       stock:Number.isInteger(stock)&&stock>=0?stock:null,
       stock_status:String(value.stock_status||""),
+      pages:memberPageCount(value),
       is_active:value.is_active!==false
     };
   }
@@ -271,7 +283,7 @@
 
   return {
     MAX_PAGE_SIZE,MAX_DISCOVERY_UNITS,enabled,positiveId,slug,creditKey,groupPath,
-    normalizeMember,normalizeGroup,normalizeCatalogItem,catalogQuery,queryCatalog,
+    memberPageCount,memberPageCountLabel,normalizeMember,normalizeGroup,normalizeCatalogItem,catalogQuery,queryCatalog,
     listUnitIds,resolveBook,getGroupBySlug,getGroupById,mapBookIdsToUnits,rpc
   };
 });

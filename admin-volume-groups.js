@@ -854,6 +854,80 @@
     if($("#volumeSeriesSource"))$("#volumeSeriesSource").value=entry?entry.source:"";
     input.setCustomValidity(category&&!entry?"كىتاب تۈرىنى تىزىمدىن تاللاڭ.":"");
   }
+  const SERIES_COVER_TYPES={hardcover:true,paperback:true,other:true};
+  const SERIES_BOOK_SIZES={A4:true,A5:true,B5:true,other:true};
+  const SERIES_STOCK_STATUSES={in_stock:true,low_stock:true,out_of_stock:true};
+  function seriesCreditNames(value){
+    if(value==null||value==="")return [];
+    if(!Array.isArray(value))return null;
+    const names=[];
+    for(let index=0;index<value.length;index+=1){
+      const item=value[index];
+      const name=text(item&&typeof item==="object"?item.name:item);
+      if(!name)continue;
+      if(name.length>500||names.length>=8)return null;
+      names.push(name);
+    }
+    return names;
+  }
+  function seriesOptionalWhole(value,min,max){
+    const raw=text(value);
+    if(!raw)return {ok:true,value:null};
+    if(!/^\d+$/.test(raw))return {ok:false};
+    const number=Number(raw);
+    if(!Number.isInteger(number)||number<min||number>max)return {ok:false};
+    return {ok:true,value:number};
+  }
+  function seriesOptionalChoice(value,allowed){
+    const raw=text(value);
+    if(!raw)return {ok:true,value:null};
+    return allowed[raw]?{ok:true,value:raw}:{ok:false};
+  }
+  function seriesCreditValues(primarySelector,extrasSelector){
+    const names=[];
+    const primary=primarySelector?document.querySelector(primarySelector):null;
+    if(primary&&text(primary.value))names.push(text(primary.value));
+    const extras=extrasSelector?document.querySelector(extrasSelector):null;
+    if(extras)extras.querySelectorAll("input").forEach(input=>{
+      if(text(input.value))names.push(text(input.value));
+    });
+    return names;
+  }
+  function addSeriesCreditInput(extrasId){
+    const extras=$(extrasId);
+    if(!extras)return;
+    const count=1+extras.querySelectorAll("input").length;
+    if(count>=8)return;
+    const row=document.createElement("div");
+    row.className="book-credit-extra";
+    const input=document.createElement("input");
+    input.maxLength=500;
+    input.dir="auto";
+    const remove=document.createElement("button");
+    remove.type="button";
+    remove.className="admin-secondary";
+    remove.textContent="ئۆچۈرۈش";
+    remove.addEventListener("click",()=>row.remove());
+    row.append(input,remove);
+    extras.appendChild(row);
+    const Suggest=root.KutadguBookEntrySuggest;
+    const field=extrasId==="#volumeSeriesTranslatorExtras"?"translator":"author";
+    if(Suggest&&Suggest.attachCombobox){
+      Suggest.attachCombobox(input,()=>Suggest.uniqueValuesFromRows(typeof state.suggestionRows==="function"?state.suggestionRows():[],field));
+    }
+  }
+  function seriesStructuredCreditPlan(authors,translators,publisher){
+    if(!authors.length&&!translators.length)return {ok:true};
+    const Credits=root.KutadguCredits;
+    if(!Credits||typeof Credits.planCreditSave!=="function")return {ok:false,message:"ئاپتور ئۇچۇرى تەكشۈرۈلمىدى."};
+    const plan=Credits.planCreditSave({
+      authors:authors.length?authors:[],
+      translators,
+      publisher:publisher||""
+    });
+    if(!plan||plan.ok===false||plan.writeCredits!==true)return {ok:false,message:plan&&plan.message||"ئاپتور ئۇچۇرى توغرا ئەمەس."};
+    return plan;
+  }
   function seriesEntryPayload(input){
     const value=input&&typeof input==="object"?input:{};
     const requestId=text(value.requestId).toLowerCase();
@@ -868,6 +942,26 @@
     const rawPrice=value.completeSetPrice;
     const complete=rawPrice==null||rawPrice===""?null:Number(rawPrice);
     if(complete!=null&&(!Number.isFinite(complete)||complete<0))return {ok:false,message:"يۈرۈشلۈك باھاسى توغرا ئەمەس."};
+    const authors=seriesCreditNames(value.authors);
+    if(authors==null)return {ok:false,message:"ئاپتور نامى 500 ھەرپتىن ئاشمايدۇ."};
+    const translators=seriesCreditNames(value.translators);
+    if(translators==null)return {ok:false,message:"تەرجىمان نامى 500 ھەرپتىن ئاشمايدۇ."};
+    const authorText=authors.length?authors.join("، "):text(value.author);
+    if(authorText.length>500)return {ok:false,message:"ئاپتور نامى 500 ھەرپتىن ئاشمايدۇ."};
+    const sharedPublisher=text(value.publisher);
+    if(sharedPublisher.length>500)return {ok:false,message:"نەشرىيات نامى 500 ھەرپتىن ئاشمايدۇ."};
+    const sharedTranslator=translators.length?translators.join("، "):text(value.translator);
+    if(sharedTranslator.length>500)return {ok:false,message:"تەرجىمان نامى 500 ھەرپتىن ئاشمايدۇ."};
+    const sharedYear=seriesOptionalWhole(value.publishYear,1000,2100);
+    if(!sharedYear.ok)return {ok:false,message:"نەشر يىلى 1000 دىن 2100 گىچە بولسۇن."};
+    const sharedPages=seriesOptionalWhole(value.pages,1,100000);
+    if(!sharedPages.ok)return {ok:false,message:"بەت سانى 1 ياكى ئۇنىڭدىن چوڭ بولسۇن."};
+    const sharedCover=seriesOptionalChoice(value.coverType,SERIES_COVER_TYPES);
+    if(!sharedCover.ok)return {ok:false,message:"مۇقاۋا تۈرىنى تىزىمدىن تاللاڭ."};
+    const sharedSize=seriesOptionalChoice(value.bookSize,SERIES_BOOK_SIZES);
+    if(!sharedSize.ok)return {ok:false,message:"كىتاب ئۆلچىمىنى تىزىمدىن تاللاڭ."};
+    const sharedCredits=seriesStructuredCreditPlan(authors,translators,sharedPublisher);
+    if(!sharedCredits.ok)return {ok:false,message:sharedCredits.message};
     const parts=Array.isArray(value.parts)?value.parts:[];
     if(parts.length<2||parts.length>100)return {ok:false,message:"يۈرۈشلۈكتە 2 دىن 100 گىچە قىسىم بولۇشى كېرەك."};
     let representative=0;
@@ -882,33 +976,71 @@
       const image=text(part.imageUrl||part.image_url);
       const prefix=`https://www.kutadgubilik.com/__r2/book-covers/series-new/${requestId}/part-${index+1}-`;
       const preview=value.allowPreviewUrls===true&&image.startsWith("https://");
-      if(!image||(!preview&&!image.startsWith(prefix)))return {ok:false,message:`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللانمىدى.`};
+      if(value.skipCoverCheck!==true&&(!image||(!preview&&!image.startsWith(prefix))))return {ok:false,message:`${index+1}-قىسىمنىڭ مۇقاۋىسى يوللانمىدى.`};
       const isbn=text(part.isbn).replace(/[^0-9Xx]/g,"");
       if(isbn&&isbn.length!==10&&isbn.length!==13)return {ok:false,message:`${index+1}-قىسىمنىڭ خەلقئارا نومۇرى 10 ياكى 13 خانە بولسۇن.`};
+      const partAuthors=seriesCreditNames(part.authors);
+      if(partAuthors==null)return {ok:false,message:`${index+1}-قىسىمنىڭ ئاپتور نامى 500 ھەرپتىن ئاشمايدۇ.`};
+      const partTranslators=seriesCreditNames(part.translators);
+      if(partTranslators==null)return {ok:false,message:`${index+1}-قىسىمنىڭ تەرجىمان نامى 500 ھەرپتىن ئاشمايدۇ.`};
+      const year=seriesOptionalWhole(part.publishYear!=null?part.publishYear:part.publish_year,1000,2100);
+      if(!year.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ نەشر يىلى 1000 دىن 2100 گىچە بولسۇن.`};
+      const pages=seriesOptionalWhole(part.pages,1,100000);
+      if(!pages.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ بەت سانى 1 ياكى ئۇنىڭدىن چوڭ بولسۇن.`};
+      const publisher=text(part.publisher);
+      if(publisher.length>500)return {ok:false,message:`${index+1}-قىسىمنىڭ نەشرىيات نامى 500 ھەرپتىن ئاشمايدۇ.`};
+      const cover=seriesOptionalChoice(part.coverType!=null?part.coverType:part.cover_type,SERIES_COVER_TYPES);
+      if(!cover.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ مۇقاۋا تۈرىنى تىزىمدىن تاللاڭ.`};
+      const size=seriesOptionalChoice(part.bookSize!=null?part.bookSize:part.book_size,SERIES_BOOK_SIZES);
+      if(!size.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ كىتاب ئۆلچىمىنى تىزىمدىن تاللاڭ.`};
+      const stockStatus=seriesOptionalChoice(part.stockStatus!=null?part.stockStatus:part.stock_status,SERIES_STOCK_STATUSES);
+      if(!stockStatus.ok)return {ok:false,message:`${index+1}-قىسىمنىڭ سېتىش ھالىتىنى تىزىمدىن تاللاڭ.`};
+      const partCredits=seriesStructuredCreditPlan(partAuthors,partTranslators,publisher);
+      if(!partCredits.ok)return {ok:false,message:partCredits.message};
       if(part.main)representative=index+1;
-      built.push({
+      const row={
         title:text(part.title),
         price,
         stock,
         isbn,
         image_url:image,
         volume_label:text(part.volumeLabel)||`${index+1}-قىسىم`
-      });
-    }
-    return {
-      ok:true,
-      requestId,
-      payload:{
-        title,
-        author:text(value.author),
-        category,
-        source,
-        description:text(value.description),
-        complete_set_price:complete,
-        representative_position:representative||1,
-        parts:built
+      };
+      if(partAuthors.length){
+        row.authors=partAuthors;
+        row.author=partAuthors.join("، ");
       }
+      if(partTranslators.length){
+        row.translators=partTranslators;
+        row.translator=partTranslators.join("، ");
+      }
+      if(publisher)row.publisher=publisher;
+      if(year.value!=null)row.publish_year=year.value;
+      if(pages.value!=null)row.pages=pages.value;
+      if(cover.value)row.cover_type=cover.value;
+      if(size.value)row.book_size=size.value;
+      if(stockStatus.value)row.stock_status=stockStatus.value;
+      built.push(row);
+    }
+    const payload={
+      title,
+      author:authorText,
+      category,
+      source,
+      description:text(value.description),
+      complete_set_price:complete,
+      representative_position:representative||1,
+      parts:built
     };
+    if(authors.length)payload.authors=authors;
+    if(translators.length)payload.translators=translators;
+    else if(sharedTranslator)payload.translator=sharedTranslator;
+    if(sharedPublisher)payload.publisher=sharedPublisher;
+    if(sharedYear.value!=null)payload.publish_year=sharedYear.value;
+    if(sharedPages.value!=null)payload.pages=sharedPages.value;
+    if(sharedCover.value)payload.cover_type=sharedCover.value;
+    if(sharedSize.value)payload.book_size=sharedSize.value;
+    return {ok:true,requestId,payload};
   }
   function seriesPartElement(){
     seriesPartSeq+=1;
@@ -935,11 +1067,18 @@
       <label>باھاسى<input type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" data-series-price></label>
       <label>ئامبار سانى<input type="number" min="0" step="1" inputmode="numeric" dir="ltr" data-series-stock></label>
     </div>
+    <label>قىسىم نامى<input type="text" maxlength="500" data-series-title placeholder="بوش قالسا نومۇر قوشۇلىدۇ"></label>
+    <label>كىتابنىڭ خەلقئارا نومۇرى<input type="text" maxlength="32" dir="ltr" inputmode="text" data-series-isbn autocomplete="off"></label>
     <details class="volume-series-extra" data-series-extra>
-      <summary>قوشۇمچە ئۇچۇر</summary>
-      <label>قىسىم نامى<input type="text" maxlength="500" data-series-title placeholder="بوش قالسا نومۇر قوشۇلىدۇ"></label>
-      <label>كىتابنىڭ خەلقئارا نومۇرى<input type="text" maxlength="32" dir="ltr" inputmode="text" data-series-isbn autocomplete="off"></label>
-      <div class="volume-series-pages">
+      <summary>بۇ قىسىمنىڭ ئۆز ئۇچۇرى</summary>
+      <label>بەت سانى<input type="number" min="1" step="1" inputmode="numeric" dir="ltr" data-series-page-total placeholder="ئورتاق قىممەت"></label>
+      <label>نەشر يىلى<input type="number" min="1000" max="2100" step="1" inputmode="numeric" dir="ltr" data-series-year placeholder="ئورتاق قىممەت"></label>
+      <label>نەشرىيات<input type="text" maxlength="500" data-series-publisher placeholder="ئورتاق قىممەت" autocomplete="off"></label>
+      <label>مۇقاۋا تۈرى<select data-series-cover-type><option value="">ئورتاق قىممەت</option><option value="hardcover">قاتتىق مۇقاۋىلىق</option><option value="paperback">يۇمشاق مۇقاۋىلىق</option><option value="other">باشقا</option></select></label>
+      <label>كىتاب ئۆلچىمى<select data-series-size><option value="">ئورتاق قىممەت</option><option value="A4">A4</option><option value="A5">A5</option><option value="B5">B5</option><option value="other">باشقا</option></select></label>
+      <label>سېتىش ھالىتى<select data-series-stock-status><option value="">ئاپتوماتىك</option><option value="in_stock">ئامباردا بار</option><option value="low_stock">ئاز قالدى</option><option value="out_of_stock">تۈگەپ كەتتى</option></select></label>
+    </details>
+    <div class="volume-series-pages">
         <div class="volume-series-pages-head">
           <span id="volumeSeriesPagesLabel${n}">ئىچ بەت رەسىملىرى</span>
           <span data-series-page-count>0 / ${cap}</span>
@@ -948,8 +1087,7 @@
         <button type="button" class="admin-secondary" data-series-pages-btn aria-controls="volumeSeriesPages${n}">رەسىم تاللاش</button>
         <span class="volume-series-pages-status" id="volumeSeriesPagesStatus${n}" data-series-pages-status role="status">تاللانمىدى</span>
         <div class="volume-series-pages-list" data-series-pages-list></div>
-      </div>
-    </details>`;
+    </div>`;
     return article;
   }
   function releaseSeriesPage(node){
@@ -1156,6 +1294,12 @@
         price:row.querySelector("[data-series-price]").value,
         stock:row.querySelector("[data-series-stock]").value,
         isbn:row.querySelector("[data-series-isbn]").value,
+        pageCount:row.querySelector("[data-series-page-total]").value,
+        publishYear:row.querySelector("[data-series-year]").value,
+        publisher:row.querySelector("[data-series-publisher]").value,
+        coverType:row.querySelector("[data-series-cover-type]").value,
+        bookSize:row.querySelector("[data-series-size]").value,
+        stockStatus:row.querySelector("[data-series-stock-status]").value,
         file:row._coverFile||input&&input.files&&input.files[0]||null,
         imageUrl:row.dataset.imageUrl||"",
         objectKey:row.dataset.objectKey||"",
@@ -1173,6 +1317,14 @@
     $("#volumeSeriesRequestId").value=seriesState.requestId;
     $("#volumeSeriesTitle").value="";
     $("#volumeSeriesAuthor").value="";
+    if($("#volumeSeriesAuthorExtras"))$("#volumeSeriesAuthorExtras").replaceChildren();
+    if($("#volumeSeriesTranslator"))$("#volumeSeriesTranslator").value="";
+    if($("#volumeSeriesTranslatorExtras"))$("#volumeSeriesTranslatorExtras").replaceChildren();
+    if($("#volumeSeriesPublisher"))$("#volumeSeriesPublisher").value="";
+    if($("#volumeSeriesYear"))$("#volumeSeriesYear").value="";
+    if($("#volumeSeriesPages"))$("#volumeSeriesPages").value="";
+    if($("#volumeSeriesCoverType"))$("#volumeSeriesCoverType").value="";
+    if($("#volumeSeriesSize"))$("#volumeSeriesSize").value="";
     $("#volumeSeriesCategory").value="";
     $("#volumeSeriesCategory").setCustomValidity("");
     $("#volumeSeriesSource").value="";
@@ -1289,6 +1441,43 @@
       return false;
     }
   }
+  function showCreditRecovery(message){
+    if($("#volumeSeriesForm"))$("#volumeSeriesForm").hidden=false;
+    if($("#volumeGroupForm"))$("#volumeGroupForm").hidden=true;
+    seriesStatus(message,"error");
+    setStatus(message,"error");
+  }
+  async function persistSeriesCredits(saved,payload){
+    const Credits=root.KutadguCredits;
+    if(!saved||!payload)return;
+    const members=Array.isArray(saved.members)?saved.members:[];
+    const parts=Array.isArray(payload.parts)?payload.parts:[];
+    for(let index=0;index<members.length;index+=1){
+      const part=parts[index]||{};
+      const bookId=Number(members[index]&&(members[index].book_id||members[index].id));
+      if(!Number.isInteger(bookId)||bookId<1)continue;
+      const authors=Array.isArray(part.authors)&&part.authors.length?part.authors:(Array.isArray(payload.authors)&&payload.authors.length?payload.authors:(payload.author?[payload.author]:[]));
+      const translators=Array.isArray(part.translators)&&part.translators.length?part.translators:(Array.isArray(payload.translators)?payload.translators:[]);
+      if(!authors.length&&!translators.length)continue;
+      const plan=seriesStructuredCreditPlan(authors,translators,part.publisher||payload.publisher||"");
+      if(!plan.ok){
+        const error=new Error(plan.message||"ئاپتور ئۇلانمىسى ساقلانمىدى.");
+        error.creditPlan=true;
+        throw error;
+      }
+      if(!Credits||typeof Credits.planCreditSave!=="function"){
+        const error=new Error("ئاپتور ئۇچۇرى تەكشۈرۈلمىدى.");
+        error.creditPlan=true;
+        throw error;
+      }
+      await rpc("set_book_credits",{
+        p_book_id:bookId,
+        p_authors:plan.authors,
+        p_translators:plan.translators,
+        p_publisher:plan.publisher
+      });
+    }
+  }
   function finishSavedSeries(saved){
     seriesState.pending=null;
     fillEditor(saved);
@@ -1323,6 +1512,34 @@
       if(pending){
         built={ok:true,requestId:pending.requestId,payload:pending.payload};
       }else{
+        const metadata=seriesEntryPayload({
+          requestId,
+          title:$("#volumeSeriesTitle").value,
+          author:$("#volumeSeriesAuthor").value,
+          authors:seriesCreditValues("#volumeSeriesAuthor","#volumeSeriesAuthorExtras"),
+          translator:$("#volumeSeriesTranslator")&&$("#volumeSeriesTranslator").value,
+          translators:seriesCreditValues("#volumeSeriesTranslator","#volumeSeriesTranslatorExtras"),
+          publisher:$("#volumeSeriesPublisher")&&$("#volumeSeriesPublisher").value,
+          publishYear:$("#volumeSeriesYear")&&$("#volumeSeriesYear").value,
+          pages:$("#volumeSeriesPages")&&$("#volumeSeriesPages").value,
+          coverType:$("#volumeSeriesCoverType")&&$("#volumeSeriesCoverType").value,
+          bookSize:$("#volumeSeriesSize")&&$("#volumeSeriesSize").value,
+          category:$("#volumeSeriesCategory").value,
+          source:$("#volumeSeriesSource").value,
+          description:$("#volumeSeriesDescription").value,
+          completeSetPrice:$("#volumeSeriesSetPrice").value,
+          skipCoverCheck:true,
+          parts:rows.map(row=>({
+            title:row.title,price:row.price,stock:row.stock,isbn:row.isbn,imageUrl:row.imageUrl||"pending",
+            pages:row.pageCount,publishYear:row.publishYear,publisher:row.publisher,coverType:row.coverType,
+            bookSize:row.bookSize,stockStatus:row.stockStatus,main:row.main
+          }))
+        });
+        if(!metadata.ok){
+          seriesStatus(metadata.message,"error");
+          setStatus(metadata.message,"error");
+          return;
+        }
         for(let index=0;index<rows.length;index+=1){
           const row=rows[index];
           if(row.imageUrl)continue;
@@ -1338,12 +1555,24 @@
           requestId,
           title:$("#volumeSeriesTitle").value,
           author:$("#volumeSeriesAuthor").value,
+          authors:seriesCreditValues("#volumeSeriesAuthor","#volumeSeriesAuthorExtras"),
+          translator:$("#volumeSeriesTranslator")&&$("#volumeSeriesTranslator").value,
+          translators:seriesCreditValues("#volumeSeriesTranslator","#volumeSeriesTranslatorExtras"),
+          publisher:$("#volumeSeriesPublisher")&&$("#volumeSeriesPublisher").value,
+          publishYear:$("#volumeSeriesYear")&&$("#volumeSeriesYear").value,
+          pages:$("#volumeSeriesPages")&&$("#volumeSeriesPages").value,
+          coverType:$("#volumeSeriesCoverType")&&$("#volumeSeriesCoverType").value,
+          bookSize:$("#volumeSeriesSize")&&$("#volumeSeriesSize").value,
           category:$("#volumeSeriesCategory").value,
           source:$("#volumeSeriesSource").value,
           description:$("#volumeSeriesDescription").value,
           completeSetPrice:$("#volumeSeriesSetPrice").value,
           allowPreviewUrls:root.__kutadguSkipAdminAuth===true,
-          parts:rows.map(row=>({title:row.title,price:row.price,stock:row.stock,isbn:row.isbn,imageUrl:row.imageUrl,main:row.main}))
+          parts:rows.map(row=>({
+            title:row.title,price:row.price,stock:row.stock,isbn:row.isbn,imageUrl:row.imageUrl,main:row.main,
+            pages:row.pageCount,publishYear:row.publishYear,publisher:row.publisher,coverType:row.coverType,
+            bookSize:row.bookSize,stockStatus:row.stockStatus
+          }))
         });
         if(!built.ok){
           await discardSeriesKeys(created);
@@ -1362,8 +1591,20 @@
       const saved=await rpc("admin_create_book_volume_series",{p_request_id:built.requestId,p_payload:built.payload});
       const kept=new Set((saved&&saved.members||[]).map(member=>text(member.image_url)));
       if(saved&&saved.replayed===true)await discardSeriesKeys(created.filter(key=>!kept.has(rows.find(row=>row.objectKey===key)?.imageUrl||"")));
+      const creditRetry=!!(seriesState.pending&&seriesState.pending.creditsIncomplete&&seriesState.pending.interiorsSaved);
       const interiors=seriesState.pending&&Array.isArray(seriesState.pending.interiors)?seriesState.pending.interiors:[];
-      if(!(await saveInteriorsOrStop(interiors, saved)))return;
+      if(!creditRetry){
+        if(!(await saveInteriorsOrStop(interiors, saved)))return;
+        if(seriesState.pending)seriesState.pending.interiorsSaved=true;
+      }
+      try{
+        await persistSeriesCredits(saved, built.payload);
+      }catch(error){
+        if(seriesState.pending)seriesState.pending.creditsIncomplete=true;
+        const creditMessage=error&&error.creditPlan&&error.message?error.message:"يۈرۈشلۈك ساقلاندى، ئاپتور ئۇلانمىسى ساقلانمىدى. قايتا ساقلىسىڭىز كىتاب قايتا قوشۇلمايدۇ.";
+        showCreditRecovery(creditMessage);
+        return;
+      }
       finishSavedSeries(saved);
       await load(true);
     }catch(error){
@@ -1438,10 +1679,28 @@
       if(button&&!button.disabled)addLookupCandidate(button.dataset.lookupAdd);
     });
   }
+  function attachSeriesSuggestions(){
+    const Suggest=root.KutadguBookEntrySuggest;
+    if(!Suggest||!Suggest.attachCombobox)return;
+    const rows=()=>typeof state.suggestionRows==="function"?state.suggestionRows():[];
+    ["#volumeSeriesAuthor","#volumeSeriesTranslator","#volumeSeriesPublisher"].forEach(selector=>{
+      const input=$(selector);
+      if(!input||input.dataset.seriesSuggest==="1")return;
+      input.dataset.seriesSuggest="1";
+      const field=selector==="#volumeSeriesPublisher"?"publisher":selector==="#volumeSeriesTranslator"?"translator":"author";
+      Suggest.attachCombobox(input,()=>Suggest.uniqueValuesFromRows(rows(),field));
+    });
+  }
   function init(options){
+    if(options&&typeof options.suggestionRows==="function")state.suggestionRows=options.suggestionRows;
     if(state.db)return;
     state.db=options&&options.db||root.__kutadguAdminDb||null;
     bind();
+    const authorAdd=$("#volumeSeriesAuthorAdd");
+    const translatorAdd=$("#volumeSeriesTranslatorAdd");
+    if(authorAdd)authorAdd.addEventListener("click",()=>addSeriesCreditInput("#volumeSeriesAuthorExtras"));
+    if(translatorAdd)translatorAdd.addEventListener("click",()=>addSeriesCreditInput("#volumeSeriesTranslatorExtras"));
+    attachSeriesSuggestions();
   }
 
   root.KutadguAdminVolumeGroups={init,load,newGroup,openGroup,normalizeMembers,editorPayload,seriesEntryPayload,seriesUserError,seriesInteriorCap,showSeriesForm,_state:state};

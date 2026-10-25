@@ -8355,7 +8355,7 @@ function init(){
     auth:(typeof window.kutadguAdminAuthOptions==="function"?window.kutadguAdminAuthOptions():{persistSession:true,detectSessionInUrl:false,flowType:"pkce",storageKey:String(window.KUTADGU_ADMIN_AUTH_STORAGE_KEY||"kutadgu-admin-auth-v1")})
   });
   window.__kutadguAdminDb=db;
-  if(window.KutadguAdminVolumeGroups&&typeof window.KutadguAdminVolumeGroups.init==="function")window.KutadguAdminVolumeGroups.init({db});
+  if(window.KutadguAdminVolumeGroups&&typeof window.KutadguAdminVolumeGroups.init==="function")window.KutadguAdminVolumeGroups.init({db,suggestionRows:()=>books});
   if(typeof window.kutadguForgetLegacySharedAuthStorage==="function")window.kutadguForgetLegacySharedAuthStorage();
   bindBookListUx();
   $("#loginForm").addEventListener("submit",login);
