@@ -364,5 +364,5 @@ test("history requests keep the snapshot and reject private fields", () => {
   assert.match(adminHtml, /admin\.js\?v=116/);
   assert.match(adminHtml, /kutadgu-analytics-core\.js\?v=15/);
   assert.match(adminHtml, /id="analyticsVisitHistoryPager"/);
-  assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=5/);
+  assert.match(fs.readFileSync(path.join(root, "index.html"), "utf8"), /kutadgu-analytics-core\.js\?v=6/);
 });

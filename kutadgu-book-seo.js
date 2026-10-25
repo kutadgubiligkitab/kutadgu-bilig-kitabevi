@@ -219,9 +219,27 @@
     if (category) optionals.push(`تۈرى: ${category}`);
     if (publisher) optionals.push(`نەشرىيات: ${publisher}`);
     if (year) optionals.push(`نەشر يىلى: ${year}`);
+    function endsWithSentenceMark(value) {
+      return /[.!?…؟۔]$/.test(String(value || ""));
+    }
+    function joinGeneratedFragments(parts) {
+      let out = "";
+      parts.forEach((part) => {
+        const piece = String(part || "").trim();
+        if (!piece) return;
+        if (!out) {
+          out = piece;
+          return;
+        }
+        out += (endsWithSentenceMark(out) ? " " : ". ") + piece;
+      });
+      return out;
+    }
     function assemble(parts) {
       if (!parts.length) return `${title} — ${STOREFRONT_NAME}`;
-      return `${title} — ${parts.join(". ")}. ${STOREFRONT_NAME}.`;
+      const body = joinGeneratedFragments(parts);
+      const boundary = endsWithSentenceMark(body) ? " " : ". ";
+      return `${title} — ${body}${boundary}${STOREFRONT_NAME}.`;
     }
     let parts = optionals.slice();
     let out = assemble(parts);

@@ -638,12 +638,12 @@ test("add/toggleFav recover orphaned owners after boot and never silent-fail a g
   assert.ok(add.indexOf("recoverOrphanedOwnerForGuestWrite") < add.indexOf("enqueueShopIntent"));
   assert.match(add, /if\(!shopOwnerAllowsLocalDisplay\(\)\)\{/);
   assert.match(add, /enqueueShopIntent\("add"/);
-  assert.match(add, /كىتاب سېۋەتكە قوشۇلمىدى\. سەھىپىنى يېڭىلاپ قايتا سىناڭ\./);
+  assert.match(add, /كىتاب سېۋەتكە قوشۇلمىدى\. بەتنى يېڭىلاپ قايتا سىناڭ\./);
   assert.ok(add.indexOf("enqueueShopIntent") < add.indexOf("set(CART_KEY,a)"));
   assert.match(fav, /recoverOrphanedOwnerForGuestWrite\(\)/);
   assert.ok(fav.indexOf("recoverOrphanedOwnerForGuestWrite") < fav.indexOf("enqueueShopIntent"));
   assert.match(fav, /enqueueShopIntent\("fav-add"/);
-  assert.match(fav, /ياقتۇرغانلارغا قوشۇلمىدى\. سەھىپىنى يېڭىلاپ قايتا سىناڭ\./);
+  assert.match(fav, /ياقتۇرغانلارغا قوشۇلمىدى\. بەتنى يېڭىلاپ قايتا سىناڭ\./);
   assert.ok(fav.indexOf("enqueueShopIntent") < fav.indexOf("set(FAV_KEY,a)"));
   assert.match(shop, /function canRecoverOrphanedOwnerForGuestWrite\(\)\{/);
   assert.match(shop, /if\(liveShopUserId\(\)\)return false;/);

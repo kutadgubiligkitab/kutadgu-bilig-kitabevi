@@ -955,7 +955,7 @@ const set=(k,v)=>{
     return true;
   }catch(error){
     console.warn("Local storage is unavailable; the current action was not saved.",error);
-    toast("ساقلاش مۇمكىن بولمىدى؛ توركۆرگۈ ساقلاش ئىجازىتىنى تەكشۈرۈڭ.");
+    toast("ساقلاش مۇمكىن بولمىدى؛ تور كۆرگۈچ ساقلاش ئىجازىتىنى تەكشۈرۈڭ.");
     return false;
   }
 };
@@ -2504,7 +2504,7 @@ function add(id,qty=1){
   if(!shopOwnerAllowsLocalDisplay()){
     if(enqueueShopIntent("add",{id:storeId,qty:Math.max(1,sanitizeQty(qty))}))return;
     if(!shopStateWriteAllowed()){
-      toast("كىتاب سېۋەتكە قوشۇلمىدى. سەھىپىنى يېڭىلاپ قايتا سىناڭ.");
+      toast("كىتاب سېۋەتكە قوشۇلمىدى. بەتنى يېڭىلاپ قايتا سىناڭ.");
       return;
     }
   }
@@ -2545,7 +2545,7 @@ function toggleFav(id){
   if(!shopOwnerAllowsLocalDisplay()){
     if(enqueueShopIntent("fav-add",{id:storeId}))return;
     if(!shopStateWriteAllowed()){
-      toast("ياقتۇرغانلارغا قوشۇلمىدى. سەھىپىنى يېڭىلاپ قايتا سىناڭ.");
+      toast("ياقتۇرغانلارغا قوشۇلمىدى. بەتنى يېڭىلاپ قايتا سىناڭ.");
       return;
     }
   }
@@ -2555,7 +2555,7 @@ function toggleFav(id){
   const added=!(Legacy.sameBookIdentity?a.some(x=>Legacy.sameBookIdentity(x,storeId,resolve,aliases)):a.some(x=>canonicalId(x)===storeId));
   if(!added){
     a=Legacy.filterFavsRemovingBook?Legacy.filterFavsRemovingBook(a,storeId,resolve,aliases):a.filter(x=>canonicalId(x)!==storeId);
-    toast("ياقتۇرۇلغانلاردىن چىقىرىلدى");
+    toast("ياقتۇرغانلاردىن چىقىرىلدى");
   }
   else if(!isStorefrontVisible(b)){toast("بۇ كىتاب ھازىرچە تەمىنلەنمەيدۇ");return}
   else{a.push(storeId);toast("ياقتۇرغانلارغا قوشۇلدى ❤️")}
@@ -4186,14 +4186,14 @@ function setupCatalogFilters(){
   if(isAdabiyatHub){
     bar.className="adabiyat-hub-toolbar";
     bar.innerHTML=`
-      <div class="adabiyat-hub-search"><label class="kutadgu-header-search-label" for="catalogFilterText">بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
+      <div class="adabiyat-hub-search"><label class="kutadgu-header-search-label" for="catalogFilterText">بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ…"></div>
       <div class="adabiyat-hub-pills" role="tablist" aria-label="ئەدەبىيات تارماقلىرى">${ADABIYAT_HUB_SUBS.map(item=>`<button type="button" class="adabiyat-hub-pill" role="tab" data-adabiyat-sub="${escapeAttr(item.sub)}" aria-selected="false">${escapeHtml(item.label)}</button>`).join("")}</div>
       <div class="adabiyat-hub-count" id="catalogFilterCount"></div>`;
   }else{
     bar.className="catalog-filter-bar";
     ensureCompactFilterCss();
     bar.innerHTML=`
-    <div class="catalog-filter-search"><label for="catalogFilterText">🔎 بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
+    <div class="catalog-filter-search"><label for="catalogFilterText">🔎 بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ…"></div>
     <div class="catalog-filter-toolbar">
       <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort">${isGlobalBooks?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى</option>`:""}<option value="relevance">مۇناسىۋەتلىك تەرتىپ</option><option value="new"${isCreditListing?" selected":""}>يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
       <button type="button" class="category-filter-toggle" aria-expanded="false" aria-controls="catalogFilterExtra">سۈزگۈچ</button>
@@ -4221,7 +4221,7 @@ function setupCatalogFilters(){
     ?'<strong>بۇ ئىزدەشكە ماس كىتاب يوق.</strong><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button>'
     :'<strong>نەتىجە تېپىلمىدى.</strong><br><span>سۈزگۈچنى تازىلاڭ ياكى باشقا تۈرنى كۆرۈڭ.</span><br><button type="button" class="catalog-empty-reset">↺ سۈزگۈچنى تازىلاش</button> <a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
   const emptySectionMarkup=isCreditListing
-    ?'<strong>بۇ ئىسىمگە تەۋە ئاممىۋى كىتاب يوق.</strong>'
+    ?'<strong>بۇ نامغا تەۋە ئاممىۋى كىتاب يوق.</strong>'
     :'<strong>بۇ بۆلۈمدە ھازىرچە كىتاب يوق.</strong><br><span>باشقا تۈرلەردىن كىتاب كۆرەلەيسىز.</span><br><a href="index.html#books">باشقا كىتابلارنى كۆرۈش</a>';
   let empty=document.createElement("div");empty.className="catalog-filter-empty";empty.hidden=true;empty.innerHTML=emptySectionMarkup;controls.insertAdjacentElement("afterend",empty);
   if(!isCreditListing&&catalogStatus.error&&!remoteCatalog.configured){
@@ -4913,7 +4913,7 @@ function cartPage(){
          <div class="cart-summary-row"><span>جەمئىي كىتاب سانى</span><strong>${qtyLabel}</strong></div>
          <div class="cart-summary-row"><span>كىتاب جەمئىي</span><strong>${amountLabel}</strong></div>
        </div>
-       <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزمللىنىدۇ.</p>
+       <p class="cart-shipping-note">بۇ سومما پەقەت كىتاب باھاسى. توشۇش ھەققى مەنزىل، ئېغىرلىق ۋە يەتكۈزۈش ئۇسۇلىغا قاراپ WhatsApp تا جەزملىنىدۇ.</p>
        ${readFailed&&!preview?`<div class="catalog-error-state" role="alert" data-cart-quote-error="true"><p>باھا ياكى يۈرۈشلۈك ئۇچۇرى ۋاقىتلىق يۈكلەنمىدى.</p><button type="button" class="catalog-retry-btn" data-set-quote-retry="1">قايتا سىناش</button></div>`:""}
        ${setBlocked&&!preview&&!quotePending&&!readFailed?`<p class="cart-stock-block-note" role="status">سېۋەتتە تۈگەپ كەتكەن ياكى تەمىنلەنمەيدىغان كىتاب بار. زاكاز قىلىشتىن بۇرۇن ئۇنى ئۆچۈرۈڭ.</p>`:""}
        <div class="cart-total"><span>كىتاب جەمئىي</span><strong>${amountLabel}</strong></div>
@@ -6399,7 +6399,7 @@ async function setupHomeCarousel(){
     if(kind==="blocked")return '<div class="empty-state shop-section-empty" data-gift-state="blocked">بۇ ھېساب ۋاقتىنچە توختىتىلغان. سوۋغا كىتابلار كۆرۈنمەيدۇ.</div>';
     if(kind==="empty")return '<div class="empty-state shop-section-empty" data-gift-state="empty">ھازىر سوۋغا قىلىنىدىغان كىتاب يوق.</div>';
     if(kind==="error")return '<div class="empty-state shop-section-empty" data-gift-state="error"><p>سوۋغا كىتابلارنى يۈكلەش ۋاقىتلىق مۇمكىن بولمىدى.</p><p><button type="button" data-gift-retry="1">قايتا سىناش</button></p></div>';
-    return '<div class="empty-state shop-section-empty" data-gift-state="unresolved">ھېساب ھالىتى تېخى جەزملەشمىدى. سوۋغا تىزىملىكى كۆرسىتىلمەيدۇ.</div>';
+    return '<div class="empty-state shop-section-empty" data-gift-state="unresolved">ھېساب ھالىتى تېخى جەزملەنمىدى. سوۋغا تىزىملىكى كۆرسىتىلمەيدۇ.</div>';
   }
   function placeGiftSurface(html){
     stop();
