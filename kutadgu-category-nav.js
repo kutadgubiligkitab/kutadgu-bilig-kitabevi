@@ -68,7 +68,7 @@
     if (root.document.querySelector("link[data-kutadgu-category-nav]")) return;
     const link = root.document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/category-nav.css?v=2";
+    link.href = "/category-nav.css?v=3";
     link.setAttribute("data-kutadgu-category-nav", "1");
     root.document.head.appendChild(link);
   }

@@ -6,8 +6,23 @@ const path = require("path");
 
 const root = path.join(__dirname, "../..");
 const released = "007a635ff101e9582da312273539a6b8e4c15449";
-const shop180 = execFileSync("git", ["show", released + ":shop.js"]);
-const premium22 = execFileSync("git", ["show", released + ":premium-ux.js"]);
+
+function releasedBlob(file) {
+  const args = ["show", released + ":" + file];
+  try {
+    return execFileSync("git", args, { cwd: root });
+  } catch (err) {
+    execFileSync("git", ["fetch", "--depth=1", "origin", released], {
+      cwd: root,
+      stdio: "ignore",
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+    });
+    return execFileSync("git", args, { cwd: root });
+  }
+}
+
+const shop180 = releasedBlob("shop.js");
+const premium22 = releasedBlob("premium-ux.js");
 
 function contentType(file) {
   if (file.endsWith(".html")) return "text/html; charset=utf-8";
@@ -103,7 +118,7 @@ test("released shop and premium blobs stay cached and cannot rebuild discovery",
     seen.length = 0;
     await page.route(/https?:\/\/(?!127\.0\.0\.1)(?!localhost)/, (route) => route.abort());
     await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=181/);
+    await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=182/);
     await page.waitForResponse((response) => response.url().includes("premium-ux.js?v=23"));
     await expect.poll(async () => page.locator("#premiumDiscovery").count()).toBe(0);
     expect(seen.some((url) => url.includes("premium-ux.js?v=22"))).toBe(false);

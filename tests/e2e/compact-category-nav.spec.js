@@ -141,4 +141,114 @@ test.describe("compact category navigation", () => {
     await expect(page.locator(".back-button")).toHaveAttribute("href", "/adabiyat");
     await expect.poll(async () => page.locator("#bookCategories [data-category-group='literature']").count()).toBeGreaterThan(0);
   });
+
+  test("the close label stays intact and the filter label stays readable", async ({ page }) => {
+    test.setTimeout(120000);
+    async function contrast(selector) {
+      return page.locator(selector).evaluate((el) => {
+        const parse = (value) => {
+          const match = String(value).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+          return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+        };
+        const linear = (channel) => {
+          const c = channel / 255;
+          return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        };
+        const lum = (rgb) => 0.2126 * linear(rgb[0]) + 0.7152 * linear(rgb[1]) + 0.0722 * linear(rgb[2]);
+        const style = getComputedStyle(el);
+        const fg = parse(style.color);
+        const bg = parse(style.backgroundColor);
+        const hi = Math.max(lum(fg), lum(bg));
+        const lo = Math.min(lum(fg), lum(bg));
+        return {
+          ratio: (hi + 0.05) / (lo + 0.05),
+          color: style.color,
+          background: style.backgroundColor,
+          label: el.textContent.trim()
+        };
+      });
+    }
+    async function closeMetrics() {
+      return page.locator("#bookCategories [data-category-close]").evaluate((el) => {
+        const style = getComputedStyle(el);
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const text = range.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        return {
+          text: el.textContent,
+          display: style.display,
+          fontFamily: style.fontFamily,
+          lineHeight: Number.parseFloat(style.lineHeight),
+          fontSize: Number.parseFloat(style.fontSize),
+          padInline: Number.parseFloat(style.paddingInlineStart) + Number.parseFloat(style.paddingInlineEnd),
+          flexShrink: style.flexShrink,
+          textWidth: text.width,
+          boxWidth: box.width,
+          clipped: el.scrollWidth - el.clientWidth
+        };
+      });
+    }
+    for (const width of [768, 1280]) {
+      await openHome(page, width);
+      await page.locator("#bookCategories [data-category-all]").click();
+      await expect(page.locator("#bookCategories [data-category-close]")).toBeVisible();
+      let close;
+      await expect.poll(async () => {
+        close = await closeMetrics();
+        return close.display;
+      }).toMatch(/^(inline-)?flex$/);
+      expect(close.text).toBe("يىغىش");
+      expect(close.fontFamily.toLowerCase()).toContain("ukij");
+      expect(close.lineHeight).toBeGreaterThanOrEqual(close.fontSize);
+      expect(close.padInline).toBeGreaterThanOrEqual(24);
+      expect(close.flexShrink).toBe("0");
+      expect(close.boxWidth).toBeGreaterThan(close.textWidth + 12);
+      expect(close.clipped).toBeLessThanOrEqual(1);
+      await page.locator("#bookCategories [data-category-close]").click();
+      await expect(page.locator("#bookCategories [data-category-all]")).toBeFocused();
+      const family = page.locator("#bookCategories [data-category-group]").first();
+      const familyId = await family.getAttribute("data-category-group");
+      await family.click();
+      await expect.poll(async () => {
+        close = await closeMetrics();
+        return close.display;
+      }).toMatch(/^(inline-)?flex$/);
+      expect(close.text).toBe("يىغىش");
+      expect(close.clipped).toBeLessThanOrEqual(1);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(`#bookCategories [data-category-group="${familyId}"]`)).toBeFocused();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow).toBeLessThanOrEqual(4);
+    }
+    for (const width of [390, 1280]) {
+      for (const dark of [false, true]) {
+        for (const path of ["/", "/romanlar"]) {
+          await page.setViewportSize({ width, height: 900 });
+          await H.openFresh(page, path);
+          await page.evaluate((enabled) => document.body.classList.toggle("dark-mode", enabled), dark);
+          const selector = path === "/" ? ".home-search-card .category-filter-toggle" : "#catalogFilterBar .category-filter-toggle";
+          await expect(page.locator(selector)).toBeVisible();
+          for (const state of ["normal", "hover", "focus"]) {
+            if (state === "hover") await page.locator(selector).hover();
+            if (state === "focus") await page.locator(selector).evaluate((el) => el.focus({ preventScroll: true, focusVisible: true }));
+            const reading = await contrast(selector);
+            expect(reading.label).toBe("سۈزگۈچ");
+            expect(reading.ratio, `${path} ${width} ${dark ? "dark" : "light"} ${state}`).toBeGreaterThanOrEqual(4.5);
+          }
+          if (path === "/") {
+            await page.locator(selector).click();
+            await expect(page.locator("#searchSort")).toBeVisible();
+            await expect(page.locator("#searchCategory")).toBeVisible();
+          } else {
+            await page.locator(selector).click();
+            await expect(page.locator("#catalogSort")).toBeVisible();
+            await expect(page.locator("#catalogCollection")).toBeVisible();
+          }
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+          expect(overflow).toBeLessThanOrEqual(4);
+        }
+      }
+    }
+  });
 });
