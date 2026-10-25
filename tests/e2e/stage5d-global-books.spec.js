@@ -241,12 +241,22 @@ test.describe("Stage 5D global /books page", () => {
     await expect(page.locator(".book-card:not(.is-skeleton)").first()).toBeVisible({ timeout: 20_000 });
     await page.locator("#catalogFilterText").fill(unique);
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(1, { timeout: 15_000 });
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24, { timeout: 15_000 });
     await page.locator("#catalogSort").selectOption("priceHigh");
     await expect(page.locator(".book-card:not(.is-skeleton) .book-title").first()).toContainText("بارلىق كىتاب 30", { timeout: 15_000 });
     await page.locator("#catalogCollection").selectOption("recommended");
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(1, { timeout: 15_000 });
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await page.locator(".catalog-load-more").click();
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(30, { timeout: 15_000 });

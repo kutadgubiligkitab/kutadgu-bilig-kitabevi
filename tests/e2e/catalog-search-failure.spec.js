@@ -361,7 +361,7 @@ test.describe("catalog search failure stays distinct from an empty result", () =
     const events = await installIsolatedCatalog(page, state);
     await H.openFresh(page, "/");
     const results = page.locator("#searchResults");
-    await page.locator(".mobile-filter-toggle").click();
+    await page.locator(".category-filter-toggle").click();
     await expect(page.locator("#searchReset")).toBeVisible();
     await primeFailedSearch(page, state);
     await page.locator("#searchReset").click();
@@ -381,7 +381,7 @@ test.describe("catalog search failure stays distinct from an empty result", () =
     await H.openFresh(page, "/");
     const results = page.locator("#searchResults");
     const chips = page.locator(".home-search-card .premium-active-filters");
-    await page.locator(".mobile-filter-toggle").click();
+    await page.locator(".category-filter-toggle").click();
     await expect(page.locator("#searchReset")).toBeVisible();
     await page.locator("#searchMinPrice").evaluate((el) => {
       el.value = "10";

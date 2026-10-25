@@ -110,7 +110,7 @@ test("homepage tab and shop read path stay on the member client", () => {
   assert.match(index, /data-carousel-mode="gifts"/);
   assert.match(index, /ھەدىيەلىك كىتابلار/);
   assert.match(index, /data-carousel-mode="recommended"[^>]*aria-selected="true"/);
-  assert.match(index, /shop\.js\?v=180/);
+  assert.match(index, /shop\.js\?v=181/);
   const clientFn = sliceBetween(shop, "function giftMemberClient(){", "let giftEpoch");
   assert.match(clientFn, /getClient/);
   const loader = sliceBetween(shop, "async function loadGiftOffers(epoch){", "async function verifyGiftOffer");
@@ -141,11 +141,19 @@ test("homepage tab and shop read path stay on the member client", () => {
     out = out.slice(0, cardStart) + out.slice(cardEnd);
     return out.replace(/\n  window\.KutadguPremiumUx=\{compactCard\};\n/, "\n");
   };
-  const normalizePremium = (src) => src.replace(/\r\n/g, "\n").replace(
+  const dropDiscovery = (src) => {
+    const start = src.indexOf("function renderDiscovery(){");
+    const end = src.indexOf("function wizardMarkup(groups){");
+    assert.ok(start >= 0 && end > start);
+    return src.slice(0, start) + src.slice(end);
+  };
+  const normalizePremium = (src) => dropDiscovery(src).replace(/\r\n/g, "\n").replace(
     "return title?`${title} — ${count} قىسىم`:`${count} قىسىم`;",
     "return title?`${title} ${count} قىسىم`:`${count} قىسىم`;"
   );
   assert.strictEqual(normalizePremium(dropEmpty(premiumNow)), normalizePremium(dropEmpty(premiumMain)));
+  assert.match(premiumNow, /function renderDiscovery\(\)\{\s*document\.querySelector\("#premiumDiscovery"\)\?\.remove\(\);\s*\}/);
+  assert.doesNotMatch(premiumNow.slice(premiumNow.indexOf("function renderDiscovery"), premiumNow.indexOf("function wizardMarkup")), /insertAdjacentElement/);
   assert.match(premiumNow, /function seriesCompactCard\(book,src,id\)/);
   assert.match(premiumNow, /data-cover-src="\$\{src\}" data-cover-book="\$\{id\}"/);
   assert.match(premiumNow, /dataset\.searchState!=="empty"/);

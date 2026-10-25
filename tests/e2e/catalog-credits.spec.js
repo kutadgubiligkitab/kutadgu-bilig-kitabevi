@@ -237,7 +237,7 @@ test.describe("catalog credit browsing", () => {
       premium: !!window.KutadguPremiumUx,
       bar: !!document.querySelector("#catalogFilterBar")
     }))).toEqual({ premium: true, bar: true });
-    await page.locator("#catalogFilterBar").locator("xpath=preceding-sibling::button[contains(@class,'mobile-filter-toggle')]").click();
+    await page.locator("#catalogFilterBar .category-filter-toggle").click();
     await expect(page.locator("#catalogFilterReset")).toBeVisible();
     await page.locator("#catalogFilterText").fill("ئىككى");
     await expect(page.locator(".book-card[data-live-book-id]")).toHaveCount(1);
@@ -302,7 +302,7 @@ test.describe("catalog credit browsing", () => {
   test("late premium initialization keeps an opened mobile filter", async ({ page }) => {
     const held = await openCreditWhilePremiumWaits(page, 390);
     try {
-      const toggle = mobileFilterToggle(page);
+      const toggle = page.locator("#catalogFilterBar .category-filter-toggle");
       await expect(toggle).toBeVisible();
       await toggle.click();
       const field = page.locator("#catalogFilterText");
@@ -316,7 +316,7 @@ test.describe("catalog credit browsing", () => {
       const open = await readFilterChrome(page);
       expect(open.open).toBe(true);
       expect(open.collapsed).toBe(false);
-      expect(open.hidden).toBe("false");
+      expect(open.hidden).toBeNull();
       expect(open.mobileExpanded).toBe("true");
       expect(open.premiumExpanded).toBe("true");
       expect(open.display).not.toBe("none");
@@ -340,17 +340,18 @@ test.describe("catalog credit browsing", () => {
       const closed = await readFilterChrome(page);
       expect(closed.open).toBe(false);
       expect(closed.collapsed).toBe(true);
-      expect(closed.hidden).toBe("true");
+      expect(closed.hidden).toBeNull();
       expect(closed.mobileExpanded).toBe("false");
       expect(closed.premiumExpanded).toBe("false");
-      expect(closed.display).toBe("none");
+      expect(closed.display).not.toBe("none");
+      await expect(page.locator("#catalogSort")).toBeVisible();
 
       await toggle.click();
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
       const reopened = await readFilterChrome(page);
       expect(reopened.open).toBe(true);
       expect(reopened.collapsed).toBe(false);
-      expect(reopened.hidden).toBe("false");
+      expect(reopened.hidden).toBeNull();
       expect(reopened.mobileExpanded).toBe("true");
       expect(reopened.premiumExpanded).toBe("true");
       expect(reopened.value).toBe("");
@@ -362,12 +363,12 @@ test.describe("catalog credit browsing", () => {
   test("late premium initialization leaves a closed mobile filter closed", async ({ page }) => {
     const held = await openCreditWhilePremiumWaits(page, 390);
     try {
-      await expect(mobileFilterToggle(page)).toBeVisible();
+      await expect(page.locator("#catalogFilterBar .category-filter-toggle")).toBeVisible();
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
       const before = await readFilterChrome(page);
       expect(before.open).toBe(false);
       expect(before.collapsed).toBe(true);
-      expect(before.hidden).toBe("true");
+      expect(before.hidden).toBeNull();
       expect(before.mobileExpanded).toBe("false");
       expect(before.premiumExpanded).toBe(null);
       held.release();
@@ -375,21 +376,21 @@ test.describe("catalog credit browsing", () => {
       const after = await readFilterChrome(page);
       expect(after.open).toBe(false);
       expect(after.collapsed).toBe(true);
-      expect(after.hidden).toBe("true");
+      expect(after.hidden).toBeNull();
       expect(after.mobileExpanded).toBe("false");
       expect(after.premiumExpanded).toBe("false");
-      expect(after.display).toBe("none");
+      expect(after.display).not.toBe("none");
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
 
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
       await page.locator("#catalogFilterText").fill("ئىككى");
       await page.locator("#catalogFilterReset").click();
       await expect(page.locator("#catalogFilterText")).toHaveValue("");
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeHidden();
-      await mobileFilterToggle(page).click();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await expect(page.locator("#catalogFilterReset")).toBeVisible();
     } finally {
       held.release();
@@ -413,6 +414,7 @@ test.describe("catalog credit browsing", () => {
       expect(open.value).toBe("ئىككى");
       expect(open.focused).toBe(true);
       await expect(field).toBeVisible();
+      await page.locator("#catalogFilterBar .category-filter-toggle").click();
       await page.locator("#catalogFilterReset").click();
       await expect(field).toHaveValue("");
       await expect(field).toBeVisible();

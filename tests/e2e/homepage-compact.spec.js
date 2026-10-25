@@ -436,25 +436,21 @@ test.describe("homepage compact first-view", () => {
     expect(metrics.overflow).toBeLessThanOrEqual(4);
   });
 
-  test("homepage section order puts books before category cards", async ({ page }) => {
+  test("homepage section order puts search, categories, then books", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
     await expect(page.locator("#books")).toHaveCount(1);
     await expect(page.locator("#newBooksCarousel")).toHaveCount(1);
     await expect(page.locator("#homeFeaturedBooks")).toHaveCount(1);
     await expect(page.locator("#bookCategories")).toHaveCount(1);
-    await expect(page.locator("#searchInput")).toHaveCount(1);
-    await expect(page.locator("#newBooksCarousel")).toBeVisible();
-    await expect(page.locator("#homeCarouselTrack")).toBeVisible();
-    await expect(page.locator("#homeFeaturedBooks .home-featured-section, #homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
-    await page.waitForSelector("#premiumDiscovery", { timeout: 45_000 });
-    await expect(page.locator("#premiumDiscovery")).toHaveCount(1);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    await expect.poll(async () => page.locator("#bookCategories [data-category-group]").count()).toBeGreaterThan(0);
     const ordered = await page.evaluate(() => {
-      const ids = ["books", "newBooksCarousel", "homeFeaturedBooks", "premiumDiscovery", "bookCategories", "orderProcess"];
+      const ids = ["books", "bookCategories", "newBooksCarousel", "homeFeaturedBooks", "orderProcess"];
       const nodes = ids.map((id) => document.getElementById(id));
-      if (nodes.some((n) => !n)) return { missing: ids.filter((id, i) => !nodes[i]) };
-      const ok = nodes.every((node, i) => i === 0 || !!(nodes[i - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING));
-      return { ok, ids };
+      if (nodes.some((node) => !node)) return { missing: ids.filter((id, index) => !nodes[index]) };
+      const ok = nodes.every((node, index) => index === 0 || !!(nodes[index - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING));
+      return { ok };
     });
     expect(ordered.missing || []).toEqual([]);
     expect(ordered.ok).toBe(true);
@@ -463,250 +459,55 @@ test.describe("homepage compact first-view", () => {
     await page.locator("#searchButton").click();
     await page.waitForSelector(".advanced-search-result, .advanced-search-summary", { timeout: 45_000 });
     await expect(page.locator("#searchResults")).toContainText("كىتاب تېپىلدى");
-    await expect(page.locator(`.advanced-search-result[data-live-book-id="${book.id}"]`)).toBeVisible();
-    await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-    await expect(page.locator("#premiumDiscoveryResults .premium-book-grid, #premiumDiscoveryResults .premium-friendly-empty").first()).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="/adabiyat"]')).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="/dini"]')).toBeVisible();
-    await expect(page.locator('#bookCategories a.card[href="/children"]')).toBeVisible();
+    await expect(page.locator("#searchSort")).toBeVisible();
+    await expect(page.locator("#searchCategory")).toBeHidden();
+    await page.locator(".category-filter-toggle").click();
+    await expect(page.locator("#searchCategory")).toBeVisible();
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
   });
 
-  test("mobile homepage section order has no overflow regression", async ({ page }) => {
+  test("mobile homepage category control has no overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await H.openFresh(page, "/");
     await expect(page.locator("#newBooksCarousel")).toBeVisible();
-    await expect(page.locator("#homeFeaturedBooks")).toBeVisible();
-    await expect(page.locator("#bookCategories")).toBeVisible();
+    await expect(page.locator(".category-nav-toggle")).toBeVisible();
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(4);
     const tops = await page.evaluate(() => {
-      const ids = ["books", "newBooksCarousel", "homeFeaturedBooks", "bookCategories"];
+      const ids = ["books", "bookCategories", "newBooksCarousel", "homeFeaturedBooks"];
       return Object.fromEntries(ids.map((id) => {
         const el = document.getElementById(id);
         return [id, el ? el.getBoundingClientRect().top : null];
       }));
     });
-    expect(tops.books).toBeLessThan(tops.newBooksCarousel);
+    expect(tops.books).toBeLessThan(tops.bookCategories);
+    expect(tops.bookCategories).toBeLessThan(tops.newBooksCarousel);
     expect(tops.newBooksCarousel).toBeLessThan(tops.homeFeaturedBooks);
-    expect(tops.homeFeaturedBooks).toBeLessThan(tops.bookCategories);
   });
 
-  test("homepage category icons are decorative and hrefs stay intact", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
-    const cards = page.locator("#bookCategories a.card");
-    await expect(cards).toHaveCount(11);
-    await expect(page.locator("#bookCategories a.card .icon")).toHaveCount(11);
-    await expect(page.locator('#bookCategories a.card .icon[aria-hidden="true"]')).toHaveCount(11);
-    const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"]);
-    expect(hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
-  });
-
-  for (const width of [390, 430, 768, 834, 1024, 1100, 1280, 1366, 1536]) {
-    test(`homepage category grid polish at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await H.openFresh(page, "/");
-      await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-      await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
-      const metrics = await page.evaluate(() => {
-        const grid = document.querySelector("#bookCategories .cards");
-        const cards = [...document.querySelectorAll("#bookCategories a.card")];
-        const last = cards[cards.length - 1];
-        const seventh = cards[6];
-        const first = cards[0];
-        const gridBox = grid.getBoundingClientRect();
-        const lastBox = last.getBoundingClientRect();
-        const firstBox = first.getBoundingClientRect();
-        const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean);
-        const lastCenter = lastBox.left + lastBox.width / 2;
-        const gridCenter = gridBox.left + gridBox.width / 2;
-        const boxes = cards.map((c) => c.getBoundingClientRect());
-        let overlap = false;
-        for (let i = 0; i < boxes.length; i++) {
-          for (let j = i + 1; j < boxes.length; j++) {
-            const a = boxes[i];
-            const b = boxes[j];
-            const separate = a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1;
-            if (!separate) overlap = true;
-          }
-        }
-        return {
-          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          colCount: cols.length,
-          hrefs: cards.map((el) => el.getAttribute("href")),
-          firstW: firstBox.width,
-          lastW: lastBox.width,
-          lastLeft: lastBox.left,
-          firstTop: firstBox.top,
-          secondTop: cards[1].getBoundingClientRect().top,
-          lastTop: lastBox.top,
-          sixthTop: cards[5].getBoundingClientRect().top,
-          seventhTop: seventh ? seventh.getBoundingClientRect().top : 0,
-          eighthTop: cards[7] ? cards[7].getBoundingClientRect().top : 0,
-          ninthTop: cards[8] ? cards[8].getBoundingClientRect().top : 0,
-          centerDelta: Math.abs(lastCenter - gridCenter),
-          nth7: seventh ? getComputedStyle(seventh).gridColumnStart : "",
-          nth8: cards[7] ? getComputedStyle(cards[7]).gridColumnStart : "",
-          nth9: cards[8] ? getComputedStyle(cards[8]).gridColumnStart : "",
-          pairCenterDelta: (() => {
-            const a = boxes[7];
-            const b = boxes[8];
-            if (!a || !b) return 99;
-            const pairLeft = Math.min(a.left, b.left);
-            const pairRight = Math.max(a.right, b.right);
-            return Math.abs((pairLeft + pairRight) / 2 - gridCenter);
-          })(),
-          overlap,
-          minCardH: Math.min(...boxes.map((b) => b.height)),
-          descHidden: cards.some((c) => getComputedStyle(c.querySelector("p")).display === "none")
-        };
-      });
-      expect(metrics.overflow).toBeLessThanOrEqual(4);
-      expect(metrics.overlap).toBe(false);
-      expect(metrics.minCardH).toBeGreaterThanOrEqual(44);
-      expect(metrics.descHidden).toBe(false);
-      expect(metrics.hrefs).toEqual(["/adabiyat", "/universal", "/tibb", "/derslik", "/terbiye", "/dini", "/children", "/dictionary", "/grammar", "/iqtisad", "/taamlar"]);
-      expect(metrics.hrefs.every((href) => href && !href.includes(".html"))).toBeTruthy();
-      if (width <= 700) {
-        expect(metrics.colCount).toBe(2);
-        expect(Math.abs(metrics.firstTop - metrics.secondTop)).toBeLessThan(2);
-        expect(metrics.lastTop).toBeGreaterThan(metrics.sixthTop + 8);
-        expect(metrics.centerDelta).toBeLessThan(8);
-        expect(Math.abs(metrics.lastW - metrics.firstW)).toBeLessThan(12);
-      } else if (width <= 1100) {
-        expect(metrics.colCount).toBe(3);
-        expect(metrics.nth8).toBe("auto");
-        expect(metrics.nth9).toBe("auto");
-        expect(Math.abs(metrics.firstW - metrics.lastW)).toBeLessThan(12);
-        const tabletRows = await page.evaluate(() => {
-          const cards = [...document.querySelectorAll("#bookCategories a.card")];
-          const rowTop = (i) => Math.round(cards[i].getBoundingClientRect().top);
-          return {
-            row1: cards.slice(0, 3).every((c) => Math.abs(c.getBoundingClientRect().top - cards[0].getBoundingClientRect().top) < 2),
-            row2: cards.slice(3, 6).every((c) => Math.abs(c.getBoundingClientRect().top - cards[3].getBoundingClientRect().top) < 2),
-            row3: cards.slice(6, 9).every((c) => Math.abs(c.getBoundingClientRect().top - cards[6].getBoundingClientRect().top) < 2),
-            stacked: rowTop(3) > rowTop(0) + 8 && rowTop(6) > rowTop(3) + 8
-          };
-        });
-        expect(tabletRows.row1).toBe(true);
-        expect(tabletRows.row2).toBe(true);
-        expect(tabletRows.row3).toBe(true);
-        expect(tabletRows.stacked).toBe(true);
-        expect(Math.abs(metrics.seventhTop - metrics.eighthTop)).toBeLessThan(2);
-        expect(Math.abs(metrics.eighthTop - metrics.ninthTop)).toBeLessThan(2);
-        expect(metrics.eighthTop).toBeGreaterThan(metrics.sixthTop + 8);
-      } else {
-        expect(metrics.colCount).toBe(8);
-        expect(metrics.nth7).toBe("6");
-        expect(metrics.nth8).toBe("3");
-        expect(metrics.nth9).toBe("5");
-        expect(metrics.pairCenterDelta).toBeLessThan(8);
-        const rows = await page.evaluate(() => {
-          const cards = [...document.querySelectorAll("#bookCategories a.card")];
-          const top = Math.round(cards[0].getBoundingClientRect().top);
-          const second = Math.round(cards[4].getBoundingClientRect().top);
-          const third = Math.round(cards[7].getBoundingClientRect().top);
-          return {
-            firstRow: cards.slice(0, 4).every((c) => Math.abs(c.getBoundingClientRect().top - top) < 2),
-            originalSecondRow: cards.slice(4, 7).every((c) => Math.abs(c.getBoundingClientRect().top - second) < 2),
-            appendedThirdRow: cards.slice(7, 9).every((c) => Math.abs(c.getBoundingClientRect().top - third) < 2)
-          };
-        });
-        expect(rows.firstRow).toBe(true);
-        expect(rows.originalSecondRow).toBe(true);
-        expect(rows.appendedThirdRow).toBe(true);
-        expect(metrics.seventhTop).toBeGreaterThan(metrics.firstTop + 8);
-        expect(metrics.eighthTop).toBeGreaterThan(metrics.seventhTop + 8);
-        expect(Math.abs(metrics.eighthTop - metrics.ninthTop)).toBeLessThan(2);
-      }
-    });
-  }
-
-  test("homepage category cards keep contrast in dark mode", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
-    await H.openFresh(page, "/");
-    await page.evaluate(() => document.body.classList.add("dark-mode"));
-    await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-    const contrast = await page.evaluate(() => {
-      const card = document.querySelector("#bookCategories a.card");
-      const title = card.querySelector("h3");
-      const cs = getComputedStyle(card);
-      const ts = getComputedStyle(title);
-      return { bg: cs.backgroundColor, border: cs.borderTopColor, title: ts.color, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
-    });
-    expect(contrast.overflow).toBeLessThanOrEqual(4);
-    expect(contrast.bg).not.toBe("rgba(0, 0, 0, 0)");
-    expect(contrast.title).not.toBe("rgba(0, 0, 0, 0)");
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
-    const tablet = await page.evaluate(() => {
-      const grid = document.querySelector("#bookCategories .cards");
-      const title = document.querySelector("#bookCategories a.card h3");
-      return {
-        cols: getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length,
-        title: getComputedStyle(title).color
-      };
-    });
-    expect(tablet.cols).toBe(3);
-    expect(tablet.title).not.toBe("rgba(0, 0, 0, 0)");
-    await page.setViewportSize({ width: 1366, height: 900 });
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(11);
-    const desktop = await page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards")).gridTemplateColumns.split(" ").length);
-    expect(desktop).toBe(8);
-  });
-
-  test("a fresh session keeps the legacy category cards when the directory is unavailable", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
-    await H.openFresh(page, "/");
-    const cards = page.locator("#bookCategories a.card");
-    await expect(cards).toHaveCount(LEGACY_CATEGORY_HREFS.length);
-    await expect(page.locator("#bookCategories a.card[data-category-source]")).toHaveCount(0);
-    const hrefs = await cards.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(hrefs).toEqual(LEGACY_CATEGORY_HREFS);
-    const placement = await page.evaluate(() => {
-      const grid = document.querySelector("#bookCategories .cards");
-      const nodes = [...document.querySelectorAll("#bookCategories a.card")];
-      const boxes = nodes.map((el) => el.getBoundingClientRect());
-      const last = boxes[boxes.length - 1];
-      const gridBox = grid.getBoundingClientRect();
-      return {
-        lastColumn: getComputedStyle(nodes[nodes.length - 1]).gridColumnStart,
-        centerDelta: Math.abs((last.left + last.width / 2) - (gridBox.left + gridBox.width / 2))
-      };
-    });
-    expect(placement.lastColumn).toBe("1");
-    expect(placement.centerDelta).toBeLessThan(8);
-  });
-
-  test("a managed directory hydrates the homepage from the fixture", async ({ page }) => {
+  test("compact categories keep public leaves and exclude hidden rows", async ({ page }) => {
     const rows = directoryRows(3).concat([
       { slug: "yoshurun", source: "yoshurun.html", label: "يوشۇرۇن تۈر", summary: "يوشۇرۇن", icon: "🙈", is_hidden: true, sort_order: 90 },
       { slug: "eski", source: "eski.html", label: "كونا تۈر", summary: "كونا", icon: "📕", retired: true, sort_order: 91 }
     ]);
-    const expected = expectedDirectoryCards(rows);
     await installCategoryDirectory(page, rows);
-    await page.setViewportSize({ width: 390, height: 900 });
+    await page.setViewportSize({ width: 1280, height: 900 });
     await H.openFresh(page, "/");
-    const cards = page.locator("#bookCategories a.card");
-    await expect.poll(async () => cards.count()).toBe(expected.length);
-    const seen = await cards.evaluateAll((els) => els.map((el) => ({
-      href: el.getAttribute("href"),
-      label: el.querySelector("h3").textContent.trim(),
-      hiddenIcon: el.querySelector(".icon").getAttribute("aria-hidden")
-    })));
-    expect(seen.map((card) => card.href)).toEqual(expected.map((card) => card.href));
-    expect(seen.map((card) => card.label)).toEqual(expected.map((card) => card.label));
-    expect(seen.every((card) => card.hiddenIcon === "true")).toBe(true);
-    await expect(page.locator('#bookCategories a.card[href="/yoshurun"]')).toHaveCount(0);
-    await expect(page.locator('#bookCategories a.card[href="/eski"]')).toHaveCount(0);
-    await expect(page.locator('#bookCategories a.card[href="/adabiyat"]')).toHaveCount(1);
+    await expect(page.locator('#bookCategories [data-category-group="literature"]')).toBeVisible();
+    await page.locator('#bookCategories [data-category-group="literature"]').click();
+    await expect(page.locator('#bookCategories a[href="/romanlar"]')).toBeVisible();
+    await page.locator("#bookCategories [data-category-all]").click();
+    await expect(page.locator('#bookCategories a[href="/tur-2"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a[href="/tur-3"]')).toBeVisible();
+    await expect(page.locator('#bookCategories a[href="/yoshurun"]')).toHaveCount(0);
+    await expect(page.locator('#bookCategories a[href="/eski"]')).toHaveCount(0);
+    await expect(page.locator('#bookCategories a[href="/adabiyat"]')).toHaveCount(0);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
   });
 
-  test("a delayed directory response replaces the legacy cards only after it arrives", async ({ page }) => {
+  test("a delayed directory response keeps unmapped public categories in all", async ({ page }) => {
     const rows = directoryRows(4);
-    const expected = expectedDirectoryCards(rows);
     let release;
     const gate = new Promise((resolve) => { release = resolve; });
     await installCategoryDirectory(page, async (route) => {
@@ -717,119 +518,14 @@ test.describe("homepage compact first-view", () => {
         body: JSON.stringify({ categories: rows, direct: rows, redirects: [] })
       });
     });
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize({ width: 390, height: 900 });
     await H.openFresh(page, "/");
-    await expect(page.locator("#bookCategories a.card")).toHaveCount(LEGACY_CATEGORY_HREFS.length);
-    const before = await page.locator("#bookCategories a.card").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-    expect(before).toEqual(LEGACY_CATEGORY_HREFS);
+    await expect(page.locator(".category-nav-toggle")).toBeVisible();
     release();
-    await expect.poll(async () => page.locator("#bookCategories a.card").count()).toBe(expected.length);
-    const after = await page.locator("#bookCategories a.card").evaluateAll((els) => els.map((el) => ({
-      href: el.getAttribute("href"),
-      label: el.querySelector("h3").textContent.trim()
-    })));
-    expect(after).toEqual(expected);
-  });
-
-  for (const [name, visibleCount] of [["even", 3], ["odd", 4]]) {
-    for (const width of [390, 430, 768, 834, 1024, 1100, 1280, 1366, 1536]) {
-      test(`managed ${name} category rows flow at ${width}px`, async ({ page }) => {
-        const rows = directoryRows(visibleCount);
-        const expected = expectedDirectoryCards(rows);
-        await installCategoryDirectory(page, rows);
-        await page.setViewportSize({ width, height: 900 });
-        await H.openFresh(page, "/");
-        const cards = page.locator("#bookCategories a.card");
-        await expect.poll(async () => cards.count()).toBe(expected.length);
-        await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-        await page.emulateMedia({ colorScheme: "dark" });
-        await page.evaluate(() => document.body.classList.add("dark-mode"));
-        await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector("#bookCategories .cards .card")).backgroundColor)).toBe("rgb(48, 40, 36)");
-        const metrics = await page.evaluate(() => {
-          const grid = document.querySelector("#bookCategories .cards");
-          const nodes = [...grid.querySelectorAll(":scope > a.card")];
-          const boxes = nodes.map((el) => {
-            const box = el.getBoundingClientRect();
-            return { top: box.top, left: box.left, right: box.right, width: box.width, height: box.height };
-          });
-          const rows = [];
-          boxes.forEach((box) => {
-            const row = rows.find((item) => Math.abs(item.top - box.top) < 3);
-            if (row) row.count += 1;
-            else rows.push({ top: box.top, count: 1 });
-          });
-          let overlap = false;
-          for (let i = 0; i < boxes.length; i += 1) {
-            for (let j = i + 1; j < boxes.length; j += 1) {
-              const a = boxes[i];
-              const b = boxes[j];
-              const separate = a.right <= b.left + 1 || b.right <= a.left + 1 || a.top + a.height <= b.top + 1 || b.top + b.height <= a.top + 1;
-              if (!separate) overlap = true;
-            }
-          }
-          const title = nodes[0].querySelector("h3");
-          const summary = nodes[0].querySelector("p");
-          const cardStyle = getComputedStyle(nodes[0]);
-          const titleStyle = getComputedStyle(title);
-          return {
-            rowCounts: rows.map((row) => row.count),
-            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-            overlap,
-            minHeight: Math.min(...boxes.map((box) => box.height)),
-            widthDelta: Math.abs(boxes[0].width - boxes[boxes.length - 1].width),
-            rtl: boxes[0].left > boxes[1].left,
-            icons: nodes.every((el) => el.querySelector(".icon").getAttribute("aria-hidden") === "true"),
-            foreground: titleStyle.color,
-            summary: summary ? getComputedStyle(summary).color : titleStyle.color,
-            background: cardStyle.backgroundColor
-          };
-        });
-        const columns = width <= 700 ? 2 : (width <= 1100 ? 3 : 4);
-        const expectedRows = [];
-        let remaining = expected.length;
-        while (remaining > 0) {
-          const count = Math.min(columns, remaining);
-          expectedRows.push(count);
-          remaining -= count;
-        }
-        expect(metrics.rowCounts).toEqual(expectedRows);
-        expect(metrics.overflow).toBeLessThanOrEqual(4);
-        expect(metrics.overlap).toBe(false);
-        expect(metrics.minHeight).toBeGreaterThanOrEqual(44);
-        expect(metrics.widthDelta).toBeLessThan(12);
-        expect(metrics.rtl).toBe(true);
-        expect(metrics.icons).toBe(true);
-        expect(contrastRatio(metrics.foreground, metrics.background)).toBeGreaterThanOrEqual(4.5);
-        expect(contrastRatio(metrics.summary, metrics.background)).toBeGreaterThanOrEqual(4.5);
-      });
-    }
-  }
-
-  test("a larger managed directory does not keep the legacy desktop placement", async ({ page }) => {
-    const rows = directoryRows(17);
-    const expected = expectedDirectoryCards(rows);
-    await installCategoryDirectory(page, rows);
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await H.openFresh(page, "/");
-    await expect.poll(async () => page.locator("#bookCategories a.card").count()).toBe(expected.length);
-    await page.locator("#bookCategories").scrollIntoViewIfNeeded();
-    const rowCounts = await page.evaluate(() => {
-      const boxes = [...document.querySelectorAll("#bookCategories .cards > a.card")].map((el) => el.getBoundingClientRect());
-      const rows = [];
-      boxes.forEach((box) => {
-        const row = rows.find((item) => Math.abs(item.top - box.top) < 3);
-        if (row) row.count += 1;
-        else rows.push({ top: box.top, count: 1 });
-      });
-      return rows.map((row) => row.count);
-    });
-    const expectedRows = [];
-    let remaining = expected.length;
-    while (remaining > 0) {
-      expectedRows.push(Math.min(4, remaining));
-      remaining -= Math.min(4, remaining);
-    }
-    expect(rowCounts).toEqual(expectedRows);
+    await page.locator(".category-nav-toggle").click();
+    await page.locator("#bookCategories [data-category-all]").click();
+    await expect.poll(async () => page.locator('#bookCategories a[href="/tur-4"]').count()).toBe(1);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
   });
 
   test("featured desktop marquee shows two visible rows without page overflow", async ({ page }) => {
@@ -1160,12 +856,12 @@ test.describe("homepage compact first-view", () => {
       await page.setViewportSize({ width, height: 844 });
       await H.openFresh(page, "/");
       await expect(page.locator("#homeCarouselTrack .home-carousel-card").first()).toBeVisible();
-      await expect(page.locator(".mobile-filter-toggle")).toBeVisible();
+      await expect(page.locator(".home-search-card .category-filter-toggle")).toBeVisible();
       await expect(page.locator("#homeFeaturedBooks .home-feature-card, #homeFeaturedBooks .empty-state").first()).toBeVisible();
       await page.waitForTimeout(800);
 
-      await expect(page.locator(".home-search-card .mobile-filter-toggle")).toBeVisible();
-      const visibleCount = await page.locator(".home-search-card .mobile-filter-toggle, .home-search-card .premium-filter-toggle").evaluateAll((els) => els.filter((el) => {
+      await expect(page.locator(".home-search-card .category-filter-toggle")).toBeVisible();
+      const visibleCount = await page.locator(".home-search-card .category-filter-toggle, .home-search-card .mobile-filter-toggle, .home-search-card .premium-filter-toggle").evaluateAll((els) => els.filter((el) => {
         const style = getComputedStyle(el);
         return style.display !== "none" && style.visibility !== "hidden" && !el.hidden && el.getClientRects().length > 0;
       }).length);
@@ -1173,11 +869,11 @@ test.describe("homepage compact first-view", () => {
 
       const panel = page.locator("#advancedSearchPanel, .home-search-card .advanced-search-panel").first();
       await expect(panel).toHaveClass(/is-collapsed/);
-      await page.locator(".mobile-filter-toggle").click();
+      await page.locator(".home-search-card .category-filter-toggle").click();
       await expect(panel).not.toHaveClass(/is-collapsed/);
       await expect.poll(async () => panel.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(20);
       await expect(page.locator("#searchCategory, .advanced-search-panel select, .advanced-search-panel input").first()).toBeVisible();
-      await page.locator(".mobile-filter-toggle").click();
+      await page.locator(".home-search-card .category-filter-toggle").click();
       await expect(panel).toHaveClass(/is-collapsed/);
 
       const metrics = await page.evaluate(() => {

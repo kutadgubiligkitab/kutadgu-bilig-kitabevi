@@ -210,14 +210,12 @@ test.describe("compact series cards", () => {
     await page.locator("#searchButton").click();
     await expect(page.locator("#searchResults .advanced-search-result", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first()).toBeVisible();
 
-    await page.locator("[data-premium-group='literature']").click();
-    await expect(page.locator("#premiumDiscoveryResults .premium-book-card", { hasText: "ئويغانغان زېمىن 2 قىسىم" }).first()).toBeVisible();
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
 
     const homeSurfaces = [
       ["#homeFeaturedBooks .home-feature-card", ".home-feature-cover", ".home-feature-bottom"],
       ["#newBooksCarousel .home-carousel-card", ".home-carousel-cover", ".home-carousel-bottom"],
-      ["#searchResults .advanced-search-result", ".advanced-search-cover", ".advanced-search-actions"],
-      ["#premiumDiscoveryResults .premium-book-card", ".premium-card-cover", ".premium-card-cart"]
+      ["#searchResults .advanced-search-result", ".advanced-search-cover", ".advanced-search-actions"]
     ];
     const sizes = [
       ["desktop", 1280, 900],

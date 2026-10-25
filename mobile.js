@@ -284,17 +284,23 @@
   function setFilterPanelOpen(panel, toggle, open) {
     panel.classList.toggle("is-open", open);
     panel.classList.toggle("is-collapsed", !open);
-    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    panel.removeAttribute("aria-hidden");
+    panel.querySelectorAll(".advanced-search-filters, .catalog-filter-extra").forEach((extra) => {
+      extra.setAttribute("aria-hidden", open ? "false" : "true");
+    });
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
     const premium = panel.parentElement?.querySelector(".premium-filter-toggle");
     if (premium) premium.setAttribute("aria-expanded", open ? "true" : "false");
+    panel.querySelectorAll(".category-filter-toggle").forEach((button) => {
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
   }
 
   function enhanceFilter(panel) {
     if (!panel || panel.dataset.mobileCollapsible === "1") return;
     panel.dataset.mobileCollapsible = "1";
     panel.classList.add("mobile-collapsible");
-    panel.setAttribute("aria-hidden", "true");
+    panel.removeAttribute("aria-hidden");
 
     const toggle = document.createElement("button");
     toggle.type = "button";

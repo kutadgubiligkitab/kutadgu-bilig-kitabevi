@@ -253,20 +253,18 @@ test.describe("catalog probe recovery", () => {
     expect(html).not.toContain(REAL);
   });
 
-  test("changing discovery group during recovery keeps the later group", async ({ page }) => {
+  test("changing a category group does not rebuild reading discovery", async ({ page }) => {
     const state = freshState({ head: "fail", get: "hold" });
     await installCatalog(page, state);
     await openHome(page, 390);
     await expect(page.locator("#homeCarouselTrack")).toContainText(REAL);
-    await page.locator('#premiumDiscovery [data-premium-group="religion"]').click();
-    await expect.poll(() => state.pending.length).toBeGreaterThan(0);
-    await page.locator('#premiumDiscovery [data-premium-group="children"]').click();
-    await expect(page.locator('#premiumDiscovery [data-premium-group="children"]')).toHaveClass(/is-active/);
+    await page.locator(".category-nav-toggle").click();
+    await page.locator("#bookCategories [data-category-group]").first().click();
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
     state.pending.splice(0).forEach((release) => release());
-    await expect(page.locator("#premiumDiscoveryResults")).toContainText(CHILD);
-    await expect(page.locator("#premiumDiscoveryResults")).not.toContainText(RELIGION);
-    await expect(page.locator('#premiumDiscovery [data-premium-group="religion"]')).not.toHaveClass(/is-active/);
-    expect(Math.max(...state.spans)).toBeLessThanOrEqual(24);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    expect(Math.max(0, ...state.spans)).toBeLessThanOrEqual(24);
   });
 
   test("a listing sort change during recovery keeps the selected sort", async ({ page }) => {
