@@ -239,6 +239,11 @@ test.describe("visit discovery order on all books", () => {
     await expect.poll(async () => (await titles(page))[0]).toBe("كىتاب 18");
     await page.locator("#catalogFilterText").fill("كىتاب 07");
     await expect.poll(async () => await titles(page), { timeout: 10000 }).toEqual(["كىتاب 07"]);
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect.poll(async () => (await titles(page)).join("|"), { timeout: 10000 }).toBe(discovery.join("|"));
     const out = page.locator(".book-card", { hasText: "كىتاب 04" });
@@ -341,6 +346,11 @@ test.describe("visit discovery order on all books", () => {
     await expect.poll(async () => (await titles(page)).join("|")).toBe(titled.slice(0, 24).join("|"));
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24);
 
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect.poll(async () => (await titles(page)).join("|")).toBe(discovery.join("|"));
 
@@ -352,11 +362,21 @@ test.describe("visit discovery order on all books", () => {
     await searchHold.pendingClick;
     await expect.poll(async () => await titles(page)).toEqual(["كىتاب 07"]);
 
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect.poll(async () => (await titles(page)).join("|")).toBe(discovery.join("|"));
 
     const resetHold = await holdLoadMore();
     const resetStarted = state.recordStarts || 0;
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect.poll(() => state.recordStarts || 0).toBe(resetStarted + 1);
     resetHold.release();

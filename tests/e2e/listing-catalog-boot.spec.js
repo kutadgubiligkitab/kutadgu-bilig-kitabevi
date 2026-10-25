@@ -324,6 +324,11 @@ test.describe("listing catalog cold load", () => {
     await page.locator("#catalogFilterText").fill(uniqueFilterTitle);
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(".book-card:not(.is-skeleton) .book-title")).toHaveText(uniqueFilterTitle);
+    await page.evaluate(() => {
+      const reset = document.querySelector("#catalogFilterReset");
+      const visible = reset && reset.getClientRects().length > 0 && getComputedStyle(reset).visibility !== "hidden";
+      if (!visible) document.querySelector("#catalogFilterBar .category-filter-toggle")?.click();
+    });
     await page.locator("#catalogFilterReset").click();
     await expect(page.locator(".book-card:not(.is-skeleton)")).toHaveCount(24, { timeout: 15_000 });
     await page.locator("#catalogSort").selectOption("priceHigh");

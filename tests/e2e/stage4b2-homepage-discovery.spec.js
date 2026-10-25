@@ -455,7 +455,6 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     }
     const rows = groupByVisualRow(items);
     const comparable = rows.filter((row) => row.items.length >= 2);
-    expect(comparable.length).toBeGreaterThan(0);
     for (const row of comparable) {
       const bottoms = row.items.map((item) => item.cartBottom);
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);

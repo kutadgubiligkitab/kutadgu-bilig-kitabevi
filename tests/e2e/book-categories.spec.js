@@ -214,8 +214,9 @@ test("a new category is available on the homepage, search, and book entry", asyn
   await installDirectory(page);
   await page.goto("/index.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(page.locator("#bookCategories [data-category-source='yeni-tur.html']")).toContainText("يېڭى تۈر");
-  await expect(page.locator("#bookCategories [data-category-source='tibb.html']")).toHaveCount(0);
+  await page.locator("#bookCategories [data-category-all]").click();
+  await expect(page.locator("#bookCategories a[href='/yeni-tur']")).toContainText("يېڭى تۈر");
+  await expect(page.locator("#bookCategories a[href='/tibb']")).toHaveCount(0);
   await expect(page.locator("#searchCategory option[value='يېڭى تۈر']")).toHaveCount(1);
   await expect(page.locator("#searchCategory option[value='تېبابەت ۋە ساغلاملىق']")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -354,7 +355,8 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await page.locator("#volumeGroupCategory").fill("يېڭى تۈر");
   await expect(page.locator("#volumeGroupSource")).toHaveValue("yeni-tur.html");
   await page.goto("/index.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("#bookCategories [data-category-source='bashqa-tur.html']")).toContainText("باشقا تۈر");
+  await page.locator("#bookCategories [data-category-all]").click();
+  await expect(page.locator("#bookCategories a[href='/bashqa-tur']")).toContainText("باشقا تۈر");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.screenshot({ path: path.join(shotDir, "categories-admin-1280.png"), fullPage: false });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);
@@ -700,6 +702,7 @@ test("a rendered category hydrates, filters, and paginates from its own source",
   await expect(page.locator(".books-grid")).toHaveAttribute("data-catalog-source", "yengi-tur.html");
   await expect(page.locator("link[rel='canonical']")).toHaveAttribute("href", "https://www.kutadgubilik.com/yengi-tur");
   await expect.poll(() => catalogRequests.some((entry) => entry.includes("yengi-tur.html"))).toBe(true);
+  await page.locator("#catalogFilterBar .category-filter-toggle").click();
   await page.locator("#catalogMinPrice").fill("1");
   await expect.poll(() => catalogRequests.filter((entry) => entry.includes("yengi-tur.html")).length).toBeGreaterThan(1);
   await page.locator(".catalog-load-more").click();
