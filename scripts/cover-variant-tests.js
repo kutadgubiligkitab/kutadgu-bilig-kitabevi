@@ -115,21 +115,32 @@ function jwt(payload) {
 function httpResponse(status, body) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 }
-function uploadRequest(key, bytes) {
+function uploadRequest(key, bytes, extra) {
   return new Request("https://www.kutadgubilik.com/api/r2-cover-upload", {
     method: "POST",
     body: bytes,
-    headers: {
+    headers: Object.assign({
       Authorization: "Bearer " + jwt({ aal: "aal2" }),
       "Content-Type": "image/webp",
       "x-kutadgu-object-key": key
-    }
+    }, extra || {})
   });
 }
 const bucket = {
   objects: new Map(),
+  failAvailability: false,
+  hangAvailability: false,
   async head(key) { return this.objects.has(key) ? { key } : null; },
-  async put(key, bytes) { this.objects.set(key, bytes); }
+  async get(key) {
+    if (this.hangAvailability && String(key).endsWith("availability.json")) return new Promise(() => {});
+    if (!this.objects.has(key)) return null;
+    const body = this.objects.get(key);
+    return { body, etag: "etag-" + String(body).length, text: async () => Buffer.isBuffer(body) ? body.toString("utf8") : String(body) };
+  },
+  async put(key, bytes) {
+    if (this.failAvailability && String(key).endsWith("availability.json")) throw new Error("availability-failed");
+    this.objects.set(key, typeof bytes === "string" ? Buffer.from(bytes) : Buffer.from(bytes));
+  }
 };
 const env = {
   KUTADGU_HOST_MODE: "production",
@@ -151,9 +162,16 @@ function authFetch(admin) {
   const bytes = Buffer.from("webp");
   const master = await uploadHandler.handleR2CoverUpload(uploadRequest(staffSource, bytes), env, { fetchImpl: authFetch(false) });
   assert.strictEqual(master.status, 201);
-  const owned = await uploadHandler.handleR2CoverUpload(uploadRequest(staffVariant, bytes), env, { fetchImpl: authFetch(false) });
+  const owned = await uploadHandler.handleR2CoverUpload(uploadRequest(staffVariant, bytes, {
+    "x-kutadgu-source-key": staffSource,
+    "x-kutadgu-source-width": "1000",
+    "x-kutadgu-source-height": "1500"
+  }), env, { fetchImpl: authFetch(false) });
   assert.strictEqual(owned.status, 201);
   assert.strictEqual(JSON.parse(owned.body).key, staffVariant);
+  assert.strictEqual(JSON.parse(owned.body).availability, "published");
+  assert.ok(bucket.objects.has(variants.availabilityDocumentKey(staffSource)));
+  assert.ok(!bucket.objects.has(variants.GLOBAL_AVAILABILITY_KEY));
   const globalVariant = await uploadHandler.handleR2CoverUpload(uploadRequest("book-covers/variants/v1/w480/staff/" + staffId + "/cover.webp.webp", bytes), env, { fetchImpl: authFetch(false) });
   assert.strictEqual(globalVariant.status, 403);
   assert.strictEqual(JSON.parse(globalVariant.body).error, "admin_required");
@@ -232,7 +250,7 @@ function authFetch(admin) {
     fetchImpl: async (url, init) => {
       const key = init.headers["x-kutadgu-object-key"];
       if (key === sourceKey) return { ok: true, status: 201, json: async () => ({ ok: true, url: expected, key: sourceKey }) };
-      return { ok: true, status: 201, json: async () => ({ ok: true, key: variantKey, url: variants.publicUrlForKey(variantKey) }) };
+      return { ok: true, status: 201, json: async () => ({ ok: true, key: variantKey, url: variants.publicUrlForKey(variantKey), availability: "published" }) };
     }
   });
   assert.strictEqual(accepted, expected);
@@ -256,9 +274,125 @@ function authFetch(admin) {
     image_url: ORIGINAL
   });
   assert.match(page, /w480\/311\/cover\.webp\.webp 480w/);
+  assert.match(page, /cover\.webp 800w/);
+  assert.ok(!variants.deliveryAttributes(ORIGINAL, variants.CARD_SIZES).includes("800w"));
   assert.doesNotMatch(page, /960w/);
   assert.match(page, /property="og:image"/);
   assert.ok(!page.includes("960w"));
+
+  const durableSource = "book-covers/420/cover.webp";
+  const durableUrl = "https://www.kutadgubilik.com/__r2/" + durableSource;
+  const durableVariant = variants.variantObjectKey(durableSource, 480);
+  const durable = await uploadHandler.handleR2CoverUpload(uploadRequest(durableVariant, bytes, {
+    "x-kutadgu-source-key": durableSource,
+    "x-kutadgu-source-width": "1600",
+    "x-kutadgu-source-height": "2400"
+  }), env, { fetchImpl: authFetch(true) });
+  assert.strictEqual(durable.status, 201);
+  assert.strictEqual(JSON.parse(durable.body).availability, "published");
+  variants.resetAvailabilityMemory();
+  assert.strictEqual(variants.srcsetFor(durableUrl), "");
+  await variants.readPublishedAvailability({ bucket, sourceUrl: durableUrl, now: 1000 });
+  assert.ok(variants.srcsetFor(durableUrl, variants.CARD_SIZES).includes("480w"));
+  assert.ok(variants.srcsetFor(durableUrl, variants.DETAIL_SIZES).includes("1600w"));
+  const freshPage = books.applyFoundPublicBookHead(shell, "420", { id: "420", title: "يېڭى", image_url: durableUrl });
+  assert.match(freshPage, /w480\/420\/cover\.webp\.webp 480w/);
+  assert.match(freshPage, /420\/cover\.webp 1600w/);
+
+  const stored = JSON.parse(bucket.objects.get(variants.GLOBAL_AVAILABILITY_KEY).toString("utf8"));
+  stored.sources[durableSource].variants.push({ width: 960, height: 1440, bytes: 4, key: variants.variantObjectKey(durableSource, 960) });
+  bucket.objects.set(variants.GLOBAL_AVAILABILITY_KEY, Buffer.from(JSON.stringify(stored)));
+  await variants.readPublishedAvailability({ bucket, sourceUrl: durableUrl, now: 2000 });
+  assert.ok(!variants.srcsetFor(durableUrl).includes("960w"));
+  await variants.readPublishedAvailability({ bucket, sourceUrl: durableUrl, now: 1000 + variants.AVAILABILITY_CACHE_MS + 1 });
+  assert.ok(variants.srcsetFor(durableUrl).includes("960w"));
+
+  const staffUrl = "https://www.kutadgubilik.com/__r2/" + staffSource;
+  variants.resetAvailabilityMemory();
+  await variants.readPublishedAvailability({ bucket, sourceUrl: staffUrl, now: 5000 });
+  assert.ok(variants.srcsetFor(staffUrl).includes("480w"));
+  assert.ok(variants.srcsetFor(staffUrl).includes("/staff/" + staffId + "/variants/"));
+
+  bucket.failAvailability = true;
+  const failedSource = "book-covers/421/cover.webp";
+  const failedVariant = variants.variantObjectKey(failedSource, 480);
+  const failed = await uploadHandler.handleR2CoverUpload(uploadRequest(failedVariant, bytes, {
+    "x-kutadgu-source-key": failedSource,
+    "x-kutadgu-source-height": "1500",
+    "x-kutadgu-source-width": "1200"
+  }), env, { fetchImpl: authFetch(true) });
+  assert.strictEqual(failed.status, 201);
+  assert.strictEqual(JSON.parse(failed.body).availability, "unpublished");
+  assert.ok(bucket.objects.has(failedVariant));
+  variants.resetAvailabilityMemory();
+  await variants.readPublishedAvailability({ bucket, sourceUrl: "https://www.kutadgubilik.com/__r2/" + failedSource, now: 90000 });
+  assert.strictEqual(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + failedSource), "");
+  bucket.failAvailability = false;
+
+  const mismatched = await uploadHandler.handleR2CoverUpload(uploadRequest("book-covers/staff/" + staffId + "/other.webp", bytes, {
+    "x-kutadgu-source-key": "book-covers/311/cover.webp",
+    "x-kutadgu-source-width": "1600",
+    "x-kutadgu-source-height": "2400"
+  }), env, { fetchImpl: authFetch(false) });
+  assert.strictEqual(mismatched.status, 201);
+  assert.strictEqual(JSON.parse(mismatched.body).availability, "unpublished");
+
+  const hanging = {
+    async get() { return new Promise(() => {}); },
+    async put() { throw new Error("should not publish"); }
+  };
+  const timed = Date.now();
+  const timeoutResult = await variants.publishStoredAvailability(hanging, {
+    sourceKey: durableSource,
+    sourceWidth: 1600,
+    sourceHeight: 2400,
+    variantKey: durableVariant,
+    budgetMs: 30
+  });
+  assert.strictEqual(timeoutResult.published, false);
+  assert.ok(Date.now() - timed < 500);
+
+  const inventory = require("./cover-variant-generate.js");
+  const memberCover = "https://www.kutadgubilik.com/__r2/book-covers/book/member.webp";
+  const representativeCover = "https://www.kutadgubilik.com/__r2/book-covers/book/representative.webp";
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    const name = String(url).split("/").pop();
+    const body = JSON.parse(init.body);
+    calls.push(name + ":" + JSON.stringify(body));
+    if (name === "query_public_book_catalog") {
+      if (body.p_query.offset === 0 && body.p_query.limit === 1) return { ok: true, json: async () => ({ total: 2, items: [] }) };
+      return { ok: true, json: async () => ({ total: 2, items: [
+        { unit_id: "book:1", kind: "book", image_url: representativeCover },
+        { unit_id: "group:9", kind: "group", group_id: 9, image_url: representativeCover }
+      ] }) };
+    }
+    if (name === "list_public_book_volume_sitemap_entries") {
+      return { ok: true, json: async () => ({ total: 2, items: [
+        { unit_id: "book:1", kind: "book" },
+        { unit_id: "group:9", kind: "group", group_id: 9 }
+      ] }) };
+    }
+    if (name === "get_public_book_volume_group_storefront") {
+      return { ok: true, json: async () => ({ group_id: 9, members: [
+        { book_id: 1, image_url: representativeCover },
+        { book_id: 2, image_url: memberCover }
+      ] }) };
+    }
+    return { ok: false, status: 500, json: async () => ({}) };
+  };
+  const found = await inventory.collectPublicCoverSources(fakeFetch);
+  assert.deepStrictEqual(found.sources.map((item) => item.key).sort(), [
+    "book-covers/book/member.webp",
+    "book-covers/book/representative.webp"
+  ]);
+  assert.strictEqual(found.catalogueUnits, 2);
+  await assert.rejects(() => inventory.collectPublicCoverSources(async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (String(url).endsWith("query_public_book_catalog") && body.p_query.limit === 1) return { ok: true, json: async () => ({ total: 2, items: [] }) };
+    if (String(url).endsWith("query_public_book_catalog")) return { ok: true, json: async () => ({ total: 1, items: [{ unit_id: "book:1", kind: "book", image_url: representativeCover }] }) };
+    return { ok: true, json: async () => ({ total: 1, items: [] }) };
+  }), /catalogue changed|catalogue incomplete/);
   console.log("cover variant tests passed");
 })().catch((error) => {
   console.error(error);

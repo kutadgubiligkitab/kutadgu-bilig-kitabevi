@@ -374,6 +374,11 @@ function applyBookSpecificBody(html, book) {
 }
 
 /* First-byte head for FOUND public numeric books. Fail-closed: invalid ids leave HTML unchanged. */
+async function ensureCoverAvailability(options){
+  try {
+    await coverVariants.readPublishedAvailability(options || {});
+  } catch (error) {}
+}
 function applyFoundPublicBookHead(html, id, book) {
   const canonical = String(id == null ? "" : id).trim();
   if (!isCanonicalBookId(canonical)) return String(html || "");
@@ -451,6 +456,7 @@ module.exports = {
   publicBookLookupUrl,
   lookupPublicNumericBook,
   applyFoundPublicBookHead,
+  ensureCoverAvailability,
   publicSeoBook,
   publicCoverAbsoluteUrl,
   PUBLIC_SEO_SELECT,

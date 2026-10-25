@@ -1,6 +1,7 @@
 "use strict";
 
 const images = require("../kutadgu-image-storage.js");
+const variants = require("../kutadgu-cover-variants.js");
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const HERO_MAX_BYTES = 5 * 1024 * 1024;
@@ -204,7 +205,23 @@ async function handleR2CoverUpload(request, env, deps) {
   });
   const url = canonicalCoverUrl(key);
   if (!url) return jsonResponse(400, { ok: false, error: "invalid_object" });
-  return jsonResponse(201, { ok: true, key, url });
+  const declaredSource = String(request.headers.get("x-kutadgu-source-key") || "");
+  if (!declaredSource) return jsonResponse(201, { ok: true, key, url });
+  let published = false;
+  try {
+    const result = await variants.publishStoredAvailability(bucket, {
+      sourceKey: declaredSource,
+      sourceWidth: request.headers.get("x-kutadgu-source-width"),
+      sourceHeight: request.headers.get("x-kutadgu-source-height"),
+      variantKey: key,
+      bytes: bytes.byteLength,
+      budgetMs: 2000
+    });
+    published = !!(result && result.published);
+  } catch (err) {
+    published = false;
+  }
+  return jsonResponse(201, { ok: true, key, url, availability: published ? "published" : "unpublished" });
 }
 
 async function heroReferenced(fetchImpl, token, key) {

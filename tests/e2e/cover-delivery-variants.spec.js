@@ -50,18 +50,31 @@ test("server detail HTML requests only published variants", async ({ browser }) 
   expect(await none.page.locator(".book-cover-box img").evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
   await none.context.close();
 
-  const only480 = detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 800, [480]));
+  const only480 = detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 1000, [480]));
   expect(only480).toContain("480w");
+  expect(only480).toContain("1000w");
   expect(only480).not.toContain("960w");
+  const phone1 = await openDetail(browser, { width: 390, height: 844 }, 1, only480, false);
+  expect(await phone1.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w480/");
+  await phone1.context.close();
   const phone = await openDetail(browser, { width: 390, height: 844 }, 2, only480, false);
   expect(phone.hits.some((url) => url.includes("/w960/"))).toBe(false);
-  expect(await phone.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w480/");
+  const phoneSrc = await phone.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc);
+  expect(phoneSrc).toContain("/311/cover.webp");
+  expect(phoneSrc).not.toContain("/w480/");
   await phone.context.close();
+  const phone3 = await openDetail(browser, { width: 390, height: 844 }, 3, only480, false);
+  expect(await phone3.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).not.toContain("/w480/");
+  await phone3.context.close();
 
   const both = detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 1600, [480, 960]));
+  const mobileDetail = await openDetail(browser, { width: 390, height: 844 }, 2, both, false);
+  expect(await mobileDetail.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w960/");
+  await mobileDetail.context.close();
   const dense = await openDetail(browser, { width: 390, height: 844 }, 3, both, false);
-  expect(await dense.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w960/");
-  expect(dense.hits.some((url) => url.includes("/311/cover.webp") && !url.includes("/variants/"))).toBe(false);
+  const denseSrc = await dense.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc);
+  expect(denseSrc).toContain("/311/cover.webp");
+  expect(denseSrc).not.toContain("/variants/");
   await dense.context.close();
   const desktop = await openDetail(browser, { width: 1280, height: 900 }, 1, both, false);
   expect(await desktop.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w960/");
@@ -108,7 +121,8 @@ test("cards and narrow sources follow the same availability", async ({ browser }
     await page.locator("#detail img").evaluate((img) => img.decode());
     expect(await page.locator(".book-card img").first().evaluate((img) => img.currentSrc)).toContain(`/w${item.expectWidth}/`);
     const detailSrc = await page.locator("#detail img").evaluate((img) => img.currentSrc);
-    expect(detailSrc).toContain(item.scale === 1 ? "/w480/" : "/w960/");
+    expect(detailSrc).toContain(item.scale === 1 ? "/w480/" : item.scale === 2 ? "/w960/" : "/311/cover.webp");
+    if (item.scale === 3) expect(detailSrc).not.toContain("/variants/");
     await expect(page.locator("#narrow img")).not.toHaveAttribute("srcset", /.+/);
     expect(await page.locator(".book-card img").first().getAttribute("loading")).toBe("lazy");
     for (const mode of ["", "dark-mode"]) {

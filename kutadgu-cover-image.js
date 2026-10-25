@@ -267,7 +267,10 @@ async function uploadDeliveryVariants(options,fetchImpl,controller){
         headers:{
           Authorization:"Bearer "+String(options.token||""),
           "Content-Type":"image/webp",
-          "x-kutadgu-object-key":variantKey
+          "x-kutadgu-object-key":variantKey,
+          "x-kutadgu-source-key":String(options.objectKey||""),
+          "x-kutadgu-source-width":String(item.sourceWidth||""),
+          "x-kutadgu-source-height":String(item.sourceHeight||"")
         },
         body:item.body
       });
@@ -275,7 +278,7 @@ async function uploadDeliveryVariants(options,fetchImpl,controller){
     let payload=null;
     try{payload=response&&typeof response.json==="function"?await response.json():null;}catch(error){payload=null;}
     const expectedUrl=variantsApi.publicUrlForKey(variantKey);
-    if(!response||!response.ok||!payload||payload.ok!==true||payload.key!==variantKey||payload.url!==expectedUrl)continue;
+    if(!response||!response.ok||!payload||payload.ok!==true||payload.key!==variantKey||payload.url!==expectedUrl||payload.availability!=="published")continue;
     if(typeof variantsApi.recordAvailable==="function"){
       variantsApi.recordAvailable(options.objectKey,item.sourceWidth,item.sourceHeight,{width:item.width,height:item.height,bytes:item.bytes,key:variantKey});
     }

@@ -395,7 +395,7 @@ function coverDeliverySizes(img,opts){
 function applyCoverDelivery(img,url,opts){
   if(!img)return;
   const sizes=coverDeliverySizes(img,opts);
-  const set=sizes&&coverDeliveryApi()?coverDeliveryApi().srcsetFor(url):"";
+  const set=sizes&&coverDeliveryApi()?coverDeliveryApi().srcsetFor(url,sizes):"";
   if(!set){
     img.removeAttribute("srcset");
     img.removeAttribute("sizes");

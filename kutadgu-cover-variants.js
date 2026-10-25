@@ -11,8 +11,13 @@
   const DETAIL_SIZES = "(max-width: 700px) min(92vw, 560px), 560px";
   const THUMB_SIZES = "48px";
   const CART_SIZES = "108px";
+  const AVAILABILITY_CACHE_MS = 60000;
+  const AVAILABILITY_CACHE_CONTROL = "public, max-age=60";
+  const GLOBAL_AVAILABILITY_KEY = "book-covers/variants/" + VERSION + "/availability.json";
 
   let published = { version: VERSION, sources: {} };
+  const availabilityCache = new Map();
+  const appliedKeys = new Map();
 
   function deliverySourceKey(objectKey){
     const key = String(objectKey || "").replace(/^\/+/, "");
@@ -52,6 +57,16 @@
     return "book-covers/variants/" + VERSION + "/w" + target + "/" + rest + ".webp";
   }
 
+  function availabilityDocumentKey(objectKey){
+    const key = deliverySourceKey(objectKey);
+    if (!key) return "";
+    const rest = key.slice("book-covers/".length);
+    const staff = rest.match(/^staff\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i);
+    if (staff) return "book-covers/staff/" + staff[1].toLowerCase() + "/variants/" + VERSION + "/availability.json";
+    if (rest.indexOf("staff/") === 0) return "";
+    return GLOBAL_AVAILABILITY_KEY;
+  }
+
   function publicUrlForKey(objectKey){
     const key = String(objectKey || "").replace(/^\/+/, "");
     if (!key || key.indexOf("..") !== -1 || key.indexOf("\\") !== -1 || !/^book-covers\/[A-Za-z0-9._/-]+$/.test(key)) return "";
@@ -71,10 +86,42 @@
     return WIDTHS.filter(function(target){ return target < width; });
   }
 
+  function sanitizeRecord(sourceKey, record){
+    const width = Number(record && record.width);
+    const variants = Array.isArray(record && record.variants) ? record.variants : [];
+    const clean = [];
+    variants.forEach(function(item){
+      const target = Number(item && item.width);
+      if (WIDTHS.indexOf(target) < 0 || !(width > target) || item.key !== variantObjectKey(sourceKey, target)) return;
+      clean.push({ width: target, height: Number(item.height) || 0, bytes: Number(item.bytes) || 0, key: item.key });
+    });
+    if (!clean.length || !Number.isFinite(width) || width <= 0) return null;
+    return { width: width, height: Number(record.height) || 0, variants: clean };
+  }
+
   function useAvailability(data){
     const sources = data && data.sources && typeof data.sources === "object" ? data.sources : {};
-    published = { version: VERSION, sources: sources };
+    published = { version: VERSION, sources: {} };
+    appliedKeys.clear();
+    Object.keys(sources).forEach(function(key){
+      const clean = sanitizeRecord(key, sources[key]);
+      if (clean) published.sources[key] = clean;
+    });
     return published;
+  }
+
+  function mergeDocument(docKey, sources){
+    const previous = appliedKeys.get(docKey) || new Set();
+    previous.forEach(function(key){ delete published.sources[key]; });
+    const next = new Set();
+    Object.keys(sources || {}).forEach(function(key){
+      if (availabilityDocumentKey(key) !== docKey) return;
+      const clean = sanitizeRecord(key, sources[key]);
+      if (!clean) return;
+      published.sources[key] = clean;
+      next.add(key);
+    });
+    appliedKeys.set(docKey, next);
   }
 
   function sourceRecord(coverUrl){
@@ -83,17 +130,23 @@
     return record && typeof record === "object" ? { key: key, record: record } : null;
   }
 
-  function srcsetFor(coverUrl){
+  function srcsetFor(coverUrl, sizes){
     const found = sourceRecord(coverUrl);
     if (!found) return "";
     const sourceWidth = Number(found.record.width);
     const variants = Array.isArray(found.record.variants) ? found.record.variants : [];
-    return variants.filter(function(item){
+    const parts = variants.filter(function(item){
       const width = Number(item && item.width);
       return WIDTHS.indexOf(width) >= 0 && sourceWidth > width && item.key === variantObjectKey(found.key, width);
     }).map(function(item){
       return publicUrlForKey(item.key) + " " + Number(item.width) + "w";
-    }).join(", ");
+    });
+    const widest = variants.reduce(function(max, item){
+      const width = Number(item && item.width);
+      return width > max ? width : max;
+    }, 0);
+    if (String(sizes || "") === DETAIL_SIZES && sourceWidth > widest) parts.push(publicUrlForKey(found.key) + " " + sourceWidth + "w");
+    return parts.join(", ");
   }
 
   function recordAvailable(sourceKey, sourceWidth, sourceHeight, variant){
@@ -109,7 +162,7 @@
   }
 
   function deliveryAttributes(coverUrl, sizes){
-    const set = srcsetFor(coverUrl);
+    const set = srcsetFor(coverUrl, sizes);
     if (!set) return "";
     const chosen = String(sizes || CARD_SIZES);
     return ' srcset="' + set.replace(/"/g, "") + '" sizes="' + chosen.replace(/"/g, "") + '"';
@@ -199,6 +252,158 @@
     }
   }
 
+  function promiseTimeout(work, limit){
+    return new Promise(function(resolve, reject){
+      let timer = setTimeout(function(){ reject(new Error("availability-timeout")); }, limit);
+      Promise.resolve(work).then(function(value){
+        clearTimeout(timer);
+        resolve(value);
+      }, function(error){
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+  }
+
+  async function readBucketAvailability(bucket, docKey){
+    if (!bucket || typeof bucket.get !== "function") throw new Error("availability-unreadable");
+    const object = await bucket.get(docKey);
+    if (!object) return { sources: {}, etag: "" };
+    let text = "";
+    if (typeof object.text === "function") text = await object.text();
+    else if (typeof object.body === "string") text = object.body;
+    else if (object.body) text = Buffer.from(object.body).toString("utf8");
+    const parsed = JSON.parse(text || "{}");
+    return { sources: parsed && parsed.sources && typeof parsed.sources === "object" ? parsed.sources : {}, etag: String(object.etag || object.httpEtag || "") };
+  }
+
+  async function publishStoredAvailability(bucket, input){
+    const sourceKey = deliverySourceKey(input && input.sourceKey);
+    const variantKey = String(input && input.variantKey || "");
+    const width = WIDTHS.find(function(target){ return variantObjectKey(sourceKey, target) === variantKey; }) || 0;
+    const sourceWidth = Number(input && input.sourceWidth);
+    const sourceHeight = Number(input && input.sourceHeight) || 0;
+    const docKey = availabilityDocumentKey(sourceKey);
+    if (!bucket || typeof bucket.put !== "function" || !sourceKey || !width || !(sourceWidth > width) || !docKey) return { published: false };
+    const budget = Number(input && input.budgetMs);
+    const limit = Number.isFinite(budget) && budget >= 0 ? budget : 2000;
+    const deadline = Date.now() + limit;
+    const variant = { width: width, height: Number(input && input.variantHeight) || 0, bytes: Number(input && input.bytes) || 0, key: variantKey };
+    for (let attempt = 0; attempt < 3 && Date.now() <= deadline; attempt++) {
+      try {
+        const remaining = Math.max(1, deadline - Date.now());
+        const current = await promiseTimeout(readBucketAvailability(bucket, docKey), remaining);
+        const sources = Object.assign({}, current.sources);
+        const existing = sources[sourceKey] && typeof sources[sourceKey] === "object" ? sources[sourceKey] : { variants: [] };
+        const variants = (Array.isArray(existing.variants) ? existing.variants : []).filter(function(item){ return Number(item.width) !== width; });
+        variants.push(variant);
+        sources[sourceKey] = { width: sourceWidth, height: sourceHeight, variants: variants };
+        const body = JSON.stringify({ version: VERSION, sources: sources });
+        const options = { httpMetadata: { contentType: "application/json; charset=utf-8", cacheControl: AVAILABILITY_CACHE_CONTROL } };
+        if (current.etag) options.onlyIf = { etagMatches: current.etag };
+        await promiseTimeout(bucket.put(docKey, body, options), Math.max(1, deadline - Date.now()));
+        return { published: true, key: docKey };
+      } catch (error) {}
+    }
+    return { published: false, key: docKey };
+  }
+
+  async function loadAvailabilityDocument(docKey, options){
+    const opts = options || {};
+    if (opts.bucket) {
+      const loaded = await readBucketAvailability(opts.bucket, docKey);
+      return loaded.sources;
+    }
+    const fetchImpl = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
+    if (typeof fetchImpl !== "function") throw new Error("availability-unreadable");
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = controller ? setTimeout(function(){ controller.abort(); }, 1500) : 0;
+    try {
+      const response = await fetchImpl(publicUrlForKey(docKey), controller ? { signal: controller.signal } : {});
+      if (response && response.status === 404) return {};
+      if (!response || !response.ok || typeof response.json !== "function") throw new Error("availability-unreadable");
+      const payload = await response.json();
+      return payload && payload.sources && typeof payload.sources === "object" ? payload.sources : {};
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function readPublishedAvailability(options){
+    const opts = options || {};
+    const now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
+    const docKeys = [GLOBAL_AVAILABILITY_KEY];
+    const urls = [];
+    if (opts.sourceUrl) urls.push(opts.sourceUrl);
+    if (Array.isArray(opts.sourceUrls)) urls.push.apply(urls, opts.sourceUrls);
+    urls.forEach(function(url){
+      const doc = availabilityDocumentKey(objectKeyFromCoverUrl(url));
+      if (doc && docKeys.indexOf(doc) < 0) docKeys.push(doc);
+    });
+    const direct = availabilityDocumentKey(opts.sourceKey);
+    if (direct && docKeys.indexOf(direct) < 0) docKeys.push(direct);
+    for (let i = 0; i < docKeys.length; i++) {
+      const docKey = docKeys[i];
+      const hit = availabilityCache.get(docKey);
+      if (hit && now - hit.at < AVAILABILITY_CACHE_MS) {
+        mergeDocument(docKey, hit.sources);
+        continue;
+      }
+      try {
+        const sources = await loadAvailabilityDocument(docKey, opts);
+        availabilityCache.set(docKey, { at: now, sources: sources });
+        mergeDocument(docKey, sources);
+      } catch (error) {
+        if (hit) mergeDocument(docKey, hit.sources);
+      }
+    }
+    return published;
+  }
+
+  function resetAvailabilityMemory(){
+    published = { version: VERSION, sources: {} };
+    availabilityCache.clear();
+    appliedKeys.clear();
+  }
+
+  function refreshVisibleCovers(){
+    if (typeof document === "undefined") return;
+    document.querySelectorAll("img[data-cover-src]").forEach(function(img){
+      if (img.closest && img.closest(".cover-zoom-overlay")) return;
+      if (img.getAttribute("srcset")) return;
+      const url = img.getAttribute("data-cover-src") || "";
+      const sizes = img.closest && img.closest(".book-cover-box") ? DETAIL_SIZES : (img.getAttribute("sizes") || CARD_SIZES);
+      const set = srcsetFor(url, sizes);
+      if (!set) return;
+      img.setAttribute("srcset", set);
+      if (!img.getAttribute("sizes")) img.setAttribute("sizes", sizes);
+    });
+  }
+
+  function installBrowserAvailability(){
+    if (typeof document === "undefined" || typeof fetch !== "function") return;
+    let pending = 0;
+    const scan = function(){
+      const urls = [];
+      document.querySelectorAll("img[data-cover-src]").forEach(function(img){ urls.push(img.getAttribute("data-cover-src") || ""); });
+      pending += 1;
+      const token = pending;
+      readPublishedAvailability({ fetchImpl: fetch, sourceUrls: urls, now: Date.now() }).then(function(){
+        if (token === pending) refreshVisibleCovers();
+      }, function(){});
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan);
+    else scan();
+    if (typeof MutationObserver === "function" && document.documentElement) {
+      let timer = 0;
+      const observer = new MutationObserver(function(){
+        clearTimeout(timer);
+        timer = setTimeout(scan, 50);
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-cover-src"] });
+    }
+  }
+
   function planDelivery(entry){
     const source = entry && typeof entry === "object" ? entry : {};
     const key = deliverySourceKey(source.key) || objectKeyFromCoverUrl(source.url);
@@ -218,6 +423,7 @@
 
   const host = typeof globalThis !== "undefined" ? globalThis : {};
   if (host.KutadguCoverAvailability) useAvailability(host.KutadguCoverAvailability);
+  installBrowserAvailability();
   return {
     CANONICAL_ORIGIN: CANONICAL_ORIGIN,
     VERSION: VERSION,
@@ -227,7 +433,11 @@
     DETAIL_SIZES: DETAIL_SIZES,
     THUMB_SIZES: THUMB_SIZES,
     CART_SIZES: CART_SIZES,
+    AVAILABILITY_CACHE_MS: AVAILABILITY_CACHE_MS,
+    AVAILABILITY_CACHE_CONTROL: AVAILABILITY_CACHE_CONTROL,
+    GLOBAL_AVAILABILITY_KEY: GLOBAL_AVAILABILITY_KEY,
     deliverySourceKey: deliverySourceKey,
+    availabilityDocumentKey: availabilityDocumentKey,
     objectKeyFromCoverUrl: objectKeyFromCoverUrl,
     variantObjectKey: variantObjectKey,
     variantUrl: variantUrl,
@@ -235,6 +445,9 @@
     eligibleWidths: eligibleWidths,
     useAvailability: useAvailability,
     recordAvailable: recordAvailable,
+    publishStoredAvailability: publishStoredAvailability,
+    readPublishedAvailability: readPublishedAvailability,
+    resetAvailabilityMemory: resetAvailabilityMemory,
     isAnimatedImage: isAnimatedImage,
     srcsetFor: srcsetFor,
     deliveryAttributes: deliveryAttributes,
