@@ -4,6 +4,7 @@ const fs=require("fs");
 const path=require("path");
 const publicBook=require("./kutadgu-public-book.js");
 const safe=require("./kutadgu-safe-url.js");
+const volumeStorefront=require("./kutadgu-volume-storefront.js");
 
 const SUPABASE_URL=publicBook.SUPABASE_URL;
 const SUPABASE_ANON_KEY="sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
@@ -94,6 +95,16 @@ function groupJsonLd(group,canonical){
     }))
   };
 }
+function renderStaticMemberList(group){
+  const items=(group.members||[]).map(member=>{
+    const label=safe.escapeHtml(String(member.volume_label||`${member.position}-قىسىم`));
+    const title=safe.escapeHtml(String(member.title||""));
+    const pages=volumeStorefront.memberPageCountLabel(member);
+    const pageHtml=pages?`<small class="volume-member-pages">${safe.escapeHtml(pages)}</small>`:"";
+    return `<li data-volume-book-id="${safe.escapeAttr(member.book_id)}"><strong>${label}</strong> <span>${title}</span> ${pageHtml}</li>`;
+  }).join("");
+  return `<ul class="volume-member-picker volume-member-picker-static" data-volume-static-members>${items}</ul>`;
+}
 function applyGroupDocument(html,group,representativeBook){
   const canonical=`${SITE_ORIGIN}/volume-group/${group.slug}`;
   const display={
@@ -111,6 +122,9 @@ function applyGroupDocument(html,group,representativeBook){
   out=upsert(out,/<meta\s+property=["']og:url["'][^>]*>/i,`<meta property="og:url" content="${safe.escapeAttr(canonical)}">`);
   const schema=`<script id="kutadguBookSchema" type="application/ld+json">${JSON.stringify(groupJsonLd(group,canonical)).replace(/</g,"\\u003c")}</script>`;
   out=upsert(out,/<script\s+id=["']kutadguBookSchema["'][\s\S]*?<\/script>/i,schema);
+  if(!out.includes("data-volume-static-members")){
+    out=out.replace(/<div class="book-meta"><\/div>/,`<div class="book-meta"></div>\n${renderStaticMemberList(group)}`);
+  }
   out=out.replace(/<body([^>]*)>/i,(match,attrs)=>{
     const clean=String(attrs).replace(/\sdata-volume-group-slug=["'][^"']*["']/i,"");
     return `<body${clean} data-volume-group-slug="${safe.escapeAttr(group.slug)}">`;
@@ -124,5 +138,5 @@ function readShell(){
 module.exports={
   SUPABASE_URL,SUPABASE_ANON_KEY,SITE_ORIGIN,LOOKUP_TIMEOUT_MS,
   validSlug,parseSlug,rpcUrl,normalizeGroup,lookupPublicVolumeGroup,
-  groupJsonLd,applyGroupDocument,readShell
+  groupJsonLd,renderStaticMemberList,applyGroupDocument,readShell
 };

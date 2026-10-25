@@ -231,6 +231,64 @@ test.describe("plain-language multi-volume admin editor",()=>{
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
   });
 
+  test("series metadata stays on its own part through a validation error and a save", async ({ page }) => {
+    await openVolumeEditor(page);
+    await page.locator("#showVolumeSeriesBtn").click();
+    const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await page.locator("#volumeSeriesTitle").fill("يېڭى يۈرۈشلۈك");
+    await page.locator("#volumeSeriesAuthor").fill("بىرىنچى ئاپتور");
+    await page.locator("#volumeSeriesAuthorAdd").click();
+    await page.locator("#volumeSeriesAuthorExtras input").fill("ئىككىنچى ئاپتور");
+    await page.locator("#volumeSeriesTranslator").fill("تەرجىمان ئالىم");
+    await page.locator("#volumeSeriesPublisher").fill("ئورتاق نەشرىيات");
+    await page.locator("#volumeSeriesPages").fill("240");
+    await page.locator("#volumeSeriesYear").fill("2020");
+    await page.locator("#volumeSeriesCoverType").selectOption("paperback");
+    await page.locator("#volumeSeriesSize").selectOption("A5");
+    await page.locator("#volumeSeriesCategory").fill("تارىخىي");
+    await page.locator("#volumeSeriesCategory").locator("..").getByRole("option", { name: "تارىخىي رومانلار", exact: true }).click();
+    const parts = page.locator(".volume-series-part");
+    await parts.nth(0).locator("[data-series-price]").fill("10");
+    await parts.nth(0).locator("[data-series-stock]").fill("4");
+    await parts.nth(0).locator("[data-series-cover]").setInputFiles({ name: "part-1.png", mimeType: "image/png", buffer: tinyPng });
+    await parts.nth(1).locator("[data-series-price]").fill("12");
+    await parts.nth(1).locator("[data-series-stock]").fill("1");
+    await parts.nth(1).locator("summary").click();
+    await parts.nth(1).locator("[data-series-page-total]").fill("88");
+    await parts.nth(1).locator("[data-series-publisher]").fill("باشقا نەشرىيات");
+    await parts.nth(1).locator("[data-series-isbn]").fill("123");
+    await parts.nth(1).locator("[data-series-cover]").setInputFiles({ name: "part-2.png", mimeType: "image/png", buffer: tinyPng });
+    await page.locator("#volumeSeriesForm button[type='submit']").click();
+    await expect(page.locator("#volumeSeriesStatus")).toContainText("خەلقئارا نومۇرى");
+    await expect(parts.nth(1).locator("[data-series-page-total]")).toHaveValue("88");
+    await expect(parts.nth(0).locator("[data-series-page-total]")).toHaveValue("");
+    await expect(page.locator("#volumeSeriesPages")).toHaveValue("240");
+    await expect(page.locator("#volumeSeriesPublisher")).toHaveValue("ئورتاق نەشرىيات");
+    await parts.nth(1).locator("[data-series-isbn]").fill("");
+    await parts.nth(0).locator("[data-series-move='1']").click();
+    await expect(parts.nth(0).locator("[data-series-page-total]")).toHaveValue("88");
+    await parts.nth(0).locator("[data-series-move='1']").click();
+    await page.locator("#volumeSeriesForm button[type='submit']").click();
+    await expect(page.locator("#volumeSeriesStatus")).toContainText("ساقلاندى");
+    const payload = await page.evaluate(() => window.__volumeEditorCalls.find((call) => call.name === "admin_create_book_volume_series").args.p_payload);
+    expect(payload.pages).toBe(240);
+    expect(payload.publisher).toBe("ئورتاق نەشرىيات");
+    expect(payload.authors).toEqual(["بىرىنچى ئاپتور", "ئىككىنچى ئاپتور"]);
+    expect(payload.parts[0].pages).toBeUndefined();
+    expect(payload.parts[1].pages).toBe(88);
+    expect(payload.parts[1].publisher).toBe("باشقا نەشرىيات");
+    expect(payload.parts[0].publisher).toBeUndefined();
+    const credits = await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "set_book_credits"));
+    expect(credits).toHaveLength(2);
+    expect(credits[0].args.p_authors).toEqual(["بىرىنچى ئاپتور", "ئىككىنچى ئاپتور"]);
+    expect(credits[1].args.p_publisher).toBe("باشقا نەشرىيات");
+    await page.locator("#showVolumeSeriesBtn").click();
+    await expect(page.locator("#volumeSeriesPages")).toHaveValue("");
+    await expect(page.locator("#volumeSeriesPublisher")).toHaveValue("");
+    await expect(page.locator("#volumeSeriesAuthorExtras input")).toHaveCount(0);
+    await expect(parts.nth(1).locator("[data-series-page-total]")).toHaveValue("");
+  });
+
   test("a failed series save retries the same request and discards only the new covers",async({page})=>{
     await openVolumeEditor(page);
     await page.evaluate(()=>{window.__seriesCreateFails=1;window.__kutadguDiscardedSeriesCovers=[];});
@@ -981,12 +1039,12 @@ const members = [
   {
     book_id: "1001", position: 1, volume_label: "1-جىلد", title: "بىرىنچى جىلد",
     author: "سىناق ئاپتور", price: 35, image_url: "/volume-cover-1.svg",
-    stock: 4, stock_status: "in_stock", is_active: true
+    stock: 4, stock_status: "in_stock", is_active: true, pages: 120
   },
   {
     book_id: "1002", position: 2, volume_label: "2-جىلد", title: "ئىككىنچى جىلد",
     author: "سىناق ئاپتور", price: 55, image_url: "/volume-cover-2.svg",
-    stock: 2, stock_status: "in_stock", is_active: true
+    stock: 2, stock_status: "in_stock", is_active: true, pages: 80
   },
   {
     book_id: "1003", position: 3, volume_label: "3-جىلد", title: "ئۈچىنچى جىلد",
@@ -1025,6 +1083,7 @@ function book(member) {
     stock_status: member.stock_status,
     is_active: true,
     submission_status: "approved",
+    pages: member.pages == null ? null : member.pages,
     created_at: "2026-10-20T00:00:00Z"
   };
 }
@@ -1102,6 +1161,23 @@ async function installFixture(page) {
 test.describe("multi-volume storefront", () => {
   test.beforeEach(async ({ page }) => {
     await installFixture(page);
+  });
+
+  test("each volume shows its own page count and a missing count stays blank", async ({ page }) => {
+    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".volume-member-option").nth(0)).toContainText("120 بەت");
+    await expect(page.locator(".volume-member-option").nth(1)).toContainText("80 بەت");
+    await expect(page.locator(".volume-member-option").nth(2)).not.toContainText("بەت");
+    await expect(page.locator(".book-detail-info .book-meta")).toContainText("120");
+    await page.locator("[data-volume-book-id='1002']").check();
+    await expect(page.locator(".book-detail-info .book-meta")).toContainText("80");
+    await expect(page.locator(".book-detail-info .book-meta")).not.toContainText("120");
+    await page.goto("/book/1002", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".book-detail-info .book-meta")).toContainText("80");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    const overflow = await page.locator(".volume-member-option").nth(1).evaluate((node) => node.scrollWidth - node.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 
   test("group page selects available volumes and blocks an incomplete set", async ({ page }) => {

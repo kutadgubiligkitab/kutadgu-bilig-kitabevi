@@ -135,5 +135,75 @@ assert.match(isbnError.diagnostic, /invalid_series_isbn/);
 
 const priced = entry(2, 750);
 assert.strictEqual(Object.hasOwn(priced.payload.parts[0], "gallery_images"), false);
+assert.strictEqual(Object.hasOwn(priced.payload, "pages"), false);
+assert.strictEqual(Object.hasOwn(priced.payload.parts[0], "pages"), false);
+
+const metadata = groups.seriesEntryPayload({
+  requestId,
+  title: "يېڭى يۈرۈشلۈك",
+  author: "بىرىنچى",
+  authors: ["بىرىنچى", "ئىككىنچى"],
+  translators: ["تەرجىمان"],
+  publisher: "ئورتاق نەشرىيات",
+  publishYear: "2020",
+  pages: "240",
+  coverType: "paperback",
+  bookSize: "A5",
+  category: "تارىخىي رومانلار",
+  source: "tarikhiy-romanlar.html",
+  description: "",
+  completeSetPrice: "",
+  parts: [
+    part(1, 10),
+    { ...part(2, 12), publisher: "باشقا نەشرىيات", pages: "88", publishYear: "2024", coverType: "hardcover", bookSize: "A4" }
+  ]
+});
+assert.strictEqual(metadata.ok, true, metadata.message);
+assert.deepStrictEqual(metadata.payload.authors, ["بىرىنچى", "ئىككىنچى"]);
+assert.strictEqual(metadata.payload.author, "بىرىنچى، ئىككىنچى");
+assert.strictEqual(metadata.payload.pages, 240);
+assert.strictEqual(metadata.payload.parts[0].pages, undefined);
+assert.strictEqual(metadata.payload.parts[0].publisher, undefined);
+assert.strictEqual(metadata.payload.parts[1].pages, 88);
+assert.strictEqual(metadata.payload.parts[1].publisher, "باشقا نەشرىيات");
+assert.strictEqual(metadata.payload.parts[1].cover_type, "hardcover");
+assert.strictEqual(metadata.payload.publisher, "ئورتاق نەشرىيات");
+
+const blankPages = groups.seriesEntryPayload({
+  requestId,
+  title: "بوش",
+  category: "تارىخىي رومانلار",
+  source: "tarikhiy-romanlar.html",
+  completeSetPrice: "",
+  pages: "",
+  parts: [part(1, 10), { ...part(2, 12), pages: "0" }]
+});
+assert.strictEqual(blankPages.ok, false);
+
+const stage134 = fs.readFileSync(path.join(root, "STAGE134_SERIES_VOLUME_METADATA.sql"), "utf8");
+assert.match(stage134, /'pages', b\.pages/);
+assert.match(stage134, /idempotency_payload_mismatch/);
+assert.doesNotMatch(stage134, /\bhref\b|\blanguage\b|\bpublish_date\b/);
+const rollback = fs.readFileSync(path.join(root, "STAGE134_SERIES_VOLUME_METADATA_ROLLBACK.sql"), "utf8");
+assert.match(rollback, /Stage 133|working Stage 133|Stage 134 rollback/);
+assert.doesNotMatch(rollback.slice(rollback.indexOf("INSERT INTO public.books")), /cover_type, book_size/);
+
+const storefront = require(path.join(root, "kutadgu-volume-storefront.js"));
+assert.strictEqual(storefront.memberPageCountLabel({ pages: 320 }), "320 بەت");
+assert.strictEqual(storefront.memberPageCountLabel({ pages: 0 }), "");
+assert.strictEqual(storefront.memberPageCountLabel({ pages: null }), "");
+assert.strictEqual(storefront.memberPageCountLabel({ pages: "12.5" }), "");
+assert.strictEqual(storefront.normalizeMember({ book_id: "7", position: 1, pages: "18" }).pages, 18);
+assert.strictEqual(storefront.normalizeMember({ book_id: "7", position: 1, pages: "" }).pages, null);
+const publicGroup = require(path.join(root, "kutadgu-public-volume-group.js"));
+const staticList = publicGroup.renderStaticMemberList({
+  members: [
+    { book_id: 1, position: 1, volume_label: "1-قىسىم", title: "بىرىنچى", pages: 240 },
+    { book_id: 2, position: 2, volume_label: "2-قىسىم", title: "ئىككىنچى", pages: null }
+  ]
+});
+assert.match(staticList, /240 بەت/);
+assert.strictEqual((staticList.match(/volume-member-pages/g) || []).length, 1);
+assert.match(staticList, /data-volume-static-members/);
 
 console.log("multi-volume series entry: PASS");

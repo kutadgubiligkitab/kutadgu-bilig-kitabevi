@@ -450,8 +450,18 @@
             <p class="admin-help volume-series-note">ساقلاش خېرىدارغا چىقارمايدۇ. تور بەتكە چىقىرىش ئايرىم.</p>
             <label class="admin-wide"><span>كىتاب نامى</span><input id="volumeSeriesTitle" type="text" maxlength="500" required placeholder="مەسىلەن: ئويغانغان زېمىن"></label>
             <label><span>ئاپتور</span><input id="volumeSeriesAuthor" type="text" maxlength="500"></label>
+            <div id="volumeSeriesAuthorExtras" class="book-credit-extras admin-wide"></div>
+            <button type="button" class="admin-secondary book-credit-add" id="volumeSeriesAuthorAdd">ئاپتور قوشۇش</button>
+            <label><span>تەرجىمە قىلغۇچى</span><input id="volumeSeriesTranslator" type="text" maxlength="500"></label>
+            <div id="volumeSeriesTranslatorExtras" class="book-credit-extras admin-wide"></div>
+            <button type="button" class="admin-secondary book-credit-add" id="volumeSeriesTranslatorAdd">تەرجىمان قوشۇش</button>
+            <label><span>نەشرىيات</span><input id="volumeSeriesPublisher" type="text" maxlength="500" autocomplete="off"></label>
             <label><span>كىتاب تۈرى</span><input id="volumeSeriesCategory" type="text" maxlength="200" placeholder="تىزىمدىن تاللاڭ"></label>
             <label class="admin-wide"><span>يۈرۈشلۈك باھاسى</span><input id="volumeSeriesSetPrice" type="number" min="0" step="0.01" inputmode="decimal" dir="ltr" placeholder="بوش قالسا قىسىم باھالىرى قوشۇلىدۇ"></label>
+            <label><span>نەشر يىلى</span><input id="volumeSeriesYear" type="number" min="1000" max="2100" step="1" inputmode="numeric" dir="ltr"></label>
+            <label><span>بەت سانى</span><input id="volumeSeriesPages" type="number" min="1" step="1" inputmode="numeric" dir="ltr"></label>
+            <label><span>مۇقاۋا تۈرى</span><select id="volumeSeriesCoverType"><option value="">تاللانمىغان</option><option value="hardcover">قاتتىق مۇقاۋىلىق</option><option value="paperback">يۇمشاق مۇقاۋىلىق</option><option value="other">باشقا</option></select></label>
+            <label><span>كىتاب ئۆلچىمى</span><select id="volumeSeriesSize"><option value="">تاللانمىغان</option><option value="A4">A4</option><option value="A5">A5</option><option value="B5">B5</option><option value="other">باشقا</option></select></label>
             <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="volumeSeriesDescription" rows="4" maxlength="10000"></textarea></label>
             <div class="volume-series-parts-head">
               <h3 id="volumeSeriesPartsHeading">قىسىملار</h3>
@@ -1281,9 +1291,9 @@
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
   <script defer src="admin-book-categories.js?v=6"></script>
-  <script defer src="admin-volume-groups.js?v=11"></script>
+  <script defer src="admin-volume-groups.js?v=12"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
-  <script defer src="admin.js?v=122"></script>
+  <script defer src="admin.js?v=123"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
 </body>
 </html>

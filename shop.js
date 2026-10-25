@@ -3445,6 +3445,29 @@ function updateVolumeSelectionPreview(group,member,panel){
   activeVolumeBookId=String(member.book_id);
   setDetailHeroImage(member.image_url||book.image,`${member.title||book.title||"كىتاب"} كىتاب مۇقاۋىسى`);
 }
+function volumeMemberPageLabel(member){
+  const label=volumeStorefront()?.memberPageCountLabel?volumeStorefront().memberPageCountLabel(member):"";
+  return label?`<small class="volume-member-pages">${escapeHtml(label)}</small>`:"";
+}
+function syncVolumePageMeta(member){
+  const meta=document.querySelector(".book-detail-info .book-meta");
+  if(!meta||!volumeStorefront()?.memberPageCount)return;
+  const count=volumeStorefront().memberPageCount(member);
+  const rows=[...meta.querySelectorAll(".book-meta-row")];
+  let row=rows.find(node=>node.querySelector(".book-meta-label")&&node.querySelector(".book-meta-label").textContent==="بەت سانى");
+  if(count==null){
+    if(row)row.remove();
+    return;
+  }
+  if(!row){
+    row=document.createElement("div");
+    row.className="book-meta-row";
+    row.innerHTML='<div class="book-meta-label">بەت سانى</div><div class="book-meta-value"></div>';
+    meta.appendChild(row);
+  }
+  const value=row.querySelector(".book-meta-value");
+  if(value)value.textContent=String(count);
+}
 function renderVolumeGroupPurchasePanel(box,book,group){
   const panel=document.createElement("div");
   panel.className="detail-purchase-panel volume-group-purchase-panel";
@@ -3474,6 +3497,7 @@ function renderVolumeGroupPurchasePanel(box,book,group){
           <span class="volume-member-copy">
             <strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
             <small>${escapeHtml(member.title||memberBook.title||"")}</small>
+            ${volumeMemberPageLabel(member)}
           </span>
           <span class="volume-member-price">${money(member.price)}</span>
           ${stockBadge(memberBook)}
@@ -3491,7 +3515,9 @@ function renderVolumeGroupPurchasePanel(box,book,group){
       <button type="button" class="share-button" data-share-id="${escapeAttr(book.id)}">🔗 ھەمبەھىرلەش</button>
     </div>`;
   box.appendChild(panel);
+  box.querySelector(".volume-member-picker-static")?.remove();
   const initial=group.members.find(member=>String(member.book_id)===selectedId)||group.members[0];
+  if(initial)syncVolumePageMeta(initial);
   if(initial)updateVolumeSelectionPreview(group,initial,panel);
   updateVolumeSelectionSummary(group,panel);
   panel.querySelectorAll("[data-volume-book-id]").forEach(input=>{
@@ -3499,7 +3525,10 @@ function renderVolumeGroupPurchasePanel(box,book,group){
       updateVolumeSelectionSummary(group,panel);
       if(!input.checked)return;
       const member=group.members.find(row=>String(row.book_id)===String(input.dataset.volumeBookId));
-      if(member)updateVolumeSelectionPreview(group,member,panel);
+      if(member){
+        updateVolumeSelectionPreview(group,member,panel);
+        syncVolumePageMeta(member);
+      }
     });
   });
   panel.querySelector(".volume-add-selected").onclick=()=>{
@@ -6993,7 +7022,7 @@ async function boot(){
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
   await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=2","kutadguVolumeGroupsScript"));
-  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=3","kutadguVolumeStorefrontScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=4","kutadguVolumeStorefrontScript"));
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();
