@@ -632,6 +632,189 @@ jobs.push(test("checked-in sitemap-pages.xml matches publicPageEntries() includi
   });
 }));
 
+function catalogPage(items, total, offset) {
+  return {
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({
+      total,
+      offset,
+      limit: sitemap.CATALOG_PAGE_SIZE,
+      has_more: offset + items.length < total,
+      items
+    })
+  };
+}
+
+function catalogFetch(units) {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body);
+    const offset = body.p_query.offset;
+    const limit = body.p_query.limit;
+    calls.push({ url: String(url), offset, limit, sort: body.p_query.sort });
+    if (String(url).includes("query_public_book_catalog") === false) {
+      throw new Error("unexpected sitemap read");
+    }
+    return catalogPage(units.slice(offset, offset + limit), units.length, offset);
+  };
+  fetchImpl.calls = calls;
+  return fetchImpl;
+}
+
+const groupedOptions = { env: { MULTI_VOLUME_BOOKS_ENABLED: "true" } };
+
+jobs.push(test("grouped sitemap keeps public series members and group URLs", async () => {
+  const units = [
+    {
+      unit_id: "book:130",
+      kind: "book",
+      book_id: 130,
+      updated_at: "2026-08-28T00:00:00Z",
+      member_book_ids: [130],
+      member_count: 1
+    },
+    {
+      unit_id: "group:9",
+      kind: "group",
+      group_id: 9,
+      slug: "series-139",
+      updated_at: "2026-09-01T00:00:00Z",
+      member_book_ids: [147, 148],
+      member_count: 2
+    },
+    {
+      unit_id: "book:148",
+      kind: "book",
+      book_id: 148,
+      updated_at: "not-a-date",
+      created_at: "1990-01-01T00:00:00Z",
+      member_book_ids: [148],
+      member_count: 1
+    }
+  ];
+  const fetchImpl = catalogFetch(units);
+  const xml = await sitemap.buildBooksSitemapXml(1, fetchImpl, groupedOptions);
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  assert.deepStrictEqual(locs, [
+    "https://www.kutadgubilik.com/book/130",
+    "https://www.kutadgubilik.com/volume-group/series-139",
+    "https://www.kutadgubilik.com/book/147",
+    "https://www.kutadgubilik.com/book/148"
+  ]);
+  assert.strictEqual(new Set(locs).size, locs.length);
+  assert.ok(xml.includes("<lastmod>2026-08-28</lastmod>"));
+  assert.ok(xml.includes("<lastmod>2026-09-01</lastmod>"));
+  assert.strictEqual((xml.match(/<lastmod>/g) || []).length, 2);
+  assert.ok(!xml.includes("<lastmod>1990-01-01</lastmod>"));
+  assert.ok(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+  assert.ok(xml.includes("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"));
+  assert.ok(xml.endsWith("</urlset>\n"));
+  assert.ok(Buffer.byteLength(xml, "utf8") < sitemap.SITEMAP_BYTE_LIMIT);
+  assert.ok(sitemap.URLS_PER_SITEMAP <= sitemap.SITEMAP_URL_LIMIT);
+  const indexXml = await sitemap.buildIndexSitemapXml(fetchImpl, groupedOptions);
+  assert.ok(indexXml.includes("https://www.kutadgubilik.com/sitemap-books.xml"));
+  assert.ok(!indexXml.includes("sitemap-books-1.xml"));
+  assert.ok(fetchImpl.calls.every(call => call.limit === 100 && call.sort === "title"));
+}));
+
+jobs.push(test("grouped sitemap omits private groups and excluded books", () => {
+  const entries = sitemap.entriesFromCatalogUnits([
+    { unit_id: "book:5", kind: "book", book_id: 5, updated_at: "2026-01-02T00:00:00Z" },
+    {
+      unit_id: "group:3",
+      kind: "group",
+      slug: "public-series",
+      member_book_ids: ["11", "12"],
+      member_count: 2,
+      updated_at: "bad"
+    }
+  ]);
+  assert.deepStrictEqual(entries.map(entry => entry.loc), [
+    "https://www.kutadgubilik.com/book/5",
+    "https://www.kutadgubilik.com/volume-group/public-series",
+    "https://www.kutadgubilik.com/book/11",
+    "https://www.kutadgubilik.com/book/12"
+  ]);
+  assert.strictEqual(entries[1].lastmod, undefined);
+  assert.strictEqual(entries[2].lastmod, undefined);
+  assert.throws(() => sitemap.entriesFromCatalogUnits([
+    { unit_id: "group:4", kind: "group", slug: "broken", member_book_ids: [1, 1], member_count: 2 }
+  ]), /omitted its public members/);
+  assert.throws(() => sitemap.entriesFromCatalogUnits([
+    { unit_id: "group:4", kind: "group", slug: "broken", member_book_ids: [1], member_count: 2 }
+  ]), /member count/);
+  assert.throws(() => sitemap.entriesFromCatalogUnits([
+    { unit_id: "hidden", kind: "draft", book_id: 9 }
+  ]), /not a public book or group/);
+}));
+
+jobs.push(test("grouped sitemap paginates the catalogue and fails a short read", async () => {
+  const units = Array.from({ length: 250 }, (_, index) => ({
+    unit_id: `book:${index + 1}`,
+    kind: "book",
+    book_id: index + 1,
+    updated_at: "2026-04-01T00:00:00Z"
+  }));
+  const fetchImpl = catalogFetch(units);
+  const loaded = await sitemap.fetchPublicCatalogUnits(fetchImpl);
+  assert.strictEqual(loaded.length, 250);
+  assert.deepStrictEqual(fetchImpl.calls.map(call => call.offset), [0, 100, 200]);
+  const xml = await sitemap.buildBooksSitemapXml(2, catalogFetch(units), groupedOptions);
+  assert.strictEqual((xml.match(/<loc>/g) || []).length, 0);
+  await assert.rejects(
+    () => sitemap.fetchPublicCatalogUnits(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ total: 2, has_more: false, items: [units[0]] })
+    })),
+    /did not match the reported total/
+  );
+  await assert.rejects(() => sitemap.fetchPublicCatalogUnits(async (url, options) => {
+    const offset = JSON.parse(options.body).p_query.offset;
+    if (offset === 0) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ total: 2, has_more: true, items: [units[0]] })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ total: 2, has_more: true, items: [units[0]] })
+    };
+  }), /made no progress/);
+  await assert.rejects(() => sitemap.buildBooksSitemapXml(1, async (url, options) => {
+    const offset = JSON.parse(options.body).p_query.offset;
+    if (offset > 0) return { ok: false, status: 503, text: async () => "" };
+    return catalogPage(units.slice(0, 100), 250, 0);
+  }, groupedOptions), /Catalog sitemap fetch failed \(503\)/);
+  const pages = sitemap.paginateSitemapEntries(
+    Array.from({ length: 5 }, (_, index) => ({ loc: sitemap.bookCanonicalUrl(index + 1), lastmod: "2026-01-01" })),
+    { perPage: 2, maxBytes: 280 }
+  );
+  assert.ok(pages.length >= 3);
+  pages.forEach(page => {
+    assert.ok(page.length <= 2);
+    assert.ok(Buffer.byteLength(sitemap.buildUrlsetXml(page), "utf8") <= 280);
+  });
+  assert.strictEqual(sitemap.bookSitemapLocsForPages(pages.length).length, pages.length);
+  const indexXml = await sitemap.buildIndexSitemapXml(catalogFetch(
+    Array.from({ length: 3 }, (_, index) => ({
+      unit_id: `book:${index + 1}`,
+      kind: "book",
+      book_id: index + 1
+    }))
+  ), groupedOptions);
+  assert.ok(indexXml.includes("/sitemap-books.xml"));
+  const huge = sitemap.paginateSitemapEntries(
+    [{ loc: "https://www.kutadgubilik.com/book/1" }],
+    { maxBytes: 10 }
+  );
+  assert.strictEqual(huge.length, 1);
+}));
+
 jobs.push(test("lastmod omitted when timestamp is untrustworthy", () => {
   const entry = sitemap.rowToSitemapEntry({ id: 8, is_active: true, updated_at: "not-a-date", created_at: "" });
   assert.strictEqual(entry.loc, "https://www.kutadgubilik.com/book/8");

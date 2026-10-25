@@ -538,6 +538,58 @@ async function bridgeDiscoveryUnitIds(page, route) {
   });
 }
 
+const CATEGORY_DIRECTORY_ROWS = [
+  { source: "romanlar.html", label: "رومانلار" },
+  { source: "tarikhiy-romanlar.html", label: "تارىخىي رومانلار" },
+  { source: "sheirlar.html", label: "شېئىرلار" },
+  { source: "hekayiler.html", label: "ھېكايىلەر" },
+  { source: "dastanlar.html", label: "داستانلار" },
+  { source: "dunya-edebiyati.html", label: "دۇنيا ئەدەبىياتى" },
+  { source: "adabiyat-roman.html", label: "ئەدەبىيات رومانلىرى" },
+  { source: "uyghur-adabiyati.html", label: "ئۇيغۇر ئەدەبىياتى" },
+  { source: "universal.html", label: "ئۇنىۋېرسال" },
+  { source: "tibb.html", label: "تېبابەت ۋە ساغلاملىق" },
+  { source: "derslik.html", label: "دەرسلىك" },
+  { source: "terbiye.html", label: "پەرزەنت تەربىيەسى" },
+  { source: "dini.html", label: "دىنىي كىتابلار" },
+  { source: "children.html", label: "بالىلار كىتابلىرى" },
+  { source: "dictionary.html", label: "لۇغەت" },
+  { source: "grammar.html", label: "گرامماتىكا" },
+  { source: "iqtisad.html", label: "ئىقتىساد" },
+  { source: "taamlar.html", label: "تائاملار" }
+];
+
+function categoryDirectoryBody(extraRows) {
+  const rows = CATEGORY_DIRECTORY_ROWS.concat(extraRows || []).filter((row) => row && row.source && row.label);
+  const categories = rows.filter((row) => !row.is_hidden && !row.retired).map((row, index) => ({
+    id: index + 1,
+    slug: String(row.source).replace(/\.html$/, ""),
+    source: row.source,
+    label: row.label,
+    summary: row.summary || "",
+    icon: row.icon || "📚",
+    sort_order: index + 1,
+    is_hidden: false,
+    retired: false
+  }));
+  return { categories, direct: categories.map((row) => ({ ...row })), redirects: [] };
+}
+
+async function installCategoryDirectoryFixture(page, options = {}) {
+  const body = options.body || categoryDirectoryBody(options.extra);
+  const hold = options.hold || null;
+  await page.route("**/rpc/list_public_book_categories**", async (route) => {
+    if (hold && typeof hold.wait === "function") await hold.wait();
+    const next = typeof options.bodyFor === "function" ? options.bodyFor() : body;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(next)
+    });
+  });
+  return body;
+}
+
 async function installReadSafeNetwork(page, opts = {}) {
   if (opts && opts.allowLiveBookCovers) allowLiveBookCovers(page);
   await installBookCoverEgressGuard(page);
@@ -1117,6 +1169,9 @@ module.exports = {
   stubNumericBookDocuments,
   installBookCoverEgressGuard,
   logMockedBookCoverSummary,
+  CATEGORY_DIRECTORY_ROWS,
+  categoryDirectoryBody,
+  installCategoryDirectoryFixture,
   installReadSafeNetwork,
   installCatalogRpcBridge,
   installCarouselCatalogStub,

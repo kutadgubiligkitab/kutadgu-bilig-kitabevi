@@ -61,6 +61,7 @@ async function expectSetPriceContrast(page, name) {
 
 async function openVolumeEditor(page, existing) {
   await H.installReadSafeNetwork(page);
+  await H.installCategoryDirectoryFixture(page);
   await page.addInitScript(() => {
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguSkipSuggestFetch = true;
@@ -864,6 +865,7 @@ test.describe("plain-language multi-volume admin editor",()=>{
 
 async function openSupabaseSeries(page){
   await H.installReadSafeNetwork(page);
+  await H.installCategoryDirectoryFixture(page);
   await page.addInitScript(()=>{
     window.__kutadguSkipAdminAuth=true;
     window.__kutadguSkipSuggestFetch=true;

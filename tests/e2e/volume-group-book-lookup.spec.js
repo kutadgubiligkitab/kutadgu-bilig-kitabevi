@@ -24,6 +24,7 @@ async function openLookupEditor(page) {
   });
   page._lookupWrites = writes;
   await H.installReadSafeNetwork(page);
+  await H.installCategoryDirectoryFixture(page);
   await page.addInitScript(() => {
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguSkipSuggestFetch = true;

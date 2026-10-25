@@ -96,6 +96,10 @@ async function installIsolatedCatalog(page, state) {
     });
   });
   await H.installReadSafeNetwork(page);
+  await H.installCategoryDirectoryFixture(page, {
+    hold: state.directoryHold || null,
+    bodyFor: () => state.directoryBody || H.categoryDirectoryBody()
+  });
   await page.route("**/missing-search-cover.png", (route) => route.fulfill({
     status: 404,
     contentType: "text/plain",
@@ -238,6 +242,22 @@ async function primeFailedSearch(page, state) {
 
 test.describe("catalog search failure stays distinct from an empty result", () => {
   test.use({ viewport: { width: 390, height: 844 } });
+
+  test("a delayed directory with the fixture labels keeps the selected category", async ({ page }) => {
+    const state = catalogState();
+    const pending = [];
+    state.directoryHold = { wait: () => new Promise((resolve) => pending.push(resolve)) };
+    await installIsolatedCatalog(page, state);
+    await H.openFresh(page, "/");
+    const category = page.locator("#searchCategory");
+    await expect.poll(() => pending.length).toBeGreaterThan(0);
+    await expect(category.locator("option[value='رومانلار']")).toHaveCount(1);
+    await category.evaluate((el, value) => { el.value = value; }, "رومانلار");
+    pending.splice(0).forEach((release) => release());
+    await expect.poll(() => page.evaluate(() => !!(window.KutadguBookCategories && window.KutadguBookCategories.authoritative && window.KutadguBookCategories.authoritative()))).toBe(true);
+    await expect(category).toHaveValue("رومانلار");
+    await expect(category.locator("option[value='تارىخىي رومانلار']")).toHaveCount(1);
+  });
 
   test("a failed search keeps the query and filters, then a manual retry can succeed", async ({ page }) => {
     const state = catalogState();
