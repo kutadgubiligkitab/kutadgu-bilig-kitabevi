@@ -277,6 +277,14 @@ async function handleBook(request, env, deps) {
       }, undefined, hostOf(request));
     }
     const template = await shell.text();
+    if (typeof publicBook.ensureCoverAvailability === "function") {
+      await publicBook.ensureCoverAvailability({
+        bucket: env && env.COVERS,
+        sourceUrl: result.book && (result.book.image_url || result.book.image),
+        fetchImpl: deps.fetchImpl,
+        now: Date.now()
+      });
+    }
     const html = decoratePreviewHtml(publicBook.applyFoundPublicBookHead(template, id, result.book), request, env);
     return textResponse(200, method === "HEAD" ? null : html, env, {
       "Content-Type": "text/html; charset=utf-8",
@@ -319,6 +327,14 @@ async function handleVolumeGroup(request, env, deps, route) {
       const shell = await readAsset(request, env, deps, "/book-shell.html");
       if (shell && shell.status === 200) {
         const template = await shell.text();
+        if (typeof publicBook.ensureCoverAvailability === "function") {
+          await publicBook.ensureCoverAvailability({
+            bucket: env && env.COVERS,
+            sourceUrl: bookResult.book && (bookResult.book.image_url || bookResult.book.image),
+            fetchImpl: deps.fetchImpl,
+            now: Date.now()
+          });
+        }
         const html = decoratePreviewHtml(groups.applyGroupDocument(template, result.group, bookResult.book), request, env);
         return textResponse(200, method === "HEAD" ? null : html, env, {
           "Content-Type": "text/html; charset=utf-8",

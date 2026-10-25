@@ -141,9 +141,13 @@ test("replacement stamps differ and existing objects are not rewritten", () => {
 });
 
 test("admin and staff pages load the shared helper before upload code", () => {
-  assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=2'));
-  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=2') < adminHtml.indexOf('admin.js?v=123'));
-  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=2') < staffHtml.indexOf('book-staff.js?v=12'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-availability.js?v=1') < adminHtml.indexOf('kutadgu-cover-variants.js?v=5'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-variants.js?v=5') < adminHtml.indexOf('kutadgu-cover-image.js?v=5'));
+  assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=5'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=5') < adminHtml.indexOf('admin.js?v=123'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-availability.js?v=1') < staffHtml.indexOf('kutadgu-cover-variants.js?v=5'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-variants.js?v=5') < staffHtml.indexOf('kutadgu-cover-image.js?v=5'));
+  assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=5') < staffHtml.indexOf('book-staff.js?v=12'));
   assert.match(adminJs, /optimizeCover\(file\)/);
   assert.match(staffJs, /await requireAal2\(client\)/);
   assert.match(staffJs, /rpcIsBookStaff\(client\)/);

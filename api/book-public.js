@@ -34,6 +34,10 @@ module.exports = async function bookPublic(req, res) {
   if (result.outcome === "found") {
     let html;
     try {
+      await publicBook.ensureCoverAvailability({
+        sourceUrl: result.book && (result.book.image_url || result.book.image),
+        now: Date.now()
+      });
       html = publicBook.applyFoundPublicBookHead(fs.readFileSync(SHELL_PATH, "utf8"), id, result.book);
     } catch (err) {
       send(res, 503, {

@@ -6,6 +6,8 @@ const safeUrl = require("./kutadgu-safe-url.js");
 const bib = require("./catalog-bibliography.js");
 const credits = require("./catalog-credits.js");
 const stock = require("./kutadgu-stock.js");
+const coverVariants = require("./kutadgu-cover-variants.js");
+coverVariants.useAvailability(require("./data/cover-variant-availability.json"));
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
@@ -353,7 +355,7 @@ function applyBookSpecificBody(html, book) {
     out = replaceFirst(
       out,
       /<div class="book-cover-box">\s*<img\b[^>]*>\s*<\/div>/,
-      `<div class="book-cover-box"><img src="${escapeAttr(image)}" alt="${alt}"></div>`
+      `<div class="book-cover-box"><img src="${escapeAttr(image)}"${coverVariants.deliveryAttributes(image, coverVariants.DETAIL_SIZES)} alt="${alt}" decoding="async"></div>`
     );
   }
 
@@ -372,6 +374,11 @@ function applyBookSpecificBody(html, book) {
 }
 
 /* First-byte head for FOUND public numeric books. Fail-closed: invalid ids leave HTML unchanged. */
+async function ensureCoverAvailability(options){
+  try {
+    await coverVariants.readPublishedAvailability(options || {});
+  } catch (error) {}
+}
 function applyFoundPublicBookHead(html, id, book) {
   const canonical = String(id == null ? "" : id).trim();
   if (!isCanonicalBookId(canonical)) return String(html || "");
@@ -449,6 +456,7 @@ module.exports = {
   publicBookLookupUrl,
   lookupPublicNumericBook,
   applyFoundPublicBookHead,
+  ensureCoverAvailability,
   publicSeoBook,
   publicCoverAbsoluteUrl,
   PUBLIC_SEO_SELECT,

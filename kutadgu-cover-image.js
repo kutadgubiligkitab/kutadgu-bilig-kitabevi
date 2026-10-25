@@ -232,7 +232,57 @@ async function postR2CoverUpload(opts){
   if(!response||!response.ok||!payload||payload.ok!==true||payload.url!==expected||payload.key!==objectKey){
     throw new Error(r2UploadError(payload&&payload.error));
   }
+  const budget=Number(options.variantBudgetMs);
+  const limit=Number.isFinite(budget)&&budget>=0?budget:8000;
+  const controller=typeof AbortController!=="undefined"?new AbortController():null;
+  let timer=0;
+  const timeout=new Promise(function(resolve){
+    timer=setTimeout(function(){
+      if(controller)controller.abort();
+      resolve("timeout");
+    },limit);
+  });
+  const work=uploadDeliveryVariants(options,fetchImpl,controller).then(function(){return "done";},function(){return "error";});
+  try{await Promise.race([work,timeout]);}
+  finally{clearTimeout(timer);}
   return expected;
+}
+async function uploadDeliveryVariants(options,fetchImpl,controller){
+  const variantsApi=root.KutadguCoverVariants;
+  if(!variantsApi||typeof variantsApi.deliverySourceKey!=="function"||!variantsApi.deliverySourceKey(options.objectKey))return;
+  const encode=typeof options.encodeVariants==="function"?options.encodeVariants:variantsApi.encodeDeliveryVariants;
+  if(encode===variantsApi.encodeDeliveryVariants&&(typeof document==="undefined"||typeof createImageBitmap!=="function"||typeof Blob==="undefined"))return;
+  if(controller&&controller.signal&&controller.signal.aborted)return;
+  const encoded=await encode(new Blob([options.body],{type:String(options.contentType||"")}));
+  for(let i=0;i<(encoded||[]).length;i++){
+    if(controller&&controller.signal&&controller.signal.aborted)return;
+    const item=encoded[i];
+    const variantKey=variantsApi.variantObjectKey(options.objectKey,item&&item.width);
+    if(!variantKey||!item||!item.body)continue;
+    let response=null;
+    try{
+      response=await fetchImpl(options.url||R2_UPLOAD_PATH,{
+        method:"POST",
+        signal:controller?controller.signal:undefined,
+        headers:{
+          Authorization:"Bearer "+String(options.token||""),
+          "Content-Type":"image/webp",
+          "x-kutadgu-object-key":variantKey,
+          "x-kutadgu-source-key":String(options.objectKey||""),
+          "x-kutadgu-source-width":String(item.sourceWidth||""),
+          "x-kutadgu-source-height":String(item.sourceHeight||"")
+        },
+        body:item.body
+      });
+    }catch(error){continue;}
+    let payload=null;
+    try{payload=response&&typeof response.json==="function"?await response.json():null;}catch(error){payload=null;}
+    const expectedUrl=variantsApi.publicUrlForKey(variantKey);
+    if(!response||!response.ok||!payload||payload.ok!==true||payload.key!==variantKey||payload.url!==expectedUrl||payload.availability!=="published")continue;
+    if(typeof variantsApi.recordAvailable==="function"){
+      variantsApi.recordAvailable(options.objectKey,item.sourceWidth,item.sourceHeight,{width:item.width,height:item.height,bytes:item.bytes,key:variantKey});
+    }
+  }
 }
 function cacheControlStoredBySupabase(body,options){
   const opts=options||{};
