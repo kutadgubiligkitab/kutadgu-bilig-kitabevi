@@ -109,7 +109,8 @@ body.dark-mode .category-nav-leaf.is-selected{
   .category-nav-leaves{flex-direction:column}
 }
 @media (min-width:768px){
-  .category-nav{overflow-x:clip}
+  .category-nav{overflow-x:clip;min-height:57px}
+  .category-nav-panel,.category-nav-groups{display:grid;min-height:57px}
   .category-filter-toggle{display:inline-flex;align-items:center}
 }
 @media (max-width:767px){

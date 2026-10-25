@@ -26,8 +26,14 @@ test.describe("compact category navigation", () => {
         await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
         if (mobile) {
           await expect(toggle).toBeVisible();
-          const height = await toggle.evaluate((el) => el.getBoundingClientRect().height);
-          expect(height).toBeGreaterThanOrEqual(54);
+          let height = 0;
+          await expect.poll(async () => {
+            height = await page.evaluate(() => {
+              const el = document.querySelector("#bookCategories .category-nav-toggle");
+              return el ? el.getBoundingClientRect().height : 0;
+            });
+            return height;
+          }).toBeGreaterThanOrEqual(54);
           expect(height).toBeLessThan(72);
           await expect(groups.first()).toBeHidden();
           await toggle.click();
@@ -42,8 +48,14 @@ test.describe("compact category navigation", () => {
           await expect(toggle).toBeFocused();
         } else {
           await expect(toggle).toBeHidden();
-          const rowHeight = await page.locator("#bookCategories .category-nav-groups").evaluate((el) => el.getBoundingClientRect().height);
-          expect(rowHeight).toBeGreaterThanOrEqual(57);
+          let rowHeight = 0;
+          await expect.poll(async () => {
+            rowHeight = await page.evaluate(() => {
+              const el = document.querySelector("#bookCategories .category-nav-groups");
+              return el ? el.getBoundingClientRect().height : 0;
+            });
+            return rowHeight;
+          }).toBeGreaterThanOrEqual(57);
           expect(rowHeight).toBeLessThan(96);
           await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
           await groups.first().click();
