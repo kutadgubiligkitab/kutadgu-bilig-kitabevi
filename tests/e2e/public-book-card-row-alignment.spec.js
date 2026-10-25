@@ -371,41 +371,23 @@ test.describe("public book-card same-row cart alignment", () => {
     }
   });
 
-  test("E homepage premium discovery stays aligned", async ({ page }) => {
-    test.setTimeout(360000);
+  test("E homepage premium discovery stays absent", async ({ page }) => {
     await mockCatalog(page);
-    for (const width of WIDTHS) {
-      await withModes(page, width, async (mode) => {
-        await page.goto("/", { waitUntil: "domcontentloaded" });
-        await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
-        await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-        await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(1);
-        await applyMode(page, mode);
-        const items = await measure(page, "#premiumDiscoveryResults .premium-book-card[data-premium-book-id]", ".premium-card-cart");
-        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
-        await capture(page, "#premiumDiscoveryResults", `public_align_discovery_${width}_${mode}.png`, mode);
-      });
-    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect.poll(async () => page.locator("#bookCategories [data-category-group]").count()).toBeGreaterThan(0);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(4);
   });
 
-  test("F premium wizard results align", async ({ page }) => {
-    test.setTimeout(360000);
+  test("F premium wizard is not constructed", async ({ page }) => {
     await mockCatalog(page);
-    for (const width of WIDTHS) {
-      await withModes(page, width, async (mode) => {
-        await page.goto("/", { waitUntil: "domcontentloaded" });
-        await page.waitForSelector("#premiumWizardOpen", { timeout: 20000 });
-        await page.locator("#premiumWizardOpen").click();
-        await page.locator('#premiumWizard [data-wizard-group]').first().click();
-        await page.locator('#premiumWizard [data-wizard-style="story"]').click();
-        await page.locator('#premiumWizard [data-wizard-price="all"]').click();
-        await expect.poll(async () => page.locator("#premiumWizardResults .premium-book-card").count()).toBeGreaterThan(1);
-        await applyMode(page, mode);
-        const items = await measure(page, "#premiumWizardResults .premium-book-card", ".premium-card-cart");
-        expectAlignedRows(items, { tile: true, clamp: true, requireComparableRow: requireRow(width, 390) });
-        await capture(page, "#premiumWizardResults", `public_align_wizard_${width}_${mode}.png`, mode);
-      });
-    }
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1000);
+    await expect(page.locator("#premiumWizardOpen")).toHaveCount(0);
+    await expect(page.locator("#premiumWizard")).toHaveCount(0);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
   });
 
   test("G search-empty premium recommendations align", async ({ page }) => {

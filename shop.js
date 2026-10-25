@@ -3952,7 +3952,25 @@ function searchEnhance(){
     let panel=document.createElement("div");
     panel.id="advancedSearchPanel";
     panel.className="advanced-search-panel";
+    ensureCompactFilterCss();
     panel.innerHTML=`
+      <div class="advanced-search-toolbar">
+        <div class="advanced-search-field">
+          <label for="searchSort">تەرتىپلەش</label>
+          <select id="searchSort">
+            <option value="relevance">مۇناسىۋەتلىك تەرتىپ</option>
+            <option value="new">يېڭى قوشۇلغان تەرتىپ</option>
+            <option value="title">كىتاب نامى بويىچە</option>
+            <option value="author">ئاپتور بويىچە</option>
+            <option value="priceLow">باھاسى ئەرزاندىن</option>
+            <option value="priceHigh">باھاسى قىممەتتىن</option>
+            <option value="bestseller">كۆپ سېتىلغان تەرتىپ</option>
+            <option value="recommended">تەۋسىيەلىك تەرتىپ</option>
+          </select>
+        </div>
+        <button type="button" class="category-filter-toggle" aria-expanded="false" aria-controls="advancedSearchFilters">سۈزگۈچ</button>
+      </div>
+      <div id="advancedSearchFilters" class="advanced-search-filters" aria-hidden="true">
       <div class="advanced-search-field">
         <label for="searchCategory">كىتاب تۈرى</label>
         <select id="searchCategory"><option value="">بارلىق تۈرلەر</option>${uniqueCategories().map(x=>`<option value="${escapeAttr(x)}">${escapeHtml(x)}</option>`).join("")}</select>
@@ -3969,21 +3987,18 @@ function searchEnhance(){
         <label for="searchMaxPrice">ئەڭ يۇقىرى باھا</label>
         <input id="searchMaxPrice" type="number" min="0" inputmode="numeric" placeholder="مەسىلەن 500 ₺">
       </div>
-      <div class="advanced-search-field">
-        <label for="searchSort">تەرتىپلەش</label>
-        <select id="searchSort">
-          <option value="relevance">مۇناسىۋەتلىك تەرتىپ</option>
-          <option value="new">يېڭى قوشۇلغان تەرتىپ</option>
-          <option value="title">كىتاب نامى بويىچە</option>
-          <option value="author">ئاپتور بويىچە</option>
-          <option value="priceLow">باھاسى ئەرزاندىن</option>
-          <option value="priceHigh">باھاسى قىممەتتىن</option>
-          <option value="bestseller">كۆپ سېتىلغان تەرتىپ</option>
-          <option value="recommended">تەۋسىيەلىك تەرتىپ</option>
-        </select>
-      </div>
-      <button type="button" class="advanced-search-reset" id="searchReset">↺ تازىلاش</button>`;
-    const panelAnchor=document.querySelector(".home-search-quick-links")||box||res;
+      <button type="button" class="advanced-search-reset" id="searchReset">↺ تازىلاش</button>
+      </div>`;
+    panel.querySelector(".category-filter-toggle")?.addEventListener("click",()=>{
+      const mobile=panel.previousElementSibling&&panel.previousElementSibling.classList.contains("mobile-filter-toggle")?panel.previousElementSibling:null;
+      if(mobile){mobile.click();return}
+      const next=!panel.classList.contains("is-open");
+      panel.classList.toggle("is-open",next);
+      panel.classList.toggle("is-collapsed",!next);
+      panel.querySelector(".category-filter-toggle").setAttribute("aria-expanded",next?"true":"false");
+      panel.querySelector("#advancedSearchFilters")?.setAttribute("aria-hidden",next?"false":"true");
+    });
+    const panelAnchor=box||res;
     panelAnchor.insertAdjacentElement("afterend",panel);
   }
   let category=document.querySelector("#searchCategory"),collection=document.querySelector("#searchCollection"),minEl=document.querySelector("#searchMinPrice"),maxEl=document.querySelector("#searchMaxPrice"),sortEl=document.querySelector("#searchSort"),reset=document.querySelector("#searchReset");
@@ -4172,14 +4187,29 @@ function setupCatalogFilters(){
       <div class="adabiyat-hub-count" id="catalogFilterCount"></div>`;
   }else{
     bar.className="catalog-filter-bar";
+    ensureCompactFilterCss();
     bar.innerHTML=`
     <div class="catalog-filter-search"><label for="catalogFilterText">🔎 بۇ بۆلۈمدىن ئىزدەش</label><input id="catalogFilterText" type="search" placeholder="كىتاب ياكى ئاپتور ئىزدەڭ..."></div>
-    <div class="catalog-filter-field"><label for="catalogCollection">تاللانما</label><select id="catalogCollection"><option value="">بارلىق كىتابلار</option><option value="new">يېڭى كەلگەنلەر</option><option value="bestseller">كۆپ سېتىلغانلار</option><option value="recommended">تەۋسىيەلىك</option></select></div>
-    <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
-    <div class="catalog-filter-field"><label for="catalogMaxPrice">ئەڭ يۇقىرى باھا</label><input id="catalogMaxPrice" type="number" min="0" placeholder="500 ₺"></div>
-    <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort">${isGlobalBooks?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى</option>`:""}<option value="relevance">مۇناسىۋەتلىك تەرتىپ</option><option value="new"${isCreditListing?" selected":""}>يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
-    <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
+    <div class="catalog-filter-toolbar">
+      <div class="catalog-filter-field"><label for="catalogSort">تەرتىپلەش</label><select id="catalogSort">${isGlobalBooks?`<option value="discover" selected>بۇ قېتىملىق بايقاش تەرتىپى</option>`:""}<option value="relevance">مۇناسىۋەتلىك تەرتىپ</option><option value="new"${isCreditListing?" selected":""}>يېڭى قوشۇلغان</option><option value="title">كىتاب نامى</option><option value="author">ئاپتور</option><option value="priceLow">ئەرزاندىن قىممەتكە</option><option value="priceHigh">قىممەتتىن ئەرزانغا</option><option value="bestseller">كۆپ سېتىلغان تەرتىپ</option><option value="recommended">تەۋسىيەلىك تەرتىپ</option></select></div>
+      <button type="button" class="category-filter-toggle" aria-expanded="false" aria-controls="catalogFilterExtra">سۈزگۈچ</button>
+    </div>
+    <div id="catalogFilterExtra" class="catalog-filter-extra" aria-hidden="true">
+      <div class="catalog-filter-field"><label for="catalogCollection">تاللانما</label><select id="catalogCollection"><option value="">بارلىق كىتابلار</option><option value="new">يېڭى كەلگەنلەر</option><option value="bestseller">كۆپ سېتىلغانلار</option><option value="recommended">تەۋسىيەلىك</option></select></div>
+      <div class="catalog-filter-field"><label for="catalogMinPrice">ئەڭ تۆۋەن باھا</label><input id="catalogMinPrice" type="number" min="0" placeholder="0 ₺"></div>
+      <div class="catalog-filter-field"><label for="catalogMaxPrice">ئەڭ يۇقىرى باھا</label><input id="catalogMaxPrice" type="number" min="0" placeholder="500 ₺"></div>
+      <button type="button" class="catalog-filter-reset" id="catalogFilterReset">↺ تازىلاش</button>
+    </div>
     <div class="catalog-filter-count" id="catalogFilterCount"></div>`;
+    bar.querySelector(".category-filter-toggle")?.addEventListener("click",()=>{
+      const mobile=bar.previousElementSibling&&bar.previousElementSibling.classList.contains("mobile-filter-toggle")?bar.previousElementSibling:null;
+      if(mobile){mobile.click();return}
+      const next=!bar.classList.contains("is-open");
+      bar.classList.toggle("is-open",next);
+      bar.classList.toggle("is-collapsed",!next);
+      bar.querySelector(".category-filter-toggle").setAttribute("aria-expanded",next?"true":"false");
+      bar.querySelector("#catalogFilterExtra")?.setAttribute("aria-hidden",next?"false":"true");
+    });
   }
   grid.parentElement.insertBefore(bar,grid);
   let controls=document.createElement("div");controls.className="catalog-pagination-controls";grid.insertAdjacentElement("afterend",controls);
@@ -6867,7 +6897,15 @@ function ensureDiscoveryCoverSpaceCss(){
   }
   document.head.appendChild(el);
 }
+function ensureCompactFilterCss(){
+  if(document.getElementById("categoryFilterCritical"))return;
+  const style=document.createElement("style");
+  style.id="categoryFilterCritical";
+  style.textContent=".advanced-search-filters,.catalog-filter-extra{display:none}.advanced-search-panel.is-open .advanced-search-filters,.catalog-filter-bar.is-open .catalog-filter-extra{display:grid}";
+  document.head.appendChild(style);
+}
 function loadPremiumUX(){
+  ensureCompactFilterCss();
   if(!document.querySelector('link[data-kutadgu-premium-ux]')){
     const link=document.createElement("link");link.rel="stylesheet";link.href="/premium-ux.css?v=10";link.dataset.kutadguPremiumUx="1";document.head.appendChild(link);
   }
@@ -6878,8 +6916,9 @@ function loadPremiumUX(){
   ensureDiscoveryCoverSpaceCss();
   return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
     const directory=window.KutadguBookCategories;
-    return directory&&directory.boot?directory.boot():null;
-  }).then(()=>loadAssetScript("/premium-ux.js?v=22","kutadguPremiumUxScript"));
+    const boot=directory&&directory.boot?directory.boot():null;
+    return loadAssetScript("/kutadgu-category-nav.js?v=1","kutadguCategoryNavScript").then(()=>boot);
+  }).then(()=>loadAssetScript("/premium-ux.js?v=23","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;
 function initStaticShell(){

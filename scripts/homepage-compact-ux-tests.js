@@ -125,17 +125,14 @@ test("homepage sections keep ids and put books before category cards", () => {
   const order = pos("orderProcess");
   const about = pos("about");
   const contact = pos("contact");
-  assert.ok(books < carousel && carousel < featured && featured < categories);
+  assert.ok(books < categories && categories < carousel && carousel < featured);
   assert.ok(categories < order && order < about && about < contact);
   assert.doesNotMatch(html, /id="premiumDiscovery"/);
   assert.match(html, /id="searchInput"/);
   assert.match(html, /id="homeCarouselTrack"/);
-  assert.match(html, /href="\/adabiyat"/);
-  assert.match(html, /href="\/dini"/);
-  assert.match(html, /href="\/children"/);
+  assert.match(html, /data-category-nav="1"/);
+  assert.doesNotMatch(html, /home-search-quick-links/);
   assert.doesNotMatch(html, /href="adabiyat.html"/);
-  const catBlock = html.slice(categories, order);
-  assert.doesNotMatch(catBlock, /id="homeFeaturedBooks"/);
   assert.doesNotMatch(html, /id="homeShopSections"/);
 });
 
@@ -206,26 +203,16 @@ test("homepage mobile P1 keeps one working filter toggle and 44px carousel targe
   assert.match(shopCss, /#searchButton\{min-width:92px;min-height:50px/);
 });
 
-test("homepage category last card is centered on phone 2-column and icons are decorative", () => {
+test("homepage category mount is the compact selector, not the card grid", () => {
   const cats = html.slice(html.indexOf('id="bookCategories"'), html.indexOf('id="orderProcess"'));
-  assert.match(cats, /href="\/adabiyat"/);
-  assert.match(cats, /href="\/universal"/);
-  assert.match(cats, /href="\/tibb"/);
-  assert.match(cats, /href="\/derslik"/);
-  assert.match(cats, /href="\/terbiye"/);
-  assert.match(cats, /href="\/dini"/);
-  assert.match(cats, /href="\/children"/);
-  assert.match(cats, /href="\/dictionary"/);
-  assert.match(cats, /href="\/grammar"/);
-  assert.match(cats, /href="\/iqtisad"/);
-  assert.match(cats, />\s*ئىقتىساد\s*</);
-  assert.match(cats, /href="\/taamlar"/);
-  assert.match(cats, />\s*تائاملار\s*</);
-  const icons = cats.match(/<div class="icon"[^>]*>/g) || [];
-  assert.strictEqual(icons.length, 11);
-  icons.forEach((tag) => {
-    assert.match(tag, /aria-hidden="true"/);
-  });
+  assert.match(cats, /class="category-nav"/);
+  assert.doesNotMatch(cats, /class="card"/);
+  assert.doesNotMatch(cats, /<div class="icon"/);
+  const nav = fs.readFileSync(path.join(root, "kutadgu-category-nav.js"), "utf8");
+  for (const slug of ["romanlar", "dini", "derslik", "children", "universal", "dastanlar"]) {
+    if (slug === "dastanlar") assert.doesNotMatch(nav, /slugs:\s*\[[^\]]*dastanlar/);
+    else assert.match(nav, new RegExp(slug));
+  }
   assert.match(css, /#bookCategories \.cards \.card:last-child\{/);
   assert.match(css, /@media \(max-width:700px\)\{[\s\S]*#bookCategories \.cards \.card:last-child\{[\s\S]*grid-column:1 \/ -1 !important/);
   assert.match(css, /#bookCategories \.cards \.card:last-child\{[\s\S]*justify-self:center !important/);

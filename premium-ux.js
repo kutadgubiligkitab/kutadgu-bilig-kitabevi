@@ -279,72 +279,7 @@
   }
 
   function renderDiscovery(){
-    if(!enabled("discovery")||document.querySelector("#premiumDiscovery"))return;
-    const anchor=document.querySelector("#bookCategories")||document.querySelector(".home-search-card-section")||document.querySelector(".home-trust-strip");
-    if(!anchor)return;
-    const groups=(config.discoveryGroups||[]).filter(group=>group?.id&&group?.label);
-    if(!groups.length)return;
-
-    const section=document.createElement("section");
-    section.id="premiumDiscovery";
-    section.className="premium-discovery";
-    section.innerHTML=`
-      <div class="premium-section-heading">
-        <div><span>✨ كىتاب تېپىشنى ئاسانلاشتۇرىمىز</span><h2><span class="premium-discovery-title-desktop">قايسى كىتابنى ئوقۇغىڭىز بار؟</span><span class="premium-discovery-title-mobile">قايسى كىتابنى ئوقۇغىڭىز بار؟</span></h2><p>تۈرنى تاللاڭ؛ سىزگە ئەڭ ماس 4–8 كىتابنى كۆرسىتىمىز.</p></div>
-        ${enabled("smartWizard")?'<button type="button" class="premium-wizard-open" id="premiumWizardOpen" aria-expanded="false">🧭 سىزگە ماس كىتابنى تېپىڭ</button>':""}
-      </div>
-      <div class="premium-discovery-groups" role="group" aria-label="كىتاب تۈرلىرى">
-        ${groups.map((group)=>`<button type="button" class="premium-group-button" data-premium-group="${escapeHtml(group.id)}"><span>${escapeHtml(group.icon||"📚")}</span>${escapeHtml(group.label)}</button>`).join("")}
-      </div>
-      <div class="premium-subcategories" id="premiumSubcategories"></div>
-      <div class="premium-discovery-results" id="premiumDiscoveryResults" aria-live="polite"></div>
-      ${enabled("smartWizard")?wizardMarkup(groups):""}`;
-    anchor.insertAdjacentElement("beforebegin",section);
-
-    const results=section.querySelector("#premiumDiscoveryResults");
-    const subcategories=section.querySelector("#premiumSubcategories");
-    async function showGroup(id,category="",options={}){
-      const group=groups.find(item=>item.id===id)||groups[0];
-      const seq=++discoverySeq;
-      if(discoveryAbort)discoveryAbort.abort();
-      discoveryAbort=typeof AbortController==="function"?new AbortController():null;
-      section.querySelectorAll("[data-premium-group]").forEach(button=>button.classList.toggle("is-active",button.dataset.premiumGroup===group.id));
-      const subNames=(group.categories||[]).map(liveCategoryName).filter(Boolean);
-      subcategories.innerHTML=subNames.map(name=>`<button type="button" data-premium-subcategory="${escapeHtml(name)}" class="${name===category?'is-active':''}">${escapeHtml(name)}</button>`).join("");
-      subcategories.querySelectorAll("[data-premium-subcategory]").forEach(button=>button.onclick=()=>showGroup(group.id,button.dataset.premiumSubcategory));
-      const discoveryKey=group.id+"\n"+(category||"");
-      const previousKey=results.dataset.discoveryKey||"";
-      const previousState=results.dataset.discoveryState||"";
-      const previousHtml=results.innerHTML;
-      const retainDiscovery=previousKey===discoveryKey&&(previousState==="results"||previousState==="empty");
-      results.dataset.discoveryState="loading";
-      results.innerHTML=discoveryResultsLoadingMarkup();
-      try{
-        const names=category?[category]:(group.categories||[]);
-        const list=await queryDiscoveryCategories(names,DISCOVERY_PAGE_SIZE,discoveryAbort&&discoveryAbort.signal,DISCOVERY_PAGE_SIZE,options);
-        if(seq!==discoverySeq)return;
-        const shown=(category?list.filter(book=>matchesSelectedCategory(book,category)):list).slice(0,DISCOVERY_PAGE_SIZE);
-        results.dataset.discoveryKey=discoveryKey;
-        results.dataset.discoveryState=shown.length?"results":"empty";
-        results.innerHTML=shown.length?`<div class="premium-book-grid">${shown.map(compactCard).join("")}</div>`:discoveryEmptyMarkup();
-        bindCards(results);
-      }catch(error){
-        if(seq!==discoverySeq||isAbortError(error))return;
-        if(retainDiscovery){
-          results.dataset.discoveryKey=discoveryKey;
-          results.dataset.discoveryState=previousState;
-          results.innerHTML=previousHtml;
-          bindCards(results);
-          return;
-        }
-        results.dataset.discoveryState="failed";
-        results.innerHTML=discoveryErrorMarkup();
-        results.querySelector("[data-discovery-retry]")?.addEventListener("click",()=>showGroup(group.id,category,{forceRecovery:true}));
-      }
-    }
-    section.querySelectorAll("[data-premium-group]").forEach(button=>button.onclick=()=>showGroup(button.dataset.premiumGroup));
-    results.innerHTML='<div class="premium-friendly-empty">تۈرنى تاللاڭ؛ شۇ تۈردىكى كىتابلار تۆۋەندە كۆرۈنىدۇ.</div>';
-    setupWizard(section,groups);
+    document.querySelector("#premiumDiscovery")?.remove();
   }
 
   function wizardMarkup(groups){
@@ -511,7 +446,10 @@
         if(mobileToggle&&panel.classList.contains("mobile-collapsible")){mobileToggle.click();return}
         const nextOpen=panel.classList.contains("is-collapsed");
         panel.classList.toggle("is-collapsed",!nextOpen);
+        panel.classList.toggle("is-open",nextOpen);
         toggle.setAttribute("aria-expanded",nextOpen?"true":"false");
+        panel.querySelectorAll(".category-filter-toggle").forEach(button=>button.setAttribute("aria-expanded",nextOpen?"true":"false"));
+        panel.querySelectorAll(".advanced-search-filters,.catalog-filter-extra").forEach(extra=>extra.setAttribute("aria-hidden",nextOpen?"false":"true"));
       };
       const chips=document.createElement("div");chips.className="premium-active-filters";panel.after(chips);
       const update=()=>{

@@ -453,13 +453,8 @@ test("listing and discovery keep a matching result and a real empty shelf", asyn
 
   state.catalog = "ok";
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.locator("[data-premium-group='literature']").click();
-  await expect(page.locator("#premiumDiscoveryResults")).toContainText(TITLE);
-  state.catalog = "fail";
-  await page.locator("[data-premium-group='literature']").click();
-  await expect(page.locator("#premiumDiscoveryResults")).toContainText(TITLE);
-  await expect(page.locator("#premiumDiscoveryResults")).toHaveAttribute("data-discovery-state", "results");
-  await expect(page.locator("#premiumDiscoveryResults")).not.toContainText("ۋاقىتلىق خاتالىق");
+  await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
+  await expect(page.locator("#bookCategories")).toBeVisible();
 });
 
 test("a failed load-more keeps the rows and leaves the next page reachable", async ({ page }) => {

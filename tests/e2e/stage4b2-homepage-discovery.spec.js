@@ -266,10 +266,8 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     await expect.poll(async () => page.locator('link[data-kutadgu-premium-cart-row-alignment]').count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#homeFeaturedBooks .home-feature-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
     await expect.poll(async () => page.locator("#newBooksCarousel .home-carousel-card:not(.is-skeleton)").count()).toBeGreaterThan(0);
-    await page.waitForSelector("#premiumDiscovery", { timeout: 20000 });
-    await page.locator("#premiumDiscovery [data-premium-group]").first().click();
-    await expect.poll(async () => page.locator("#premiumDiscoveryResults .premium-book-card[data-premium-book-id] img").count()).toBeGreaterThan(0);
-    await expect(page.locator("#premiumDiscoveryResults .premium-discovery-pending")).toHaveCount(0);
+    await expect.poll(async () => page.locator("#bookCategories [data-category-group]").count()).toBeGreaterThan(0);
+    await expect(page.locator("#premiumDiscovery")).toHaveCount(0);
   }
 
   function expectType(geo, tokens, width) {
@@ -295,10 +293,9 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     }
   }
 
-  function expectDiscoveryChrome(featured, carousel, premium, tokens, width) {
+  function expectDiscoveryChrome(featured, carousel, tokens, width) {
     expectType(featured, tokens, width);
     expectType(carousel, tokens, width);
-    expectType(premium, tokens, width);
     if (width >= 1366) {
       expect(featured.cartW).toBeGreaterThan(48);
       expect(carousel.cartW).toBeGreaterThan(48);
@@ -312,9 +309,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     }
     expect(featured.cartFullWidth).toBeFalsy();
     expect(carousel.cartFullWidth).toBeFalsy();
-    expect(premium.cartFullWidth).toBeTruthy();
     expect(carousel.heightCss).not.toBe("100%");
-    expect(premium.heightCss).not.toBe("100%");
   }
 
   async function enableDarkMode(page) {
@@ -333,7 +328,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     const shots = [
       ["#homeFeaturedBooks", `stage4b2_featured_${width}_${mode}.png`],
       ["#newBooksCarousel", `stage4b2_carousel_${width}_${mode}.png`],
-      ["#premiumDiscovery", `stage4b2_premium_${width}_${mode}.png`]
+      ["#bookCategories", `stage4b2_categories_${width}_${mode}.png`]
     ];
     for (const [sel, name] of shots) {
       await page.locator(sel).scrollIntoViewIfNeeded();
@@ -358,8 +353,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       const tokens = await page.evaluate(tokenProbe());
       const featured = await page.evaluate(familyMetrics(), "featured");
       const carousel = await page.evaluate(familyMetrics(), "carousel");
-      const premium = await page.evaluate(familyMetrics(), "premium");
-      expectDiscoveryChrome(featured, carousel, premium, tokens, width);
+      expectDiscoveryChrome(featured, carousel, tokens, width);
     });
   }
 
@@ -370,8 +364,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       const tokens = await page.evaluate(tokenProbe());
       const featured = await page.evaluate(familyMetrics(), "featured");
       const carousel = await page.evaluate(familyMetrics(), "carousel");
-      const premium = await page.evaluate(familyMetrics(), "premium");
-      expectDiscoveryChrome(featured, carousel, premium, tokens, width);
+      expectDiscoveryChrome(featured, carousel, tokens, width);
     });
   }
 
@@ -404,13 +397,13 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
 
   function premiumRowMetrics() {
     return () => {
-      const cards = [...document.querySelectorAll("#premiumDiscoveryResults .premium-book-card[data-premium-book-id]")];
+      const cards = [...document.querySelectorAll("#newBooksCarousel .home-carousel-card:not(.is-skeleton)")];
       return cards.map((card) => {
-        const cover = card.querySelector(".premium-card-cover");
+        const cover = card.querySelector(".home-carousel-cover");
         const img = cover && cover.querySelector("img");
-        const title = card.querySelector(".premium-card-link strong");
-        const afterCover = card.querySelector(".premium-card-badges") || title;
-        const cart = card.querySelector(".premium-card-cart");
+        const title = card.querySelector(".home-carousel-title");
+        const afterCover = title;
+        const cart = card.querySelector(".home-carousel-cart");
         const coverBox = cover ? cover.getBoundingClientRect() : { bottom: 0 };
         const nextBox = afterCover ? afterCover.getBoundingClientRect() : { top: 0 };
         const cartBox = cart ? cart.getBoundingClientRect() : { bottom: 0, width: 0 };
@@ -456,8 +449,7 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
       expect(item.overflowX).toBeLessThanOrEqual(2);
       expect(item.heightCss).not.toBe("100%");
       expect(item.heightSpecified).not.toBe("100%");
-      expect(item.cartFullWidth).toBeTruthy();
-      expect(item.titleClamp === "2" || item.titleClamp === "2.0").toBeTruthy();
+      expect(item.cartFullWidth).toBeFalsy();
       expect(item.hasInStockLabel).toBeFalsy();
       expect(item.exactQty).toBeFalsy();
     }
@@ -473,8 +465,8 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   async function captureAlignedCarts(page, width, mode, outDir) {
     const dirs = [...new Set([outDir, "/tmp/stage4b2-screens", "/tmp/premium-cart-row-screens"])];
     for (const dir of dirs) fs.mkdirSync(dir, { recursive: true });
-    await page.locator("#premiumDiscoveryResults").scrollIntoViewIfNeeded();
-    const buf = await page.locator("#premiumDiscoveryResults").screenshot({ animations: "disabled", timeout: 15000 });
+    await page.locator("#newBooksCarousel").scrollIntoViewIfNeeded();
+    const buf = await page.locator("#newBooksCarousel").screenshot({ animations: "disabled", timeout: 15000 });
     const name = `premium_cart_row_alignment_${width}_${mode}.png`;
     let wrote = false;
     let lastErr = null;

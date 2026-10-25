@@ -52,9 +52,9 @@
 <script defer src="supabase-config.js?v=22"></script>
 <script defer src="catalog.js?v=1"></script>
 <script defer src="kutadgu-analytics-core.js?v=5"></script><script defer src="/posthog-config.js?v=1"></script><script defer src="/posthog-analytics.js?v=1"></script><script defer src="analytics.js?v=12"></script>
-<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=3"></script><script defer src="kutadgu-book-seo.js?v=6"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=6"></script><script defer src="kutadgu-search-rank.js?v=1"></script><script defer src="shop.js?v=180"></script>
+<script defer src="legacy-id-utils.js?v=5"></script><script defer src="catalog-visibility.js?v=3"></script><script defer src="catalog-bibliography.js?v=3"></script><script defer src="kutadgu-book-seo.js?v=6"></script><script defer src="kutadgu-safe-url.js?v=1"></script><script defer src="public-header.js?v=6"></script><script defer src="kutadgu-search-rank.js?v=1"></script><script defer src="shop.js?v=181"></script>
 <script defer src="kutadgu-ai-search-ui.js?v=2"></script>
-<script defer src="mobile.js?v=10"></script>
+<script defer src="mobile.js?v=11"></script>
 <script defer src="home-hero-slideshow.js?v=4"></script>
 <script defer src="home-hero-content.js?v=3"></script>
 <script defer src="home-about-content.js?v=1"></script>
@@ -185,19 +185,12 @@
             <button type="button" id="aiSearchButton" class="ai-search-button" hidden aria-label="AI ئىزدەش"><span aria-hidden="true">✨</span> <span class="ai-search-button-label">AI ئىزدەش</span></button>
         </div>
 
-        <nav class="home-search-quick-links" aria-label="تېز كىتاب تۈرلىرى">
-            <span>تېز تاللاش:</span>
-            <a href="/dini">دىنىي</a>
-            <a href="/tarikhiy-romanlar">تارىخ</a>
-            <a href="/adabiyat">ئەدەبىيات</a>
-            <a href="/children">بالىلار</a>
-            <a href="#homeFeaturedBooks">يېقىندا قوشۇلغانلار</a>
-        </nav>
-
         <div id="aiSearchResults" class="ai-search-results" hidden aria-live="polite"></div>
         <div id="searchResults" class="search-results" aria-live="polite"></div>
     </div>
 </section>
+
+<nav id="bookCategories" class="category-nav" data-category-nav="1" aria-label="كىتاب تۈرلىرى"></nav>
 
 <!-- =========================
      يېڭى كەلگەن كىتابلار — Auto Carousel
@@ -255,237 +248,6 @@
     </section>
 </div>
 
-
-<!-- =========================
-     BOOK CATEGORIES
-========================= -->
-
-<section class="section home-main-section" id="bookCategories">
-
-    <div class="home-category-heading">
-        <div class="home-heading-icon" aria-hidden="true">📚</div>
-        <div>
-            <h2>كىتاب تۈرلىرى</h2>
-            <p>ئۆزىڭىزگە ماس بۆلەكنى تاللاپ كىتابلارنى كۆرۈڭ.</p>
-        </div>
-    </div>
-
-
-    <div class="cards">
-
-
-        <!-- ئەدەبىيات -->
-
-        <a href="/adabiyat" class="card">
-
-            <div class="icon" aria-hidden="true">
-                📖
-            </div>
-
-            <h3>
-                ئەدەبىيات
-            </h3>
-
-            <p>
-                ئەدەبى ئەسەرلەر، رومان ۋە ھېكايىلەر.
-            </p>
-
-        </a>
-
-
-        <!-- ئۇنىۋېرسال ئەسەرلەر -->
-
-        <a href="/universal" class="card">
-
-            <div class="icon" aria-hidden="true">
-                📚
-            </div>
-
-            <h3>
-                ئۇنىۋېرسال ئەسەرلەر
-            </h3>
-
-            <p>
-                ھەر خىل ساھەلەرگە مۇناسىۋەتلىك كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- تېبابەت -->
-
-        <a href="/tibb" class="card">
-
-            <div class="icon" aria-hidden="true">
-                🩺
-            </div>
-
-            <h3>
-                تېبابەت ۋە ساغلاملىق
-            </h3>
-
-            <p>
-                تېبابەت، ساغلاملىق ۋە پەرۋىش ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- دەرسلىك -->
-
-        <a href="/derslik" class="card">
-
-            <div class="icon" aria-hidden="true">
-                📘
-            </div>
-
-            <h3>
-                دەرسلىك كىتابلار
-            </h3>
-
-            <p>
-                ئوقۇغۇچىلار ۋە ئوقۇتقۇچىلار ئۈچۈن دەرسلىك كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- پەرزەنت تەربىيەسى -->
-
-        <a href="/terbiye" class="card">
-
-            <div class="icon" aria-hidden="true">
-                👨‍👩‍👧‍👦
-            </div>
-
-            <h3>
-                پەرزەنت تەربىيەسى
-            </h3>
-
-            <p>
-                پەرزەنت تەربىيەسى ۋە ئائىلە ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- دىنىي -->
-
-        <a href="/dini" class="card">
-
-            <div class="icon" aria-hidden="true">
-                🕌
-            </div>
-
-            <h3>
-                دىنىي كىتابلار
-            </h3>
-
-            <p>
-                ئىسلام دىنى، قۇرئان، ھەدىس ۋە ئەخلاق ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- بالىلار -->
-
-        <a href="/children" class="card">
-
-            <div class="icon" aria-hidden="true">
-                🧒
-            </div>
-
-            <h3>
-                بالىلار كىتابلىرى
-            </h3>
-
-            <p>
-                بالىلار ئۈچۈن تەييارلانغان ھەر خىل كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- لۇغەت -->
-
-        <a href="/dictionary" class="card">
-
-            <div class="icon" aria-hidden="true">
-                📗
-            </div>
-
-            <h3>
-                لۇغەت
-            </h3>
-
-            <p>
-                تىل ۋە سۆزلۈك لۇغەتلىرى.
-            </p>
-
-        </a>
-
-
-        <!-- گرامماتىكا -->
-
-        <a href="/grammar" class="card">
-
-            <div class="icon" aria-hidden="true">
-                📝
-            </div>
-
-            <h3>
-                گرامماتىكا
-            </h3>
-
-            <p>
-                تىل گرامماتىكىسى ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- ئىقتىساد -->
-
-        <a href="/iqtisad" class="card">
-
-            <div class="icon" aria-hidden="true">
-                💹
-            </div>
-
-            <h3>
-                ئىقتىساد
-            </h3>
-
-            <p>
-                ئىقتىساد ۋە سودا ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-        <!-- تائاملار -->
-
-        <a href="/taamlar" class="card">
-
-            <div class="icon" aria-hidden="true">
-                🍲
-            </div>
-
-            <h3>
-                تائاملار
-            </h3>
-
-            <p>
-                تائام ۋە ئاشپەزلىك ھەققىدىكى كىتابلار.
-            </p>
-
-        </a>
-
-
-    </div>
-
-</section>
 
 <section class="home-trust-order" id="orderProcess" aria-labelledby="orderProcessTitle">
     <div class="home-order-process">
