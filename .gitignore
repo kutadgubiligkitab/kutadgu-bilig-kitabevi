@@ -1,5 +1,6 @@
 node_modules/
 test-results/
+artifacts/cover-variants/local/
 playwright-report/
 playwright/.cache/
 blob-report/

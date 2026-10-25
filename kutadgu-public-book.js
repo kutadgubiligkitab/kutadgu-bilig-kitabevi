@@ -7,6 +7,7 @@ const bib = require("./catalog-bibliography.js");
 const credits = require("./catalog-credits.js");
 const stock = require("./kutadgu-stock.js");
 const coverVariants = require("./kutadgu-cover-variants.js");
+coverVariants.useAvailability(require("./data/cover-variant-availability.json"));
 const { bookCanonicalUrl } = seo;
 
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";

@@ -12,11 +12,13 @@
   const THUMB_SIZES = "48px";
   const CART_SIZES = "108px";
 
+  let published = { version: VERSION, sources: {} };
+
   function deliverySourceKey(objectKey){
     const key = String(objectKey || "").replace(/^\/+/, "");
-    if (!key || key.length > 420 || key.indexOf("..") !== -1 || key.indexOf("\\") !== -1 || key.indexOf("%") !== -1) return "";
+    if (!key || key.length > 460 || key.indexOf("..") !== -1 || key.indexOf("\\") !== -1 || key.indexOf("%") !== -1) return "";
     if (!/^book-covers\/[A-Za-z0-9._/-]+$/.test(key)) return "";
-    if (/^book-covers\/(?:hero|variants)\//.test(key)) return "";
+    if (/^book-covers\/(?:hero|variants)\//.test(key) || key.indexOf("/variants/") !== -1) return "";
     if (/\.(?:gif|svg)$/i.test(key)) return "";
     return key;
   }
@@ -42,9 +44,18 @@
     const key = deliverySourceKey(objectKey);
     const target = Number(width);
     if (!key || WIDTHS.indexOf(target) < 0) return "";
-    const rest = key.slice("book-covers/".length).replace(/\.[A-Za-z0-9]+$/, "");
+    const rest = key.slice("book-covers/".length);
     if (!rest || rest.indexOf("..") !== -1) return "";
+    const staff = rest.match(/^staff\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i);
+    if (staff) return "book-covers/staff/" + staff[1] + "/variants/" + VERSION + "/w" + target + "/" + staff[2] + ".webp";
+    if (rest.indexOf("staff/") === 0) return "";
     return "book-covers/variants/" + VERSION + "/w" + target + "/" + rest + ".webp";
+  }
+
+  function publicUrlForKey(objectKey){
+    const key = String(objectKey || "").replace(/^\/+/, "");
+    if (!key || key.indexOf("..") !== -1 || key.indexOf("\\") !== -1 || !/^book-covers\/[A-Za-z0-9._/-]+$/.test(key)) return "";
+    return CANONICAL_ORIGIN + "/__r2/" + key.split("/").map(encodeURIComponent).join("/");
   }
 
   function variantUrl(coverUrl, width){
@@ -56,16 +67,45 @@
 
   function eligibleWidths(sourceWidth){
     const width = Number(sourceWidth);
-    if (!Number.isFinite(width) || width <= 0) return WIDTHS.slice();
+    if (!Number.isFinite(width) || width <= 0) return [];
     return WIDTHS.filter(function(target){ return target < width; });
   }
 
-  function srcsetFor(coverUrl){
+  function useAvailability(data){
+    const sources = data && data.sources && typeof data.sources === "object" ? data.sources : {};
+    published = { version: VERSION, sources: sources };
+    return published;
+  }
+
+  function sourceRecord(coverUrl){
     const key = objectKeyFromCoverUrl(coverUrl);
-    if (!key) return "";
-    return WIDTHS.map(function(width){
-      return variantUrl(coverUrl, width) + " " + width + "w";
+    const record = key && published.sources ? published.sources[key] : null;
+    return record && typeof record === "object" ? { key: key, record: record } : null;
+  }
+
+  function srcsetFor(coverUrl){
+    const found = sourceRecord(coverUrl);
+    if (!found) return "";
+    const sourceWidth = Number(found.record.width);
+    const variants = Array.isArray(found.record.variants) ? found.record.variants : [];
+    return variants.filter(function(item){
+      const width = Number(item && item.width);
+      return WIDTHS.indexOf(width) >= 0 && sourceWidth > width && item.key === variantObjectKey(found.key, width);
+    }).map(function(item){
+      return publicUrlForKey(item.key) + " " + Number(item.width) + "w";
     }).join(", ");
+  }
+
+  function recordAvailable(sourceKey, sourceWidth, sourceHeight, variant){
+    const key = deliverySourceKey(sourceKey);
+    const width = Number(variant && variant.width);
+    const expected = variantObjectKey(key, width);
+    if (!key || !expected || expected !== String(variant && variant.key || "") || !(Number(sourceWidth) > width)) return false;
+    const current = published.sources[key] && typeof published.sources[key] === "object" ? published.sources[key] : { variants: [] };
+    const variants = (Array.isArray(current.variants) ? current.variants : []).filter(function(item){ return Number(item.width) !== width; });
+    variants.push({ width: width, height: Number(variant.height) || 0, bytes: Number(variant.bytes) || 0, key: expected });
+    published.sources[key] = { width: Number(sourceWidth), height: Number(sourceHeight) || 0, variants: variants };
+    return true;
   }
 
   function deliveryAttributes(coverUrl, sizes){
@@ -98,10 +138,28 @@
     }
   }
 
+  function isAnimatedImage(bytes, type){
+    const mime = String(type || "").toLowerCase();
+    if (mime === "image/gif" || mime === "image/svg+xml") return true;
+    const list = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if (list.length >= 6 && list[0] === 0x47 && list[1] === 0x49 && list[2] === 0x46) return true;
+    let text = "";
+    const limit = Math.min(list.length, 512000);
+    for (let i = 0; i < limit; i++) text += String.fromCharCode(list[i]);
+    if (text.indexOf("WEBP") >= 0 && (text.indexOf("ANIM") >= 0 || text.indexOf("ANMF") >= 0)) return true;
+    if (list.length >= 8 && list[0] === 0x89 && list[1] === 0x50 && text.indexOf("acTL") >= 0) return true;
+    return false;
+  }
+
   async function encodeDeliveryVariants(source){
     if (!source || typeof document === "undefined" || typeof createImageBitmap !== "function") return [];
     const type = String(source.type || "").toLowerCase();
     if (type === "image/gif" || type === "image/svg+xml") return [];
+    if (typeof source.arrayBuffer === "function") {
+      try {
+        if (isAnimatedImage(new Uint8Array(await source.arrayBuffer()), type)) return [];
+      } catch (error) { return []; }
+    }
     let bitmap;
     try { bitmap = await createImageBitmap(source); }
     catch (error) { return []; }
@@ -133,7 +191,7 @@
           catch (error) { kept = false; }
           if (!kept) continue;
         }
-        variants.push({ width: width, height: height, type: "image/webp", body: await blob.arrayBuffer(), bytes: blob.size });
+        variants.push({ width: width, height: height, sourceWidth: bitmap.width, sourceHeight: bitmap.height, type: "image/webp", body: await blob.arrayBuffer(), bytes: blob.size });
       }
       return variants;
     } finally {
@@ -154,10 +212,12 @@
       variants: widths.map(function(width){
         return { width: width, key: variantObjectKey(key, width), url: variantUrl(source.url || (CANONICAL_ORIGIN + "/__r2/" + key), width) };
       }),
-      skip: reason || (Number.isFinite(knownWidth) && knownWidth > 0 && !widths.length ? "not-larger-than-variant" : "")
+      skip: reason || (!Number.isFinite(knownWidth) || knownWidth <= 0 ? "dimensions-unknown" : (!widths.length ? "not-larger-than-variant" : ""))
     };
   }
 
+  const host = typeof globalThis !== "undefined" ? globalThis : {};
+  if (host.KutadguCoverAvailability) useAvailability(host.KutadguCoverAvailability);
   return {
     CANONICAL_ORIGIN: CANONICAL_ORIGIN,
     VERSION: VERSION,
@@ -171,7 +231,11 @@
     objectKeyFromCoverUrl: objectKeyFromCoverUrl,
     variantObjectKey: variantObjectKey,
     variantUrl: variantUrl,
+    publicUrlForKey: publicUrlForKey,
     eligibleWidths: eligibleWidths,
+    useAvailability: useAvailability,
+    recordAvailable: recordAvailable,
+    isAnimatedImage: isAnimatedImage,
     srcsetFor: srcsetFor,
     deliveryAttributes: deliveryAttributes,
     encodeDeliveryVariants: encodeDeliveryVariants,

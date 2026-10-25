@@ -6,7 +6,7 @@
     960
   ],
   "quality": 0.82,
-  "generatedAt": "2026-10-25T20:14:54.850Z",
+  "generatedAt": "2026-10-25T20:53:51.618Z",
   "count": 5,
   "uploadCount": 2,
   "plans": [
@@ -20,13 +20,13 @@
       "variants": [
         {
           "width": 480,
-          "key": "book-covers/variants/v1/w480/311/cover.webp",
-          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w480/311/cover.webp"
+          "key": "book-covers/variants/v1/w480/311/cover.webp.webp",
+          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w480/311/cover.webp.webp"
         },
         {
           "width": 960,
-          "key": "book-covers/variants/v1/w960/311/cover.webp",
-          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w960/311/cover.webp"
+          "key": "book-covers/variants/v1/w960/311/cover.webp.webp",
+          "url": "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w960/311/cover.webp.webp"
         }
       ],
       "skip": ""

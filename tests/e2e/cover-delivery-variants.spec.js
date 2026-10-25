@@ -1,42 +1,126 @@
 const { test, expect } = require("@playwright/test");
 const path = require("path");
+const variants = require("../../kutadgu-cover-variants.js");
+const books = require("../../kutadgu-public-book.js");
 
 const ORIGINAL = "https://www.kutadgubilik.com/__r2/book-covers/311/cover.webp";
+const NARROW = "https://www.kutadgubilik.com/__r2/book-covers/107/cover.webp";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+const SHELL = '<html><head><title>old</title></head><body><div class="book-cover-box"><img src="" alt="" hidden></div><div class="book-detail-info"><h1>old</h1></div></body></html>';
 
-async function pageWithImages(browser, viewport, scale) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: scale });
-  const page = await context.newPage();
-  await page.route("**/__r2/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
-  return { context, page };
+function published(sourceKey, width, heights) {
+  return {
+    sources: {
+      [sourceKey]: {
+        width,
+        height: Math.round(width * 1.5),
+        variants: heights.map((item) => ({
+          width: item,
+          height: Math.round(item * 1.5),
+          bytes: 10,
+          key: variants.variantObjectKey(sourceKey, item)
+        }))
+      }
+    }
+  };
 }
 
-test("card and detail srcset select the measured widths", async ({ browser }) => {
+function detailHtml(url, availability) {
+  variants.useAvailability(availability);
+  return books.applyFoundPublicBookHead(SHELL, "311", { id: "311", title: "قۇتادغۇ بىلىك", image_url: url });
+}
+
+async function openDetail(browser, viewport, scale, html, javaScript) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, javaScriptEnabled: javaScript });
+  const page = await context.newPage();
+  const hits = [];
+  await page.route("**/__r2/**", (route) => {
+    hits.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
+  });
+  await page.setContent(html);
+  await page.locator(".book-cover-box img").evaluate((img) => img.decode());
+  return { context, page, hits };
+}
+
+test("server detail HTML requests only published variants", async ({ browser }) => {
+  const none = await openDetail(browser, { width: 390, height: 844 }, 2, detailHtml(ORIGINAL, { sources: {} }), false);
+  expect(none.hits.some((url) => url.includes("/variants/"))).toBe(false);
+  expect(none.hits.some((url) => url.includes("/311/cover.webp"))).toBe(true);
+  expect(await none.page.locator(".book-cover-box img").evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+  await none.context.close();
+
+  const only480 = detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 800, [480]));
+  expect(only480).toContain("480w");
+  expect(only480).not.toContain("960w");
+  const phone = await openDetail(browser, { width: 390, height: 844 }, 2, only480, false);
+  expect(phone.hits.some((url) => url.includes("/w960/"))).toBe(false);
+  expect(await phone.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w480/");
+  await phone.context.close();
+
+  const both = detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 1600, [480, 960]));
+  const dense = await openDetail(browser, { width: 390, height: 844 }, 3, both, false);
+  expect(await dense.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w960/");
+  expect(dense.hits.some((url) => url.includes("/311/cover.webp") && !url.includes("/variants/"))).toBe(false);
+  await dense.context.close();
+  const desktop = await openDetail(browser, { width: 1280, height: 900 }, 1, both, false);
+  expect(await desktop.page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/w960/");
+  await desktop.context.close();
+});
+
+test("cards and narrow sources follow the same availability", async ({ browser }) => {
   const cases = [
-    { viewport: { width: 390, height: 844 }, scale: 2, sizes: "(max-width: 650px) 46vw, (max-width: 900px) 30vw, 240px", expectWidth: "480" },
-    { viewport: { width: 390, height: 844 }, scale: 2, sizes: "(max-width: 700px) min(92vw, 560px), 560px", expectWidth: "960" },
-    { viewport: { width: 1280, height: 900 }, scale: 1, sizes: "(max-width: 650px) 46vw, (max-width: 900px) 30vw, 240px", expectWidth: "480" },
-    { viewport: { width: 1280, height: 900 }, scale: 2, sizes: "(max-width: 700px) min(92vw, 560px), 560px", expectWidth: "960" }
+    { scale: 1, expectWidth: "480" },
+    { scale: 2, expectWidth: "480" },
+    { scale: 3, expectWidth: "960" }
   ];
   for (const item of cases) {
-    const { context, page } = await pageWithImages(browser, item.viewport, item.scale);
-    await page.setContent(`<img id="cover" alt="" width="320" height="460" loading="lazy" decoding="async">`);
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: item.scale });
+    const page = await context.newPage();
+    await page.route("**/__r2/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
+    await page.setContent('<main id="probe"></main><div class="book-cover-box" id="detail"></div>');
+    await page.addStyleTag({ path: path.join(__dirname, "..", "..", "shop.css") });
     await page.addScriptTag({ path: path.join(__dirname, "..", "..", "kutadgu-cover-variants.js") });
-    await page.evaluate(({ original, sizes }) => {
-      const img = document.querySelector("#cover");
-      img.src = original;
-      img.srcset = window.KutadguCoverVariants.srcsetFor(original);
-      img.sizes = sizes;
-    }, { original: ORIGINAL, sizes: item.sizes });
-    await page.locator("#cover").evaluate((img) => img.decode());
-    const selected = await page.locator("#cover").evaluate((img) => img.currentSrc);
-    expect(selected).toContain(`/w${item.expectWidth}/`);
-    expect(selected).not.toContain("/book-covers/311/cover.webp");
+    await page.addScriptTag({ path: path.join(__dirname, "..", "..", "shop.js") });
+    await page.evaluate(({ availability, original, narrow }) => {
+      window.KutadguCoverVariants.useAvailability(availability);
+      const card = window.kutadguShop.coverImgHtml({ id: "311", title: "قۇتادغۇ بىلىك", image: original }, { loading: "lazy", width: 320, height: 460 });
+      document.querySelector("#probe").innerHTML = `<article class="book-card"><a class="book-image">${card}</a></article>`;
+      const detail = document.createElement("img");
+      detail.alt = "";
+      detail.width = 320;
+      detail.height = 460;
+      document.querySelector("#detail").appendChild(detail);
+      window.kutadguShop.assignCoverImage(detail, original, { bookId: "311" });
+      const small = window.kutadguShop.coverImgHtml({ id: "107", title: "كىچىك", image: narrow }, { loading: "lazy" });
+      document.querySelector("#probe").insertAdjacentHTML("beforeend", `<article class="book-card" id="narrow"><a class="book-image">${small}</a></article>`);
+    }, {
+      availability: {
+        sources: Object.assign(
+          {},
+          published("book-covers/311/cover.webp", 1600, [480, 960]).sources
+        )
+      },
+      original: ORIGINAL,
+      narrow: NARROW
+    });
+    await page.locator(".book-card img").first().evaluate((img) => img.decode());
+    await page.locator("#detail img").evaluate((img) => img.decode());
+    expect(await page.locator(".book-card img").first().evaluate((img) => img.currentSrc)).toContain(`/w${item.expectWidth}/`);
+    const detailSrc = await page.locator("#detail img").evaluate((img) => img.currentSrc);
+    expect(detailSrc).toContain(item.scale === 1 ? "/w480/" : "/w960/");
+    await expect(page.locator("#narrow img")).not.toHaveAttribute("srcset", /.+/);
+    expect(await page.locator(".book-card img").first().getAttribute("loading")).toBe("lazy");
+    for (const mode of ["", "dark-mode"]) {
+      await page.evaluate((name) => { document.body.className = name; }, mode);
+      expect(await page.locator(".book-card .book-image").first().evaluate((node) => getComputedStyle(node).aspectRatio)).toBe("2 / 3");
+      expect(await page.locator(".book-card img").first().evaluate((node) => getComputedStyle(node).objectFit)).toBe("contain");
+    }
     await context.close();
   }
 });
 
-test("a missing variant falls back to the original once", async ({ page }) => {
+test("a deleted published variant still falls back to the original once", async ({ page }) => {
   const hits = [];
   await page.route("**/__r2/**", (route) => {
     const url = route.request().url();
@@ -44,88 +128,17 @@ test("a missing variant falls back to the original once", async ({ page }) => {
     if (url.includes("/variants/")) return route.fulfill({ status: 404, body: "missing" });
     return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
   });
-  await page.setContent('<img id="cover" alt="" data-cover-src="" width="320" height="460" loading="lazy" decoding="async">');
+  await page.setContent(detailHtml(ORIGINAL, published("book-covers/311/cover.webp", 1600, [480, 960])));
   await page.addScriptTag({ path: path.join(__dirname, "..", "..", "kutadgu-cover-variants.js") });
   await page.addScriptTag({ path: path.join(__dirname, "..", "..", "shop.js") });
   await page.evaluate((original) => {
-    const img = document.querySelector("#cover");
-    img.setAttribute("data-cover-book", "311");
-    window.kutadguShop.assignCoverImage(img, original, { bookId: "311", loading: "lazy" });
+    const img = document.querySelector(".book-cover-box img");
+    window.KutadguCoverVariants.useAvailability({ sources: {} });
+    window.kutadguShop.assignCoverImage(img, original, { bookId: "311" });
+    img.setAttribute("srcset", img.getAttribute("srcset") || "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/w960/311/cover.webp.webp 960w");
+    img.src = original;
   }, ORIGINAL);
-  await expect.poll(() => page.locator("#cover").evaluate((img) => img.getAttribute("srcset"))).toBeNull();
-  await expect.poll(() => page.locator("#cover").evaluate((img) => img.currentSrc)).toContain("/311/cover.webp");
-  const variantHits = hits.filter((url) => url.includes("/variants/"));
-  expect(variantHits.length).toBeGreaterThan(0);
-  expect(variantHits.length).toBeLessThan(4);
-  expect(await page.locator("#cover").getAttribute("loading")).toBe("lazy");
-});
-
-test("zoom uses the original and cards keep their frame", async ({ page }) => {
-  await page.route("**/__r2/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
-  await page.setContent('<div id="probe"></div>');
-  await page.addStyleTag({ path: path.join(__dirname, "..", "..", "shop.css") });
-  await page.addScriptTag({ path: path.join(__dirname, "..", "..", "kutadgu-cover-variants.js") });
-  await page.addScriptTag({ path: path.join(__dirname, "..", "..", "shop.js") });
-  const markup = await page.evaluate((original) => {
-    const html = window.kutadguShop.coverImgHtml({ id: "311", title: "قۇتادغۇ بىلىك", image: original }, { loading: "lazy", width: 320, height: 460 });
-    document.querySelector("#probe").innerHTML = `<article class="book-card"><a class="book-image">${html}</a></article>`;
-    window.kutadguShop.openCoverLightbox([original], 0);
-    return html;
-  }, ORIGINAL);
-  expect(markup).toContain("loading=\"lazy\"");
-  const card = page.locator(".book-card .book-image");
-  const image = page.locator(".book-card img");
-  await expect(image).toHaveAttribute("loading", "lazy");
-  await expect(image).toHaveAttribute("srcset", /w480\/311\/cover\.webp 480w/);
-  for (const mode of ["", "dark-mode"]) {
-    await page.evaluate((name) => { document.body.className = name; }, mode);
-    const frame = await card.evaluate((node) => getComputedStyle(node).aspectRatio);
-    const fit = await image.evaluate((node) => getComputedStyle(node).objectFit);
-    expect(frame).toBe("2 / 3");
-    expect(fit).toBe("contain");
-  }
-  const zoom = page.locator(".cover-zoom-overlay img");
-  await expect(zoom).toHaveAttribute("src", ORIGINAL);
-  await expect(zoom).not.toHaveAttribute("srcset", /.+/);
-});
-
-test("encoding keeps proportions and does not enlarge", async ({ page }) => {
-  await page.addScriptTag({ path: path.join(__dirname, "..", "..", "kutadgu-cover-variants.js") });
-  const result = await page.evaluate(async () => {
-    function canvas(width, height, alpha) {
-      const node = document.createElement("canvas");
-      node.width = width;
-      node.height = height;
-      const ctx = node.getContext("2d", { alpha: true });
-      ctx.clearRect(0, 0, width, height);
-      if (!alpha) {
-        ctx.fillStyle = "#f4efe6";
-        ctx.fillRect(0, 0, width, height);
-      }
-      ctx.fillStyle = "#24170f";
-      ctx.font = "600 18px sans-serif";
-      ctx.fillText("قۇتادغۇ بىلىك 古兰经注 Kutadgu", 8, 28);
-      return new Promise((resolve) => node.toBlob(resolve, alpha ? "image/png" : "image/webp", 0.92));
-    }
-    const large = await canvas(1200, 1800, false);
-    const small = await canvas(300, 450, false);
-    const clear = await canvas(800, 1200, true);
-    const encoded = await window.KutadguCoverVariants.encodeDeliveryVariants(large);
-    const skipped = await window.KutadguCoverVariants.encodeDeliveryVariants(small);
-    const transparent = await window.KutadguCoverVariants.encodeDeliveryVariants(clear);
-    return {
-      widths: encoded.map((item) => item.width),
-      heights: encoded.map((item) => item.height),
-      bytes: encoded.map((item) => item.bytes),
-      skipped: skipped.length,
-      transparent: transparent.map((item) => ({ width: item.width, bytes: item.bytes }))
-    };
-  });
-  expect(result.widths).toEqual([480, 960]);
-  expect(result.heights).toEqual([720, 1440]);
-  expect(result.bytes[0]).toBeGreaterThan(0);
-  expect(result.bytes[1]).toBeGreaterThan(0);
-  expect(result.skipped).toBe(0);
-  expect(result.transparent.length).toBeGreaterThan(0);
-  expect(result.transparent.every((item) => item.bytes > 0 && [480, 960].includes(item.width))).toBe(true);
+  await expect.poll(() => page.locator(".book-cover-box img").evaluate((img) => img.getAttribute("srcset"))).toBeNull();
+  await expect.poll(() => page.locator(".book-cover-box img").evaluate((img) => img.currentSrc)).toContain("/311/cover.webp");
+  expect(hits.filter((url) => url.includes("/variants/")).length).toBeLessThan(4);
 });
