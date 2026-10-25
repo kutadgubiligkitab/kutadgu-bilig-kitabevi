@@ -4905,7 +4905,7 @@ function cartPage(){
         </div>
       </div>
     </div>`;
-  }).join("")+(unsupportedSets.length?`<div class="cart-stock-block-note" role="alert">بۇ سېۋەتتە توربەتنىڭ ھازىرقى نەشرى تونۇمايدىغان ${unsupportedSets.length} توپلام قۇرى بار. ئۇلار ئۆزلۈكىدىن ئۆچۈرۈلمىدى؛ يېڭى نەشر بىلەن ئېچىڭ ياكى سېۋەتنى تازىلاڭ.</div>`:"");
+  }).join("")+(unsupportedSets.length?`<div class="cart-stock-block-note" role="alert">بۇ سېۋەتتە تور بەتنىڭ ھازىرقى نەشرى تونۇمايدىغان ${unsupportedSets.length} توپلام قۇرى بار. ئۇلار ئۆزلۈكىدىن ئۆچۈرۈلمىدى؛ يېڭى نەشر بىلەن ئېچىڭ ياكى سېۋەتنى تازىلاڭ.</div>`:"");
 
   const summaryHtml=`<div class="cart-summary">
        <h2 class="cart-summary-heading">زاكاز خۇلاسىسى</h2>
@@ -5667,12 +5667,12 @@ async function importSharedCartFromQuery(){
     const unsupportedIncoming=incoming.filter(item=>item&&item.kind&&item.kind!=="book"&&item.kind!=="set");
     if(unsupportedIncoming.length){
       sharedCartImportClaimed=true;
-      toast("بۇ ئۇلانمىدا توربەتنىڭ ھازىرقى نەشرى تونۇمايدىغان قۇر بار؛ ھېچنەرسە ئۆزگەرتىلمىدى");
+      toast("بۇ ئۇلانمىدا تور بەتنىڭ ھازىرقى نەشرى تونۇمايدىغان قۇر بار؛ ھېچنەرسە ئۆزگەرتىلمىدى");
       return;
     }
     if(incomingSets.length&&!volumeGroups()){
       sharedCartImportClaimed=true;
-      toast("بۇ توپلام سېۋىتى توربەتنىڭ يېڭى نەشرىنى تەلەپ قىلىدۇ؛ ھېچنەرسە ئۆزگەرتىلمىدى");
+      toast("بۇ توپلام سېۋىتى تور بەتنىڭ يېڭى نەشرىنى تەلەپ قىلىدۇ؛ ھېچنەرسە ئۆزگەرتىلمىدى");
       return;
     }
     await hydrateBooksByIds(incomingBooks.map(item=>item.id));
