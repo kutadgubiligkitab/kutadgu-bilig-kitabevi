@@ -30,6 +30,13 @@ assert.strictEqual(variants.variantObjectKey("book-covers/hero/banner.webp", 480
 assert.strictEqual(variants.variantObjectKey("book-covers/313/cover.gif", 480), "");
 assert.strictEqual(variants.variantObjectKey("book-covers/variants/v1/w480/311/cover.webp", 480), "");
 assert.strictEqual(variants.variantObjectKey("https://evil.example/x.webp", 480), "");
+global.location = { protocol: "http:", origin: "http://127.0.0.1:4173" };
+assert.strictEqual(
+  variants.availabilityRequestUrl(variants.GLOBAL_AVAILABILITY_KEY),
+  "http://127.0.0.1:4173/__r2/book-covers/variants/v1/availability.json"
+);
+delete global.location;
+assert.strictEqual(variants.availabilityRequestUrl(variants.GLOBAL_AVAILABILITY_KEY), variants.publicUrlForKey(variants.GLOBAL_AVAILABILITY_KEY));
 assert.deepStrictEqual(variants.eligibleWidths(), []);
 assert.deepStrictEqual(variants.eligibleWidths(300), []);
 assert.deepStrictEqual(variants.eligibleWidths(640), [480]);

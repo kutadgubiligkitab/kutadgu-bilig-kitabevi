@@ -68,6 +68,12 @@
     return GLOBAL_AVAILABILITY_KEY;
   }
 
+  function availabilityRequestUrl(docKey){
+    const relative = "/__r2/" + String(docKey || "").split("/").map(function(part){ return encodeURIComponent(part); }).join("/");
+    const origin = typeof location !== "undefined" && location && /^https?:$/i.test(String(location.protocol || "")) ? location.origin : "";
+    return origin ? origin + relative : publicUrlForKey(docKey);
+  }
+
   function publicUrlForKey(objectKey){
     const key = String(objectKey || "").replace(/^\/+/, "");
     if (!key || key.indexOf("..") !== -1 || key.indexOf("\\") !== -1 || !/^book-covers\/[A-Za-z0-9._/-]+$/.test(key)) return "";
@@ -331,7 +337,7 @@
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = controller ? setTimeout(function(){ controller.abort(); }, 1500) : 0;
     try {
-      const response = await fetchImpl(publicUrlForKey(docKey), controller ? { signal: controller.signal } : {});
+      const response = await fetchImpl(availabilityRequestUrl(docKey), controller ? { signal: controller.signal } : {});
       if (response && response.status === 404) return {};
       if (!response || !response.ok || typeof response.json !== "function") throw new Error("availability-unreadable");
       const payload = await response.json();
@@ -463,6 +469,7 @@
     variantObjectKey: variantObjectKey,
     variantUrl: variantUrl,
     publicUrlForKey: publicUrlForKey,
+    availabilityRequestUrl: availabilityRequestUrl,
     eligibleWidths: eligibleWidths,
     useAvailability: useAvailability,
     recordAvailable: recordAvailable,
