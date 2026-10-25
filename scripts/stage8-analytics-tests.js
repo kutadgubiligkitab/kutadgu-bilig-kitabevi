@@ -11,6 +11,16 @@ function test(name,fn){
   catch(err){failed++;console.error("FAIL",name,err.message)}
 }
 
+test("sensitive email spellings are not tracked and ordinary titles are",()=>{
+  assert.deepStrictEqual(A.searchEvents("ئېلېكتىرونلۇق خەت",2),[]);
+  assert.deepStrictEqual(A.searchEvents("ئېلېكترونلۇق خەت",2),[]);
+  assert.strictEqual(A.buildRow("search",{query:"ئېلېكترونلۇق خەت",results:1},{path:"/",sessionId:"s"}),null);
+  const ordinary=A.searchEvents("يەر ئانا",3);
+  assert.strictEqual(ordinary.length,1);
+  assert.strictEqual(ordinary[0].data.query,"يەر ئانا");
+  assert.strictEqual(ordinary[0].data.results,3);
+});
+
 test("E empty search is ignored",()=>{
   assert.deepStrictEqual(A.searchEvents("",12),[]);
   assert.deepStrictEqual(A.searchEvents("   ",0),[]);

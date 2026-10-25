@@ -185,9 +185,9 @@ test("storefront category links resolve the new hubs and leave cart and view pin
   assert.match(read("book-staff.html"), /app-config\.js\?v=6/);
   assert.match(read("book-shell.html"), /shop\.js\?v=147/);
   assert.match(read("book-shell.html"), /kutadgu-book-views\.js\?v=6/);
-  assert.match(read("book-shell.html"), /kutadgu-book-seo\.js\?v=6/);
+  assert.match(read("book-shell.html"), /kutadgu-book-seo\.js\?v=7/);
   ["index.html", "iqtisad.html", "taamlar.html", "grammar.html", "books.html", "cart.html"].forEach((file) => {
-    assert.match(read(file), /kutadgu-book-seo\.js\?v=6/);
+    assert.match(read(file), /kutadgu-book-seo\.js\?v=7/);
     assert.doesNotMatch(read(file), /kutadgu-book-seo\.js\?v=3/);
   });
   ADDED.forEach((item) => {

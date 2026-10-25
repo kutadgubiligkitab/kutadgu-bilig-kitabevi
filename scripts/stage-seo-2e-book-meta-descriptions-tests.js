@@ -248,6 +248,50 @@ async function run() {
     assert.doesNotMatch(missing.body, /kutadguBookSchema/);
   });
 
+  await test("I: generated fragment boundaries do not double a stored period", () => {
+    const raw = "A. B. ئىچكى نۇقتا 3.14 قالىدۇ...";
+    assert.strictEqual(seo.metaDescription({
+      title: "يەر ئانا",
+      author: "چىڭغىز ئايتماتوۋ",
+      description: raw
+    }), raw);
+    const text = seo.metaDescription({
+      title: "يەر ئانا",
+      description: "",
+      author: "A. B.",
+      category: "رومان.",
+      publisher: "3.14 نەشر",
+      publishYear: "1970"
+    });
+    assert.strictEqual(text, "يەر ئانا — ئاپتور: A. B. تۈرى: رومان. نەشرىيات: 3.14 نەشر. نەشر يىلى: 1970. قۇتادغۇبىلىك كىتابخانىسى.");
+    assert.doesNotMatch(text, /\.\./);
+    assert.ok(text.includes("3.14"));
+    const ellipsis = seo.metaDescription({
+      title: "يەر ئانا",
+      description: "",
+      author: "ئاپتور…",
+      category: "رومان"
+    });
+    assert.match(ellipsis, /ئاپتور: ئاپتور… تۈرى: رومان/);
+    assert.doesNotMatch(ellipsis, /ئاپتور…\./);
+    const node = seo.buildBookJsonLd({
+      id: "130",
+      title: "يەر ئانا",
+      author: "A. B.",
+      description: "",
+      category: "رومان.",
+      price: 10
+    }, { visible: true, stockKey: "in" });
+    const book = node["@graph"].find((item) => item["@type"] === "Book" || (Array.isArray(item["@type"]) && item["@type"].includes("Book")));
+    assert.strictEqual(book.description, seo.metaDescription({
+      title: "يەر ئانا",
+      author: "A. B.",
+      description: "",
+      category: "رومان."
+    }));
+    assert.doesNotMatch(book.description, /\.\./);
+  });
+
   await test("H: protected product files stay frozen", () => {
     Object.keys(FROZEN).forEach((rel) => {
       assert.strictEqual(sha256(rel), FROZEN[rel], rel);

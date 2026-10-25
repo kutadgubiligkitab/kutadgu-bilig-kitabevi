@@ -1164,7 +1164,7 @@ test.describe("members-only physical gift books", () => {
       const client = window.KutadguMember.getClient();
       await client.auth.setSession({ access_token: next.access_token, refresh_token: next.refresh_token });
     }, gates.session);
-    await expect(page.locator("[data-gift-state='unresolved']")).toContainText("ھېساب ھالىتى تېخى جەزملەشمىدى");
+    await expect(page.locator("[data-gift-state='unresolved']")).toContainText("ھېساب ھالىتى تېخى جەزملەنمىدى");
     await expectInsideCarousel(page, testInfo, "[data-gift-state='unresolved']", "gift-unresolved-two-row");
     gates.missingProfile = false;
     gates.profileStatus = "active";

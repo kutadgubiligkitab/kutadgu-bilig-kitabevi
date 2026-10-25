@@ -47,7 +47,7 @@
     const isbn=/^[0-9]{13}$/.test(compact)||/^[0-9]{9}[0-9Xx]$/i.test(compact);
     if(!isbn&&(digits.length>=11||/^\+[\d\s()-]{9,}$/.test(q)))return true;
     if(/password|passwd|parol|secret|token|email/i.test(q))return true;
-    if(/پارول|ئېلېكتىرونلۇق خەت|تېلېفون|ئادرېس/.test(q))return true;
+    if(/پارول|ئېلېكترونلۇق خەت|ئېلېكتىرونلۇق خەت|تېلېفون|ئادرېس/.test(q))return true;
     return false;
   }
 
