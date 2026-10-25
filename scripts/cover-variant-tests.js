@@ -128,6 +128,8 @@ function uploadRequest(key, bytes, extra) {
 }
 const bucket = {
   objects: new Map(),
+  etags: new Map(),
+  seq: 0,
   failAvailability: false,
   hangAvailability: false,
   async head(key) { return this.objects.has(key) ? { key } : null; },
@@ -135,11 +137,22 @@ const bucket = {
     if (this.hangAvailability && String(key).endsWith("availability.json")) return new Promise(() => {});
     if (!this.objects.has(key)) return null;
     const body = this.objects.get(key);
-    return { body, etag: "etag-" + String(body).length, text: async () => Buffer.isBuffer(body) ? body.toString("utf8") : String(body) };
+    const etag = this.etags.get(key) || "";
+    return { body, etag, httpEtag: etag, text: async () => Buffer.isBuffer(body) ? body.toString("utf8") : String(body) };
   },
-  async put(key, bytes) {
+  async put(key, bytes, options) {
     if (this.failAvailability && String(key).endsWith("availability.json")) throw new Error("availability-failed");
-    this.objects.set(key, typeof bytes === "string" ? Buffer.from(bytes) : Buffer.from(bytes));
+    const onlyIf = options && options.onlyIf || null;
+    const exists = this.objects.has(key);
+    const etag = this.etags.get(key) || "";
+    if (onlyIf && onlyIf.etagDoesNotMatch === "*" && exists) return null;
+    if (onlyIf && Object.prototype.hasOwnProperty.call(onlyIf, "etagMatches") && onlyIf.etagMatches !== etag) return null;
+    const body = typeof bytes === "string" ? Buffer.from(bytes) : Buffer.from(bytes);
+    this.seq += 1;
+    const next = "etag-" + this.seq;
+    this.objects.set(key, body);
+    this.etags.set(key, next);
+    return { key, etag: next, httpEtag: next };
   }
 };
 const env = {
@@ -351,6 +364,214 @@ function authFetch(admin) {
   });
   assert.strictEqual(timeoutResult.published, false);
   assert.ok(Date.now() - timed < 500);
+
+  function conditionalBucket() {
+    const objects = new Map();
+    const etags = new Map();
+    let seq = 0;
+    let gate = null;
+    return {
+      objects,
+      holdReads(count) {
+        let release;
+        const opened = new Promise((resolve) => { release = resolve; });
+        gate = { count, seen: 0, release, opened };
+      },
+      async get(key) {
+        if (gate && gate.seen < gate.count) {
+          gate.seen += 1;
+          if (gate.seen >= gate.count) gate.release();
+          await gate.opened;
+          gate = null;
+        }
+        if (!objects.has(key)) return null;
+        const body = objects.get(key);
+        const etag = etags.get(key) || "";
+        return { body, etag, httpEtag: etag, text: async () => body.toString("utf8") };
+      },
+      async put(key, bytes, options) {
+        const onlyIf = options && options.onlyIf || null;
+        const exists = objects.has(key);
+        const etag = etags.get(key) || "";
+        if (onlyIf && onlyIf.etagDoesNotMatch === "*" && exists) return null;
+        if (onlyIf && Object.prototype.hasOwnProperty.call(onlyIf, "etagMatches") && onlyIf.etagMatches !== etag) return null;
+        const body = Buffer.from(typeof bytes === "string" ? bytes : bytes);
+        seq += 1;
+        const next = "etag-" + seq;
+        objects.set(key, body);
+        etags.set(key, next);
+        return { key, etag: next, httpEtag: next };
+      }
+    };
+  }
+  function publicationInput(source, width, edge) {
+    return {
+      sourceKey: source,
+      sourceWidth: edge,
+      sourceHeight: Math.round(edge * 1.5),
+      variantKey: variants.variantObjectKey(source, width),
+      budgetMs: 800
+    };
+  }
+  async function coldSources(store, urls) {
+    variants.resetAvailabilityMemory();
+    await variants.readPublishedAvailability({ bucket: store, sourceUrls: urls, now: Date.now() + variants.AVAILABILITY_CACHE_MS + 10 });
+  }
+  const firstSource = "book-covers/501/cover.webp";
+  const secondSource = "book-covers/502/cover.webp";
+  const absent = conditionalBucket();
+  absent.holdReads(2);
+  const created = await Promise.all([
+    variants.publishStoredAvailability(absent, publicationInput(firstSource, 480, 1200)),
+    variants.publishStoredAvailability(absent, publicationInput(secondSource, 480, 1300))
+  ]);
+  assert.deepStrictEqual(created.map((item) => item.published), [true, true]);
+  await coldSources(absent, [
+    "https://www.kutadgubilik.com/__r2/" + firstSource,
+    "https://www.kutadgubilik.com/__r2/" + secondSource
+  ]);
+  assert.ok(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + firstSource).includes("480w"));
+  assert.ok(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + secondSource).includes("480w"));
+
+  const existing = conditionalBucket();
+  const seeded = await variants.publishStoredAvailability(existing, publicationInput(firstSource, 480, 1200));
+  assert.strictEqual(seeded.published, true);
+  existing.holdReads(2);
+  const updated = await Promise.all([
+    variants.publishStoredAvailability(existing, publicationInput(secondSource, 480, 1400)),
+    variants.publishStoredAvailability(existing, publicationInput("book-covers/503/cover.webp", 480, 1500))
+  ]);
+  assert.deepStrictEqual(updated.map((item) => item.published), [true, true]);
+  await coldSources(existing, [
+    "https://www.kutadgubilik.com/__r2/" + firstSource,
+    "https://www.kutadgubilik.com/__r2/" + secondSource,
+    "https://www.kutadgubilik.com/__r2/book-covers/503/cover.webp"
+  ]);
+  assert.ok(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + firstSource).includes("480w"));
+  assert.ok(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + secondSource).includes("480w"));
+  assert.ok(variants.srcsetFor("https://www.kutadgubilik.com/__r2/book-covers/503/cover.webp").includes("480w"));
+
+  const paired = conditionalBucket();
+  paired.holdReads(2);
+  const widths = await Promise.all([
+    variants.publishStoredAvailability(paired, publicationInput(firstSource, 480, 1600)),
+    variants.publishStoredAvailability(paired, publicationInput(firstSource, 960, 1600))
+  ]);
+  assert.deepStrictEqual(widths.map((item) => item.published), [true, true]);
+  await coldSources(paired, ["https://www.kutadgubilik.com/__r2/" + firstSource]);
+  const pairedSet = variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + firstSource);
+  assert.ok(pairedSet.includes("480w"));
+  assert.ok(pairedSet.includes("960w"));
+
+  const exhausted = conditionalBucket();
+  exhausted.put = async () => null;
+  const lost = await variants.publishStoredAvailability(exhausted, Object.assign(publicationInput(secondSource, 480, 1200), { budgetMs: 40 }));
+  assert.strictEqual(lost.published, false);
+  assert.strictEqual(exhausted.objects.size, 0);
+  await coldSources(exhausted, ["https://www.kutadgubilik.com/__r2/" + secondSource]);
+  assert.strictEqual(variants.srcsetFor("https://www.kutadgubilik.com/__r2/" + secondSource), "");
+
+  const preview = require("../cloudflare/preview-dispatch.js");
+  const groups = require("../kutadgu-public-volume-group.js");
+  const staffCover = "https://www.kutadgubilik.com/__r2/" + staffSource;
+  const bookRow = { id: "420", title: "يېڭى", author: "ئاپتور", price: 12, stock: 3, image_url: staffCover, description: "چۈشەندۈرۈش" };
+  const groupPayload = {
+    id: "9",
+    slug: "series-read",
+    representative_book_id: "420",
+    title: "يۈرۈش",
+    author: "ئاپتور",
+    description: "چۈشەندۈرۈش",
+    members: [
+      { book_id: "420", position: 1, volume_label: "1", title: "ئە", price: 12, image_url: staffCover },
+      { book_id: "421", position: 2, volume_label: "2", title: "ب", price: 12, image_url: staffCover }
+    ]
+  };
+  function pageFetch(url) {
+    const href = String(url);
+    if (href.includes("book_credits")) return httpResponse(200, []);
+    if (href.includes("get_public_book_volume_group_storefront")) return httpResponse(200, groupPayload);
+    if (href.includes("/books")) return httpResponse(200, [bookRow]);
+    return httpResponse(404, {});
+  }
+  const shellBytes = fs.readFileSync(path.join(__dirname, "..", "book-shell.html"));
+  const deps = {
+    publicBook: books,
+    publicVolumeGroup: groups,
+    fetchImpl: pageFetch,
+    readAsset: async () => new Response(shellBytes, { status: 200 })
+  };
+  async function render(pathname, covers) {
+    const started = Date.now();
+    const response = await preview.dispatch(new Request("https://www.kutadgubilik.com" + pathname), {
+      KUTADGU_HOST_MODE: "production",
+      MULTI_VOLUME_BOOKS_ENABLED: "true",
+      COVERS: covers
+    }, deps);
+    const html = await response.text();
+    return { status: response.status, html, elapsed: Date.now() - started };
+  }
+  function hangingGet() {
+    return { async get() { return new Promise(() => {}); } };
+  }
+  function hangingBody() {
+    return { async get() { return { etag: "e", text() { return new Promise(() => {}); } }; } };
+  }
+  variants.resetAvailabilityMemory();
+  const stalledBook = await render("/book/420", hangingGet());
+  assert.strictEqual(stalledBook.status, 200);
+  assert.ok(stalledBook.elapsed < 1200);
+  assert.match(stalledBook.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/book\/420"/);
+  assert.match(stalledBook.html, /book-covers\/staff\/11111111-1111-4111-8111-111111111111\/cover\.webp/);
+  assert.doesNotMatch(stalledBook.html, /srcset=/);
+  const stalledBody = await render("/book/420", hangingBody());
+  assert.strictEqual(stalledBody.status, 200);
+  assert.ok(stalledBody.elapsed < 1200);
+  assert.doesNotMatch(stalledBody.html, /srcset=/);
+  const stalledGroup = await render("/volume-group/series-read", hangingGet());
+  assert.strictEqual(stalledGroup.status, 200);
+  assert.ok(stalledGroup.elapsed < 1200);
+  assert.match(stalledGroup.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/volume-group\/series-read"/);
+  assert.doesNotMatch(stalledGroup.html, /srcset=/);
+  const remembered = conditionalBucket();
+  const rememberedWrite = await variants.publishStoredAvailability(remembered, publicationInput(staffSource, 480, 1000));
+  assert.strictEqual(rememberedWrite.published, true);
+  variants.resetAvailabilityMemory();
+  await variants.readPublishedAvailability({
+    bucket: remembered,
+    sourceUrl: staffCover,
+    now: Date.now() - variants.AVAILABILITY_CACHE_MS - 50
+  });
+  const stalePage = await render("/book/420", hangingGet());
+  assert.strictEqual(stalePage.status, 200);
+  assert.ok(stalePage.elapsed < 1200);
+  assert.match(stalePage.html, /480w/);
+  const malformed = { async get() { return { etag: "bad", text: async () => "{not-json" }; } };
+  variants.resetAvailabilityMemory();
+  const broken = await render("/book/420", malformed);
+  assert.strictEqual(broken.status, 200);
+  assert.match(broken.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/book\/420"/);
+  assert.doesNotMatch(broken.html, /srcset=/);
+  const discovered = conditionalBucket();
+  assert.strictEqual((await variants.publishStoredAvailability(discovered, publicationInput(staffSource, 480, 1000))).published, true);
+  variants.resetAvailabilityMemory();
+  const coldPage = await render("/book/420", discovered);
+  assert.strictEqual(coldPage.status, 200);
+  assert.match(coldPage.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/book\/420"/);
+  assert.match(coldPage.html, /480w/);
+  variants.resetAvailabilityMemory();
+  const lateRejections = [];
+  const onLate = (error) => lateRejections.push(error);
+  process.on("unhandledRejection", onLate);
+  let rejectLate;
+  const lateBucket = { get() { return new Promise((resolve, reject) => { rejectLate = reject; }); } };
+  const latePage = await render("/volume-group/series-read", lateBucket);
+  assert.strictEqual(latePage.status, 200);
+  assert.ok(latePage.elapsed < 1200);
+  rejectLate(new Error("late availability"));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  process.off("unhandledRejection", onLate);
+  assert.strictEqual(lateRejections.length, 0);
 
   const inventory = require("./cover-variant-generate.js");
   const memberCover = "https://www.kutadgubilik.com/__r2/book-covers/book/member.webp";

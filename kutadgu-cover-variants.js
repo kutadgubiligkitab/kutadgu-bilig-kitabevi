@@ -12,6 +12,7 @@
   const THUMB_SIZES = "48px";
   const CART_SIZES = "108px";
   const AVAILABILITY_CACHE_MS = 60000;
+  const AVAILABILITY_READ_BUDGET_MS = 400;
   const AVAILABILITY_CACHE_CONTROL = "public, max-age=60";
   const GLOBAL_AVAILABILITY_KEY = "book-covers/variants/" + VERSION + "/availability.json";
 
@@ -274,7 +275,10 @@
     else if (typeof object.body === "string") text = object.body;
     else if (object.body) text = Buffer.from(object.body).toString("utf8");
     const parsed = JSON.parse(text || "{}");
-    return { sources: parsed && parsed.sources && typeof parsed.sources === "object" ? parsed.sources : {}, etag: String(object.etag || object.httpEtag || "") };
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("availability-malformed");
+    if (parsed.sources != null && (typeof parsed.sources !== "object" || Array.isArray(parsed.sources))) throw new Error("availability-malformed");
+    const sources = parsed.sources && typeof parsed.sources === "object" ? parsed.sources : {};
+    return { sources: sources, etag: String(object.etag || object.httpEtag || "") };
   }
 
   async function publishStoredAvailability(bucket, input){
@@ -289,7 +293,8 @@
     const limit = Number.isFinite(budget) && budget >= 0 ? budget : 2000;
     const deadline = Date.now() + limit;
     const variant = { width: width, height: Number(input && input.variantHeight) || 0, bytes: Number(input && input.bytes) || 0, key: variantKey };
-    for (let attempt = 0; attempt < 3 && Date.now() <= deadline; attempt++) {
+    let failures = 0;
+    while (Date.now() <= deadline) {
       try {
         const remaining = Math.max(1, deadline - Date.now());
         const current = await promiseTimeout(readBucketAvailability(bucket, docKey), remaining);
@@ -297,13 +302,20 @@
         const existing = sources[sourceKey] && typeof sources[sourceKey] === "object" ? sources[sourceKey] : { variants: [] };
         const variants = (Array.isArray(existing.variants) ? existing.variants : []).filter(function(item){ return Number(item.width) !== width; });
         variants.push(variant);
-        sources[sourceKey] = { width: sourceWidth, height: sourceHeight, variants: variants };
+        sources[sourceKey] = { width: sourceWidth, height: sourceHeight || Number(existing.height) || 0, variants: variants };
         const body = JSON.stringify({ version: VERSION, sources: sources });
         const options = { httpMetadata: { contentType: "application/json; charset=utf-8", cacheControl: AVAILABILITY_CACHE_CONTROL } };
-        if (current.etag) options.onlyIf = { etagMatches: current.etag };
-        await promiseTimeout(bucket.put(docKey, body, options), Math.max(1, deadline - Date.now()));
+        options.onlyIf = current.etag ? { etagMatches: current.etag } : { etagDoesNotMatch: "*" };
+        const stored = await promiseTimeout(bucket.put(docKey, body, options), Math.max(1, deadline - Date.now()));
+        if (stored == null) {
+          await new Promise(function(resolve){ setTimeout(resolve, 5); });
+          continue;
+        }
         return { published: true, key: docKey };
-      } catch (error) {}
+      } catch (error) {
+        failures += 1;
+        if (failures >= 2 || Date.now() >= deadline) break;
+      }
     }
     return { published: false, key: docKey };
   }
@@ -332,6 +344,9 @@
   async function readPublishedAvailability(options){
     const opts = options || {};
     const now = Number.isFinite(Number(opts.now)) ? Number(opts.now) : Date.now();
+    const requestedBudget = Number(opts.readBudgetMs);
+    const budget = Number.isFinite(requestedBudget) && requestedBudget >= 0 ? requestedBudget : AVAILABILITY_READ_BUDGET_MS;
+    const deadline = Date.now() + budget;
     const docKeys = [GLOBAL_AVAILABILITY_KEY];
     const urls = [];
     if (opts.sourceUrl) urls.push(opts.sourceUrl);
@@ -349,8 +364,13 @@
         mergeDocument(docKey, hit.sources);
         continue;
       }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        if (hit) mergeDocument(docKey, hit.sources);
+        continue;
+      }
       try {
-        const sources = await loadAvailabilityDocument(docKey, opts);
+        const sources = await promiseTimeout(loadAvailabilityDocument(docKey, opts), remaining);
         availabilityCache.set(docKey, { at: now, sources: sources });
         mergeDocument(docKey, sources);
       } catch (error) {
@@ -434,6 +454,7 @@
     THUMB_SIZES: THUMB_SIZES,
     CART_SIZES: CART_SIZES,
     AVAILABILITY_CACHE_MS: AVAILABILITY_CACHE_MS,
+    AVAILABILITY_READ_BUDGET_MS: AVAILABILITY_READ_BUDGET_MS,
     AVAILABILITY_CACHE_CONTROL: AVAILABILITY_CACHE_CONTROL,
     GLOBAL_AVAILABILITY_KEY: GLOBAL_AVAILABILITY_KEY,
     deliverySourceKey: deliverySourceKey,
