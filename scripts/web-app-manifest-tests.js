@@ -50,7 +50,7 @@ function pngSize(name, width) {
 }
 pngSize("kutadgu-icon-192.png", 192);
 pngSize("kutadgu-icon-512.png", 512);
-assert.ok(index.includes('shop.js?v=181'));
+assert.ok(index.includes('shop.js?v=182'));
 assert.ok(!/serviceWorker|beforeinstallprompt/i.test(index));
 assert.ok(!read("shop.js").toString("utf8").includes("serviceWorker.register"));
 
