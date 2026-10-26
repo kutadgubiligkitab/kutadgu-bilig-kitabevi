@@ -94,11 +94,12 @@ button{cursor:pointer}
 .volume-group-mode{margin:0;padding:10px 12px;border:1px solid #e8dccb;border-radius:10px;background:#f4ece4;color:#2b211b;font-weight:800}
 .volume-group-mode[data-mode="published"]{background:#e7f6ec;color:#14532d;border-color:#8fbf9c}
 .volume-member-note{margin:0 0 8px;color:#2b211b}
-.volume-member-detach,.volume-member-detach-cancel,.volume-member-edit,.volume-slug-open,#volumeGroupAbandon{min-height:44px}
+.volume-member-detach,.volume-member-detach-cancel,.volume-slug-open,#volumeGroupAbandon{min-height:44px}
 .volume-member-detach{padding:8px 12px;border:1px solid #7f1d1d;border-radius:9px;background:#fff;color:#7f1d1d;font-weight:800}
 .volume-member-detach-box{display:grid;gap:8px;justify-items:start}
 .volume-member-detach-note{margin:0;color:#2b211b}
-.volume-member-edit{justify-self:start}
+.admin-secondary.volume-member-edit{justify-self:start;width:fit-content;max-width:100%;min-height:32px;padding:4px 10px;font-size:13px;line-height:1.35;font-weight:700}
+@media(max-width:520px){.admin-secondary.volume-member-edit{min-height:44px;padding:8px 12px}}
 .volume-member-detach:focus-visible,.volume-member-detach-cancel:focus-visible,.volume-member-edit:focus-visible,.volume-slug-open:focus-visible,#volumeGroupAbandon:focus-visible,#volumeGroupPublishBtn:focus-visible{outline:3px solid #70503d;outline-offset:2px}
 body.dark-mode .volume-group-mode{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
 body.dark-mode .volume-group-mode[data-mode="published"]{background:#1a3324;color:#d8f3e2;border-color:#3d6b4e}
