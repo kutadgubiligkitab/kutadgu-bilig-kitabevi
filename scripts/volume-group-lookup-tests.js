@@ -50,7 +50,7 @@ assert.match(html, /admin-volume-groups\.js\?v=13/);
 assert.match(source, /function newLinkSlug/);
 assert.match(source, /linkSave\.pending/);
 assert.doesNotMatch(source, /series-\$\{state\.members\[0\]\.book_id\}/);
-assert.match(html, /admin\.css\?v=68/);
+assert.match(html, /admin\.css\?v=69/);
 assert.match(html, /admin\.js\?v=123/);
 assert.match(source, /function resetLookup/);
 assert.match(source, /resetLookup\(\)/);

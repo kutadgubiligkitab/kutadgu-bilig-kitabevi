@@ -87,7 +87,7 @@ async function installDirectory(page) {
           const existing = window.__categoryRows.find((row) => row.slug === args.p_slug);
           if (window.__holdCommittedCreate && !existing) {
             window.__holdCommittedCreate = false;
-            window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
+            window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", admin_group: args.p_admin_group || null, sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
             remember();
             window.__lostCreateIds[args.p_request_id] = true;
             return await new Promise((resolve) => {
@@ -96,7 +96,7 @@ async function installDirectory(page) {
           }
           if (window.__commitThenLose && args.p_request_id && !window.__lostCreateIds[args.p_request_id]) {
             if (!existing) {
-              window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
+              window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: args.p_icon || "📚", admin_group: args.p_admin_group || null, sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
               remember();
             }
             window.__lostCreateIds[args.p_request_id] = true;
@@ -116,7 +116,7 @@ async function installDirectory(page) {
             window.__failCreateOnce = false;
             return { data: null, error: { message: "gateway" }, status: 502 };
           }
-          window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: "📚", sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
+          window.__categoryRows.unshift({ id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, summary: args.p_summary, icon: "📚", admin_group: args.p_admin_group || null, sort_order: 1, is_hidden: false, retired: false, revision: 1, book_count: 0, group_count: 0 });
           remember();
           return { data: { id: 44, slug: args.p_slug, source: args.p_slug + ".html", label: args.p_label, revision: 1 } };
         }
@@ -230,6 +230,8 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect(page.locator("#dashboardPanel")).toBeVisible();
   await page.locator("[data-admin-section='categories']").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toBeVisible();
+  await expect(page.locator("[data-category-source='tibb.html']")).toHaveCount(0);
+  await expect(page.locator("[data-category-source='dictionary.html']")).toHaveCount(0);
   await expect(page.locator("#bookCategoryList")).toContainText("كىتاب 0");
   await expect(page.locator("#bookCategoryList")).not.toContainText("/yeni-tur");
   await expect(page.locator("#bookCategorySlug")).toHaveCount(0);
@@ -239,11 +241,20 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await page.locator("[data-category-up='2']").focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => window.__categoryCalls.some((call) => call.name === "admin_move_book_category_order" && call.args.p_direction === "up"))).toBe(true);
+  await page.locator("#bookCategoryReveal").click();
   await expect(page.locator("[data-category-source='tibb.html']")).toContainText("يوشۇرۇن");
+  await expect(page.locator("[data-category-source='dictionary.html']")).toContainText("ئېلىۋېتىلگەن");
+  const keptRows = await page.evaluate(() => window.__categoryRows.map((row) => row.slug).sort());
+  await page.locator("#bookCategoryReveal").click();
+  await expect(page.locator("[data-category-source='tibb.html']")).toHaveCount(0);
+  await expect(page.locator("[data-category-source='dictionary.html']")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__categoryRows.map((row) => row.slug).sort())).toEqual(keptRows);
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("باشقا تۈر");
+  await page.locator("#bookCategoryGroup").selectOption("literature");
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
-  await expect.poll(() => page.evaluate(() => window.__categoryCalls.some((call) => call.name === "admin_create_book_category" && call.args.p_slug === "bashqa-tur"))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__categoryCalls.some((call) => call.name === "admin_create_book_category" && call.args.p_slug === "bashqa-tur" && call.args.p_admin_group === "literature"))).toBe(true);
+  await expect(page.locator("[data-category-source='bashqa-tur.html']")).toContainText("ئەدەبىيات");
   await expect.poll(() => page.evaluate(() => !!(window.KutadguBookCategories && window.KutadguBookCategories.authoritative && window.KutadguBookCategories.authoritative()))).toBe(true);
   await page.evaluate(() => {
     window.__kutadguRefreshCategoryOptions({ book: "tibb.html", bookLabel: "تېبابەت ۋە ساغلاملىق" });
@@ -259,7 +270,12 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect(page.locator("#bookCategoryStatus")).toContainText("بۇ تۈردە يەنىلا كىتاب");
   await page.getByRole("button", { name: "باشقۇرۇش: ئۇنىۋېرسال" }).click();
   await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+  await expect(page.locator("[data-category-source='universal.html'] #bookCategoryMovePanel")).toBeVisible();
+  await expect(page.locator("[data-category-source='romanlar.html'] #bookCategoryMovePanel")).toHaveCount(0);
   await expect(page.locator("#bookCategoryMoveSource")).toHaveValue("9");
+  const destinationValues = await page.locator("#bookCategoryMoveDestination option").evaluateAll((options) => options.map((option) => option.value));
+  expect(destinationValues).not.toContain("8");
+  expect(destinationValues).not.toContain("15");
   await expect(page.locator("#bookCategoryMoveDestination")).toHaveValue("");
   await page.locator("[data-universal-book]").check();
   await page.locator("#bookCategoryMoveDestination").selectOption("2");
@@ -296,6 +312,14 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect.poll(() => page.evaluate(() => window.__moveIds.length)).toBe(1);
   await page.locator("#bookCategoryConfirmMove").click();
   await expect.poll(() => page.evaluate(() => window.__moveIds.length === 2 && window.__moveIds[0] === window.__moveIds[1])).toBe(true);
+  await page.locator("#bookCategoryRenameInput").evaluate((input) => { input.value = "ئۇنىۋېرسال قولدا"; });
+  await page.locator("#bookCategoryMoveSource").selectOption("1");
+  await expect(page.locator("[data-category-source='romanlar.html'] #bookCategoryMovePanel")).toBeVisible();
+  await expect(page.locator("[data-category-source='universal.html'] #bookCategoryMovePanel")).toHaveCount(0);
+  await expect(page.locator("[data-category-source='universal.html'] #bookCategoryRenameInput")).toHaveValue("ئۇنىۋېرسال قولدا");
+  await expect(page.locator("[data-category-source='romanlar.html'] #bookCategoryRenameInput")).toHaveCount(0);
+  await page.locator("#bookCategoryMoveSource").selectOption("9");
+  await expect(page.locator("[data-category-source='universal.html'] #bookCategoryRenameInput")).toHaveValue("ئۇنىۋېرسال قولدا");
   await page.getByRole("button", { name: "باشقۇرۇش: رومانلار يېڭى" }).click();
   await expect(page.locator("#bookCategoryRenameInput")).toHaveValue("رومانلار يېڭى");
   await page.locator("#bookCategoryRenameInput").fill("رومانلار باشقا");
@@ -310,9 +334,13 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   await expect(page.locator("[data-category-source='romanlar.html']")).toContainText("رومانلار باشقا");
   await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
   await page.locator("[data-category-hide='2']").click();
+  await expect(page.locator("[data-category-source='yeni-tur.html']")).toHaveCount(0);
+  await page.locator("#bookCategoryReveal").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toContainText("يوشۇرۇن");
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("[data-admin-section='categories']").click();
+  await expect(page.locator("[data-category-source='yeni-tur.html']")).toHaveCount(0);
+  await page.locator("#bookCategoryReveal").click();
   await expect(page.locator("[data-category-source='yeni-tur.html']")).toContainText("يوشۇرۇن");
   await page.getByRole("button", { name: "باشقۇرۇش: يېڭى تۈر" }).click();
   await page.locator("[data-category-hide='2']").click();
@@ -365,7 +393,7 @@ test("admin category controls keep order, hidden assignments, and retired slugs"
   expect(page._categoryWrites.filter((entry) => /\/rest\/v1\/books|storage/.test(entry))).toEqual([]);
 });
 
-test("adding a category needs only its name and keeps that draft across a lost response", async ({ page }) => {
+test("adding a category keeps its name, group, and draft across a lost response", async ({ page }) => {
   await installDirectory(page);
   await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
   await page.locator("[data-admin-section='categories']").click();
@@ -375,6 +403,10 @@ test("adding a category needs only its name and keeps that draft across a lost r
   await expect.poll(() => page.evaluate(() => window.__categoryCalls.filter((call) => call.name === "admin_create_book_category").length)).toBe(0);
   await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
   await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
+  await expect(page.locator("#bookCategoryStatus")).toContainText("چوڭ گۇرۇپپىنى تاللاڭ");
+  await expect.poll(() => page.evaluate(() => window.__categoryCalls.filter((call) => call.name === "admin_create_book_category").length)).toBe(0);
+  await page.locator("#bookCategoryGroup").selectOption("literature");
   await page.evaluate(() => { window.__failCreateOnce = true; });
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
@@ -387,9 +419,12 @@ test("adding a category needs only its name and keeps that draft across a lost r
       && calls[0].args.p_slug === "meshhur-shexsler"
       && calls[1].args.p_slug === "meshhur-shexsler"
       && calls[0].args.p_request_id === calls[1].args.p_request_id
-      && calls[0].args.p_summary === "قىسقىچە";
+      && calls[0].args.p_summary === "قىسقىچە"
+      && calls[0].args.p_admin_group === "literature"
+      && calls[1].args.p_admin_group === "literature";
   })).toBe(true);
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
+  await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toContainText("ئەدەبىيات");
   await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toContainText("مەشھۇر شەخسلەر");
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("يېڭى نام");
@@ -417,6 +452,7 @@ test("a committed create whose response was lost is retried with the original pa
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
   await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.locator("#bookCategoryGroup").selectOption("children");
   await page.evaluate(() => { window.__commitThenLose = true; window.__lostCreateIds = {}; });
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
@@ -427,8 +463,13 @@ test("a committed create whose response was lost is retried with the original pa
   await page.locator("#bookCategoryAdd").click();
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("مەشھۇر شەخسلەر");
   await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
+  await expect(page.locator("#bookCategoryGroup")).toHaveValue("children");
   await expect(page.locator("#bookCategorySummary")).toBeDisabled();
-  await page.evaluate(() => { document.querySelector("#bookCategorySummary").value = "يەنە بىر ئۆزگەرتىش"; });
+  await expect(page.locator("#bookCategoryGroup")).toBeDisabled();
+  await page.evaluate(() => {
+    document.querySelector("#bookCategorySummary").value = "يەنە بىر ئۆزگەرتىش";
+    document.querySelector("#bookCategoryGroup").value = "history";
+  });
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect.poll(() => page.evaluate(() => {
     const calls = window.__categoryCalls.filter((call) => call.name === "admin_create_book_category");
@@ -439,8 +480,11 @@ test("a committed create whose response was lost is retried with the original pa
       && calls[0].args.p_request_id === calls[1].args.p_request_id
       && calls[0].args.p_summary === "قىسقىچە"
       && calls[1].args.p_summary === "قىسقىچە"
+      && calls[0].args.p_admin_group === "children"
+      && calls[1].args.p_admin_group === "children"
       && calls[1].args.p_label === "مەشھۇر شەخسلەر"
       && named.length === 1
+      && named[0].admin_group === "children"
       && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
   })).toBe(true);
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
@@ -454,16 +498,19 @@ test("an in-flight create keeps the original payload when save is pressed again"
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
   await page.locator("#bookCategorySummary").fill("قىسقىچە");
+  await page.locator("#bookCategoryGroup").selectOption("religion");
   await page.evaluate(() => { window.__holdCommittedCreate = true; window.__lostCreateIds = {}; });
   const submit = page.locator("#bookCategoryCreate").locator("button[type=submit]");
   await submit.click();
   await expect.poll(() => page.evaluate(() => window.__categoryCalls.filter((call) => call.name === "admin_create_book_category").length)).toBe(1);
   await expect(page.locator("#bookCategoryLabel")).toBeDisabled();
   await expect(page.locator("#bookCategorySummary")).toBeDisabled();
+  await expect(page.locator("#bookCategoryGroup")).toBeDisabled();
   await expect(submit).toBeDisabled();
   await page.evaluate(() => {
     const summary = document.querySelector("#bookCategorySummary");
     summary.value = "باشقا چۈشەندۈرۈش";
+    document.querySelector("#bookCategoryGroup").value = "textbooks";
     document.querySelector("#bookCategoryCreate").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
   await expect.poll(() => page.evaluate(() => {
@@ -474,6 +521,8 @@ test("an in-flight create keeps the original payload when save is pressed again"
       && pending
       && pending.args.p_summary === "قىسقىچە"
       && pending.args.p_slug === "meshhur-shexsler"
+      && pending.args.p_admin_group === "religion"
+      && calls[0].args.p_admin_group === "religion"
       && pending.id === calls[0].args.p_request_id
       && window.__categoryRows.filter((row) => row.label === "مەشھۇر شەخسلەر").length === 1;
   })).toBe(true);
@@ -495,9 +544,11 @@ test("an in-flight create keeps the original payload when save is pressed again"
       && calls[0].args.p_request_id === calls[1].args.p_request_id
       && calls[1].args.p_slug === "meshhur-shexsler"
       && calls[1].args.p_summary === "قىسقىچە"
+      && calls[1].args.p_admin_group === "religion"
       && calls[1].args.p_label === "مەشھۇر شەخسلەر"
       && named.length === 1
       && named[0].summary === "قىسقىچە"
+      && named[0].admin_group === "religion"
       && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
   })).toBe(true);
   await expect(page.locator("[data-category-source='meshhur-shexsler.html']")).toHaveCount(1);
@@ -509,6 +560,7 @@ test("a replacement slug is generated only after a definitive collision", async 
   await page.locator("[data-admin-section='categories']").click();
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
+  await page.locator("#bookCategoryGroup").selectOption("history");
   await page.evaluate(() => { window.__collideCreateOnce = true; });
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("يەنە بىر قېتىم ساقلاڭ");
@@ -519,6 +571,8 @@ test("a replacement slug is generated only after a definitive collision", async 
     return calls.length === 2
       && calls[0].args.p_slug === "meshhur-shexsler"
       && calls[1].args.p_slug === "meshhur-shexsler-2"
+      && calls[0].args.p_admin_group === "history"
+      && calls[1].args.p_admin_group === "history"
       && calls[0].args.p_request_id !== calls[1].args.p_request_id;
   })).toBe(true);
 });

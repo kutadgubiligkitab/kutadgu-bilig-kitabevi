@@ -62,6 +62,11 @@ async function setControl(page, selector, value) {
   }, value);
 }
 
+async function openRanked(page, path) {
+  await H.installCategoryDirectoryFixture(page);
+  await H.openFresh(page, path);
+}
+
 async function searchAna(page) {
   await page.locator("#searchInput").fill("ئانا");
   await page.locator("#searchButton").click();
@@ -72,7 +77,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("A/D exact title ranks first even when it is last by created_at", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
     expect(titles[0].trim()).toBe("ئانا");
@@ -82,7 +87,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("B exact ISBN ranks first", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await page.locator("#searchInput").fill("333");
     await page.locator("#searchButton").click();
     await expect(page.locator("#searchResults .advanced-search-title").first()).toHaveText("ئانا", { timeout: 20000 });
@@ -91,7 +96,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("C/E title beat author-only; category filter still applies", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await setControl(page, "#searchCategory", "رومانلار");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
@@ -102,7 +107,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("F price filter keeps relevance among remaining hits", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await setControl(page, "#searchMaxPrice", "35");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
@@ -112,7 +117,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("H explicit newest sort is preserved", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await setControl(page, "#searchSort", "new");
     await searchAna(page);
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
@@ -122,7 +127,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("J zero-result copy is unchanged", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await page.locator("#searchInput").fill("zzzz-no-match-kutadgu");
     await page.locator("#searchButton").click();
     await page.waitForSelector(".search-empty, .advanced-search-summary", { timeout: 20000 });
@@ -151,7 +156,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
       return route.continue();
     });
     await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await searchAna(page);
     const afterFirst = events.filter((row) => row && (row.event_name === "search" || row.name === "search")).length;
     expect(afterFirst).toBeLessThanOrEqual(1);
@@ -178,7 +183,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
     }));
     await mockCatalog(page, extra);
     await page.setViewportSize({ width: 390, height: 844 });
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await searchAna(page);
     const firstPage = (await page.locator("#searchResults .advanced-search-title").allTextContents()).map((t) => t.trim());
     expect(firstPage[0]).toBe("ئانا");
@@ -195,7 +200,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("I cold-load ?q= ranks after catalog-ready", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/?q=" + encodeURIComponent("ئانا"));
+    await openRanked(page, "/?q=" + encodeURIComponent("ئانا"));
     await expect(page.locator("#searchResults .advanced-search-title").first()).toHaveText("ئانا", { timeout: 20000 });
     const titles = await page.locator("#searchResults .advanced-search-title").allTextContents();
     expect(titles.slice(0, 3).map((t) => t.trim())).toEqual(["ئانا", "ئانا دەريانى ئىزدەپ", "يەر ئانا"]);
@@ -212,7 +217,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
         body
       });
     });
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await page.locator("#searchInput").fill("ئانا");
     await page.locator("#searchButton").click();
     await expect(page.locator("#searchResults")).toBeVisible({ timeout: 20000 });
@@ -233,7 +238,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
         body: "[]"
       });
     });
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     async function searchFor(query) {
       const before = seen.length;
       await page.locator("#searchInput").fill(query);
@@ -268,7 +273,7 @@ test.describe("Stage Search 1A relevance ranking", () => {
   test("M layout still uses the existing search card", async ({ page }) => {
     await H.installReadSafeNetwork(page);
     await mockCatalog(page);
-    await H.openFresh(page, "/");
+    await openRanked(page, "/");
     await expect(page.locator("#searchInput")).toBeVisible();
     await expect(page.locator("#searchButton")).toBeVisible();
     await expect(page.locator("#advancedSearchPanel")).toBeAttached();

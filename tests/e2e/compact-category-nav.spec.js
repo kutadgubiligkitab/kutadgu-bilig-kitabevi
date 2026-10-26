@@ -13,6 +13,7 @@ test.describe("compact category navigation", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
     H.allowLiveCatalogReads(page);
+    await H.installCategoryDirectoryFixture(page);
   });
 
   for (const width of WIDTHS) {
