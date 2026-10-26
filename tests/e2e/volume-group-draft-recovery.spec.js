@@ -226,6 +226,7 @@ test.describe("volume editor draft recovery", () => {
     await page.evaluate(() => window.__releasePublish());
     await expect(page.locator("#volumeGroupTitle")).toHaveValue("يېڭى قوليازمى");
     await expect(page.locator("#volumeGroupId")).toHaveValue("");
+    await page.locator("#volumeGroupListToggle").click();
     await expect(page.locator("[data-volume-group-edit='77']")).toBeVisible();
     await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
     await page.evaluate(() => { window.__holdSave = true; window.__saveHeld = false; });

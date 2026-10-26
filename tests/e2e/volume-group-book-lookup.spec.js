@@ -200,6 +200,7 @@ test.describe("volume-group existing book lookup", () => {
     await page.evaluate(() => { window.__holdNextCatalog = true; window.__lookupHeld = false; });
     await page.locator("[data-lookup-more]").click();
     await page.waitForFunction(() => window.__lookupHeld === true);
+    await page.locator("#volumeGroupListToggle").click();
     await page.locator("[data-volume-group-edit='88']").click();
     await page.evaluate(() => window.__releaseLookup());
     await expect(page.locator("#volumeGroupId")).toHaveValue("88");
@@ -233,6 +234,7 @@ test.describe("volume-group existing book lookup", () => {
     await page.evaluate(() => { window.__holdPreviewId = "777"; window.__previewHeld = false; });
     await page.locator("[data-lookup-add='777']").click();
     await page.waitForFunction(() => window.__previewHeld === true);
+    await page.locator("#volumeGroupListToggle").click();
     await page.locator("[data-volume-group-edit='88']").click();
     await page.evaluate(() => window.__releasePreview());
     await expect(page.locator("[data-volume-member-id]")).toHaveCount(0);
