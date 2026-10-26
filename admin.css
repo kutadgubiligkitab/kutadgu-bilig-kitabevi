@@ -80,7 +80,11 @@ button{cursor:pointer}
 }
 .admin-card{background:#fffdf9;border:1px solid #e8dccb;border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(75,51,39,.07);margin-bottom:20px}
 .volume-admin-layout{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:18px;align-items:start}
-.volume-group-list{display:grid;gap:8px;max-height:760px;overflow:auto}
+.volume-group-list{display:grid;gap:8px;align-content:start;min-width:0}
+.volume-group-list-toggle{display:flex;align-items:center;width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #e8dccb;border-radius:10px;background:#fff;color:#44352d;font:inherit;font-weight:800;line-height:1.45;text-align:start;cursor:pointer;overflow-wrap:anywhere}
+.volume-group-list-toggle:focus-visible{outline:3px solid #70503d;outline-offset:2px}
+.volume-group-list-panel{display:grid;gap:8px;max-height:760px;overflow:auto;min-width:0}
+.volume-group-list-panel[hidden]{display:none !important}
 .volume-group-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;width:100%;padding:11px;border:1px solid #e8dccb;border-radius:10px;background:#fbf8f2;color:#44352d;text-align:start}
 .volume-group-list-row>span:first-child{display:grid;min-width:0}
 .volume-group-list-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#806f62}
@@ -99,6 +103,7 @@ body.dark-mode .volume-group-mode{background:#2b211b;color:#f6ecdf;border-color:
 body.dark-mode .volume-group-mode[data-mode="published"]{background:#1a3324;color:#d8f3e2;border-color:#3d6b4e}
 body.dark-mode .volume-member-note,body.dark-mode .volume-member-detach-note{color:#f6ecdf}
 body.dark-mode .volume-member-detach{background:#3a2422;color:#f6ecdf;border-color:#f3d2cc}
+body.dark-mode .volume-group-list-toggle{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
 body.dark-mode .volume-group-list-row{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
 body.dark-mode .volume-group-list-row .is-public{color:#b7e4c7}
 body.dark-mode .volume-group-list-row .is-private{color:#f3d7a1}
@@ -195,7 +200,7 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 .volume-series-page img{width:52px;height:52px;object-fit:contain;background:#eee9e1;border-radius:6px}
 .volume-series-page-tools button{min-height:32px}
 @media(max-width:520px){.volume-series-metrics{grid-template-columns:1fr}.volume-series-page{grid-template-columns:44px minmax(0,1fr)}.volume-series-page-tools{grid-column:1/-1}}
-@media(max-width:1000px){.volume-admin-layout{grid-template-columns:1fr}.volume-group-list{max-height:260px}.volume-admin-member{grid-template-columns:auto 54px minmax(0,1fr)}.volume-admin-representative,.volume-admin-member>.admin-danger,.volume-admin-member>.volume-member-detach,.volume-admin-member>.volume-member-detach-box{grid-column:1 / -1}.volume-admin-member img{width:54px;height:78px}}
+@media(max-width:1000px){.volume-admin-layout{grid-template-columns:1fr}.volume-group-list-panel{max-height:260px}.volume-admin-member{grid-template-columns:auto 54px minmax(0,1fr)}.volume-admin-representative,.volume-admin-member>.admin-danger,.volume-admin-member>.volume-member-detach,.volume-admin-member>.volume-member-detach-box{grid-column:1 / -1}.volume-admin-member img{width:54px;height:78px}}
 .admin-card h1,.admin-card h2,.admin-card h3{margin-top:0}
 .admin-status{padding:12px 14px;border-radius:10px;background:#fbf8f2;border:1px solid #e8dccb;margin-bottom:16px}
 .admin-status.ok{border-color:#96b89e;background:#f3faf4}
