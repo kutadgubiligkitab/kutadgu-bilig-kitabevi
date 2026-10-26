@@ -575,6 +575,47 @@ function categoryDirectoryBody(extraRows) {
   return { categories, direct: categories.map((row) => ({ ...row })), redirects: [] };
 }
 
+async function installFixedStorefrontCatalog(page, books) {
+  const rows = (books || []).map((book) => ({ ...book }));
+  await page.route("**/rest/v1/books**", async (route) => {
+    const req = route.request();
+    if (req.method() !== "GET" && req.method() !== "HEAD") return route.fallback();
+    const url = new URL(req.url());
+    let matched = rows.filter((row) => row.is_active !== false);
+    const id = url.searchParams.get("id") || "";
+    if (id.startsWith("in.(")) {
+      const ids = new Set(id.slice(4, -1).split(",").map((part) => part.replace(/"/g, "")));
+      matched = matched.filter((row) => ids.has(String(row.id)));
+    } else if (id.startsWith("eq.")) {
+      matched = matched.filter((row) => String(row.id) === id.slice(3));
+    }
+    const source = url.searchParams.get("source") || "";
+    if (source.startsWith("eq.")) matched = matched.filter((row) => row.source === source.slice(3));
+    else if (source.startsWith("in.(")) {
+      const sources = source.slice(4, -1).split(",").map((part) => part.replace(/^"|"$/g, ""));
+      matched = matched.filter((row) => sources.includes(row.source));
+    }
+    const category = url.searchParams.get("category") || "";
+    if (category.startsWith("eq.")) matched = matched.filter((row) => row.category === category.slice(3));
+    const term = decodeURIComponent((url.searchParams.get("or") || "").match(/ilike\.\*([^*]+)\*/i) || [])[1] || "";
+    if (term) {
+      matched = matched.filter((row) => `${row.title} ${row.author} ${row.category} ${row.source || ""}`.includes(term));
+    }
+    const range = String((req.headers().range || req.headers().Range || "0-99"));
+    const bounds = range.match(/(\d+)-(\d+)/);
+    const from = bounds ? Number(bounds[1]) : 0;
+    const to = bounds ? Number(bounds[2]) : Math.max(matched.length - 1, 0);
+    const slice = matched.slice(from, to + 1);
+    const end = slice.length ? from + slice.length - 1 : from;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "content-range": `${from}-${end}/${matched.length}` },
+      body: req.method() === "HEAD" ? "" : JSON.stringify(slice)
+    });
+  });
+}
+
 async function installCategoryDirectoryFixture(page, options = {}) {
   const body = options.body || categoryDirectoryBody(options.extra);
   const hold = options.hold || null;
@@ -1172,6 +1213,7 @@ module.exports = {
   CATEGORY_DIRECTORY_ROWS,
   categoryDirectoryBody,
   installCategoryDirectoryFixture,
+  installFixedStorefrontCatalog,
   installReadSafeNetwork,
   installCatalogRpcBridge,
   installCarouselCatalogStub,

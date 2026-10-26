@@ -176,7 +176,15 @@ test("workflow no longer silently assigns production on pull_request", () => {
   const yml = require("fs").readFileSync(require("path").join(__dirname, "..", ".github/workflows/stage10-regression.yml"), "utf8");
   assert.match(yml, /ci-resolve-e2e-target\.js/);
   assert.match(yml, /KUTADGU_E2E_PREVIEW/);
-  assert.match(yml, /fail-fast:\s*false/);
+  assert.match(yml, /fail-fast:\s*true/);
+  assert.doesNotMatch(yml, /fail-fast:\s*false/);
+  assert.match(yml, /cancel-in-progress:\s*true/);
+  assert.match(yml, /stage10-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/);
+  const preflight = yml.slice(yml.indexOf("\n  preflight:"), yml.indexOf("\n  e2e-shard:"));
+  assert.match(preflight, /ci-asset-pin-preflight\.js/);
+  assert.match(preflight, /node-version:\s*"22"/);
+  assert.doesNotMatch(preflight, /playwright|npm ci/);
+  assert.match(yml, /needs: preflight\r?\n/);
   assert.match(yml, /--shard=\$\{\{ matrix\.shard \}\}\/2/);
   assert.match(yml, /playwright-report-shard-/);
   assert.match(yml, /ci-e2e-gate\.js check/);

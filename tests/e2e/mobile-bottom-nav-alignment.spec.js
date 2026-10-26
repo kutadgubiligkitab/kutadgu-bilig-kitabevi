@@ -1,4 +1,5 @@
 const { test, expect } = require("./playwright-test");
+const pins = require("../../scripts/ci-asset-pins");
 
 const PAGES = ["/", "/books.html", "/romanlar.html", "/book-shell.html", "/cart.html", "/favorites.html", "/account.html"];
 
@@ -72,7 +73,7 @@ test.describe("shared mobile bottom navigation", () => {
       }
       const first = readings[0].light;
       expect(first.viewport).toContain("viewport-fit=cover");
-      expect(first.pin).toContain("mobile.css?v=28");
+      expect(first.pin).toContain(pins.assetQuery("mobile.css"));
       expect(first.position).toBe("fixed");
       expect(first.paddingBottom).toBe("5px");
       expect(first.safeAreaCount).toBe(1);
@@ -84,7 +85,7 @@ test.describe("shared mobile bottom navigation", () => {
         for (const mode of ["light", "scrolled", "dark"]) {
           const nav = reading[mode];
           expect(nav.viewport, reading.path).toContain("viewport-fit=cover");
-          expect(nav.pin, reading.path).toContain("mobile.css?v=28");
+          expect(nav.pin, reading.path).toContain(pins.assetQuery("mobile.css"));
           expect(nav.bottom, `${reading.path} ${mode}`).toBe(first.bottom);
           expect(nav.height, reading.path).toBe(first.height);
           expect(nav.paddingBottom, reading.path).toBe(first.paddingBottom);

@@ -1,5 +1,6 @@
 const { execFileSync } = require("child_process");
 const { test, expect } = require("@playwright/test");
+const pins = require("../../scripts/ci-asset-pins");
 
 const mainSha = "b6d0aa793f814934110e5d51dfb99b4236a7f5fd";
 const reviewed = "574ec9f33229e5f356be0afe3e32c647ecb9393f";
@@ -114,10 +115,10 @@ async function expectFreshShop(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const src = await page.locator("script[src*='shop.js']").first().getAttribute("src");
-  expect(src).toContain("shop.js?v=188");
+  expect(src).toContain(pins.assetQuery("shop.js"));
   const live = await page.evaluate(async (url) => (await fetch(url)).text(), src);
   expect(live).toContain('href="/feedback"');
-  expect(live).toContain("member.js?v=35");
+  expect(live).toContain(pins.assetQuery("member.js"));
   expect(live).toContain("my_cart_share_permission");
   expect(live).toContain("noteCartShareAuth");
   expect(live).toContain("دانە ·");
@@ -135,20 +136,20 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   await page.goto("/account.html", { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const memberSrc = await page.locator("script[src*='member.js']").getAttribute("src");
-  expect(memberSrc).toContain("member.js?v=35");
+  expect(memberSrc).toContain(pins.assetQuery("member.js"));
   const memberBody = await page.evaluate(async (url) => (await fetch(url)).text(), memberSrc);
   expect(memberBody).toContain("noteAuthUser");
   expect(memberBody).toContain("noteCartShareSignOut");
   expect(memberBody).not.toContain("restoreRejectedSignOut");
   const accountSrc = await page.locator("script[src*='account.js']").getAttribute("src");
-  expect(accountSrc).toContain("account.js?v=8");
+  expect(accountSrc).toContain(pins.assetQuery("account.js"));
   const accountBody = await page.evaluate(async (url) => (await fetch(url)).text(), accountSrc);
   expect(accountBody).toContain("signupEntryRequested");
   expect(accountBody).toContain('"#signup"');
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("پىكىر ۋە تەكلىپ");
-  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=188/);
-  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", "member.js?v=35");
+  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", pins.assetPattern("shop.js"));
+  await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", pins.assetQuery("member.js"));
   const feedbackMember = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='member.js']").src)).text());
   const warmedProductionMember = await page.evaluate(async () => (await fetch("/member.js?v=31")).text());
   expect(feedbackMember).toContain('"/api/member-visit"');
@@ -156,7 +157,7 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   expect(feedbackMember).not.toContain('"/api/member-signup"');
   expect(warmedProductionMember).not.toContain("/api/member-visit");
   expect(feedbackMember).not.toBe(warmedProductionMember);
-  await expect(page.locator("script[src*='feedback.js']")).toHaveAttribute("src", /feedback\.js\?v=3/);
+  await expect(page.locator("script[src*='feedback.js']")).toHaveAttribute("src", pins.assetPattern("feedback.js"));
   const feedbackBody = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='feedback.js']").src)).text());
   expect(feedbackBody).toContain("noteAuthUser");
   expect(feedbackBody).toContain("characterLength");

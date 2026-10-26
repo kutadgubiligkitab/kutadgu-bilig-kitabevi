@@ -1141,24 +1141,25 @@ test("a zero approval count keeps the closed dropdown hidden", async ({ page }) 
   await expect(page.locator(".admin-approval-bell")).toHaveCount(0);
 });
 
+function gitBlobSha1(buffer) {
+  const lf = Buffer.from(buffer.toString("latin1").replace(/\r\n/g, "\n"), "latin1");
+  return require("crypto").createHash("sha1").update("blob " + lf.length + "\0").update(lf).digest("hex");
+}
+
 test("a warm cached admin stylesheet stays broken until the new pin loads", async ({ browser }) => {
   const fs = require("fs");
   const path = require("path");
-  const crypto = require("crypto");
   const http = require("http");
   const oldCssBuffer = fs.readFileSync(path.join(__dirname, "fixtures", "admin-css-6c3e7bb6.css"));
   const oldCss = oldCssBuffer.toString("utf8");
-  const blob = crypto.createHash("sha1");
-  blob.update("blob " + oldCssBuffer.length + "\0");
-  blob.update(oldCssBuffer);
-  expect(blob.digest("hex")).toBe("e61cc4e4d3830ee68e176aec529f5a7e36b6b1f0");
+  expect(gitBlobSha1(oldCssBuffer)).toBe("e61cc4e4d3830ee68e176aec529f5a7e36b6b1f0");
   expect(oldCss).toContain(".admin-approval-panel{position:absolute");
   expect(oldCss).not.toContain(".admin-approval-panel[hidden]");
   const currentHtml = fs.readFileSync(path.join(__dirname, "../../admin.html"), "utf8");
   const currentPinMatch = currentHtml.match(/admin\.css\?v=(\d+)/);
   expect(currentPinMatch, "admin.html must pin admin.css").toBeTruthy();
   const currentPin = currentPinMatch[1];
-  expect(currentPin).toBe("71");
+  expect(currentPin).toMatch(/^[1-9]\d*$/);
   const oldDocument = currentHtml.replace(`admin.css?v=${currentPin}`, "admin.css?v=49");
   expect(oldDocument).toContain('class="admin-top-actions"');
   expect(oldDocument).not.toContain(`admin.css?v=${currentPin}`);
@@ -1370,14 +1371,10 @@ test("a delayed notification from member A does not appear for member B", async 
 test("a warm cached header delivers the member bell on the first navigation", async ({ browser }) => {
   const fs = require("fs");
   const path = require("path");
-  const crypto = require("crypto");
   const http = require("http");
   const oldHeaderBuffer = fs.readFileSync(path.join(__dirname, "fixtures", "public-header-4e07e95a.js"));
   const oldHeader = oldHeaderBuffer.toString("utf8");
-  const blob = crypto.createHash("sha1");
-  blob.update("blob " + oldHeaderBuffer.length + "\0");
-  blob.update(oldHeaderBuffer);
-  expect(blob.digest("hex")).toBe("460793eb0974f59e7fa5cc02b4e30298ad6d1b0b");
+  expect(gitBlobSha1(oldHeaderBuffer)).toBe("460793eb0974f59e7fa5cc02b4e30298ad6d1b0b");
   expect(oldHeader).not.toContain("ensureReviewNotices");
   const hits = { v3: 0, v4: 0, v5: 0, v6: 0, notes: [] };
   const fixture = "<!doctype html><html lang=\"ug\" dir=\"rtl\"><head><title>fixture</title></head><body><a class=\"member-account-button\" href=\"/account.html\">كىرىش</a><script src=\"/public-header.js?v=3\"></script></body></html>";

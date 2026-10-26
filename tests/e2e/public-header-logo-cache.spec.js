@@ -1,4 +1,5 @@
 const { test, expect } = require("./playwright-test");
+const pins = require("../../scripts/ci-asset-pins");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -21,7 +22,8 @@ const warmHtml = Buffer.from(
 );
 
 function blobSha1(buffer) {
-  return crypto.createHash("sha1").update("blob " + buffer.length + "\0").update(buffer).digest("hex");
+  const lf = Buffer.from(buffer.toString("latin1").replace(/\r\n/g, "\n"), "latin1");
+  return crypto.createHash("sha1").update("blob " + lf.length + "\0").update(lf).digest("hex");
 }
 
 test("a warm released header cache still fetches the cart logo helper", async ({ browser }) => {
@@ -29,7 +31,7 @@ test("a warm released header cache still fetches the cart logo helper", async ({
   expect(releasedHeader.toString("utf8")).toContain('srcset="/kutadgu-logo.webp"');
   expect(releasedHeader.toString("utf8")).not.toContain("kutadgu-logo-128");
   expect(currentHeader.toString("utf8")).toContain('srcset="/kutadgu-logo-128.webp"');
-  expect(cartHtml.toString("utf8")).toContain('src="public-header.js?v=6"');
+  expect(cartHtml.toString("utf8")).toContain('src="' + pins.assetQuery("public-header.js") + '"');
   expect(cartHtml.toString("utf8")).not.toContain("kutadgu-logo");
 
   const hits = { v5: 0, v6: 0 };
@@ -56,7 +58,7 @@ test("a warm released header cache still fetches the cart logo helper", async ({
         res.end(releasedHeader);
         return;
       }
-      if (url.pathname === "/public-header.js" && url.searchParams.get("v") === "6") {
+      if (url.pathname === "/public-header.js" && url.searchParams.get("v") === pins.assetPin("public-header.js")) {
         hits.v6 += 1;
         res.writeHead(200, {
           "content-type": "application/javascript; charset=utf-8",
@@ -116,11 +118,12 @@ test("a warm released header cache still fetches the cart logo helper", async ({
     await page.goto(origin.origin + "/cart.html", { waitUntil: "domcontentloaded" });
     expect(hits.v6).toBe(1);
     expect(hits.v5).toBe(1);
-    const fetched = await page.evaluate(() => performance.getEntriesByType("resource")
-      .filter((entry) => entry.name.includes("public-header.js?v=6"))
-      .map((entry) => entry.transferSize));
+    const headerQuery = pins.assetQuery("public-header.js");
+    const fetched = await page.evaluate((query) => performance.getEntriesByType("resource")
+      .filter((entry) => entry.name.includes(query))
+      .map((entry) => entry.transferSize), headerQuery);
     expect(fetched.some((size) => size > 0)).toBe(true);
-    await expect(page.locator("script[src='public-header.js?v=6']")).toHaveCount(1);
+    await expect(page.locator("script[src='" + pins.assetQuery("public-header.js") + "']")).toHaveCount(1);
 
     const logo = page.locator("header.kutadgu-public-header img.kutadgu-site-logo");
     await expect(logo).toBeVisible();

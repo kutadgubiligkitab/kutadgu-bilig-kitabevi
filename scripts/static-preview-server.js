@@ -37,6 +37,10 @@ function send(res, status, headers, body) {
 
 const sitemap = require(path.join(root, "kutadgu-sitemap.js"));
 const seo = require(path.join(root, "kutadgu-book-seo.js"));
+const publicBook = require(path.join(root, "kutadgu-public-book.js"));
+const PREVIEW_CLEAN_URL_BOOKS = require(path.join(__dirname, "preview-clean-url-books.js"));
+const PREVIEW_BOOK_SHELL = fs.readFileSync(path.join(root, "book-shell.html"), "utf8");
+const previewBooksById = new Map(PREVIEW_CLEAN_URL_BOOKS.map((book) => [String(book.id), book]));
 const CLEAN_HTML_SLUGS = new Set([
   "books",
   "feedback",
@@ -55,6 +59,20 @@ function hubSlugFromPathname(pathname) {
     if (CLEAN_HTML_SLUGS.has(slug)) return slug;
   }
   return "";
+}
+
+function previewBookForPath(pathname) {
+  const match = String(pathname || "").match(/^\/book\/(\d+)\/?$/);
+  return match ? previewBooksById.get(match[1]) || null : null;
+}
+
+function sendPreviewBook(req, res, book) {
+  const head = String((req && req.method) || "GET").toUpperCase() === "HEAD";
+  const html = publicBook.applyFoundPublicBookHead(PREVIEW_BOOK_SHELL, String(book.id), book);
+  send(res, 200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store, no-cache, must-revalidate"
+  }, head ? "" : html);
 }
 
 function isSitemapPath(pathname) {
@@ -89,6 +107,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (/^\/api\/book-public\/?$/i.test(url.pathname) || /^\/book\/\d+\/?$/.test(url.pathname)) {
+    const previewBook = previewBookForPath(url.pathname);
+    if (previewBook) {
+      sendPreviewBook(req, res, previewBook);
+      return;
+    }
     const handler = require(path.join(root, "api/book-public.js"));
     Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
       send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }, "temporary failure");
@@ -132,6 +155,11 @@ const server = http.createServer((req, res) => {
     || /^\/book\/?$/i.test(url.pathname)
     || /^\/book\/[^/]+\/?$/.test(url.pathname)
   ) {
+    const previewBook = previewBookForPath(url.pathname);
+    if (previewBook) {
+      sendPreviewBook(req, res, previewBook);
+      return;
+    }
     const handler = require(path.join(root, "api/book-public.js"));
     Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
       send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }, "temporary failure");

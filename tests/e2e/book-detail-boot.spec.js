@@ -60,9 +60,28 @@ async function detailState(page) {
   });
 }
 
+function detailReady(state) {
+  return !!(
+    state.purchase &&
+    state.h1.trim() &&
+    state.h1 !== "كىتاب" &&
+    state.price.trim() &&
+    state.authorHref.includes("/author/") &&
+    state.fav &&
+    state.related &&
+    state.reviews &&
+    state.boot === "" &&
+    state.shop
+  );
+}
+
 async function expectCompleteDetail(page) {
-  await expect.poll(async () => (await detailState(page)).purchase, { timeout: 15000 }).toBe(true);
-  const state = await detailState(page);
+  let latest = null;
+  await expect.poll(async () => {
+    latest = await detailState(page);
+    return detailReady(latest);
+  }, { timeout: 15000 }).toBe(true);
+  const state = latest || await detailState(page);
   expect(state.h1.trim()).not.toBe("");
   expect(state.h1).not.toBe("كىتاب");
   expect(state.price.trim()).not.toBe("");

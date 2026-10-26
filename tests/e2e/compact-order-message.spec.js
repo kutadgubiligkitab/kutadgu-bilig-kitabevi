@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const LONG_TITLE = "ئۇزۇن ئۇيغۇرچە كىتاب نامى ".repeat(8).trim();
 
@@ -83,7 +84,7 @@ test.describe("compact order message", () => {
     await mockBooks(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=188/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", pins.assetPattern("shop.js"));
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
     await expect(page.locator("#checkoutCard")).toBeVisible();
@@ -115,7 +116,8 @@ test.describe("compact order message", () => {
     await expect(page.locator("#orderPreview")).toContainText(orderNo);
 
     await page.locator("#copyOrder").click();
-    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(preview);
+    const orderText = (value) => String(value || "").replace(/\r\n/g, "\n");
+    await expect.poll(async () => orderText(await page.evaluate(() => navigator.clipboard.readText()))).toBe(orderText(preview));
 
     await page.evaluate(() => {
       window.__sharedOrder = "";

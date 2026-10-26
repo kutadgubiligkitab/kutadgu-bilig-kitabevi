@@ -322,11 +322,12 @@ test("shop wiring keeps discovery off explicit sorts, homepage, and localStorage
   assert.doesNotMatch(sortFn, /permuteIds|Math\.random|discover/);
   assert.doesNotMatch(shop, /localStorage\.setItem\("kutadgu-books-visit/);
   assert.match(booksHtml, /kutadgu-visit-order\.js\?v=3/);
-  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=3") < booksHtml.indexOf("shop.js?v=188"));
+  const shopQuery = "shop.js?v=" + require("./ci-asset-pins").assetPin("shop.js");
+  assert.ok(booksHtml.indexOf("kutadgu-visit-order.js?v=3") < booksHtml.indexOf(shopQuery));
   assert.match(booksHtml, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/books"/);
   assert.strictEqual((booksHtml.match(/application\/ld\+json/g) || []).length, 1);
   assert.match(booksHtml, /CollectionPage/);
-  assert.match(booksHtml, /shop\.js\?v=188/);
+  assert.match(booksHtml, new RegExp("shop\\.js\\?v=" + require("./ci-asset-pins").assetPin("shop.js")));
 });
 
 (async () => {

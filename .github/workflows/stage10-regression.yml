@@ -11,13 +11,30 @@ permissions:
 # Normal pull requests use the checked-out candidate. Set the repository variable
 # KUTADGU_E2E_PREVIEW to 1 to wait for a Vercel preview on pull_request runs.
 # workflow_dispatch keeps its preview URL, base URL, or production default.
+concurrency:
+  group: stage10-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check current asset pins
+        run: node scripts/ci-asset-pin-preflight.js
+
   e2e-shard:
     name: e2e-shard
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         shard: [1, 2]
     env:

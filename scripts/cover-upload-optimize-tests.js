@@ -144,7 +144,7 @@ test("admin and staff pages load the shared helper before upload code", () => {
   assert.ok(adminHtml.indexOf('kutadgu-cover-availability.js?v=1') < adminHtml.indexOf('kutadgu-cover-variants.js?v=5'));
   assert.ok(adminHtml.indexOf('kutadgu-cover-variants.js?v=5') < adminHtml.indexOf('kutadgu-cover-image.js?v=5'));
   assert.ok(adminHtml.indexOf('admin-save-guard.js?v=1') < adminHtml.indexOf('kutadgu-cover-image.js?v=5'));
-  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=5') < adminHtml.indexOf('admin.js?v=123'));
+  assert.ok(adminHtml.indexOf('kutadgu-cover-image.js?v=5') < adminHtml.indexOf('admin.js?v=' + require("./ci-asset-pins").assetPin("admin.js")));
   assert.ok(staffHtml.indexOf('kutadgu-cover-availability.js?v=1') < staffHtml.indexOf('kutadgu-cover-variants.js?v=5'));
   assert.ok(staffHtml.indexOf('kutadgu-cover-variants.js?v=5') < staffHtml.indexOf('kutadgu-cover-image.js?v=5'));
   assert.ok(staffHtml.indexOf('kutadgu-cover-image.js?v=5') < staffHtml.indexOf('book-staff.js?v=12'));
