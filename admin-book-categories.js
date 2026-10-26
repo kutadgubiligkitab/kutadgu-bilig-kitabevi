@@ -6,6 +6,15 @@
     "publisher", "api", "sitemap", "order-info", "privacy", "returns",
     "delete-account", "feedback", "account", "favorites", "my-books", "search"
   ]);
+  const GROUP_KEYS = ["literature", "history", "religion", "children", "parenting", "textbooks"];
+  const GROUP_LABELS = {
+    literature: "ئەدەبىيات",
+    history: "تارىخ",
+    religion: "دىنىي",
+    children: "بالىلار",
+    parenting: "پەرزەنت تەربىيەسى",
+    textbooks: "دەرسلىك"
+  };
   const FOLD = {
     "ا": "a", "آ": "a", "ب": "b", "پ": "p", "ت": "t", "ث": "s", "ج": "j", "چ": "ch",
     "ح": "h", "خ": "x", "د": "d", "ذ": "z", "ر": "r", "ز": "z", "ژ": "zh", "س": "s",
@@ -31,7 +40,10 @@
     retireOpen: false,
     createDraft: null,
     pendingCreate: null,
-    lastCode: ""
+    lastCode: "",
+    showInactive: false,
+    moveOpen: false,
+    moveAnchorId: null
   };
 
   function text(value) { return String(value == null ? "" : value).trim(); }
@@ -61,6 +73,7 @@
     if (/category_revision_conflict|category_move_changed/.test(blob)) return "تۈر ئۆزگەرتىلدى. تىزىمنى يېڭىلاپ قايتا جەزملەڭ.";
     if (/books_missing/.test(blob)) return "تاللانغان كىتاب تېپىلمىدى. تىزىمنى يېڭىلاپ قايتا تاللاڭ.";
     if (/not_universal/.test(blob)) return "پەقەت ئۇنىۋېرسال تۈردىكى تاللانغان كىتابلار يۆتكىلىدۇ.";
+    if (/invalid_admin_group/.test(blob)) return "چوڭ گۇرۇپپىنى تاللاڭ.";
     if (/category_retired|universal_required|invalid_redirect|redirect_target|destination_unavailable/.test(blob)) return "بۇ تۈرنى بۇ ئۇسۇلدا ئېلىۋېتكىلى ياكى نىشان قىلغىلى بولمايدۇ.";
     if (/Admin AAL2 required|42501/.test(blob)) return "باشقۇرغۇچى جەزملەش تېخى تاماملانمىغان.";
     return "تۈر مەشغۇلاتى تاماملانمىدى.";
@@ -123,6 +136,35 @@
     }
     return candidate;
   }
+  function groupOptions() {
+    const configured = root.KUTADGU_APP_CONFIG && root.KUTADGU_APP_CONFIG.discoveryGroups;
+    const byId = new Map();
+    if (Array.isArray(configured)) {
+      configured.forEach((group) => {
+        if (group && GROUP_KEYS.indexOf(group.id) !== -1 && text(group.label)) byId.set(group.id, text(group.label));
+      });
+    }
+    return GROUP_KEYS.map((id) => ({ id: id, label: byId.get(id) || GROUP_LABELS[id] }));
+  }
+  function groupLabel(key) {
+    const match = groupOptions().find((group) => group.id === key);
+    return match ? match.label : "";
+  }
+  function fillGroupSelect() {
+    const select = $("#bookCategoryGroup");
+    if (!select) return;
+    const selected = select.value;
+    select.innerHTML = `<option value="">چوڭ گۇرۇپپىنى تاللاڭ</option>` + groupOptions().map((group) => (
+      `<option value="${escapeHtml(group.id)}">${escapeHtml(group.label)}</option>`
+    )).join("");
+    if (selected && GROUP_KEYS.indexOf(selected) !== -1) select.value = selected;
+  }
+  function inactiveCategory(row) {
+    return !!(row && (row.retired || row.is_hidden));
+  }
+  function listedRows() {
+    return state.showInactive ? state.rows.slice() : state.rows.filter((row) => !inactiveCategory(row));
+  }
   function rememberDraft(label, summary) {
     if (state.pendingCreate) {
       const args = state.pendingCreate.args;
@@ -137,12 +179,17 @@
     return state.createDraft;
   }
   function createFields() {
-    return { label: $("#bookCategoryLabel"), summary: $("#bookCategorySummary") };
+    return {
+      label: $("#bookCategoryLabel"),
+      summary: $("#bookCategorySummary"),
+      group: $("#bookCategoryGroup")
+    };
   }
   function lockCreateFields(locked) {
     const fields = createFields();
     if (fields.label) fields.label.disabled = !!locked;
     if (fields.summary) fields.summary.disabled = !!locked;
+    if (fields.group) fields.group.disabled = !!locked;
   }
   function createSubmit() {
     const form = $("#bookCategoryCreate");
@@ -158,6 +205,7 @@
     if (!pending || !fields.label || !fields.summary) return;
     fields.label.value = pending.args.p_label;
     fields.summary.value = pending.args.p_summary;
+    if (fields.group) fields.group.value = pending.args.p_admin_group || "";
     lockCreateFields(true);
     lockCreateSubmission(state.busy);
   }
@@ -240,26 +288,58 @@
       </div>
     </div>`;
   }
+  function categoryArticle(id) {
+    if (id == null || id === "") return null;
+    const wanted = String(id).replace(/"/g, "");
+    return root.document.querySelector('.book-category-row[data-category-id="' + wanted + '"]');
+  }
+  function parkMovePanel() {
+    const panel = $("#bookCategoryMovePanel");
+    const park = $("#bookCategoryMovePark");
+    if (!panel || !park || panel.parentElement === park) return;
+    park.appendChild(panel);
+  }
+  function placeMovePanel() {
+    const panel = $("#bookCategoryMovePanel");
+    if (!panel) return;
+    if (!state.moveOpen) {
+      panel.hidden = true;
+      parkMovePanel();
+      return;
+    }
+    const article = categoryArticle(state.moveAnchorId);
+    if (article) article.appendChild(panel);
+    else parkMovePanel();
+    panel.hidden = false;
+  }
+  function syncReveal() {
+    const reveal = $("#bookCategoryReveal");
+    if (!reveal) return;
+    reveal.setAttribute("aria-pressed", state.showInactive ? "true" : "false");
+    reveal.textContent = state.showInactive ? "پەقەت ئوچۇق تۈرلەر" : "يوشۇرۇن ۋە ئېلىۋېتىلگەنلەرنى كۆرسەت";
+  }
   function render() {
     const host = $("#bookCategoryList");
     if (!host) return;
+    parkMovePanel();
     const directory = root.KutadguBookCategories;
     if (directory && directory.setAdminRows) directory.setAdminRows(state.rows);
     const renameInput = $("#bookCategoryRenameInput");
     const renameValue = state.renameDirty && renameInput ? renameInput.value : "";
     const redirectValue = $("#bookCategoryRedirect") ? $("#bookCategoryRedirect").value : "";
-    host.innerHTML = state.rows.map((row) => {
+    host.innerHTML = listedRows().map((row) => {
       const retired = !!row.retired;
       const hidden = !!row.is_hidden;
       const open = !retired && String(state.managingId) === String(row.id);
       const badge = retired ? "ئېلىۋېتىلگەن" : (hidden ? "يوشۇرۇن" : "ئوچۇق");
       const kind = retired ? "retired" : (hidden ? "hidden" : "open");
       const filled = open && state.renameDirty ? renameValue : row.label;
+      const grouped = groupLabel(row.admin_group);
       return `<article class="book-category-row" data-category-id="${escapeHtml(row.id)}" data-category-source="${escapeHtml(row.source)}">
         <div class="book-category-summary">
           <div>
             <strong>${escapeHtml(row.label)}</strong>
-            <p class="book-category-meta">كىتاب ${escapeHtml(row.book_count)} <span class="book-category-badge book-category-badge-${kind}">${badge}</span></p>
+            <p class="book-category-meta">كىتاب ${escapeHtml(row.book_count)} <span class="book-category-badge book-category-badge-${kind}">${badge}</span>${grouped ? ` <span class="book-category-group">${escapeHtml(grouped)}</span>` : ""}</p>
             ${retired ? `<p class="admin-help">كونا ئۇلىنىش ساقلىنىدۇ.</p>` : ""}
           </div>
           ${retired ? "" : `<button type="button" class="admin-secondary" data-category-manage="${escapeHtml(row.id)}" aria-expanded="${open ? "true" : "false"}" aria-label="باشقۇرۇش: ${escapeHtml(row.label)}">باشقۇرۇش</button>`}
@@ -267,11 +347,16 @@
         ${open ? manageMarkup(row, filled, redirectValue) : ""}
       </article>`;
     }).join("");
+    if (state.moveOpen && !listedRows().some((row) => String(row.id) === String(state.moveAnchorId))) {
+      state.moveOpen = false;
+      state.moveAnchorId = null;
+      abandonSourceBooks();
+    }
     const sourceSelect = $("#bookCategoryMoveSource");
     const destination = $("#bookCategoryMoveDestination");
     const previousSource = sourceSelect ? sourceSelect.value : "";
     const previousDestination = destination ? destination.value : "";
-    fillSelect(sourceSelect, activeRows(), previousSource, "مەنبە تۈرنى تاللاڭ");
+    fillSelect(sourceSelect, listedRows().filter((row) => !row.retired), previousSource, "مەنبە تۈرنى تاللاڭ");
     const sourceId = sourceSelect ? sourceSelect.value : "";
     fillSelect(
       destination,
@@ -280,6 +365,8 @@
       "نىشان تۈرنى تاللاڭ"
     );
     invalidatePreview();
+    placeMovePanel();
+    syncReveal();
   }
   async function load() {
     if (!state.db) return;
@@ -354,13 +441,16 @@
     if (!label) return { message: "تۈر نامىنى كىرگۈزۈڭ." };
     if (label.length > 80) return { message: "تۈر نامى 80 ھەرپتىن ئېشىپ كەتمىسۇن." };
     if (summary.length > 240) return { message: "قىسقىچە 240 ھەرپتىن ئېشىپ كەتمىسۇن." };
+    const group = text($("#bookCategoryGroup") && $("#bookCategoryGroup").value);
+    if (GROUP_KEYS.indexOf(group) === -1) return { message: "چوڭ گۇرۇپپىنى تاللاڭ." };
     const draft = rememberDraft(label, summary);
     return {
       args: {
         p_label: draft.label,
         p_slug: draft.slug,
         p_summary: draft.summary,
-        p_icon: "📚"
+        p_icon: "📚",
+        p_admin_group: group
       }
     };
   }
@@ -479,11 +569,13 @@
     const panel = $("#bookCategoryMovePanel");
     const select = $("#bookCategoryMoveSource");
     if (!panel || !select || !row) return;
-    panel.hidden = false;
+    state.moveOpen = true;
+    state.moveAnchorId = String(row.id);
     select.value = String(row.id);
     refreshDestinations();
     if ($("#bookCategoryMoveDestination")) $("#bookCategoryMoveDestination").value = "";
     invalidatePreview();
+    placeMovePanel();
     return loadSourceBooks(row.source);
   }
   function previewMarkup(preview) {
@@ -590,9 +682,15 @@
       if (form) form.hidden = true;
       return;
     }
+    if (button.id === "bookCategoryReveal") {
+      state.showInactive = !state.showInactive;
+      render();
+      return;
+    }
     if (button.id === "bookCategoryMoveClose") {
-      const panel = $("#bookCategoryMovePanel");
-      if (panel) panel.hidden = true;
+      state.moveOpen = false;
+      state.moveAnchorId = null;
+      placeMovePanel();
       abandonSourceBooks();
       invalidatePreview();
       return;
@@ -658,6 +756,8 @@
     const manager = $("#bookCategoryManager");
     if (!manager || manager.dataset.bound === "1") return;
     manager.dataset.bound = "1";
+    fillGroupSelect();
+    syncReveal();
     manager.addEventListener("click", onClick);
     manager.addEventListener("submit", (event) => {
       if (event.target && event.target.id === "bookCategoryCreate") createCategory(event);
@@ -677,8 +777,12 @@
         if ($("#bookCategoryMoveDestination")) $("#bookCategoryMoveDestination").value = "";
         invalidatePreview();
         const row = sourceById(target.value);
-        if (row) loadSourceBooks(row.source);
-        else abandonSourceBooks();
+        if (row) {
+          state.moveOpen = true;
+          state.moveAnchorId = String(row.id);
+          placeMovePanel();
+          loadSourceBooks(row.source);
+        } else abandonSourceBooks();
       }
     });
     $("#bookCategoryPreviewMove")?.addEventListener("click", previewMove);
@@ -694,5 +798,7 @@
     bind();
     syncConfirm();
   }
-  root.KutadguAdminBookCategories = { init, load, mutate, state, slugFor, rememberDraft };
+  root.KutadguAdminBookCategories = {
+    init, load, mutate, state, slugFor, rememberDraft, render, createArgs, groupOptions
+  };
 })(window);
