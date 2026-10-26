@@ -279,6 +279,34 @@
     return `ID ${member.book_id}${member.isbn?` · ISBN ${member.isbn}`:""}`;
   }
   let memberEditWatch=null;
+  let memberPageRead=0;
+  function refreshMemberPages(){
+    const generation=editorGeneration;
+    const groupId=positiveId(state.current&&state.current.id);
+    const ids=state.members.map(member=>member.book_id);
+    if(!groupId||!ids.length||!state.db||typeof state.db.from!=="function")return;
+    const stamp=++memberPageRead;
+    state.members.forEach(member=>{member.pagesRead=stamp});
+    Promise.resolve().then(()=>state.db.from("books").select("id,pages").in("id",ids)).then(result=>{
+      if(generation!==editorGeneration)return;
+      if(positiveId(state.current&&state.current.id)!==groupId)return;
+      if(result&&result.error)return;
+      const rows=Array.isArray(result&&result.data)?result.data:[];
+      const pagesById=new Map();
+      rows.forEach(row=>{
+        const id=positiveId(row&&row.id);
+        if(id)pagesById.set(id,memberPageCount(row.pages));
+      });
+      state.members.forEach(member=>{
+        if(member.pagesRead!==stamp||!pagesById.has(member.book_id))return;
+        member.pages=pagesById.get(member.book_id);
+        const pages=document.querySelector(`[data-volume-member-id="${member.book_id}"] [data-member-pages]`);
+        if(!pages)return;
+        pages.hidden=member.pages==null;
+        pages.textContent=member.pages==null?"":`${member.pages} بەت`;
+      });
+    }).catch(()=>{});
+  }
   function rememberMemberEdit(bookId){
     memberEditWatch={
       generation:editorGeneration,
@@ -318,7 +346,10 @@
     if(Object.prototype.hasOwnProperty.call(saved,"stock"))member.stock=saved.stock==null||saved.stock===""?null:Number(saved.stock);
     if(Object.prototype.hasOwnProperty.call(saved,"isbn"))member.isbn=text(saved.isbn);
     if(Object.prototype.hasOwnProperty.call(saved,"image_url")&&text(saved.image_url))member.image_url=text(saved.image_url);
-    if(Object.prototype.hasOwnProperty.call(saved,"pages"))member.pages=memberPageCount(saved.pages);
+    if(Object.prototype.hasOwnProperty.call(saved,"pages")){
+      member.pages=memberPageCount(saved.pages);
+      member.pagesRead=++memberPageRead;
+    }
     if(Object.prototype.hasOwnProperty.call(saved,"is_active"))member.is_active=saved.is_active!==false;
     paintMemberBook(member);
   }
@@ -440,6 +471,7 @@
     resetLookup();
     clearSlugRecovery();
     rememberSavedEditor();
+    refreshMemberPages();
   }
   function newGroup(){
     editorGeneration++;

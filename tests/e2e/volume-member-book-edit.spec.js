@@ -20,8 +20,8 @@ function group(id) {
       category: "ئۇنىۋېرسال", source: "universal.html", description: "باشقا چۈشەندۈرۈش",
       is_public: false, is_active: true, representative_book_id: "401",
       members: [
-        { book_id: "401", position: 1, volume_label: "باشقا 1", title: "باشقا بىرى", author: "باشقا", price: 10, stock: 1, image_url: "/sample-book-cover.png", url: "/book/401" },
-        { book_id: "402", position: 2, volume_label: "باشقا 2", title: "باشقا ئىككى", author: "باشقا", price: 11, stock: 1, image_url: "/sample-book-cover.png", url: "/book/402" }
+        { book_id: "401", position: 1, volume_label: "باشقا 1", title: "باشقا بىرى", author: "باشقا", price: 10, stock: 1, stock_status: null, image_url: "/sample-book-cover.png", is_active: true },
+        { book_id: "402", position: 2, volume_label: "باشقا 2", title: "باشقا ئىككى", author: "باشقا", price: 11, stock: 1, stock_status: null, image_url: "/sample-book-cover.png", is_active: true }
       ]
     };
   }
@@ -30,8 +30,8 @@ function group(id) {
     category: "ئۇنىۋېرسال", source: "universal.html", description: "ئەسلى چۈشەندۈرۈش",
     is_public: true, is_active: true, representative_book_id: "301",
     members: [
-      { book_id: "301", position: 1, volume_label: "1-قىسىم", title: "ئالما خاتىرىسى", author: "مۇئەللىپ", price: 120, stock: 4, image_url: "/sample-book-cover.png", url: "/book/301", pages: null },
-      { book_id: "302", position: 2, volume_label: "2-قىسىم", title: "ئالما داۋامى", author: "مۇئەللىپ", price: 80, stock: 6, image_url: "/sample-book-cover.png", url: "/book/302", pages: 40 }
+      { book_id: "301", position: 1, volume_label: "1-قىسىم", title: "ئالما خاتىرىسى", author: "مۇئەللىپ", price: 120, stock: 4, stock_status: null, image_url: "/sample-book-cover.png", is_active: true },
+      { book_id: "302", position: 2, volume_label: "2-قىسىم", title: "ئالما داۋامى", author: "مۇئەللىپ", price: 80, stock: 6, stock_status: null, image_url: "/sample-book-cover.png", is_active: true }
     ]
   };
 }
@@ -80,9 +80,36 @@ async function openSavedSeries(page) {
             return { data: window.__groups.map((row) => ({ id: row.id, title: row.title, slug: row.slug, member_count: row.members.length, is_public: row.is_public })) };
           }
           if (name === "admin_get_book_volume_group") {
-            return { data: window.__groups.find((row) => String(row.id) === String(args && args.p_group_id)) || null };
+            const found = window.__groups.find((row) => String(row.id) === String(args && args.p_group_id)) || null;
+            if (!found) return { data: null };
+            return {
+              data: {
+                ...found,
+                members: found.members.map((member) => {
+                  const copy = { ...member };
+                  delete copy.pages;
+                  delete copy.isbn;
+                  delete copy.url;
+                  return copy;
+                })
+              }
+            };
           }
           return { data: [] };
+        },
+        from(table) {
+          if (table !== "books") throw new Error("unexpected_table");
+          const query = {
+            select() { return query; },
+            in(_column, ids) {
+              const wanted = new Set((ids || []).map((id) => String(id)));
+              const data = (window.__kutadguAdminPreviewBooks || [])
+                .filter((book) => wanted.has(String(book.id)))
+                .map((book) => ({ id: book.id, pages: book.pages }));
+              return Promise.resolve({ data, error: null });
+            }
+          };
+          return query;
         }
       }
     });
@@ -158,6 +185,46 @@ test("saved member editing updates page count without recreating the series", as
     ["301", 200, 120, 4],
     ["302", 40, 80, 6]
   ]);
+});
+
+test("saved pages remain after leaving and reopening the group", async ({ page }) => {
+  await openSavedSeries(page);
+  const first = memberRow(page, "301");
+  await expect(memberRow(page, "302").locator("[data-member-pages]")).toHaveText("40 بەت");
+  await first.getByRole("button", { name: "كىتاب ئۇچۇرىنى تەھرىرلەش" }).click();
+  await page.locator("#bookPages").fill("180");
+  await saveOpenBook(page);
+  await expect(first.locator("[data-member-pages]")).toHaveText("180 بەت");
+  await expect(page.locator("#volumeGroupTitle")).toHaveValue("ساقلانمىغان يۈرۈشلۈك");
+  await expect(first.locator("[data-member-label]")).toHaveValue("باش قىسىم");
+
+  await page.locator("[data-volume-group-edit='88']").click();
+  await expect(page.locator("#volumeGroupId")).toHaveValue("88");
+  await page.locator("[data-volume-group-edit='55']").click();
+  await expect(page.locator("#volumeGroupId")).toHaveValue("55");
+  await expect(page.locator("#volumeGroupTitle")).toHaveValue("ئالما يۈرۈشلۈكى");
+  await expect(first.locator("[data-member-label]")).toHaveValue("1-قىسىم");
+  await expect(first.locator("[data-member-pages]")).toHaveText("180 بەت");
+  await expect(memberRow(page, "302").locator("[data-member-pages]")).toHaveText("40 بەت");
+  await expect(page.locator("#volumeGroupVisibility")).toHaveText("كۆرسىتىشكە تەييار");
+  expect(await page.locator("[data-series-cover]").first().evaluate((input) => input.files.length)).toBe(1);
+
+  await first.getByRole("button", { name: "كىتاب ئۇچۇرىنى تەھرىرلەش" }).click();
+  await expect(page.locator("#bookId")).toHaveValue("301");
+  await expect(page.locator("#bookPages")).toHaveValue("180");
+  await page.locator("#cancelBookEdit").click();
+  await expect(page.locator("#bookModal")).toBeHidden();
+  await expect(page.locator("#volumeGroupTitle")).toHaveValue("ئالما يۈرۈشلۈكى");
+  await expect(first.locator("[data-member-label]")).toHaveValue("1-قىسىم");
+  expect(await page.evaluate(() => window.__volumeEditorCalls.filter((call) => call.name === "admin_get_book_volume_group").every((call) => {
+    const members = (call.args && window.__groups.find((row) => String(row.id) === String(call.args.p_group_id)).members) || [];
+    return members.every((member) => !Object.prototype.hasOwnProperty.call(member, "pages") && !Object.prototype.hasOwnProperty.call(member, "isbn"));
+  }))).toBe(true);
+  expect(await page.evaluate(() => window.KutadguAdminVolumeGroups._state.members.map((member) => [member.book_id, member.pages, member.price, member.stock]))).toEqual([
+    ["301", 180, 120, 4],
+    ["302", 40, 80, 6]
+  ]);
+  expect(await page.evaluate(() => window.__volumeEditorCalls.map((call) => call.name))).not.toContain("admin_save_book_volume_group");
 });
 
 test("a late book save does not repaint a different series", async ({ page }) => {
