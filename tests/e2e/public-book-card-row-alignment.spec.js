@@ -162,6 +162,7 @@ async function settleCardGeometry(page, cardSelector) {
     if (next && next === last) return;
     last = next;
   }
+  throw new Error(`card geometry did not settle for ${cardSelector}`);
 }
 
 async function measure(page, cardSelector, cartSelector, opts = {}) {

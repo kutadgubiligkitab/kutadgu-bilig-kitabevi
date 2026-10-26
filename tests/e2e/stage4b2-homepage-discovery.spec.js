@@ -252,8 +252,112 @@ const alignmentCatalog = [
   })
 ];
 
+function installDiscoverySettleObserver() {
+  const state = {
+    premiumAt: 0,
+    lastMoveAt: 0,
+    lastLoadAt: 0,
+    failed: false
+  };
+  window.__kutadguDiscoverySettle = state;
+  const bound = new WeakSet();
+  const linkOf = () => document.querySelector("link[data-kutadgu-stage4b2-homepage-discovery]");
+  const bindLink = (link) => {
+    if (!link || bound.has(link)) return;
+    bound.add(link);
+    link.addEventListener("load", () => { state.lastLoadAt = performance.now(); });
+    link.addEventListener("error", () => {
+      state.failed = true;
+      state.lastLoadAt = performance.now();
+    });
+  };
+  const noteMove = (node) => {
+    if (!node || node.nodeType !== 1) return;
+    if (node.matches("link[data-kutadgu-stage4b2-homepage-discovery]") || node.querySelector("link[data-kutadgu-stage4b2-homepage-discovery]")) {
+      state.lastMoveAt = performance.now();
+    }
+  };
+  const bindPremium = (script) => {
+    if (!script || bound.has(script)) return;
+    bound.add(script);
+    const mark = () => { if (!state.premiumAt) state.premiumAt = performance.now(); };
+    script.addEventListener("load", mark, { once: true });
+    script.addEventListener("error", mark, { once: true });
+  };
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      [...record.addedNodes, ...record.removedNodes].forEach(noteMove);
+      record.addedNodes.forEach((node) => {
+        if (!node || node.nodeType !== 1) return;
+        if (node.id === "kutadguPremiumUxScript") bindPremium(node);
+        const nested = node.querySelector && node.querySelector("#kutadguPremiumUxScript");
+        if (nested) bindPremium(nested);
+      });
+    }
+    bindLink(linkOf());
+    bindPremium(document.getElementById("kutadguPremiumUxScript"));
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  bindLink(linkOf());
+  bindPremium(document.getElementById("kutadguPremiumUxScript"));
+}
+
+function readSettledDiscoveryChrome(page) {
+  const reader = new Function(`
+    const tokenProbe = (${tokenProbe().toString()});
+    const familyMetrics = (${familyMetrics().toString()});
+    const state = window.__kutadguDiscoverySettle;
+    if (!state) return Promise.reject(new Error("discovery stylesheet observer missing"));
+    return new Promise((resolve, reject) => {
+      const started = performance.now();
+      let frames = 0;
+      let mark = "";
+      const tick = () => {
+        if (performance.now() - started > 15000) {
+          reject(new Error("discovery stylesheet did not settle"));
+          return;
+        }
+        if (state.failed) {
+          reject(new Error("discovery stylesheet failed to load"));
+          return;
+        }
+        if (!state.premiumAt) {
+          const premium = performance.getEntriesByType("resource").find((entry) => entry.name.includes("/premium-ux.js") && entry.responseEnd > 0);
+          if (premium) state.premiumAt = premium.responseEnd;
+        }
+        const link = document.querySelector("link[data-kutadgu-stage4b2-homepage-discovery]");
+        let rules = 0;
+        try { rules = link && link.sheet ? link.sheet.cssRules.length : 0; } catch (err) { rules = 0; }
+        const cssAfterPremium = performance.getEntriesByType("resource").filter((entry) => entry.name.includes("stage4b2-homepage-discovery.css") && entry.responseEnd >= state.premiumAt);
+        if (cssAfterPremium.length) state.lastLoadAt = Math.max(state.lastLoadAt, cssAfterPremium[cssAfterPremium.length - 1].responseEnd);
+        const quiet = state.premiumAt > 0 && rules > 0 && state.lastLoadAt >= state.premiumAt && state.lastLoadAt >= state.lastMoveAt;
+        const signature = quiet ? [state.lastLoadAt, state.lastMoveAt, rules].join(":") : "";
+        if (!quiet || signature !== mark) {
+          frames = 0;
+          mark = signature;
+          requestAnimationFrame(tick);
+          return;
+        }
+        frames += 1;
+        if (frames < 2) {
+          requestAnimationFrame(tick);
+          return;
+        }
+        resolve({
+          tokens: tokenProbe(),
+          featured: familyMetrics("featured"),
+          carousel: familyMetrics("carousel")
+        });
+      };
+      requestAnimationFrame(tick);
+    });
+  `);
+  return page.evaluate(reader);
+}
+
 test.describe("Stage 4B-2 homepage discovery chrome", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(installDiscoverySettleObserver);
     await H.installReadSafeNetwork(page);
     await H.clearShopStorage(page);
   });
@@ -396,10 +500,8 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
   for (const width of [390, 768, 1366]) {
     test(`light chrome at ${width}`, async ({ page }) => {
       await openHome(page, width);
-      const tokens = await page.evaluate(tokenProbe());
-      const featured = await page.evaluate(familyMetrics(), "featured");
-      const carousel = await page.evaluate(familyMetrics(), "carousel");
-      expectDiscoveryChrome(featured, carousel, tokens, width);
+      const sample = await readSettledDiscoveryChrome(page);
+      expectDiscoveryChrome(sample.featured, sample.carousel, sample.tokens, width);
     });
   }
 
@@ -407,12 +509,39 @@ test.describe("Stage 4B-2 homepage discovery chrome", () => {
     test(`dark chrome at ${width}`, async ({ page }) => {
       await openHome(page, width);
       await enableDarkMode(page);
-      const tokens = await page.evaluate(tokenProbe());
-      const featured = await page.evaluate(familyMetrics(), "featured");
-      const carousel = await page.evaluate(familyMetrics(), "carousel");
-      expectDiscoveryChrome(featured, carousel, tokens, width);
+      const sample = await readSettledDiscoveryChrome(page);
+      expectDiscoveryChrome(sample.featured, sample.carousel, sample.tokens, width);
     });
   }
+
+  test("a delayed discovery stylesheet reload is measured after it settles", async ({ page }) => {
+    let holdReload = false;
+    let releaseReload;
+    const reloadHeld = new Promise((resolve) => { releaseReload = resolve; });
+    await page.route("**/stage4b2-homepage-discovery.css*", async (route) => {
+      if (holdReload) await reloadHeld;
+      await route.continue();
+    });
+    await openHome(page, 1366);
+    holdReload = true;
+    await page.evaluate(() => { window.__discoverySettled = false; });
+    const nextRequest = page.waitForRequest((request) => request.url().includes("/stage4b2-homepage-discovery.css"));
+    const reading = (async () => {
+      await page.evaluate(() => {
+        const link = document.querySelector("link[data-kutadgu-stage4b2-homepage-discovery]");
+        document.head.appendChild(link);
+      });
+      const sample = await readSettledDiscoveryChrome(page);
+      await page.evaluate(() => { window.__discoverySettled = true; });
+      return sample;
+    })();
+    await nextRequest;
+    expect(await page.evaluate(() => window.__discoverySettled)).toBe(false);
+    releaseReload();
+    const sample = await reading;
+    expect(sample.tokens.md).toBeGreaterThan(0);
+    expectDiscoveryChrome(sample.featured, sample.carousel, sample.tokens, 1366);
+  });
 
   test("stock states stay silent / low / unavailable on homepage cards", async ({ page }) => {
     await openHome(page, 1366);

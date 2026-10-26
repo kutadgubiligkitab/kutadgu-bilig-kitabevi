@@ -71,6 +71,29 @@ test("a hard-coded current pin fails and a historical pin stays", () => {
   assert.strictEqual(historical.ok, true, historical.problems.join("\n"));
 });
 
+test("a currentPin literal is rejected for both the live pin and a stale one", () => {
+  const root = fixture();
+  write(root, "tests/e2e/current.spec.js", "expect(currentPin).toBe(\"4\");\nexpect(currentPin).toBe(\"3\");\n");
+  const result = checkAssetPins(root);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.problems.some((problem) => problem.includes("hard-codes current admin.css pin 4")));
+  assert.ok(result.problems.some((problem) => problem.includes("stale current admin.css pin 3")));
+  assert.ok(result.problems.some((problem) => problem.includes("HTML pin is 4")));
+});
+
+test("a historical fetch does not excuse a fresh-page assertion of that URL", () => {
+  const root = fixture();
+  write(root, "index.html", "<script src=\"shop.js?v=10\"></script>");
+  write(root, "books.html", "<script src=\"shop.js?v=10\"></script>");
+  write(root, "tests/e2e/current.spec.js", "test(\"warm\", async () => {\n  await fetch(\"/shop.js?v=9\");\n});\ntest(\"fresh\", async () => {\n  expect(src).toContain(\"shop.js?v=9\");\n});\n");
+  const stale = checkAssetPins(root);
+  assert.strictEqual(stale.ok, false);
+  assert.ok(stale.problems.some((problem) => problem.includes("stale current shop.js?v=9")));
+  write(root, "tests/e2e/current.spec.js", "test(\"warm\", async () => {\n  await fetch(\"/shop.js?v=9\");\n  expect(cached).toContain(\"shop.js?v=9\");\n});\ntest(\"injected\", async () => {\n  poisoned.href = \"/shop.js?v=9\";\n  expect(manual.links).toContain(\"shop.js?v=9\");\n});\n");
+  const historical = checkAssetPins(root);
+  assert.strictEqual(historical.ok, true, historical.problems.join("\n"));
+});
+
 test("an HTML pin bump rejects an unchanged stale current assertion", () => {
   const root = fixture();
   write(root, "tests/e2e/current.spec.js", "expect(src).toContain(\"shop.js?v=9\");\n");

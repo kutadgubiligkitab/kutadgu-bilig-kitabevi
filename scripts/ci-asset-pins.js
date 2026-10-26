@@ -107,14 +107,24 @@ function explicitHistoricalLine(line) {
     || /(?:^|[^A-Za-z0-9_])(?:cached|old|released|warm|previous)/i.test(line);
 }
 
-function fileUsesHistoricalVersion(text, asset, version) {
+function functionStart(lines, index) {
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    if (/^\s*(?:async\s+)?(?:test|function)\b/.test(lines[cursor]) || /^\s*test\(/.test(lines[cursor])) return cursor;
+  }
+  return 0;
+}
+
+function injectedFixtureCovers(lines, index, asset, version) {
   const plain = `${asset}?v=${version}`;
   const escaped = `${asset.replace(/\./g, "\\.")}\\?v=${version}`;
-  return text.split(/\r?\n/).some((line) => {
-    if (ASSERTION.test(line)) return false;
-    if (!line.includes(plain) && !line.includes(escaped)) return false;
-    return /\b(?:fetch|route|fulfill)\s*\(|\.href\s*=|script src=|link href=/.test(line);
-  });
+  const start = functionStart(lines, index);
+  for (let cursor = start; cursor < index; cursor += 1) {
+    const line = lines[cursor];
+    if (ASSERTION.test(line)) continue;
+    if (!line.includes(plain) && !line.includes(escaped)) continue;
+    if (/\.href\s*=|script src=|link href=/.test(line)) return true;
+  }
+  return false;
 }
 
 function walkJs(dir, out) {
@@ -142,6 +152,12 @@ function hardcodedCurrentPins(root) {
     const text = fs.readFileSync(file, "utf8");
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
+      const forced = line.match(/currentPin\)\.toBe\(\s*["'](\d+)["']\s*\)/);
+      if (forced && !scriptScoped) {
+        const expected = pins.get("admin.css");
+        if (forced[1] === expected) hits.push(`${relative}:${index + 1} hard-codes current admin.css pin ${forced[1]}`);
+        else hits.push(`${relative}:${index + 1} stale current admin.css pin ${forced[1]}; HTML pin is ${expected}`);
+      }
       if (!ASSERTION.test(line) || explicitHistoricalLine(line)) return;
       for (const [asset, pin] of pins) {
         if (scriptScoped && !SCRIPT_ASSETS.includes(asset)) continue;
@@ -152,13 +168,9 @@ function hardcodedCurrentPins(root) {
         for (const literal of pinLiterals(line)) {
           const expected = pins.get(literal.asset);
           if (!expected || literal.version === expected) continue;
-          if (fileUsesHistoricalVersion(text, literal.asset, literal.version)) continue;
+          if (injectedFixtureCovers(lines, index, literal.asset, literal.version)) continue;
           hits.push(`${relative}:${index + 1} stale current ${literal.asset}?v=${literal.version}; HTML pin is ${expected}`);
         }
-      }
-      const forced = line.match(/currentPin\)\.toBe\(\s*["'](\d+)["']\s*\)/);
-      if (forced && forced[1] === pins.get("admin.css")) {
-        hits.push(`${relative}:${index + 1} hard-codes current admin.css pin ${forced[1]}`);
       }
     });
   }
