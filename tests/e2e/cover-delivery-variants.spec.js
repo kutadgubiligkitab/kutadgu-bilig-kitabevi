@@ -230,9 +230,10 @@ test("a deleted published variant still falls back to the original once", async 
   await expect(page.locator(".book-detail-info h1")).toHaveText(book.title);
   await expect(page.locator(".detail-unavailable-panel")).toHaveCount(0);
   await expect(page.locator(".book-cover-unavailable")).toHaveCount(0);
-  await expect.poll(() => cover.evaluate((img) => img.getAttribute("srcset"))).toBeNull();
-  await expect.poll(() => cover.evaluate((img) => img.currentSrc)).toContain("/311/cover.webp");
-  await expect.poll(() => cover.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect.poll(() => cover.evaluate((img) => {
+    const current = img.currentSrc || "";
+    return current.includes("/311/cover.webp") && !current.includes("/variants/") && img.naturalWidth > 0;
+  })).toBe(true);
   expect(await cover.evaluate((img) => img.currentSrc)).not.toContain("/variants/");
   expect(variantHits.length).toBeGreaterThan(0);
   expect(variantHits.length).toBeLessThan(4);

@@ -370,11 +370,22 @@ function handleCoverLoad(img){
   if(state&&state.replaying)return;
   clearCoverRetry(img);
 }
+function sameCoverUrl(a,b){
+  const left=String(a||"").trim();
+  const right=String(b||"").trim();
+  if(!left||!right)return false;
+  if(left===right)return true;
+  try{
+    const origin=typeof location!=="undefined"&&location.origin?location.origin:"https://www.kutadgubilik.com";
+    return new URL(left,origin).href===new URL(right,origin).href;
+  }catch(e){return false}
+}
 function dropFailedDeliveryCandidate(img){
   if(!img||!img.getAttribute||!img.getAttribute("srcset"))return false;
   const original=(img.getAttribute("data-cover-src")||"").trim();
   img.removeAttribute("srcset");
   img.removeAttribute("sizes");
+  if(original&&img.dataset)img.dataset.coverDeliveryDropped=original;
   if(!original||!isRetryableCoverUrl(original))return true;
   img.removeAttribute("src");
   try{void img.offsetWidth}catch(e){}
@@ -394,6 +405,11 @@ function coverDeliverySizes(img,opts){
 }
 function applyCoverDelivery(img,url,opts){
   if(!img)return;
+  if(img.dataset&&sameCoverUrl(img.dataset.coverDeliveryDropped,url)){
+    img.removeAttribute("srcset");
+    img.removeAttribute("sizes");
+    return;
+  }
   const sizes=coverDeliverySizes(img,opts);
   const set=sizes&&coverDeliveryApi()?coverDeliveryApi().srcsetFor(url,sizes):"";
   if(!set){
@@ -514,11 +530,20 @@ function assignCoverImage(img,src,opts={}){
     return;
   }
   img.setAttribute("data-cover-src",approved);
+  if(img.dataset&&img.dataset.coverDeliveryDropped&&!sameCoverUrl(img.dataset.coverDeliveryDropped,approved))delete img.dataset.coverDeliveryDropped;
   const generation=state.generation;
   img.onload=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverLoad(img)};
   img.onerror=()=>{if(!isCoverJobCurrent(img,generation,approved))return;handleCoverError(img)};
   if(opts.loading)img.loading=opts.loading;
   if(opts.fetchpriority)img.setAttribute("fetchpriority",opts.fetchpriority);
+  const decodedOriginal=img.complete&&img.naturalWidth>0&&sameCoverUrl(img.currentSrc||img.src,approved);
+  if(decodedOriginal){
+    if(img.dataset&&sameCoverUrl(img.dataset.coverDeliveryDropped,approved)){
+      img.removeAttribute("srcset");
+      img.removeAttribute("sizes");
+    }
+    return;
+  }
   applyCoverDelivery(img,approved,opts);
   state.replaying=true;
   img.src=approved;

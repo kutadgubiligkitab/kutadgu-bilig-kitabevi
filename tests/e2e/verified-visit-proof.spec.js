@@ -262,6 +262,7 @@ test("realistic normal widget stays inside its slot and the viewport", async ({ 
   for (const width of widths) {
     await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 });
     if (width === widths[0]) await page.goto("/visit-proof-exercise.html");
+    await expect(page.locator("[data-turnstile-fixture='realistic-normal']")).toBeVisible();
     const facts = await footprint(page);
     expect(facts.label).toBe("REALISTIC TURNSTILE FIXTURE 300x65");
     expect(facts.open).toBe("true");
