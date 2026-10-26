@@ -104,6 +104,26 @@ test.describe("compact category navigation", () => {
     }
   }
 
+  test("a public group_key places a new category under literature once", async ({ page }) => {
+    await page.route("**/rpc/list_public_book_categories**", async (route) => {
+      const rows = [
+        { slug: "romanlar", source: "romanlar.html", label: "رومانلار", sort_order: 1 },
+        { slug: "dunyawi-meshhur-eser-2", source: "dunyawi-meshhur-eser-2.html", label: "دۇنياۋى مەشھۇر ئەسەر", sort_order: 2, group_key: "literature" }
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ categories: rows, direct: rows, redirects: [] })
+      });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await H.openFresh(page, "/");
+    await page.locator("#bookCategories [data-category-group='literature']").click();
+    await expect(page.locator('#bookCategories a[href="/dunyawi-meshhur-eser-2"]')).toHaveCount(1);
+    await expect(page.locator('#bookCategories a[href="/romanlar"]')).toHaveCount(1);
+    await expect(page.locator("#bookCategories [data-category-group='history']")).toHaveCount(0);
+  });
+
   test("all categories reaches an unmapped public category and a leaf closes the mobile picker", async ({ page }) => {
     await page.route("**/rpc/list_public_book_categories**", async (route) => {
       const rows = [

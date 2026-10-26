@@ -35,18 +35,41 @@
     return (rows || []).filter((row) => row && !row.is_hidden && !row.retired && slugOf(row));
   }
 
+  function leafFrom(row) {
+    const slug = slugOf(row);
+    return { slug, label: text(row.label) || slug, href: "/" + slug };
+  }
+
+  function groupKeyOf(row) {
+    const key = text(row && row.group_key);
+    return GROUPS.some((group) => group.id === key) ? key : "";
+  }
+
   function model() {
     const rows = publicRows();
     const bySlug = new Map(rows.map((row) => [slugOf(row), row]));
     const used = new Set();
-    const groups = GROUPS.map((group) => {
-      const leaves = group.slugs.map((slug) => bySlug.get(slug)).filter(Boolean).map((row) => {
-        const slug = slugOf(row);
+    const placed = new Map(GROUPS.map((group) => [group.id, []]));
+    GROUPS.forEach((group) => {
+      group.slugs.forEach((slug) => {
+        const row = bySlug.get(slug);
+        if (!row || used.has(slug) || groupKeyOf(row)) return;
         used.add(slug);
-        return { slug, label: text(row.label) || slug, href: "/" + slug };
+        placed.get(group.id).push(leafFrom(row));
       });
-      return { id: group.id, label: group.label, leaves };
-    }).filter((group) => group.leaves.length);
+    });
+    rows.forEach((row) => {
+      const key = groupKeyOf(row);
+      const slug = slugOf(row);
+      if (!key || used.has(slug)) return;
+      used.add(slug);
+      placed.get(key).push(leafFrom(row));
+    });
+    const groups = GROUPS.map((group) => ({
+      id: group.id,
+      label: group.label,
+      leaves: placed.get(group.id)
+    })).filter((group) => group.leaves.length);
     const unmapped = rows.filter((row) => !used.has(slugOf(row))).map((row) => {
       const slug = slugOf(row);
       return { slug, label: text(row.label) || slug, href: "/" + slug };

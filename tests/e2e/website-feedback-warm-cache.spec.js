@@ -114,7 +114,7 @@ async function expectFreshShop(page, path) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expect(page.locator("footer a[href='/feedback']")).toBeVisible();
   const src = await page.locator("script[src*='shop.js']").first().getAttribute("src");
-  expect(src).toContain("shop.js?v=186");
+  expect(src).toContain("shop.js?v=187");
   const live = await page.evaluate(async (url) => (await fetch(url)).text(), src);
   expect(live).toContain('href="/feedback"');
   expect(live).toContain("member.js?v=35");

@@ -10,7 +10,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=69">
+  <link rel="stylesheet" href="admin.css?v=70">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -111,7 +111,7 @@
               <button class="admin-primary" id="bookCategoryAdd" type="button">تۈر قوشۇش</button>
             </div>
           </div>
-          <p class="admin-help">نام ئۆزگەرسە كىتاب ۋە ئۇلىنىش ساقلىنىدۇ. يوشۇرۇلغان تۈردىكى كىتابلار ئۆچمەيدۇ. چوڭ گۇرۇپپا پەقەت باشقۇرۇش تىزىمى ئۈچۈن.</p>
+          <p class="admin-help">نام ئۆزگەرسە كىتاب ۋە ئۇلىنىش ساقلىنىدۇ. يوشۇرۇلغان تۈردىكى كىتابلار ئۆچمەيدۇ. تاللانغان چوڭ گۇرۇپپا تور بەتتىكى تۈر تىزىمىدا كۆرۈنىدۇ.</p>
           <div id="bookCategoryStatus" class="admin-status" role="status" hidden></div>
           <form id="bookCategoryCreate" class="book-category-form" hidden>
             <label>تۈر نامى<input id="bookCategoryLabel" maxlength="80" autocomplete="off"></label>
@@ -130,12 +130,12 @@
           <label>مەنبە تۈر<select id="bookCategoryMoveSource"></select></label>
           <div id="bookCategoryUniversal" class="book-category-books"></div>
           <label>نىشان تۈر<select id="bookCategoryMoveDestination"></select></label>
-          <div class="book-category-actions">
+          <div class="book-category-move-actions">
             <button class="admin-secondary" id="bookCategoryPreviewMove" type="button">تەسىرگە ئۇچرايدىغانلىرىنى كۆرۈش</button>
             <button class="admin-primary" id="bookCategoryConfirmMove" type="button" disabled>جەزملەپ يۆتكەش</button>
+            <button class="admin-secondary" id="bookCategoryMoveClose" type="button">يېپىش</button>
           </div>
           <div id="bookCategoryMovePreview" class="admin-help" hidden></div>
-          <button class="admin-secondary" id="bookCategoryMoveClose" type="button">يېپىش</button>
         </section>
           </div>
         </section>
@@ -1296,7 +1296,7 @@
   <script defer src="admin-book-reviews.js?v=7"></script>
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
-  <script defer src="admin-book-categories.js?v=7"></script>
+  <script defer src="admin-book-categories.js?v=8"></script>
   <script defer src="admin-volume-groups.js?v=13"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=123"></script>

@@ -452,7 +452,7 @@ test("a committed create whose response was lost is retried with the original pa
   await page.locator("#bookCategoryAdd").click();
   await page.locator("#bookCategoryLabel").fill("مەشھۇر شەخسلەر");
   await page.locator("#bookCategorySummary").fill("قىسقىچە");
-  await page.locator("#bookCategoryGroup").selectOption("children");
+  await page.locator("#bookCategoryGroup").selectOption("family");
   await page.evaluate(() => { window.__commitThenLose = true; window.__lostCreateIds = {}; });
   await page.locator("#bookCategoryCreate").locator("button[type=submit]").click();
   await expect(page.locator("#bookCategoryStatus")).toContainText("تاماملانمىدى");
@@ -463,7 +463,7 @@ test("a committed create whose response was lost is retried with the original pa
   await page.locator("#bookCategoryAdd").click();
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("مەشھۇر شەخسلەر");
   await expect(page.locator("#bookCategorySummary")).toHaveValue("قىسقىچە");
-  await expect(page.locator("#bookCategoryGroup")).toHaveValue("children");
+  await expect(page.locator("#bookCategoryGroup")).toHaveValue("family");
   await expect(page.locator("#bookCategorySummary")).toBeDisabled();
   await expect(page.locator("#bookCategoryGroup")).toBeDisabled();
   await page.evaluate(() => {
@@ -480,11 +480,11 @@ test("a committed create whose response was lost is retried with the original pa
       && calls[0].args.p_request_id === calls[1].args.p_request_id
       && calls[0].args.p_summary === "قىسقىچە"
       && calls[1].args.p_summary === "قىسقىچە"
-      && calls[0].args.p_admin_group === "children"
-      && calls[1].args.p_admin_group === "children"
+      && calls[0].args.p_admin_group === "family"
+      && calls[1].args.p_admin_group === "family"
       && calls[1].args.p_label === "مەشھۇر شەخسلەر"
       && named.length === 1
-      && named[0].admin_group === "children"
+      && named[0].admin_group === "family"
       && !window.__categoryRows.some((row) => row.slug === "meshhur-shexsler-2");
   })).toBe(true);
   await expect(page.locator("#bookCategoryLabel")).toHaveValue("");
@@ -510,7 +510,7 @@ test("an in-flight create keeps the original payload when save is pressed again"
   await page.evaluate(() => {
     const summary = document.querySelector("#bookCategorySummary");
     summary.value = "باشقا چۈشەندۈرۈش";
-    document.querySelector("#bookCategoryGroup").value = "textbooks";
+    document.querySelector("#bookCategoryGroup").value = "knowledge";
     document.querySelector("#bookCategoryCreate").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
   await expect.poll(() => page.evaluate(() => {
@@ -763,6 +763,43 @@ test("a rendered category hydrates, filters, and paginates from its own source",
   await expect.poll(() => catalogRequests.filter((entry) => entry.includes("yengi-tur.html")).length).toBeGreaterThan(2);
   await expect(page.locator(".books-grid")).toContainText("ئىككىنچى بەت");
   expect(catalogRequests.some((entry) => entry.includes("universal.html"))).toBe(false);
+});
+
+test("category move actions stay apart at desktop, tablet, and mobile widths", async ({ page }) => {
+  await installDirectory(page);
+  await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+  await page.locator("[data-admin-section='categories']").click();
+  await page.getByRole("button", { name: "باشقۇرۇش: رومانلار يېڭى" }).click();
+  await page.getByRole("button", { name: "كىتابلارنى يۆتكەش" }).click();
+  const buttons = ["#bookCategoryPreviewMove", "#bookCategoryConfirmMove", "#bookCategoryMoveClose"];
+  for (const width of [1280, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const boxes = [];
+    for (const selector of buttons) {
+      const button = page.locator(selector);
+      await expect(button).toBeVisible();
+      boxes.push(await button.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+      }));
+    }
+    boxes.forEach((box) => {
+      expect(box.width).toBeGreaterThan(40);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    });
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const a = boxes[i];
+        const b = boxes[j];
+        const overlaps = a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+        expect(overlaps, `${width}px ${buttons[i]} ${buttons[j]}`).toBe(false);
+      }
+    }
+    if (width <= 390) {
+      expect(boxes[1].top).toBeGreaterThanOrEqual(boxes[0].bottom - 1);
+      expect(boxes[2].top).toBeGreaterThanOrEqual(boxes[1].bottom - 1);
+    }
+  }
 });
 
 test("staff entry uses the visible category directory", async ({ page }) => {

@@ -126,10 +126,11 @@ assert.strictEqual(api.createArgs().message, "تۈر نامىنى كىرگۈزۈ
 elements.bookCategoryLabel.value = "يېڭى تۈر";
 elements.bookCategoryGroup.value = "nope";
 assert.strictEqual(api.createArgs().message, "چوڭ گۇرۇپپىنى تاللاڭ.");
-elements.bookCategoryGroup.value = "textbooks";
+elements.bookCategoryGroup.value = "language";
 const prepared = api.createArgs();
-assert.strictEqual(prepared.args.p_admin_group, "textbooks");
+assert.strictEqual(prepared.args.p_admin_group, "language");
 assert.strictEqual(prepared.args.p_label, "يېڭى تۈر");
-assert.strictEqual(api.groupOptions().map((group) => group.label).join(","), "ئەدەبىيات,تارىخ,دىنىي,بالىلار,پەرزەنت تەربىيەسى,دەرسلىك");
+assert.strictEqual(api.groupOptions().map((group) => group.id).join(","), "literature,religion,history,language,family,knowledge");
+assert.strictEqual(api.groupOptions().map((group) => group.label).join(","), "ئەدەبىيات,دىن,تارىخ ۋە مەدەنىيەت,تىل ۋە مائارىپ,ئائىلە ۋە بالىلار,ئىلىم ۋە تۇرمۇش");
 
 console.log("admin category groups: PASS");
