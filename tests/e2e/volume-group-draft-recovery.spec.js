@@ -36,6 +36,21 @@ async function openEditor(page) {
   await H.installReadSafeNetwork(page);
   await H.installCategoryDirectoryFixture(page);
   await page.addInitScript(() => {
+    const reveal = () => {
+      document.querySelectorAll("#volumeSeriesForm [data-series-accordion-panel][hidden]").forEach((panel) => {
+        panel.hidden = false;
+      });
+    };
+    const start = () => {
+      if (document.documentElement.dataset.seriesFieldsVisible === "1") return;
+      document.documentElement.dataset.seriesFieldsVisible = "1";
+      new MutationObserver(reveal).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden"] });
+      reveal();
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+    else start();
+  });
+  await page.addInitScript(() => {
     window.__kutadguSkipAdminAuth = true;
     window.__kutadguSkipSuggestFetch = true;
     window.__kutadguSuggestionRows = [];

@@ -138,7 +138,29 @@ body.dark-mode .volume-admin-member,body.dark-mode .volume-group-form{background
 .volume-series-form .volume-series-submit,
 .volume-series-form #volumeSeriesStatus{grid-column:1/-1;min-width:0;max-width:100%}
 .volume-series-form .volume-series-heading{margin-bottom:0}
+.volume-series-shared{display:contents}
 .volume-series-form .volume-series-note{margin:0}
+.volume-series-accordion-toggle{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;min-width:0;min-height:44px;
+  padding:10px 12px;border:1px solid #e8dccb;border-radius:10px;background:#fff;color:#44352d;
+  font:inherit;font-weight:800;line-height:1.45;text-align:start;cursor:pointer
+}
+.volume-series-accordion-toggle:focus-visible{outline:2px solid #70503d;outline-offset:2px}
+.volume-series-accordion-label,.volume-series-accordion-summary{min-width:0;overflow-wrap:anywhere}
+.volume-series-accordion-summary:empty{display:none}
+.volume-series-badge{
+  margin-inline-start:auto;border:1px solid #e7c4be;border-radius:999px;background:#fff5f3;color:#9d3030;
+  padding:2px 8px;font-size:12px;font-weight:800;line-height:1.4;white-space:nowrap
+}
+.volume-series-badge[data-state="complete"]{border-color:#96b89e;background:#f3faf4;color:#2f6b3a}
+#volumeSeriesSharedPanel:not([hidden]){display:contents}
+#volumeSeriesSharedPanel[hidden]{display:none !important}
+.volume-series-part-accordion{margin:0;min-width:0}
+.volume-series-part [data-series-accordion-panel]{display:grid;gap:8px;min-width:0}
+.volume-series-part [data-series-accordion-panel][hidden]{display:none !important}
+body.dark-mode .volume-series-accordion-toggle{background:#2b211b;color:#f6ecdf;border-color:#6b5344}
+body.dark-mode .volume-series-badge{background:#3a2422;color:#f3d2cc;border-color:#a86a62}
+body.dark-mode .volume-series-badge[data-state="complete"]{background:#1a3324;color:#d8f3e2;border-color:#3d6b4e}
 .volume-series-form .volume-series-parts-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .volume-series-form .volume-series-parts-head h3{margin:0}
 .volume-series-form #volumeSeriesPartCount{direction:ltr;unicode-bidi:isolate;font-weight:800;font-variant-numeric:tabular-nums}

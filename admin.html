@@ -10,7 +10,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=70">
+  <link rel="stylesheet" href="admin.css?v=71">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -449,10 +449,18 @@
         <div class="volume-admin-layout">
           <aside id="volumeGroupList" class="volume-group-list" aria-label="قىسىملىق كىتابلار"></aside>
           <div class="volume-admin-editor">
-          <form id="volumeSeriesForm" class="admin-form volume-series-form" hidden>
+          <form id="volumeSeriesForm" class="admin-form volume-series-form" hidden novalidate>
             <input id="volumeSeriesRequestId" type="hidden">
             <input id="volumeSeriesSource" type="hidden">
-            <h2 class="admin-section-title volume-series-heading">قىسىملىق كىتاب قوشۇش</h2>
+            <div class="volume-series-shared" data-series-accordion-section="shared">
+            <h2 class="admin-section-title volume-series-heading">
+              <button type="button" class="volume-series-accordion-toggle" data-series-accordion aria-expanded="true" aria-controls="volumeSeriesSharedPanel">
+                <span class="volume-series-accordion-label">قىسىملىق كىتاب قوشۇش</span>
+                <span class="volume-series-accordion-summary" data-series-shared-title></span>
+                <span class="volume-series-badge" data-series-shared-badge data-state="incomplete">تولۇق ئەمەس</span>
+              </button>
+            </h2>
+            <div id="volumeSeriesSharedPanel" data-series-accordion-panel>
             <p class="admin-help volume-series-note">ساقلاش خېرىدارغا چىقارمايدۇ. تور بەتكە چىقىرىش ئايرىم.</p>
             <label class="admin-wide"><span>كىتاب نامى</span><input id="volumeSeriesTitle" type="text" maxlength="500" required placeholder="مەسىلەن: ئويغانغان زېمىن"></label>
             <label><span>ئاپتور</span><input id="volumeSeriesAuthor" type="text" maxlength="500"></label>
@@ -469,6 +477,8 @@
             <label><span>مۇقاۋا تۈرى</span><select id="volumeSeriesCoverType"><option value="">تاللانمىغان</option><option value="hardcover">قاتتىق مۇقاۋىلىق</option><option value="paperback">يۇمشاق مۇقاۋىلىق</option><option value="other">باشقا</option></select></label>
             <label><span>كىتاب ئۆلچىمى</span><select id="volumeSeriesSize"><option value="">تاللانمىغان</option><option value="A4">A4</option><option value="A5">A5</option><option value="B5">B5</option><option value="other">باشقا</option></select></label>
             <label class="admin-wide"><span>كىتاب ھەققىدە</span><textarea id="volumeSeriesDescription" rows="4" maxlength="10000"></textarea></label>
+            </div>
+            </div>
             <div class="volume-series-parts-head">
               <h3 id="volumeSeriesPartsHeading">قىسىملار</h3>
               <span id="volumeSeriesPartCount" aria-live="polite">2 / 100</span>
@@ -1297,7 +1307,7 @@
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
   <script defer src="admin-book-categories.js?v=8"></script>
-  <script defer src="admin-volume-groups.js?v=13"></script>
+  <script defer src="admin-volume-groups.js?v=14"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=123"></script>
   <script defer src="admin-member-cart.js?v=3"></script>
