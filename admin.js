@@ -5776,6 +5776,14 @@ async function saveBook(e){
     setSaveStatus(saveStatusText("saved")||"كىتاب ساقلاندى.");
     modal(false);
     releaseSaveUi();
+    if(attempt!==saveAttempt)return;
+    if(isEdit&&savedId){
+      const savedDetail={id:String(savedId),title:payload.title,author:payload.author,price:payload.price,image_url:payload.image_url,is_active:payload.is_active};
+      if(Object.prototype.hasOwnProperty.call(payload,"pages"))savedDetail.pages=payload.pages;
+      if(Object.prototype.hasOwnProperty.call(payload,"stock"))savedDetail.stock=payload.stock;
+      if(Object.prototype.hasOwnProperty.call(payload,"isbn"))savedDetail.isbn=payload.isbn;
+      document.dispatchEvent(new CustomEvent("kutadgu:member-book-saved",{detail:savedDetail}));
+    }
     await refreshCatalogAfterSave(attempt);
   }catch(err){
     if(attempt!==saveAttempt)return;
