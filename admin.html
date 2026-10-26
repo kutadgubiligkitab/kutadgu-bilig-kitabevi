@@ -10,7 +10,7 @@
 <meta name="description" content="باشقۇرۇش تاختىسى — ئىزدەش نەتىجىسىگە چىقمىسۇن.">
 <meta name="robots" content="noindex, follow">
 
-  <link rel="stylesheet" href="admin.css?v=71">
+  <link rel="stylesheet" href="admin.css?v=72">
   <link rel="stylesheet" href="kutadgu-book-entry-suggest.css?v=1">
 </head>
 <body>
@@ -447,7 +447,10 @@
           <button class="admin-secondary" id="showVolumeLinkBtn" type="button">بۇرۇن قوشقان كىتابلارنى باغلاش</button>
         </div>
         <div class="volume-admin-layout">
-          <aside id="volumeGroupList" class="volume-group-list" aria-label="قىسىملىق كىتابلار"></aside>
+          <aside id="volumeGroupList" class="volume-group-list" aria-label="قىسىملىق كىتابلار">
+            <button type="button" id="volumeGroupListToggle" class="volume-group-list-toggle" aria-expanded="false" aria-controls="volumeGroupListPanel">يۈرۈشلۈكلەر تىزىملىكى</button>
+            <div id="volumeGroupListPanel" class="volume-group-list-panel" hidden></div>
+          </aside>
           <div class="volume-admin-editor">
           <form id="volumeSeriesForm" class="admin-form volume-series-form" hidden novalidate>
             <input id="volumeSeriesRequestId" type="hidden">
@@ -1307,7 +1310,7 @@
   <script defer src="admin-feedback.js?v=2"></script>
   <script defer src="kutadgu-book-categories.js?v=1"></script>
   <script defer src="admin-book-categories.js?v=8"></script>
-  <script defer src="admin-volume-groups.js?v=14"></script>
+  <script defer src="admin-volume-groups.js?v=15"></script>
   <script defer src="kutadgu-member-page-label.js?v=1"></script>
   <script defer src="admin.js?v=123"></script>
   <script defer src="admin-member-cart.js?v=3"></script>

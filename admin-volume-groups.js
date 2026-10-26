@@ -2,7 +2,7 @@
   "use strict";
 
   const $=selector=>document.querySelector(selector);
-  const state={db:null,loaded:false,loading:false,groups:[],current:null,members:[],lookup:null};
+  const state={db:null,loaded:false,loading:false,listError:"",groups:[],current:null,members:[],lookup:null};
   const linkSave={saving:false,pending:null};
 
   function text(value){return String(value==null?"":value).trim()}
@@ -120,15 +120,38 @@
     if(Array.isArray(value))return value;
     return Array.isArray(value&&value.items)?value.items:[];
   }
+  function listPanel(){return $("#volumeGroupListPanel")}
+  function setListOpen(open){
+    const toggle=$("#volumeGroupListToggle");
+    const panel=listPanel();
+    if(!toggle||!panel)return;
+    const wasOpen=toggle.getAttribute("aria-expanded")==="true";
+    if(!open&&wasOpen){
+      const active=document.activeElement;
+      if(active&&active!==toggle&&panel.contains(active)&&typeof toggle.focus==="function")toggle.focus();
+    }
+    toggle.setAttribute("aria-expanded",open?"true":"false");
+    panel.hidden=!open;
+  }
   function renderList(){
-    const host=$("#volumeGroupList");
+    const host=listPanel();
     if(!host)return;
+    host.setAttribute("aria-busy",state.loading?"true":"false");
     const currentId=positiveId(state.current&&state.current.id);
-    if(!state.groups.length){
-      host.innerHTML='<div class="admin-empty">تېخى قىسىملىق كىتاب يوق.</div>';
+    const error=state.listError?`<div class="admin-status error" data-volume-list-error role="alert">${escapeHtml(state.listError)}</div>`:"";
+    if(state.loading&&!state.groups.length&&!state.listError){
+      host.innerHTML='<div class="admin-empty" data-volume-list-loading>يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…</div>';
       return;
     }
-    host.innerHTML=state.groups.map(group=>{
+    if(state.listError&&!state.groups.length){
+      host.innerHTML=error;
+      return;
+    }
+    if(!state.groups.length){
+      host.innerHTML='<div class="admin-empty" data-volume-list-empty>تېخى قىسىملىق كىتاب يوق.</div>';
+      return;
+    }
+    host.innerHTML=error+state.groups.map(group=>{
       const id=positiveId(group.id);
       const current=id&&id===currentId;
       return `<button type="button" class="volume-group-list-row" data-volume-group-edit="${escapeHtml(group.id)}" aria-current="${current?"true":"false"}">
@@ -392,6 +415,7 @@
       readable=true;
       state.groups=rows;
       state.loaded=true;
+      state.listError="";
       renderList();
       const listed=rows.find(row=>text(row.slug)===wanted);
       if(listed&&positiveId(listed.id)){
@@ -793,16 +817,26 @@
     if(state.loading||state.loaded&&!force)return;
     const watch=generation==null?editorGeneration:generation;
     state.loading=true;
-    if(watch===editorGeneration)setStatus("يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…","");
+    state.listError="";
+    if(watch===editorGeneration){
+      setStatus("يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…","");
+      renderList();
+    }
     try{
       state.groups=groupRows(await rpc("admin_list_book_volume_groups"));
       state.loaded=true;
+      state.listError="";
       renderList();
       if(watch===editorGeneration)setStatus("قىسىملىق كىتابلارنى باشقۇرالايسىز.","ok");
     }catch(error){
-      if(watch===editorGeneration)setStatus(error.message||String(error),"error");
+      state.listError=text(error&&error.message)||String(error);
+      renderList();
+      if(watch===editorGeneration)setStatus(state.listError,"error");
     }
-    finally{state.loading=false}
+    finally{
+      state.loading=false;
+      renderList();
+    }
   }
   const seriesState={requestId:"",saving:false};
   let seriesPartSeq=0;
@@ -1838,6 +1872,19 @@
     $("#volumeGroupSetPrice")?.addEventListener("input",syncAbandon);
     $("#volumeGroupActive")?.addEventListener("change",syncAbandon);
     $("#volumeSeriesCategory")?.addEventListener("input",syncSeriesCategory);
+    $("#volumeGroupListToggle")?.addEventListener("click",()=>{
+      const toggle=$("#volumeGroupListToggle");
+      setListOpen(toggle.getAttribute("aria-expanded")!=="true");
+    });
+    $("#volumeGroupList")?.addEventListener("keydown",event=>{
+      if(event.key!=="Escape")return;
+      const toggle=$("#volumeGroupListToggle");
+      const panel=listPanel();
+      if(!toggle||!panel||toggle.getAttribute("aria-expanded")!=="true")return;
+      if(event.target!==toggle&&!panel.contains(event.target))return;
+      event.preventDefault();
+      setListOpen(false);
+    });
     $("#volumeSeriesForm")?.addEventListener("click",event=>{
       const toggle=event.target.closest&&event.target.closest("[data-series-accordion]");
       if(!toggle||!$("#volumeSeriesForm").contains(toggle))return;

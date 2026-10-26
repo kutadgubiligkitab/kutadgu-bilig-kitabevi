@@ -1082,6 +1082,126 @@ test.describe("plain-language multi-volume admin editor",()=>{
     }
   });
 
+  test("saved series list collapses without rebuilding the entry form",async({page})=>{
+    await openVolumeEditor(page,null,{keepSeriesFieldsVisible:false});
+    const tinyPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==","base64");
+    const toggle=page.locator("#volumeGroupListToggle");
+    const panel=page.locator("#volumeGroupListPanel");
+    await expect(toggle).toHaveText("يۈرۈشلۈكلەر تىزىملىكى");
+    await expect(toggle).toHaveAttribute("aria-expanded","false");
+    await expect(toggle).toHaveAttribute("aria-controls","volumeGroupListPanel");
+    await expect(panel).toBeHidden();
+    await page.locator("#showVolumeSeriesBtn").click();
+    await page.locator("#volumeSeriesTitle").fill("ساقلىنىدىغان نام");
+    const requestId=await page.locator("#volumeSeriesRequestId").inputValue();
+    const part=page.locator(".volume-series-part").nth(0);
+    await part.locator("[data-series-accordion]").click();
+    await part.locator("[data-series-price]").fill("12.50");
+    await part.locator("[data-series-stock]").fill("4");
+    await part.locator("[data-series-cover]").setInputFiles({name:"keep-me.png",mimeType:"image/png",buffer:tinyPng});
+    await part.locator("[data-series-pages-input]").setInputFiles({name:"page-a.png",mimeType:"image/png",buffer:tinyPng});
+    const coverId=await part.locator("[data-series-cover]").getAttribute("id");
+    const pageSrc=await part.locator(".volume-series-page img").getAttribute("src");
+    expect(pageSrc).toMatch(/^blob:/);
+    await expect(page.locator("[data-series-accordion-section='shared'] [data-series-accordion]")).toHaveAttribute("aria-expanded","false");
+    for(let pass=0;pass<2;pass++){
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded","true");
+      await expect(panel.locator("[data-volume-list-empty]")).toHaveText("تېخى قىسىملىق كىتاب يوق.");
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded","false");
+      await expect(panel).toBeHidden();
+    }
+    await expect(page.locator("#volumeSeriesTitle")).toHaveValue("ساقلىنىدىغان نام");
+    await expect(page.locator("#volumeSeriesRequestId")).toHaveValue(requestId);
+    await expect(part.locator("[data-series-price]")).toHaveValue("12.50");
+    await expect(part.locator("[data-series-stock]")).toHaveValue("4");
+    await expect(part.locator("[data-series-cover]")).toHaveAttribute("id",coverId);
+    expect(await part.evaluate(row=>row._coverFile&&row._coverFile.name)).toBe("keep-me.png");
+    await expect(part.locator(".volume-series-page img")).toHaveAttribute("src",pageSrc);
+    await expect(part.locator("[data-series-accordion]")).toHaveAttribute("aria-expanded","true");
+    await toggle.focus();
+    await toggle.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded","true");
+    await toggle.press("Space");
+    await expect(toggle).toHaveAttribute("aria-expanded","false");
+    await expect(toggle).toBeFocused();
+    for(const theme of ["light","dark"]){
+      await page.evaluate((dark)=>document.body.classList.toggle("dark-mode",dark==="dark"),theme);
+      for(const width of [390,1280]){
+        await page.setViewportSize({width,height:900});
+        await toggle.click();
+        const fit=await toggle.evaluate(el=>{
+          const style=getComputedStyle(el);
+          return {
+            height:el.getBoundingClientRect().height,
+            overflow:el.scrollWidth<=el.clientWidth+1&&document.documentElement.scrollWidth<=document.documentElement.clientWidth+1,
+            color:style.color,
+            background:style.backgroundColor
+          };
+        });
+        expect(fit.height,`${theme} ${width}`).toBeGreaterThanOrEqual(44);
+        expect(fit.overflow,`${theme} ${width}`).toBe(true);
+        expect(contrastRatio(fit.color,fit.background),`${theme} ${width} ${fit.color} on ${fit.background}`).toBeGreaterThanOrEqual(4.5);
+        await toggle.click();
+      }
+    }
+  });
+
+  test("saved series list shows loading, error, and the selected series",async({page})=>{
+    await H.installReadSafeNetwork(page);
+    await H.installCategoryDirectoryFixture(page);
+    await page.addInitScript(()=>{
+      window.__kutadguSkipAdminAuth=true;
+      window.__kutadguSkipSuggestFetch=true;
+    });
+    await page.goto("/admin.html",{waitUntil:"domcontentloaded"});
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await page.evaluate(()=>{
+      let listMode="hold";
+      let release=null;
+      window.__seriesListMode=mode=>{listMode=mode};
+      window.__releaseSeriesList=()=>{if(release)release()};
+      const group={id:77,title:"ئويغانغان زېمىن",slug:"oyghangan",member_count:2,is_public:false,category:"رومان",source:"romanlar.html",author:"ئابدۇرېھىم ئۆتكۈر",description:"",complete_set_price:null,is_active:true,revision:1,members:[]};
+      window.KutadguAdminVolumeGroups.init({db:{rpc:async(name)=>{
+        if(name==="admin_list_book_volume_groups"){
+          if(listMode==="hold")await new Promise(resolve=>{release=resolve});
+          if(listMode==="error")throw new Error("يۈرۈشلۈك تىزىملىكى ئېچىلمىدى");
+          if(listMode==="empty")return {data:[]};
+          return {data:[group]};
+        }
+        if(name==="admin_get_book_volume_group")return {data:group};
+        return {data:[]};
+      }}});
+    });
+    await page.locator('button[data-admin-section="volume-groups"]').click();
+    const toggle=page.locator("#volumeGroupListToggle");
+    const panel=page.locator("#volumeGroupListPanel");
+    await toggle.click();
+    await expect(panel.locator("[data-volume-list-loading]")).toHaveText("يۈرۈشلۈكلەر يۈكلىنىۋاتىدۇ…");
+    await page.evaluate(()=>window.__seriesListMode("error"));
+    await page.evaluate(()=>window.__releaseSeriesList());
+    await expect(panel.locator("[data-volume-list-error]")).toHaveText("يۈرۈشلۈك تىزىملىكى ئېچىلمىدى");
+    await page.evaluate(()=>window.__seriesListMode("empty"));
+    await page.locator("#reloadVolumeGroupsBtn").click();
+    await expect(panel.locator("[data-volume-list-empty]")).toBeVisible();
+    await page.evaluate(()=>window.__seriesListMode("rows"));
+    await page.locator("#reloadVolumeGroupsBtn").click();
+    const row=page.locator("[data-volume-group-edit='77']");
+    await row.click();
+    await expect(row).toHaveAttribute("aria-current","true");
+    await expect(page.locator("#volumeGroupTitle")).toHaveValue("ئويغانغان زېمىن");
+    await expect(page.locator("#volumeGroupId")).toHaveValue("77");
+    await expect(page.locator("#volumeGroupPublishBtn")).toHaveText("تور بەتكە تەييارلاش");
+    await row.focus();
+    await page.keyboard.press("Escape");
+    await expect(toggle).toBeFocused();
+    await expect(panel).toBeHidden();
+    await expect(page.locator("#volumeGroupTitle")).toHaveValue("ئويغانغان زېمىن");
+    await expect(page.locator("#volumeGroupPublishBtn")).toHaveText("تور بەتكە تەييارلاش");
+    await expect(page.locator("#volumeSeriesForm")).toBeHidden();
+  });
+
   test("series save opens the first invalid accordion section",async({page})=>{
     await openVolumeEditor(page,null,{keepSeriesFieldsVisible:false});
     await page.locator("#showVolumeSeriesBtn").click();
