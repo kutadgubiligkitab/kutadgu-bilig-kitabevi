@@ -297,7 +297,7 @@ function installDiscoverySettleObserver() {
     bindLink(linkOf());
     bindPremium(document.getElementById("kutadguPremiumUxScript"));
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document, { childList: true, subtree: true });
   bindLink(linkOf());
   bindPremium(document.getElementById("kutadguPremiumUxScript"));
 }
@@ -354,6 +354,40 @@ function readSettledDiscoveryChrome(page) {
   `);
   return page.evaluate(reader);
 }
+
+test("discovery settle observer starts when documentElement is absent", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(String(error && error.message ? error.message : error)));
+  await page.addInitScript(() => {
+    const original = Object.getOwnPropertyDescriptor(Document.prototype, "documentElement");
+    let absent = true;
+    Object.defineProperty(Document.prototype, "documentElement", {
+      configurable: true,
+      get() {
+        if (absent) return null;
+        return original.get.call(this);
+      }
+    });
+    window.__restoreDocumentElement = () => { absent = false; };
+  });
+  await page.addInitScript(installDiscoverySettleObserver);
+  await page.goto("about:blank", { waitUntil: "commit" });
+  expect(errors).toEqual([]);
+  const moved = await page.evaluate(() => new Promise((resolve) => {
+    window.__restoreDocumentElement();
+    const state = window.__kutadguDiscoverySettle;
+    if (!state) {
+      resolve({ started: false, moved: 0 });
+      return;
+    }
+    const link = document.createElement("link");
+    link.setAttribute("data-kutadgu-stage4b2-homepage-discovery", "1");
+    document.documentElement.appendChild(link);
+    queueMicrotask(() => resolve({ started: true, moved: state.lastMoveAt }));
+  }));
+  expect(moved.started).toBe(true);
+  expect(moved.moved).toBeGreaterThan(0);
+});
 
 test.describe("Stage 4B-2 homepage discovery chrome", () => {
   test.beforeEach(async ({ page }) => {
