@@ -1,4 +1,5 @@
 const { test, expect } = require("./playwright-test");
+const pins = require("../../scripts/ci-asset-pins");
 
 async function blockWrites(page) {
   const posts = [];
@@ -29,7 +30,7 @@ test.describe("opt-in header diagnostic", () => {
     await page.goto("/");
     await expect(page.locator("header.is-mobile-enhanced")).toBeVisible();
     await expect(page.locator("#kutadguHeaderDiag")).toHaveCount(0);
-    await expect(page.locator("script[src='header-diag.js?v=2']")).toHaveCount(1);
+    await expect(page.locator("script[src='" + pins.assetQuery("header-diag.js") + "']")).toHaveCount(1);
     expect(posts).toEqual([]);
   });
 
@@ -48,9 +49,9 @@ test.describe("opt-in header diagnostic", () => {
     expect(coldHeader.position).toBe("fixed");
     expect(coldHeader.top).toBe(0);
     expect(coldHeader.backdrop).toBe("none");
-    expect(cold.snapshots.some((row) => /mobile\.css\?v=28/.test(row.mobileHref))).toBe(true);
-    expect(cold.snapshots.some((row) => row.links.some((link) => /mobile\.css\?v=28/.test(link)))).toBe(true);
-    expect(cold.snapshots.some((row) => row.assets.some((asset) => asset.path === "/header-diag.js?v=2"))).toBe(true);
+    expect(cold.snapshots.some((row) => pins.assetPattern("mobile.css").test(row.mobileHref))).toBe(true);
+    expect(cold.snapshots.some((row) => row.links.some((link) => pins.assetPattern("mobile.css").test(link)))).toBe(true);
+    expect(cold.snapshots.some((row) => row.assets.some((asset) => asset.path === "/" + pins.assetQuery("header-diag.js")))).toBe(true);
     const loaded = cold.snapshots.find((row) => row.label === "load");
     expect(loaded.ancestors.length).toBeGreaterThan(1);
     expect(loaded.rules.some((rule) => String(rule.backdrop || "").includes("none"))).toBe(true);

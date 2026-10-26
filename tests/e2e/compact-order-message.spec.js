@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const LONG_TITLE = "ئۇزۇن ئۇيغۇرچە كىتاب نامى ".repeat(8).trim();
 
@@ -83,7 +84,7 @@ test.describe("compact order message", () => {
     await mockBooks(page);
     await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=188/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", pins.assetPattern("shop.js"));
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("#cartItems")).toContainText(LONG_TITLE);
     await expect(page.locator("#checkoutCard")).toBeVisible();

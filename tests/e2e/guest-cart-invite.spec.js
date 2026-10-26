@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const HEADLINE = "سېۋەتتىكى كىتابلارنى ھېسابىڭىزدا ساقلاڭ";
 const CTA = "ئەزا بولۇش";
@@ -353,7 +354,7 @@ test.describe("guest cart membership invitation", () => {
     await page.goto("/cart.html?v=155", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await publish(page, GUEST);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=188/);
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", pins.assetPattern("shop.js"));
     const live = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
     expect(live).toContain("guestCartInviteDecision");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

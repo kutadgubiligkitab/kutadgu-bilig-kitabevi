@@ -1,6 +1,7 @@
 const { execFileSync } = require("child_process");
 const path = require("path");
 const { test, expect } = require("./playwright-test");
+const pins = require("../../scripts/ci-asset-pins");
 
 const ROOT = path.join(__dirname, "../..");
 const CACHED_MOBILE_CSS = "167b733cfbec42c89d48660c7220bcd879add64b";
@@ -199,10 +200,10 @@ test.describe("cached mobile.css does not drop the sticky header", () => {
 
     await page.goto("/books");
     await expect(page.locator("header.is-mobile-enhanced")).toBeVisible();
-    await expect(page.locator("link[href='mobile.css?v=28']")).toHaveCount(1);
-    await expect(page.locator("script[src='public-header.js?v=6']")).toHaveCount(1);
-    await expect(page.locator("#kutadguPublicHeaderCss")).toHaveAttribute("href", "/public-header.css?v=8");
-    expect(requests.some((entry) => entry.includes("/mobile.css?v=28"))).toBe(true);
+    await expect(page.locator("link[href='" + pins.assetQuery("mobile.css") + "']")).toHaveCount(1);
+    await expect(page.locator("script[src='" + pins.assetQuery("public-header.js") + "']")).toHaveCount(1);
+    await expect(page.locator("#kutadguPublicHeaderCss")).toHaveAttribute("href", "/" + pins.assetQuery("public-header.css"));
+    expect(requests.some((entry) => entry.includes("/" + pins.assetQuery("mobile.css")))).toBe(true);
 
     await page.evaluate(() => {
       document.documentElement.style.scrollBehavior = "auto";

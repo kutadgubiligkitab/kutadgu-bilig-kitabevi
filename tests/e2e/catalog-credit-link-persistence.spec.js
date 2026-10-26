@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -296,7 +297,7 @@ test.describe("a fetched credit array replaces the cache", () => {
   });
 });
 
-test.describe("author listing still uses shop.js v=167", () => {
+test.describe("author listing keeps detail links on the current shop.js", () => {
   test.use({ viewport: { width: 390, height: 800 }, hasTouch: true });
 
   test("listing, book, Back, and the same book keep the detail links", async ({ page }) => {
@@ -304,21 +305,21 @@ test.describe("author listing still uses shop.js v=167", () => {
     await installBookDocument(page);
     await page.goto(`/author/${A}`, { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=188");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/" + pins.assetQuery("shop.js"));
     const card = page.locator(".book-card[data-live-book-id='101'] a.detail-button");
     await expect(card).toBeVisible();
     await card.click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=188");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/" + pins.assetQuery("shop.js"));
     await expectCreditLink(page, `/author/${A}`);
     await page.goBack({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(new RegExp(`/author/${A}$`));
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=188");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/" + pins.assetQuery("shop.js"));
     await page.locator(".book-card[data-live-book-id='101'] a.detail-button").click();
     await expect(page).toHaveURL(/\/book\/101$/);
     await page.waitForFunction(() => document.body.dataset.bookId === "101");
-    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/shop.js?v=188");
+    await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", "/" + pins.assetQuery("shop.js"));
     await expectCreditLink(page, `/author/${A}`);
     await expectCreditLink(page, `/translator/${T1}`);
     await expectCreditLink(page, `/publisher/${P}`);

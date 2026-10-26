@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const MEMBER_A = "11111111-1111-4111-8111-111111111111";
 const MEMBER_B = "22222222-2222-4222-8222-222222222222";
@@ -1199,7 +1200,7 @@ test("ordinary navigation requests the current shop pin", async ({ page }) => {
   await H.installReadSafeNetwork(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.goto("/cart.html", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=188/);
+  await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", pins.assetPattern("shop.js"));
   const body = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='shop.js']").src)).text());
   expect(body).toContain("my_cart_share_permission");
   expect(body).not.toContain("shop.js?v=151");

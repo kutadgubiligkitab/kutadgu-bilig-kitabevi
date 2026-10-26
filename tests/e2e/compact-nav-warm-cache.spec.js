@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const pins = require("../../scripts/ci-asset-pins");
 const { execFileSync } = require("child_process");
 const http = require("http");
 const fs = require("fs");
@@ -118,11 +119,11 @@ test("released shop and premium blobs stay cached and cannot rebuild discovery",
     seen.length = 0;
     await page.route(/https?:\/\/(?!127\.0\.0\.1)(?!localhost)/, (route) => route.abort());
     await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", /shop\.js\?v=188/);
-    await page.waitForResponse((response) => response.url().includes("premium-ux.js?v=23"));
+    await expect(page.locator("script[src*='shop.js']").first()).toHaveAttribute("src", pins.assetPattern("shop.js"));
+    await page.waitForResponse((response) => response.url().includes(pins.assetQuery("premium-ux.js")));
     await expect.poll(async () => page.locator("#premiumDiscovery").count()).toBe(0);
     expect(seen.some((url) => url.includes("premium-ux.js?v=22"))).toBe(false);
-    expect(seen.some((url) => url.includes("premium-ux.js?v=23"))).toBe(true);
+    expect(seen.some((url) => url.includes(pins.assetQuery("premium-ux.js")))).toBe(true);
     const live = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='premium-ux.js']").src)).text());
     expect(live).not.toContain("قايسى كىتابنى ئوقۇغىڭىز بار");
     expect(live).toContain("#premiumDiscovery");

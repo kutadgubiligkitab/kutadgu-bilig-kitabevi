@@ -1,5 +1,6 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const pins = require("../../scripts/ci-asset-pins");
 
 const MEMBER_STUB = `window.KutadguMember=(function(){
   let user=null,profile=null,blocked=false,ordersHold=null;
@@ -230,8 +231,8 @@ test.describe("account cross-tab logout privacy", () => {
       scripts: [...document.querySelectorAll("script[src]")].map((s) => s.getAttribute("src")),
       client: !!(window.KutadguMember && window.KutadguMember.getUser)
     }));
-    expect(info.scripts.filter((src) => /member\.js/.test(src))).toEqual(["member.js?v=35"]);
-    expect(info.scripts.filter((src) => /account\.js/.test(src))).toEqual(["account.js?v=8"]);
+    expect(info.scripts.filter((src) => /member\.js/.test(src))).toEqual([pins.assetQuery("member.js")]);
+    expect(info.scripts.filter((src) => /account\.js/.test(src))).toEqual([pins.assetQuery("account.js")]);
     expect(info.client).toBe(true);
   });
 });
