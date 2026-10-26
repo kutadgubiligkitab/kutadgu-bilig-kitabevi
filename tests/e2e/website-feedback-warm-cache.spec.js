@@ -147,7 +147,7 @@ test("warm copies of the old shop and member URLs do not serve the new pages", a
   expect(accountBody).toContain('"#signup"');
   await page.goto("/feedback", { waitUntil: "domcontentloaded" });
   await expect(page.locator("h1")).toHaveText("پىكىر ۋە تەكلىپ");
-  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=186/);
+  await expect(page.locator("script[src*='shop.js']")).toHaveAttribute("src", /shop\.js\?v=187/);
   await expect(page.locator("script[src*='member.js']")).toHaveAttribute("src", "member.js?v=35");
   const feedbackMember = await page.evaluate(async () => (await fetch(document.querySelector("script[src*='member.js']").src)).text());
   const warmedProductionMember = await page.evaluate(async () => (await fetch("/member.js?v=31")).text());
