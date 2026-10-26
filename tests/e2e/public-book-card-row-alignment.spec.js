@@ -127,7 +127,45 @@ async function mockCatalog(page, books = catalog) {
   });
 }
 
+async function settleCardGeometry(page, cardSelector) {
+  await page.waitForFunction(() => !document.fonts || document.fonts.status === "loaded");
+  await page.waitForFunction((selector) => {
+    const images = [...document.querySelectorAll(selector)].flatMap((card) => [...card.querySelectorAll("img")]);
+    return images.every((img) => !img.getAttribute("src") || img.complete || img.naturalWidth > 0);
+  }, cardSelector);
+  await page.evaluate((selector) => {
+    const cards = [...document.querySelectorAll(selector)];
+    const animations = [];
+    for (const card of cards) {
+      for (let node = card, depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+        if (node.getAnimations) animations.push(...node.getAnimations());
+      }
+    }
+    for (const animation of animations) {
+      const timing = animation.effect && animation.effect.getTiming ? animation.effect.getTiming() : null;
+      const iterations = timing ? timing.iterations : 1;
+      if (!Number.isFinite(iterations)) {
+        try { animation.pause(); } catch (err) {}
+      }
+    }
+  }, cardSelector);
+  let last = "";
+  for (let frame = 0; frame < 12; frame += 1) {
+    const next = await page.evaluate((selector) => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        resolve([...document.querySelectorAll(selector)].map((card) => {
+          const box = card.getBoundingClientRect();
+          return `${Math.round(box.top)}:${Math.round(box.bottom)}:${Math.round(box.height)}`;
+        }).join("|"));
+      }));
+    }), cardSelector);
+    if (next && next === last) return;
+    last = next;
+  }
+}
+
 async function measure(page, cardSelector, cartSelector, opts = {}) {
+  await settleCardGeometry(page, cardSelector);
   return page.evaluate(({ cardSelector, cartSelector, titleSelector }) => {
     const cards = [...document.querySelectorAll(cardSelector)];
     return cards.map((card) => {

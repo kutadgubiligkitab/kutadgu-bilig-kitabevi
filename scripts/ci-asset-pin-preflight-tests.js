@@ -71,6 +71,20 @@ test("a hard-coded current pin fails and a historical pin stays", () => {
   assert.strictEqual(historical.ok, true, historical.problems.join("\n"));
 });
 
+test("an HTML pin bump rejects an unchanged stale current assertion", () => {
+  const root = fixture();
+  write(root, "tests/e2e/current.spec.js", "expect(src).toContain(\"shop.js?v=9\");\n");
+  write(root, "index.html", "<script src=\"shop.js?v=10\"></script>");
+  write(root, "books.html", "<script src=\"shop.js?v=10\"></script>");
+  const stale = checkAssetPins(root);
+  assert.strictEqual(stale.ok, false);
+  assert.ok(stale.problems.some((problem) => problem.includes("stale current shop.js?v=9")));
+  assert.ok(stale.problems.some((problem) => problem.includes("HTML pin is 10")));
+  write(root, "tests/e2e/current.spec.js", "await fetch(\"/shop.js?v=9\");\nexpect(cached).toContain(\"shop.js?v=9\");\n");
+  const historical = checkAssetPins(root);
+  assert.strictEqual(historical.ok, true, historical.problems.join("\n"));
+});
+
 test("the repository preflight command passes", () => {
   const ran = spawnSync(process.execPath, [path.join(__dirname, "ci-asset-pin-preflight.js")], {
     cwd: path.join(__dirname, ".."),

@@ -1,5 +1,19 @@
 const { test, expect } = require("./playwright-test");
 const H = require("./helpers");
+const CLEAN_URL_BOOKS = require("../../scripts/preview-clean-url-books");
+
+const FIXTURE_BOOK = {
+  id: CLEAN_URL_BOOKS[0].id,
+  title: CLEAN_URL_BOOKS[0].title,
+  searchToken: "پاكىز ئۇنىۋېرسال"
+};
+
+async function installCleanUrlFixtures(page) {
+  await H.installReadSafeNetwork(page);
+  await H.installCategoryDirectoryFixture(page);
+  await H.installFixedStorefrontCatalog(page, CLEAN_URL_BOOKS);
+  await H.stubNumericBookDocuments(page, CLEAN_URL_BOOKS.map((row) => String(row.id)));
+}
 
 function bookNodeOf(payload) {
   return (payload["@graph"] || []).find((node) => {
@@ -10,12 +24,11 @@ function bookNodeOf(payload) {
 
 test.describe("book clean URLs", () => {
   test.beforeEach(async ({ page }) => {
-    await H.installReadSafeNetwork(page);
-    H.allowLiveCatalogReads(page);
+    await installCleanUrlFixtures(page);
   });
 
   test("A clean active book uses /book/{id} SEO and does not bounce to book.html", async ({ page }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const failed = [];
     page.on("requestfailed", (req) => {
       const url = req.url();
@@ -48,7 +61,7 @@ test.describe("book clean URLs", () => {
   }
 
   test("B legacy /book.html?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const origin = String(baseURL || "").replace(/\/$/, "");
     const redirect = await request.get(`${origin}/book.html?id=${encodeURIComponent(book.id)}`, { maxRedirects: 0 });
     expect(redirect.status()).toBe(308);
@@ -72,7 +85,7 @@ test.describe("book clean URLs", () => {
   });
 
   test("B2 legacy /book?id={id} permanently lands on /book/{id}", async ({ page, request, baseURL }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const origin = String(baseURL || "").replace(/\/$/, "");
     const redirect = await request.get(`${origin}/book?id=${encodeURIComponent(book.id)}`, { maxRedirects: 0 });
     expect(redirect.status()).toBe(308);
@@ -89,7 +102,7 @@ test.describe("book clean URLs", () => {
   });
 
   test("B3 /book/{id} stays put with no redirect loop", async ({ page, request, baseURL }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const origin = String(baseURL || "").replace(/\/$/, "");
     const first = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
     expect(first.status()).toBe(200);
@@ -106,7 +119,7 @@ test.describe("book clean URLs", () => {
   });
 
   test("B4 raw GET HTML for a found numeric book already has one clean canonical", async ({ page, request, baseURL }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const origin = String(baseURL || "").replace(/\/$/, "");
     const res = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
     expect(res.status()).toBe(200);
@@ -155,19 +168,20 @@ test.describe("book clean URLs", () => {
     await expect(page.locator('a[href="/#books"]').first()).toBeVisible();
   });
 
-  test("D0 numeric /book/415 stays server-rendered and legacy queries still 308", async ({ request, baseURL }) => {
+  test("D0 numeric fixture book stays server-rendered and legacy queries still 308", async ({ request, baseURL }) => {
+    const book = FIXTURE_BOOK;
     const origin = String(baseURL || "").replace(/\/$/, "");
-    const book = await request.get(`${origin}/book/415`, { maxRedirects: 0 });
-    expect(book.status()).toBe(200);
-    const html = await book.text();
+    const response = await request.get(`${origin}/book/${book.id}`, { maxRedirects: 0 });
+    expect(response.status()).toBe(200);
+    const html = await response.text();
     expect(html).toMatch(/index, follow/);
     expect(html).toMatch(/data-dynamic-book/);
-    expect(html).toMatch(/rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/book\/415"/);
+    expect(html).toMatch(new RegExp(`rel="canonical" href="https:\\/\\/www\\.kutadgubilik\\.com\\/book\\/${book.id}"`));
     expect(html).not.toMatch(/كىتاب تېپىلمىدى/);
-    for (const path of [`${origin}/book.html?id=415`, `${origin}/book?id=415`]) {
+    for (const path of [`${origin}/book.html?id=${book.id}`, `${origin}/book?id=${book.id}`]) {
       const res = await request.get(path, { maxRedirects: 0 });
       expect(res.status(), path).toBe(308);
-      expect(new URL(res.headers().location, origin).pathname).toBe("/book/415");
+      expect(new URL(res.headers().location, origin).pathname).toBe(`/book/${book.id}`);
     }
   });
 
@@ -193,7 +207,7 @@ test.describe("book clean URLs", () => {
   });
 
   test("E homepage featured and search cards use /book/{id}", async ({ page }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     await H.openFresh(page, "/");
     const cards = page.locator(".home-feature-card a[href], .home-carousel-link[href]");
     await expect(cards.first()).toBeVisible({ timeout: 30_000 });
@@ -213,7 +227,7 @@ test.describe("book clean URLs", () => {
   });
 
   test("F nested /book/{id} assets load from site root", async ({ page }) => {
-    const book = await H.discoverLiveBook(page);
+    const book = FIXTURE_BOOK;
     const bad = [];
     page.on("response", (res) => {
       const url = res.url();
@@ -306,21 +320,20 @@ async function bodyNotHidden(page) {
 
 test.describe("book clean URLs — responsive", () => {
   test.beforeEach(async ({ page }) => {
-    await H.installReadSafeNetwork(page);
-    H.allowLiveCatalogReads(page);
+    await installCleanUrlFixtures(page);
   });
 
   for (const vp of VIEWPORTS) {
     test(`${vp.name} homepage/category/search cards open /book/{id} without overflow`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.emulateMedia({ reducedMotion: "reduce" });
-      const book = await H.discoverLiveBook(page);
+      const book = FIXTURE_BOOK;
 
       await H.openFresh(page, "/");
-      const homeCard = page.locator(".home-feature-card a[href^='/book/']").first();
+      const homeCard = page.locator(`.home-feature-card a[href="/book/${book.id}"]`).first();
       await expect(homeCard).toBeVisible({ timeout: 30_000 });
       const homeHref = await homeCard.getAttribute("href");
-      expect(homeHref).toMatch(/^\/book\/\d+$/);
+      expect(homeHref).toBe(`/book/${book.id}`);
       expect(homeHref).not.toMatch(/book\.html/);
       await homeCard.click();
       await H.waitForShop(page);
@@ -334,10 +347,10 @@ test.describe("book clean URLs — responsive", () => {
 
       await H.openFresh(page, "/universal");
       expect(new URL(page.url()).pathname).toBe("/universal");
-      const catCard = page.locator(".book-card a.book-image[href^='/book/'], .book-card a[href^='/book/']").first();
+      const catCard = page.locator(`.book-card a[href="/book/${book.id}"]`).first();
       await expect(catCard).toBeVisible({ timeout: 30_000 });
       const catHref = await catCard.getAttribute("href");
-      expect(catHref).toMatch(/^\/book\/\d+$/);
+      expect(catHref).toBe(`/book/${book.id}`);
       await catCard.click();
       await H.waitForShop(page);
       await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/book\/\d+$/);
@@ -361,7 +374,7 @@ test.describe("book clean URLs — responsive", () => {
 
     test(`${vp.name} /book/{id} assets, SEO-ready shell, and navigation`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      const book = await H.discoverLiveBook(page);
+      const book = FIXTURE_BOOK;
       const bad = [];
       page.on("response", (res) => {
         if (res.status() === 404 && /\/book\/\d+\//.test(new URL(res.url()).pathname)) bad.push(res.url());

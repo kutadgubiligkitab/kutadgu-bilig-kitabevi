@@ -22,7 +22,8 @@ const warmHtml = Buffer.from(
 );
 
 function blobSha1(buffer) {
-  return crypto.createHash("sha1").update("blob " + buffer.length + "\0").update(buffer).digest("hex");
+  const lf = Buffer.from(buffer.toString("latin1").replace(/\r\n/g, "\n"), "latin1");
+  return crypto.createHash("sha1").update("blob " + lf.length + "\0").update(lf).digest("hex");
 }
 
 test("a warm released header cache still fetches the cart logo helper", async ({ browser }) => {
@@ -117,9 +118,10 @@ test("a warm released header cache still fetches the cart logo helper", async ({
     await page.goto(origin.origin + "/cart.html", { waitUntil: "domcontentloaded" });
     expect(hits.v6).toBe(1);
     expect(hits.v5).toBe(1);
-    const fetched = await page.evaluate(() => performance.getEntriesByType("resource")
-      .filter((entry) => entry.name.includes(pins.assetQuery("public-header.js")))
-      .map((entry) => entry.transferSize));
+    const headerQuery = pins.assetQuery("public-header.js");
+    const fetched = await page.evaluate((query) => performance.getEntriesByType("resource")
+      .filter((entry) => entry.name.includes(query))
+      .map((entry) => entry.transferSize), headerQuery);
     expect(fetched.some((size) => size > 0)).toBe(true);
     await expect(page.locator("script[src='" + pins.assetQuery("public-header.js") + "']")).toHaveCount(1);
 

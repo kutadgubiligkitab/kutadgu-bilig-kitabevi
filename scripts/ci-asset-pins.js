@@ -91,6 +91,32 @@ function literalCurrent(line, asset, pin) {
   return line.includes(`${asset}?v=${pin}`) || line.includes(`${escaped}\\?v=${pin}`);
 }
 
+function pinLiterals(line) {
+  const found = [];
+  const re = /([A-Za-z0-9_-]+(?:\\)?\.(?:js|css))\\?\?v=(\d+)/g;
+  for (const match of line.matchAll(re)) {
+    found.push({ asset: match[1].replace(/\\/g, ""), version: match[2] });
+  }
+  return found;
+}
+
+function explicitHistoricalLine(line) {
+  return HISTORICAL.test(line)
+    || /\b(?:fetch|route|fulfill)\s*\(/.test(line)
+    || /\.toBe\(\s*false\s*\)/.test(line)
+    || /(?:^|[^A-Za-z0-9_])(?:cached|old|released|warm|previous)/i.test(line);
+}
+
+function fileUsesHistoricalVersion(text, asset, version) {
+  const plain = `${asset}?v=${version}`;
+  const escaped = `${asset.replace(/\./g, "\\.")}\\?v=${version}`;
+  return text.split(/\r?\n/).some((line) => {
+    if (ASSERTION.test(line)) return false;
+    if (!line.includes(plain) && !line.includes(escaped)) return false;
+    return /\b(?:fetch|route|fulfill)\s*\(|\.href\s*=|script src=|link href=/.test(line);
+  });
+}
+
 function walkJs(dir, out) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -113,13 +139,22 @@ function hardcodedCurrentPins(root) {
     const relative = path.relative(root, file).replace(/\\/g, "/");
     if (relative === "scripts/ci-asset-pins.js" || relative.startsWith("scripts/ci-asset-pin-preflight")) continue;
     const scriptScoped = relative.startsWith("scripts/");
-    const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+    const text = fs.readFileSync(file, "utf8");
+    const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
-      if (!ASSERTION.test(line) || HISTORICAL.test(line)) return;
+      if (!ASSERTION.test(line) || explicitHistoricalLine(line)) return;
       for (const [asset, pin] of pins) {
         if (scriptScoped && !SCRIPT_ASSETS.includes(asset)) continue;
         if (!literalCurrent(line, asset, pin)) continue;
         hits.push(`${relative}:${index + 1} hard-codes current ${asset}?v=${pin}`);
+      }
+      if (!scriptScoped) {
+        for (const literal of pinLiterals(line)) {
+          const expected = pins.get(literal.asset);
+          if (!expected || literal.version === expected) continue;
+          if (fileUsesHistoricalVersion(text, literal.asset, literal.version)) continue;
+          hits.push(`${relative}:${index + 1} stale current ${literal.asset}?v=${literal.version}; HTML pin is ${expected}`);
+        }
       }
       const forced = line.match(/currentPin\)\.toBe\(\s*["'](\d+)["']\s*\)/);
       if (forced && forced[1] === pins.get("admin.css")) {

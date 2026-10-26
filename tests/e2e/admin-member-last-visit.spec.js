@@ -1,5 +1,7 @@
 const { test, expect } = require("./playwright-test");
 
+test.use({ timezoneId: "UTC" });
+
 const ADMIN = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 
 function members() {

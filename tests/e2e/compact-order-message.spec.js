@@ -116,7 +116,8 @@ test.describe("compact order message", () => {
     await expect(page.locator("#orderPreview")).toContainText(orderNo);
 
     await page.locator("#copyOrder").click();
-    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe(preview);
+    const orderText = (value) => String(value || "").replace(/\r\n/g, "\n");
+    await expect.poll(async () => orderText(await page.evaluate(() => navigator.clipboard.readText()))).toBe(orderText(preview));
 
     await page.evaluate(() => {
       window.__sharedOrder = "";
