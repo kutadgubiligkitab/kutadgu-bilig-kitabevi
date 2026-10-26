@@ -6,14 +6,14 @@
     "publisher", "api", "sitemap", "order-info", "privacy", "returns",
     "delete-account", "feedback", "account", "favorites", "my-books", "search"
   ]);
-  const GROUP_KEYS = ["literature", "history", "religion", "children", "parenting", "textbooks"];
+  const GROUP_KEYS = ["literature", "religion", "history", "language", "family", "knowledge"];
   const GROUP_LABELS = {
     literature: "ئەدەبىيات",
-    history: "تارىخ",
-    religion: "دىنىي",
-    children: "بالىلار",
-    parenting: "پەرزەنت تەربىيەسى",
-    textbooks: "دەرسلىك"
+    religion: "دىن",
+    history: "تارىخ ۋە مەدەنىيەت",
+    language: "تىل ۋە مائارىپ",
+    family: "ئائىلە ۋە بالىلار",
+    knowledge: "ئىلىم ۋە تۇرمۇش"
   };
   const FOLD = {
     "ا": "a", "آ": "a", "ب": "b", "پ": "p", "ت": "t", "ث": "s", "ج": "j", "چ": "ch",
@@ -137,14 +137,7 @@
     return candidate;
   }
   function groupOptions() {
-    const configured = root.KUTADGU_APP_CONFIG && root.KUTADGU_APP_CONFIG.discoveryGroups;
-    const byId = new Map();
-    if (Array.isArray(configured)) {
-      configured.forEach((group) => {
-        if (group && GROUP_KEYS.indexOf(group.id) !== -1 && text(group.label)) byId.set(group.id, text(group.label));
-      });
-    }
-    return GROUP_KEYS.map((id) => ({ id: id, label: byId.get(id) || GROUP_LABELS[id] }));
+    return GROUP_KEYS.map((id) => ({ id: id, label: GROUP_LABELS[id] }));
   }
   function groupLabel(key) {
     const match = groupOptions().find((group) => group.id === key);

@@ -45,6 +45,25 @@ assert.strictEqual(data.groups.find((group) => group.id === "history"), undefine
 assert.strictEqual(data.groups.find((group) => group.id === "literature").leaves.map((leaf) => leaf.slug).join(","), "romanlar");
 assert.strictEqual(data.unmapped.map((leaf) => leaf.slug).join(","), "dastanlar,adabiyat,yeni-tur");
 assert.ok(data.all.every((leaf) => leaf.slug !== "yoshurun" && leaf.slug !== "eski"));
+
+const placed = load([
+  { slug: "romanlar", label: "رومان" },
+  { slug: "derslik", label: "دەرسلىك" },
+  { slug: "dunyawi-meshhur-eser-2", label: "دۇنياۋى مەشھۇر ئەسەر", group_key: "literature" },
+  { slug: "meshhur-shexisler", label: "مەشھۇر شەخسلەر", group_key: "history" },
+  { slug: "children", label: "بالىلار", group_key: "children" },
+  { slug: "yeni-tur", label: "يېڭى تۈر" }
+]);
+const placedData = JSON.parse(JSON.stringify(placed.model()));
+const literature = placedData.groups.find((group) => group.id === "literature").leaves.map((leaf) => leaf.slug);
+const history = placedData.groups.find((group) => group.id === "history").leaves.map((leaf) => leaf.slug);
+const family = placedData.groups.find((group) => group.id === "family").leaves.map((leaf) => leaf.slug);
+assert.deepStrictEqual(literature, ["romanlar", "dunyawi-meshhur-eser-2"]);
+assert.deepStrictEqual(history, ["meshhur-shexisler"]);
+assert.deepStrictEqual(family, ["children"]);
+assert.strictEqual(placedData.unmapped.map((leaf) => leaf.slug).join(","), "yeni-tur");
+assert.strictEqual(literature.filter((slug) => slug === "romanlar").length, 1);
+assert.strictEqual(history.includes("romanlar"), false);
 assert.match(premium.slice(premium.indexOf("function renderDiscovery"), premium.indexOf("function wizardMarkup")), /#premiumDiscovery/);
 assert.doesNotMatch(premium.slice(premium.indexOf("function renderDiscovery"), premium.indexOf("function wizardMarkup")), /insertAdjacentElement|createElement/);
 console.log("category-nav-tests passed");

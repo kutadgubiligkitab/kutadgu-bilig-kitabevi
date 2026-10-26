@@ -6993,7 +6993,7 @@ function loadPremiumUX(){
   return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
     const directory=window.KutadguBookCategories;
     const boot=directory&&directory.boot?directory.boot():null;
-    return loadAssetScript("/kutadgu-category-nav.js?v=3","kutadguCategoryNavScript").then(()=>boot);
+    return loadAssetScript("/kutadgu-category-nav.js?v=4","kutadguCategoryNavScript").then(()=>boot);
   }).then(()=>loadAssetScript("/premium-ux.js?v=23","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;

@@ -1019,6 +1019,12 @@ body.dark-mode .volume-series-remove{background:#3a2422;color:#f3d2cc;border-col
 .book-category-list,.book-category-form,.book-category-books,.book-category-manage{display:grid;gap:12px}
 .book-category-row{display:grid;gap:12px;padding:14px 0;border-bottom:1px solid rgba(68,53,45,.18)}
 #bookCategoryManager .book-category-row > #bookCategoryMovePanel{margin:0}
+#bookCategoryMovePanel .book-category-move-actions{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px}
+#bookCategoryMovePanel .book-category-move-actions button{flex:1 1 11rem;width:auto;max-width:100%;min-width:min(100%,11rem);margin:0;position:static;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:767px){
+  #bookCategoryMovePanel .book-category-move-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+  #bookCategoryMovePanel .book-category-move-actions button{width:100%;min-width:0}
+}
 .book-category-summary{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .book-category-summary strong{font-size:18px}
 .book-category-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0 0;color:#2b211b;font-weight:800}
