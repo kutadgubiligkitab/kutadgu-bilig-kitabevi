@@ -102,6 +102,7 @@
       image_url:text(value.image_url),
       href:text(value.href||value.url)||`/book/${id}`,
       isbn:text(value.isbn),
+      pages:memberPageCount(value.pages),
       is_active:value.is_active!==false,
       group_id:positiveId(value.group_id),
       group_title:text(value.group_title),
@@ -264,6 +265,94 @@
     else state.groups=[summary,...state.groups];
     renderList();
   }
+  function memberPageCount(value){
+    if(value==null||value==="")return null;
+    const number=typeof value==="number"?value:Number(text(value));
+    return Number.isInteger(number)&&number>=1?number:null;
+  }
+  function memberSaleText(member){
+    const price=member.price==null?"باھاسىز":`${member.price} ₺`;
+    const stock=member.stock==null?"بېكىتىلمىگەن":member.stock;
+    return `${price} · ئامبار ${stock}`;
+  }
+  function memberIdentityText(member){
+    return `ID ${member.book_id}${member.isbn?` · ISBN ${member.isbn}`:""}`;
+  }
+  let memberEditWatch=null;
+  let memberPageRead=0;
+  function refreshMemberPages(){
+    const generation=editorGeneration;
+    const groupId=positiveId(state.current&&state.current.id);
+    const ids=state.members.map(member=>member.book_id);
+    if(!groupId||!ids.length||!state.db||typeof state.db.from!=="function")return;
+    const stamp=++memberPageRead;
+    state.members.forEach(member=>{member.pagesRead=stamp});
+    Promise.resolve().then(()=>state.db.from("books").select("id,pages").in("id",ids)).then(result=>{
+      if(generation!==editorGeneration)return;
+      if(positiveId(state.current&&state.current.id)!==groupId)return;
+      if(result&&result.error)return;
+      const rows=Array.isArray(result&&result.data)?result.data:[];
+      const pagesById=new Map();
+      rows.forEach(row=>{
+        const id=positiveId(row&&row.id);
+        if(id)pagesById.set(id,memberPageCount(row.pages));
+      });
+      state.members.forEach(member=>{
+        if(member.pagesRead!==stamp||!pagesById.has(member.book_id))return;
+        member.pages=pagesById.get(member.book_id);
+        const pages=document.querySelector(`[data-volume-member-id="${member.book_id}"] [data-member-pages]`);
+        if(!pages)return;
+        pages.hidden=member.pages==null;
+        pages.textContent=member.pages==null?"":`${member.pages} بەت`;
+      });
+    }).catch(()=>{});
+  }
+  function rememberMemberEdit(bookId){
+    memberEditWatch={
+      generation:editorGeneration,
+      groupId:positiveId(state.current&&state.current.id),
+      bookId:positiveId(bookId)
+    };
+  }
+  function paintMemberBook(member){
+    const row=document.querySelector(`[data-volume-member-id="${member.book_id}"]`);
+    if(!row)return;
+    const title=row.querySelector(".volume-admin-member-copy strong");
+    if(title)title.textContent=member.title||`كىتاب ${member.book_id}`;
+    const identity=row.querySelector("[data-member-identity]");
+    if(identity)identity.textContent=memberIdentityText(member);
+    const sale=row.querySelector("[data-member-sale]");
+    if(sale)sale.textContent=memberSaleText(member);
+    const pages=row.querySelector("[data-member-pages]");
+    if(pages){
+      pages.hidden=member.pages==null;
+      pages.textContent=member.pages==null?"":`${member.pages} بەت`;
+    }
+    const image=row.querySelector("img");
+    if(image&&member.image_url)image.src=safeCover(member.image_url);
+  }
+  function applySavedMemberBook(detail){
+    const watch=memberEditWatch;
+    const saved=detail&&typeof detail==="object"?detail:{};
+    const id=positiveId(saved.id);
+    if(!watch||!id||id!==watch.bookId)return;
+    if(watch.generation!==editorGeneration)return;
+    if(positiveId(state.current&&state.current.id)!==watch.groupId)return;
+    const member=state.members.find(item=>item.book_id===id);
+    if(!member)return;
+    if(saved.title!=null)member.title=text(saved.title)||member.title;
+    if(saved.author!=null)member.author=text(saved.author);
+    if(Object.prototype.hasOwnProperty.call(saved,"price"))member.price=saved.price==null||saved.price===""?null:Number(saved.price);
+    if(Object.prototype.hasOwnProperty.call(saved,"stock"))member.stock=saved.stock==null||saved.stock===""?null:Number(saved.stock);
+    if(Object.prototype.hasOwnProperty.call(saved,"isbn"))member.isbn=text(saved.isbn);
+    if(Object.prototype.hasOwnProperty.call(saved,"image_url")&&text(saved.image_url))member.image_url=text(saved.image_url);
+    if(Object.prototype.hasOwnProperty.call(saved,"pages")){
+      member.pages=memberPageCount(saved.pages);
+      member.pagesRead=++memberPageRead;
+    }
+    if(Object.prototype.hasOwnProperty.call(saved,"is_active"))member.is_active=saved.is_active!==false;
+    paintMemberBook(member);
+  }
   function memberTitle(member){
     return text(member&&member.title)||`كىتاب ${member&&member.book_id||""}`;
   }
@@ -304,9 +393,11 @@
       <img src="${escapeHtml(safeCover(member.image_url))}" alt="" width="64" height="92">
       <div class="volume-admin-member-copy">
         <strong>${escapeHtml(member.title||`كىتاب ${member.book_id}`)}</strong>
-        <small>ID ${escapeHtml(member.book_id)}${member.isbn?` · ISBN ${escapeHtml(member.isbn)}`:""}</small>
-        <small>${member.price==null?"باھاسىز":`${escapeHtml(member.price)} ₺`} · ئامبار ${member.stock==null?"بېكىتىلمىگەن":escapeHtml(member.stock)}</small>
+        <small data-member-identity>${escapeHtml(memberIdentityText(member))}</small>
+        <small data-member-sale>${escapeHtml(memberSaleText(member))}</small>
+        <small data-member-pages ${member.pages==null?"hidden":""}>${member.pages==null?"":escapeHtml(`${member.pages} بەت`)}</small>
         <a href="${escapeHtml(member.href)}" target="_blank" rel="noopener">كىتابنى ئېچىش</a>
+        <button type="button" class="admin-secondary volume-member-edit" data-member-edit="${escapeHtml(member.book_id)}">كىتاب ئۇچۇرىنى تەھرىرلەش</button>
         <label>قىسىم بەلگىسى <input type="text" maxlength="120" value="${escapeHtml(member.volume_label)}" data-member-label></label>
       </div>
       <label class="volume-admin-representative"><input type="radio" name="volumeRepresentative" value="${escapeHtml(member.book_id)}" ${representative===member.book_id||(!representative&&index===0)?"checked":""}> باش مۇقاۋا</label>
@@ -320,6 +411,13 @@
         const member=state.members.find(item=>item.book_id===id);
         if(member)member.volume_label=event.target.value;
         syncAbandon();
+      };
+      const edit=row.querySelector("[data-member-edit]");
+      if(edit)edit.onclick=()=>{
+        const open=root.__kutadguAdminTest&&root.__kutadguAdminTest.openEdit;
+        if(typeof open!=="function")return;
+        rememberMemberEdit(id);
+        open(id);
       };
       row.querySelectorAll("[data-member-move]").forEach(button=>button.onclick=()=>moveMember(id,Number(button.dataset.memberMove)));
       bindMemberDetach(row,id);
@@ -373,6 +471,7 @@
     resetLookup();
     clearSlugRecovery();
     rememberSavedEditor();
+    refreshMemberPages();
   }
   function newGroup(){
     editorGeneration++;
@@ -1876,6 +1975,7 @@
       const toggle=$("#volumeGroupListToggle");
       setListOpen(toggle.getAttribute("aria-expanded")!=="true");
     });
+    document.addEventListener("kutadgu:member-book-saved",event=>applySavedMemberBook(event&&event.detail));
     $("#volumeGroupList")?.addEventListener("keydown",event=>{
       if(event.key!=="Escape")return;
       const toggle=$("#volumeGroupListToggle");
