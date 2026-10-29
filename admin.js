@@ -5034,14 +5034,22 @@ async function uploadPreparedBookImage(objectKey,prepared){
     body:prepared&&prepared.body
   });
 }
+function tagGalleryStage(error,stage){
+  const err=error instanceof Error?error:new Error(String(error&&error.message||error||""));
+  if(!err.stage)err.stage=stage;
+  if(!(error instanceof Error)&&error&&typeof error==="object"&&error.code&&!err.code)err.code=error.code;
+  throw err;
+}
 async function uploadGalleryFile(id,file){
-  assertCoverFileSize(file);
-  const optimized=await optimizeGalleryImage(file);
+  try{assertCoverFileSize(file);}catch(error){tagGalleryStage(error,"prepare");}
+  let optimized;
+  try{optimized=await optimizeGalleryImage(file);}catch(error){tagGalleryStage(error,"prepare");}
   const ext=(optimized.name.split(".").pop()||"webp").toLowerCase().replace(/[^a-z0-9]/g,"")||"webp";
   const objectKey=`book-covers/${storageToken(id)}/gallery/${coverImageApi().uniqueStorageStamp()}.${ext}`;
   if(Idle.noteActivity&&!(Idle.readState&&Idle.readState().locked))Idle.noteActivity({force:true});
-  const prepared=await coverImageApi().prepareStorageUpload(optimized);
-  return uploadPreparedBookImage(objectKey,prepared);
+  let prepared;
+  try{prepared=await coverImageApi().prepareStorageUpload(optimized);}catch(error){tagGalleryStage(error,"prepare");}
+  try{return await uploadPreparedBookImage(objectKey,prepared);}catch(error){tagGalleryStage(error,"upload");}
 }
 async function collectGalleryUrls(id){
   if(!presentBookCols.has("gallery_images"))return [];

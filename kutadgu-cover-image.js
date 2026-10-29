@@ -203,21 +203,27 @@ function r2UploadError(code){
   if(code==="invalid_object")return "بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.";
   return "رەسىم يوللانمىدى.";
 }
+function failR2Upload(message, code){
+  const error=new Error(message);
+  error.code=/^[a-z0-9_]{1,40}$/i.test(String(code||""))?String(code):"upload_failed";
+  error.stage="upload";
+  return error;
+}
 async function postR2CoverUpload(opts){
   const options=opts&&typeof opts==="object"?opts:{};
   const token=String(options.token||"");
   const objectKey=String(options.objectKey||"");
   const contentType=String(options.contentType||"").split(";")[0].trim().toLowerCase();
   const body=options.body;
-  if(!token)throw new Error("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.");
-  if(!R2_IMAGE_TYPES[contentType])throw new Error("بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.");
+  if(!token)throw failR2Upload("كىرىش ۋاقتى توشتى. قايتا كىرىڭ.","auth_required");
+  if(!R2_IMAGE_TYPES[contentType])throw failR2Upload("بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.","invalid_object");
   const expected=canonicalPrivateCoverUrl(objectKey);
-  if(!expected)throw new Error("رەسىم يولى توغرا ئەمەس.");
-  if(!body||typeof body.byteLength!=="number"||body.byteLength<1)throw new Error("بوش رەسىم يوللانمايدۇ.");
+  if(!expected)throw failR2Upload("رەسىم يولى توغرا ئەمەس.","invalid_object");
+  if(!body||typeof body.byteLength!=="number"||body.byteLength<1)throw failR2Upload("بوش رەسىم يوللانمايدۇ.","invalid_object");
   const globalFetch=typeof fetch==="function"?fetch:null;
   const windowFetch=typeof window!=="undefined"&&window&&typeof window.fetch==="function"?window.fetch:null;
   const fetchImpl=options.fetchImpl||globalFetch||windowFetch;
-  if(typeof fetchImpl!=="function")throw new Error("رەسىم يوللاش تەييار ئەمەس.");
+  if(typeof fetchImpl!=="function")throw failR2Upload("رەسىم يوللاش تەييار ئەمەس.","upload_failed");
   const response=await fetchImpl(options.url||R2_UPLOAD_PATH,{
     method:"POST",
     headers:{
@@ -230,7 +236,8 @@ async function postR2CoverUpload(opts){
   let payload=null;
   try{payload=response&&typeof response.json==="function"?await response.json():null;}catch(error){payload=null;}
   if(!response||!response.ok||!payload||payload.ok!==true||payload.url!==expected||payload.key!==objectKey){
-    throw new Error(r2UploadError(payload&&payload.error));
+    const raw=payload&&payload.error;
+    throw failR2Upload(r2UploadError(raw), raw);
   }
   const budget=Number(options.variantBudgetMs);
   const limit=Number.isFinite(budget)&&budget>=0?budget:8000;

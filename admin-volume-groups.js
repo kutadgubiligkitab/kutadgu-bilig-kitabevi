@@ -1234,7 +1234,7 @@
           <span id="volumeSeriesPagesLabel${n}">ئىچ بەت رەسىملىرى</span>
           <span data-series-page-count>0 / ${cap}</span>
         </div>
-        <input id="volumeSeriesPages${n}" class="admin-gallery-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-series-pages-input tabindex="-1" aria-labelledby="volumeSeriesPagesLabel${n}" aria-describedby="volumeSeriesPagesStatus${n}">
+        <input id="volumeSeriesPages${n}" class="admin-gallery-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple data-series-pages-input tabindex="-1" aria-labelledby="volumeSeriesPagesLabel${n}" aria-describedby="volumeSeriesPagesStatus${n}">
         <button type="button" class="admin-secondary" data-series-pages-btn aria-controls="volumeSeriesPages${n}">رەسىم تاللاش</button>
         <span class="volume-series-pages-status" id="volumeSeriesPagesStatus${n}" data-series-pages-status role="status">تاللانمىدى</span>
         <div class="volume-series-pages-list" data-series-pages-list></div>
@@ -1322,9 +1322,13 @@
     const maxBytes=Number(lib.MAX_GALLERY_BYTES)||8*1024*1024;
     if(Number(file&&file.size)>maxBytes)return "بۇ رەسىم بەك چوڭ.";
     const mime=String(file&&file.type||"").toLowerCase();
+    // The series uploader sends the prepared file to /api/r2-cover-upload.
+    // That route accepts JPEG, PNG, and WebP. GIF is left unchanged so
+    // animation is not flattened, then the upload rejects it.
+    if(mime==="image/gif")return "ھەرىكەتلىك GIF يوللانمايدۇ. JPEG، PNG ياكى WebP تاللاڭ.";
     const allowed=typeof lib.isAllowedGalleryMime==="function"
-      ?lib.isAllowedGalleryMime(mime)
-      :["image/jpeg","image/png","image/webp","image/gif"].indexOf(mime)>=0;
+      ?lib.isAllowedGalleryMime(mime)&&mime!=="image/gif"
+      :["image/jpeg","image/png","image/webp"].indexOf(mime)>=0;
     return allowed?"":"بۇ ھۆججەت رەسىم ئەمەس.";
   }
   function addSeriesPages(row,fileList){
@@ -1704,14 +1708,84 @@
     });
   }
   function snapshotSeriesInteriors(rows){
-    return (Array.isArray(rows)?rows:[]).map(row=>({
+    return (Array.isArray(rows)?rows:[]).map((row,index)=>({
+      position:index+1,
       imageUrl:text(row&&row.imageUrl),
-      pages:(Array.isArray(row&&row.pages)?row.pages:[]).map(page=>({
+      pages:(Array.isArray(row&&row.pages)?row.pages:[]).map((page,pageIndex)=>({
         file:page&&page.file||null,
         url:text(page&&page.url),
-        node:page&&page.node||null
+        node:page&&page.node||null,
+        label:safeFileLabel(page&&page.file&&page.file.name)||`${pageIndex+1}-رەسىم`
       }))
     })).filter(part=>part.imageUrl&&part.pages.some(page=>page.file||page.url));
+  }
+  function interiorPartPosition(part,member){
+    const saved=Number(member&&member.position);
+    if(Number.isInteger(saved)&&saved>0)return saved;
+    const local=Number(part&&part.position);
+    return Number.isInteger(local)&&local>0?local:0;
+  }
+  function interiorError(error,position,label,stage){
+    const err=error instanceof Error?error:new Error(String(error&&error.message||error||""));
+    if(!(error instanceof Error)&&error&&typeof error==="object"){
+      if(error.code&&!err.code)err.code=error.code;
+      if(error.stage&&!err.stage)err.stage=error.stage;
+    }
+    err.partPosition=position;
+    if(label)err.imageLabel=label;
+    if(!err.stage)err.stage=stage;
+    return err;
+  }
+  const INTERIOR_SAFE_MESSAGES=[
+    "2-باسقۇچلۇق دەلىللەش كېرەك.",
+    "بۇ ھېساباتنىڭ رەسىم يوللاش ھوقۇقى يوق.",
+    "كىرىش ۋاقتى توشتى. قايتا كىرىڭ.",
+    "بۇ رەسىم ئاللىقاچان بار. يېڭى رەسىم تاللاڭ.",
+    "بۇ رەسىم شەكلى قوللانمايدۇ. JPEG، PNG ياكى WebP يوللاڭ.",
+    "رەسىم يوللانمىدى.",
+    "رەسىم يولى توغرا ئەمەس.",
+    "بوش رەسىم يوللانمايدۇ.",
+    "رەسىم يوللاش تەييار ئەمەس.",
+    "رەسىم تەييارلاش تەييار ئەمەس.",
+    "رەسىم ئايلاندۇرۇش ۋاقتى ئېشىپ كەتتى.",
+    "رەسىم ئوقۇلمىدى. بۇزۇلغان ھۆججەت يوللانمايدۇ.",
+    "رەسىم ئايلاندۇرۇلمىدى.",
+    "رەسىم WebP قىلىپ ئايلاندۇرۇلمىدى. يوللانمىدى.",
+    "سۈزۈك رەسىمنى سۈزۈكلۈكىنى يوقاتماي كىچىكلىتەلمىدى. يوللانمىدى.",
+    "سۈزۈك رەسىمنى سۈزۈكلۈكىنى يوقاتماي ساقلىغىلى بولمىدى.",
+    "SVG رەسىم يوللانمايدۇ.",
+    "بۇ browser رەسىمنى ئايلاندۇرالمايدۇ.",
+    "رەسىم ھۆججىتى تەييار ئەمەس.",
+    "رەسىم يوللاش شەكلى توغرا ئەمەس.",
+    "رەسىم غەملەك باشلىقى توغرا يوللانمايدۇ.",
+    "مۇقاۋا رەسىمى بەك چوڭ (ئەڭ چوڭ 50MB). تېلېفون رەسىمى ياكى ئادەتتىكى سىكان قوبۇل قىلىنىدۇ؛ بۇ ھۆججەتنى كىچىكلىتىپ قايتا تاللاڭ."
+  ];
+  function seriesInteriorStatus(error){
+    const part=Number(error&&error.partPosition);
+    const partText=Number.isInteger(part)&&part>0?`${part}-قىسىم`:"قىسىم";
+    const label=safeFileLabel(error&&error.imageLabel);
+    const stage=String(error&&error.stage||"");
+    const stageText=stage==="match"?"ماسلاش":stage==="prepare"?"تەييارلاش":stage==="upload"?"يوللاش":stage==="gallery"?"يېزىش":"ساقلاش";
+    const named=label?`«${label}»، `:"";
+    const raw=text(error&&error.message);
+    const safe=INTERIOR_SAFE_MESSAGES.indexOf(raw)>=0?raw:"";
+    const codeSource=text(error&&error.code);
+    const code=/^[a-z0-9_]{1,40}$/i.test(codeSource)?codeSource:(/^[0-9A-Z]{5}$/.test(codeSource)||/^PGRST[0-9]+$/.test(codeSource)?codeSource:(stage||"interior_save_failed"));
+    const message=`${partText}، ${named}${stageText}: ئىچ بەت رەسىمى ساقلانمىدى.${safe?` ${safe}`:""} قايتا ساقلىسىڭىز، يۈرۈشلۈك قايتا قوشۇلمايدۇ.`;
+    return {message,diagnostic:`stage=${stage||"unknown"};part=${Number.isInteger(part)&&part>0?part:0};code=${code}`.slice(0,500)};
+  }
+  function reconcileFailedInteriors(pending){
+    const interiors=(Array.isArray(pending&&pending.interiors)?pending.interiors:[]).map(part=>({
+      position:part.position,
+      imageUrl:text(part&&part.imageUrl),
+      pages:(Array.isArray(part&&part.pages)?part.pages:[]).filter(page=>{
+        if(!page)return false;
+        if(page.node)return page.node.isConnected===true;
+        return !!(page.url||page.file);
+      })
+    })).filter(part=>part.imageUrl&&part.pages.some(page=>page.file||page.url));
+    if(pending)pending.interiors=interiors;
+    return interiors;
   }
   function seriesMemberByCover(members, imageUrl){
     const identity=text(imageUrl);
@@ -1729,31 +1803,59 @@
       const imageUrl=text(part.imageUrl);
       if(!imageUrl)continue;
       const member=seriesMemberByCover(members, imageUrl);
+      const position=interiorPartPosition(part,member);
       const bookId=member&&(member.book_id||member.id);
-      if(!bookId)throw new Error("interior_part_unmatched");
-      if(typeof upload!=="function"||typeof persist!=="function")throw new Error("interior_upload_unavailable");
+      if(!bookId){
+        const unmatched=new Error("interior_part_unmatched");
+        unmatched.code="interior_part_unmatched";
+        unmatched.stage="match";
+        throw interiorError(unmatched,position,"","match");
+      }
+      if(typeof upload!=="function"||typeof persist!=="function"){
+        const missing=new Error("interior_upload_unavailable");
+        missing.code="interior_upload_unavailable";
+        missing.stage="upload";
+        throw interiorError(missing,position,"","upload");
+      }
       const urls=[];
       for(const page of pages){
+        const label=text(page.label)||safeFileLabel(page.file&&page.file.name);
         let url=text(page.url);
         if(!url&&page.file){
-          const position=Number(member.position);
-          seriesStatus(Number.isInteger(position)&&position>0?`${position}-قىسىمنىڭ ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…`:"ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…","");
-          url=text(await upload(bookId,page.file));
+          seriesStatus(position?`${position}-قىسىمنىڭ ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…`:"ئىچ بەت رەسىمى يوللىنىۋاتىدۇ…","");
+          try{
+            url=text(await upload(bookId,page.file));
+          }catch(error){
+            throw interiorError(error,position,label,error&&error.stage||"upload");
+          }
+          if(!url){
+            const empty=new Error("interior_upload_empty");
+            empty.code="interior_upload_empty";
+            empty.stage="upload";
+            throw interiorError(empty,position,label,"upload");
+          }
           page.url=url;
           if(page.node)page.node._url=url;
         }
         if(url)urls.push(url);
       }
-      if(urls.length)await persist(bookId,urls,imageUrl);
+      if(!urls.length)continue;
+      try{
+        await persist(bookId,urls,imageUrl);
+      }catch(error){
+        throw interiorError(error,position,"","gallery");
+      }
     }
   }
   async function saveInteriorsOrStop(rows, saved){
+    const source=seriesState.pending&&seriesState.pending.interiorFailed?reconcileFailedInteriors(seriesState.pending):rows;
     try{
-      await persistSeriesInteriors(rows, saved);
+      await persistSeriesInteriors(source, saved);
       return true;
     }catch(galleryError){
-      const shown=seriesUserError(galleryError);
-      seriesStatus("ئىچ بەت رەسىمى ساقلانمىدى. قايتا ساقلىسىڭىز، يۈرۈشلۈك قايتا قوشۇلمايدۇ.","error",shown.diagnostic);
+      if(seriesState.pending)seriesState.pending.interiorFailed=true;
+      const shown=seriesInteriorStatus(galleryError);
+      seriesStatus(shown.message,"error",shown.diagnostic);
       return false;
     }
   }
@@ -2044,5 +2146,5 @@
     attachSeriesSuggestions();
   }
 
-  root.KutadguAdminVolumeGroups={init,load,newGroup,openGroup,normalizeMembers,editorPayload,seriesEntryPayload,seriesUserError,seriesInteriorCap,showSeriesForm,_state:state};
+  root.KutadguAdminVolumeGroups={init,load,newGroup,openGroup,normalizeMembers,editorPayload,seriesEntryPayload,seriesUserError,seriesInteriorStatus,seriesInteriorCap,showSeriesForm,_state:state};
 })(typeof globalThis!=="undefined"?globalThis:this);
