@@ -123,6 +123,49 @@ assert.doesNotMatch(repair, /\bhref\b|\blanguage\b|\bpublish_date\b/);
 assert.doesNotMatch(repairInsert, /''\s*,\s*''/);
 assert.match(repair, /GRANT EXECUTE ON FUNCTION public\.admin_create_book_volume_series\(uuid, jsonb\) TO authenticated/);
 
+const adminGet = fs.readFileSync(path.join(root, "STAGE127_BOOK_VOLUME_GROUPS.sql"), "utf8");
+const getFn = adminGet.slice(adminGet.indexOf("FUNCTION public.admin_get_book_volume_group"), adminGet.indexOf("FUNCTION public.admin_list_book_volume_groups"));
+assert.match(getFn, /'image_url', b\.image_url/);
+const volumeSource = fs.readFileSync(path.join(root, "admin-volume-groups.js"), "utf8");
+assert.match(volumeSource, /accept="image\/jpeg,image\/png,image\/webp" multiple data-series-pages-input/);
+assert.match(volumeSource, /ھەرىكەتلىك GIF يوللانمايدۇ/);
+assert.match(volumeSource, /text\(item&&item\.image_url\)===identity/);
+
+const uploadFail = groups.seriesInteriorStatus({
+  partPosition: 1,
+  imageLabel: "inside-1.png",
+  stage: "upload",
+  code: "rejected",
+  message: "رەسىم يوللانمىدى."
+});
+assert.match(uploadFail.message, /1-قىسىم/);
+assert.match(uploadFail.message, /inside-1\.png/);
+assert.match(uploadFail.message, /يوللاش/);
+assert.match(uploadFail.message, /ئىچ بەت رەسىمى ساقلانمىدى/);
+assert.match(uploadFail.message, /رەسىم يوللانمىدى/);
+assert.strictEqual(uploadFail.diagnostic, "stage=upload;part=1;code=rejected");
+assert.ok(!uploadFail.message.includes("rejected"));
+const leaked = groups.seriesInteriorStatus({
+  partPosition: 1,
+  imageLabel: "inside-1.png",
+  stage: "gallery",
+  code: "PGRST204",
+  message: "Could not find the gallery_images column of books"
+});
+assert.ok(!leaked.message.includes("gallery_images"));
+assert.ok(!leaked.message.includes("Could not find"));
+assert.match(leaked.message, /يېزىش/);
+assert.strictEqual(leaked.diagnostic, "stage=gallery;part=1;code=PGRST204");
+const unmatched = groups.seriesInteriorStatus({
+  partPosition: 1,
+  stage: "match",
+  code: "interior_part_unmatched",
+  message: "interior_part_unmatched"
+});
+assert.match(unmatched.message, /ماسلاش/);
+assert.ok(!unmatched.message.includes("interior_part_unmatched"));
+assert.strictEqual(unmatched.diagnostic, "stage=match;part=1;code=interior_part_unmatched");
+
 const failed = groups.seriesUserError({ message: "series_create_failed", code: "P0001" });
 assert.strictEqual(failed.message, "يۈرۈشلۈك ساقلانمىدى. قايتا سىناڭ.");
 assert.ok(!failed.message.includes("series_create_failed"));
