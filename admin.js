@@ -33,6 +33,16 @@ function syncBookDescriptionCount(){
   const length=String(field&&field.value||"").length;
   count.textContent=formatBookDescriptionCount(length)+" / 2,000";
 }
+function storedBookDescription(){
+  if(!editing||editing.description==null)return "";
+  return String(editing.description);
+}
+function bookDescriptionSavePlan(raw){
+  const text=String(raw==null?"":raw);
+  const unchanged=!!(editing&&text===storedBookDescription());
+  if(text.length>BOOK_DESCRIPTION_LIMIT&&!unchanged)return {ok:false};
+  return {ok:true,keepStored:unchanged&&text.length>BOOK_DESCRIPTION_LIMIT,text};
+}
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -2147,14 +2157,13 @@ function readPendingReviewFields(){
     }
   };
 }
-function pendingEditPayload(row,imageUrl,galleryUrls){
+function pendingEditPayload(row,imageUrl,galleryUrls,opts){
   const payload={
     title:row.title,
     author:row.author||"",
     category:row.category,
     source:row.source,
     price:row.price==null?null:Number(row.price),
-    description:row.description||null,
     translator:row.translator||null,
     publisher:row.publisher||null,
     publish_year:row.publish_year==null?null:row.publish_year,
@@ -2168,6 +2177,7 @@ function pendingEditPayload(row,imageUrl,galleryUrls){
   payload.dimensions=row.dimensions==null?"":String(row.dimensions).slice(0,120);
   payload.is_color_print=row.is_color_print===true;
   payload.interior_print_type=row.interior_print_type==="color"||row.interior_print_type==="bw"?row.interior_print_type:null;
+  if(!(opts&&opts.keepStoredDescription))payload.description=row.description||null;
   if(imageUrl&&!isSampleDemoCoverUrl(imageUrl))payload.image_url=imageUrl;
   if(presentBookCols.has("gallery_images"))payload.gallery_images=normalizeGalleryField(galleryUrls,imageUrl)||[];
   ["is_active","is_available","is_new","is_recommended","submission_status","submitted_by","submitted_at","sales_count","id"].forEach(key=>delete payload[key]);
@@ -5466,8 +5476,8 @@ async function saveBook(e){
     pendingReview=readPendingReviewFields();
     if(!pendingReview.ok){alert(pendingReview.error);return}
   }
-  const descriptionRaw=String($("#bookDescription")&&$("#bookDescription").value||"");
-  if(descriptionRaw.length>BOOK_DESCRIPTION_LIMIT){
+  const descriptionPlan=bookDescriptionSavePlan($("#bookDescription")&&$("#bookDescription").value);
+  if(!descriptionPlan.ok){
     alert(BOOK_DESCRIPTION_TOO_LONG);
     syncBookDescriptionCount();
     return;
@@ -5580,12 +5590,12 @@ async function saveBook(e){
       publish_date:$("#bookPublishDate").value.trim(),
       publish_year:year.value,
       publisher:$("#bookPublisher").value.trim()||null,
-      description:descriptionRaw.trim(),
       sales_count:Number($("#bookSalesCount").value)||0,
       is_active:$("#bookIsActive").checked,
       is_new:$("#bookIsNew").checked,
       is_recommended:$("#bookIsRecommended").checked
     };
+    if(!descriptionPlan.keepStored)row.description=descriptionPlan.text.trim();
     if(coverHash&&coverVisualHash&&presentBookCols.has("cover_sha256")&&presentBookCols.has("cover_dhash")){row.cover_sha256=coverHash;row.cover_dhash=coverVisualHash;}
     const coverPlan=Bib.canonicalOptionalForSave
       ?Bib.canonicalOptionalForSave($("#bookCoverType")?$("#bookCoverType").value:"",editing&&editing.cover_type,isEdit,Bib.normalizeCoverType)
@@ -5625,7 +5635,7 @@ async function saveBook(e){
     setSaveStatus(saveStatusText("saving")||"كىتاب ساقلىنىۋاتىدۇ...");
     if(pendingSave){
       Object.assign(row,pendingReview.values);
-      const pendingPayload=pendingEditPayload(row,imageUrl,galleryUrls);
+      const pendingPayload=pendingEditPayload(row,imageUrl,galleryUrls,{keepStoredDescription:descriptionPlan.keepStored});
       if(creditPlan.omitLegacy||creditPlan.writeCredits){
         delete pendingPayload.author;
         delete pendingPayload.translator;

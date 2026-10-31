@@ -226,8 +226,110 @@ async function main() {
     assert.deepStrictEqual(rejected.alerts, [TOO_LONG]);
     assert.strictEqual(rejected.value, samples.over);
     assert.strictEqual(rejected.writes, writesBeforeReject);
-    await page.context().close();
     console.log("PASS admin description save, reopen, and rejection");
+
+    const seriesDescription = uyghurDescription(10000);
+    const pendingDescription = uyghurDescription(20000);
+    await page.evaluate(({ source, description }) => {
+      window.__book = {
+        id: 220,
+        title: "يۈرۈشلۈك قىسىم",
+        author: "ئاپتور",
+        source,
+        category: "ئەدەبىيات",
+        price: 42,
+        pages: 80,
+        stock: 3,
+        image_url: "https://www.kutadgubilik.com/__r2/book-covers/book/1788094203015.webp",
+        is_active: true,
+        language: "ug",
+        description,
+        sales_count: 0
+      };
+      window.__kutadguAdminPersistPending = async (bookId, payload) => {
+        window.__writes.push({ kind: "pending", bookId, payload });
+        return { error: null };
+      };
+    }, { source, description: seriesDescription });
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(220));
+    await page.waitForFunction((expected) => {
+      const field = document.querySelector("#bookDescription");
+      const modal = document.querySelector("#bookModal");
+      return field && field.value === expected && modal && !modal.hidden;
+    }, seriesDescription);
+    await page.locator("#bookPrice").fill("55");
+    if (await page.locator("#bookPages").isVisible()) await page.locator("#bookPages").fill("96");
+    await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
+    await page.locator("#bookForm button[type=submit]").click();
+    await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "book") || window.__alerts.length, null, { timeout: 30000 });
+    const seriesSave = await page.evaluate(() => ({
+      alerts: window.__alerts.slice(),
+      write: window.__writes.find((entry) => entry.kind === "book")
+    }));
+    assert.deepStrictEqual(seriesSave.alerts, []);
+    assert.ok(seriesSave.write);
+    assert.strictEqual(seriesSave.write.payload.price, 55);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(seriesSave.write.payload, "description"), false);
+    if (Object.prototype.hasOwnProperty.call(seriesSave.write.payload, "pages")) {
+      assert.strictEqual(seriesSave.write.payload.pages, 96);
+    }
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(220));
+    await page.waitForFunction((expected) => document.querySelector("#bookDescription").value === expected, seriesDescription);
+    const changedSeries = seriesDescription.slice(0, -1) + "ا";
+    await page.locator("#bookDescription").evaluate((el, value) => {
+      el.value = value;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, changedSeries);
+    const seriesWrites = await page.evaluate(() => window.__writes.length);
+    await page.evaluate(() => { window.__alerts = []; });
+    await page.locator("#bookForm button[type=submit]").click();
+    await page.waitForFunction(() => window.__alerts.length > 0);
+    const seriesRejected = await page.evaluate(() => ({
+      alerts: window.__alerts.slice(),
+      value: document.querySelector("#bookDescription").value,
+      writes: window.__writes.length
+    }));
+    assert.deepStrictEqual(seriesRejected.alerts, [TOO_LONG]);
+    assert.strictEqual(seriesRejected.value, changedSeries);
+    assert.strictEqual(seriesRejected.writes, seriesWrites);
+    console.log("PASS unchanged series-member description stays stored");
+
+    await page.evaluate(({ source, description }) => {
+      window.__book = {
+        id: 221,
+        title: "خادىم تەكلىپى",
+        author: "ئاپتور",
+        source,
+        category: "ئەدەبىيات",
+        price: 18,
+        pages: 40,
+        stock: 2,
+        image_url: "https://www.kutadgubilik.com/__r2/book-covers/book/1788094203015.webp",
+        is_active: false,
+        submission_status: "pending",
+        language: "ug",
+        description,
+        sales_count: 0
+      };
+    }, { source, description: pendingDescription });
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(221));
+    await page.waitForFunction((expected) => document.querySelector("#bookDescription").value === expected, pendingDescription);
+    await page.locator("#bookPrice").fill("21");
+    await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
+    await page.locator("#bookForm button[type=submit]").click();
+    await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "pending") || window.__alerts.length, null, { timeout: 30000 });
+    const pendingSave = await page.evaluate(() => ({
+      alerts: window.__alerts.slice(),
+      write: window.__writes.find((entry) => entry.kind === "pending")
+    }));
+    assert.deepStrictEqual(pendingSave.alerts, []);
+    assert.ok(pendingSave.write);
+    assert.strictEqual(pendingSave.write.payload.price, 21);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(pendingSave.write.payload, "description"), false);
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(221));
+    await page.waitForFunction((expected) => document.querySelector("#bookDescription").value === expected, pendingDescription);
+    console.log("PASS unchanged pending description stays stored");
+    await page.context().close();
 
     const staff = await browser.newPage();
     await staff.goto(origin + "/book-staff.html", { waitUntil: "domcontentloaded" });
