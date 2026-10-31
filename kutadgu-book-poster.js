@@ -44,13 +44,41 @@
     return true;
   }
 
+  function coverStorageSource() {
+    var mode = "";
+    try {
+      var meta = global.document && global.document.querySelector('meta[name="kutadgu-r2-read"]');
+      mode = meta ? String(meta.getAttribute("content") || "") : "";
+    } catch (error) {}
+    var location = global.location || {};
+    return {
+      r2ReadEnabled: mode === "preview" || mode === "production",
+      hostMode: mode === "production" ? "production" : (mode === "preview" ? "preview" : ""),
+      hostname: location.hostname || "",
+      origin: location.origin || "",
+      pathname: location.pathname || ""
+    };
+  }
+
   function coverRequestUrl(src) {
     var raw = String(src || "").trim();
     if (!raw || isSampleCover(raw)) return "";
     if (/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(raw)) return "";
+    var candidate = raw;
+    var storage = global.KutadguImageStorage;
+    if (storage && typeof storage.previewCoverFetchUrl === "function") {
+      try {
+        candidate = storage.previewCoverFetchUrl(raw, coverStorageSource()) || raw;
+      } catch (error) {
+        candidate = raw;
+      }
+    }
+    if (!candidate || isSampleCover(candidate)) return "";
+    if (/^(?:javascript|data|vbscript|file|blob)\s*:/i.test(candidate)) return "";
     try {
-      var url = new URL(raw, global.location.href);
+      var url = new URL(candidate, global.location.href);
       if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+      if (isSampleCover(url.pathname) || isSampleCover(url.href)) return "";
       return url.href;
     } catch (error) {
       return "";

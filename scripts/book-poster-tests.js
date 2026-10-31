@@ -47,14 +47,14 @@ const shell = read("book-shell.html");
 const shop = read("shop.js");
 
 test("gate is pinned only on the book shell and the poster module is not a static script", () => {
-  assert.equal((shell.match(/kutadgu-book-poster-gate\.js\?v=2/g) || []).length, 1);
+  assert.equal((shell.match(/kutadgu-book-poster-gate\.js\?v=3/g) || []).length, 1);
   assert.doesNotMatch(shell, /kutadgu-book-poster\.js/);
   htmlFiles.forEach((file) => {
     const text = read(file);
     if (file === "book-shell.html") return;
     assert.doesNotMatch(text, /kutadgu-book-poster/);
   });
-  assert.match(gate, /\/kutadgu-book-poster\.js\?v=2/);
+  assert.match(gate, /\/kutadgu-book-poster\.js\?v=3/);
   assert.match(gate, /is_kutadgu_admin/);
   assert.match(gate, /aal2/);
   assert.doesNotMatch(gate, /kutadguBookPosterOpen/);
@@ -86,6 +86,35 @@ test("poster access requires the admin storage key, a session user, AAL2, and is
   assert.deepStrictEqual(fields(decide({ storageRaw: "x", session: user, aal: "aal2", isAdmin: false })), [true, false]);
   assert.deepStrictEqual(fields(decide({ storageRaw: "x", session: user, aal: "aal2", isAdmin: true })), [true, true]);
   assert.equal(decide({ storageRaw: "x", session: user, aal: "AAL2", isAdmin: true }).loadPoster, true);
+});
+
+test("preview cover fetch keeps the original object key and rejects unsupported URLs", () => {
+  const images = require(path.join(root, "kutadgu-image-storage.js"));
+  const original = "https://www.kutadgubilik.com/__r2/book-covers/book/1788094203015.webp";
+  const preview = {
+    r2ReadEnabled: true,
+    hostMode: "preview",
+    hostname: "kutadgu-cloudflare-preview.kutadgu-preview.workers.dev",
+    origin: "https://kutadgu-cloudflare-preview.kutadgu-preview.workers.dev"
+  };
+  const production = {
+    r2ReadEnabled: true,
+    hostMode: "production",
+    hostname: "www.kutadgubilik.com",
+    origin: "https://www.kutadgubilik.com"
+  };
+  const sameOrigin = preview.origin + "/__r2/book-covers/book/1788094203015.webp";
+  assert.equal(images.previewCoverFetchUrl(original, preview), sameOrigin);
+  assert.equal(images.recognizedSiteCoverKey(original), "book-covers/book/1788094203015.webp");
+  assert.equal(images.previewCoverFetchUrl(original, production), original);
+  assert.equal(images.previewImageUrl(original, preview), original);
+  assert.equal(images.previewCoverFetchUrl("https://example.com/cover.webp", preview), "https://example.com/cover.webp");
+  assert.equal(images.previewCoverFetchUrl("https://www.kutadgubilik.com/__r2/other/a.webp", preview), "https://www.kutadgubilik.com/__r2/other/a.webp");
+  assert.equal(images.previewCoverFetchUrl("https://www.kutadgubilik.com/__r2/book-covers/%2e%2e/secret.webp", preview), "https://www.kutadgubilik.com/__r2/book-covers/%2e%2e/secret.webp");
+  assert.equal(images.previewCoverFetchUrl("javascript:alert(1)", preview), "javascript:alert(1)");
+  const variant = "https://www.kutadgubilik.com/__r2/book-covers/variants/v1/book/1788094203015.webp";
+  assert.notEqual(images.previewCoverFetchUrl(original, preview), images.previewCoverFetchUrl(variant, preview));
+  assert.ok(!images.previewCoverFetchUrl(original, preview).includes("variants"));
 });
 
 function sentence() {
@@ -133,7 +162,7 @@ function renderHarness() {
     </div>
   </section>
 </main>
-<script src="/kutadgu-book-poster.js?v=2"></script>
+<script src="/kutadgu-book-poster.js?v=3"></script>
 </body>
 </html>`;
 }
@@ -175,13 +204,13 @@ if (mode !== "umd") {
   };
 }
 </script>
-<script src="/kutadgu-book-poster-gate.js?v=2"></script>
+<script src="/kutadgu-book-poster-gate.js?v=3"></script>
 </body>
 </html>`;
 }
 
 function fontHarness() {
-  return `<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="utf-8"></head><body data-dynamic-book="1" data-book-id="5"><script src="/kutadgu-book-poster.js?v=2"></script></body></html>`;
+  return `<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="utf-8"></head><body data-dynamic-book="1" data-book-id="5"><script src="/kutadgu-book-poster.js?v=3"></script></body></html>`;
 }
 
 function sdkJwt(userId, aal) {
@@ -240,7 +269,7 @@ function sdkHarness(mode) {
 const session = ${JSON.stringify(session)};
 if (session) localStorage.setItem("kutadgu-admin-auth-v1", JSON.stringify(session));
 </script>
-<script src="/kutadgu-book-poster-gate.js?v=2"></script>
+<script src="/kutadgu-book-poster-gate.js?v=3"></script>
 </body>
 </html>`;
 }
@@ -261,6 +290,14 @@ function startServer() {
     if (url.pathname === "/covers/variant.png") {
       res.writeHead(200, { "Content-Type": "image/png" });
       res.end(BLUE_PNG);
+      return;
+    }
+    if (url.pathname === "/__r2/book-covers/book/1788094203015.webp") {
+      res.writeHead(200, {
+        "Content-Type": "image/webp",
+        "Access-Control-Allow-Origin": "http://127.0.0.1"
+      });
+      fs.createReadStream(path.join(root, "sample-book-cover.png")).pipe(res);
       return;
     }
     if (url.pathname === "/covers/original.png") {
@@ -420,7 +457,7 @@ async function browserSuite(browserType, name, origin) {
   assert.equal(await page.locator("#kutadguBookPosterOpen").count(), 0);
 
   const adminHits = await settle(page, origin + "/book/7?case=aal2");
-  assert.equal(adminHits.some((item) => item.includes("kutadgu-book-poster.js?v=2")), true);
+  assert.equal(adminHits.some((item) => item.includes("kutadgu-book-poster.js?v=3")), true);
   assert.equal(adminHits.some((item) => item.includes("/vendor/supabase-js-")), false);
   await page.waitForSelector("#kutadguBookPosterOpen");
   await realSdkSessionChecks(browser, origin);
@@ -581,6 +618,60 @@ async function browserSuite(browserType, name, origin) {
     const img = document.querySelector("[data-poster-preview] img");
     return img && img.naturalWidth === 1080 && img.naturalHeight === 1350;
   });
+
+  await page.addScriptTag({ url: origin + "/kutadgu-image-storage.js" });
+  await page.evaluate(() => {
+    const meta = document.createElement("meta");
+    meta.name = "kutadgu-r2-read";
+    meta.content = "preview";
+    document.head.appendChild(meta);
+  });
+  const productionCover = "https://www.kutadgubilik.com/__r2/book-covers/book/1788094203015.webp";
+  const sameOriginCover = origin + "/__r2/book-covers/book/1788094203015.webp";
+  const beforePreviewCover = requests.length;
+  const previewCover = await page.evaluate(async (model) => window.KutadguBookPoster.exportForTest(model, "story", { png: true }), {
+    title: "ئۆزۈمنى ئىزدەپ قېلىش",
+    description: "قىسقا بايان.",
+    coverSrc: productionCover
+  });
+  assert.equal(previewCover.ok, true, JSON.stringify(previewCover));
+  assert.equal(previewCover.files, 1);
+  assert.equal(previewCover.width, 1080);
+  assert.equal(previewCover.height, 1920);
+  const previewRequests = requests.slice(beforePreviewCover);
+  assert.ok(previewRequests.includes(sameOriginCover), previewRequests.join("\n"));
+  assert.equal(previewRequests.includes(productionCover), false);
+  assert.equal(previewRequests.some((item) => item.includes("variants")), false);
+  await page.evaluate(() => {
+    document.querySelector('meta[name="kutadgu-r2-read"]').setAttribute("content", "production");
+  });
+  const beforeProductionCover = requests.length;
+  const productionExport = await page.evaluate(async (model) => window.KutadguBookPoster.exportForTest(model, "story"), {
+    title: "ئۆزۈمنى ئىزدەپ قېلىش",
+    description: "قىسقا بايان.",
+    coverSrc: productionCover
+  });
+  assert.equal(productionExport.ok, false);
+  assert.equal(productionExport.code, "cover");
+  assert.equal(productionExport.files, 0);
+  const productionRequests = requests.slice(beforeProductionCover);
+  assert.ok(productionRequests.includes(productionCover), productionRequests.join("\n"));
+  assert.equal(productionRequests.some((item) => item.startsWith(origin + "/__r2/")), false);
+  await page.evaluate(() => {
+    document.querySelector('meta[name="kutadgu-r2-read"]').setAttribute("content", "preview");
+  });
+  const beforeUnsupported = requests.length;
+  const unsupported = await page.evaluate(async (model) => window.KutadguBookPoster.exportForTest(model, "story"), {
+    title: "ئۆزۈمنى ئىزدەپ قېلىش",
+    description: "قىسقا بايان.",
+    coverSrc: "https://example.com/cover.webp"
+  });
+  assert.equal(unsupported.ok, false);
+  assert.equal(unsupported.code, "cover");
+  assert.equal(unsupported.files, 0);
+  const unsupportedRequests = requests.slice(beforeUnsupported);
+  assert.ok(unsupportedRequests.includes("https://example.com/cover.webp"), unsupportedRequests.join("\n"));
+  assert.equal(unsupportedRequests.some((item) => item.includes("/__r2/")), false);
 
   await page.goto(origin + "/poster-font.html", { waitUntil: "load" });
   const fontMiss = await page.evaluate(async () => window.KutadguBookPoster.exportForTest({
