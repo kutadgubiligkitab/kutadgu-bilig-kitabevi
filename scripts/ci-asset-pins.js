@@ -61,7 +61,8 @@ function canonicalPins(root) {
     "public-header.js": versionsAcrossHtml(root, "public-header.js"),
     "public-header.css": versionsInFile(root, "public-header.js", "public-header.css"),
     "supabase-config.js": versionsAcrossHtml(root, "supabase-config.js"),
-    "header-diag.js": versionsInFile(root, "index.html", "header-diag.js")
+    "header-diag.js": versionsInFile(root, "index.html", "header-diag.js"),
+    "kutadgu-book-poster-gate.js": versionsAcrossHtml(root, "kutadgu-book-poster-gate.js")
   };
   for (const [asset, versions] of Object.entries(optional)) {
     if (!versions.length) continue;

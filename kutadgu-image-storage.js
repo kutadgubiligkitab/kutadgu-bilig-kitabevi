@@ -236,6 +236,35 @@
     return origin ? origin + path : path;
   }
 
+  function recognizedSiteCoverKey(raw) {
+    let url;
+    try {
+      url = new URL(String(raw || "").trim());
+    } catch (err) {
+      return "";
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    if (url.username || url.password) return "";
+    const host = normalizeHost(url.hostname);
+    if (host !== "www.kutadgubilik.com" && host !== "kutadgubilik.com") return "";
+    return privateObjectKeyFromPath(url.pathname);
+  }
+
+  function previewCoverFetchUrl(raw, source) {
+    const found = String(raw || "").trim();
+    if (!found) return "";
+    const src = source && typeof source === "object" ? source : {};
+    if (hostMode(src) !== "preview" || !previewReadEnabled(src) || !previewHostAllowsRead(src.hostname)) return found;
+    const mapped = previewImageUrl(found, src);
+    if (mapped && mapped !== found) return mapped;
+    const key = recognizedSiteCoverKey(found);
+    if (!key) return found;
+    const path = privateReadPath(key);
+    const origin = safePreviewOrigin(src.origin, src);
+    if (!path || !origin) return found;
+    return origin + path;
+  }
+
   function escapeAttr(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -468,6 +497,8 @@
     privateObjectKeyFromPath,
     privateReadPath,
     previewImageUrl,
+    recognizedSiteCoverKey,
+    previewCoverFetchUrl,
     rewritePreviewHtmlImages,
     injectPreviewBoot,
     previewFallbackTarget,
