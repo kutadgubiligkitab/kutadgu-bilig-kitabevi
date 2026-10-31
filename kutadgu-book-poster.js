@@ -366,9 +366,9 @@
     card.className = "poster-card";
     card.style.cssText = "flex:1;min-height:0;box-sizing:border-box;padding:28px;background:#fffdf9;border:1px solid #e8dccb;overflow:hidden;";
     var footer = global.document.createElement("div");
-    footer.style.cssText = "height:" + spec.footer + "px;display:flex;align-items:center;justify-content:space-between;gap:16px;color:#70503d;font-size:48px;line-height:1.2;font-weight:800;font-family:'UKIJ CJK',sans-serif;";
-    footer.appendChild(leaf("", "min-width:0;font-size:48px;line-height:1.2;font-weight:800;color:#70503d;white-space:nowrap;", "rtl", "footer"));
-    footer.appendChild(leaf("", "flex:none;font-size:48px;line-height:1.2;font-weight:800;color:#70503d;", "ltr", "page"));
+    footer.dataset.posterRole = "footer";
+    footer.style.cssText = "height:" + spec.footer + "px;display:flex;align-items:center;justify-content:flex-end;color:#70503d;font-size:48px;line-height:1.2;font-weight:800;font-family:'UKIJ CJK',sans-serif;";
+    footer.appendChild(leaf("", "flex:none;font-size:48px;line-height:1.2;font-weight:800;color:#70503d;white-space:nowrap;", "ltr", "page"));
     slide.appendChild(card);
     slide.appendChild(footer);
     return slide;
@@ -411,14 +411,7 @@
     });
     if (!slides[0] || !slides[0].querySelector("img")) throw fail("cover");
     slides.forEach(function (el, index) {
-      var texts = el.querySelectorAll("[data-poster-text]");
-      var footer = null;
-      var page = null;
-      texts.forEach(function (node) {
-        if (node.dataset.posterRole === "footer") footer = node;
-        if (node.dataset.posterRole === "page") page = node;
-      });
-      if (footer) footer.textContent = index === 0 ? built.titleBlocks.map(function (item) { return item.text; }).join("") : built.titleBlocks.map(function (item) { return item.text; }).join("") + " · " + HEADING;
+      var page = el.querySelector('[data-poster-role="page"]');
       if (page) page.textContent = (index + 1) + " / " + slides.length;
       el.dataset.page = String(index + 1);
       if (overflows(el.querySelector(".poster-card"))) throw fail("layout");
@@ -428,9 +421,14 @@
 
   function assertReadable(slides) {
     slides.forEach(function (slide) {
+      var footer = slide.querySelector('[data-poster-role="footer"]');
+      var page = slide.querySelector('[data-poster-role="page"]');
+      if (!footer || !page || !/^\d+ \/ \d+$/.test(page.textContent || "")) throw fail("layout");
+      if (footer.scrollWidth > footer.clientWidth + 1) throw fail("layout");
       slide.querySelectorAll("[data-poster-text]").forEach(function (el) {
         var size = parseFloat(getComputedStyle(el).fontSize) || 0;
         if (size < BODY) throw fail("layout");
+        if (el.scrollWidth > el.clientWidth + 1) throw fail("layout");
       });
     });
   }
@@ -462,6 +460,9 @@
       range.setEnd(node, start + text.length);
       start += text.length;
       var rect = range.getBoundingClientRect();
+      var boxX = rect.left - root.left;
+      var boxY = rect.top - root.top;
+      if (boxX < -1 || boxY < -1 || boxX + rect.width > root.width + 1 || boxY + rect.height > root.height + 1) throw fail("layout");
       ctx.save();
       ctx.font = style.fontWeight + " " + size + "px \"UKIJ CJK\"";
       ctx.direction = style.direction === "ltr" ? "ltr" : "rtl";
@@ -471,8 +472,10 @@
       var metrics = ctx.measureText(text);
       var ascent = metrics.actualBoundingBoxAscent || size * 0.8;
       var descent = metrics.actualBoundingBoxDescent || size * 0.2;
-      var y = (rect.top - root.top) + (rect.height - (ascent + descent)) / 2 + ascent;
-      var x = ctx.direction === "ltr" ? rect.left - root.left : rect.right - root.left;
+      var y = boxY + (rect.height - (ascent + descent)) / 2 + ascent;
+      var x = ctx.direction === "ltr" ? boxX : boxX + rect.width;
+      var paintLeft = ctx.direction === "ltr" ? x : x - metrics.width;
+      if (paintLeft < -1 || paintLeft + metrics.width > root.width + 1 || y - ascent < -1 || y + descent > root.height + 1) throw fail("layout");
       ctx.fillText(text, x, y);
       ctx.restore();
     });
@@ -716,6 +719,25 @@
     });
   }
 
+  function inkColumns(canvas, rect) {
+    var x = Math.max(0, Math.floor(rect.x));
+    var y = Math.max(0, Math.floor(rect.y));
+    var w = Math.max(1, Math.min(Math.floor(rect.w), canvas.width - x));
+    var h = Math.max(1, Math.min(Math.floor(rect.h), canvas.height - y));
+    var data = canvas.getContext("2d").getImageData(x, y, w, h).data;
+    var columns = 0;
+    for (var col = 0; col < w; col += 1) {
+      for (var row = 0; row < h; row += 1) {
+        var i = (row * w + col) * 4;
+        if (data[i] + data[i + 1] + data[i + 2] < 500) {
+          columns += 1;
+          break;
+        }
+      }
+    }
+    return columns;
+  }
+
   function regionStats(canvas, rect) {
     var x = Math.max(0, Math.floor(rect.x));
     var y = Math.max(0, Math.floor(rect.y));
@@ -798,6 +820,26 @@
         joined: result.built.description.trim() ? joinedDescription(result.stage) : "",
         minFont: BODY,
         overflow: false,
+        bounds: result.slides.map(function (item) {
+          var footer = item.querySelector('[data-poster-role="footer"]');
+          var page = item.querySelector('[data-poster-role="page"]');
+          var overflowX = 0;
+          item.querySelectorAll("[data-poster-text]").forEach(function (el) {
+            overflowX = Math.max(overflowX, el.scrollWidth - el.clientWidth);
+          });
+          return {
+            footerClient: footer ? footer.clientWidth : 0,
+            footerScroll: footer ? footer.scrollWidth : 0,
+            page: page ? page.textContent : "",
+            pageFont: page ? parseFloat(getComputedStyle(page).fontSize) || 0 : 0,
+            title: Array.from(item.querySelectorAll('[data-poster-role="title"]')).map(function (el) { return el.textContent || ""; }).join(""),
+            overflowX: overflowX
+          };
+        }),
+        footerInk: result.canvases.map(function (canvas, index) {
+          var footer = result.slides[index].querySelector('[data-poster-role="footer"]');
+          return footer ? inkColumns(canvas, relRect(result.slides[index], footer)) : 0;
+        }),
         continuationTitle: result.slides.length < 2 || !!result.slides[1].querySelector('[data-poster-role="title"]'),
         continuationHeading: result.slides.length < 2 || !result.slides[1].querySelector('[data-poster-role="desc"]') || !!result.slides[1].querySelector('[data-poster-role="heading"]'),
         coverOnLaterSlide: result.slides.slice(1).some(function (item) { return !!item.querySelector("img"); }),

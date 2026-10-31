@@ -1,7 +1,7 @@
 (function (global) {
   "use strict";
 
-  var POSTER_SRC = "/kutadgu-book-poster.js?v=1";
+  var POSTER_SRC = "/kutadgu-book-poster.js?v=2";
   var UMD_SRC = "/vendor/supabase-js-2.45.4.umd.js";
   var BRIDGE_SRC = "/admin-supabase-global.js?v=1";
   var started = false;

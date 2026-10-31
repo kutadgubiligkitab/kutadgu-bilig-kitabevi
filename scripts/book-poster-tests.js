@@ -47,14 +47,14 @@ const shell = read("book-shell.html");
 const shop = read("shop.js");
 
 test("gate is pinned only on the book shell and the poster module is not a static script", () => {
-  assert.equal((shell.match(/kutadgu-book-poster-gate\.js\?v=1/g) || []).length, 1);
+  assert.equal((shell.match(/kutadgu-book-poster-gate\.js\?v=2/g) || []).length, 1);
   assert.doesNotMatch(shell, /kutadgu-book-poster\.js/);
   htmlFiles.forEach((file) => {
     const text = read(file);
     if (file === "book-shell.html") return;
     assert.doesNotMatch(text, /kutadgu-book-poster/);
   });
-  assert.match(gate, /\/kutadgu-book-poster\.js\?v=1/);
+  assert.match(gate, /\/kutadgu-book-poster\.js\?v=2/);
   assert.match(gate, /is_kutadgu_admin/);
   assert.match(gate, /aal2/);
   assert.doesNotMatch(gate, /kutadguBookPosterOpen/);
@@ -133,7 +133,7 @@ function renderHarness() {
     </div>
   </section>
 </main>
-<script src="/kutadgu-book-poster.js?v=1"></script>
+<script src="/kutadgu-book-poster.js?v=2"></script>
 </body>
 </html>`;
 }
@@ -175,13 +175,13 @@ if (mode !== "umd") {
   };
 }
 </script>
-<script src="/kutadgu-book-poster-gate.js?v=1"></script>
+<script src="/kutadgu-book-poster-gate.js?v=2"></script>
 </body>
 </html>`;
 }
 
 function fontHarness() {
-  return `<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="utf-8"></head><body data-dynamic-book="1" data-book-id="5"><script src="/kutadgu-book-poster.js?v=1"></script></body></html>`;
+  return `<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="utf-8"></head><body data-dynamic-book="1" data-book-id="5"><script src="/kutadgu-book-poster.js?v=2"></script></body></html>`;
 }
 
 function contentType(file) {
@@ -295,7 +295,7 @@ async function browserSuite(browserType, name, origin) {
   assert.equal(await page.locator("#kutadguBookPosterOpen").count(), 0);
 
   const adminHits = await settle(page, origin + "/book/7?case=aal2");
-  assert.equal(adminHits.some((item) => item.includes("kutadgu-book-poster.js?v=1")), true);
+  assert.equal(adminHits.some((item) => item.includes("kutadgu-book-poster.js?v=2")), true);
   assert.equal(adminHits.some((item) => item.includes("/vendor/supabase-js-")), false);
   await page.waitForSelector("#kutadguBookPosterOpen");
 
@@ -379,6 +379,33 @@ async function browserSuite(browserType, name, origin) {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, name + "-feed-0.png"), Buffer.from(rendered.pngs[0].replace(/^data:image\/png;base64,/, ""), "base64"));
     }
+  }
+  const longTitle = new Array(8).fill("ئۆزۈمنى ئىزدەپ قېلىش").join(" ");
+  for (const format of ["story", "feed"]) {
+    const titled = await page.evaluate(async (payload) => window.KutadguBookPoster.exportForTest(payload.model, payload.format, { png: true }), {
+      model: { title: longTitle, author: book.author, meta: book.meta, description: source, coverSrc: book.coverSrc },
+      format
+    });
+    assert.equal(titled.ok, true, JSON.stringify({ code: titled.code, message: titled.message, bounds: titled.bounds }));
+    assert.equal(titled.width, 1080);
+    assert.equal(titled.height, format === "story" ? 1920 : 1350);
+    assert.ok(titled.slides > 1, format + " slides " + titled.slides);
+    assert.equal(titled.joined, source);
+    assert.equal(titled.excluded, false);
+    assert.equal(titled.coverOnLaterSlide, false);
+    titled.bounds.forEach((bound, index) => {
+      assert.ok(bound.footerScroll <= bound.footerClient + 1, JSON.stringify(bound));
+      assert.ok(bound.overflowX <= 1, JSON.stringify(bound));
+      assert.ok(bound.pageFont >= 48, JSON.stringify(bound));
+      assert.equal(bound.page, (index + 1) + " / " + titled.slides);
+      assert.equal(bound.title, longTitle);
+    });
+    titled.footerInk.forEach((columns) => assert.ok(columns < 320, format + " footer ink columns " + columns));
+    const titledDir = path.join("/opt/cursor/artifacts/book-poster");
+    fs.mkdirSync(titledDir, { recursive: true });
+    titled.pngs.forEach((png, index) => {
+      fs.writeFileSync(path.join(titledDir, name + "-long-title-" + format + "-" + index + ".png"), Buffer.from(png.replace(/^data:image\/png;base64,/, ""), "base64"));
+    });
   }
   const feedLong = await page.evaluate(async (model) => window.KutadguBookPoster.exportForTest(model, "feed"), full);
   assert.equal(feedLong.ok, true, JSON.stringify(feedLong));
