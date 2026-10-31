@@ -35,17 +35,127 @@ async function mockAdminUsers(page, userId) {
   });
 }
 
-function seedSession(page, userId) {
-  return page.addInitScript((id) => {
-    const payload = JSON.stringify({
-      access_token: "test-access-token",
-      token_type: "bearer",
-      user: { id }
-    });
+function jwtFor(userId, aal) {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    aud: "authenticated",
+    aal,
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })).toString("base64url");
+  return header + "." + payload + ".sig";
+}
+
+function sessionFor(userId, aal) {
+  return {
+    access_token: jwtFor(userId, aal),
+    refresh_token: "test-refresh-" + userId.slice(0, 8),
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: {
+      id: userId,
+      aud: "authenticated",
+      role: "authenticated",
+      email: userId.slice(0, 8) + "@example.test",
+      app_metadata: { provider: "email" },
+      user_metadata: {},
+      factors: [],
+      created_at: "2026-01-01T00:00:00.000Z"
+    }
+  };
+}
+
+function seedSession(page, session) {
+  return page.addInitScript((stored) => {
     try {
-      localStorage.setItem("kutadgu-admin-auth-v1", payload);
+      localStorage.setItem("kutadgu-admin-auth-v1", JSON.stringify(stored));
     } catch (e) {}
-  }, userId);
+  }, session);
+}
+
+async function mockAuth(page, session) {
+  await page.route("**/auth/v1/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/token")) {
+      return route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "invalid_grant", error_description: "refresh is not part of this fixture" })
+      });
+    }
+    if (url.includes("/user")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(session.user)
+      });
+    }
+    if (url.includes("/logout")) return route.fulfill({ status: 204, body: "" });
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+}
+
+async function mockAdminRpc(page, isAdmin) {
+  await page.route("**/rest/v1/rpc/is_kutadgu_admin**", async (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(isAdmin === true)
+    });
+  });
+}
+
+function watchPoster(page) {
+  const seen = { poster: false, token: false, gate: false, rpc: false };
+  page.on("request", (request) => {
+    const url = request.url();
+    if (url.includes("kutadgu-book-poster.js")) seen.poster = true;
+    if (url.includes("/auth/v1/token")) seen.token = true;
+  });
+  page.on("response", (response) => {
+    const url = response.url();
+    if (url.includes("kutadgu-book-poster-gate.js")) seen.gate = true;
+    if (url.includes("/rpc/is_kutadgu_admin")) seen.rpc = true;
+  });
+  return seen;
+}
+
+async function storedAdminSession(page) {
+  return page.evaluate(() => {
+    try {
+      const raw = localStorage.getItem("kutadgu-admin-auth-v1");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return {
+        id: parsed && parsed.user && parsed.user.id || "",
+        accessToken: parsed && parsed.access_token || "",
+        refreshToken: parsed && parsed.refresh_token || "",
+        expiresAt: Number(parsed && parsed.expires_at)
+      };
+    } catch (e) {
+      return null;
+    }
+  });
+}
+
+async function expectSessionKept(page, session) {
+  const stored = await storedAdminSession(page);
+  expect(stored).toBeTruthy();
+  expect(stored.id).toBe(session.user.id);
+  expect(stored.accessToken).toBe(session.access_token);
+  expect(stored.refreshToken).toBe(session.refresh_token);
+  expect(stored.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000) + 30);
+}
+
+async function expectNoPoster(page, seen, expectsRpc) {
+  await expect.poll(() => seen.gate, { timeout: 15_000 }).toBe(true);
+  if (expectsRpc) await expect.poll(() => seen.rpc, { timeout: 15_000 }).toBe(true);
+  await page.waitForTimeout(300);
+  expect(seen.poster).toBe(false);
+  expect(seen.token).toBe(false);
+  await expect(page.locator("#kutadguBookPosterOpen")).toHaveCount(0);
 }
 
 test.describe("maintenance mode", () => {
@@ -99,9 +209,12 @@ test.describe("maintenance mode", () => {
     await expect(page.locator("#searchInput")).toBeHidden();
     await expect(page.locator("#kutadgu-maint-admin-note")).toHaveCount(0);
 
+    const seen = watchPoster(page);
     await page.goto("/book/415", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
     await expect(page.locator(".book-detail-info h1")).toBeHidden();
+    await expectNoPoster(page, seen, false);
+    expect(await storedAdminSession(page)).toBeNull();
 
     await page.goto("/children.html", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible();
@@ -109,21 +222,32 @@ test.describe("maintenance mode", () => {
   });
 
   test("C authenticated member does not bypass and cannot write", async ({ page }) => {
+    const session = sessionFor(MEMBER_ID, "aal2");
     await mockStoreSettings(page, true);
     await mockAdminUsers(page, null);
-    await seedSession(page, MEMBER_ID);
+    await mockAdminRpc(page, false);
+    await mockAuth(page, session);
+    await seedSession(page, session);
+    const seen = watchPoster(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator(OVERLAY)).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#searchInput")).toBeHidden();
 
+    await page.goto("/book/415", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(OVERLAY)).toBeVisible();
+    await expectNoPoster(page, seen, true);
+    await expectSessionKept(page, session);
+    expect(seen.token).toBe(false);
+
     const writeStatus = await page.evaluate(async () => {
       const cfg = window.KUTADGU_SUPABASE_CONFIG || {};
+      const stored = JSON.parse(localStorage.getItem("kutadgu-admin-auth-v1") || "{}");
       const url = String(cfg.url || "").replace(/\/+$/, "") + "/rest/v1/store_settings?key=eq.maintenance_mode";
       const res = await fetch(url, {
         method: "PATCH",
         headers: {
           apikey: cfg.anonKey,
-          Authorization: "Bearer test-access-token",
+          Authorization: "Bearer " + stored.access_token,
           "Content-Type": "application/json",
           Prefer: "return=minimal"
         },
@@ -135,9 +259,13 @@ test.describe("maintenance mode", () => {
   });
 
   test("D authenticated Admin bypasses storefront; Admin login stays open", async ({ page }) => {
+    const session = sessionFor(ADMIN_ID, "aal2");
     await mockStoreSettings(page, true);
     await mockAdminUsers(page, ADMIN_ID);
-    await seedSession(page, ADMIN_ID);
+    await mockAdminRpc(page, true);
+    await mockAuth(page, session);
+    await seedSession(page, session);
+    const seen = watchPoster(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await H.waitForShop(page);
     await expect(page.locator(OVERLAY)).toHaveCount(0);
@@ -149,6 +277,12 @@ test.describe("maintenance mode", () => {
     const title = await H.waitForDetailTitle(page, book.title);
     expect(title.trim()).toBe(book.title);
     await expect(page.locator(OVERLAY)).toHaveCount(0);
+    await expect(page.locator("#kutadgu-maint-admin-note")).toBeVisible();
+    await expect.poll(() => seen.rpc, { timeout: 15_000 }).toBe(true);
+    await expect(page.locator("#kutadguBookPosterOpen")).toBeVisible();
+    expect(seen.poster).toBe(true);
+    expect(seen.token).toBe(false);
+    await expectSessionKept(page, session);
 
     await page.evaluate(() => {
       try { localStorage.clear(); } catch (e) {}
@@ -157,6 +291,26 @@ test.describe("maintenance mode", () => {
     await expect(page.locator(OVERLAY)).toHaveCount(0);
     await expect(page.locator("#loginPanel:not([hidden]), #dashboardPanel:not([hidden])")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#maintenanceToggleBtn")).toBeAttached();
+  });
+
+  test("D2 AAL1 admin still bypasses maintenance and does not get the poster", async ({ page }) => {
+    const session = sessionFor(ADMIN_ID, "aal1");
+    await mockStoreSettings(page, true);
+    await mockAdminUsers(page, ADMIN_ID);
+    await mockAdminRpc(page, true);
+    await mockAuth(page, session);
+    await seedSession(page, session);
+    const seen = watchPoster(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await H.waitForShop(page);
+    await expect(page.locator(OVERLAY)).toHaveCount(0);
+    await expect(page.locator("#kutadgu-maint-admin-note")).toBeVisible();
+
+    await page.goto("/book/415", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(OVERLAY)).toHaveCount(0);
+    await expect(page.locator("#kutadgu-maint-admin-note")).toBeVisible();
+    await expectNoPoster(page, seen, true);
+    await expectSessionKept(page, session);
   });
 
   test("E no query-string or localStorage-only bypass", async ({ page }) => {

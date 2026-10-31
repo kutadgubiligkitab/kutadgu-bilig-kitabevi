@@ -184,6 +184,67 @@ function fontHarness() {
   return `<!DOCTYPE html><html lang="ug" dir="rtl"><head><meta charset="utf-8"></head><body data-dynamic-book="1" data-book-id="5"><script src="/kutadgu-book-poster.js?v=2"></script></body></html>`;
 }
 
+function sdkJwt(userId, aal) {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: userId,
+    role: "authenticated",
+    aud: "authenticated",
+    aal,
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })).toString("base64url");
+  return header + "." + payload + ".sig";
+}
+
+function sdkSession(userId, aal) {
+  return {
+    access_token: sdkJwt(userId, aal),
+    refresh_token: "refresh-" + userId.slice(0, 8),
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    user: {
+      id: userId,
+      aud: "authenticated",
+      role: "authenticated",
+      email: userId.slice(0, 8) + "@example.test",
+      app_metadata: { provider: "email" },
+      user_metadata: {},
+      factors: [],
+      created_at: "2026-01-01T00:00:00.000Z"
+    }
+  };
+}
+
+const SDK_ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const SDK_MEMBER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SDK_FIXTURES = {
+  aal2: sdkSession(SDK_ADMIN, "aal2"),
+  aal1: sdkSession(SDK_ADMIN, "aal1"),
+  member: sdkSession(SDK_MEMBER, "aal2"),
+  visitor: null
+};
+
+function sdkFixture(mode) {
+  return Object.prototype.hasOwnProperty.call(SDK_FIXTURES, mode) ? SDK_FIXTURES[mode] : SDK_FIXTURES.aal2;
+}
+
+function sdkHarness(mode) {
+  const session = sdkFixture(mode);
+  return `<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<body data-dynamic-book="1">
+<nav class="detail-topbar"></nav>
+<script src="/supabase-config.js?v=22"></script>
+<script>
+const session = ${JSON.stringify(session)};
+if (session) localStorage.setItem("kutadgu-admin-auth-v1", JSON.stringify(session));
+</script>
+<script src="/kutadgu-book-poster-gate.js?v=2"></script>
+</body>
+</html>`;
+}
+
 function contentType(file) {
   const ext = path.extname(file);
   if (ext === ".html") return "text/html; charset=utf-8";
@@ -215,6 +276,11 @@ function startServer() {
     if (url.pathname === "/poster-font.html") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(fontHarness());
+      return;
+    }
+    if (/^\/book\/8\/?$/.test(url.pathname)) {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(sdkHarness(url.searchParams.get("case") || "visitor"));
       return;
     }
     if (/^\/book\/7\/?$/.test(url.pathname)) {
@@ -260,6 +326,65 @@ async function settle(page, url) {
   return hits;
 }
 
+async function realSdkSessionChecks(browser, origin) {
+  const cases = [
+    { name: "aal2", poster: true, admin: true },
+    { name: "aal1", poster: false, admin: true },
+    { name: "member", poster: false, admin: false },
+    { name: "visitor", poster: false, admin: false }
+  ];
+  for (const item of cases) {
+    const expected = sdkFixture(item.name);
+    const probe = await browser.newPage();
+    let tokenHits = 0;
+    await probe.route("**/*", async (route) => {
+      const raw = route.request().url();
+      if (raw.startsWith("blob:") || raw.startsWith("data:")) return route.continue();
+      let url;
+      try { url = new URL(raw); } catch (error) { return route.abort(); }
+      if (url.hostname === "127.0.0.1") return route.continue();
+      if (url.hostname.endsWith(".supabase.co")) {
+        if (url.pathname.includes("/auth/v1/token")) {
+          tokenHits += 1;
+          return route.fulfill({
+            status: 401,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "invalid_grant", error_description: "refresh is not part of this fixture" })
+          });
+        }
+        if (url.pathname.includes("/rpc/is_kutadgu_admin")) {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(item.admin === true)
+          });
+        }
+        return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+      }
+      return route.abort();
+    });
+    const hits = [];
+    probe.on("request", (request) => hits.push(request.url()));
+    await probe.goto(origin + "/book/8?case=" + item.name, { waitUntil: "load" });
+    if (item.poster) await probe.waitForSelector("#kutadguBookPosterOpen", { timeout: 10_000 });
+    else await probe.waitForTimeout(700);
+    assert.equal(await probe.locator("#kutadguBookPosterOpen").count(), item.poster ? 1 : 0, item.name + " poster control");
+    assert.equal(hits.some((hit) => hit.includes("kutadgu-book-poster.js")), item.poster, item.name + " poster module");
+    assert.equal(tokenHits, 0, item.name + " called token refresh");
+    const stored = await probe.evaluate(() => localStorage.getItem("kutadgu-admin-auth-v1"));
+    if (!expected) {
+      assert.equal(stored, null, "visitor storage");
+    } else {
+      const parsed = JSON.parse(stored);
+      assert.equal(parsed.user.id, expected.user.id, item.name + " user");
+      assert.equal(parsed.access_token, expected.access_token, item.name + " access token changed");
+      assert.equal(parsed.refresh_token, expected.refresh_token, item.name + " refresh token changed");
+      assert.ok(parsed.expires_at > Math.floor(Date.now() / 1000) + 30, item.name + " expiry");
+    }
+    await probe.close();
+  }
+}
+
 async function browserSuite(browserType, name, origin) {
   const browser = await browserType.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
@@ -298,6 +423,7 @@ async function browserSuite(browserType, name, origin) {
   assert.equal(adminHits.some((item) => item.includes("kutadgu-book-poster.js?v=2")), true);
   assert.equal(adminHits.some((item) => item.includes("/vendor/supabase-js-")), false);
   await page.waitForSelector("#kutadguBookPosterOpen");
+  await realSdkSessionChecks(browser, origin);
 
   const shellHits = [];
   const shellPage = await browser.newPage();
