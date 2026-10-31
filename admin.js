@@ -22,26 +22,115 @@ const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
 const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","cover_sha256","cover_dhash","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
 const BOOK_DESCRIPTION_LIMIT=2000;
+const BOOK_DESCRIPTION_MEMBER_LIMIT=10000;
 const BOOK_DESCRIPTION_TOO_LONG="كىتاب ھەققىدە 2,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+const BOOK_DESCRIPTION_MEMBER_TOO_LONG="كىتاب ھەققىدە 10,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+const BOOK_DESCRIPTION_MEMBERSHIP_UNKNOWN="يۈرۈشلۈك ئەزالىقى تەكشۈرۈلمىدى. چۈشەندۈرۈش ساقلىمىدى.";
+const BOOK_DESCRIPTION_HELP_ORDINARY="قىسقىچە چۈشەندۈرۈش. ئەڭ كۆپ 2,000 ھەرپ.";
+const BOOK_DESCRIPTION_HELP_MEMBER="قىسقىچە چۈشەندۈرۈش. ئەڭ كۆپ 10,000 ھەرپ.";
+const BOOK_DESCRIPTION_HELP_PENDING="يۈرۈشلۈك ئەزالىقى تەكشۈرۈلۈۋاتىدۇ.";
+const BOOK_DESCRIPTION_HELP_FAILED="يۈرۈشلۈك ئەزالىقى تەكشۈرۈلمىدى.";
+let bookDescriptionLookupGeneration=0;
+let bookDescriptionLimitState={bookId:"",status:"create",limit:BOOK_DESCRIPTION_LIMIT,member:false,generation:0,inflight:null};
 function formatBookDescriptionCount(length){
   return String(length).replace(/\B(?=(\d{3})+(?!\d))/g,",");
+}
+function bookDescriptionError(reason){
+  if(reason==="member")return BOOK_DESCRIPTION_MEMBER_TOO_LONG;
+  if(reason==="lookup")return BOOK_DESCRIPTION_MEMBERSHIP_UNKNOWN;
+  return BOOK_DESCRIPTION_TOO_LONG;
 }
 function syncBookDescriptionCount(){
   const field=$("#bookDescription");
   const count=$("#bookDescriptionCount");
-  if(!count)return;
+  const help=$("#bookDescriptionHelp");
   const length=String(field&&field.value||"").length;
-  count.textContent=formatBookDescriptionCount(length)+" / 2,000";
+  const state=bookDescriptionLimitState;
+  const known=state.status==="create"||state.status==="ready";
+  if(count){
+    count.textContent=known
+      ?formatBookDescriptionCount(length)+" / "+formatBookDescriptionCount(state.limit)
+      :formatBookDescriptionCount(length);
+  }
+  if(!help)return;
+  if(state.status==="pending")help.textContent=BOOK_DESCRIPTION_HELP_PENDING;
+  else if(state.status==="failed")help.textContent=BOOK_DESCRIPTION_HELP_FAILED;
+  else if(state.member)help.textContent=BOOK_DESCRIPTION_HELP_MEMBER;
+  else help.textContent=BOOK_DESCRIPTION_HELP_ORDINARY;
+}
+function resetBookDescriptionLimitForCreate(){
+  bookDescriptionLookupGeneration++;
+  bookDescriptionLimitState={bookId:"",status:"create",limit:BOOK_DESCRIPTION_LIMIT,member:false,generation:bookDescriptionLookupGeneration,inflight:null};
+  syncBookDescriptionCount();
+}
+function applyBookDescriptionMembership(generation,bookId,result){
+  if(generation!==bookDescriptionLookupGeneration)return;
+  if(!result||!result.ok){
+    bookDescriptionLimitState={bookId,status:"failed",limit:null,member:false,generation,inflight:null};
+  }else{
+    bookDescriptionLimitState={bookId,status:"ready",limit:result.limit,member:!!result.member,generation,inflight:null};
+  }
+  syncBookDescriptionCount();
+}
+function beginBookDescriptionMembership(bookId){
+  const generation=++bookDescriptionLookupGeneration;
+  const id=String(bookId);
+  const task=lookupBookVolumeMembership(bookId).then(result=>{
+    applyBookDescriptionMembership(generation,id,result);
+  }).catch(()=>{
+    applyBookDescriptionMembership(generation,id,{ok:false});
+  });
+  bookDescriptionLimitState={bookId:id,status:"pending",limit:null,member:false,generation,inflight:task};
+  syncBookDescriptionCount();
+  return task;
+}
+async function currentBookDescriptionMembership(){
+  if(!editing)return bookDescriptionLimitState;
+  const id=String(editing.id);
+  const state=bookDescriptionLimitState;
+  if(state.bookId!==id||state.status==="create"||state.status==="failed")beginBookDescriptionMembership(editing.id);
+  const inflight=bookDescriptionLimitState.inflight;
+  if(inflight){
+    try{await inflight}catch(err){}
+  }
+  return bookDescriptionLimitState;
+}
+function membershipPreviewRows(data){
+  return Array.isArray(data)?data:null;
+}
+async function lookupBookVolumeMembership(bookId){
+  const id=Number(bookId);
+  if(!db||typeof db.rpc!=="function"||!Number.isInteger(id)||id<1)return {ok:false};
+  let result;
+  try{
+    result=await db.rpc("admin_preview_book_volume_members",{p_book_id:id,p_isbn:null});
+  }catch(err){
+    return {ok:false};
+  }
+  if(!result||result.error)return {ok:false};
+  const rows=membershipPreviewRows(result.data);
+  if(!rows)return {ok:false};
+  const match=rows.filter(row=>row&&String(row.book_id)===String(id));
+  if(!match.length)return {ok:false};
+  const member=match.some(row=>row.group_id!=null&&String(row.group_id)!==""&&Number(row.group_id)>0);
+  return {ok:true,member,limit:member?BOOK_DESCRIPTION_MEMBER_LIMIT:BOOK_DESCRIPTION_LIMIT};
 }
 function storedBookDescription(){
   if(!editing||editing.description==null)return "";
   return String(editing.description);
 }
-function bookDescriptionSavePlan(raw){
+async function bookDescriptionSavePlan(raw){
   const text=String(raw==null?"":raw);
   const unchanged=!!(editing&&text===storedBookDescription());
-  if(text.length>BOOK_DESCRIPTION_LIMIT&&!unchanged)return {ok:false};
-  return {ok:true,keepStored:unchanged&&text.length>BOOK_DESCRIPTION_LIMIT,text};
+  if(unchanged&&text.length>BOOK_DESCRIPTION_LIMIT)return {ok:true,keepStored:true,text};
+  if(!editing||text.length<=BOOK_DESCRIPTION_LIMIT){
+    if(text.length>BOOK_DESCRIPTION_LIMIT)return {ok:false,reason:"ordinary"};
+    return {ok:true,keepStored:false,text};
+  }
+  const membership=await currentBookDescriptionMembership();
+  if(!editing||String(membership.bookId)!==String(editing.id)||membership.status!=="ready")return {ok:false,reason:"lookup"};
+  if(text.length>membership.limit)return {ok:false,reason:membership.member?"member":"ordinary"};
+  return {ok:true,keepStored:false,text};
 }
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
@@ -3795,7 +3884,7 @@ function clearForm(){
   if($("#pendingDimensions"))$("#pendingDimensions").value="";
   if($("#pendingColorPrint"))$("#pendingColorPrint").checked=false;
   resetGalleryDraft([]);
-  syncBookDescriptionCount();
+  resetBookDescriptionLimitForCreate();
   $("#bookModalTitle").textContent="➕ يېڭى كىتاب";
   renderOriginalPriceStatus(null,{create:true});
   setOriginalPriceNote("");
@@ -3858,7 +3947,7 @@ async function openEdit(id){
     }
   }
   $("#bookDescription").value=b.description||"";
-  syncBookDescriptionCount();
+  beginBookDescriptionMembership(b.id);
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
   $("#bookIsRecommended").checked=b.is_recommended===true;
@@ -5476,9 +5565,9 @@ async function saveBook(e){
     pendingReview=readPendingReviewFields();
     if(!pendingReview.ok){alert(pendingReview.error);return}
   }
-  const descriptionPlan=bookDescriptionSavePlan($("#bookDescription")&&$("#bookDescription").value);
+  const descriptionPlan=await bookDescriptionSavePlan($("#bookDescription")&&$("#bookDescription").value);
   if(!descriptionPlan.ok){
-    alert(BOOK_DESCRIPTION_TOO_LONG);
+    alert(bookDescriptionError(descriptionPlan.reason));
     syncBookDescriptionCount();
     return;
   }
