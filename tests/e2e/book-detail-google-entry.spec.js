@@ -138,14 +138,17 @@ test.describe("book detail Google entry related books", () => {
     await H.installReadSafeNetwork(setup);
     H.allowLiveCatalogReads(setup);
     await H.openFresh(setup, "/");
+    // Group units reuse the representative book id but carry the group category.
+    // Direct /book/:id hydrates that member's own category, so the fixture stays a book unit.
     const pair = await setup.evaluate(async () => {
       const shop = window.kutadguShop;
+      const directBook = (item) => String(item && (item.catalogKind || item.kind) || "book") !== "group";
       const first = await shop.queryCatalog({ pageSize: 24, sort: "new" });
-      const visible = (first.items || []).filter((b) => b && shop.isStorefrontVisible(b) && String(b.category || "").trim());
+      const visible = (first.items || []).filter((b) => b && shop.isStorefrontVisible(b) && directBook(b) && String(b.category || "").trim());
       for (const book of visible) {
         const listing = await shop.queryCatalog({ category: book.category, pageSize: 16, sort: "new" });
         const others = (listing.items || []).filter((item) => {
-          if (!item || !shop.isStorefrontVisible(item)) return false;
+          if (!item || !shop.isStorefrontVisible(item) || !directBook(item)) return false;
           if (String(item.id) === String(book.id)) return false;
           return String(item.category || "").trim() === String(book.category || "").trim();
         });

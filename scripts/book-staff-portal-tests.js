@@ -273,6 +273,24 @@ add("payload whitelist matches Stage92 and excludes protected fields", () => {
   assert.throws(() => api.buildPayload({ title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "-1" }));
   assert.throws(() => api.buildPayload({ title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1", publish_year: "999" }));
   assert.throws(() => api.buildPayload({ title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1", cover_type: "leather" }));
+  const shortDescription = "قىسقا چۈشەندۈرۈش.\n\nداۋامى.";
+  const exact = api.buildPayload({
+    title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
+    description: shortDescription
+  });
+  assert.strictEqual(exact.description, shortDescription);
+  const full = "ئ".repeat(2000);
+  assert.strictEqual(full.length, 2000);
+  const kept = api.buildPayload({
+    title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
+    description: full
+  });
+  assert.strictEqual(kept.description, full);
+  assert.throws(() => api.buildPayload({
+    title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
+    description: full + "ا"
+  }), (err) => err && err.message === api.BOOK_DESCRIPTION_TOO_LONG);
+  assert.strictEqual(api.BOOK_DESCRIPTION_LIMIT, 2000);
 });
 
 add("staff gallery is local-only until submit, max 4, and URLs stay on own gallery prefix", () => {
