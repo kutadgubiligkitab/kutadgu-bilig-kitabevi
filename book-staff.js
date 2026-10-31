@@ -9,6 +9,18 @@ const INTERIOR=["color","bw"];
 const IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif"];
 const MAX_COVER_BYTES=5*1024*1024;
 const MAX_STAFF_GALLERY=4;
+const BOOK_DESCRIPTION_LIMIT=2000;
+const BOOK_DESCRIPTION_TOO_LONG="كىتاب ھەققىدە 2,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+function formatBookDescriptionCount(length){
+  return String(length).replace(/\B(?=(\d{3})+(?!\d))/g,",");
+}
+function syncStaffDescriptionCount(){
+  const field=$("#staffDescription");
+  const count=$("#staffDescriptionCount");
+  if(!count)return;
+  const length=String(field&&field.value||"").length;
+  count.textContent=formatBookDescriptionCount(length)+" / 2,000";
+}
 const STAFF_COVER_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
 const STAFF_R2_ORIGIN="https://www.kutadgubilik.com";
 const STAFF_COVER_BUCKET="book-covers";
@@ -306,7 +318,9 @@ function buildPayload(values){
   if(publisher)payload.publisher=publisher;
   const dimensions=String(values.dimensions||"").trim();
   if(dimensions)payload.dimensions=dimensions;
-  const description=String(values.description||"").trim();
+  const descriptionRaw=String(values.description||"");
+  if(descriptionRaw.length>BOOK_DESCRIPTION_LIMIT)throw new Error(BOOK_DESCRIPTION_TOO_LONG);
+  const description=descriptionRaw.trim();
   if(description)payload.description=description;
   const coverType=String(values.cover_type||"").trim();
   if(coverType){
@@ -408,6 +422,7 @@ function formValues(){
 function resetStaffForm(){
   const form=$("#staffBookForm");
   if(form)form.reset();
+  syncStaffDescriptionCount();
   resetStaffCreditExtras();
   fillSourceOptions();
   const cover=$("#staffCoverFile");if(cover)cover.value="";
@@ -807,6 +822,12 @@ async function submitBook(e){
   const status=$("#staffSubmitStatus");
   const btn=$("#staffSubmitBtn");
   setStatus(status,"","");
+  const descriptionRaw=String($("#staffDescription")&&$("#staffDescription").value||"");
+  if(descriptionRaw.length>BOOK_DESCRIPTION_LIMIT){
+    setStatus(status,BOOK_DESCRIPTION_TOO_LONG,"error");
+    syncStaffDescriptionCount();
+    return;
+  }
   const client=db();
   const user=memberApi()&&memberApi().getUser&&memberApi().getUser();
   if(!client||!user){showPanel("staffSignedOut");return}
@@ -878,6 +899,8 @@ window.KutadguBookStaff={
   resetGallerySelection,
   galleryDraft:function(){return galleryDraft.slice()},
   MAX_STAFF_GALLERY,
+  BOOK_DESCRIPTION_LIMIT,
+  BOOK_DESCRIPTION_TOO_LONG,
   buildPayload,
   staffSurface,
   validateCoverFile,
@@ -908,6 +931,9 @@ async function init(){
   document.addEventListener("kutadgu-member-change",()=>{routeStaffSession()});
   const logout=$("#staffLogout");if(logout)logout.onclick=()=>logoutStaff();
   const form=$("#staffBookForm");if(form)form.addEventListener("submit",submitBook);
+  const description=$("#staffDescription");
+  if(description)description.addEventListener("input",syncStaffDescriptionCount);
+  syncStaffDescriptionCount();
   const another=$("#staffAddAnother");if(another)another.onclick=()=>resetStaffForm();
   const retryBtn=$("#staffCreditRetryBtn");if(retryBtn)retryBtn.addEventListener("click",()=>{retryStaffCredits().catch(err=>setStatus($("#staffSubmitStatus"),staffFriendlyMessage(err),"error"));});
   const source=$("#staffSource");

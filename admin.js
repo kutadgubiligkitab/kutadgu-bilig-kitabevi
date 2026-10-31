@@ -21,6 +21,18 @@ const $=s=>document.querySelector(s);
 const PAGE_SIZE=40;
 const IMPORT_BATCH=80;
 const OPTIONAL_BOOK_COLS=["isbn","publisher","href","stock","stock_status","cover_sha256","cover_dhash","pages","translator","language","publish_date","publish_year","cover_type","book_size","dimensions","legacy_id","gallery_images","original_price","is_color_print","interior_print_type"];
+const BOOK_DESCRIPTION_LIMIT=2000;
+const BOOK_DESCRIPTION_TOO_LONG="كىتاب ھەققىدە 2,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+function formatBookDescriptionCount(length){
+  return String(length).replace(/\B(?=(\d{3})+(?!\d))/g,",");
+}
+function syncBookDescriptionCount(){
+  const field=$("#bookDescription");
+  const count=$("#bookDescriptionCount");
+  if(!count)return;
+  const length=String(field&&field.value||"").length;
+  count.textContent=formatBookDescriptionCount(length)+" / 2,000";
+}
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
   publisher:["publisher","نەشرىيات"],
@@ -3773,6 +3785,7 @@ function clearForm(){
   if($("#pendingDimensions"))$("#pendingDimensions").value="";
   if($("#pendingColorPrint"))$("#pendingColorPrint").checked=false;
   resetGalleryDraft([]);
+  syncBookDescriptionCount();
   $("#bookModalTitle").textContent="➕ يېڭى كىتاب";
   renderOriginalPriceStatus(null,{create:true});
   setOriginalPriceNote("");
@@ -3835,6 +3848,7 @@ async function openEdit(id){
     }
   }
   $("#bookDescription").value=b.description||"";
+  syncBookDescriptionCount();
   $("#bookIsActive").checked=b.is_active!==false;
   $("#bookIsNew").checked=b.is_new===true;
   $("#bookIsRecommended").checked=b.is_recommended===true;
@@ -5452,6 +5466,12 @@ async function saveBook(e){
     pendingReview=readPendingReviewFields();
     if(!pendingReview.ok){alert(pendingReview.error);return}
   }
+  const descriptionRaw=String($("#bookDescription")&&$("#bookDescription").value||"");
+  if(descriptionRaw.length>BOOK_DESCRIPTION_LIMIT){
+    alert(BOOK_DESCRIPTION_TOO_LONG);
+    syncBookDescriptionCount();
+    return;
+  }
   const isEdit=plan.operation==="UPDATE";
   const editingBookId=plan.editingBookId;
   const coverEpochAtSave=coverFormEpoch;
@@ -5560,7 +5580,7 @@ async function saveBook(e){
       publish_date:$("#bookPublishDate").value.trim(),
       publish_year:year.value,
       publisher:$("#bookPublisher").value.trim()||null,
-      description:$("#bookDescription").value.trim(),
+      description:descriptionRaw.trim(),
       sales_count:Number($("#bookSalesCount").value)||0,
       is_active:$("#bookIsActive").checked,
       is_new:$("#bookIsNew").checked,
@@ -8506,6 +8526,9 @@ $("#analyticsActivityNext")?.addEventListener("click",()=>{
   loadAnalyticsActivity();
 });
 paintAnalyticsPending();
+const bookDescriptionField=$("#bookDescription");
+if(bookDescriptionField)bookDescriptionField.addEventListener("input",syncBookDescriptionCount);
+syncBookDescriptionCount();
 if(window.__kutadguExposeAnalyticsRender){
   window.__kutadguRenderAnalytics=renderAnalytics;
   window.__kutadguLogoutAnalytics=logout;
