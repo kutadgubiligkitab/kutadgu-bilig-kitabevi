@@ -32,6 +32,8 @@ const BOOK_DESCRIPTION_HELP_PENDING="يۈرۈشلۈك ئەزالىقى تەكش�
 const BOOK_DESCRIPTION_HELP_FAILED="يۈرۈشلۈك ئەزالىقى تەكشۈرۈلمىدى.";
 let bookDescriptionLookupGeneration=0;
 let bookDescriptionLimitState={bookId:"",status:"create",limit:BOOK_DESCRIPTION_LIMIT,member:false,generation:0,inflight:null};
+let bookEditorEpoch=0;
+let bookDescriptionValidation=null;
 function formatBookDescriptionCount(length){
   return String(length).replace(/\B(?=(\d{3})+(?!\d))/g,",");
 }
@@ -87,11 +89,19 @@ function beginBookDescriptionMembership(bookId){
 async function currentBookDescriptionMembership(){
   if(!editing)return bookDescriptionLimitState;
   const id=String(editing.id);
-  const state=bookDescriptionLimitState;
-  if(state.bookId!==id||state.status==="create"||state.status==="failed")beginBookDescriptionMembership(editing.id);
-  const inflight=bookDescriptionLimitState.inflight;
+  const epoch=bookEditorEpoch;
+  let state=bookDescriptionLimitState;
+  if(String(state.bookId)!==id||state.status==="create"||state.status==="failed"){
+    beginBookDescriptionMembership(editing.id);
+    state=bookDescriptionLimitState;
+  }
+  const generation=state.generation;
+  const inflight=state.inflight;
   if(inflight){
     try{await inflight}catch(err){}
+  }
+  if(bookEditorEpoch!==epoch||!editing||String(editing.id)!==id||bookDescriptionLimitState.generation!==generation){
+    return {bookId:id,status:"stale",limit:null,member:false,generation,inflight:null,stale:true};
   }
   return bookDescriptionLimitState;
 }
@@ -119,18 +129,41 @@ function storedBookDescription(){
   if(!editing||editing.description==null)return "";
   return String(editing.description);
 }
+function bookEditorIdentity(){
+  return editing&&editing.id!=null?String(editing.id):"";
+}
 async function bookDescriptionSavePlan(raw){
   const text=String(raw==null?"":raw);
-  const unchanged=!!(editing&&text===storedBookDescription());
+  const editorId=bookEditorIdentity();
+  const epoch=bookEditorEpoch;
+  const unchanged=!!(editorId&&text===storedBookDescription());
   if(unchanged&&text.length>BOOK_DESCRIPTION_LIMIT)return {ok:true,keepStored:true,text};
-  if(!editing||text.length<=BOOK_DESCRIPTION_LIMIT){
+  if(!editorId||text.length<=BOOK_DESCRIPTION_LIMIT){
     if(text.length>BOOK_DESCRIPTION_LIMIT)return {ok:false,reason:"ordinary"};
     return {ok:true,keepStored:false,text};
   }
   const membership=await currentBookDescriptionMembership();
-  if(!editing||String(membership.bookId)!==String(editing.id)||membership.status!=="ready")return {ok:false,reason:"lookup"};
+  if(bookEditorEpoch!==epoch||bookEditorIdentity()!==editorId||membership.stale||String(membership.bookId)!==editorId){
+    return {ok:false,reason:"stale"};
+  }
+  if(membership.status!=="ready")return {ok:false,reason:"lookup"};
   if(text.length>membership.limit)return {ok:false,reason:membership.member?"member":"ordinary"};
   return {ok:true,keepStored:false,text};
+}
+function setEditingBookForTest(book,membership){
+  editing=book;
+  if(!membership)return bookDescriptionLimitState;
+  bookDescriptionLookupGeneration++;
+  bookDescriptionLimitState={
+    bookId:String(membership.bookId!=null?membership.bookId:(book&&book.id)||""),
+    status:membership.status||"ready",
+    limit:membership.limit==null?null:membership.limit,
+    member:!!membership.member,
+    generation:bookDescriptionLookupGeneration,
+    inflight:membership.inflight||null
+  };
+  syncBookDescriptionCount();
+  return bookDescriptionLimitState;
 }
 const OPTIONAL_COL_ALIASES={
   isbn:["isbn","barcode","باركود"],
@@ -186,6 +219,35 @@ let xlsxLoading=null;
 let galleryDraft=[];
 let saveInFlight=false;
 let saveAttempt=0;
+function releaseBookDescriptionValidation(token){
+  if(bookDescriptionValidation!==token)return false;
+  bookDescriptionValidation=null;
+  if(saveInFlight)return true;
+  const submit=$("#bookForm button[type='submit']");
+  if(submit){
+    submit.disabled=false;
+    restoreBookSaveBtnLabel();
+  }
+  return true;
+}
+function abandonBookEditor(){
+  bookEditorEpoch++;
+  bookDescriptionValidation=null;
+  if(saveInFlight){
+    saveAttempt++;
+    saveInFlight=false;
+  }
+  const submit=$("#bookForm button[type='submit']");
+  if(submit){
+    submit.disabled=false;
+    restoreBookSaveBtnLabel();
+  }
+}
+function closeBookModal(){
+  if(saveInFlight||originalCorrectInFlight||originalResetInFlight||priceRollbackInFlight)return;
+  abandonBookEditor();
+  modal(false);
+}
 let coverFormEpoch=0;
 let coverPreviewObjectUrl="";
 let quickSaveInFlight=false;
@@ -3853,6 +3915,7 @@ function applyGiftOfferWriteResult(result,snapshot){
   if(box){box.checked=result.enabled===true;box.indeterminate=false;box.disabled=false}
 }
 function clearForm(){
+  abandonBookEditor();
   const editor=creditEditorState();
   if(editor)editor.openCreate();
   creditSaveMode=editor?editor.snapshot().mode:"create";
@@ -3909,6 +3972,7 @@ async function fetchBook(id){
   return data||local||null;
 }
 async function openEdit(id){
+  abandonBookEditor();
   releaseCoverSelection();
   let b;
   try{b=await fetchBook(id)}catch(err){alert(err.message||err);return}
@@ -5532,7 +5596,7 @@ async function refreshCatalogAfterSave(attempt){
 }
 async function saveBook(e){
   e.preventDefault();
-  if(saveInFlight)return;
+  if(saveInFlight||bookDescriptionValidation)return;
   const source=$("#bookSource").value;
   if(!source){alert("كىتاب تۈرىنى تاللاڭ.");return}
   const isbn=formatIsbn($("#bookIsbn").value);
@@ -5565,12 +5629,33 @@ async function saveBook(e){
     pendingReview=readPendingReviewFields();
     if(!pendingReview.ok){alert(pendingReview.error);return}
   }
-  const descriptionPlan=await bookDescriptionSavePlan($("#bookDescription")&&$("#bookDescription").value);
-  if(!descriptionPlan.ok){
-    alert(bookDescriptionError(descriptionPlan.reason));
-    syncBookDescriptionCount();
+  const editorEpoch=bookEditorEpoch;
+  const validationToken={};
+  bookDescriptionValidation=validationToken;
+  const validationSubmit=$("#bookForm button[type='submit']");
+  if(validationSubmit){
+    validationSubmit.disabled=true;
+    validationSubmit.textContent="ساقلىنىۋاتىدۇ...";
+  }
+  const descriptionText=$("#bookDescription")&&$("#bookDescription").value;
+  let descriptionPlan;
+  try{
+    descriptionPlan=await bookDescriptionSavePlan(descriptionText);
+  }catch(err){
+    if(bookDescriptionValidation===validationToken)releaseBookDescriptionValidation(validationToken);
+    alert("ساقلاش مەغلۇپ بولدى:\n"+(err&&err.message||err));
     return;
   }
+  if(bookDescriptionValidation!==validationToken||bookEditorEpoch!==editorEpoch)return;
+  if(!descriptionPlan||!descriptionPlan.ok){
+    releaseBookDescriptionValidation(validationToken);
+    if(!descriptionPlan||descriptionPlan.reason!=="stale"){
+      alert(bookDescriptionError(descriptionPlan&&descriptionPlan.reason));
+      syncBookDescriptionCount();
+    }
+    return;
+  }
+  bookDescriptionValidation=null;
   const isEdit=plan.operation==="UPDATE";
   const editingBookId=plan.editingBookId;
   const coverEpochAtSave=coverFormEpoch;
@@ -5581,6 +5666,10 @@ async function saveBook(e){
     return live===coverFile;
   }
   if(!isEdit&&!pendingSave&&!coverFile){
+    if(validationSubmit){
+      validationSubmit.disabled=false;
+      restoreBookSaveBtnLabel();
+    }
     alert("يېڭى كىتابقا مۇقاۋا رەسىمى تاللاش كېرەك. باشقا كىتابنىڭ ياكى ئۆرنەك مۇقاۋىنىڭ رەسىمى ئىشلىتىلمەيدۇ.");
     return;
   }
@@ -8307,8 +8396,8 @@ function bindBookListUx(){
   bindCoverPicker();
   bindBookEntrySuggestions();
   $("#newBookBtn")&&($("#newBookBtn").onclick=openNew);
-  $("#closeBookModal")&&($("#closeBookModal").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
-  $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=()=>{if(!saveInFlight&&!originalCorrectInFlight&&!originalResetInFlight&&!priceRollbackInFlight)modal(false)});
+  $("#closeBookModal")&&($("#closeBookModal").onclick=closeBookModal);
+  $("#cancelBookEdit")&&($("#cancelBookEdit").onclick=closeBookModal);
   $("#bookForm")&&$("#bookForm").addEventListener("submit",saveBook);
   $("#bookStock")&&$("#bookStock").addEventListener("input",syncDerivedStockStatus);
   $("#quickStock")&&$("#quickStock").addEventListener("input",syncDerivedStockStatus);
@@ -8539,7 +8628,7 @@ function init(){
     adminOrderPage=0;
     loadAdminOrders();
   });
-  $("#bookModal").addEventListener("click",e=>{if(saveInFlight||priceRollbackInFlight)return;if(e.target===$("#bookModal"))modal(false)});
+  $("#bookModal").addEventListener("click",e=>{if(priceRollbackInFlight)return;if(e.target===$("#bookModal"))closeBookModal()});
   $("#importModal").addEventListener("click",e=>{if(e.target===$("#importModal")&&!importRunning)closeImport()});
   db.auth.onAuthStateChange(()=>setTimeout(routeSession,0));
   startAdminIdleWatch();
@@ -8634,6 +8723,6 @@ if(window.__kutadguExposeAnalyticsRender){
 }
 
 window.__kutadguAdminTest={
-  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,logout,clearPendingSubmissionPrivate,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues
+  loadAdminSuggestionRows,clearAdminSuggestionState,rememberAdminSuggestionRow,persistSavedId,suggestionCatalogRows,parseCsvText,rowsToObjects,mapImportRow,normalizeIsbn,isbnLooksValid,formatIsbn,parseBoolCell,parseNumberCell,resolveCategory,searchSafe,searchOrFilter,postgrestIlike,selectedIdList,assertSelectedIds,writeBookRow,applyBooksSchema,ignoredImportColumns,PAGE_SIZE,IMPORT_BATCH,presentBookCols,OPTIONAL_BOOK_COLS,rowToInsert,rowToUpdate,normalizeGalleryField,planGallerySelection:()=>(window.KutadguGallery||{}).planGallerySelection,canonicalBookId,persistBookRow,persistPendingSubmission,pendingEditPayload,readPendingReviewFields,fillPendingReviewFields,applyPendingEditChrome,openPendingSubmissionEdit,isPendingSubmissionRow,restoreBookSaveBtnLabel,planCurrentSave,logSavePlan,findCreateConflicts,renderCreateConflict,applyListFilters,listFilters,matchedStatusChip,STATUS_CHIP_PRESETS,statusBadgesHtml,loadExistingForImport,selectedImportCoverFiles,ImportCovers,CoverRepair,lookupCoverRepairBook,coverOnlyPayload:()=>CoverRepair.coverOnlyPayload,ImportIntake,openCoverRepairFromQueue,parseMaintenanceFlag,renderMaintenanceCard,  clampAnnounceInterval,isMissingAnnounceTable,toDatetimeLocal,fromDatetimeLocal,loadHeroAdminCard,bindHeroAdminUi,ADMIN_SECTIONS,DEFAULT_ADMIN_SECTION,parseAdminSectionHash,showAdminSection,dashboardAuthorized,openQuickEdit,closeQuickEdit,saveQuickEdit,applyBulk,applyProblemChip,refreshPreviewBooks,Prod,Price,Orig,Hist,selectedIds,Mfa,loadMfaCard,bindMfaCard,bindMfaGate,openAuthorizedDashboard,routeSession,Idle,showIdleLock,tickAdminIdle,headerPresent,mapCanonicalImportField,openBulkPriceModal,runBulkPricePreview,confirmBulkPrice,readBulkPriceSettings,fetchBulkPriceTargetBooks,finalizeBulkPriceHighRisk,openBulkResetModal,runBulkResetPreview,confirmBulkReset,readBulkResetSettings,fetchBulkResetTargetBooks,finalizeBulkResetHighRisk,orderStatusKey,countsTowardOrderStats,COUNTED_ORDER_STATUSES,orderStatsCount,orderStatsRevenue,memberOrderSummary,ORDER_STATUSES,ORDER_STATUS_LABELS,ADMIN_ORDER_PAGE_SIZE,ADMIN_ORDER_SELECT,isAllowedOrderStatus,orderStatusLabel,shouldConfirmOrderStatus,orderUpdateSucceeded,isAal2OrderUpdateError,formatOrderUpdateError,aal2RequiredOrderUpdateMessage,aalUnknownOrderUpdateMessage,orderUpdateEmptyMessage,isInsufficientStockError,insufficientStockOrderUpdateMessage,isBookHasCommittedStockError,isOrderStockCommitted,orderStockCommittedLabel,normalizeAdminAal,isAdminAal2,isBelowAal2,knownAdminAal,readAdminAalFromInspect,readAdminAalFromMfaResult,resolveAdminOrderAal,decideAdminOrderStatusUpdate,orderBelongsToStatusFilter,parseOrderItems,patchOrdersStatus,esc,money,detectOptionalColorPrintColumn,enableColorPrintColumn,disableColorPrintColumn,isMissingColorPrintColumnError,detectOptionalInteriorPrintTypeColumn,enableInteriorPrintTypeColumn,disableInteriorPrintTypeColumn,isMissingInteriorPrintTypeColumnError,PENDING_SUBMISSION_SELECT,loadPendingSubmissions,renderPendingSubmissions,reviewStaffSubmission,logout,clearPendingSubmissionPrivate,formatStaffSubmissionError,pendingSubmissionCountLabel,BOOK_STAFF_PROFILE_SELECT,loadBookStaffAccounts,renderBookStaffAccounts,addBookStaffAccount,setBookStaffActive,formatBookStaffError,normalizeBookStaffEmail,openEdit,openNew,currentCreditPlan,creditFieldValues,bookDescriptionSavePlan,setEditingBookForTest,bookSaveValidationPending:()=>!!bookDescriptionValidation
 };
 })();

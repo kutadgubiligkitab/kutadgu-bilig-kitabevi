@@ -176,9 +176,13 @@ async function adminPage(browser, origin) {
             error: null
           };
         };
-        const delay = Number(window.__membershipDelay) || 0;
-        if (delay > 0) return new Promise((resolve) => setTimeout(() => resolve(respond()), delay));
-        return Promise.resolve(respond());
+        const finish = () => {
+          const delay = Number(window.__membershipDelay) || 0;
+          if (delay > 0) return new Promise((resolve) => setTimeout(() => resolve(respond()), delay));
+          return Promise.resolve(respond());
+        };
+        if (window.__membershipHold) return Promise.resolve(window.__membershipHold).then(finish);
+        return finish();
       },
       auth: {
         onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } }; },
@@ -706,6 +710,174 @@ async function main() {
     assert.strictEqual(createRejected.value, samples.over);
     assert.strictEqual(createRejected.membershipCalls, createMembership);
     console.log("PASS ordinary create stays at 2,000 without a membership lookup");
+
+    const raced = uyghurDescription(8000);
+    await page.evaluate(() => {
+      window.__membershipMode = "ordinary";
+      window.__membershipDelay = 0;
+      window.__memberIds = [];
+      window.__membershipHold = new Promise((resolve) => { window.__releaseMembership = resolve; });
+      window.__planResult = null;
+    });
+    await page.evaluate((source) => {
+      window.__book = {
+        id: 801,
+        title: "كىتاب A",
+        author: "ئاپتور",
+        source,
+        category: "ئەدەبىيات",
+        price: 42,
+        stock: 3,
+        image_url: window.__cover,
+        is_active: true,
+        language: "ug",
+        description: "قىسقا",
+        sales_count: 0
+      };
+    }, source);
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(801));
+    await page.waitForFunction(() => document.querySelector("#bookDescriptionHelp").textContent.includes("تەكشۈرۈلۈۋاتىدۇ"));
+    await page.evaluate((text) => {
+      window.__planResult = null;
+      window.__kutadguAdminTest.bookDescriptionSavePlan(text).then((result) => { window.__planResult = result; });
+    }, raced);
+    await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "rpc" && entry.name === "admin_preview_book_volume_members" && String(entry.args.p_book_id) === "801"));
+    await page.evaluate(() => {
+      window.__kutadguAdminTest.setEditingBookForTest({
+        id: 802,
+        title: "كىتاب B",
+        author: "ئاپتور",
+        description: "ئەزا",
+        price: 70
+      }, { bookId: "802", status: "ready", limit: 10000, member: true });
+    });
+    await page.evaluate(() => window.__releaseMembership());
+    await page.waitForFunction(() => window.__planResult);
+    const racedPlan = await page.evaluate(() => window.__planResult);
+    assert.strictEqual(racedPlan.ok, false);
+    assert.strictEqual(racedPlan.reason, "stale");
+    console.log("PASS description validation stays bound to the original book");
+
+    await page.evaluate((source) => {
+      window.__membershipHold = new Promise((resolve) => { window.__releaseMembership = resolve; });
+      window.__memberIds = ["812"];
+      window.__books = {
+        811: {
+          id: 811,
+          title: "كىتاب A",
+          author: "ئاپتور",
+          source,
+          category: "ئەدەبىيات",
+          price: 42,
+          stock: 3,
+          image_url: window.__cover,
+          is_active: true,
+          language: "ug",
+          description: "قىسقا",
+          sales_count: 0
+        },
+        812: {
+          id: 812,
+          title: "كىتاب B",
+          author: "ئاپتور",
+          source,
+          category: "ئەدەبىيات",
+          price: 19,
+          stock: 4,
+          image_url: window.__cover,
+          is_active: true,
+          language: "ug",
+          description: "ئەزا چۈشەندۈرۈشى",
+          sales_count: 0
+        }
+      };
+      window.__book = null;
+    }, source);
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(811));
+    await page.waitForFunction(() => document.querySelector("#bookTitle").value === "كىتاب A");
+    await setDescription(page, raced);
+    const racedWrites = await page.evaluate(() => window.__writes.filter((entry) => entry.kind === "book" || entry.kind === "pending").length);
+    await page.evaluate(() => { window.__alerts = []; document.querySelector("#bookForm").requestSubmit(); });
+    await page.waitForFunction(() => window.__kutadguAdminTest.bookSaveValidationPending());
+    await page.evaluate(() => {
+      document.querySelector("#bookForm").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    assert.strictEqual(await page.evaluate(() => window.__alerts.length), 0);
+    await page.locator("#cancelBookEdit").click();
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(812));
+    await page.waitForFunction(() => document.querySelector("#bookTitle").value === "كىتاب B" && !document.querySelector("#bookModal").hidden);
+    await page.locator("#bookTitle").fill("باقىدىغان نام");
+    await page.locator("#bookPrice").fill("77");
+    await setDescription(page, "بەش");
+    await page.evaluate(() => window.__releaseMembership());
+    await page.waitForTimeout(200);
+    const afterSwitch = await page.evaluate(() => ({
+      alerts: window.__alerts.slice(),
+      hidden: document.querySelector("#bookModal").hidden,
+      title: document.querySelector("#bookTitle").value,
+      price: document.querySelector("#bookPrice").value,
+      description: document.querySelector("#bookDescription").value,
+      pending: window.__kutadguAdminTest.bookSaveValidationPending(),
+      disabled: document.querySelector("#bookSaveBtn").disabled,
+      writes: window.__writes.filter((entry) => entry.kind === "book" || entry.kind === "pending").length
+    }));
+    assert.deepStrictEqual(afterSwitch.alerts, []);
+    assert.strictEqual(afterSwitch.hidden, false);
+    assert.strictEqual(afterSwitch.title, "باقىدىغان نام");
+    assert.strictEqual(afterSwitch.price, "77");
+    assert.strictEqual(afterSwitch.description, "بەش");
+    assert.strictEqual(afterSwitch.pending, false);
+    assert.strictEqual(afterSwitch.disabled, false);
+    assert.strictEqual(afterSwitch.writes, racedWrites);
+    console.log("PASS closing A and opening B drops the pending save");
+
+    await page.evaluate((source) => {
+      window.__membershipHold = new Promise((resolve) => { window.__releaseMembership = resolve; });
+      window.__membershipMode = "ordinary";
+      window.__memberIds = [];
+      window.__books = null;
+      window.__book = {
+        id: 821,
+        title: "تەكرار ساقلاش",
+        author: "ئاپتور",
+        source,
+        category: "ئەدەبىيات",
+        price: 15,
+        stock: 2,
+        image_url: window.__cover,
+        is_active: true,
+        language: "ug",
+        description: "قىسقا",
+        sales_count: 0
+      };
+    }, source);
+    await page.evaluate(() => window.__kutadguAdminTest.openEdit(821));
+    await page.waitForFunction(() => document.querySelector("#bookTitle").value === "تەكرار ساقلاش");
+    await setDescription(page, raced);
+    const repeatWrites = await page.evaluate(() => window.__writes.filter((entry) => entry.kind === "book" || entry.kind === "pending").length);
+    await page.evaluate(() => {
+      window.__alerts = [];
+      const form = document.querySelector("#bookForm");
+      form.requestSubmit();
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await page.waitForFunction(() => window.__kutadguAdminTest.bookSaveValidationPending());
+    await page.evaluate(() => window.__releaseMembership());
+    await page.waitForFunction(() => window.__alerts.length > 0);
+    const repeated = await page.evaluate(() => ({
+      alerts: window.__alerts.slice(),
+      value: document.querySelector("#bookDescription").value,
+      writes: window.__writes.filter((entry) => entry.kind === "book" || entry.kind === "pending").length,
+      pending: window.__kutadguAdminTest.bookSaveValidationPending(),
+      disabled: document.querySelector("#bookSaveBtn").disabled
+    }));
+    assert.deepStrictEqual(repeated.alerts, [TOO_LONG]);
+    assert.strictEqual(repeated.value, raced);
+    assert.strictEqual(repeated.writes, repeatWrites);
+    assert.strictEqual(repeated.pending, false);
+    assert.strictEqual(repeated.disabled, false);
+    await page.evaluate(() => { window.__membershipHold = null; window.__membershipMode = "ordinary"; });
+    console.log("PASS repeated save clicks during lookup wait once");
     await page.context().close();
 
     const staff = await browser.newPage();
