@@ -7,10 +7,10 @@ const http = require("http");
 const path = require("path");
 
 const root = path.join(__dirname, "..");
-const TOO_LONG = "كىتاب ھەققىدە 2,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+const TOO_LONG = "كىتاب ھەققىدە 5,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
 const MEMBER_TOO_LONG = "كىتاب ھەققىدە 10,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
 const MEMBERSHIP_UNKNOWN = "يۈرۈشلۈك ئەزالىقى تەكشۈرۈلمىدى. چۈشەندۈرۈش ساقلىمىدى.";
-const HELP_ORDINARY = "قىسقىچە چۈشەندۈرۈش. ئەڭ كۆپ 2,000 ھەرپ.";
+const HELP_ORDINARY = "قىسقىچە چۈشەندۈرۈش. ئەڭ كۆپ 5,000 ھەرپ.";
 const HELP_MEMBER = "قىسقىچە چۈشەندۈرۈش. ئەڭ كۆپ 10,000 ھەرپ.";
 const HELP_FAILED = "يۈرۈشلۈك ئەزالىقى تەكشۈرۈلمىدى.";
 const SHORT = "قىسقا چۈشەندۈرۈش.\n\nداۋامى.";
@@ -41,7 +41,7 @@ function staticChecks() {
   assert.match(form, /id="bookDescription"/);
   assert.doesNotMatch(form, /maxlength=/);
   assert.match(form, /id="bookDescriptionHelp"/);
-  assert.match(form, /قىسقىچە چۈشەندۈرۈش\. ئەڭ كۆپ 2,000 ھەرپ\./);
+  assert.match(form, /قىسقىچە چۈشەندۈرۈش\. ئەڭ كۆپ 5,000 ھەرپ\./);
   assert.match(form, /id="bookDescriptionCount"/);
   const adminJs = read("admin.js");
   assert.match(adminJs, /admin_preview_book_volume_members/);
@@ -52,15 +52,16 @@ function staticChecks() {
   assert.ok(adminHtml.includes("admin.js?v=" + require("./ci-asset-pins").assetPin("admin.js")));
   assert.doesNotMatch(staffHtml, /id="staffDescription"[^>]*maxlength=/);
   assert.match(staffHtml, /id="staffDescriptionCount"/);
-  assert.match(staffHtml, /book-staff\.js\?v=13/);
-  assert.match(shop, /desc\.querySelector\("p"\)\.textContent=b\.description/);
-  assert.doesNotMatch(shop, /b\.description\.slice|description\.slice\(0,\s*1200\)/);
-  const exact = uyghurDescription(2000);
-  const over = uyghurDescription(2001);
-  assert.strictEqual(exact.length, 2000);
-  assert.strictEqual(over.length, 2001);
+  assert.match(staffHtml, /book-staff\.js\?v=14/);
+  assert.match(shop, /paintDetailDescription\(desc,b\.description\|\|""\)/);
+  assert.match(shop, /paragraph\.textContent=raw/);
+  assert.doesNotMatch(shop, /b\.description\.slice|description\.slice\(0,\s*1200\)|description\.slice\(0,\s*5000\)/);
+  const exact = uyghurDescription(5000);
+  const over = uyghurDescription(5001);
+  assert.strictEqual(exact.length, 5000);
+  assert.strictEqual(over.length, 5001);
   assert.ok(exact.includes("\n\n"));
-  assert.strictEqual(over.slice(0, 2000), exact);
+  assert.strictEqual(over.slice(0, 5000), exact);
   return { exact, over };
 }
 
@@ -229,7 +230,7 @@ async function main() {
     }, { source, description: SHORT });
     await page.evaluate(() => window.__kutadguAdminTest.openEdit(106));
     await page.waitForFunction((expected) => document.querySelector("#bookDescription").value === expected, SHORT);
-    await waitForKnownLimit(page, SHORT.length, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, SHORT.length, 5000, HELP_ORDINARY);
     await submitBook(page);
     await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "book") || window.__alerts.length, null, { timeout: 30000 });
     const shortSave = await page.evaluate(() => ({
@@ -253,7 +254,7 @@ async function main() {
       return field && field.value === expected && modal && !modal.hidden;
     }, SHORT);
     await setDescription(page, samples.exact);
-    await waitForKnownLimit(page, 2000, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, 5000, 5000, HELP_ORDINARY);
     await page.evaluate((description) => { window.__book.description = description; }, samples.exact);
     await submitBook(page);
     await page.waitForFunction(() => window.__writes.some((entry) => entry.kind === "book") || window.__alerts.length, null, { timeout: 30000 });
@@ -271,7 +272,7 @@ async function main() {
     const writesBeforeReject = await page.evaluate(() => window.__writes.length);
     await setDescription(page, samples.over);
     assert.strictEqual(await page.locator("#bookDescription").inputValue(), samples.over);
-    await waitForKnownLimit(page, 2001, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, 5001, 5000, HELP_ORDINARY);
     await page.evaluate(() => { window.__alerts = []; });
     await page.locator("#bookForm button[type=submit]").click();
     await page.waitForFunction(() => window.__alerts.length > 0);
@@ -314,7 +315,7 @@ async function main() {
       const modal = document.querySelector("#bookModal");
       return field && field.value === expected && modal && !modal.hidden;
     }, seriesDescription);
-    await waitForKnownLimit(page, 10000, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, 10000, 5000, HELP_ORDINARY);
     await page.locator("#bookPrice").fill("55");
     if (await page.locator("#bookPages").isVisible()) await page.locator("#bookPages").fill("96");
     await page.evaluate(() => { window.__writes = []; window.__alerts = []; });
@@ -530,7 +531,7 @@ async function main() {
     await page.waitForFunction((help) => {
       const note = document.querySelector("#bookDescriptionHelp");
       const count = document.querySelector("#bookDescriptionCount");
-      return note && note.textContent === help && count && count.textContent === "8,000" && !note.textContent.includes("2,000") && !note.textContent.includes("10,000");
+      return note && note.textContent === help && count && count.textContent === "8,000" && !note.textContent.includes("5,000") && !note.textContent.includes("10,000");
     }, HELP_FAILED);
     await page.locator("#bookPrice").fill("64");
     await submitBook(page);
@@ -560,7 +561,7 @@ async function main() {
     assert.deepStrictEqual(failedLookup.alerts, [MEMBERSHIP_UNKNOWN]);
     assert.strictEqual(failedLookup.value.length, 7000);
     assert.strictEqual(failedLookup.bookWrites, failedBookWrites);
-    assert.ok(!failedLookup.help.includes("2,000") && !failedLookup.help.includes("10,000"));
+    assert.ok(!failedLookup.help.includes("5,000") && !failedLookup.help.includes("10,000"));
     await page.evaluate(() => { window.__membershipMode = "empty"; });
     await page.evaluate(() => { window.__alerts = []; });
     await page.locator("#bookForm button[type=submit]").click();
@@ -572,7 +573,7 @@ async function main() {
     }));
     assert.deepStrictEqual(emptyLookup.alerts, [MEMBERSHIP_UNKNOWN]);
     assert.strictEqual(emptyLookup.value.length, 7000);
-    assert.ok(!emptyLookup.alerts[0].includes("2,000") && !emptyLookup.alerts[0].includes("10,000"));
+    assert.ok(!emptyLookup.alerts[0].includes("5,000") && !emptyLookup.alerts[0].includes("10,000"));
     console.log("PASS failed membership lookup does not apply either cap");
 
     await page.evaluate(({ source }) => {
@@ -615,9 +616,9 @@ async function main() {
       window.__kutadguAdminTest.openEdit(402);
     });
     await page.waitForFunction(() => document.querySelector("#bookDescription").value === "ئادەتتىكى چۈشەندۈرۈش");
-    await waitForKnownLimit(page, "ئادەتتىكى چۈشەندۈرۈش".length, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, "ئادەتتىكى چۈشەندۈرۈش".length, 5000, HELP_ORDINARY);
     await page.waitForTimeout(400);
-    await waitForKnownLimit(page, "ئادەتتىكى چۈشەندۈرۈش".length, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, "ئادەتتىكى چۈشەندۈرۈش".length, 5000, HELP_ORDINARY);
     console.log("PASS a stale membership lookup does not change the open book");
 
     await page.evaluate((source) => {
@@ -639,7 +640,7 @@ async function main() {
         sales_count: 0
       };
     }, source);
-    const earlyMember = uyghurDescription(5000);
+    const earlyMember = uyghurDescription(5001);
     await page.evaluate(() => window.__kutadguAdminTest.openEdit(501));
     await page.waitForFunction(() => document.querySelector("#bookDescription").value === "قىسقا");
     await setDescription(page, earlyMember);
@@ -650,7 +651,7 @@ async function main() {
       write: window.__writes.find((entry) => entry.kind === "book")
     }));
     assert.deepStrictEqual(earlyMemberSave.alerts, []);
-    assert.strictEqual(earlyMemberSave.write.payload.description.length, 5000);
+    assert.strictEqual(earlyMemberSave.write.payload.description.length, 5001);
 
     await page.evaluate((source) => {
       window.__membershipDelay = 300;
@@ -693,7 +694,7 @@ async function main() {
     await page.locator("#bookTitle").fill("يېڭى ئادەتتىكى كىتاب");
     await page.locator("#bookAuthor").fill("ئاپتور");
     await setDescription(page, samples.over);
-    await waitForKnownLimit(page, 2001, 2000, HELP_ORDINARY);
+    await waitForKnownLimit(page, 5001, 5000, HELP_ORDINARY);
     await page.locator("#bookPrice").fill("12");
     const stock = page.locator("#bookStock");
     if (await stock.count() && await stock.isVisible()) await stock.fill("1");
@@ -709,7 +710,7 @@ async function main() {
     assert.deepStrictEqual(createRejected.alerts, [TOO_LONG]);
     assert.strictEqual(createRejected.value, samples.over);
     assert.strictEqual(createRejected.membershipCalls, createMembership);
-    console.log("PASS ordinary create stays at 2,000 without a membership lookup");
+    console.log("PASS ordinary create stays at 5,000 without a membership lookup");
 
     const raced = uyghurDescription(8000);
     await page.evaluate(() => {
@@ -883,7 +884,7 @@ async function main() {
     const staff = await browser.newPage();
     await staff.goto(origin + "/book-staff.html", { waitUntil: "domcontentloaded" });
     await staff.waitForSelector("#staffDescription", { state: "attached" });
-    await staff.waitForFunction(() => typeof window.KutadguBookStaff !== "undefined" && window.KutadguBookStaff.BOOK_DESCRIPTION_LIMIT === 2000);
+    await staff.waitForFunction(() => typeof window.KutadguBookStaff !== "undefined" && window.KutadguBookStaff.BOOK_DESCRIPTION_LIMIT === 5000);
     await staff.evaluate(() => {
       document.querySelector("#staffTitle").value = "يېڭى كىتاب";
       document.querySelector("#staffAuthor").value = "ئاپتور";
@@ -902,16 +903,16 @@ async function main() {
     await staff.locator("#staffBookForm").evaluate((form) => form.requestSubmit());
     await staff.waitForFunction((message) => document.querySelector("#staffSubmitStatus").textContent === message, TOO_LONG);
     assert.strictEqual(await staff.locator("#staffDescription").inputValue(), samples.over);
-    assert.strictEqual(await staff.locator("#staffDescriptionCount").textContent(), "2,001 / 2,000");
+    assert.strictEqual(await staff.locator("#staffDescriptionCount").textContent(), "5,001 / 5,000");
     await staff.locator("#staffDescription").evaluate((el, value) => {
       el.value = value;
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }, samples.exact);
-    assert.strictEqual(await staff.locator("#staffDescriptionCount").textContent(), "2,000 / 2,000");
+    assert.strictEqual(await staff.locator("#staffDescriptionCount").textContent(), "5,000 / 5,000");
     await staff.locator("#staffBookForm").evaluate((form) => form.requestSubmit());
     await staff.waitForFunction(() => {
       const status = document.querySelector("#staffSubmitStatus");
-      return !status.textContent.includes("2,000 ھەرپتىن ئېشىپ");
+      return !status.textContent.includes("5,000 ھەرپتىن ئېشىپ");
     });
     assert.strictEqual(await staff.locator("#staffDescription").inputValue(), samples.exact);
     console.log("PASS staff description rejection keeps the entered text");

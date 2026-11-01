@@ -9,8 +9,8 @@ const INTERIOR=["color","bw"];
 const IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif"];
 const MAX_COVER_BYTES=5*1024*1024;
 const MAX_STAFF_GALLERY=4;
-const BOOK_DESCRIPTION_LIMIT=2000;
-const BOOK_DESCRIPTION_TOO_LONG="كىتاب ھەققىدە 2,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
+const BOOK_DESCRIPTION_LIMIT=5000;
+const BOOK_DESCRIPTION_TOO_LONG="كىتاب ھەققىدە 5,000 ھەرپتىن ئېشىپ كەتمىسۇن.";
 function formatBookDescriptionCount(length){
   return String(length).replace(/\B(?=(\d{3})+(?!\d))/g,",");
 }
@@ -19,7 +19,7 @@ function syncStaffDescriptionCount(){
   const count=$("#staffDescriptionCount");
   if(!count)return;
   const length=String(field&&field.value||"").length;
-  count.textContent=formatBookDescriptionCount(length)+" / 2,000";
+  count.textContent=formatBookDescriptionCount(length)+" / "+formatBookDescriptionCount(BOOK_DESCRIPTION_LIMIT);
 }
 const STAFF_COVER_ORIGIN="https://fxlojnqwyojqjskfggmh.supabase.co";
 const STAFF_R2_ORIGIN="https://www.kutadgubilik.com";

@@ -279,8 +279,8 @@ add("payload whitelist matches Stage92 and excludes protected fields", () => {
     description: shortDescription
   });
   assert.strictEqual(exact.description, shortDescription);
-  const full = "ئ".repeat(2000);
-  assert.strictEqual(full.length, 2000);
+  const full = "ئ".repeat(5000);
+  assert.strictEqual(full.length, 5000);
   const kept = api.buildPayload({
     title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
     description: full
@@ -290,7 +290,7 @@ add("payload whitelist matches Stage92 and excludes protected fields", () => {
     title: "T", author: "A", source: "dini.html", category: "دىنىي كىتابلار", price: "1",
     description: full + "ا"
   }), (err) => err && err.message === api.BOOK_DESCRIPTION_TOO_LONG);
-  assert.strictEqual(api.BOOK_DESCRIPTION_LIMIT, 2000);
+  assert.strictEqual(api.BOOK_DESCRIPTION_LIMIT, 5000);
 });
 
 add("staff gallery is local-only until submit, max 4, and URLs stay on own gallery prefix", () => {
