@@ -3034,12 +3034,145 @@ function populateDynamicBookPage(b){
   if(!keepServerCredits)paintDetailCreditText(b);
 
   let desc=document.querySelector(".dynamic-book-description");
-  if(desc){
-    if(b.description){
-      desc.hidden=false;
-      desc.querySelector("p").textContent=b.description;
-    }else desc.hidden=true;
+  if(desc)paintDetailDescription(desc,b.description||"");
+}
+
+const DETAIL_DESCRIPTION_BODY_ID="detail-description-body";
+let detailDescriptionWatch=null;
+let detailDescriptionFrame=0;
+
+function detailDescriptionLines(){
+  return window.matchMedia("(max-width:760px)").matches?5:7;
+}
+function detailDescriptionLineHeight(node){
+  const style=getComputedStyle(node);
+  const parsed=parseFloat(style.lineHeight);
+  if(Number.isFinite(parsed)&&parsed>0)return parsed;
+  const font=parseFloat(style.fontSize)||14;
+  return font*2;
+}
+function detailDescriptionOverflows(node){
+  return node.scrollHeight>detailDescriptionLineHeight(node)*detailDescriptionLines()+1;
+}
+function ensureDetailDescriptionBody(section){
+  const paragraph=section.querySelector("p");
+  if(!paragraph)return null;
+  let body=section.querySelector(".detail-description-body");
+  if(!body){
+    body=document.createElement("div");
+    body.className="detail-description-body";
+    paragraph.replaceWith(body);
+    body.appendChild(paragraph);
   }
+  body.id=DETAIL_DESCRIPTION_BODY_ID;
+  return body;
+}
+function ensureDetailDescriptionToggle(section,body){
+  let button=section.querySelector(".detail-description-toggle");
+  if(!button){
+    button=document.createElement("button");
+    button.type="button";
+    button.className="detail-description-toggle";
+    button.hidden=true;
+    section.appendChild(button);
+    button.addEventListener("click",()=>toggleDetailDescription(section));
+  }
+  button.setAttribute("aria-controls",body.id);
+  return button;
+}
+function keepDescriptionControlInView(button){
+  const rect=button.getBoundingClientRect();
+  if(rect.top>=12&&rect.bottom<=window.innerHeight-12)return;
+  button.scrollIntoView({block:"nearest",inline:"nearest"});
+}
+function toggleDetailDescription(section){
+  const button=section.querySelector(".detail-description-toggle");
+  const body=section.querySelector(".detail-description-body");
+  if(!button||!body||button.hidden)return;
+  const next=button.getAttribute("aria-expanded")!=="true";
+  button.setAttribute("aria-expanded",next?"true":"false");
+  button.textContent=next?"يىغىش":"تولۇق ئوقۇش";
+  body.classList.toggle("is-clamped",!next);
+  if(!next)keepDescriptionControlInView(button);
+}
+function measureDetailDescription(section){
+  if(!section||section.hidden)return;
+  const body=ensureDetailDescriptionBody(section);
+  const paragraph=body&&body.querySelector("p");
+  if(!body||!paragraph)return;
+  const button=ensureDetailDescriptionToggle(section,body);
+  const expanded=button.getAttribute("aria-expanded")==="true"&&!button.hidden;
+  body.classList.remove("is-clamped");
+  if(!detailDescriptionOverflows(paragraph)){
+    button.hidden=true;
+    button.setAttribute("aria-expanded","false");
+    button.textContent="تولۇق ئوقۇش";
+    return;
+  }
+  button.hidden=false;
+  if(!button.hasAttribute("aria-expanded")||button.getAttribute("aria-expanded")==="")button.setAttribute("aria-expanded","false");
+  if(!expanded){
+    button.setAttribute("aria-expanded","false");
+    button.textContent="تولۇق ئوقۇش";
+  }
+  body.classList.toggle("is-clamped",button.getAttribute("aria-expanded")!=="true");
+}
+function watchDetailDescription(section){
+  if(detailDescriptionWatch)return;
+  const refresh=()=>{
+    const current=document.querySelector(".dynamic-book-description");
+    if(current&&!current.hidden)measureDetailDescription(current);
+  };
+  detailDescriptionWatch={width:0};
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(refresh).catch(()=>{});
+  if(document.fonts&&document.fonts.addEventListener)document.fonts.addEventListener("loadingdone",refresh);
+  window.addEventListener("resize",()=>{
+    cancelAnimationFrame(detailDescriptionFrame);
+    detailDescriptionFrame=requestAnimationFrame(refresh);
+  });
+  if(typeof ResizeObserver==="function"){
+    const observer=new ResizeObserver(entries=>{
+      const width=Math.round(entries[0].contentRect.width);
+      if(width===detailDescriptionWatch.width)return;
+      detailDescriptionWatch.width=width;
+      cancelAnimationFrame(detailDescriptionFrame);
+      detailDescriptionFrame=requestAnimationFrame(refresh);
+    });
+    observer.observe(section);
+  }
+}
+function paintDetailDescription(section,text){
+  if(!section)return;
+  const raw=String(text==null?"":text);
+  let paragraph=section.querySelector("p");
+  if(!paragraph){
+    paragraph=document.createElement("p");
+    section.appendChild(paragraph);
+  }
+  const changed=paragraph.textContent!==raw;
+  paragraph.textContent=raw;
+  if(!raw.trim()){
+    section.hidden=true;
+    const button=section.querySelector(".detail-description-toggle");
+    if(button){
+      button.hidden=true;
+      button.setAttribute("aria-expanded","false");
+      button.textContent="تولۇق ئوقۇش";
+    }
+    const body=section.querySelector(".detail-description-body");
+    if(body)body.classList.remove("is-clamped");
+    return;
+  }
+  section.hidden=false;
+  if(changed){
+    const button=section.querySelector(".detail-description-toggle");
+    if(button){
+      button.setAttribute("aria-expanded","false");
+      button.textContent="تولۇق ئوقۇش";
+    }
+  }
+  measureDetailDescription(section);
+  watchDetailDescription(section);
 }
 
 function paintDetailCreditText(b){
@@ -7121,5 +7254,5 @@ async function boot(){
   ensurePublicBookCardRowAlignmentCss();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
-window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,retryVolumeCartReads,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage,renderHomeFeaturedBooks,seriesCardLabel,seriesPriceText,seriesPartCount,homeCarouselCard};
+window.kutadguShop={usesSearchRelevance,searchRankKey,updateBadge,add,remove,toggleFav,cart,cartHas,cartLines,setCartState,setCartLines,addCompleteSet,removeCompleteSet,changeCompleteSetQty,hydrateSetCartGroups,primeVolumeCart,retryVolumeCartReads,favorites:()=>[...favs()],favHas,find,canonicalId,hydrateBooksByIds,shareBook,buildOrderText,showOrderPreview,copyOrder,shareOrder,orderWithWhatsApp,whatsappOrderUrl,getCatalog:()=>[...C],queryCatalog,getQueryState:()=>JSON.parse(JSON.stringify(catalogQueryState)),trackEvent,migratePersistedBookIds,renderBookGallery,normalizeGalleryImages,isStorefrontVisible,requiresRemoteProductAuthority,isUnauthorizedStaticDemoId,refreshStorefrontVisibility,applyBestsellerHonesty,countPositiveSales,storefrontAuthor,storefrontIsbn,isPlaceholderAuthor,aliasMap,HOMEPAGE_DOCUMENT_TITLE,isStorefrontHomepage,isBookDetailDocument,applyHomepageDocumentTitle,miniCard,homeFeatureCard,bookCardMarkup,favoriteCard,openCoverLightbox,coverSrc,coverImgHtml,isSampleDemoCover,isRetryableCoverUrl,handleCoverError,handleCoverLoad,assignCoverImage,getCoverRetryDebug,escapeHtml,escapeAttr,safeHref,isSafeCoverUrl,setDynamicMeta,colorPrintDetailValue,normalizeCatalogBook,cartHydrationPending,CART_DISPLAY_KEY,SET_CART_KEY,shopOwnerAllowsLocalDisplay,peekPersistedShopUserId,currentShopUserId,identityBootstrapPending,alignCartDisplayAfterMemberSync,migrateCartDisplaySnapshots,detailRecommendations,paintDetailDescription,storefrontCategoryHref,storefrontAppHref,DETAIL_RELATED_PAGE_SIZE,detailRelatedQueryInput,detailRelatedShouldQuery,COVER_RETRY_MAX,COVER_RETRY_DELAYS,COVER_RETRY_CONCURRENCY,stockInfo,isStockEnforcementEnabled,clampCartQuantitiesToStock,stockBadge,stockStateClass,wrapCoverHtml,applyCoverStockState,syncStaticCards,recoverOrphanedOwnerForGuestWrite,canRecoverOrphanedOwnerForGuestWrite,recoverStaleOwnerForGuestWrite,makeOrderId,toast,shareCartLink,cartShareVisible,noteCartShareIdentity,noteCartShareAuth,noteCartShareSignOut,ADABIYAT_HUB_SUBS,ADABIYAT_HUB_SOURCES,normalizeAdabiyatSub,adabiyatListingQuery,giftViewerDecision,giftBookRequestable,giftRequestMessage,renderHomeFeaturedBooks,seriesCardLabel,seriesPriceText,seriesPartCount,homeCarouselCard};
 })();

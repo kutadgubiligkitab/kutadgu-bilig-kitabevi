@@ -276,6 +276,32 @@
       white-space:pre-line;
     }
 
+    .detail-description-body.is-clamped p{
+      display:-webkit-box;
+      -webkit-box-orient:vertical;
+      -webkit-line-clamp:7;
+      overflow:hidden;
+    }
+
+    .detail-description-toggle{
+      margin-top:12px;
+      min-height:36px;
+      padding:6px 14px;
+      border:1px solid var(--site-border,#e8dccb);
+      border-radius:999px;
+      background:var(--site-card,#fff);
+      color:var(--site-text,#44352d);
+      font:inherit;
+      font-size:13px;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .detail-description-toggle:focus-visible{
+      outline:2px solid var(--site-text,#44352d);
+      outline-offset:3px;
+    }
+
     .book-detail-page .detail-category-badge{
       margin-bottom:9px;
     }
@@ -373,6 +399,9 @@
       .dynamic-book-description{
         padding:16px 14px;
       }
+      .detail-description-body.is-clamped p{
+        -webkit-line-clamp:5;
+      }
     }
 
     @media(max-width:390px){
@@ -453,7 +482,7 @@
   <script defer src="/catalog-credits.js?v=1"></script>
   <script defer src="/gallery-images.js?v=2"></script>
   <script defer src="/kutadgu-book-seo.js?v=7"></script>
-  <script defer src="/kutadgu-safe-url.js?v=1"></script><script async src="/public-header.js?v=6"></script><script defer src="/kutadgu-search-rank.js?v=1"></script><script defer src="/kutadgu-cover-availability.js?v=1"></script><script defer src="/kutadgu-cover-variants.js?v=5"></script><script defer src="/shop.js?v=188"></script>
+  <script defer src="/kutadgu-safe-url.js?v=1"></script><script async src="/public-header.js?v=6"></script><script defer src="/kutadgu-search-rank.js?v=1"></script><script defer src="/kutadgu-cover-availability.js?v=1"></script><script defer src="/kutadgu-cover-variants.js?v=5"></script><script defer src="/shop.js?v=189"></script>
   <script defer src="/book-reviews.js?v=5"></script>
   <script defer src="/mobile.js?v=11"></script>
 </body>
