@@ -197,6 +197,9 @@ test("a deleted published variant still falls back to the original once", async 
         body: JSON.stringify([book])
       });
     }
+    if (method === "POST" && /\/rpc\/list_public_book_series_routes(?:\?|$)/.test(url)) {
+      return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({code:"PGRST202"})});
+    }
     if (method === "POST" && /\/rpc\/query_public_book_catalog(?:\?|$)/.test(url)) {
       await catalogReady;
       return route.fulfill({

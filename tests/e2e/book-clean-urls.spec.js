@@ -214,7 +214,7 @@ test.describe("book clean URLs", () => {
     const hrefs = await cards.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href") || ""));
     expect(hrefs.length).toBeGreaterThan(0);
     for (const href of hrefs) {
-      expect(href, href).toMatch(/^\/(?:book\/\d+|volume-group\/[^/?#]+)$/);
+      expect(href, href).toMatch(/^\/(?:book\/\d+|(?:series|volume-group)\/[^/?#]+)$/);
       expect(href, href).not.toMatch(/book\.html/);
     }
     expect(hrefs.some((href) => /^\/book\/\d+$/.test(href))).toBe(true);

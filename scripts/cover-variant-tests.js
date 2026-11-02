@@ -497,6 +497,7 @@ function authFetch(admin) {
   function pageFetch(url) {
     const href = String(url);
     if (href.includes("book_credits")) return httpResponse(200, []);
+    if (href.includes("list_public_book_series_routes")) return httpResponse(200,[{group_id:9,legacy_slug:"series-read",public_slug:"series-read"}]);
     if (href.includes("get_public_book_volume_group_storefront")) return httpResponse(200, groupPayload);
     if (href.includes("/books")) return httpResponse(200, [bookRow]);
     return httpResponse(404, {});
@@ -535,10 +536,10 @@ function authFetch(admin) {
   assert.strictEqual(stalledBody.status, 200);
   assert.ok(stalledBody.elapsed < 1200);
   assert.doesNotMatch(stalledBody.html, /srcset=/);
-  const stalledGroup = await render("/volume-group/series-read", hangingGet());
+  const stalledGroup = await render("/series/series-read", hangingGet());
   assert.strictEqual(stalledGroup.status, 200);
   assert.ok(stalledGroup.elapsed < 1200);
-  assert.match(stalledGroup.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/volume-group\/series-read"/);
+  assert.match(stalledGroup.html, /rel="canonical" href="https:\/\/www\.kutadgubilik\.com\/series\/series-read"/);
   assert.doesNotMatch(stalledGroup.html, /srcset=/);
   const remembered = conditionalBucket();
   const rememberedWrite = await variants.publishStoredAvailability(remembered, publicationInput(staffSource, 480, 1000));
@@ -572,7 +573,7 @@ function authFetch(admin) {
   process.on("unhandledRejection", onLate);
   let rejectLate;
   const lateBucket = { get() { return new Promise((resolve, reject) => { rejectLate = reject; }); } };
-  const latePage = await render("/volume-group/series-read", lateBucket);
+  const latePage = await render("/series/series-read", lateBucket);
   assert.strictEqual(latePage.status, 200);
   assert.ok(latePage.elapsed < 1200);
   rejectLate(new Error("late availability"));

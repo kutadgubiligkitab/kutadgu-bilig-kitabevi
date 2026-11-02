@@ -19,11 +19,26 @@ module.exports=async function volumeGroupPublic(req,res){
   }
   const result=await volumeGroup.lookupPublicVolumeGroup(slug);
   if(result.outcome==="found"){
+    const url=new URL(req.url,"https://www.kutadgubilik.com");
+    const canonicalPath=volumeGroup.groupPath(result.group);
+    // API rewrites carry the original public route explicitly.
+    if(url.pathname!==canonicalPath && !(url.pathname==="/api/volume-group-public"&&["series","volume-group"].includes(url.searchParams.get("route"))&&("/"+url.searchParams.get("route")+"/"+url.searchParams.get("slug"))===canonicalPath)){
+      if(url.pathname==="/api/volume-group-public"){
+        url.searchParams.delete("slug");
+        url.searchParams.delete("route");
+      }
+      const query=url.searchParams.toString();
+      res.statusCode=result.group.public_slug?301:302;
+      res.setHeader("Location",canonicalPath+(query?"?"+query:""));
+      res.setHeader("Cache-Control",result.group.public_slug?"public, max-age=300":"no-store");
+      res.end();
+      return;
+    }
     const bookResult=await publicBook.lookupPublicNumericBook(result.group.representative_book_id);
     if(bookResult.outcome==="found"){
       res.statusCode=200;
       res.setHeader("Content-Type","text/html; charset=utf-8");
-      res.setHeader("Cache-Control","public, s-maxage=300, stale-while-revalidate=600");
+      res.setHeader("Cache-Control","no-store");
       res.end(volumeGroup.applyGroupDocument(volumeGroup.readShell(),result.group,bookResult.book));
       return;
     }

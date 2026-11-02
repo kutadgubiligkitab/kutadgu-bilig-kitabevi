@@ -4,6 +4,7 @@ const fs=require("fs");
 const path=require("path");
 const publicBook=require("./kutadgu-public-book.js");
 const safe=require("./kutadgu-safe-url.js");
+const seriesRoutes=require("./kutadgu-series-routes.js");
 const volumeStorefront=require("./kutadgu-volume-storefront.js");
 
 const SUPABASE_URL=publicBook.SUPABASE_URL;
@@ -20,21 +21,20 @@ function parseSlug(req){
   if(!/^https?:\/\//i.test(href))href=`https://example.invalid${href.startsWith("/")?"":"/"}${href}`;
   try{
     const url=new URL(href);
-    const query=validSlug(url.searchParams.get("slug"));
-    if(query)return query;
-    const match=String(url.pathname||"").match(/^\/volume-group\/([^/?#]+)\/?$/i);
-    return match?validSlug(decodeURIComponent(match[1])):"";
+    const match=String(url.pathname||"").match(/^\/(?:series|volume-group)\/([^/?#]+)\/?$/i);
+    if(match)return validSlug(decodeURIComponent(match[1]));
+    return url.pathname==="/api/volume-group-public"?validSlug(url.searchParams.get("slug")):"";
   }catch(error){return ""}
 }
 function rpcUrl(){
   return `${SUPABASE_URL}/rest/v1/rpc/get_public_book_volume_group_storefront`;
 }
-function normalizeGroup(value,expectedSlug){
+function normalizeGroup(value){
   if(!value||typeof value!=="object"||Array.isArray(value))return null;
   const slug=validSlug(value.slug);
   const id=String(value.id==null?"":value.id).trim();
   const members=Array.isArray(value.members)?value.members:[];
-  if(!id||slug!==expectedSlug||members.length<2||members.length>100)return null;
+  if(!id||!slug||members.length<2||members.length>100)return null;
   if(members.some(member=>{
     const position=Number(member&&member.position);
     return !member||!/^[1-9][0-9]*$/.test(String(member.book_id||""))
@@ -60,17 +60,20 @@ async function lookupPublicVolumeGroup(slug,options){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
+    const routes=await seriesRoutes.load({fetchImpl});
+    const route=routes.find(row=>row.public_slug===canonical||row.legacy_slug===canonical);
+    const lookupSlug=route?route.legacy_slug:canonical;
     const response=await fetchImpl(rpcUrl(),{
       method:"POST",
       headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json",Accept:"application/json"},
-      body:JSON.stringify({p_group_id:null,p_slug:canonical,p_child_book_id:null}),
+      body:JSON.stringify({p_group_id:null,p_slug:lookupSlug,p_child_book_id:null}),
       signal:controller.signal
     });
     if(response.status!==200)return {outcome:"error",reason:`http-${response.status}`,status:response.status};
     let payload;
     try{payload=await response.json()}catch(error){return {outcome:"error",reason:"bad-json"}}
     if(payload==null)return {outcome:"missing"};
-    const group=normalizeGroup(payload,canonical);
+    const group=normalizeGroup(payload&&seriesRoutes.enrich(payload,routes));
     return group?{outcome:"found",group}:{outcome:"missing"};
   }catch(error){
     return {outcome:"error",reason:error&&error.name==="AbortError"?"timeout":"network"};
@@ -114,7 +117,7 @@ function insertStaticMemberList(html,group){
   return source;
 }
 function applyGroupDocument(html,group,representativeBook){
-  const canonical=`${SITE_ORIGIN}/volume-group/${group.slug}`;
+  const canonical=SITE_ORIGIN+seriesRoutes.groupPath(group);
   const display={
     ...representativeBook,
     title:group.title||representativeBook.title,
@@ -143,6 +146,6 @@ function readShell(){
 
 module.exports={
   SUPABASE_URL,SUPABASE_ANON_KEY,SITE_ORIGIN,LOOKUP_TIMEOUT_MS,
-  validSlug,parseSlug,rpcUrl,normalizeGroup,lookupPublicVolumeGroup,
+  groupPath:seriesRoutes.groupPath,validSlug,parseSlug,rpcUrl,normalizeGroup,lookupPublicVolumeGroup,
   groupJsonLd,renderStaticMemberList,applyGroupDocument,readShell
 };

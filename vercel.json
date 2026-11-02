@@ -270,8 +270,12 @@
       "destination": "/api/legacy-book-redirect"
     },
     {
+      "source": "/series/:slug",
+      "destination": "/api/volume-group-public?slug=:slug&route=series"
+    },
+    {
       "source": "/volume-group/:slug",
-      "destination": "/api/volume-group-public?slug=:slug"
+      "destination": "/api/volume-group-public?slug=:slug&route=volume-group"
     },
     {
       "source": "/book/:id(\\d+)",

@@ -6,6 +6,9 @@ async function blockWrites(page) {
   await page.route("**/*", (route) => {
     const request = route.request();
     const url = request.url();
+    if (/\/rest\/v1\/rpc\/list_public_book_series_routes(?:\?|$)/.test(url)) {
+      return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({code:"PGRST202"})});
+    }
     if (request.method() !== "GET" && request.method() !== "HEAD") {
       if (/\/rest\/v1\/rpc\/(?:query_public_book_catalog|list_public_book_volume_discovery_unit_ids|list_public_book_categories)(?:\?|$)/.test(url)) {
         return route.fallback();
