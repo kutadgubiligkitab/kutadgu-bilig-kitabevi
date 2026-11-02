@@ -83,6 +83,9 @@ async function installIsolatedReads(page, unexpected) {
       if (method === "GET" || method === "HEAD" || method === "OPTIONS") return route.continue();
       return route.fulfill({ status: 204, body: "" });
     }
+    if (/\/rpc\/list_public_book_series_routes(?:\?|$)/.test(url)) {
+      return json(route, {code:"PGRST202"}, 404);
+    }
     if (/\/rpc\/list_public_book_categories(?:\?|$)/.test(url)) {
       return json(route, { message: "missing" }, 404);
     }
