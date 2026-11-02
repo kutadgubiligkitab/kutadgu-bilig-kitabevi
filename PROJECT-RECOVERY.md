@@ -4,7 +4,7 @@ Handoff for the Kutadgu Bilig bookstore repository. Read this before substantial
 
 The runtime baseline below is the last verified application commit. It is not automatically the current GitHub `main` tip. Documentation-only commits, including this handoff, do not move it.
 
-The runtime baseline is `2ff1e44789cdeff110cfbde097852a3468cda32c`, the PR #341 merge. This documentation commit does not move that baseline. Stage 137 SQL stays applied. Production Worker version `ee6e5007-6c9c-4619-aab9-064ab63de0e7`, deployment `f6769552-44aa-4c8a-a7af-9c2fbbccc380`, at 100%, created 2026-11-01T00:49:10.437807Z, serves that merge. The rollback target recorded immediately before that deploy was version `3108ba44-bd89-4b46-b75c-dc9dccc6a22f`, deployment `478e83a9-dbfe-4351-bd3f-b5ae5a9669c0`, created 2026-10-31T22:22:43.773028Z. No SQL was applied for this release.
+The last verified runtime baseline is `a0d90eeb2326576942b55b8bd6e38dfed6b9ce93`, the PR #344 internal-link discovery merge. Read-only inspection on 2026-11-02 confirmed Worker `kutadgu-cloudflare-production` at 100% on version `acfce033-d55c-4d36-ac3e-c3ec14ce70d0`, created 2026-11-02T16:26:34.640Z. Existing ASSETS/COVERS bindings, production variables and encrypted secret names were preserved. Stage 138 is not yet applied. This reconciles the older PR #341 baseline against current origin/main and the actual Worker; it does not claim the candidate below is deployed.
 
 
 ## Readable series URLs — release candidate PR #345
