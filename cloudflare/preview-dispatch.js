@@ -5,6 +5,7 @@ const upload = require("./r2-cover-upload.js");
 const coverRead = require("./r2-cover-read.js");
 const images = require("../kutadgu-image-storage.js");
 const sitemap = require("../kutadgu-sitemap.js");
+const categoryNav = require("../kutadgu-category-nav.js");
 const sharedCartLinks = require("../kutadgu-shared-cart-links.js");
 const visitCountry = require("./analytics-visit-country.js");
 const verifiedVisits = require("./verified-visits.js");
@@ -233,7 +234,16 @@ async function finishAsset(request, env, deps, filePath, statusOverride) {
   }
   const htmlFile = /\.html$/i.test(filePath);
   if (method !== "HEAD" && htmlFile) {
-    const decorated = decoratePreviewHtml(await asset.text(), request, env);
+    let html = await asset.text();
+    if (status === 200 && filePath === "/index.html") {
+      try {
+        const directory = await deps.listing.fetchPublicCategoryDirectory(deps.fetchImpl);
+        if (directory && directory.status === 200) {
+          html = categoryNav.applyDirectoryDocument(html, directory.body);
+        }
+      } catch (err) {} // Keep the storefront usable if the public directory is unavailable.
+    }
+    const decorated = decoratePreviewHtml(html, request, env);
     if (decorated !== undefined) {
       outHeaders.delete("content-length");
       return new Response(decorated, {
@@ -382,7 +392,7 @@ async function handleManagedSitemap(request, env, deps) {
   let xml = await asset.text();
   try {
     const directory = await deps.listing.fetchPublicCategoryDirectory(deps.fetchImpl);
-    if (directory && directory.status === 200 && directory.body && deps.sitemap.appendManagedCategories) {
+    if (directory && directory.status === 200 && directory.body && Array.isArray(directory.body.categories) && deps.sitemap.appendManagedCategories) {
       xml = deps.sitemap.appendManagedCategories(xml, directory.body.categories || []);
     }
   } catch (err) {}

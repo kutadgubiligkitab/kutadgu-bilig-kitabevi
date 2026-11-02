@@ -51,7 +51,8 @@ body > header:not(.account-topbar):not(.admin-topbar){
 .volume-member-option:has(input:checked){border-color:var(--site-brown,#70503d);box-shadow:0 0 0 2px rgba(112,80,61,.12)}
 .volume-member-option.is-unavailable{opacity:.62;cursor:not-allowed}
 .volume-member-option img{width:48px;height:68px;object-fit:contain;border-radius:5px;background:var(--site-bg-soft,#fbf8f2)}
-.volume-member-copy{display:grid;min-width:0}
+.volume-member-copy{display:grid;min-width:0;color:inherit;text-decoration:none}
+.volume-member-copy:hover strong,.volume-member-copy:focus-visible strong{text-decoration:underline}
 .volume-member-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--site-text-soft,#806f62)}
 .volume-member-price{font-weight:800;white-space:nowrap}
 .volume-selection-summary{display:grid;gap:4px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--site-bg-soft,#fbf8f2)}

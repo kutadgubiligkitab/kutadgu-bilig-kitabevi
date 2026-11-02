@@ -546,22 +546,29 @@ function applyDynamicCategoryDocument(html, category, books) {
 
 async function fetchPublicCategoryDirectory(fetchImpl) {
   const fetchFn = fetchImpl || fetch;
-  const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/list_public_book_categories`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      Accept: "application/json",
-      "Content-Type": "application/json"
-    },
-    body: "{}"
-  });
-  if (!response) return { status: 0, body: null };
-  let body = null;
-  if (response.status === 200) {
-    try { body = await response.json(); } catch (err) { body = null; }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetchFn(`${SUPABASE_URL}/rest/v1/rpc/list_public_book_categories`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: "{}"
+    });
+    if (!response) return { status: 0, body: null };
+    let body = null;
+    if (response.status === 200) {
+      try { body = await response.json(); } catch (err) { body = null; }
+    }
+    return { status: response.status, body };
+  } finally {
+    clearTimeout(timeout);
   }
-  return { status: response.status, body };
 }
 
 function failureDocument(html) {

@@ -1567,6 +1567,7 @@ test.describe("multi-volume storefront", () => {
       description: group.description
     });
     expect(html).toContain("data-volume-static-members");
+    for (const member of members) expect(html).toContain(`href="/book/${member.book_id}"`);
     expect(html).toContain("120 بەت");
     expect(html).toContain("80 بەت");
     expect(html).not.toContain('<div class="book-meta"></div>');
@@ -1581,6 +1582,7 @@ test.describe("multi-volume storefront", () => {
     await staticPage.goto("/volume-group/sample-series");
     await expect(staticPage.locator("[data-volume-static-members]")).toContainText("120 بەت");
     await expect(staticPage.locator("[data-volume-static-members]")).toContainText("80 بەت");
+    await expect(staticPage.locator("[data-volume-static-members] a[href^='/book/']")).toHaveCount(members.length);
     await expect(staticPage.locator(".volume-member-option")).toHaveCount(0);
     await disabled.close();
     await page.route("**/volume-group/sample-series**", (route) => route.fulfill({
@@ -1589,7 +1591,40 @@ test.describe("multi-volume storefront", () => {
     await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
     await expect(page.locator("[data-volume-static-members]")).toHaveCount(0);
     await expect(page.locator(".volume-member-pages")).toHaveText(["120 بەت", "80 بەت"]);
+    for (const member of members) await expect(page.locator(`.volume-member-copy[href="/book/${member.book_id}"]`)).toHaveCount(1);
   });
+
+  for (const width of [320, 390, 1280]) {
+    test(`volume links navigate without selecting or adding at ${width}px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(".volume-group-purchase-panel")).toBeVisible();
+      const links = page.locator(".volume-member-copy");
+      await expect(links).toHaveCount(members.length);
+      for (const member of members) await expect(page.locator(`.volume-member-copy[href="/book/${member.book_id}"]`)).toBeVisible();
+      const checkbox = page.locator("[data-volume-book-id='1002']");
+      await expect(checkbox).not.toBeChecked();
+      const cart = await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1"));
+      const link = page.locator('.volume-member-copy[href="/book/1002"]');
+      // Open a real navigation while retaining the picker to inspect its state.
+      await link.evaluate(node => { node.target = "_blank"; });
+      await context.route("**/book/1002", route => route.fulfill({ status: 200, contentType: "text/html", body: "<title>Volume</title>" }));
+      const popupPromise = page.waitForEvent("popup");
+      await link.click();
+      const popup = await popupPromise;
+      await expect(popup).toHaveURL(/\/book\/1002$/);
+      await expect(checkbox).not.toBeChecked();
+      expect(await page.evaluate(() => localStorage.getItem("kutadgu-cart-v1"))).toBe(cart);
+      await popup.close();
+      // The row label and checkbox still select, update totals and preview.
+      await page.locator(".volume-member-option").nth(1).locator(".volume-member-price").click();
+      await expect(checkbox).toBeChecked();
+      await expect(page.locator("[data-volume-selection-total]")).toContainText("90");
+      await expect(page.locator(".book-cover-box img")).toHaveAttribute("src", /volume-cover-2\.svg/);
+      expect(await page.locator(".volume-group-purchase-panel").evaluate(node => getComputedStyle(node).direction)).toBe("rtl");
+      expect(await page.locator(".volume-member-option").nth(1).evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+    });
+  }
 
   test("each volume shows its own page count and a missing count stays blank", async ({ page }) => {
     await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
@@ -1625,6 +1660,20 @@ test.describe("multi-volume storefront", () => {
     await page.locator(".volume-add-selected").click();
     await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]")))
       .toEqual([{ id: "1001", qty: 1 }, { id: "1002", qty: 1 }]);
+  });
+
+  test("member anchors preserve the complete-set cart action", async ({ page }) => {
+    const availableGroup = { ...group, members: members.map(member => ({ ...member, stock: 4, stock_status: "in_stock" })) };
+    await page.route("**/rpc/get_public_book_volume_group_storefront", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify(availableGroup)
+    }));
+    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".volume-member-copy")).toHaveCount(members.length);
+    await expect(page.locator(".volume-add-set")).toBeEnabled();
+    await page.locator(".volume-add-set").click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-set-cart-v1") || "[]")))
+      .toEqual([{ kind: "set", group_id: "77", qty: 1, quote_revision: "quote-r4" }]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-cart-v1") || "[]"))).toEqual([]);
   });
 
   test("owner series shows the explicit 750 beside part prices 370 and 399", async ({ page }) => {

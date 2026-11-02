@@ -31,6 +31,8 @@
 
   function publicRows() {
     const directory = root.KutadguBookCategories;
+    // A failed directory must not revive hidden/retired legacy fallback links.
+    if (directory && typeof directory.snapshot === "function" && directory.snapshot().mode === "failed") return [];
     const rows = directory && typeof directory.visible === "function" ? directory.visible() : [];
     return (rows || []).filter((row) => row && !row.is_hidden && !row.retired && slugOf(row));
   }
@@ -45,8 +47,8 @@
     return GROUPS.some((group) => group.id === key) ? key : "";
   }
 
-  function model() {
-    const rows = publicRows();
+  function model(directoryRows) {
+    const rows = (directoryRows || publicRows()).filter((row) => row && !row.is_hidden && !row.retired && !row.retired_at && slugOf(row));
     const bySlug = new Map(rows.map((row) => [slugOf(row), row]));
     const used = new Set();
     const placed = new Map(GROUPS.map((group) => [group.id, []]));
@@ -91,7 +93,7 @@
     if (root.document.querySelector("link[data-kutadgu-category-nav]")) return;
     const link = root.document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/category-nav.css?v=3";
+    link.href = "/category-nav.css?v=4";
     link.setAttribute("data-kutadgu-category-nav", "1");
     root.document.head.appendChild(link);
   }
@@ -128,33 +130,19 @@
     });
   }
 
-  function leafLink(leaf, selected) {
-    return `<a class="category-nav-leaf${selected ? " is-selected" : ""}" href="${escapeHtml(leaf.href)}" data-category-slug="${escapeHtml(leaf.slug)}"${selected ? ' aria-current="page"' : ""}>${escapeHtml(leaf.label)}</a>`;
+  function leafLink(leaf, selected, hidden) {
+    return `<a class="category-nav-leaf${selected ? " is-selected" : ""}" href="${escapeHtml(leaf.href)}" data-category-slug="${escapeHtml(leaf.slug)}"${hidden ? " hidden" : ""}${selected ? ' aria-current="page"' : ""}>${escapeHtml(leaf.label)}</a>`;
   }
 
-  function render() {
-    const doc = root.document;
-    if (!doc || !doc.body) return;
-    if (!doc.querySelector(".books-grid[data-catalog-source], #newBooksCarousel, #advancedSearchPanel, #searchInput")) return;
-    doc.querySelector(".home-search-quick-links")?.remove();
-    consolidateHubNav();
-    ensureCss();
-    const nav = host();
-    const data = model();
-    const selected = currentSlug();
-    const selectedGroup = data.groups.find((group) => group.leaves.some((leaf) => leaf.slug === selected)) || null;
-    const openGroup = nav.dataset.openGroup || "";
-    const showAll = nav.dataset.showAll === "1";
-    const mobileOpen = nav.dataset.mobileOpen === "1";
-    const group = data.groups.find((item) => item.id === openGroup) || null;
+  function renderMarkup(data, selected, state = {}) {
+    const { openGroup = "", showAll = false, mobileOpen = false } = state;
+    const selectedGroup = data.groups.find((group) => group.leaves.some((leaf) => leaf.slug === selected));
+    const group = data.groups.find((item) => item.id === openGroup);
     const leaves = showAll ? data.all : (group ? group.leaves : []);
     const selectedLeaf = data.all.find((leaf) => leaf.slug === selected);
     const toggleLabel = selectedLeaf ? selectedLeaf.label : "تۈرلەر";
     const allSelected = showAll || (!!selectedLeaf && !selectedGroup);
-    nav.classList.toggle("is-mobile-open", mobileOpen);
-    nav.classList.toggle("is-open", !!(group || showAll));
-    nav.style.setProperty("--category-groups", String(Math.max(data.groups.length, 1)));
-    nav.innerHTML = `
+    return `
       <button type="button" class="category-nav-toggle" aria-expanded="${mobileOpen ? "true" : "false"}" aria-controls="categoryNavPanel">${escapeHtml(toggleLabel)}</button>
       <div class="category-nav-panel" id="categoryNavPanel">
         <div class="category-nav-groups" role="group" aria-label="كىتاب تۈرلىرى">
@@ -168,9 +156,42 @@
         <div class="category-nav-leaves" ${leaves.length ? "" : "hidden"}>
           <button type="button" class="category-nav-back" data-category-back="1">قايتىش</button>
           <button type="button" class="category-nav-close" data-category-close="1">يىغىش</button>
-          ${leaves.map((leaf) => leafLink(leaf, leaf.slug === selected)).join("")}
+          ${data.all.map((leaf) => leafLink(leaf, leaf.slug === selected, !leaves.some((visible) => visible.slug === leaf.slug))).join("")}
         </div>
       </div>`;
+  }
+
+  function applyDirectoryDocument(html, payload, selected = "") {
+    if (!payload || !Array.isArray(payload.categories)) return String(html || "");
+    const data = model(payload.categories);
+    const nav = `<nav id="bookCategories" class="category-nav" data-category-nav="1" aria-label="كىتاب تۈرلىرى" style="--category-groups:${Math.max(data.groups.length, 1)}">${renderMarkup(data, selected)}</nav>`;
+    let out = String(html || "");
+    const mount = /<nav\b[^>]*data-category-nav=["']1["'][^>]*>[\s\S]*?<\/nav>/i;
+    if (!mount.test(out)) return out;
+    out = out.replace(mount, () => nav);
+    // JSON is inert and escaped for HTML; it seeds the existing directory loader.
+    const seed = JSON.stringify({ categories: payload.categories, redirects: payload.redirects || [] }).replace(/</g, "\\u003c");
+    return out.replace(/<\/head>/i, () => `<link rel="stylesheet" href="/category-nav.css?v=4" data-kutadgu-category-nav="1"><script id="kutadguPublicCategoryDirectory" type="application/json">${seed}</script>\n</head>`);
+  }
+
+  function render() {
+    const doc = root.document;
+    if (!doc || !doc.body) return;
+    if (!doc.querySelector(".books-grid[data-catalog-source], #newBooksCarousel, #advancedSearchPanel, #searchInput")) return;
+    doc.querySelector(".home-search-quick-links")?.remove();
+    consolidateHubNav();
+    ensureCss();
+    const nav = host();
+    const data = model();
+    const selected = currentSlug();
+    const openGroup = nav.dataset.openGroup || "";
+    const showAll = nav.dataset.showAll === "1";
+    const mobileOpen = nav.dataset.mobileOpen === "1";
+    const group = data.groups.find((item) => item.id === openGroup) || null;
+    nav.classList.toggle("is-mobile-open", mobileOpen);
+    nav.classList.toggle("is-open", !!(group || showAll));
+    nav.style.setProperty("--category-groups", String(Math.max(data.groups.length, 1)));
+    nav.innerHTML = renderMarkup(data, selected, { openGroup, showAll, mobileOpen });
     bind(nav);
   }
 
@@ -206,7 +227,7 @@
         if (mobile) nav.dataset.mobileOpen = "1";
         render();
         const fresh = root.document.querySelector("[data-category-nav]");
-        (mobile ? fresh.querySelector("[data-category-back]") : fresh.querySelector(".category-nav-leaf"))?.focus();
+        (mobile ? fresh.querySelector("[data-category-back]") : fresh.querySelector(".category-nav-leaf:not([hidden])"))?.focus();
       });
     });
     nav.querySelector("[data-category-all]")?.addEventListener("click", () => {
@@ -225,7 +246,7 @@
       render();
       const freshAll = root.document.querySelector("[data-category-nav]");
       const mobileAll = root.matchMedia("(max-width: 767px)").matches;
-      (mobileAll ? freshAll.querySelector("[data-category-back]") : freshAll.querySelector(".category-nav-leaf"))?.focus();
+      (mobileAll ? freshAll.querySelector("[data-category-back]") : freshAll.querySelector(".category-nav-leaf:not([hidden])"))?.focus();
     });
     nav.querySelector("[data-category-back]")?.addEventListener("click", () => {
       const backTo = nav.dataset.focusReturn || "";
@@ -276,7 +297,9 @@
     root.document.addEventListener("kutadgu-categories", render);
   }
 
-  root.KutadguCategoryNav = { GROUPS, model, render, boot };
+  root.KutadguCategoryNav = { GROUPS, model, renderMarkup, applyDirectoryDocument, render, boot };
+  if (typeof module !== "undefined" && module.exports) module.exports = root.KutadguCategoryNav;
+  if (!root.document) return;
   if (root.document.readyState === "loading") root.document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);

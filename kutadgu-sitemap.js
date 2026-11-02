@@ -60,7 +60,8 @@ const PUBLIC_INFO_SLUGS = [
 const PUBLIC_PAGE_PATHS = [
   "/",
   "/books",
-  ...CATEGORY_HUB_SLUGS.map(slug => `/${slug}`),
+  // Hidden/retired legacy categories retain their routes, but are not sitemap seeds.
+  ...CATEGORY_HUB_SLUGS.filter(slug => !["taamlar", "dastanlar", "adabiyat-roman"].includes(slug)).map(slug => `/${slug}`),
   ...PUBLIC_INFO_SLUGS.map(slug => `/${slug}`)
 ];
 
@@ -425,9 +426,16 @@ async function fetchActiveBookRows(rangeStart = 0, limit = URLS_PER_SITEMAP, fet
 }
 
 function appendManagedCategories(xml, categories) {
-  const source = String(xml || "");
+  const visible = (categories || []).filter(row => row && !row.is_hidden && !row.retired && !row.retired_at);
+  const exposed = new Set(visible.map(row => String(row.slug || "").trim()));
+  // /adabiyat is the static literature hub, not a managed leaf category.
+  const managed = new Set(CATEGORY_HUB_SLUGS.filter(slug => slug !== "adabiyat"));
+  const source = String(xml || "").replace(/<url\b[^>]*>[\s\S]*?<\/url>/g, block => {
+    const match = block.match(/<loc>https:\/\/www\.kutadgubilik\.com\/([a-z0-9-]+)<\/loc>/);
+    return match && managed.has(match[1]) && !exposed.has(match[1]) ? "" : block;
+  });
   if (!source.includes("</urlset>")) return source;
-  const extras = (categories || []).filter((row) => {
+  const extras = visible.filter((row) => {
     const slug = String(row && row.slug || "").trim();
     return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && !source.includes("/" + slug + "<");
   });

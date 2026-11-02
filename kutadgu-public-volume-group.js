@@ -101,7 +101,7 @@ function renderStaticMemberList(group){
     const title=safe.escapeHtml(String(member.title||""));
     const pages=volumeStorefront.memberPageCountLabel(member);
     const pageHtml=pages?`<small class="volume-member-pages">${safe.escapeHtml(pages)}</small>`:"";
-    return `<li data-volume-book-id="${safe.escapeAttr(member.book_id)}"><strong>${label}</strong> <span>${title}</span> ${pageHtml}</li>`;
+    return `<li data-volume-book-id="${safe.escapeAttr(member.book_id)}"><a href="/book/${safe.escapeAttr(member.book_id)}"><strong>${label}</strong> <span>${title}</span></a> ${pageHtml}</li>`;
   }).join("");
   return `<ul class="volume-member-picker volume-member-picker-static" data-volume-static-members>${items}</ul>`;
 }

@@ -71,18 +71,18 @@ test.describe("compact category navigation", () => {
             return rowHeight;
           }).toBeGreaterThanOrEqual(57);
           expect(rowHeight).toBeLessThan(96);
-          await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
+          await expect(page.locator("#bookCategories .category-nav-leaf:visible")).toHaveCount(0);
           const family = groups.first();
           const familyId = await family.getAttribute("data-category-group");
           await family.click();
           await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
           await page.keyboard.press("Escape");
-          await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
+          await expect(page.locator("#bookCategories .category-nav-leaf:visible")).toHaveCount(0);
           await expect(page.locator(`#bookCategories [data-category-group="${familyId}"]`)).toBeFocused();
           await page.locator(`#bookCategories [data-category-group="${familyId}"]`).click();
           await expect(page.locator("#bookCategories .category-nav-leaf").first()).toBeVisible();
           await page.locator("#bookCategories [data-category-close]").click();
-          await expect(page.locator("#bookCategories .category-nav-leaf")).toHaveCount(0);
+          await expect(page.locator("#bookCategories .category-nav-leaf:visible")).toHaveCount(0);
           await expect(page.locator(`#bookCategories [data-category-group="${familyId}"]`)).toBeFocused();
         }
         const place = await page.evaluate(() => {
