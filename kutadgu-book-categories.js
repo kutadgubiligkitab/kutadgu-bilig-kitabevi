@@ -218,6 +218,16 @@
   }
 
   function boot() {
+    const seed = root.document && root.document.getElementById("kutadguPublicCategoryDirectory");
+    if (seed) {
+      try {
+        const payload = JSON.parse(seed.textContent);
+        if (payload && Array.isArray(payload.categories)) {
+          applyPublic(payload);
+          return Promise.resolve(snapshot());
+        }
+      } catch (error) {}
+    }
     if (root.document && root.document.readyState === "loading") {
       root.document.addEventListener("DOMContentLoaded", () => { void loadFromConfig(); }, { once: true });
       return Promise.resolve(snapshot());

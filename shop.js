@@ -3695,11 +3695,11 @@ function renderVolumeGroupPurchasePanel(box,book,group){
         return `<label class="volume-member-option${available?"":" is-unavailable"}">
           <input type="checkbox" data-volume-book-id="${escapeAttr(member.book_id)}"${checked?" checked":""}${available?"":" disabled"}>
           <img src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}"${coverDeliveryAttributeHtml(safeCoverUrl(member.image_url||memberBook.image),coverDeliveryApi()?.THUMB_SIZES||"48px")} alt="" loading="lazy" width="48" height="68" decoding="async" data-cover-src="${escapeAttr(safeCoverUrl(member.image_url||memberBook.image))}" data-cover-book="${escapeAttr(member.book_id)}">
-          <span class="volume-member-copy">
+          <a class="volume-member-copy" href="/book/${escapeAttr(member.book_id)}">
             <strong>${escapeHtml(member.volume_label||`${member.position}-قىسىم`)}</strong>
             <small>${escapeHtml(member.title||memberBook.title||"")}</small>
             ${volumeMemberPageLabel(member)}
-          </span>
+          </a>
           <span class="volume-member-price">${money(member.price)}</span>
           ${stockBadge(memberBook)}
         </label>`;
@@ -7148,10 +7148,10 @@ function loadPremiumUX(){
   ensurePremiumCartRowAlignmentCss();
   ensurePublicBookCardRowAlignmentCss();
   ensureDiscoveryCoverSpaceCss();
-  return loadAssetScript("/kutadgu-book-categories.js?v=1","kutadguBookCategoriesScript").then(()=>{
+  return loadAssetScript("/kutadgu-book-categories.js?v=2","kutadguBookCategoriesScript").then(()=>{
     const directory=window.KutadguBookCategories;
     const boot=directory&&directory.boot?directory.boot():null;
-    return loadAssetScript("/kutadgu-category-nav.js?v=4","kutadguCategoryNavScript").then(()=>boot);
+    return loadAssetScript("/kutadgu-category-nav.js?v=5","kutadguCategoryNavScript").then(()=>boot);
   }).then(()=>loadAssetScript("/premium-ux.js?v=23","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;

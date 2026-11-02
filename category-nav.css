@@ -90,7 +90,8 @@ nav.category-nav a{
   gap:8px;
   margin-top:8px;
 }
-.category-nav-leaves[hidden]{display:none}
+.category-nav-leaves[hidden],
+.category-nav-leaf[hidden]{display:none}
 .category-nav-back,.category-nav-close{display:none}
 body.dark-mode .category-nav-toggle,
 body.dark-mode .category-nav-group,
