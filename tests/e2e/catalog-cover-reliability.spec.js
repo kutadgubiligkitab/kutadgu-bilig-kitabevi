@@ -110,6 +110,9 @@ async function installGuards(page, state) {
       }
       return route.fulfill({ status: 200, headers: { "content-range": "0-0/1" }, body: "" });
     }
+    if (method === "POST" && /list_public_book_series_routes/.test(url)) {
+      return route.fulfill({status:404,contentType:"application/json",body:JSON.stringify({code:"PGRST202"})});
+    }
     if (method === "POST" && /query_public_book_catalog/.test(url)) {
       state.rpcs += 1;
       state.events.push({ t: Date.now(), kind: "catalog" });
