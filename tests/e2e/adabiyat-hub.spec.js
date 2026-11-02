@@ -150,7 +150,7 @@ test.describe("adabiyat books-first hub", () => {
     await expect(series).toContainText("تەپسىلاتى");
     await expect(series).not.toContainText("370");
     await expect(series).not.toContainText("399");
-    await expect(series.locator("a[href*='/series/']").first()).toHaveAttribute("href", `/series/${SERIES_SLUG}`);
+    await expect(series.locator("a[href*='/volume-group/']").first()).toHaveAttribute("href", `/volume-group/${SERIES_SLUG}`);
     await expect(page.locator("[data-live-book-id='91022']")).toHaveCount(0);
     await page.locator('.adabiyat-hub-pill[data-adabiyat-sub="sheirlar"]').click();
     await expect.poll(async () => page.url()).toMatch(/sub=sheirlar/);
