@@ -25,6 +25,14 @@ The directory returns only groups passing the existing public/active/member-vali
 5. Perform read-only checks on HTTPS www and apex legacy links, final canonical pages and hydration; query retention; invalid/private routes; individual member pages; category and volume anchors; privacy link; hidden-category sitemap rules; updated assets and runtime errors. No orders or production fixtures. Confirm legacy RPC payload slug values still match the old contract. Once the directory is discoverable the same compatibility build serves readable links automatically.
 6. Retain `SERIES_COMPAT_VERSION`, its source commit, Stage 138 SQL and the public route inventory. No maintenance overlay, DNS/hosting migration, or destructive SQL reversal is required.
 
+## Option 1 Worker routing and edge-rule sequence
+
+The selective `assets.run_worker_first` path change is a prerequisite for the reviewed Option 1 edge rule, not a substitute for it. Keep the existing dispatcher unchanged. Release the reviewed Worker routing first using the normal production deploy workflow and `--keep-vars`; verify the Worker version is at 100% and probe representative lowercase, uppercase, and mixed-case series paths while the edge rule is still disabled. Confirm static asset responses, response headers, readable routes, and legacy aliases behave as expected.
+
+Enabling the Option 1 edge rule is a separate production change requiring its own authorization. Only after the Worker routing release and pre-edge probes pass, enable the reviewed edge rule and immediately repeat the probes against the affected public hostnames. Do not combine edge-rule activation with the Worker deployment or infer approval for one from approval of the other.
+
+If rollback is needed after enabling the edge rule, disable that edge rule first and immediately verify the pre-rule routing behavior. Then roll back Worker routing to the specifically retained compatible version `3ee2909e-398d-4d1f-85a2-05f15e6c1fa0` using the normal Cloudflare Worker rollback workflow. Verify the active Worker version, static asset responses, series visibility, and alias redirects. Never reverse Stage 138 or remove published aliases.
+
 ## Migration timeout, failure and retry
 
 - `SET LOCAL lock_timeout = '2s'` bounds each lock acquisition; `SET LOCAL statement_timeout = '15s'` bounds each statement, including the backfill DO block. These settings expire at transaction end and do not alter database defaults. They are not a 15-second whole-transaction deadline.

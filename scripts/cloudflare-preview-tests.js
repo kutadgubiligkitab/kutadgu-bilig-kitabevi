@@ -226,13 +226,17 @@ jobs.push(test("preview config does not bind the production domain", () => {
   const workerFirst = config.assets.run_worker_first;
   assert.ok(Array.isArray(workerFirst));
   assert.ok(workerFirst.length < 100);
-  const requiredWorkerFirst = [
+  const reviewedWorkerFirst = [
     "/",
     "/*.html",
     "/.*",
     "/api/*",
     "/book",
     "/book/*",
+    "/s*/*",
+    "/S*/*",
+    "/v*/*",
+    "/V*/*",
     "/c/*",
     "/__r2",
     "/__r2/*",
@@ -274,9 +278,7 @@ jobs.push(test("preview config does not bind the production domain", () => {
     "/catalog-bibliography.js",
     "/supabase-config.js"
   ];
-  for (const rule of requiredWorkerFirst) {
-    assert.ok(workerFirst.includes(rule), rule);
-  }
+  assert.deepStrictEqual(workerFirst, reviewedWorkerFirst);
   for (const blocked of ["/*", "/*.css", "/*.js", "/*.png", "/*.webp", "/*.woff2"]) {
     assert.equal(workerFirst.includes(blocked), false, blocked);
   }
