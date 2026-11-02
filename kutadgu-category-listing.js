@@ -6,6 +6,7 @@ const sitemap = require("./kutadgu-sitemap.js");
 const seo = require("./kutadgu-book-seo.js");
 const safeUrl = require("./kutadgu-safe-url.js");
 const stock = require("./kutadgu-stock.js");
+const seriesRoutes = require("./kutadgu-series-routes.js");
 const publicBook = require("./kutadgu-public-book.js");
 
 const ROOT = typeof __dirname === "undefined" ? "" : __dirname;
@@ -180,7 +181,7 @@ function cartButton(book, info) {
 function listingCardMarkup(book) {
   const id = String(book.id);
   const isGroup = book.kind === "group" && book.group_slug;
-  const href = isGroup ? `/volume-group/${book.group_slug}` : `/book/${id}`;
+  const href = isGroup ? seriesRoutes.groupPath({...book,slug:book.group_slug}) : `/book/${id}`;
   const visibleTitle = isGroup ? (seriesCardLabel(book) || book.title || "كىتاب") : (book.title || "كىتاب");
   const title = safeUrl.escapeHtml(visibleTitle);
   const titleAttr = isGroup ? ` title="${safeUrl.escapeAttr(visibleTitle)}"` : "";
@@ -236,6 +237,7 @@ function normalizeCategoryRow(row, allowedSources) {
   };
   if (row.kind === "group") {
     book.kind = "group";
+    book.public_slug = seriesRoutes.valid(row.public_slug);
     book.group_slug = String(row.group_slug || row.slug || "").trim();
     const rawCount = row.member_count == null || row.member_count === "" ? null : Number(row.member_count);
     if (Number.isInteger(rawCount) && rawCount > 0) book.member_count = rawCount;
@@ -343,7 +345,8 @@ async function loadGroupedCategoryBooks(sources, options) {
     if (Number.isFinite(parsedTotal)) total = parsedTotal;
     if (batch.length < size || (Number.isFinite(total) && rows.length >= total)) break;
   }
-  return rowsToBooks(rows, sources);
+  const routes=await seriesRoutes.load({fetchImpl:fetchFn});
+  return rowsToBooks(rows.map(row=>seriesRoutes.enrich(row,routes)), sources);
 }
 
 function textOf(html, re) {

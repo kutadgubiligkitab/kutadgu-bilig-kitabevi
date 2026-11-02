@@ -1994,7 +1994,7 @@ let appConfigState="pending";
 let activeVolumeGroup=null;
 let activeVolumeBookId="";
 function volumeGroupSlugFromLocation(){
-  const match=String(location&&location.pathname||"").match(/^\/volume-group\/([^/?#]+)\/?$/i);
+  const match=String(location&&location.pathname||"").match(/^\/(?:series|volume-group)\/([^/?#]+)\/?$/i);
   if(!match)return "";
   try{return decodeURIComponent(match[1])}catch(error){return ""}
 }
@@ -7152,7 +7152,7 @@ function loadPremiumUX(){
     const directory=window.KutadguBookCategories;
     const boot=directory&&directory.boot?directory.boot():null;
     return loadAssetScript("/kutadgu-category-nav.js?v=5","kutadguCategoryNavScript").then(()=>boot);
-  }).then(()=>loadAssetScript("/premium-ux.js?v=23","kutadguPremiumUxScript"));
+  }).then(()=>loadAssetScript("/premium-ux.js?v=24","kutadguPremiumUxScript"));
 }
 let staticShellReady=false;
 function initStaticShell(){
@@ -7223,7 +7223,9 @@ async function boot(){
   const configWork=trackAppConfig(loadAssetScript("/app-config.js?v=6","kutadguAppConfigScript"));
   await settleBoot(configWork);
   await settleBoot(loadAssetScript("/kutadgu-volume-groups.js?v=2","kutadguVolumeGroupsScript"));
-  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=4","kutadguVolumeStorefrontScript"));
+  await settleBoot(loadAssetScript("/kutadgu-series-routes.js?v=1","kutadguSeriesRoutesScript"));
+  await settleBoot(loadAssetScript("/kutadgu-volume-storefront.js?v=6","kutadguVolumeStorefrontScript"));
+  if(volumeStorefront())await settleBoot(volumeStorefront().loadRoutes());
   await settleBoot(publicHeaderReady);
   initStaticShell();
   loadMemberSystem();

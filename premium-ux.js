@@ -104,7 +104,7 @@
     const href=String(book&&book.href||"").trim();
     if(href)return href;
     const slug=String(book&&(book.groupSlug||book.group_slug)||"").trim();
-    if(slug)return `/volume-group/${encodeURIComponent(slug)}`;
+    if(slug)return window.KutadguSeriesRoutes?window.KutadguSeriesRoutes.groupPath({...book,slug}):`/volume-group/${encodeURIComponent(slug)}`;
     return bookHref(book);
   }
   function seriesCompactCard(book,src,id){

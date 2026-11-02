@@ -1487,7 +1487,7 @@ async function installFixture(page) {
       sessionStorage.removeItem("kutadgu-catalog-active-count-v1");
     } catch (error) {}
   });
-  await page.route("**/volume-group/sample-series**", (route) => route.fulfill({
+  await page.route("**/series/sample-series**", (route) => route.fulfill({
     status: 200,
     contentType: "text/html; charset=utf-8",
     body: shell
@@ -1530,6 +1530,7 @@ async function installFixture(page) {
         body: JSON.stringify(members.map(book))
       });
     }
+    if (url.includes("/rpc/list_public_book_series_routes"))return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify([{group_id:group.id,legacy_slug:group.slug,public_slug:group.slug}])});
     if (url.includes("/rpc/get_public_book_volume_group_storefront")) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(group) });
     }
@@ -1579,16 +1580,16 @@ test.describe("multi-volume storefront", () => {
       }
       return route.fulfill({ status: 200, body: "", contentType: "text/plain" });
     });
-    await staticPage.goto("/volume-group/sample-series");
+    await staticPage.goto("/series/sample-series");
     await expect(staticPage.locator("[data-volume-static-members]")).toContainText("120 بەت");
     await expect(staticPage.locator("[data-volume-static-members]")).toContainText("80 بەت");
     await expect(staticPage.locator("[data-volume-static-members] a[href^='/book/']")).toHaveCount(members.length);
     await expect(staticPage.locator(".volume-member-option")).toHaveCount(0);
     await disabled.close();
-    await page.route("**/volume-group/sample-series**", (route) => route.fulfill({
+    await page.route("**/series/sample-series**", (route) => route.fulfill({
       status: 200, contentType: "text/html; charset=utf-8", body: html
     }));
-    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
     await expect(page.locator("[data-volume-static-members]")).toHaveCount(0);
     await expect(page.locator(".volume-member-pages")).toHaveText(["120 بەت", "80 بەت"]);
     for (const member of members) await expect(page.locator(`.volume-member-copy[href="/book/${member.book_id}"]`)).toHaveCount(1);
@@ -1597,7 +1598,7 @@ test.describe("multi-volume storefront", () => {
   for (const width of [320, 390, 1280]) {
     test(`volume links navigate without selecting or adding at ${width}px`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+      await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
       await expect(page.locator(".volume-group-purchase-panel")).toBeVisible();
       const links = page.locator(".volume-member-copy");
       await expect(links).toHaveCount(members.length);
@@ -1627,7 +1628,7 @@ test.describe("multi-volume storefront", () => {
   }
 
   test("each volume shows its own page count and a missing count stays blank", async ({ page }) => {
-    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-member-option").nth(0)).toContainText("120 بەت");
     await expect(page.locator(".volume-member-option").nth(1)).toContainText("80 بەت");
     await expect(page.locator(".volume-member-option").nth(2)).not.toContainText("بەت");
@@ -1638,13 +1639,13 @@ test.describe("multi-volume storefront", () => {
     await page.goto("/book/1002", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".book-detail-info .book-meta")).toContainText("80");
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
     const overflow = await page.locator(".volume-member-option").nth(1).evaluate((node) => node.scrollWidth - node.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
   test("group page selects available volumes and blocks an incomplete set", async ({ page }) => {
-    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-group-purchase-panel")).toBeVisible();
     await expect(page.locator("[data-volume-book-id]")).toHaveCount(3);
     await expect(page.locator(".volume-set-price")).toContainText("125");
@@ -1667,7 +1668,7 @@ test.describe("multi-volume storefront", () => {
     await page.route("**/rpc/get_public_book_volume_group_storefront", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify(availableGroup)
     }));
-    await page.goto("/volume-group/sample-series", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/sample-series", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-member-copy")).toHaveCount(members.length);
     await expect(page.locator(".volume-add-set")).toBeEnabled();
     await page.locator(".volume-add-set").click();
@@ -1702,11 +1703,11 @@ test.describe("multi-volume storefront", () => {
         body: JSON.stringify(ownerBooks)
       });
     });
-    await page.route("**/volume-group/series-156**", (route) => route.fulfill({
+    await page.route("**/series/series-156**", (route) => route.fulfill({
       status: 200, contentType: "text/html; charset=utf-8", body: shell
     }));
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/volume-group/series-156", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/series-156", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".volume-set-price")).toContainText("750");
     await expect(page.locator(".volume-set-price")).toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     await expect(page.locator(".volume-group-price-range")).toHaveCount(0);
@@ -1727,7 +1728,7 @@ test.describe("multi-volume storefront", () => {
     const card = await page.evaluate(() => window.kutadguShop.bookCardMarkup({
       id: "156", catalogKind: "group", groupId: "1", title: "ئويغانغان زېمىن", author: "ئابدۇرېھىم ئۆتكۈر",
       memberCount: 2, memberPrices: [370, 399], completeSetPrice: 750, effectiveSetPrice: 750,
-      price: 370, href: "/volume-group/series-156"
+      price: 370, href: "/series/series-156"
     }));
     expect(card.match(/<article/g)).toHaveLength(1);
     expect(card).toContain("750");
@@ -1741,7 +1742,7 @@ test.describe("multi-volume storefront", () => {
     const summed = await page.evaluate(() => window.kutadguShop.bookCardMarkup({
       id: "200", catalogKind: "group", groupId: "2", title: "يىغىندا", memberCount: 2,
       memberPrices: [370, 399], completeSetPrice: null, effectiveSetPrice: 769, price: 370,
-      href: "/volume-group/summed"
+      href: "/series/summed"
     }));
     expect(summed).toContain("769");
     expect(summed).toContain("يىغىندا 2 قىسىم");
@@ -1805,7 +1806,7 @@ test.describe("multi-volume storefront", () => {
         body: JSON.stringify(manyMembers.map(book))
       });
     });
-    await page.route("**/volume-group/series-many**", (route) => route.fulfill({
+    await page.route("**/series/series-many**", (route) => route.fulfill({
       status: 200, contentType: "text/html; charset=utf-8", body: shell
     }));
     const sizes = [
@@ -1817,7 +1818,7 @@ test.describe("multi-volume storefront", () => {
     for (const [name, width, height, dark] of sizes) {
       await page.setViewportSize({ width, height });
       if (name === "many-1280-light") {
-        await page.goto("/volume-group/series-many", { waitUntil: "domcontentloaded" });
+        await page.goto("/series/series-many", { waitUntil: "domcontentloaded" });
       }
       await page.evaluate((isDark) => {
         document.body.classList.toggle("dark-mode", isDark);
@@ -1857,10 +1858,10 @@ test.describe("multi-volume storefront", () => {
         status: 200, contentType: "application/json", body: JSON.stringify(rows.map(book))
       });
     });
-    await page.route("**/volume-group/series-selection**", (route) => route.fulfill({
+    await page.route("**/series/series-selection**", (route) => route.fulfill({
       status: 200, contentType: "text/html; charset=utf-8", body: shell
     }));
-    await page.goto("/volume-group/series-selection", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/series-selection", { waitUntil: "domcontentloaded" });
     const count = page.locator("[data-volume-selection-count]");
     const total = page.locator("[data-volume-selection-total]");
     const setPrice = page.locator(".volume-set-price");
@@ -1898,7 +1899,7 @@ test.describe("multi-volume storefront", () => {
     await expect(count).toHaveText("تاللانغان: 1 قىسىم");
     await expect(total).toHaveText("تاللانغان قىسىملار جەمئىي: 0 ₺");
     await expect(total).not.toContainText("باھا تېخى بېكىتىلمىگەن");
-    await page.goto("/volume-group/series-selection?volume=505", { waitUntil: "domcontentloaded" });
+    await page.goto("/series/series-selection?volume=505", { waitUntil: "domcontentloaded" });
     await expect(page.locator("[data-volume-book-id='505']")).toBeChecked();
     await expect(page.locator("[data-volume-book-id='505']")).toBeDisabled();
     await expect(count).toHaveText("تاللانغان: 1 قىسىم");
@@ -1940,6 +1941,7 @@ test.describe("multi-volume storefront", () => {
         stock_status: "in_stock"
       };
     });
+    await page.route("**/rpc/list_public_book_series_routes",r=>r.fulfill({status:200,contentType:"application/json",body:JSON.stringify(units.map(u=>({group_id:u.group_id,legacy_slug:u.group_slug,public_slug:u.group_slug})))}));
     const queries = [];
     await page.route("**/rpc/query_public_book_catalog", async (route) => {
       const body = route.request().postDataJSON() || {};
@@ -1965,9 +1967,9 @@ test.describe("multi-volume storefront", () => {
     const grid = page.locator(".books-grid[data-catalog-source]");
     await expect(grid).toHaveAttribute("data-catalog-client", "1");
     await expect(grid.locator(".book-card")).toHaveCount(24);
-    await expect(grid.locator('a.detail-button[href="/volume-group/series-156"]')).toHaveCount(1);
+    await expect(grid.locator('a.detail-button[href="/series/series-156"]')).toHaveCount(1);
     await expect(grid.locator('a[href="/book/156"], a[href="/book/157"]')).toHaveCount(0);
-    const ownerCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-156"]') });
+    const ownerCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/series/series-156"]') });
     await expect(ownerCard).toContainText("750");
     await expect(ownerCard).toContainText("ئويغانغان زېمىن 2 قىسىم");
     await expect(ownerCard).toContainText("تەپسىلاتى");
@@ -1975,7 +1977,7 @@ test.describe("multi-volume storefront", () => {
     await expect(ownerCard).not.toContainText("399");
     await expect(ownerCard).not.toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
     await expect(ownerCard).not.toContainText("769");
-    const summedCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-page-2"]') });
+    const summedCard = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/series/series-page-2"]') });
     await expect(summedCard).not.toContainText("تولۇق يۈرۈشلۈك");
     await expect(summedCard).toContainText("769");
     await expect(summedCard).not.toContainText("بېكىتىلگەن يۈرۈشلۈك باھاسى");
@@ -1990,7 +1992,7 @@ test.describe("multi-volume storefront", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(grid).toHaveAttribute("data-catalog-client", "1");
     await expect(grid.locator(".book-card")).toHaveCount(12);
-    const mobileOwner = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/volume-group/series-156"]') });
+    const mobileOwner = grid.locator(".book-card", { has: page.locator('a.detail-button[href="/series/series-156"]') });
     const box = await mobileOwner.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(-1);
     expect(box.x + box.width).toBeLessThanOrEqual(391);
@@ -2004,6 +2006,6 @@ test.describe("multi-volume storefront", () => {
     await expect(page.locator("[data-volume-selection-count]")).toHaveText("تاللانغان: 1 قىسىم");
     await expect(page.locator("[data-volume-selection-total]")).toContainText("55");
     await expect(page.locator(".book-cover-box img")).toHaveAttribute("src", /volume-cover-2\.svg/);
-    await expect(page.locator(".volume-group-stable-link")).toHaveAttribute("href", "/volume-group/sample-series");
+    await expect(page.locator(".volume-group-stable-link")).toHaveAttribute("href", "/series/sample-series");
   });
 });

@@ -119,7 +119,7 @@ function classifyPath(pathname, search) {
     return { kind: "redirect", location: HTML_REDIRECTS[path] + query };
   }
   if (isLegacyBookQuery(path, query)) return { kind: "legacy-redirect" };
-  const volumeGroup = path.match(/^\/volume-group\/([^/]+)\/?$/);
+  const volumeGroup = path.match(/^\/(?:series|volume-group)\/([^/]+)\/?$/i);
   if (volumeGroup) return { kind: "volume-group", slug: volumeGroup[1] };
   if (
     path === "/api/book-public"
@@ -332,6 +332,16 @@ async function handleVolumeGroup(request, env, deps, route) {
   }
   const result = await groups.lookupPublicVolumeGroup(slug, { fetchImpl: deps.fetchImpl });
   if (result.outcome === "found") {
+    const url = new URL(request.url);
+    const canonicalPath = groups.groupPath(result.group);
+    const apex = images.hostMode(env) === "production" && normalizeHost(url.hostname) === "kutadgubilik.com";
+    if (url.pathname !== canonicalPath || apex || url.protocol !== "https:" && images.hostMode(env) === "production") {
+      const published = !!result.group.public_slug;
+      return textResponse(published ? 301 : 302, null, env, {
+        Location: (apex || images.hostMode(env) === "production" ? "https://www.kutadgubilik.com" : "") + canonicalPath + url.search,
+        "Cache-Control": published ? "public, max-age=300" : "no-store"
+      }, undefined, hostOf(request));
+    }
     const bookResult = await publicBook.lookupPublicNumericBook(result.group.representative_book_id, { fetchImpl: deps.fetchImpl });
     if (bookResult.outcome === "found") {
       const shell = await readAsset(request, env, deps, "/book-shell.html");
@@ -685,7 +695,7 @@ async function dispatch(request, env, deps) {
       "Cache-Control": "no-store"
     }, undefined, hostOf(request));
   }
-  if (images.hostMode(env) === "production" && normalizeHost(url.hostname) === "kutadgubilik.com") {
+  if (images.hostMode(env) === "production" && normalizeHost(url.hostname) === "kutadgubilik.com" && classifyPath(url.pathname, url.search).kind !== "volume-group") {
     return textResponse(308, null, env, {
       Location: "https://www.kutadgubilik.com" + url.pathname + url.search,
       "Cache-Control": "public, max-age=0, must-revalidate"

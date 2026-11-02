@@ -72,7 +72,7 @@ function ownerBook(extra = {}) {
     completeSetPrice: 750,
     effectiveSetPrice: 750,
     price: 370,
-    href: "/volume-group/series-156",
+    href: "/series/series-156",
     category: "تارىخىي رومانلار",
     image: "/kutadgu-logo.png",
     ...extra
@@ -145,7 +145,7 @@ test("counts come from metadata and missing prices stay unset", () => {
     completeSetPrice: null,
     effectiveSetPrice: null,
     price: 55,
-    href: "/volume-group/three"
+    href: "/series/three"
   };
   const partsCard = api.miniCard(parts);
   assert.match(partsCard, /360 ₺/);
@@ -160,7 +160,7 @@ test("counts come from metadata and missing prices stay unset", () => {
     completeSetPrice: null,
     effectiveSetPrice: null,
     price: 370,
-    href: "/volume-group/missing"
+    href: "/series/missing"
   });
   const missingCard = api.homeFeatureCard(missing);
   assert.match(missingCard, /باھا تېخى بېكىتىلمىگەن/);
@@ -196,7 +196,7 @@ test("premium grouped cards reuse the series label without a part cart", () => {
   const book = ownerBook();
   const withShop = loadPremium(api).compactCard(book);
   assertCompact(withShop, "premium-shop");
-  assert.match(withShop, /href="\/volume-group\/series-156"/);
+  assert.match(withShop, /href="\/series\/series-156"/);
   assert.match(withShop, /data-cover-src="\/kutadgu-logo\.png"/);
   assert.match(withShop, /data-cover-book="156"/);
   assert.doesNotMatch(withShop, /data-premium-cart|data-premium-favorite/);
@@ -360,7 +360,7 @@ function rawGroup(extra = {}) {
     image_url: "/kutadgu-logo.png",
     is_active: true,
     source: "tarikhiy-romanlar.html",
-    href: "/volume-group/incomplete",
+    href: "/series/incomplete",
     ...extra
   };
 }
@@ -442,7 +442,7 @@ test("normalization keeps missing member prices and cards sum only a complete se
     member_prices: [370, 399],
     complete_set_price: 750,
     effective_set_price: 750,
-    href: "/volume-group/series-156"
+    href: "/series/series-156"
   }), 0, true);
   assert.match(api.bookCardMarkup(series), /750 ₺/);
   assert.doesNotMatch(api.bookCardMarkup(series), /769|370 ₺/);

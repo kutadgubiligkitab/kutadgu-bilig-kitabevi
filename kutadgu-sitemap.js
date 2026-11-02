@@ -9,6 +9,7 @@
 */
 "use strict";
 
+const seriesRoutes = require("./kutadgu-series-routes.js");
 const SITE_ORIGIN = "https://www.kutadgubilik.com";
 const SUPABASE_URL = "https://fxlojnqwyojqjskfggmh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_lqxWeLH9m7hGbPMUfVY0pA_bdcK-PzE";
@@ -119,7 +120,7 @@ function groupedRowToSitemapEntry(row) {
   const slug = String(row.slug || row.group_slug || "").trim().toLowerCase();
   const id = String((row.book_id == null ? row.id : row.book_id) == null ? "" : (row.book_id == null ? row.id : row.book_id)).trim();
   let loc = "";
-  if (kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) loc = `${SITE_ORIGIN}/volume-group/${slug}`;
+  if (kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) loc = SITE_ORIGIN + seriesRoutes.groupPath({...row,slug});
   else if (kind === "book") loc = bookCanonicalUrl(id);
   if (!loc) return null;
   const lastmod = trustworthyLastmod(row.updated_at) || trustworthyLastmod(row.created_at);
@@ -450,7 +451,8 @@ async function buildPagesSitemapXml() {
 
 async function groupedSitemapPages(fetchImpl) {
   const units = await fetchPublicCatalogUnits(fetchImpl);
-  return paginateSitemapEntries(entriesFromCatalogUnits(units));
+  const routes = await seriesRoutes.load({fetchImpl});
+  return paginateSitemapEntries(entriesFromCatalogUnits(units.map(row=>seriesRoutes.enrich(row,routes))));
 }
 
 async function buildIndexSitemapXml(fetchImpl, options) {

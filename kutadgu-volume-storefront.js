@@ -5,6 +5,7 @@
 })(typeof globalThis!=="undefined"?globalThis:this,function(root){
   "use strict";
 
+  const routes=typeof module==="object"&&module.exports?require("./kutadgu-series-routes.js"):root.KutadguSeriesRoutes;
   const MAX_PAGE_SIZE=100;
   const MAX_DISCOVERY_UNITS=5000;
 
@@ -58,10 +59,8 @@
     }
     return data;
   }
-  function groupPath(value){
-    const key=slug(value&&value.slug)||positiveId(value&&(value.group_id??value.id));
-    return key?`/volume-group/${encodeURIComponent(key)}`:"";
-  }
+  function groupPath(value){return routes.groupPath(value)}
+  async function loadRoutes(options){return routes.load(options)}
   function memberPageCount(value){
     const raw=value&&typeof value==="object"?value.pages:value;
     if(raw==null||raw==="")return null;
@@ -113,6 +112,7 @@
     return {
       id,
       slug:slug(value.slug),
+      public_slug:routes.enrich(value).public_slug,
       title:String(value.title||""),
       author:String(value.author||""),
       category:String(value.category||""),
@@ -143,7 +143,7 @@
     const memberPrices=(Array.isArray(value.member_prices)?value.member_prices:(Array.isArray(value.members)?value.members.map(member=>member&&member.price):[]))
       .map(catalogAmount);
     const path=kind==="group"
-      ?groupPath({slug:value.group_slug||value.slug,group_id:groupId})
+      ?groupPath({...value,slug:value.group_slug||value.slug,group_id:groupId})
       :`/book/${id}`;
     return {
       ...value,
@@ -266,7 +266,9 @@
   async function getGroupBySlug(value,options){
     const key=slug(value);
     if(!key)return null;
-    return normalizeGroup(await rpc("get_public_book_volume_group_storefront",{p_group_id:null,p_slug:key,p_child_book_id:null},options));
+    const directory=await routes.load(options);
+    const route=directory.find(row=>row.public_slug===key||row.legacy_slug===key);
+    return normalizeGroup(routes.enrich(await rpc("get_public_book_volume_group_storefront",{p_group_id:null,p_slug:route?route.legacy_slug:key,p_child_book_id:null},options)||{},directory));
   }
   async function getGroupById(groupId,options){
     const id=positiveId(groupId);
@@ -282,7 +284,7 @@
   }
 
   return {
-    MAX_PAGE_SIZE,MAX_DISCOVERY_UNITS,enabled,positiveId,slug,creditKey,groupPath,
+    MAX_PAGE_SIZE,MAX_DISCOVERY_UNITS,loadRoutes,enabled,positiveId,slug,creditKey,groupPath,
     memberPageCount,memberPageCountLabel,normalizeMember,normalizeGroup,normalizeCatalogItem,catalogQuery,queryCatalog,
     listUnitIds,resolveBook,getGroupBySlug,getGroupById,mapBookIdsToUnits,rpc
   };

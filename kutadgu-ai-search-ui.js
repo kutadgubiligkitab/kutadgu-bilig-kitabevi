@@ -85,7 +85,7 @@
   }
   function publicResultHref(row) {
     if (row && row.kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(row.group_slug || ""))) {
-      return "/volume-group/" + String(row.group_slug);
+      return window.KutadguSeriesRoutes?window.KutadguSeriesRoutes.groupPath({...row,slug:row.group_slug}):"/volume-group/"+String(row.group_slug);
     }
     return publicBookHref(row && row.id);
   }

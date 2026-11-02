@@ -63,12 +63,12 @@ test("rejects unsupported group sizes",()=>{
 
 test("catalog group keeps representative identity and stable group URL",()=>{
   const value=storefront.normalizeCatalogItem({
-    kind:"group",group_id:77,group_slug:"sample-series",representative_book_id:1004,
+    kind:"group",group_id:77,group_slug:"sample-series",public_slug:"sample-series",representative_book_id:1004,
     id:1004,title:"Series",price:12,member_book_ids:[1001,1002,1003,1004]
   });
   assert.strictEqual(value.id,"1004");
   assert.strictEqual(value.group_id,"77");
-  assert.strictEqual(value.href,"/volume-group/sample-series");
+  assert.strictEqual(value.href,"/series/sample-series");
   assert.strictEqual(value.price,12);
   assert.deepStrictEqual(value.member_book_ids,["1001","1002","1003","1004"]);
 });
@@ -119,19 +119,19 @@ test("RPC catalog response preserves authoritative totals",async()=>{
     ok:true,status:200,
     text:async()=>JSON.stringify({total:2,has_more:false,items:[
       {kind:"book",id:10,title:"Standalone",price:40},
-      {kind:"group",id:1001,group_id:77,group_slug:"sample-series",title:"Series",price:10,member_book_ids:[1001,1002]}
+      {kind:"group",id:1001,group_id:77,group_slug:"sample-series",public_slug:"sample-series",title:"Series",price:10,member_book_ids:[1001,1002]}
     ]})
   };
   const page=await storefront.queryCatalog({offset:0,pageSize:24},{fetchImpl:async()=>response});
   assert.strictEqual(page.total,2);
   assert.strictEqual(page.items.length,2);
-  assert.strictEqual(page.items[1].href,"/volume-group/sample-series");
+  assert.strictEqual(page.items[1].href,"/series/sample-series");
 });
 
 test("public group SSR validates slug and emits BookSeries",()=>{
   const normalized=publicGroups.normalizeGroup(group(9),"sample-series");
   assert.ok(normalized);
-  const graph=publicGroups.groupJsonLd(normalized,"https://www.kutadgubilik.com/volume-group/sample-series");
+  const graph=publicGroups.groupJsonLd(normalized,"https://www.kutadgubilik.com/series/sample-series");
   assert.strictEqual(graph["@type"],"BookSeries");
   assert.strictEqual(graph.numberOfBooks,9);
   assert.strictEqual(graph.hasPart.length,9);
@@ -163,6 +163,7 @@ test("activation turns the client flag on and grouping stays server paginated",(
   assert.match(shop,/grouped\?String\(book\.unitKey/);
   assert.match(shop,/volumeGroupSlugFromLocation/);
   assert.match(shop,/renderVolumeGroupPurchasePanel/);
+  assert.ok(vercel.rewrites.some(rule=>rule.source==="/series/:slug"));
   assert.ok(vercel.rewrites.some(rule=>rule.source==="/volume-group/:slug"));
 });
 

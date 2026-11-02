@@ -649,6 +649,7 @@ function catalogPage(items, total, offset) {
 function catalogFetch(units) {
   const calls = [];
   const fetchImpl = async (url, options) => {
+    if(String(url).includes("list_public_book_series_routes"))return {ok:true,status:200,json:async()=>[]};
     const body = JSON.parse(options.body);
     const offset = body.p_query.offset;
     const limit = body.p_query.limit;

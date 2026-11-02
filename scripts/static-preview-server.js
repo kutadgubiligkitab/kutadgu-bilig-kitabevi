@@ -118,7 +118,7 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (/^\/api\/volume-group-public\/?$/i.test(url.pathname) || /^\/volume-group\/[^/]+\/?$/.test(url.pathname)) {
+  if (/^\/api\/volume-group-public\/?$/i.test(url.pathname) || /^\/(?:series|volume-group)\/[^/]+\/?$/.test(url.pathname)) {
     const handler = require(path.join(root, "api/volume-group-public.js"));
     Promise.resolve(handler({ url: req.url, method: req.method }, res)).catch(() => {
       send(res, 503, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }, "temporary failure");

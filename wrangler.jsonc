@@ -25,6 +25,8 @@
       "/api/*",
       "/book",
       "/book/*",
+      "/series/*",
+      "/volume-group/*",
       "/c/*",
       "/__r2",
       "/__r2/*",
