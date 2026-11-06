@@ -228,6 +228,89 @@ test("positive sales HEAD is reused from sessionStorage", async () => {
   assert.strictEqual(calls, 1);
 });
 
+function pendingHead(onCall) {
+  return (url, init) => new Promise((resolve, reject) => {
+    if (onCall) onCall(url, init);
+    const signal = init && init.signal;
+    const fail = () => reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError" }));
+    if (!signal) return;
+    if (signal.aborted) fail();
+    else signal.addEventListener("abort", fail, { once: true });
+  });
+}
+
+test("pending HEAD falls back after 4000ms and does not cache the failure", async () => {
+  const data = new Map();
+  const sessionStorage = {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(String(key), String(value)); }
+  };
+  let calls = 0;
+  const api = countApi({
+    config: { url: "https://example.supabase.co", publishableKey: "k" },
+    catalog: [{ salesCount: 2 }, { salesCount: 0 }, { salesCount: 4 }],
+    sessionStorage,
+    fetch: pendingHead(() => { calls += 1; })
+  });
+  const started = Date.now();
+  const first = api.countPositiveSales();
+  const second = api.countPositiveSales();
+  const [a, b] = await Promise.all([first, second]);
+  const elapsed = Date.now() - started;
+  assert.strictEqual(a, 2);
+  assert.strictEqual(b, 2);
+  assert.ok(elapsed >= 3900 && elapsed < 7000, "elapsed " + elapsed);
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(sessionStorage.getItem("kutadgu-positive-sales-v1"), null);
+  assert.strictEqual(api.window.__kutadguPositiveSalesFlight, null);
+  assert.strictEqual(api.window.__kutadguPositiveSalesCount, 2);
+  assert.strictEqual(await api.countPositiveSales(), 2);
+  assert.strictEqual(calls, 1);
+});
+
+test("pending HEAD uses the AbortController fallback when AbortSignal.timeout is absent", async () => {
+  const timeout = Object.getOwnPropertyDescriptor(AbortSignal, "timeout");
+  Object.defineProperty(AbortSignal, "timeout", { value: undefined, configurable: true });
+  const data = new Map();
+  const sessionStorage = {
+    getItem(key) { return data.has(key) ? data.get(key) : null; },
+    setItem(key, value) { data.set(String(key), String(value)); }
+  };
+  let calls = 0;
+  const api = countApi({
+    config: { url: "https://example.supabase.co", publishableKey: "k" },
+    catalog: [{ salesCount: 1 }],
+    sessionStorage,
+    fetch: pendingHead(() => { calls += 1; })
+  });
+  const started = Date.now();
+  try {
+    assert.strictEqual(await api.countPositiveSales(), 1);
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed >= 3900 && elapsed < 7000, "elapsed " + elapsed);
+    assert.strictEqual(calls, 1);
+    assert.strictEqual(sessionStorage.getItem("kutadgu-positive-sales-v1"), null);
+    assert.strictEqual(api.window.__kutadguPositiveSalesFlight, null);
+  } finally {
+    if (timeout) Object.defineProperty(AbortSignal, "timeout", timeout);
+  }
+});
+
+test("positive sales HEAD source keeps the 4000ms deadline off the session cache", () => {
+  const src = sliceBetween(shop, "async function countPositiveSales(){", "function firstPopulatedCarouselMode");
+  assert.match(src, /AbortSignal\.timeout\(4000\)/);
+  assert.match(src, /new AbortController\(\)/);
+  assert.match(src, /setTimeout\(\(\)=>controller\.abort\(\),4000\)/);
+  assert.match(src, /clearTimeout\(timer\)/);
+  assert.match(src, /signal:deadline\.signal/);
+  assert.match(src, /finally\{deadline\.clear\(\)\}/);
+  const remote = src.slice(src.indexOf("sales_count=gt.0"));
+  const success = remote.slice(remote.indexOf("if(Number.isFinite(total))"), remote.indexOf("catch(err)"));
+  assert.match(success, /sessionStorage\.setItem\("kutadgu-positive-sales-v1"/);
+  const fallback = remote.slice(remote.indexOf("finally{deadline.clear()}"));
+  assert.doesNotMatch(fallback, /sessionStorage\.setItem/);
+});
+
 test("honesty hides carousel and collection options when count is 0", () => {
   const doc = honestyDocument();
   const api = honestyApi(doc);

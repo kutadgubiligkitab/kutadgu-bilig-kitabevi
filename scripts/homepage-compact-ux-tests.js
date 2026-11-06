@@ -3,6 +3,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { assetPattern } = require("./ci-asset-pins");
 
 const root = path.join(__dirname, "..");
 let failed = 0;
@@ -52,13 +53,13 @@ test("desktop compact CSS is gated to min-width 701px", () => {
 });
 
 test("homepage assets bumped; real shop hero photos replace the CSS scene", () => {
-  assert.match(html, /index\.css\?v=21/);
-  assert.match(html, /shop\.css\?v=54/);
-  assert.match(html, /mobile\.css\?v=26/);
-  assert.match(html, /shop\.js\?v=148/);
+  assert.match(html, /index\.css\?v=23/);
+  assert.match(html, /shop\.css\?v=61/);
+  assert.match(html, /mobile\.css\?v=28/);
+  assert.match(html, assetPattern("shop.js"));
   assert.match(html, /kutadgu-search-rank\.js\?v=1/);
-  assert.match(html, /mobile\.js\?v=10/);
-  assert.match(html, /public-header\.js\?v=2/);
+  assert.match(html, /mobile\.js\?v=11/);
+  assert.match(html, /public-header\.js\?v=6/);
   assert.match(html, /stage3-shop-identity\.css\?v=6/);
   assert.match(html, /home-hero-slideshow\.js\?v=4/);
   assert.match(html, /assets\/store\/shop-interior-main\.webp/);
@@ -81,10 +82,16 @@ test("carousel opens the first enabled mode that has books", () => {
   assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 3, newest: 5 }), "bestseller");
   assert.strictEqual(helpers.firstPopulatedCarouselMode(modes, { recommended: 0, bestseller: 0, newest: 0 }), "recommended");
   const carousel = shop.slice(shop.indexOf("async function setupHomeCarousel"), shop.indexOf("function loadMemberSystem"));
-  assert.match(carousel, /resolveInitialMode\(\)\.then\(initial=>\{if\(!userPickedMode\)setMode\(initial\)\}\)/);
+  assert.match(carousel, /async function settleInitialSelection\(\)/);
+  assert.match(carousel, /if\(decision==="member"\)/);
+  assert.match(carousel, /await setMode\("gifts"\)/);
+  assert.match(carousel, /const initial=await resolveInitialMode\(\)/);
+  assert.match(carousel, /if\(!userPickedMode&&flight===settleFlight\)setMode\(initial\)/);
+  assert.match(carousel, /settleInitialSelection\(\)/);
   assert.match(carousel, /modeCache\.get\(candidate\)\|\|await loadMode\(candidate,false\)/);
   assert.doesNotMatch(carousel, /setMode\(enabledModes\[0\]\)/);
-  assert.match(carousel, /tabs\.forEach\(button=>\{button\.hidden=!enabledModes\.includes\(button\.dataset\.carouselMode\)\}\)/);
+  assert.match(carousel, /if\(tabMode==="gifts"\)\{button\.hidden=false;return\}/);
+  assert.match(carousel, /button\.hidden=!enabledModes\.includes\(tabMode\)/);
 });
 
 test("homepage carousel auto-slides one book every 5s when more than 4 books are visible", () => {
