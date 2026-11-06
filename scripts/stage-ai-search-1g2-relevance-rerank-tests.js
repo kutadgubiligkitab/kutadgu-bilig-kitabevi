@@ -10,7 +10,7 @@ const Ai = require("../kutadgu-ai-search.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "b936827448e092e7f22dcd74237a13a45e7b89283f8ad0d715d7ef328e304e38",
+  "shop.js": "9d5eabe0122aa6609a6bf46da38e694b96318c06507f7dcd3fd1f29bee654915",
   "kutadgu-ai-search-ui.js": shaOf("kutadgu-ai-search-ui.js"),
   "index.html": shaOf("index.html"),
   "ai-search-ui.css": shaOf("ai-search-ui.css")
@@ -28,7 +28,8 @@ function test(name, fn) {
 }
 
 function shaOf(rel) {
-  return crypto.createHash("sha256").update(fs.readFileSync(path.join(root, rel))).digest("hex");
+  const text = fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
+  return crypto.createHash("sha256").update(text).digest("hex");
 }
 
 function fakeVector(seed) {
@@ -83,6 +84,14 @@ function makeFetch(rpcRows, extra) {
       }
       return { ok: true, status: 200, async json() { return extra.categoryRows || []; } };
     }
+    if (/\/rest\/v1\/rpc\/search_public_catalog_lexical$/.test(href)) {
+      if (extra.catalogStatus) return { ok: false, status: extra.catalogStatus, async json() { return { message: "catalog missing" }; } };
+      return { ok: true, status: 200, async json() { return extra.catalogRows || []; } };
+    }
+    if (/\/rest\/v1\/rpc\/reserve_ai_search_paid_call$/.test(href)) {
+      if (extra.reserveStatus) return { ok: false, status: extra.reserveStatus, async json() { return { message: "budget missing" }; } };
+      return { ok: true, status: 200, async json() { return [{ allowed: extra.reserveAllowed !== false, remaining_micro_usd: 900000 }]; } };
+    }
     if (/\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
       state.rpc += 1;
       return { ok: true, status: 200, async json() { return rpcRows; } };
@@ -100,9 +109,18 @@ async function search(query, rpcRows, extra) {
   const state = makeFetch(rpcRows, extra);
   const res = mockRes();
   const stats = await Ai.handleAiSearch(
-    { method: "POST", body: { query } },
+    { method: "POST", headers: { "cf-connecting-ip": "203.0.113.8" }, body: { query } },
     res,
-    { env: { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" }, fetchImpl: state.fetchImpl }
+    {
+      env: {
+        AI_SEARCH_ENABLED: "true",
+        OPENAI_API_KEY: "test-openai-key",
+        SUPABASE_SECRET_KEY: "test-supabase-rpc-key",
+        AI_SEARCH_IP_HASH_SECRET: "test-ip-hash-secret"
+      },
+      trustedClientIp: "203.0.113.8",
+      fetchImpl: state.fetchImpl
+    }
   );
   return {
     status: res.statusCode,
@@ -239,17 +257,14 @@ async function run() {
     assert.ok(out.json.results.every((row) => row.category === "گرامماتىكا"));
   });
 
-  await test("recognized intent with zero matching candidates falls back to hybrid + weak-tail", async () => {
+  await test("recognized intent with zero matching candidates does not return unrelated books", async () => {
     const rows = [
       book(1, { title: "يىراق رومان", category: "رومانلار", similarity: 0.44 }),
       book(2, { title: "باشقا رومان", category: "رومانلار", similarity: 0.41 }),
       book(3, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.20 })
     ];
     const out = await search("دىنىي كىتاب", rows);
-    assert.ok(out.json.results.length >= 1);
-    assert.ok(out.json.results.length < 3);
-    assert.strictEqual(out.json.results[0].id, 1);
-    assert.ok(!out.json.results.some((row) => row.id === 3));
+    assert.deepStrictEqual(out.json.results, []);
   });
 
   await test("F: generic semantic query still ranks by cosine without category mappings", async () => {

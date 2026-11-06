@@ -17,6 +17,7 @@
   var FAIL_MESSAGE = "AI ئىزدەش ھازىرچە ئىشلىمەيدۇ. ئادەتتىكى ئىزدەشنى ئىشلىتىپ كۆرۈڭ.";
   var EMPTY_QUERY_MESSAGE = "ئىزدەش سۆزىنى كىرگۈزۈڭ.";
   var NO_RESULTS_MESSAGE = "AI ئىزدەش نەتىجىسى تېپىلمىدى.";
+  var SEMANTIC_UNAVAILABLE_MESSAGE = "مەنىسى بويىچە ئىزدەش ھازىرچە ئىشلىمەيدۇ. ماۋزۇ بويىچە ئىزدەشنى داۋاملاشتۇرۇڭ.";
   var LOADING_MESSAGE = "AI ئىزدەۋاتىدۇ…";
   var RESULTS_HEADING = "AI ئىزدەش نەتىجىسى";
   var SHOW_MORE_LABEL = "تېخىمۇ كۆپ كۆرسەت";
@@ -83,9 +84,23 @@
     if (!Number.isInteger(num) || num <= 0) return "";
     return "/book/" + String(num);
   }
+  function validSeriesSlug(value) {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || "")) ? String(value) : "";
+  }
   function publicResultHref(row) {
-    if (row && row.kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(row.group_slug || ""))) {
-      return window.KutadguSeriesRoutes?window.KutadguSeriesRoutes.groupPath({...row,slug:row.group_slug}):"/volume-group/"+String(row.group_slug);
+    if (row && row.kind === "group") {
+      var canonical = validSeriesSlug(row.public_slug);
+      var legacyShaped = /^series-[0-9]+$/.test(canonical);
+      if (canonical && (!legacyShaped || row.public_slug_verified === true)) return "/series/" + canonical;
+      var legacy = validSeriesSlug(row.group_slug);
+      var routes = root && root.KutadguSeriesRoutes;
+      if (routes && typeof routes.groupPath === "function" && legacy) {
+        var routed = Object.assign({}, row, { slug: row.group_slug });
+        if (legacyShaped || /^series-[0-9]+$/.test(validSeriesSlug(routed.public_slug))) delete routed.public_slug;
+        return routes.groupPath(routed);
+      }
+      if (legacy) return "/volume-group/" + legacy;
+      return "";
     }
     return publicBookHref(row && row.id);
   }
@@ -324,6 +339,9 @@
   function parsePayload(payload) {
     if (!payload || typeof payload !== "object" || payload.ok !== true) return { fail: true };
     if (!Array.isArray(payload.results)) return { fail: true };
+    if (payload.semantic === "unavailable" && payload.results.length === 0) {
+      return { fail: false, results: [], semanticUnavailable: true };
+    }
     return { fail: false, results: payload.results };
   }
 
@@ -474,6 +492,10 @@
           presentAiMessage(FAIL_MESSAGE, "error");
           return;
         }
+        if (parsed.semanticUnavailable) {
+          presentAiMessage(SEMANTIC_UNAVAILABLE_MESSAGE, "unavailable");
+          return;
+        }
         presentAiResults(parsed.results);
       }).then(function () {
         clearTimeout(timer);
@@ -521,6 +543,7 @@
     isPreviewAiSearchHost: isPreviewAiSearchHost,
     trimQuery: trimQuery,
     publicBookHref: publicBookHref,
+    publicResultHref: publicResultHref,
     safeCoverSrc: safeCoverSrc,
     parsePayload: parsePayload,
     renderResults: renderResults,
