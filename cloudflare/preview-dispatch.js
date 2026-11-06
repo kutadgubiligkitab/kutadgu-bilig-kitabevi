@@ -565,9 +565,17 @@ async function handleAi(request, env, deps) {
     get() { return collected.statusCode; },
     set(value) { collected.statusCode = value; }
   });
+  // Paid semantic search needs CF-Connecting-IP and AI_SEARCH_IP_HASH_SECRET.
+  // The secret is a server-side HMAC key of at least 16 characters. Set it later
+  // with `wrangler secret put AI_SEARCH_IP_HASH_SECRET` for the production Worker.
+  // Do not put the value in wrangler.jsonc, and do not trust X-Forwarded-For.
+  const trustedClientIp = request.headers && typeof request.headers.get === "function"
+    ? String(request.headers.get("cf-connecting-ip") || "").trim()
+    : "";
   await aiSearch.handleAiSearch({ method, body, url: new URL(request.url).pathname }, res, {
     env,
-    fetchImpl: deps.fetchImpl
+    fetchImpl: deps.fetchImpl,
+    trustedClientIp
   });
   const out = new Headers();
   Object.keys(collected.headers).forEach((key) => out.set(key, collected.headers[key]));

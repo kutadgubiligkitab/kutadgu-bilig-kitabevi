@@ -83,6 +83,9 @@ BEGIN
     v_calls := 0;
   END IF;
 
+  DELETE FROM private.ai_search_ip_windows AS windows
+  WHERE windows.window_start < now() - interval '10 minutes';
+
   IF v_remaining < v_cost OR v_calls >= v_daily_cap THEN
     UPDATE private.ai_search_query_budget AS budget
       SET day_utc = v_day,

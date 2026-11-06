@@ -243,6 +243,14 @@ function publicResult(row) {
     stock: row.stock == null || row.stock === "" ? null : (Number.isFinite(stockNum) ? stockNum : null),
     similarity: Number.isFinite(similarity) ? similarity : 0
   };
+  if (row.series_group_id) result.series_group_id = Number(row.series_group_id) || null;
+  if (row.series_title) result.series_title = String(row.series_title);
+  if (row.series_slug) result.series_slug = String(row.series_slug);
+  if (row.series_member_count) result.series_member_count = Number(row.series_member_count) || 0;
+  if (row.series_lowest_price != null && row.series_lowest_price !== "") result.series_lowest_price = Number(row.series_lowest_price);
+  if (row.series_image_url) result.series_image_url = String(row.series_image_url);
+  if (row.series_representative_id) result.series_representative_id = Number(row.series_representative_id) || null;
+  if (row.series_author) result.series_author = String(row.series_author);
   if (row.kind === "group") {
     result.kind = "group";
     result.group_id = row.group_id == null ? null : Number(row.group_id);
@@ -598,6 +606,10 @@ function readCatalogRows(rows) {
     parsed.series_slug = String(row.series_slug == null ? "" : row.series_slug);
     parsed.series_member_count = Number(row.series_member_count) || 0;
     parsed.series_group_id = Number(row.series_group_id) || null;
+    parsed.series_lowest_price = row.series_lowest_price == null || row.series_lowest_price === "" ? null : Number(row.series_lowest_price);
+    parsed.series_image_url = String(row.series_image_url == null ? "" : row.series_image_url);
+    parsed.series_representative_id = Number(row.series_representative_id) || null;
+    parsed.series_author = String(row.series_author == null ? "" : row.series_author);
     if (row.is_active === false) parsed.is_active = false;
     if (row.submission_status) parsed.submission_status = row.submission_status;
     return parsed;
@@ -616,9 +628,9 @@ function expandSeriesCandidates(rows, query) {
       title: row.series_title,
       author: row.author,
       category: row.category,
-      price: row.price,
-      image_url: row.image_url,
-      stock: row.stock,
+      price: null,
+      image_url: row.series_image_url || "",
+      stock: null,
       similarity: row.similarity || 0,
       description: "",
       kind: "group",
@@ -626,6 +638,14 @@ function expandSeriesCandidates(rows, query) {
       group_slug: row.series_slug || "",
       public_slug: row.series_slug || "",
       member_count: row.series_member_count || 0,
+      series_title: row.series_title,
+      series_slug: row.series_slug || "",
+      series_group_id: row.series_group_id || null,
+      series_member_count: row.series_member_count || 0,
+      series_lowest_price: row.series_lowest_price,
+      series_image_url: row.series_image_url || "",
+      series_representative_id: row.series_representative_id || row.id,
+      series_author: row.series_author || row.author,
       is_active: row.is_active,
       submission_status: row.submission_status
     });
@@ -640,21 +660,98 @@ function expandSeriesCandidates(rows, query) {
   });
 }
 
-function headerValue(req, name) {
-  const headers = req && req.headers;
-  if (!headers) return "";
-  if (typeof headers.get === "function") return String(headers.get(name) || "");
-  const key = Object.keys(headers).find((item) => item.toLowerCase() === name);
-  return key ? String(headers[key] || "") : "";
+function validPublicSlug(value) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || "")) ? String(value) : "";
 }
 
-async function clientIpHash(req) {
-  const forwarded = headerValue(req, "x-forwarded-for").split(",")[0].trim();
-  const ip = headerValue(req, "cf-connecting-ip").trim() || forwarded;
-  if (!ip || !globalThis.crypto || !crypto.subtle) return "";
-  const bytes = new TextEncoder().encode("kutadgu-ai-search-ip:" + ip);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map((part) => part.toString(16).padStart(2, "0")).join("").slice(0, 32);
+function seriesDisplay(row) {
+  const slug = validPublicSlug(row && (row.public_slug || row.series_slug || row.group_slug));
+  const groupId = Number(row && (row.series_group_id || row.group_id));
+  if (!row || !slug || !Number.isFinite(groupId) || groupId <= 0) return null;
+  const representative = Number(row.series_representative_id || row.id);
+  const lowest = row.series_lowest_price == null || row.series_lowest_price === "" ? NaN : Number(row.series_lowest_price);
+  return publicResult({
+    id: Number.isFinite(representative) && representative > 0 ? representative : row.id,
+    title: row.series_title || row.title,
+    author: row.series_author || row.author,
+    category: row.category,
+    price: Number.isFinite(lowest) ? lowest : null,
+    image_url: row.series_image_url || "",
+    stock: null,
+    similarity: row.similarity || 0,
+    kind: "group",
+    group_id: groupId,
+    group_slug: slug,
+    public_slug: slug,
+    member_count: row.series_member_count || row.member_count || 0
+  });
+}
+
+function collapseGrouped(rows) {
+  const out = [];
+  const seen = Object.create(null);
+  (rows || []).forEach((row) => {
+    if (!row || out.length >= MATCH_COUNT) return;
+    const groupId = Number(row.series_group_id || (row.kind === "group" ? row.group_id : 0));
+    const slug = validPublicSlug(row.series_slug || row.public_slug || row.group_slug);
+    if (groupId > 0 && slug) {
+      const key = "g:" + groupId;
+      if (seen[key]) return;
+      seen[key] = true;
+      const card = seriesDisplay(row);
+      if (card) out.push(card);
+      return;
+    }
+    const key = "b:" + row.id;
+    if (seen[key]) return;
+    seen[key] = true;
+    const book = publicResult(row);
+    if (book) out.push(book);
+  });
+  return out;
+}
+
+function presentSearchResults(query, candidates) {
+  const expanded = expandSeriesCandidates(candidates, query).filter(isPublicCandidate);
+  const exactBooks = [];
+  const seenBook = Object.create(null);
+  expanded.forEach((row) => {
+    if (row.kind === "group" || titleRelation(row.title, query) !== "exact" || seenBook[row.id]) return;
+    seenBook[row.id] = true;
+    const book = publicResult(row);
+    if (book) exactBooks.push(book);
+  });
+  if (exactBooks.length) return exactBooks.slice(0, MATCH_COUNT);
+
+  const exactGroups = [];
+  const seenGroup = Object.create(null);
+  expanded.forEach((row) => {
+    if (row.kind !== "group" || titleRelation(row.title, query) !== "exact") return;
+    const card = seriesDisplay(row);
+    if (!card || seenGroup[card.group_id]) return;
+    seenGroup[card.group_id] = true;
+    exactGroups.push(card);
+  });
+  if (exactGroups.length) return exactGroups.slice(0, MATCH_COUNT);
+
+  const ranked = selectRelevantResults(query, expanded.filter((row) => row.kind !== "group"));
+  return collapseGrouped(ranked);
+}
+
+async function clientIdentityHash(ip, secret) {
+  const address = String(ip || "").trim();
+  const keyText = String(secret || "");
+  if (!address || keyText.length < 16 || !globalThis.crypto || !crypto.subtle) return "";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(keyText),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode("kutadgu-ai-search-v1:" + address));
+  return Array.from(new Uint8Array(signature)).map((part) => part.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
 function readReserve(payload) {
@@ -793,9 +890,7 @@ async function runSearch(options) {
   if (!Array.isArray(catalogRows)) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 1 };
   }
-  const lexical = selectRelevantResults(query, expandSeriesCandidates(catalogRows, query))
-    .map(publicResult)
-    .filter(Boolean);
+  const lexical = presentSearchResults(query, catalogRows);
   if (lexical.length) {
     return {
       status: 200,
@@ -808,7 +903,7 @@ async function runSearch(options) {
   if (!reserved) {
     return {
       status: 200,
-      body: { ok: true, results: [], count: 0 },
+      body: { ok: true, results: [], count: 0, semantic: "unavailable" },
       openaiCalls: 0,
       supabaseCalls: 1
     };
@@ -830,8 +925,8 @@ async function runSearch(options) {
   if (String(env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
     candidates = await mapCandidatesToCatalogUnits(fetchImpl, candidates, opts.rpcTimeoutMs, rpcKey);
   }
-  let results = selectRelevantResults(query, candidates);
-  if (!results.length) results = acceptSemantic(candidates);
+  let results = presentSearchResults(query, candidates);
+  if (!results.length) results = collapseGrouped(acceptSemantic(candidates));
   return {
     status: 200,
     body: { ok: true, results, count: results.length },
@@ -879,7 +974,7 @@ async function handleAiSearch(req, res, options) {
       env,
       fetchImpl: wrappedFetch,
       query: parsed.value && parsed.value.query,
-      clientIpHash: await clientIpHash(req),
+      clientIpHash: await clientIdentityHash(opts.trustedClientIp, env.AI_SEARCH_IP_HASH_SECRET),
       openaiTimeoutMs: opts.openaiTimeoutMs,
       rpcTimeoutMs: opts.rpcTimeoutMs
     });
@@ -929,6 +1024,7 @@ module.exports = {
   queryVariants,
   categoryNamesForQuery,
   selectRelevantResults,
+  presentSearchResults,
   mergeAiCandidates,
   mapCandidatesToCatalogUnits,
   intendedCategories,

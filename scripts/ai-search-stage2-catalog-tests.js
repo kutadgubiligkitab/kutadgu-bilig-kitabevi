@@ -103,8 +103,10 @@ async function search(query, envExtra, stateExtra) {
       env: Object.assign({
         AI_SEARCH_ENABLED: "true",
         OPENAI_API_KEY: "test-openai-key",
-        SUPABASE_SECRET_KEY: "test-supabase-rpc-key"
+        SUPABASE_SECRET_KEY: "test-supabase-rpc-key",
+        AI_SEARCH_IP_HASH_SECRET: "test-ip-hash-secret"
       }, envExtra || {}),
+      trustedClientIp: "203.0.113.8",
       fetchImpl: makeFetch(state)
     }
   );
@@ -187,6 +189,82 @@ async function run() {
     assert.strictEqual(out.json.results[0].public_slug, series.series_slug);
     assert.strictEqual(SeriesRoutes.groupPath(out.json.results[0]), "/series/" + series.series_slug);
     assert.strictEqual(out.state.openai, 0);
+  });
+
+  await test("a general series search returns one series card and a volume search returns that book", () => {
+    const members = catalog.filter((row) => row.series_slug === "oyghanghan-zemin");
+    assert.ok(members.length >= 2);
+    const rows = members.map((row, index) => book(row, {
+      price: index === 0 ? 40 : 15,
+      image_url: "https://example.invalid/member/" + row.id + ".webp",
+      series_group_id: 77,
+      series_member_count: members.length,
+      series_lowest_price: 15,
+      series_image_url: "https://example.invalid/series/oyghanghan-zemin.webp",
+      series_representative_id: members[0].id,
+      series_author: row.author
+    }));
+    const series = Ai.presentSearchResults("ئويغانغان زېمىن", rows);
+    assert.strictEqual(series.length, 1);
+    assert.strictEqual(series[0].kind, "group");
+    assert.strictEqual(series[0].title, "ئويغانغان زېمىن");
+    assert.strictEqual(series[0].price, 15);
+    assert.strictEqual(series[0].image_url, "https://example.invalid/series/oyghanghan-zemin.webp");
+    assert.strictEqual(SeriesRoutes.groupPath(series[0]), "/series/oyghanghan-zemin");
+    const volume = Ai.presentSearchResults(members[0].title, rows);
+    assert.strictEqual(volume.length, 1);
+    assert.notStrictEqual(volume[0].kind, "group");
+    assert.strictEqual(volume[0].id, members[0].id);
+    assert.strictEqual(SeriesRoutes.groupPath(volume[0]), "");
+  });
+
+  await test("author and mixed results show each published series once", () => {
+    const seriesA = catalog.filter((row) => row.series_slug === "oyghanghan-zemin").slice(0, 2);
+    const seriesB = catalog.filter((row) => row.series_slug && row.series_slug !== "oyghanghan-zemin");
+    const slugB = seriesB[0].series_slug;
+    const membersB = catalog.filter((row) => row.series_slug === slugB).slice(0, 2);
+    const standalone = catalog.find((row) => !row.series_slug && row.author);
+    const rows = seriesA.map((row) => book(row, { series_group_id: 77, series_member_count: 2, series_lowest_price: 15, series_image_url: "https://example.invalid/a.webp", series_representative_id: seriesA[0].id }))
+      .concat(membersB.map((row) => book(row, { series_group_id: 78, series_member_count: 2, series_lowest_price: 20, series_image_url: "https://example.invalid/b.webp", series_representative_id: membersB[0].id })))
+      .concat([book(standalone)]);
+    const author = seriesA[0].author;
+    rows.forEach((row) => { row.author = author; });
+    const found = Ai.presentSearchResults(author, rows);
+    const groups = found.filter((row) => row.kind === "group");
+    assert.strictEqual(groups.length, 2);
+    assert.ok(found.some((row) => row.kind !== "group" && row.id === standalone.id));
+    assert.strictEqual(found.length, 3);
+  });
+
+  await test("semantic candidates collapse a published series and still reject a weak score", async () => {
+    const members = catalog.filter((row) => row.series_slug === "oyghanghan-zemin").slice(0, 2);
+    const vectorRows = members.map((row) => book(row, {
+      title: "مۇناسىۋەتسىز ماۋزۇ " + row.id,
+      similarity: 0.9,
+      series_group_id: 77,
+      series_member_count: 2,
+      series_lowest_price: 15,
+      series_image_url: "https://example.invalid/series/oyghanghan-zemin.webp",
+      series_representative_id: members[0].id
+    }));
+    const accepted = await search("مەنىسى يېقىن ئىزدەش", {}, { catalogRows: [], vectorRows });
+    assert.strictEqual(accepted.json.results.length, 1);
+    assert.strictEqual(accepted.json.results[0].kind, "group");
+    assert.strictEqual(accepted.json.results[0].price, 15);
+    assert.strictEqual(accepted.state.openai, 1);
+    const weak = Ai.selectRelevantResults("مەنىسى يېقىن ئىزدەش", [book(catalog[3], { similarity: 0.99, title: "مۇناسىۋەتسىز" })]);
+    assert.deepStrictEqual(weak, []);
+  });
+
+  await test("a closed semantic service does not claim that no books exist", async () => {
+    const out = await search("مەنىسى يېقىن ئىزدەش", {}, { catalogRows: [], reserveAllowed: false });
+    assert.strictEqual(out.status, 200);
+    assert.deepStrictEqual(out.json.results, []);
+    assert.strictEqual(out.json.semantic, "unavailable");
+    assert.strictEqual(out.state.openai, 0);
+    const missingSecret = await search("مەنىسى يېقىن ئىزدەش", { AI_SEARCH_IP_HASH_SECRET: "" }, { catalogRows: [] });
+    assert.strictEqual(missingSecret.json.semantic, "unavailable");
+    assert.strictEqual(missingSecret.state.openai, 0);
   });
 
   await test("catalog keyword hits do not call OpenAI, and a closed budget still returns them", async () => {

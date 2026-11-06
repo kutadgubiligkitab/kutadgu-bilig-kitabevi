@@ -164,7 +164,11 @@ async function invoke(req, env, fetchImpl, extra) {
     headers: Object.assign({ "cf-connecting-ip": "203.0.113.8" }, req && req.headers)
   });
   const stats = await Ai.handleAiSearch(request, res, Object.assign({
-    env: Object.assign({ SUPABASE_SECRET_KEY: TEST_RPC_KEY }, env || {}),
+    env: Object.assign({
+      SUPABASE_SECRET_KEY: TEST_RPC_KEY,
+      AI_SEARCH_IP_HASH_SECRET: "test-ip-hash-secret"
+    }, env || {}),
+    trustedClientIp: "203.0.113.8",
     fetchImpl: fetchImpl || makeFetch({})
   }, extra || {}));
   return {

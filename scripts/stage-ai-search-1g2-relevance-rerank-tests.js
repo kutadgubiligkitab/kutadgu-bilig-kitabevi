@@ -111,7 +111,16 @@ async function search(query, rpcRows, extra) {
   const stats = await Ai.handleAiSearch(
     { method: "POST", headers: { "cf-connecting-ip": "203.0.113.8" }, body: { query } },
     res,
-    { env: { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" }, fetchImpl: state.fetchImpl }
+    {
+      env: {
+        AI_SEARCH_ENABLED: "true",
+        OPENAI_API_KEY: "test-openai-key",
+        SUPABASE_SECRET_KEY: "test-supabase-rpc-key",
+        AI_SEARCH_IP_HASH_SECRET: "test-ip-hash-secret"
+      },
+      trustedClientIp: "203.0.113.8",
+      fetchImpl: state.fetchImpl
+    }
   );
   return {
     status: res.statusCode,

@@ -17,6 +17,7 @@
   var FAIL_MESSAGE = "AI ئىزدەش ھازىرچە ئىشلىمەيدۇ. ئادەتتىكى ئىزدەشنى ئىشلىتىپ كۆرۈڭ.";
   var EMPTY_QUERY_MESSAGE = "ئىزدەش سۆزىنى كىرگۈزۈڭ.";
   var NO_RESULTS_MESSAGE = "AI ئىزدەش نەتىجىسى تېپىلمىدى.";
+  var SEMANTIC_UNAVAILABLE_MESSAGE = "مەنىسى بويىچە ئىزدەش ھازىرچە ئىشلىمەيدۇ. ماۋزۇ بويىچە ئىزدەشنى داۋاملاشتۇرۇڭ.";
   var LOADING_MESSAGE = "AI ئىزدەۋاتىدۇ…";
   var RESULTS_HEADING = "AI ئىزدەش نەتىجىسى";
   var SHOW_MORE_LABEL = "تېخىمۇ كۆپ كۆرسەت";
@@ -324,6 +325,9 @@
   function parsePayload(payload) {
     if (!payload || typeof payload !== "object" || payload.ok !== true) return { fail: true };
     if (!Array.isArray(payload.results)) return { fail: true };
+    if (payload.semantic === "unavailable" && payload.results.length === 0) {
+      return { fail: false, results: [], semanticUnavailable: true };
+    }
     return { fail: false, results: payload.results };
   }
 
@@ -472,6 +476,10 @@
         if (gen !== generation || parsed == null) return;
         if (parsed.fail) {
           presentAiMessage(FAIL_MESSAGE, "error");
+          return;
+        }
+        if (parsed.semanticUnavailable) {
+          presentAiMessage(SEMANTIC_UNAVAILABLE_MESSAGE, "unavailable");
           return;
         }
         presentAiResults(parsed.results);

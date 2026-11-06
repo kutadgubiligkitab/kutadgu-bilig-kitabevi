@@ -64,11 +64,23 @@ CREATE TABLE public.book_volume_group_members (
   PRIMARY KEY (group_id, position)
 );
 CREATE FUNCTION private.kutadgu_public_volume_groups()
-RETURNS TABLE (group_id bigint, title text, member_count integer, member_book_ids bigint[])
+RETURNS TABLE (
+  group_id bigint,
+  title text,
+  author text,
+  member_count integer,
+  member_book_ids bigint[],
+  lowest_price numeric,
+  representative_book_id bigint,
+  representative_image_url text
+)
 LANGUAGE sql STABLE SET search_path = pg_catalog, public
 AS $groups$
-  SELECT g.id, g.title, count(*)::integer,
-         array_agg(m.book_id ORDER BY m.position)
+  SELECT g.id, g.title, '', count(*)::integer,
+         array_agg(m.book_id ORDER BY m.position),
+         min(b.price),
+         (array_agg(m.book_id ORDER BY m.position))[1],
+         (array_agg(b.image_url ORDER BY m.position))[1]
   FROM public.book_volume_groups g
   JOIN public.book_volume_group_members m ON m.group_id = g.id
   JOIN public.books b ON b.id = m.book_id
@@ -86,9 +98,9 @@ await db.exec(read("STAGE_AI_SEARCH_2_QUERY_BUDGET.sql"));
 
 for (const row of catalog) {
   await db.query(
-    `INSERT INTO public.books (id, title, author, category, price, description, is_active, submission_status)
-     VALUES ($1, $2, $3, $4, 10, $5, true, 'approved')`,
-    [row.id, row.title, row.author || "", row.category || "", row.has_description ? "ئاممىۋى چۈشەندۈرۈش" : ""]
+    `INSERT INTO public.books (id, title, author, category, price, image_url, description, is_active, submission_status)
+     VALUES ($1, $2, $3, $4, 40, $5, $6, true, 'approved')`,
+    [row.id, row.title, row.author || "", row.category || "", "https://example.invalid/member/" + row.id + ".webp", row.has_description ? "ئاممىۋى چۈشەندۈرۈش" : ""]
   );
 }
 const bySeries = new Map();
@@ -113,6 +125,14 @@ for (const [slug, group] of bySeries) {
     position += 1;
   }
 }
+await db.query(`
+  UPDATE public.books AS b
+  SET price = 15,
+      image_url = 'https://example.invalid/series/' || g.public_slug || '.webp'
+  FROM public.book_volume_group_members AS m
+  JOIN public.book_volume_groups AS g ON g.id = m.group_id
+  WHERE m.position = 1 AND b.id = m.book_id AND g.is_public
+`);
 await db.exec(`
 INSERT INTO public.books (id, title, author, category, price, description, is_active, submission_status)
 VALUES
@@ -175,6 +195,56 @@ await check("published series, spelling variants, and hidden rows", async () => 
   assert.equal(hidden.length, 0);
 });
 
+await check("series grouping, volume lookup, covers, prices, and broad categories", async () => {
+  const grouped = [...bySeries.values()].find((group) => group.title === "ئويغانغان زېمىن");
+  assert.ok(grouped);
+  const seriesRows = await rows(
+    `SELECT id, title, series_title, series_slug, series_group_id, series_lowest_price, series_image_url, series_representative_id
+     FROM public.search_public_catalog_lexical(ARRAY['ئويغانغان زېمىن'], ARRAY[]::text[], 24)`
+  );
+  assert.equal(seriesRows.length, 1);
+  assert.equal(seriesRows[0].series_title, "ئويغانغان زېمىن");
+  assert.equal(Number(seriesRows[0].series_lowest_price), 15);
+  assert.equal(seriesRows[0].series_image_url, "https://example.invalid/series/" + seriesRows[0].series_slug + ".webp");
+  const volume = grouped.books.find((book) => book.title.includes("1"));
+  const volumeRows = await rows(
+    `SELECT id, title, price, series_group_id FROM public.search_public_catalog_lexical($1::text[], ARRAY[]::text[], 24)`,
+    [[volume.title]]
+  );
+  assert.ok(volumeRows.some((row) => Number(row.id) === Number(volume.id) && row.title === volume.title));
+  const children = await rows(
+    `SELECT title, category FROM public.search_public_catalog_lexical(ARRAY['بالىلار'], ARRAY['بالىلار كىتابلىرى'], 24)`
+  );
+  assert.equal(children.length, 24);
+  assert.ok(children.every((row) => String(row.title).includes("بالىلار")));
+  const history = await rows(
+    `SELECT id, title FROM public.search_public_catalog_lexical(ARRAY['تارىخىي رومان'], ARRAY['تارىخىي رومانلار','تارىخىي رومان'], 24)`
+  );
+  assert.equal(history.length, 24);
+  const mapped = seriesRows.map((row) => ({
+    id: Number(row.id),
+    title: row.title,
+    author: "",
+    category: "",
+    price: 40,
+    image_url: "https://example.invalid/member/" + row.id + ".webp",
+    series_title: row.series_title,
+    series_slug: row.series_slug,
+    series_group_id: Number(row.series_group_id),
+    series_member_count: grouped.books.length,
+    series_lowest_price: Number(row.series_lowest_price),
+    series_image_url: row.series_image_url,
+    series_representative_id: Number(row.series_representative_id)
+  }));
+  const presented = Ai.presentSearchResults("ئويغانغان زېمىن", mapped);
+  assert.equal(presented.length, 1);
+  assert.equal(presented[0].kind, "group");
+  assert.equal(presented[0].title, "ئويغانغان زېمىن");
+  assert.equal(presented[0].price, 15);
+  assert.equal(presented[0].image_url, seriesRows[0].series_image_url);
+  assert.equal(presented[0].public_slug, seriesRows[0].series_slug);
+});
+
 await check("literal patterns do not expand wildcards or backslashes", async () => {
   for (const query of ["%%%", "___", "%_%", "\\", "\\\\", "...", "!!!", "؟؟؟", "يەر%"]) {
     const found = await rows(
@@ -213,6 +283,13 @@ await check("the paid ledger is locked, capped, and fail-closed", async () => {
   }
   const blocked = await rows(`SELECT allowed FROM public.reserve_ai_search_paid_call($1)`, ["ef".repeat(16)]);
   assert.equal(blocked[0].allowed, false);
+  await db.query(
+    `INSERT INTO private.ai_search_ip_windows (ip_hash, window_start, calls) VALUES ($1, now() - interval '11 minutes', 3)`,
+    ["12".repeat(16)]
+  );
+  await rows(`SELECT allowed FROM public.reserve_ai_search_paid_call($1)`, ["13".repeat(16)]);
+  const expired = await rows(`SELECT count(*)::int AS n FROM private.ai_search_ip_windows WHERE ip_hash = $1`, ["12".repeat(16)]);
+  assert.equal(expired[0].n, 0);
   const bad = await rows(`SELECT allowed FROM public.reserve_ai_search_paid_call($1)`, [""]);
   assert.equal(bad[0].allowed, false);
   const before = await rows(`SELECT remaining_micro_usd FROM private.ai_search_query_budget`);
