@@ -19,6 +19,7 @@ const CATEGORY_RPC = "list_active_books_by_categories_ai";
 const CATALOG_RPC = "search_public_catalog_lexical";
 const RESERVE_RPC = "reserve_ai_search_paid_call";
 const MAP_UNITS_RPC = "map_public_books_to_catalog_units";
+const SERIES_ROUTES_RPC = "list_public_book_series_routes";
 const SEMANTIC_ACCEPT_FLOOR = 0.55;
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
 const MIN_QUERY_CHARS = 2;
@@ -255,7 +256,7 @@ function publicResult(row) {
     result.kind = "group";
     result.group_id = row.group_id == null ? null : Number(row.group_id);
     result.group_slug = String(row.group_slug || row.slug || "");
-    result.public_slug = String(row.public_slug || row.group_slug || row.slug || "");
+    result.public_slug = validPublicSlug(row.public_slug);
     result.member_count = Number(row.member_count) || 0;
   }
   return result;
@@ -441,6 +442,50 @@ async function mapCandidatesToCatalogUnits(fetchImpl, candidates, timeoutMs, rpc
     const similarity = matched.reduce((best, id) => Math.max(best, similarityById.get(String(id)) || 0), 0);
     return publicResult({ ...row, id: row.representative_book_id || row.id, similarity });
   }).filter(Boolean);
+}
+
+function readSeriesDirectory(payload) {
+  const rows = Array.isArray(payload) ? payload : [];
+  return rows.filter((row) => row && Number(row.group_id) > 0 && validPublicSlug(row.public_slug)).map((row) => ({
+    group_id: Number(row.group_id),
+    legacy_slug: String(row.legacy_slug || ""),
+    public_slug: validPublicSlug(row.public_slug)
+  }));
+}
+
+async function loadPublicSeriesDirectory(fetchImpl, timeoutMs, rpcKey) {
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + SERIES_ROUTES_RPC;
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: rpcKey,
+        Authorization: "Bearer " + rpcKey,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: "{}"
+    }, timeoutMs || RPC_TIMEOUT_MS, readSeriesDirectory);
+  } catch (err) {
+    return [];
+  }
+}
+
+function attachCanonicalSeriesSlugs(rows, directory) {
+  const byId = Object.create(null);
+  const byLegacy = Object.create(null);
+  (directory || []).forEach((row) => {
+    byId[String(row.group_id)] = row.public_slug;
+    if (row.legacy_slug) byLegacy[row.legacy_slug] = row.public_slug;
+  });
+  return (rows || []).map((row) => {
+    if (!row || row.kind !== "group") return row;
+    const legacy = String(row.group_slug || "");
+    const known = byId[String(row.group_id)] || byLegacy[legacy] || "";
+    const explicit = validPublicSlug(row.public_slug);
+    const publicSlug = known || (explicit && explicit !== legacy ? explicit : "");
+    return Object.assign({}, row, { public_slug: publicSlug });
+  });
 }
 
 function foldSpelling(value) {
@@ -664,24 +709,31 @@ function validPublicSlug(value) {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || "")) ? String(value) : "";
 }
 
+function canonicalSeriesSlug(row) {
+  return validPublicSlug(row && (row.public_slug || row.series_slug || ""));
+}
+
 function seriesDisplay(row) {
-  const slug = validPublicSlug(row && (row.public_slug || row.series_slug || row.group_slug));
+  const slug = canonicalSeriesSlug(row);
   const groupId = Number(row && (row.series_group_id || row.group_id));
   if (!row || !slug || !Number.isFinite(groupId) || groupId <= 0) return null;
-  const representative = Number(row.series_representative_id || row.id);
+  const representative = Number(row.series_representative_id || row.representative_book_id || row.id);
   const lowest = row.series_lowest_price == null || row.series_lowest_price === "" ? NaN : Number(row.series_lowest_price);
+  const mappedPrice = row.kind === "group" ? Number(row.price) : NaN;
+  const price = Number.isFinite(lowest) ? lowest : (Number.isFinite(mappedPrice) ? mappedPrice : null);
+  const legacy = validPublicSlug(row.group_slug || "");
   return publicResult({
     id: Number.isFinite(representative) && representative > 0 ? representative : row.id,
     title: row.series_title || row.title,
     author: row.series_author || row.author,
     category: row.category,
-    price: Number.isFinite(lowest) ? lowest : null,
-    image_url: row.series_image_url || "",
+    price: price,
+    image_url: row.series_image_url || (row.kind === "group" ? row.image_url : "") || "",
     stock: null,
     similarity: row.similarity || 0,
     kind: "group",
     group_id: groupId,
-    group_slug: slug,
+    group_slug: legacy || slug,
     public_slug: slug,
     member_count: row.series_member_count || row.member_count || 0
   });
@@ -693,7 +745,16 @@ function collapseGrouped(rows) {
   (rows || []).forEach((row) => {
     if (!row || out.length >= MATCH_COUNT) return;
     const groupId = Number(row.series_group_id || (row.kind === "group" ? row.group_id : 0));
-    const slug = validPublicSlug(row.series_slug || row.public_slug || row.group_slug);
+    const slug = canonicalSeriesSlug(row);
+    if (row.kind === "group") {
+      if (!slug) return;
+      const key = "g:" + groupId;
+      if (seen[key]) return;
+      seen[key] = true;
+      const card = seriesDisplay(row);
+      if (card) out.push(card);
+      return;
+    }
     if (groupId > 0 && slug) {
       const key = "g:" + groupId;
       if (seen[key]) return;
@@ -734,7 +795,7 @@ function presentSearchResults(query, candidates) {
   });
   if (exactGroups.length) return exactGroups.slice(0, MATCH_COUNT);
 
-  const ranked = selectRelevantResults(query, expanded.filter((row) => row.kind !== "group"));
+  const ranked = selectRelevantResults(query, expanded);
   return collapseGrouped(ranked);
 }
 
@@ -924,6 +985,8 @@ async function runSearch(options) {
   }
   if (String(env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
     candidates = await mapCandidatesToCatalogUnits(fetchImpl, candidates, opts.rpcTimeoutMs, rpcKey);
+    const directory = await loadPublicSeriesDirectory(fetchImpl, opts.rpcTimeoutMs, rpcKey);
+    candidates = attachCanonicalSeriesSlugs(candidates, directory);
   }
   let results = presentSearchResults(query, candidates);
   if (!results.length) results = collapseGrouped(acceptSemantic(candidates));

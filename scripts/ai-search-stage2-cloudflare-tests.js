@@ -42,6 +42,13 @@ function makeFetch(state) {
     if (/match_active_books_ai$/.test(href)) {
       return { ok: true, status: 200, async json() { return state.vectorRows || []; } };
     }
+    if (/map_public_books_to_catalog_units$/.test(href)) {
+      state.map = (state.map || 0) + 1;
+      return { ok: true, status: 200, async json() { return state.mapRows || []; } };
+    }
+    if (/list_public_book_series_routes$/.test(href)) {
+      return { ok: true, status: 200, async json() { return state.seriesRoutes || []; } };
+    }
     return { ok: false, status: 404, async json() { return {}; } };
   };
 }
@@ -155,6 +162,55 @@ async function run() {
     assert.strictEqual(volume.json.results[0].id, 41);
     assert.notStrictEqual(volume.json.results[0].kind, "group");
     assert.strictEqual(volume.state.openai, 0);
+  });
+
+  await test("a mapped semantic series uses the canonical slug and keeps its price and cover", async () => {
+    const cover = "https://example.invalid/series/oyghanghan-zemin.webp";
+    const state = fresh({
+      vectorRows: [
+        { id: 156, title: "ئويغانغان زېمىن 1. قىسىم", author: "ئابدۇرېھىم ئۆتكۈر", category: "تارىخىي رومان", price: 40, image_url: "https://example.invalid/member.webp", stock: 1, similarity: 0.82 },
+        { id: 901, title: "تاق كىتاب", author: "باشقا", category: "رومان", price: 11, image_url: "https://example.invalid/standalone.webp", stock: 1, similarity: 0.7 }
+      ],
+      mapRows: [
+        {
+          kind: "group",
+          id: 156,
+          group_id: 156,
+          group_slug: "series-156",
+          title: "ئويغانغان زېمىن",
+          author: "ئابدۇرېھىم ئۆتكۈر",
+          category: "تارىخىي رومان",
+          price: 18,
+          image_url: cover,
+          representative_book_id: 156,
+          member_count: 2,
+          matched_book_ids: [156]
+        },
+        {
+          kind: "book",
+          id: 901,
+          title: "تاق كىتاب",
+          author: "باشقا",
+          category: "رومان",
+          price: 11,
+          image_url: "https://example.invalid/standalone.webp",
+          representative_book_id: 901,
+          matched_book_ids: [901]
+        }
+      ],
+      seriesRoutes: [{ group_id: 156, legacy_slug: "series-156", public_slug: "oyghanghan-zemin" }]
+    });
+    const out = await post("مەنىسى يېقىن ئىزدەش", { "cf-connecting-ip": "203.0.113.8" }, { MULTI_VOLUME_BOOKS_ENABLED: "true" }, state);
+    const series = out.json.results.find((row) => row.kind === "group");
+    assert.ok(series);
+    assert.strictEqual(series.group_slug, "series-156");
+    assert.strictEqual(series.public_slug, "oyghanghan-zemin");
+    assert.strictEqual(series.price, 18);
+    assert.strictEqual(series.image_url, cover);
+    assert.strictEqual(SeriesRoutes.groupPath(series), "/series/oyghanghan-zemin");
+    assert.ok(out.json.results.some((row) => row.id === 901 && row.kind !== "group"));
+    assert.strictEqual(state.openai, 1);
+    assert.ok(state.map >= 1);
   });
 }
 

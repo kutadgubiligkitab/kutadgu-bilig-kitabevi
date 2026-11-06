@@ -261,6 +261,31 @@ await check("literal patterns do not expand wildcards or backslashes", async () 
   assert.ok(hit.some((row) => Number(row.id) === Number(literal.id)));
 });
 
+await check("a book id equal to an unrelated series id stays separately discoverable", async () => {
+  await db.query(
+    `INSERT INTO public.books (id, title, author, category, price, image_url, description, is_active, submission_status)
+     VALUES
+       (770001, 'تاقكېسىش880 تاق', 'تاق ئاپتور', 'رومان', 21, 'https://example.invalid/single.webp', '', true, 'approved'),
+       (770002, 'تاقكېسىش880 1', 'يۈرۈش ئاپتور', 'رومان', 30, 'https://example.invalid/part.webp', '', true, 'approved'),
+       (770003, 'تاقكېسىش880 2', 'يۈرۈش ئاپتور', 'رومان', 12, 'https://example.invalid/part-2.webp', '', true, 'approved')`
+  );
+  await db.query(
+    `INSERT INTO public.book_volume_groups (id, slug, title, is_public, is_active, public_slug)
+     OVERRIDING SYSTEM VALUE
+     VALUES (770001, 'collision-series', 'تاقكېسىش880 يۈرۈشلۈك', true, true, 'collision-series')`
+  );
+  await db.query(
+    `INSERT INTO public.book_volume_group_members (group_id, book_id, position) VALUES
+       (770001, 770002, 1),
+       (770001, 770003, 2)`
+  );
+  const found = await rows(
+    `SELECT id, series_group_id, series_slug FROM public.search_public_catalog_lexical(ARRAY['تاقكېسىش880'], ARRAY[]::text[], 24)`
+  );
+  assert.ok(found.some((row) => Number(row.id) === 770001 && row.series_group_id == null));
+  assert.ok(found.some((row) => Number(row.series_group_id) === 770001 && row.series_slug === "collision-series"));
+});
+
 await check("the paid ledger is locked, capped, and fail-closed", async () => {
   const hash = "ab".repeat(16);
   const first = await rows(`SELECT allowed, remaining_micro_usd FROM public.reserve_ai_search_paid_call($1)`, [hash]);

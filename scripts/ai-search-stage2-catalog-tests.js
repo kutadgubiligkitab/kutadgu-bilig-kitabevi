@@ -85,6 +85,15 @@ function makeFetch(state) {
     if (/list_active_books_by_categories_ai$/.test(href)) {
       return { ok: true, status: 200, async json() { return []; } };
     }
+    if (/map_public_books_to_catalog_units$/.test(href)) {
+      state.map = (state.map || 0) + 1;
+      return { ok: true, status: 200, async json() { return state.mapRows || []; } };
+    }
+    if (/list_public_book_series_routes$/.test(href)) {
+      state.routes = (state.routes || 0) + 1;
+      if (state.routesStatus) return { ok: false, status: state.routesStatus, async json() { return { message: "missing" }; } };
+      return { ok: true, status: 200, async json() { return state.seriesRoutes || []; } };
+    }
     if (/book_embeddings/.test(href) || /\/rest\/v1\/books/.test(href)) {
       state.forbidden = true;
       return { ok: false, status: 403, async json() { return { message: "forbidden" }; } };
@@ -256,6 +265,67 @@ async function run() {
     assert.deepStrictEqual(weak, []);
   });
 
+  await test("a mapped semantic series keeps its canonical slug, price, and cover", async () => {
+    const cover = "https://example.invalid/series/oyghanghan-zemin.webp";
+    const mapped = {
+      kind: "group",
+      id: 156,
+      group_id: 156,
+      group_slug: "series-156",
+      title: "ئويغانغان زېمىن",
+      author: "ئابدۇرېھىم ئۆتكۈر",
+      category: "تارىخىي رومان",
+      price: 18,
+      image_url: cover,
+      representative_book_id: 156,
+      member_count: 2,
+      matched_book_ids: [156, 157]
+    };
+    const standalone = {
+      kind: "book",
+      id: 901,
+      title: "تاق كىتاب",
+      author: "باشقا",
+      category: "رومان",
+      price: 11,
+      image_url: "https://example.invalid/standalone.webp",
+      representative_book_id: 901,
+      matched_book_ids: [901]
+    };
+    const out = await search("مەنىسى يېقىن ئىزدەش", { MULTI_VOLUME_BOOKS_ENABLED: "true" }, {
+      catalogRows: [],
+      vectorRows: [
+        book({ id: 156, title: "ئويغانغان زېمىن 1. قىسىم", author: "ئابدۇرېھىم ئۆتكۈر", category: "تارىخىي رومان" }, { similarity: 0.8 }),
+        book({ id: 157, title: "ئويغانغان زېمىن 2. قىسىم", author: "ئابدۇرېھىم ئۆتكۈر", category: "تارىخىي رومان" }, { similarity: 0.7 }),
+        book({ id: 901, title: "تاق كىتاب", author: "باشقا", category: "رومان" }, { similarity: 0.6 })
+      ],
+      mapRows: [mapped, standalone],
+      seriesRoutes: [{ group_id: 156, legacy_slug: "series-156", public_slug: "oyghanghan-zemin" }]
+    });
+    assert.strictEqual(out.state.openai, 1);
+    assert.strictEqual(out.state.map, 1);
+    assert.strictEqual(out.state.routes, 1);
+    const series = out.json.results.find((row) => row.kind === "group");
+    const single = out.json.results.find((row) => row.id === 901);
+    assert.ok(series);
+    assert.strictEqual(series.group_slug, "series-156");
+    assert.strictEqual(series.public_slug, "oyghanghan-zemin");
+    assert.strictEqual(series.price, 18);
+    assert.strictEqual(series.image_url, cover);
+    assert.strictEqual(series.member_count, 2);
+    assert.strictEqual(SeriesRoutes.groupPath(series), "/series/oyghanghan-zemin");
+    assert.ok(single);
+    assert.notStrictEqual(single.kind, "group");
+    const unresolved = await search("مەنىسى يېقىن ئىزدەش", { MULTI_VOLUME_BOOKS_ENABLED: "true" }, {
+      catalogRows: [],
+      vectorRows: [book({ id: 156, title: "ئويغانغان زېمىن 1. قىسىم", author: "A", category: "رومان" }, { similarity: 0.8 })],
+      mapRows: [mapped],
+      routesStatus: 404
+    });
+    assert.ok(!unresolved.json.results.some((row) => row.public_slug === "series-156" || row.group_slug === "series-156" && row.kind === "group"));
+    assert.notStrictEqual(SeriesRoutes.groupPath(unresolved.json.results[0] || {}), "/series/series-156");
+  });
+
   await test("a closed semantic service does not claim that no books exist", async () => {
     const out = await search("مەنىسى يېقىن ئىزدەش", {}, { catalogRows: [], reserveAllowed: false });
     assert.strictEqual(out.status, 200);
@@ -371,6 +441,8 @@ async function run() {
     assert.match(sql, /private\.kutadgu_public_volume_groups\(\)/);
     assert.match(sql, /left\(b\.description, 2500\)/);
     assert.match(sql, /strpos\(normalize\(b\.title, NFC\), v\.q\) > 0/);
+    assert.match(sql, /'book:' \|\| hits\.id::text/);
+    assert.match(sql, /'group:' \|\| hits\.series_group_id::text/);
     assert.match(sql, /series_group_id/);
     assert.doesNotMatch(sql, /ILIKE/);
     assert.match(sql, /LIMIT LEAST\(GREATEST\(COALESCE\(p_limit, 24\), 1\), 24\)/);

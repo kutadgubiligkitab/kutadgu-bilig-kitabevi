@@ -168,8 +168,8 @@ AS $lexical$
   chosen AS (
     SELECT DISTINCT ON (
       CASE
-        WHEN hits.tier = 1 OR hits.series_group_id IS NULL THEN hits.id
-        ELSE hits.series_group_id
+        WHEN hits.tier = 1 OR hits.series_group_id IS NULL THEN 'book:' || hits.id::text
+        ELSE 'group:' || hits.series_group_id::text
       END
     )
       hits.*
@@ -177,8 +177,8 @@ AS $lexical$
     WHERE hits.tier IS NOT NULL
     ORDER BY
       CASE
-        WHEN hits.tier = 1 OR hits.series_group_id IS NULL THEN hits.id
-        ELSE hits.series_group_id
+        WHEN hits.tier = 1 OR hits.series_group_id IS NULL THEN 'book:' || hits.id::text
+        ELSE 'group:' || hits.series_group_id::text
       END,
       hits.tier,
       (hits.id = hits.series_representative_id) DESC,
