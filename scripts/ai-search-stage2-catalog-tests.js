@@ -6,6 +6,7 @@ const path = require("path");
 
 const root = path.join(__dirname, "..");
 const Ai = require("../kutadgu-ai-search.js");
+const SeriesRoutes = require("../kutadgu-series-routes.js");
 const catalog = require("./fixtures/public-catalog-search-stage2.json");
 
 let failed = 0;
@@ -70,6 +71,13 @@ function makeFetch(state) {
       }
       return { ok: true, status: 200, async json() { return state.catalogRows || []; } };
     }
+    if (/reserve_ai_search_paid_call$/.test(href)) {
+      state.reserve = (state.reserve || 0) + 1;
+      if (state.reserveStatus) {
+        return { ok: false, status: state.reserveStatus, async json() { return { message: "budget missing" }; } };
+      }
+      return { ok: true, status: 200, async json() { return [{ allowed: state.reserveAllowed !== false, remaining_micro_usd: 900000 }]; } };
+    }
     if (/match_active_books_ai$/.test(href)) {
       state.vector += 1;
       return { ok: true, status: 200, async json() { return state.vectorRows || []; } };
@@ -89,7 +97,7 @@ async function search(query, envExtra, stateExtra) {
   const state = Object.assign({ calls: [], openai: 0, catalog: 0, vector: 0, forbidden: false }, stateExtra || {});
   const res = mockRes();
   await Ai.handleAiSearch(
-    { method: "POST", body: { query } },
+    { method: "POST", headers: { "cf-connecting-ip": "203.0.113.8" }, body: { query } },
     res,
     {
       env: Object.assign({
@@ -169,12 +177,15 @@ async function run() {
   await test("a published series title is returned as the series, not a private group", async () => {
     const series = catalog.find((row) => row.series_title && row.title !== row.series_title);
     const out = await search(series.series_title, {}, {
-      catalogRows: [book(series, { title: series.title })]
+      catalogRows: [book(series, { title: series.title, series_group_id: 156 })]
     });
     assert.strictEqual(out.status, 200);
     assert.strictEqual(out.json.results[0].kind, "group");
     assert.strictEqual(out.json.results[0].title, series.series_title);
+    assert.strictEqual(out.json.results[0].group_id, 156);
     assert.strictEqual(out.json.results[0].group_slug, series.series_slug);
+    assert.strictEqual(out.json.results[0].public_slug, series.series_slug);
+    assert.strictEqual(SeriesRoutes.groupPath(out.json.results[0]), "/series/" + series.series_slug);
     assert.strictEqual(out.state.openai, 0);
   });
 
@@ -219,8 +230,9 @@ async function run() {
   });
 
   await test("a reached spend limit returns no invented semantic book", async () => {
-    const out = await search("مەنىسى يېقىن ئىزدەش", { AI_SEARCH_PAID_CALLS_REMAINING: "0" }, {
+    const out = await search("مەنىسى يېقىن ئىزدەش", {}, {
       catalogRows: [],
+      reserveAllowed: false,
       vectorRows: [book(catalog[22], { similarity: 0.9 })]
     });
     assert.strictEqual(out.status, 200);
@@ -229,15 +241,47 @@ async function run() {
     assert.strictEqual(out.state.vector, 0);
   });
 
-  await test("a missing catalog function keeps the previous vector path", async () => {
+  await test("a missing catalog function does not call OpenAI", async () => {
     const out = await search("بالىلار تەربىيەسى", {}, {
       catalogStatus: 404,
       vectorRows: [book({ id: 12, title: "بالىلار تەربىيەسى", author: "A", category: "پەرزەنت تەربىيەسى" }, { similarity: 0.8 })]
     });
-    assert.strictEqual(out.status, 200);
-    assert.strictEqual(out.json.results[0].id, 12);
-    assert.strictEqual(out.state.openai, 1);
-    assert.strictEqual(out.state.vector, 1);
+    assert.strictEqual(out.status, 503);
+    assert.strictEqual(out.state.openai, 0);
+    assert.strictEqual(out.state.vector, 0);
+    assert.strictEqual(out.state.reserve || 0, 0);
+  });
+
+  await test("a missing or refused budget does not call OpenAI", async () => {
+    const missing = await search("مەنىسى يېقىن ئىزدەش", {}, {
+      catalogRows: [],
+      reserveStatus: 404,
+      vectorRows: [book(catalog[22], { similarity: 0.9, title: "مۇناسىۋەتسىز" })]
+    });
+    assert.strictEqual(missing.status, 200);
+    assert.deepStrictEqual(missing.json.results, []);
+    assert.strictEqual(missing.state.openai, 0);
+    const refused = await search("مەنىسى يېقىن ئىزدەش", {}, {
+      catalogRows: [],
+      reserveAllowed: false,
+      vectorRows: [book(catalog[22], { similarity: 0.9, title: "مۇناسىۋەتسىز" })]
+    });
+    assert.deepStrictEqual(refused.json.results, []);
+    assert.strictEqual(refused.state.openai, 0);
+  });
+
+  await test("semantic acceptance is only the numeric floor and is not live quality proof", async () => {
+    const below = await search("مەنىسى يېقىن ئىزدەش", {}, {
+      catalogRows: [],
+      vectorRows: [book(catalog[23], { similarity: 0.549, title: "يەنە بىر ماۋزۇ" })]
+    });
+    assert.deepStrictEqual(below.json.results, []);
+    const atFloor = await search("مەنىسى يېقىن ئىزدەش", {}, {
+      catalogRows: [],
+      vectorRows: [book(catalog[24], { similarity: 0.55, title: "باشقا ماۋزۇ" })]
+    });
+    assert.strictEqual(atFloor.json.results[0].id, catalog[24].id);
+    assert.strictEqual(atFloor.state.openai, 1);
   });
 
   await test("the catalog function is service-role only and is not applied", () => {
@@ -248,9 +292,9 @@ async function run() {
     assert.match(sql, /b\.submission_status = 'approved'/);
     assert.match(sql, /private\.kutadgu_public_volume_groups\(\)/);
     assert.match(sql, /left\(b\.description, 2500\)/);
-    assert.match(sql, /AS safe/);
-    assert.match(sql, /char_length\(v\.safe\) >= 3/);
-    assert.doesNotMatch(sql, /ILIKE '%' \|\| replace\(replace/);
+    assert.match(sql, /strpos\(normalize\(b\.title, NFC\), v\.q\) > 0/);
+    assert.match(sql, /series_group_id/);
+    assert.doesNotMatch(sql, /ILIKE/);
     assert.match(sql, /LIMIT LEAST\(GREATEST\(COALESCE\(p_limit, 24\), 1\), 24\)/);
     assert.match(sql, /REVOKE ALL ON FUNCTION public\.search_public_catalog_lexical\(text\[\], text\[\], integer\)/);
     assert.match(sql, /FROM PUBLIC, anon, authenticated/);

@@ -124,6 +124,14 @@ function makeFetch(state) {
     if (method === "POST" && /\/rest\/v1\/rpc\/list_active_books_by_categories_ai$/.test(href)) {
       return jsonRes(200, state.categoryRows || []);
     }
+    if (method === "POST" && /\/rest\/v1\/rpc\/search_public_catalog_lexical$/.test(href)) {
+      if (state.catalogStatus) return jsonRes(state.catalogStatus, { message: "catalog missing" });
+      return jsonRes(200, state.catalogRows || []);
+    }
+    if (method === "POST" && /\/rest\/v1\/rpc\/reserve_ai_search_paid_call$/.test(href)) {
+      if (state.reserveStatus) return jsonRes(state.reserveStatus, { message: "budget missing" });
+      return jsonRes(200, [{ allowed: state.reserveAllowed !== false, remaining_micro_usd: 900000 }]);
+    }
     if (method === "POST" && /\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
       if (state.rpcStatus && state.rpcStatus !== 200) return jsonRes(state.rpcStatus, { message: "rpc fail" });
       return jsonRes(200, state.rpcRows || [{
@@ -152,7 +160,10 @@ const TEST_RPC_KEY = "test-supabase-rpc-key";
 
 async function invoke(req, env, fetchImpl, extra) {
   const res = mockRes();
-  const stats = await Ai.handleAiSearch(req, res, Object.assign({
+  const request = Object.assign({}, req, {
+    headers: Object.assign({ "cf-connecting-ip": "203.0.113.8" }, req && req.headers)
+  });
+  const stats = await Ai.handleAiSearch(request, res, Object.assign({
     env: Object.assign({ SUPABASE_SECRET_KEY: TEST_RPC_KEY }, env || {}),
     fetchImpl: fetchImpl || makeFetch({})
   }, extra || {}));
@@ -435,7 +446,7 @@ async function run() {
     assert.strictEqual(out.json.error, "unavailable");
     assert.doesNotMatch(out.body, /match_active_books_ai|embedding/);
     assert.ok(state.calls.some((call) => /match_active_books_ai$/.test(call.url)));
-    assert.ok(state.calls.filter((call) => /rpc\//.test(call.url)).length <= 2);
+    assert.ok(state.calls.filter((call) => /rpc\//.test(call.url)).length <= 3);
   });
 
   await test("OpenAI index, model, and vector mismatches fail closed without RPC", async () => {

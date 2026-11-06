@@ -17,6 +17,7 @@ const CANDIDATE_COUNT = 24;
 const MATCH_RPC = "match_active_books_ai";
 const CATEGORY_RPC = "list_active_books_by_categories_ai";
 const CATALOG_RPC = "search_public_catalog_lexical";
+const RESERVE_RPC = "reserve_ai_search_paid_call";
 const MAP_UNITS_RPC = "map_public_books_to_catalog_units";
 const SEMANTIC_ACCEPT_FLOOR = 0.55;
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
@@ -246,6 +247,7 @@ function publicResult(row) {
     result.kind = "group";
     result.group_id = row.group_id == null ? null : Number(row.group_id);
     result.group_slug = String(row.group_slug || row.slug || "");
+    result.public_slug = String(row.public_slug || row.group_slug || row.slug || "");
     result.member_count = Number(row.member_count) || 0;
   }
   return result;
@@ -362,13 +364,6 @@ function categoryNamesForQuery(query) {
     });
   });
   return names;
-}
-
-function paidCallsAllowed(env) {
-  const raw = env && env.AI_SEARCH_PAID_CALLS_REMAINING;
-  if (raw == null || raw === "") return true;
-  const limit = Number(raw);
-  return Number.isFinite(limit) && limit > 0;
 }
 
 function authorCoreName(author) {
@@ -602,6 +597,7 @@ function readCatalogRows(rows) {
     parsed.series_title = String(row.series_title == null ? "" : row.series_title);
     parsed.series_slug = String(row.series_slug == null ? "" : row.series_slug);
     parsed.series_member_count = Number(row.series_member_count) || 0;
+    parsed.series_group_id = Number(row.series_group_id) || null;
     if (row.is_active === false) parsed.is_active = false;
     if (row.submission_status) parsed.submission_status = row.submission_status;
     return parsed;
@@ -626,18 +622,63 @@ function expandSeriesCandidates(rows, query) {
       similarity: row.similarity || 0,
       description: "",
       kind: "group",
+      group_id: row.series_group_id || null,
       group_slug: row.series_slug || "",
+      public_slug: row.series_slug || "",
       member_count: row.series_member_count || 0,
       is_active: row.is_active,
       submission_status: row.submission_status
     });
   });
   return out.filter((row) => {
-    const key = (row.kind || "book") + ":" + row.id + ":" + normalizeQuery(row.title);
+    const key = row.kind === "group"
+      ? "group:" + (row.public_slug || row.group_slug) + ":" + normalizeQuery(row.title)
+      : "book:" + row.id + ":" + normalizeQuery(row.title);
     if (seen[key]) return false;
     seen[key] = true;
     return true;
   });
+}
+
+function headerValue(req, name) {
+  const headers = req && req.headers;
+  if (!headers) return "";
+  if (typeof headers.get === "function") return String(headers.get(name) || "");
+  const key = Object.keys(headers).find((item) => item.toLowerCase() === name);
+  return key ? String(headers[key] || "") : "";
+}
+
+async function clientIpHash(req) {
+  const forwarded = headerValue(req, "x-forwarded-for").split(",")[0].trim();
+  const ip = headerValue(req, "cf-connecting-ip").trim() || forwarded;
+  if (!ip || !globalThis.crypto || !crypto.subtle) return "";
+  const bytes = new TextEncoder().encode("kutadgu-ai-search-ip:" + ip);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((part) => part.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
+function readReserve(payload) {
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  return !!(row && row.allowed === true);
+}
+
+async function reservePaidCall(fetchImpl, ipHash, timeoutMs, rpcKey) {
+  if (!/^[a-f0-9]{32}$/.test(String(ipHash || ""))) return false;
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + RESERVE_RPC;
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: rpcKey,
+        Authorization: "Bearer " + rpcKey,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p_ip_hash: ipHash })
+    }, timeoutMs || RPC_TIMEOUT_MS, readReserve);
+  } catch (err) {
+    return false;
+  }
 }
 
 function acceptSemantic(rows) {
@@ -749,29 +790,28 @@ async function runSearch(options) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 0 };
   }
   const catalogRows = await searchPublicCatalog(fetchImpl, query, opts.rpcTimeoutMs, rpcKey);
-  if (Array.isArray(catalogRows)) {
-    const lexical = selectRelevantResults(query, expandSeriesCandidates(catalogRows, query))
-      .map(publicResult)
-      .filter(Boolean);
-    if (lexical.length) {
-      return {
-        status: 200,
-        body: { ok: true, results: lexical, count: lexical.length },
-        openaiCalls: 0,
-        supabaseCalls: 1
-      };
-    }
+  if (!Array.isArray(catalogRows)) {
+    return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 1 };
   }
-  if (!apiKey || !paidCallsAllowed(env)) {
-    if (Array.isArray(catalogRows)) {
-      return {
-        status: 200,
-        body: { ok: true, results: [], count: 0 },
-        openaiCalls: 0,
-        supabaseCalls: 1
-      };
-    }
-    return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: catalogRows === null ? 1 : 0 };
+  const lexical = selectRelevantResults(query, expandSeriesCandidates(catalogRows, query))
+    .map(publicResult)
+    .filter(Boolean);
+  if (lexical.length) {
+    return {
+      status: 200,
+      body: { ok: true, results: lexical, count: lexical.length },
+      openaiCalls: 0,
+      supabaseCalls: 1
+    };
+  }
+  const reserved = apiKey ? await reservePaidCall(fetchImpl, opts.clientIpHash, opts.rpcTimeoutMs, rpcKey) : false;
+  if (!reserved) {
+    return {
+      status: 200,
+      body: { ok: true, results: [], count: 0 },
+      openaiCalls: 0,
+      supabaseCalls: 1
+    };
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
   const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs, rpcKey);
@@ -791,9 +831,7 @@ async function runSearch(options) {
     candidates = await mapCandidatesToCatalogUnits(fetchImpl, candidates, opts.rpcTimeoutMs, rpcKey);
   }
   let results = selectRelevantResults(query, candidates);
-  if (!results.length && Array.isArray(catalogRows)) {
-    results = acceptSemantic(candidates);
-  }
+  if (!results.length) results = acceptSemantic(candidates);
   return {
     status: 200,
     body: { ok: true, results, count: results.length },
@@ -841,6 +879,7 @@ async function handleAiSearch(req, res, options) {
       env,
       fetchImpl: wrappedFetch,
       query: parsed.value && parsed.value.query,
+      clientIpHash: await clientIpHash(req),
       openaiTimeoutMs: opts.openaiTimeoutMs,
       rpcTimeoutMs: opts.rpcTimeoutMs
     });
@@ -870,6 +909,7 @@ module.exports = {
   MATCH_RPC,
   CATEGORY_RPC,
   CATALOG_RPC,
+  RESERVE_RPC,
   MAP_UNITS_RPC,
   SEMANTIC_ACCEPT_FLOOR,
   ENABLED_ENV,

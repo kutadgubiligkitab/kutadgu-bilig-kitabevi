@@ -84,6 +84,14 @@ function makeFetch(rpcRows, extra) {
       }
       return { ok: true, status: 200, async json() { return extra.categoryRows || []; } };
     }
+    if (/\/rest\/v1\/rpc\/search_public_catalog_lexical$/.test(href)) {
+      if (extra.catalogStatus) return { ok: false, status: extra.catalogStatus, async json() { return { message: "catalog missing" }; } };
+      return { ok: true, status: 200, async json() { return extra.catalogRows || []; } };
+    }
+    if (/\/rest\/v1\/rpc\/reserve_ai_search_paid_call$/.test(href)) {
+      if (extra.reserveStatus) return { ok: false, status: extra.reserveStatus, async json() { return { message: "budget missing" }; } };
+      return { ok: true, status: 200, async json() { return [{ allowed: extra.reserveAllowed !== false, remaining_micro_usd: 900000 }]; } };
+    }
     if (/\/rest\/v1\/rpc\/match_active_books_ai$/.test(href)) {
       state.rpc += 1;
       return { ok: true, status: 200, async json() { return rpcRows; } };
@@ -101,7 +109,7 @@ async function search(query, rpcRows, extra) {
   const state = makeFetch(rpcRows, extra);
   const res = mockRes();
   const stats = await Ai.handleAiSearch(
-    { method: "POST", body: { query } },
+    { method: "POST", headers: { "cf-connecting-ip": "203.0.113.8" }, body: { query } },
     res,
     { env: { AI_SEARCH_ENABLED: "true", OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" }, fetchImpl: state.fetchImpl }
   );
