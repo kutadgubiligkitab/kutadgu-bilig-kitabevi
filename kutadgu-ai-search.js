@@ -257,6 +257,7 @@ function publicResult(row) {
     result.group_id = row.group_id == null ? null : Number(row.group_id);
     result.group_slug = String(row.group_slug || row.slug || "");
     result.public_slug = validPublicSlug(row.public_slug);
+    if (row.public_slug_verified === true && result.public_slug) result.public_slug_verified = true;
     result.member_count = Number(row.member_count) || 0;
   }
   return result;
@@ -522,9 +523,11 @@ function authorMatchesQuery(author, query) {
 }
 
 function descriptionMatchesQuery(row, query) {
-  const desc = foldSpelling(row && row.description);
   const q = foldSpelling(query);
-  if (!desc || q.length < 8) return false;
+  if (!q || q.length < 8) return false;
+  if (row && row.description_matched === true) return true;
+  const desc = foldSpelling(row && row.description);
+  if (!desc) return false;
   return desc.indexOf(q) !== -1;
 }
 
@@ -646,7 +649,8 @@ function readCatalogRows(rows) {
   return rows.map((row) => {
     const parsed = publicResult(row);
     if (!parsed) return null;
-    parsed.description = String(row.description == null ? "" : row.description);
+    parsed.description = String(row.description == null ? "" : row.description).slice(0, 2500);
+    if (row.description_matched === true) parsed.description_matched = true;
     parsed.series_title = String(row.series_title == null ? "" : row.series_title);
     parsed.series_slug = String(row.series_slug == null ? "" : row.series_slug);
     parsed.series_member_count = Number(row.series_member_count) || 0;
@@ -735,6 +739,7 @@ function seriesDisplay(row) {
     group_id: groupId,
     group_slug: legacy || slug,
     public_slug: slug,
+    public_slug_verified: true,
     member_count: row.series_member_count || row.member_count || 0
   });
 }

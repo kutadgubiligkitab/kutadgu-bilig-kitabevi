@@ -4,7 +4,10 @@
 --
 -- search_public_catalog_lexical returns at most 24 active, approved books.
 -- A description is included only for a matched row, and only its first 2500
--- characters. Published series come from the existing public-series function.
+-- characters. description_matched says whether the full description contained
+-- a submitted query variant. The worker uses that flag internally and does not
+-- send it, or the rest of the description, to the browser.
+-- Published series come from the existing public-series function.
 -- Comparisons are literal substring tests. Percent, underscore, and backslash
 -- are ordinary characters. NFC matches the worker query normalization and
 -- does not change Uyghur case or spelling.
@@ -43,6 +46,7 @@ RETURNS TABLE (
   image_url text,
   stock integer,
   description text,
+  description_matched boolean,
   series_title text,
   series_slug text,
   series_member_count integer,
@@ -108,6 +112,11 @@ AS $lexical$
       b.image_url,
       b.stock,
       left(b.description, 2500) AS description,
+      EXISTS (
+        SELECT 1 FROM variants AS v
+        WHERE char_length(v.q) >= 8
+          AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
+      ) AS description_matched,
       m.series_title,
       m.series_slug,
       m.member_count AS series_member_count,
@@ -159,13 +168,13 @@ AS $lexical$
               )
             )
         ) THEN 5
+        WHEN EXISTS (SELECT 1 FROM categories)
+          AND normalize(b.category, NFC) IN (SELECT cat FROM categories) THEN 6
         WHEN EXISTS (
           SELECT 1 FROM variants AS v
           WHERE char_length(v.q) >= 8
             AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
-        ) THEN 6
-        WHEN EXISTS (SELECT 1 FROM categories)
-          AND normalize(b.category, NFC) IN (SELECT cat FROM categories) THEN 7
+        ) THEN 7
         ELSE NULL
       END AS tier
     FROM public.books AS b
@@ -201,6 +210,7 @@ AS $lexical$
     chosen.image_url,
     chosen.stock,
     chosen.description,
+    chosen.description_matched,
     chosen.series_title,
     chosen.series_slug,
     chosen.series_member_count,

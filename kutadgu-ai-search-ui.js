@@ -90,12 +90,13 @@
   function publicResultHref(row) {
     if (row && row.kind === "group") {
       var canonical = validSeriesSlug(row.public_slug);
-      if (canonical && !/^series-[0-9]+$/.test(canonical)) return "/series/" + canonical;
+      var legacyShaped = /^series-[0-9]+$/.test(canonical);
+      if (canonical && (!legacyShaped || row.public_slug_verified === true)) return "/series/" + canonical;
       var legacy = validSeriesSlug(row.group_slug);
       var routes = root && root.KutadguSeriesRoutes;
       if (routes && typeof routes.groupPath === "function" && legacy) {
         var routed = Object.assign({}, row, { slug: row.group_slug });
-        if (/^series-[0-9]+$/.test(validSeriesSlug(routed.public_slug))) delete routed.public_slug;
+        if (legacyShaped || /^series-[0-9]+$/.test(validSeriesSlug(routed.public_slug))) delete routed.public_slug;
         return routes.groupPath(routed);
       }
       if (legacy) return "/volume-group/" + legacy;

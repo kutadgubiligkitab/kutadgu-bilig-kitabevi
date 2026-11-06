@@ -398,6 +398,128 @@ await check("the paid ledger is locked, capped, and fail-closed", async () => {
   assert.equal(catalogPriv[0].service, true);
 });
 
+await check("a phrase after 2500 description characters still matches without OpenAI", async () => {
+  const phrase = "كېيىنكىئىبارە";
+  await db.query(
+    `INSERT INTO public.books (id, title, author, category, price, image_url, description, is_active, submission_status)
+     VALUES
+       (883001, 'ئالاھىدە ماۋزۇ', 'باشقا ئاپتور', 'رومان', 19, 'https://example.invalid/late.webp', repeat('a', 2500) || $1, true, 'approved'),
+       (883002, 'مۇناسىۋەتسىز ماۋزۇ', 'باشقا ئاپتور', 'رومان', 19, 'https://example.invalid/other.webp', 'مۇناسىۋەتسىز تېكىست', true, 'approved')`,
+    [phrase]
+  );
+  const found = await rows(
+    `SELECT id, description, description_matched
+     FROM public.search_public_catalog_lexical(ARRAY[$1], ARRAY[]::text[], 24)`,
+    [phrase]
+  );
+  assert.equal(found.length, 1);
+  assert.equal(Number(found[0].id), 883001);
+  assert.equal(found[0].description_matched, true);
+  assert.equal(String(found[0].description).includes(phrase), false);
+  assert.ok(String(found[0].description).length <= 2500);
+  let openai = 0;
+  const searched = await Ai.runSearch({
+    query: phrase,
+    env: { OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" },
+    clientIpHash: "ab".repeat(16),
+    fetchImpl: async (url) => {
+      if (/api\.openai\.com/.test(String(url))) {
+        openai += 1;
+        throw new Error("openai");
+      }
+      return { ok: true, status: 200, async json() { return found; } };
+    }
+  });
+  assert.equal(openai, 0);
+  assert.equal(searched.body.results.length, 1);
+  assert.equal(Number(searched.body.results[0].id), 883001);
+  assert.equal("description" in searched.body.results[0], false);
+  assert.equal("description_matched" in searched.body.results[0], false);
+  const unrelated = Ai.presentSearchResults(phrase, [{
+    id: 883002,
+    title: "مۇناسىۋەتسىز ماۋزۇ",
+    author: "باشقا ئاپتور",
+    category: "رومان",
+    price: 19,
+    image_url: "",
+    description: "مۇناسىۋەتسىز تېكىست",
+    description_matched: false
+  }]);
+  assert.equal(unrelated.length, 0);
+});
+
+await check("category books stay ahead of more than 24 description-only mentions", async () => {
+  await db.exec(`
+    UPDATE public.books
+    SET category = 'رومان'
+    WHERE category IN ('تارىخىي رومان', 'تارىخىي رومانلار');
+    UPDATE public.books
+    SET title = 'كىتاب ' || id::text
+    WHERE strpos(title, 'تارىخىي رومان') > 0;
+    UPDATE public.book_volume_groups
+    SET title = 'يۈرۈش ' || id::text
+    WHERE strpos(title, 'تارىخىي رومان') > 0;
+  `);
+  const description = "بۇ چۈشەندۈرۈش تارىخىي رومان نى ئۆز ئىچىگە ئالىدۇ";
+  for (let i = 0; i < 30; i += 1) {
+    await db.query(
+      `INSERT INTO public.books (id, title, author, category, price, image_url, description, is_active, submission_status)
+       VALUES ($1, $2, 'باشقا ئاپتور', 'رومان', 11, '', $3, true, 'approved')`,
+      [884000 + i, "چۈشەندۈرۈش كىتاب " + i, description]
+    );
+  }
+  await db.query(
+    `INSERT INTO public.books (id, title, author, category, price, image_url, description, is_active, submission_status)
+     VALUES
+       (882001, 'ھەقىقىي كىتاب بىر', 'باشقا ئاپتور', 'تارىخىي رومان', 21, 'https://example.invalid/cat-1.webp', '', true, 'approved'),
+       (882002, 'ھەقىقىي كىتاب ئىككى', 'باشقا ئاپتور', 'تارىخىي رومان', 22, 'https://example.invalid/cat-2.webp', '', true, 'approved'),
+       (882003, 'ھەقىقىي كىتاب ئۈچ', 'باشقا ئاپتور', 'تارىخىي رومان', 23, 'https://example.invalid/cat-3.webp', '', true, 'approved'),
+       (882010, 'ھەقىقىي قىسىم بىر', 'باشقا ئاپتور', 'تارىخىي رومان', 16, 'https://example.invalid/series-cat.webp', '', true, 'approved'),
+       (882011, 'ھەقىقىي قىسىم ئىككى', 'باشقا ئاپتور', 'تارىخىي رومان', 18, 'https://example.invalid/series-cat-2.webp', '', true, 'approved')`
+  );
+  const group = await db.query(
+    `INSERT INTO public.book_volume_groups (slug, title, is_public, is_active, public_slug)
+     VALUES ('history-real', 'ھەقىقىي يۈرۈش', true, true, 'history-real') RETURNING id`
+  );
+  await db.query(
+    `INSERT INTO public.book_volume_group_members (group_id, book_id, position) VALUES
+       ($1, 882010, 1), ($1, 882011, 2)`,
+    [group.rows[0].id]
+  );
+  const found = await rows(
+    `SELECT id, category, series_slug, series_group_id
+     FROM public.search_public_catalog_lexical(ARRAY['تارىخىي رومان'], ARRAY['تارىخىي رومانلار','تارىخىي رومان'], 24)`
+  );
+  assert.ok(found.length <= 24);
+  assert.ok(found.some((row) => Number(row.id) === 882001));
+  assert.ok(found.some((row) => Number(row.id) === 882002));
+  assert.ok(found.some((row) => Number(row.id) === 882003));
+  assert.ok(found.some((row) => row.series_slug === "history-real"));
+  let openai = 0;
+  const searched = await Ai.runSearch({
+    query: "تارىخىي رومان",
+    env: { OPENAI_API_KEY: "test-openai-key", SUPABASE_SECRET_KEY: "test-supabase-rpc-key" },
+    clientIpHash: "ab".repeat(16),
+    fetchImpl: async (url) => {
+      if (/api\.openai\.com/.test(String(url))) {
+        openai += 1;
+        throw new Error("openai");
+      }
+      return { ok: true, status: 200, async json() { return found; } };
+    }
+  });
+  assert.equal(openai, 0);
+  const ids = searched.body.results.map((row) => Number(row.id));
+  assert.ok(ids.includes(882001));
+  assert.ok(ids.includes(882002));
+  assert.ok(ids.includes(882003));
+  const series = searched.body.results.find((row) => row.kind === "group");
+  assert.ok(series);
+  assert.equal(series.public_slug, "history-real");
+  assert.equal(series.public_slug_verified, true);
+  assert.equal("description_matched" in series, false);
+});
+
 await db.close();
 if (failures.length) {
   console.error("failures", failures.join(", "));

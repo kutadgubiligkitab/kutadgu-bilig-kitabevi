@@ -142,6 +142,13 @@ async function run() {
       group_slug: "series-156",
       public_slug: "series-156"
     }), "/volume-group/series-156");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 123,
+      group_slug: "series-156",
+      public_slug: "series-123",
+      public_slug_verified: true
+    }), "/series/series-123");
     globalThis.KutadguSeriesRoutes = {
       groupPath(row) {
         assert.notStrictEqual(row.public_slug, "series-156");
@@ -155,6 +162,19 @@ async function run() {
       group_slug: "series-156",
       public_slug: "series-156"
     }), "/volume-group/series-156");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 123,
+      group_slug: "series-123",
+      public_slug: "series-123",
+      public_slug_verified: true
+    }), "/series/series-123");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 123,
+      group_slug: "series-123",
+      public_slug: "series-123"
+    }), "/volume-group/series-123");
     assert.strictEqual(AiUi.publicResultHref({
       kind: "group",
       id: 156,
@@ -494,6 +514,8 @@ async function run() {
     assert.match(sql, /b\.submission_status = 'approved'/);
     assert.match(sql, /private\.kutadgu_public_volume_groups\(\)/);
     assert.match(sql, /left\(b\.description, 2500\)/);
+    assert.match(sql, /description_matched boolean/);
+    assert.match(sql, /IN \(SELECT cat FROM categories\) THEN 6[\s\S]*char_length\(v\.q\) >= 8[\s\S]*THEN 7/);
     assert.match(sql, /strpos\(normalize\(b\.title, NFC\), v\.q\) > 0/);
     assert.match(sql, /'book:' \|\| hits\.id::text/);
     assert.match(sql, /'group:' \|\| hits\.series_group_id::text/);
