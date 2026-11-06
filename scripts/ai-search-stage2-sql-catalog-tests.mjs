@@ -92,8 +92,46 @@ AS $groups$
     AND max(m.position) = count(*)
 $groups$;
 REVOKE ALL ON FUNCTION private.kutadgu_public_volume_groups() FROM PUBLIC, anon, authenticated, service_role;
+CREATE FUNCTION public.list_public_book_series_routes()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $routes$
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'group_id', visible.group_id,
+    'legacy_slug', g.slug,
+    'public_slug', g.public_slug
+  ) ORDER BY visible.group_id), '[]'::jsonb)
+  FROM private.kutadgu_public_volume_groups() visible
+  JOIN public.book_volume_groups g ON g.id = visible.group_id;
+$routes$;
+REVOKE ALL ON FUNCTION public.list_public_book_series_routes() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.list_public_book_series_routes() TO anon, authenticated;
 `);
+const routesBefore = await rows(`
+  SELECT pg_get_functiondef('public.list_public_book_series_routes()'::regprocedure) AS body,
+         has_function_privilege('anon', 'public.list_public_book_series_routes()', 'EXECUTE') AS anon,
+         has_function_privilege('authenticated', 'public.list_public_book_series_routes()', 'EXECUTE') AS authenticated,
+         has_function_privilege('public', 'public.list_public_book_series_routes()', 'EXECUTE') AS public,
+         has_function_privilege('service_role', 'public.list_public_book_series_routes()', 'EXECUTE') AS service
+`);
+assert.equal(routesBefore[0].service, false);
+assert.equal(routesBefore[0].anon, true);
+assert.equal(routesBefore[0].authenticated, true);
+assert.equal(routesBefore[0].public, false);
 await db.exec(read("STAGE_AI_SEARCH_2_PUBLIC_CATALOG_LEXICAL.sql"));
+const routesAfter = await rows(`
+  SELECT pg_get_functiondef('public.list_public_book_series_routes()'::regprocedure) AS body,
+         has_function_privilege('anon', 'public.list_public_book_series_routes()', 'EXECUTE') AS anon,
+         has_function_privilege('authenticated', 'public.list_public_book_series_routes()', 'EXECUTE') AS authenticated,
+         has_function_privilege('public', 'public.list_public_book_series_routes()', 'EXECUTE') AS public,
+         has_function_privilege('service_role', 'public.list_public_book_series_routes()', 'EXECUTE') AS service
+`);
+assert.equal(routesAfter[0].body, routesBefore[0].body);
+assert.equal(routesAfter[0].service, true);
+assert.equal(routesAfter[0].anon, true);
+assert.equal(routesAfter[0].authenticated, true);
+assert.equal(routesAfter[0].public, false);
+console.log("PASS service_role gains the existing public series directory without changing it");
 await db.exec(read("STAGE_AI_SEARCH_2_QUERY_BUDGET.sql"));
 
 for (const row of catalog) {
@@ -148,6 +186,21 @@ FROM public.book_volume_groups g
 JOIN public.books b ON b.id IN (990003, 990004)
 WHERE g.slug = 'private-series';
 `);
+
+await check("service_role can read only the published series directory", async () => {
+  await db.exec("BEGIN");
+  await db.exec("SET LOCAL ROLE service_role");
+  const visible = await db.query("SELECT public.list_public_book_series_routes() AS value");
+  await db.exec("ROLLBACK");
+  const directory = visible.rows[0].value;
+  assert.ok(directory.some((row) => row.public_slug === "oyghanghan-zemin" && row.legacy_slug));
+  assert.ok(!directory.some((row) => row.public_slug === "private-series" || row.legacy_slug === "private-series"));
+  await db.exec("BEGIN");
+  await db.exec("SET LOCAL ROLE anon");
+  const anonVisible = await db.query("SELECT public.list_public_book_series_routes() AS value");
+  await db.exec("ROLLBACK");
+  assert.ok(!anonVisible.rows[0].value.some((row) => row.public_slug === "private-series"));
+});
 
 await check("the SQL function retrieves every one of the 604 public titles", async () => {
   assert.equal(catalog.length, 604);

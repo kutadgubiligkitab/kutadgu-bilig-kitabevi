@@ -7,6 +7,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const Ai = require("../kutadgu-ai-search.js");
 const SeriesRoutes = require("../kutadgu-series-routes.js");
+const AiUi = require("../kutadgu-ai-search-ui.js");
 const catalog = require("./fixtures/public-catalog-search-stage2.json");
 
 let failed = 0;
@@ -123,6 +124,59 @@ async function search(query, envExtra, stateExtra) {
 }
 
 async function run() {
+  await test("a series card uses the canonical public slug without the route helper", () => {
+    const previous = globalThis.KutadguSeriesRoutes;
+    delete globalThis.KutadguSeriesRoutes;
+    const series = {
+      kind: "group",
+      id: 156,
+      group_id: 156,
+      group_slug: "series-156",
+      public_slug: "oyghanghan-zemin",
+      title: "ئويغانغان زېمىن"
+    };
+    assert.strictEqual(AiUi.publicResultHref(series), "/series/oyghanghan-zemin");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 156,
+      group_slug: "series-156",
+      public_slug: "series-156"
+    }), "/volume-group/series-156");
+    globalThis.KutadguSeriesRoutes = {
+      groupPath(row) {
+        assert.notStrictEqual(row.public_slug, "series-156");
+        return row.public_slug ? "/series/" + row.public_slug : "/volume-group/" + row.slug;
+      }
+    };
+    assert.strictEqual(AiUi.publicResultHref(series), "/series/oyghanghan-zemin");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 156,
+      group_slug: "series-156",
+      public_slug: "series-156"
+    }), "/volume-group/series-156");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 156,
+      group_slug: "series-156"
+    }), "/volume-group/series-156");
+    assert.strictEqual(AiUi.publicResultHref({
+      kind: "group",
+      id: 156,
+      group_slug: "Not A Slug",
+      public_slug: "also bad"
+    }), "");
+    assert.strictEqual(AiUi.publicResultHref({
+      id: 157,
+      title: "ئويغانغان زېمىن 1. قىسىم",
+      public_slug: "oyghanghan-zemin",
+      group_slug: "series-156"
+    }), "/book/157");
+    assert.strictEqual(AiUi.publicResultHref({ id: 901, title: "تاق كىتاب" }), "/book/901");
+    if (previous) globalThis.KutadguSeriesRoutes = previous;
+    else delete globalThis.KutadguSeriesRoutes;
+  });
+
   await test("public fixture contains every active approved book", () => {
     assert.strictEqual(catalog.length, 604);
     const ids = new Set(catalog.map((row) => row.id));
@@ -449,6 +503,7 @@ async function run() {
     assert.match(sql, /REVOKE ALL ON FUNCTION public\.search_public_catalog_lexical\(text\[\], text\[\], integer\)/);
     assert.match(sql, /FROM PUBLIC, anon, authenticated/);
     assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.search_public_catalog_lexical\(text\[\], text\[\], integer\)\s+TO service_role/);
+    assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.list_public_book_series_routes\(\) TO service_role/);
     assert.doesNotMatch(sql, /TO anon/);
     assert.doesNotMatch(sql, /TO authenticated/);
     assert.doesNotMatch(sql, /TO PUBLIC/);

@@ -84,9 +84,22 @@
     if (!Number.isInteger(num) || num <= 0) return "";
     return "/book/" + String(num);
   }
+  function validSeriesSlug(value) {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value || "")) ? String(value) : "";
+  }
   function publicResultHref(row) {
-    if (row && row.kind === "group" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(row.group_slug || ""))) {
-      return window.KutadguSeriesRoutes?window.KutadguSeriesRoutes.groupPath({...row,slug:row.group_slug}):"/volume-group/"+String(row.group_slug);
+    if (row && row.kind === "group") {
+      var canonical = validSeriesSlug(row.public_slug);
+      if (canonical && !/^series-[0-9]+$/.test(canonical)) return "/series/" + canonical;
+      var legacy = validSeriesSlug(row.group_slug);
+      var routes = root && root.KutadguSeriesRoutes;
+      if (routes && typeof routes.groupPath === "function" && legacy) {
+        var routed = Object.assign({}, row, { slug: row.group_slug });
+        if (/^series-[0-9]+$/.test(validSeriesSlug(routed.public_slug))) delete routed.public_slug;
+        return routes.groupPath(routed);
+      }
+      if (legacy) return "/volume-group/" + legacy;
+      return "";
     }
     return publicBookHref(row && row.id);
   }
@@ -529,6 +542,7 @@
     isPreviewAiSearchHost: isPreviewAiSearchHost,
     trimQuery: trimQuery,
     publicBookHref: publicBookHref,
+    publicResultHref: publicResultHref,
     safeCoverSrc: safeCoverSrc,
     parsePayload: parsePayload,
     renderResults: renderResults,

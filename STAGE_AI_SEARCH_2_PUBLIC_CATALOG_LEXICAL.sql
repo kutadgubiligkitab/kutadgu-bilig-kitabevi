@@ -1,6 +1,6 @@
 -- Stage AI Search 2 — bounded public catalog lookup.
 -- REVIEWED LOCAL FILE ONLY. Do not apply this to production in this stage.
--- It does not alter existing functions, tables, policies, or grants.
+-- It does not alter existing function bodies, tables, or policies.
 --
 -- search_public_catalog_lexical returns at most 24 active, approved books.
 -- A description is included only for a matched row, and only its first 2500
@@ -8,7 +8,15 @@
 -- Comparisons are literal substring tests. Percent, underscore, and backslash
 -- are ordinary characters. NFC matches the worker query normalization and
 -- does not change Uyghur case or spelling.
--- EXECUTE is granted to service_role only.
+-- EXECUTE on the new catalog function is granted to service_role only.
+--
+-- Release note: the AI Search worker also calls the existing
+-- public.list_public_book_series_routes() with the server key. Stage 138
+-- already grants that read-only directory to anon and authenticated. It does
+-- not grant service_role. This file adds only that missing EXECUTE privilege.
+-- The function body and its public-series filter stay as Stage 138 defined
+-- them, so the grant exposes the same published directory and no private group.
+-- Stage 138 must already be installed. This file does not reapply it.
 --
 -- Release order. Do not run this from the application or from CI.
 -- 1. Verify this file and STAGE_AI_SEARCH_2_QUERY_BUDGET.sql on an isolated database.
@@ -212,6 +220,9 @@ GRANT EXECUTE ON FUNCTION public.search_public_catalog_lexical(text[], text[], i
 
 COMMENT ON FUNCTION public.search_public_catalog_lexical(text[], text[], integer) IS
   'Bounded read of active approved books and published series for the trusted AI Search worker. Not granted to anon or authenticated.';
+
+-- Existing public directory. Do not change its body or its anon and authenticated grants.
+GRANT EXECUTE ON FUNCTION public.list_public_book_series_routes() TO service_role;
 
 NOTIFY pgrst, 'reload schema';
 

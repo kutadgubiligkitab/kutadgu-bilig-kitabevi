@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
 
 const root = new URL("..", import.meta.url);
 const sql = fs.readFileSync(new URL("STAGE_AI_SEARCH_2_QUERY_BUDGET.sql", root), "utf8");
@@ -38,7 +39,12 @@ if (!fs.existsSync(pgPath)) {
   console.error("NOT RUN: the local pg client is not installed at", pgPath);
   process.exit(2);
 }
-const { Client } = await import(new URL(pgPath).href);
+const importedPg = await import(pathToFileURL(pgPath).href);
+const Client = importedPg.Client || (importedPg.default && importedPg.default.Client);
+if (typeof Client !== "function") {
+  console.error("NOT RUN: the local pg client did not provide a Client constructor.");
+  process.exit(2);
+}
 const port = await freePort();
 const name = "kutadgu-ai-budget-" + port;
 const started = spawn("docker", [
@@ -85,6 +91,11 @@ try {
   await waitForDatabase();
   const setup = await connect();
   await setup.query("CREATE SCHEMA IF NOT EXISTS private");
+  await setup.query(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
+  END $$`);
   await setup.query(sql);
   await setup.end();
 
@@ -117,6 +128,13 @@ try {
   await admin2.end();
   const different = await race(same, other);
   assert.deepEqual(different, [true, true]);
+
+  const sameAdmin = await connect();
+  await sameAdmin.query("UPDATE private.ai_search_query_budget SET remaining_micro_usd = 1000000, calls_today = 0");
+  await sameAdmin.query("DELETE FROM private.ai_search_ip_windows");
+  await sameAdmin.end();
+  const sameIdentity = await race("88".repeat(16), "88".repeat(16));
+  assert.deepEqual(sameIdentity, [true, true]);
 
   const daily = await connect();
   await daily.query("UPDATE private.ai_search_query_budget SET remaining_micro_usd = 1000000, calls_today = 199");
