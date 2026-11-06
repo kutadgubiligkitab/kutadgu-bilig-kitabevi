@@ -6135,9 +6135,21 @@ async function countPositiveSales(){
     }
   }catch(e){}
   if(window.__kutadguPositiveSalesFlight)return window.__kutadguPositiveSalesFlight;
+  function salesHeadDeadline(){
+    if(typeof AbortSignal!=="undefined"&&typeof AbortSignal.timeout==="function"){
+      return {signal:AbortSignal.timeout(4000),clear(){}};
+    }
+    if(typeof AbortController==="undefined")return {signal:undefined,clear(){}};
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),4000);
+    const signal=controller.signal;
+    if(signal&&typeof signal.addEventListener==="function")signal.addEventListener("abort",()=>clearTimeout(timer),{once:true});
+    return {signal,clear(){clearTimeout(timer)}};
+  }
   const flight=(async()=>{
     const cfg=supabasePublicConfig();
     if(cfg&&cfg.url&&cfg.key){
+      const deadline=salesHeadDeadline();
       try{
         const url=`${String(cfg.url).replace(/\/+$/,"")}/rest/v1/books?select=id&sales_count=gt.0`;
         const res=await fetch(url,{
@@ -6147,7 +6159,8 @@ async function countPositiveSales(){
             Authorization:`Bearer ${cfg.key}`,
             Prefer:"count=exact",
             Range:"0-0"
-          }
+          },
+          signal:deadline.signal
         });
         const range=res.headers.get("content-range")||"";
         const total=Number(String(range).split("/")[1]);
@@ -6159,6 +6172,7 @@ async function countPositiveSales(){
           return total;
         }
       }catch(err){console.warn("positive sales count skipped",err)}
+      finally{deadline.clear()}
     }
     const n=C.filter(book=>Number(book.salesCount)>0).length;
     window.__kutadguPositiveSalesCount=n;

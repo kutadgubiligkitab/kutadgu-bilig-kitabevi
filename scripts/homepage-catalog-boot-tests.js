@@ -27,7 +27,8 @@ function sliceBetween(src, startNeedle, endNeedle) {
 
 test("homepage initial HTML has no sample/demo book cover images", () => {
   const carousel = sliceBetween(html, 'id="newBooksCarousel"', 'id="homeFeaturedBooks"');
-  const featured = sliceBetween(html, 'id="homeFeaturedBooks"', 'id="bookCategories"');
+  const featured = sliceBetween(html, 'id="homeFeaturedBooks"', 'id="orderProcess"');
+  assert.ok(html.indexOf('id="bookCategories"') < html.indexOf('id="newBooksCarousel"'));
   assert.doesNotMatch(carousel, /sample-book-cover\.png/);
   assert.doesNotMatch(featured, /sample-book-cover\.png/);
   assert.doesNotMatch(carousel, /<img\b/i);

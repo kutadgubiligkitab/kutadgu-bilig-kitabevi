@@ -4,6 +4,7 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { assetPattern } = require("./ci-asset-pins");
 
 const root = path.join(__dirname, "..");
 const css = fs.readFileSync(path.join(root, "storefront-cards-1a-polish.css"), "utf8");
@@ -112,8 +113,8 @@ test("cart still has a single add handler and OOS disable", () => {
 
 test("overlay still avoids grid-template-columns and loads last", () => {
   assert.doesNotMatch(body, /grid-template-columns/);
-  assert.match(indexHtml, /shop\.js\?v=180/);
-  assert.match(shop, /storefront-cards-1a-polish\.css\?v=3/);
+  assert.match(indexHtml, assetPattern("shop.js"));
+  assert.match(shop, /storefront-cards-1a-polish\.css\?v=4/);
 });
 
 test("ordinary generators keep cart labels and grouped cards stay compact", () => {
@@ -142,17 +143,22 @@ test("ordinary generators keep cart labels and grouped cards stay compact", () =
   assert.match(compact, /<a class="premium-card-cart" href="/);
 });
 
+function normalizeNewlines(text) {
+  return String(text).replace(/\r\n/g, "\n");
+}
+
 test("no Search Discovery SQL RLS auth admin or protected geometry changes", () => {
-  const rank = fs.readFileSync(path.join(root, "kutadgu-search-rank.js"), "utf8");
-  const mainRank = execSync("git show origin/main:kutadgu-search-rank.js", { cwd: root, encoding: "utf8" });
+  const rank = normalizeNewlines(fs.readFileSync(path.join(root, "kutadgu-search-rank.js"), "utf8"));
+  const mainRank = normalizeNewlines(execSync("git show origin/main:kutadgu-search-rank.js", { cwd: root, encoding: "utf8" }));
   assert.strictEqual(rank, mainRank);
-  const cfg = fs.readFileSync(path.join(root, "app-config.js"), "utf8");
-  const mainCfg = execSync("git show origin/main:app-config.js", { cwd: root, encoding: "utf8" });
+  const cfg = normalizeNewlines(fs.readFileSync(path.join(root, "app-config.js"), "utf8"));
+  const mainCfg = normalizeNewlines(execSync("git show origin/main:app-config.js", { cwd: root, encoding: "utf8" }));
   assert.strictEqual(cfg, mainCfg);
-  const out = execSync("git diff --name-only origin/main HEAD; git diff --name-only; git diff --cached --name-only", {
-    cwd: root,
-    encoding: "utf8"
-  });
+  const out = [
+    "git diff --name-only origin/main HEAD",
+    "git diff --name-only",
+    "git diff --cached --name-only"
+  ].map((command) => execSync(command, { cwd: root, encoding: "utf8" })).join("\n");
   const files = [...new Set(out.split("\n").map((s) => s.trim()).filter(Boolean))];
   const forbidden = files.filter((file) =>
     (/\.sql$/i.test(file) && file !== "STAGE_AI_SEARCH_1C_VECTOR_FOUNDATION.sql" && file !== "STAGE_AI_SEARCH_1G2_CATEGORY_LOOKUP.sql" && file !== "STAGE87_COVER_INTEGRITY.sql" && file !== "STAGE99_BOOK_ENGAGEMENT_VIEW_COUNTS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS.sql" && file !== "STAGE100_ADMIN_DAILY_VISITORS_ROLLBACK.sql" && file !== "scripts/stage100-isolated-fixture.sql" && file !== "scripts/stage100-isolated-load.sql" && file !== "scripts/stage100-isolated-assertions.sql" && file !== "scripts/stage100-isolated-rollback-assertions.sql" && file !== "scripts/stage100-isolated-reapply-assertions.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES.sql" && file !== "STAGE101_ADMIN_ZERO_SEARCHES_ROLLBACK.sql" && file !== "scripts/stage101-isolated-assertions.sql" && file !== "scripts/stage101-isolated-rollback-assertions.sql" && file !== "STAGE103_BLOCK_BOOK_COVER_STORAGE_WRITES.sql" && file !== "STAGE104_REWRITE_BOOK_IMAGE_URLS.sql" && file !== "STAGE_AI_SEARCH_RPC_SERVER_ONLY.sql" && file !== "STAGE106_CATALOG_CREDITS.sql" && file !== "STAGE106_CATALOG_CREDIT_CORRECTIONS.sql" && file !== "STAGE106_CATALOG_CREDITS_ROLLBACK.sql" && file !== "STAGE107_BOOK_REVIEWS.sql" && file !== "STAGE107_BOOK_REVIEWS_ROLLBACK.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE.sql" && file !== "STAGE108_BOOK_REVIEW_LIMITS_DELETE_ROLLBACK.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES.sql" && file !== "STAGE109_BOOK_REVIEW_HEARTS_REPLIES_ROLLBACK.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS.sql" && file !== "STAGE110_BOOK_REVIEW_NOTIFICATIONS_ROLLBACK.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES.sql" && file !== "STAGE111_BOOK_REVIEW_PAGES_ROLLBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK.sql" && file !== "STAGE120_WEBSITE_FEEDBACK_ROLLBACK.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS.sql" && file !== "STAGE121_CART_SHARE_PERMISSIONS_ROLLBACK.sql" && file !== "STAGE122_GIFT_BOOK_OFFERS.sql" && file !== "STAGE122_GIFT_BOOK_OFFERS_ROLLBACK.sql" && file !== "STAGE117_VISIT_COUNTRIES.sql" && file !== "STAGE117_VISIT_COUNTRIES_ROLLBACK.sql" && file !== "scripts/stage117-isolated-assertions.sql" && file !== "scripts/stage117-isolated-coverage-failure.sql" && file !== "scripts/stage117-isolated-coverage-recovery.sql") ||
