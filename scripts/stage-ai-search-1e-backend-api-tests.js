@@ -12,12 +12,12 @@ const handler = require("../api/ai-search.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "b936827448e092e7f22dcd74237a13a45e7b89283f8ad0d715d7ef328e304e38"
+  "shop.js": "9d5eabe0122aa6609a6bf46da38e694b96318c06507f7dcd3fd1f29bee654915"
 };
 
 let failed = 0;
 function test(name, fn) {
-  const run = fn.constructor.name === "AsyncFunction" ? fn() : Promise.resolve(fn());
+  const run = fn.constructor.name === "AsyncFunction" ? fn() : Promise.resolve().then(fn);
   return Promise.resolve(run).then(() => {
     console.log("PASS", name);
   }).catch((err) => {
@@ -27,7 +27,8 @@ function test(name, fn) {
 }
 
 function sha256(rel) {
-  return crypto.createHash("sha256").update(fs.readFileSync(path.join(root, rel))).digest("hex");
+  const text = fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
+  return crypto.createHash("sha256").update(text).digest("hex");
 }
 
 function fakeVector(seed) {
@@ -262,14 +263,14 @@ async function run() {
     const short = await invoke({ method: "POST", body: { query: "بالىلار تەربىيەسى" } }, env, makeFetch(shortState));
     assert.strictEqual(short.status, 503);
     assert.strictEqual(short.json.error, "unavailable");
-    assert.ok(!shortState.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!shortState.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const nanVec = fakeVector(2);
     nanVec[0] = Number.NaN;
     const nanState = { vector: nanVec };
     const nan = await invoke({ method: "POST", body: { query: "بالىلار تەربىيەسى" } }, env, makeFetch(nanState));
     assert.strictEqual(nan.status, 503);
-    assert.ok(!nanState.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!nanState.calls.some((call) => /match_active_books_ai/.test(call.url)));
     assert.doesNotMatch(JSON.stringify(nan.json), /sk-|Bearer |embedding/);
   });
 
@@ -290,7 +291,7 @@ async function run() {
     const rate = await invoke({ method: "POST", body: { query: "بالىلار تەربىيەسى" } }, env, makeFetch(billed));
     assert.strictEqual(rate.status, 503);
     assert.doesNotMatch(rate.body, /insufficient_quota|super-secret-openai-value/);
-    assert.ok(!billed.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!billed.calls.some((call) => /match_active_books_ai/.test(call.url)));
   });
 
   await test("Supabase RPC failure is a generic temporary error", async () => {
@@ -415,7 +416,7 @@ async function run() {
     assert.strictEqual(out.status, 503);
     assert.strictEqual(out.json.error, "unavailable");
     assert.doesNotMatch(out.body, /super-secret-openai-value|embedding|data/);
-    assert.ok(!state.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!state.calls.some((call) => /match_active_books_ai/.test(call.url)));
   });
 
   await test("Supabase headers with a stalled body abort inside the deadline", async () => {
@@ -433,7 +434,8 @@ async function run() {
     assert.strictEqual(out.status, 503);
     assert.strictEqual(out.json.error, "unavailable");
     assert.doesNotMatch(out.body, /match_active_books_ai|embedding/);
-    assert.strictEqual(state.calls.filter((call) => /rpc\//.test(call.url)).length, 1);
+    assert.ok(state.calls.some((call) => /match_active_books_ai$/.test(call.url)));
+    assert.ok(state.calls.filter((call) => /rpc\//.test(call.url)).length <= 2);
   });
 
   await test("OpenAI index, model, and vector mismatches fail closed without RPC", async () => {
@@ -443,41 +445,41 @@ async function run() {
     const missing = { omitIndex: true };
     const missingOut = await invoke(query, env, makeFetch(missing));
     assert.strictEqual(missingOut.status, 503);
-    assert.ok(!missing.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!missing.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const coerced = { openaiIndex: "0" };
     const coercedOut = await invoke(query, env, makeFetch(coerced));
     assert.strictEqual(coercedOut.status, 503);
-    assert.ok(!coerced.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!coerced.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const wrongIndex = { openaiIndex: 1 };
     const wrongIndexOut = await invoke(query, env, makeFetch(wrongIndex));
     assert.strictEqual(wrongIndexOut.status, 503);
-    assert.ok(!wrongIndex.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!wrongIndex.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const wrongModel = { openaiModel: "text-embedding-ada-002" };
     const wrongModelOut = await invoke(query, env, makeFetch(wrongModel));
     assert.strictEqual(wrongModelOut.status, 503);
-    assert.ok(!wrongModel.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!wrongModel.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const twoRows = { extraEmbedding: { index: 1, embedding: fakeVector(4) } };
     const twoOut = await invoke(query, env, makeFetch(twoRows));
     assert.strictEqual(twoOut.status, 503);
-    assert.ok(!twoRows.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!twoRows.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const infVec = fakeVector(5);
     infVec[3] = Number.POSITIVE_INFINITY;
     const infState = { vector: infVec };
     const infOut = await invoke(query, env, makeFetch(infState));
     assert.strictEqual(infOut.status, 503);
-    assert.ok(!infState.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!infState.calls.some((call) => /match_active_books_ai/.test(call.url)));
 
     const strVec = fakeVector(6);
     strVec[7] = "0.1";
     const strState = { vector: strVec };
     const strOut = await invoke(query, env, makeFetch(strState));
     assert.strictEqual(strOut.status, 503);
-    assert.ok(!strState.calls.some((call) => /rpc\//.test(call.url)));
+    assert.ok(!strState.calls.some((call) => /match_active_books_ai/.test(call.url)));
     assert.doesNotMatch(JSON.stringify(strOut.json), /embedding|text-embedding-ada-002/);
   });
 

@@ -10,7 +10,7 @@ const Ai = require("../kutadgu-ai-search.js");
 
 const FROZEN = {
   "kutadgu-search-rank.js": "1a40c7ed8abc9594c893d3ca9fcab4c9891c1732558957f5e607d39a8c194ff5",
-  "shop.js": "b936827448e092e7f22dcd74237a13a45e7b89283f8ad0d715d7ef328e304e38",
+  "shop.js": "9d5eabe0122aa6609a6bf46da38e694b96318c06507f7dcd3fd1f29bee654915",
   "kutadgu-ai-search-ui.js": shaOf("kutadgu-ai-search-ui.js"),
   "index.html": shaOf("index.html"),
   "ai-search-ui.css": shaOf("ai-search-ui.css")
@@ -28,7 +28,8 @@ function test(name, fn) {
 }
 
 function shaOf(rel) {
-  return crypto.createHash("sha256").update(fs.readFileSync(path.join(root, rel))).digest("hex");
+  const text = fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
+  return crypto.createHash("sha256").update(text).digest("hex");
 }
 
 function fakeVector(seed) {
@@ -239,17 +240,14 @@ async function run() {
     assert.ok(out.json.results.every((row) => row.category === "گرامماتىكا"));
   });
 
-  await test("recognized intent with zero matching candidates falls back to hybrid + weak-tail", async () => {
+  await test("recognized intent with zero matching candidates does not return unrelated books", async () => {
     const rows = [
       book(1, { title: "يىراق رومان", category: "رومانلار", similarity: 0.44 }),
       book(2, { title: "باشقا رومان", category: "رومانلار", similarity: 0.41 }),
       book(3, { title: "ئاجىز", category: "ئۇنىۋېرسال", similarity: 0.20 })
     ];
     const out = await search("دىنىي كىتاب", rows);
-    assert.ok(out.json.results.length >= 1);
-    assert.ok(out.json.results.length < 3);
-    assert.strictEqual(out.json.results[0].id, 1);
-    assert.ok(!out.json.results.some((row) => row.id === 3));
+    assert.deepStrictEqual(out.json.results, []);
   });
 
   await test("F: generic semantic query still ranks by cosine without category mappings", async () => {

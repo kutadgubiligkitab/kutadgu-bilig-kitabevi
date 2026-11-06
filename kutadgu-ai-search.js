@@ -16,7 +16,9 @@ const MATCH_COUNT = 12;
 const CANDIDATE_COUNT = 24;
 const MATCH_RPC = "match_active_books_ai";
 const CATEGORY_RPC = "list_active_books_by_categories_ai";
+const CATALOG_RPC = "search_public_catalog_lexical";
 const MAP_UNITS_RPC = "map_public_books_to_catalog_units";
+const SEMANTIC_ACCEPT_FLOOR = 0.55;
 const ENABLED_ENV = "AI_SEARCH_ENABLED";
 const MIN_QUERY_CHARS = 2;
 const MAX_QUERY_CHARS = 300;
@@ -259,10 +261,20 @@ function sanitizeResults(rows) {
 }
 
 /*
- * AI-local relevance (1G-2). Cosine similarity stays the base signal.
- * Lexical bonuses are bounded so they cannot replace semantics.
- * No absolute 0.5 similarity floor — historical novels can sit near 0.30–0.36.
+ * AI-local relevance. scoreAiCandidate still keeps cosine as the base
+ * signal for topic ties. selectRelevantResults applies stronger gates:
+ * exact title, author, series, partial title, verified category, then
+ * description. It does not return a vector neighbor by itself.
+ * runSearch may add a semantic result only after those gates are empty
+ * and similarity is at least SEMANTIC_ACCEPT_FLOOR.
  */
+const SPELLING_FOLDS = Object.freeze([
+  ["چىڭگىز", "چىڭغىز"],
+  ["ئىسكەندەر نامە", "ئىسكەندەرنامە"],
+  ["ئانا كارىنىنا", "ئاننا كارېنىنا"],
+  ["ئانا كارېنىنا", "ئاننا كارېنىنا"],
+  ["ئويغانغان زىمىن", "ئويغانغان زېمىن"]
+]);
 const LEXICAL_TITLE = Object.freeze({ exact: 0.16, prefix: 0.10, contains: 0.06 });
 const LEXICAL_AUTHOR = Object.freeze({ exact: 0.18, prefix: 0.12, contains: 0.08 });
 const LEXICAL_CATEGORY = Object.freeze({ exact: 0.14, prefix: 0.10, contains: 0.07 });
@@ -270,8 +282,6 @@ const MAX_LEXICAL_BONUS = 0.28;
 const CATEGORY_INTENT_BONUS = 0.12;
 const AUTHOR_IN_QUERY_BONUS = 0.16;
 const MIN_AUTHOR_CHARS = 4;
-const RELATIVE_KEEP_RATIO = 0.72;
-const SCORE_CLIFF = 0.10;
 const CATEGORY_INTENT_RULES = Object.freeze([
   { family: "child_parenting", needles: Object.freeze(["بالىلار"]), category: "بالىلار كىتابلىرى" },
   { family: "child_parenting", needles: Object.freeze(["تەربىيە", "پەرزەنت تەربىيەسى"]), category: "پەرزەنت تەربىيەسى" },
@@ -281,6 +291,9 @@ const CATEGORY_INTENT_RULES = Object.freeze([
   { family: "dictionary", needles: Object.freeze(["لۇغەت"]), category: "لۇغەت" },
   { family: "textbook", needles: Object.freeze(["دەرسلىك"]), category: "دەرسلىك" }
 ]);
+const CATEGORY_ALIASES = Object.freeze({
+  "تارىخىي رومانلار": Object.freeze(["تارىخىي رومان"])
+});
 
 function fieldMatchBonus(fieldValue, query, weights) {
   const field = normalizeQuery(fieldValue);
@@ -318,6 +331,46 @@ function intendedCategories(query) {
   return resolveCategoryIntent(query).categories;
 }
 
+function categoryMatchesIntent(stored, targets) {
+  const cat = normalizeQuery(stored);
+  if (!cat) return false;
+  return (targets || []).some((target) => {
+    if (cat === target) return true;
+    const aliases = CATEGORY_ALIASES[target] || [];
+    return aliases.indexOf(cat) !== -1;
+  });
+}
+
+function queryVariants(query) {
+  const raw = normalizeQuery(query);
+  const folded = foldSpelling(query);
+  const out = [];
+  [raw, folded].forEach((value) => {
+    if (value && out.indexOf(value) === -1) out.push(value);
+  });
+  return out.slice(0, 4);
+}
+
+function categoryNamesForQuery(query) {
+  const resolved = resolveCategoryIntent(query);
+  if (resolved.mode !== "clear") return [];
+  const names = [];
+  resolved.categories.forEach((name) => {
+    if (names.indexOf(name) === -1) names.push(name);
+    (CATEGORY_ALIASES[name] || []).forEach((alias) => {
+      if (names.indexOf(alias) === -1) names.push(alias);
+    });
+  });
+  return names;
+}
+
+function paidCallsAllowed(env) {
+  const raw = env && env.AI_SEARCH_PAID_CALLS_REMAINING;
+  if (raw == null || raw === "") return true;
+  const limit = Number(raw);
+  return Number.isFinite(limit) && limit > 0;
+}
+
 function authorCoreName(author) {
   const raw = normalizeQuery(author);
   return raw.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
@@ -341,20 +394,6 @@ function scoreAiCandidate(row, query) {
   const intent = intendedCategories(query).some((target) => cat === target) ? CATEGORY_INTENT_BONUS : 0;
   const authorBoost = authorInQueryBonus(row && row.author, query);
   return semantic + lexical + intent + authorBoost;
-}
-
-function dropWeakTail(ranked) {
-  if (!ranked.length) return [];
-  const best = ranked[0].score;
-  const kept = [ranked[0]];
-  for (let i = 1; i < ranked.length && kept.length < MATCH_COUNT; i += 1) {
-    const row = ranked[i];
-    const prev = kept[kept.length - 1];
-    if (row.score < best * RELATIVE_KEEP_RATIO) break;
-    if (prev.score - row.score >= SCORE_CLIFF) break;
-    kept.push(row);
-  }
-  return kept;
 }
 
 function mergeAiCandidates(vectorRows, categoryRows) {
@@ -401,31 +440,80 @@ async function mapCandidatesToCatalogUnits(fetchImpl, candidates, timeoutMs, rpc
   }).filter(Boolean);
 }
 
+function foldSpelling(value) {
+  let text = normalizeQuery(value);
+  SPELLING_FOLDS.forEach((pair) => {
+    if (text.indexOf(pair[0]) !== -1) text = text.split(pair[0]).join(pair[1]);
+  });
+  return text;
+}
+
+function isPublicCandidate(row) {
+  if (!row || typeof row !== "object") return false;
+  if (row.is_active === false) return false;
+  if (row.submission_status && row.submission_status !== "approved") return false;
+  return true;
+}
+
+function titleRelation(title, query) {
+  const field = foldSpelling(title);
+  const q = foldSpelling(query);
+  if (!field || !q) return "none";
+  if (field === q) return "exact";
+  if (q.length >= 3 && field.indexOf(q) === 0) return "prefix";
+  if (q.length >= 3 && field.indexOf(q) !== -1) return "contains";
+  if (field.length >= 6 && q.indexOf(field) !== -1) return "contains";
+  return "none";
+}
+
+function authorMatchesQuery(author, query) {
+  const name = foldSpelling(authorCoreName(author));
+  const q = foldSpelling(query);
+  if (!name || name.length < MIN_AUTHOR_CHARS || q.length < MIN_AUTHOR_CHARS) return false;
+  return q.indexOf(name) !== -1 || name.indexOf(q) !== -1;
+}
+
+function descriptionMatchesQuery(row, query) {
+  const desc = foldSpelling(row && row.description);
+  const q = foldSpelling(query);
+  if (!desc || q.length < 8) return false;
+  return desc.indexOf(q) !== -1;
+}
+
+function bySimilarity(rows) {
+  return rows.slice().sort((a, b) => {
+    const diff = (Number(b.similarity) || 0) - (Number(a.similarity) || 0);
+    if (diff) return diff;
+    return Number(a.id) - Number(b.id);
+  }).slice(0, MATCH_COUNT);
+}
+
 function selectRelevantResults(query, candidates) {
   const q = normalizeQuery(query);
-  const ranked = (candidates || []).map((row, index) => ({
-    row,
-    index,
-    score: scoreAiCandidate(row, q)
-  })).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.row.similarity !== a.row.similarity) return b.row.similarity - a.row.similarity;
-    return a.index - b.index;
-  });
+  const list = (candidates || []).filter(isPublicCandidate);
+  const exact = list.filter((row) => titleRelation(row.title, q) === "exact");
+  if (exact.length) return bySimilarity(exact);
 
-  const authorMatches = ranked.filter((item) => authorInQueryBonus(item.row.author, q) > 0);
-  if (authorMatches.length) return capRanked(authorMatches);
+  const authors = list.filter((row) => authorMatchesQuery(row.author, q));
+  if (authors.length) return bySimilarity(authors);
+
+  const partial = list.filter((row) => {
+    const relation = titleRelation(row.title, q);
+    return relation === "prefix" || relation === "contains";
+  });
+  if (partial.length) return bySimilarity(partial);
 
   const resolved = resolveCategoryIntent(q);
   if (resolved.mode === "clear" && resolved.categories.length) {
-    const intentMatches = ranked.filter((item) => {
-      const cat = normalizeQuery(item.row.category);
-      return resolved.categories.some((target) => cat === target);
-    });
-    if (intentMatches.length) return capRanked(intentMatches);
+    const intentMatches = list.filter((row) => categoryMatchesIntent(row.category, resolved.categories));
+    if (intentMatches.length) return bySimilarity(intentMatches);
+    return [];
   }
 
-  return dropWeakTail(ranked).map((item) => item.row);
+  const described = list.filter((row) => descriptionMatchesQuery(row, q));
+  if (described.length) return bySimilarity(described);
+
+  return [];
 }
 
 async function fetchJsonThen(fetchImpl, url, init, timeoutMs, mapPayload) {
@@ -495,6 +583,92 @@ async function embedQuery(fetchImpl, apiKey, query, timeoutMs) {
     if (err && err.code === "invalid_json") {
       const error = new Error("openai_json");
       error.code = "embedding_invalid";
+      throw error;
+    }
+    throw err;
+  }
+}
+
+function readCatalogRows(rows) {
+  if (!Array.isArray(rows)) {
+    const err = new Error("rpc_invalid");
+    err.code = "rpc_invalid";
+    throw err;
+  }
+  return rows.map((row) => {
+    const parsed = publicResult(row);
+    if (!parsed) return null;
+    parsed.description = String(row.description == null ? "" : row.description);
+    parsed.series_title = String(row.series_title == null ? "" : row.series_title);
+    parsed.series_slug = String(row.series_slug == null ? "" : row.series_slug);
+    parsed.series_member_count = Number(row.series_member_count) || 0;
+    if (row.is_active === false) parsed.is_active = false;
+    if (row.submission_status) parsed.submission_status = row.submission_status;
+    return parsed;
+  }).filter(Boolean);
+}
+
+function expandSeriesCandidates(rows, query) {
+  const out = [];
+  const seen = Object.create(null);
+  (rows || []).forEach((row) => {
+    if (!row) return;
+    out.push(row);
+    if (!row.series_title || titleRelation(row.series_title, query) === "none") return;
+    out.push({
+      id: row.id,
+      title: row.series_title,
+      author: row.author,
+      category: row.category,
+      price: row.price,
+      image_url: row.image_url,
+      stock: row.stock,
+      similarity: row.similarity || 0,
+      description: "",
+      kind: "group",
+      group_slug: row.series_slug || "",
+      member_count: row.series_member_count || 0,
+      is_active: row.is_active,
+      submission_status: row.submission_status
+    });
+  });
+  return out.filter((row) => {
+    const key = (row.kind || "book") + ":" + row.id + ":" + normalizeQuery(row.title);
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function acceptSemantic(rows) {
+  const list = (rows || []).filter(isPublicCandidate).filter((row) => {
+    return Number(row.similarity) >= SEMANTIC_ACCEPT_FLOOR;
+  });
+  return bySimilarity(list);
+}
+
+async function searchPublicCatalog(fetchImpl, query, timeoutMs, rpcKey) {
+  const url = SUPABASE_URL + "/rest/v1/rpc/" + CATALOG_RPC;
+  try {
+    return await fetchJsonThen(fetchImpl, url, {
+      method: "POST",
+      headers: {
+        apikey: rpcKey,
+        Authorization: "Bearer " + rpcKey,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_queries: queryVariants(query),
+        p_categories: categoryNamesForQuery(query),
+        p_limit: CANDIDATE_COUNT
+      })
+    }, timeoutMs || RPC_TIMEOUT_MS, readCatalogRows);
+  } catch (err) {
+    if (err && err.code === "http" && err.status === 404) return null;
+    if (err && err.code === "http") {
+      const error = new Error("catalog_rpc");
+      error.code = "catalog_rpc";
       throw error;
     }
     throw err;
@@ -571,8 +745,33 @@ async function runSearch(options) {
   }
   const apiKey = String(env.OPENAI_API_KEY || "").trim();
   const rpcKey = serverSupabaseKey(env);
-  if (!apiKey || !rpcKey) {
+  if (!rpcKey) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 0 };
+  }
+  const catalogRows = await searchPublicCatalog(fetchImpl, query, opts.rpcTimeoutMs, rpcKey);
+  if (Array.isArray(catalogRows)) {
+    const lexical = selectRelevantResults(query, expandSeriesCandidates(catalogRows, query))
+      .map(publicResult)
+      .filter(Boolean);
+    if (lexical.length) {
+      return {
+        status: 200,
+        body: { ok: true, results: lexical, count: lexical.length },
+        openaiCalls: 0,
+        supabaseCalls: 1
+      };
+    }
+  }
+  if (!apiKey || !paidCallsAllowed(env)) {
+    if (Array.isArray(catalogRows)) {
+      return {
+        status: 200,
+        body: { ok: true, results: [], count: 0 },
+        openaiCalls: 0,
+        supabaseCalls: 1
+      };
+    }
+    return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: catalogRows === null ? 1 : 0 };
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
   const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs, rpcKey);
@@ -591,7 +790,10 @@ async function runSearch(options) {
   if (String(env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
     candidates = await mapCandidatesToCatalogUnits(fetchImpl, candidates, opts.rpcTimeoutMs, rpcKey);
   }
-  const results = selectRelevantResults(query, candidates);
+  let results = selectRelevantResults(query, candidates);
+  if (!results.length && Array.isArray(catalogRows)) {
+    results = acceptSemantic(candidates);
+  }
   return {
     status: 200,
     body: { ok: true, results, count: results.length },
@@ -667,7 +869,9 @@ module.exports = {
   CANDIDATE_COUNT,
   MATCH_RPC,
   CATEGORY_RPC,
+  CATALOG_RPC,
   MAP_UNITS_RPC,
+  SEMANTIC_ACCEPT_FLOOR,
   ENABLED_ENV,
   MIN_QUERY_CHARS,
   MAX_QUERY_CHARS,
@@ -681,6 +885,9 @@ module.exports = {
   sanitizeResults,
   publicResult,
   scoreAiCandidate,
+  foldSpelling,
+  queryVariants,
+  categoryNamesForQuery,
   selectRelevantResults,
   mergeAiCandidates,
   mapCandidatesToCatalogUnits,
