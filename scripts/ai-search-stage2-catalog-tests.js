@@ -648,6 +648,66 @@ async function run() {
     assert.strictEqual(closed.state.openai, 0);
   });
 
+  await test("lexical catalog order survives missing similarity and does not pay", async () => {
+    function described(ids) {
+      return ids.map((id) => book({ id, title: "kitab-" + id, author: "author-" + id, category: "باشقا" }, {
+        description_matched: true,
+        similarity: 0
+      }));
+    }
+    const queries = [
+      ["پۇلنى قانداق تېجەپ، بايلىقنى توغرا باشقۇرغىلى بولىدۇ", [579, 701, 631, 547, 565, 262, 300, 491, 333, 296, 141, 279, 206, 127, 137, 334, 290, 715, 124, 134, 503, 135, 603, 198], 701, 2],
+      ["قىرىق ياشقا بارغان ئاياللارنىڭ تۇرمۇشىدىكى ئۆزگىرىشلەر", [544, 717, 290, 532, 130, 172, 688], 717, 2],
+      ["قەدىمكى ئۇيغۇر قاغانلىرىنىڭ تاشقا ئويۇلغان تارىخى", [146, 468, 600, 285, 303, 128, 510, 281, 487, 127, 589, 175, 310, 623, 287, 267, 118, 301, 716, 572, 337, 242, 668, 145], 146, 1],
+      ["ئەندىشە ۋە غەم-قايغۇنى يەڭگىللىتىش يوللىرى", [476, 525], 476, 1],
+      ["ئۇيغۇر تىلىدىكى سۆز تۈرلىرى ۋە قوشۇمچىلارنى چۈشىنىش", [280, 274, 498, 512], 498, 3],
+      ["لەغمەن، پولۇ ۋە باشقا ئۇيغۇر تائاملىرىنى تەييارلاش", [709], 709, 1],
+      ["تارىم دەرياسىنىڭ سۈيى ئازىيىشى ۋە تەبىئەتكە بولغان ئەندىشە", [142, 712], 142, 1]
+    ];
+    for (const [query, ids, expected, position] of queries) {
+      const out = await search(query, {}, {
+        catalogRows: described(ids),
+        vectorRows: [book({ id: 90001, title: "مۇناسىۋەتسىز ماتېرىيال", category: "ئۇنىۋېرسال" }, { similarity: 0.91 })]
+      });
+      assert.strictEqual(out.state.openai, 0, query);
+      assert.strictEqual(out.state.vector, 0, query);
+      assert.ok(out.json.results.length <= Ai.MATCH_COUNT, query);
+      assert.strictEqual(out.json.results[position - 1].id, expected, query);
+      assert.deepStrictEqual(out.json.results.map((row) => row.id), ids.slice(0, Ai.MATCH_COUNT), query);
+    }
+    const parenting = [558, 162, 563, 484, 603, 237, 553, 564, 593, 432, 552, 586, 505, 150];
+    const parentingQuery = "بالا تەربىيىسىدە ئاتا-ئانا نېمىلەرگە دىققەت قىلىشى كېرەك";
+    const parentingRows = parenting.map((id) => book({ id, title: "kitab-" + id, category: "پەرزەنت تەربىيەسى" }, { description_matched: true, similarity: 0 }))
+      .concat([book({ id: 508, title: "kitab-508", category: "ئۇنىۋېرسال" }, { description_matched: true, similarity: 0 })]);
+    const parents = await search(parentingQuery, {}, { catalogRows: parentingRows });
+    assert.strictEqual(parents.state.openai, 0);
+    assert.strictEqual(parents.json.results[1].id, 162);
+    assert.ok(parents.json.results.every((row) => row.category === "پەرزەنت تەربىيەسى"));
+    assert.ok(!parents.json.results.some((row) => row.id === 508));
+    assert.strictEqual(parents.json.results.length, 12);
+
+    const single = await search("بالا", {}, {
+      catalogRows: [604, 307].map((id) => book({ id, title: "بالا " + id, category: "رومان" }, { description_matched: false, similarity: 0 }))
+    });
+    assert.deepStrictEqual(single.json.results.map((row) => row.id), [604, 307]);
+    assert.strictEqual(single.state.openai, 0);
+    const emptySignal = await search("تەربىيىسىدە", {}, {
+      catalogRows: [book({ id: 42, title: "ئانا", category: "رومان" }, { description_matched: false, similarity: 0 })],
+      vectorRows: [book({ id: 42, title: "ئانا", category: "رومان" }, { similarity: 0.5 })]
+    });
+    assert.deepStrictEqual(emptySignal.json.results, []);
+
+    const merged = await search("مەنىسى يېقىن ئىزدەش", {}, {
+      catalogRows: [],
+      vectorRows: [
+        book({ id: 50, title: "كېيىنكى", category: "رومان" }, { similarity: 0.8 }),
+        book({ id: 10, title: "ئالدىنقى", category: "رومان" }, { similarity: 0.9 })
+      ]
+    });
+    assert.strictEqual(merged.state.openai, 1);
+    assert.deepStrictEqual(merged.json.results.map((row) => row.id), [10, 50]);
+  });
+
   await test("sb_secret keys are sent only as apikey", async () => {
     const secret = "sb_secret_mock_not_real";
     const legacy = "test-supabase-rpc-key";

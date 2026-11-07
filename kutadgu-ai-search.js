@@ -543,12 +543,21 @@ function descriptionMatchesQuery(row, query) {
   return desc.indexOf(q) !== -1;
 }
 
+function hasSimilarityScore(row) {
+  const score = Number(row && row.similarity);
+  return Number.isFinite(score) && score > 0;
+}
+
 function bySimilarity(rows) {
-  return rows.slice().sort((a, b) => {
-    const diff = (Number(b.similarity) || 0) - (Number(a.similarity) || 0);
+  const list = rows || [];
+  // Catalog rows arrive already ranked and usually have no vector score.
+  // Missing similarity must not fall through to book-id order.
+  if (!list.some(hasSimilarityScore)) return list.slice(0, MATCH_COUNT);
+  return list.map((row, index) => ({ row, index })).sort((a, b) => {
+    const diff = (Number(b.row.similarity) || 0) - (Number(a.row.similarity) || 0);
     if (diff) return diff;
-    return Number(a.id) - Number(b.id);
-  }).slice(0, MATCH_COUNT);
+    return a.index - b.index;
+  }).map((item) => item.row).slice(0, MATCH_COUNT);
 }
 
 function selectRelevantResults(query, candidates) {
@@ -953,11 +962,9 @@ async function runSearch(options) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 1 };
   }
   const lexical = presentSearchResults(query, catalogRows);
-  const strong = presentSearchResults(query, catalogRows.map((row) => Object.assign({}, row, {
-    description: "",
-    description_matched: false
-  })));
-  if (strong.length) {
+  // A presented catalog result is already ranked lexical evidence, including
+  // description support. Pay for a vector only when that list is empty.
+  if (lexical.length) {
     return {
       status: 200,
       body: { ok: true, results: lexical, count: lexical.length },
@@ -965,8 +972,7 @@ async function runSearch(options) {
       supabaseCalls: 1
     };
   }
-  const descriptiveIds = new Set(lexical.map((row) => Number(row.id)));
-  const descriptiveSources = catalogRows.filter((row) => descriptiveIds.has(Number(row.id)));
+  const descriptiveSources = [];
   const reserved = apiKey ? await reservePaidCall(fetchImpl, opts.clientIpHash, opts.rpcTimeoutMs, rpcKey) : false;
   if (!reserved) {
     if (lexical.length) {
