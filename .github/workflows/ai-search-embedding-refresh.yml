@@ -1,0 +1,45 @@
+name: AI Search embedding refresh
+
+# Paid work stays off until the repository variable
+# AI_SEARCH_EMBEDDING_REFRESH_ENABLED is exactly true.
+# The job refuses every ref except the repository default branch.
+
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-search-embedding-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: refresh one batch
+    if: >-
+      vars.AI_SEARCH_EMBEDDING_REFRESH_ENABLED == 'true' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ai-search-embedding-refresh
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Embed at most one batch of 25 books
+        env:
+          AI_SEARCH_1D_CONFIRM_PROJECT: fxlojnqwyojqjskfggmh
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node scripts/ai-search-1d-generate-book-embeddings.js --apply

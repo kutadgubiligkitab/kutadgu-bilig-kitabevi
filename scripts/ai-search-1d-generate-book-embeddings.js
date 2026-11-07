@@ -8,6 +8,10 @@
  * Real generation requires BOTH --apply AND
  * AI_SEARCH_1D_CONFIRM_PROJECT matching the expected project ref,
  * plus a Supabase URL whose host is {ref}.supabase.co for that project.
+ * One authorized --apply embeds at most one batch of 25 books, then stops.
+ * Run the same command again to continue. A matching source hash and model
+ * is skipped. A new book is missing, and a changed source field is stale.
+ * Repeating the command is the refresh for new or content-modified books.
  *
  * Writes (apply only): public.book_embeddings
  * Never writes: public.books
@@ -18,6 +22,8 @@
  * Env (names only; do not commit values):
  *   SUPABASE_URL                 public project URL (optional; repo default exists)
  *   SUPABASE_SERVICE_ROLE_KEY    required to read embedding metadata / upsert
+ *                                sb_secret_ keys are sent as apikey only;
+ *                                legacy service_role JWTs also use Authorization Bearer
  *   OPENAI_API_KEY               required only with --apply when work remains
  *   AI_SEARCH_1D_CONFIRM_PROJECT required with --apply; must equal the project ref
  */
@@ -50,6 +56,7 @@ const EXCLUDED_FIELDS = Object.freeze([
 const EMBEDDING_MODEL = "text-embedding-3-large";
 const EMBEDDING_DIMENSIONS = 1536;
 const BATCH_SIZE = 25;
+const MAX_APPLY_BATCHES = 1;
 const PAGE_SIZE = 200;
 const MAX_PAGES = 50;
 const MAX_RETRIES = 3;
@@ -278,13 +285,20 @@ function requireEnv(env, name) {
   return value;
 }
 
+function isNewSupabaseSecretKey(serviceKey) {
+  return String(serviceKey || "").trim().startsWith("sb_secret_");
+}
+
 function supabaseHeaders(serviceKey) {
-  return {
+  const headers = {
     apikey: serviceKey,
-    Authorization: "Bearer " + serviceKey,
     Accept: "application/json",
     "Content-Type": "application/json"
   };
+  if (!isNewSupabaseSecretKey(serviceKey)) {
+    headers.Authorization = "Bearer " + serviceKey;
+  }
+  return headers;
 }
 
 function restUrl(baseUrl, table, query) {
@@ -437,6 +451,7 @@ async function runBackfill(options) {
   if (flags.help) {
     log("AI Search 1D embedding backfill. Default is dry-run.");
     log("Apply requires --apply and AI_SEARCH_1D_CONFIRM_PROJECT matching the project ref.");
+    log("One apply processes at most one batch of 25 books.");
     return { ok: true, help: true, openaiCalls: 0, wrote: 0 };
   }
 
@@ -472,19 +487,22 @@ async function runBackfill(options) {
   }
 
   const apiKey = requireEnv(env, "OPENAI_API_KEY");
-  const batches = chunk(pending, opts.batchSize || BATCH_SIZE);
-  for (let i = 0; i < batches.length; i += 1) {
-    const batch = batches[i];
-    const rows = await embedBatch(fetchImpl, apiKey, batch, extras);
-    openaiCalls += 1;
-    await upsertEmbeddings(fetchImpl, baseUrl, serviceKey, rows, extras);
-    wrote += rows.length;
-    log("batch " + (i + 1) + "/" + batches.length + " upserted=" + rows.length);
-  }
+  const requested = Number(opts.batchSize);
+  const batchSize = Number.isFinite(requested) && requested >= 1
+    ? Math.min(BATCH_SIZE, Math.floor(requested))
+    : BATCH_SIZE;
+  const batches = chunk(pending, batchSize);
+  const batch = batches.slice(0, MAX_APPLY_BATCHES)[0];
+  const rows = await embedBatch(fetchImpl, apiKey, batch, extras);
+  openaiCalls += 1;
+  await upsertEmbeddings(fetchImpl, baseUrl, serviceKey, rows, extras);
+  wrote += rows.length;
+  const remaining = pending.length - wrote;
+  log("batch 1/" + batches.length + " upserted=" + rows.length + " remaining=" + remaining);
 
   const summary = summarize(classified, "apply", wrote, openaiCalls);
-  log("AI Search 1D apply complete wrote=" + wrote);
-  return Object.assign({ ok: true, classified, pending }, summary);
+  log("AI Search 1D apply stopped after one batch wrote=" + wrote);
+  return Object.assign({ ok: true, classified, pending, remaining }, summary);
 }
 
 async function main() {
@@ -509,6 +527,7 @@ const api = {
   EMBEDDING_MODEL,
   EMBEDDING_DIMENSIONS,
   BATCH_SIZE,
+  MAX_APPLY_BATCHES,
   OPENAI_EMBEDDINGS_URL,
   EXPECTED_PROJECT_REF,
   APPLY_CONFIRM_ENV,

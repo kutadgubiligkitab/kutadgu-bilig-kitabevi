@@ -51,7 +51,7 @@ function mockRes() {
 function makeFetch(state) {
   return async function fetchImpl(url, init) {
     const href = String(url);
-    state.calls.push({ url: href, body: init && init.body });
+    state.calls.push({ url: href, body: init && init.body, headers: init && init.headers });
     if (/api\.openai\.com/.test(href)) {
       state.openai += 1;
       if (state.openaiFail) {
@@ -515,7 +515,19 @@ async function run() {
     assert.match(sql, /private\.kutadgu_public_volume_groups\(\)/);
     assert.match(sql, /left\(b\.description, 2500\)/);
     assert.match(sql, /description_matched boolean/);
-    assert.match(sql, /IN \(SELECT cat FROM categories\) THEN 6[\s\S]*char_length\(v\.q\) >= 8[\s\S]*THEN 7/);
+    assert.match(sql, /category_matched boolean/);
+    assert.match(sql, /FROM public\.book_categories/);
+    assert.match(sql, /c\.is_hidden IS FALSE/);
+    assert.match(sql, /c\.retired_at IS NULL/);
+    assert.match(sql, /exact\.label = normalize\(b\.category, NFC\)[\s\S]*THEN 4/);
+    assert.match(sql, /THEN 4[\s\S]*strpos\(normalize\(b\.title, NFC\), v\.q\) > 0[\s\S]*THEN 5/);
+    assert.match(sql, /JOIN active_labels AS active ON active\.label = requested\.cat[\s\S]*THEN 7/);
+    assert.match(sql, /char_length\(v\.q\) >= 8[\s\S]*THEN 8/);
+    assert.match(sql, /query_keys AS/);
+    assert.match(sql, /HAVING count\(\*\) >= 2/);
+    assert.match(sql, /max\(key_length\) >= 6/);
+    assert.match(sql, /chosen\.lexical_score DESC/);
+    assert.match(sql, /term_support AS support/);
     assert.match(sql, /strpos\(normalize\(b\.title, NFC\), v\.q\) > 0/);
     assert.match(sql, /'book:' \|\| hits\.id::text/);
     assert.match(sql, /'group:' \|\| hits\.series_group_id::text/);
@@ -542,6 +554,116 @@ async function run() {
   await test("known spelling variants still fold before the catalog call", () => {
     assert.ok(Ai.queryVariants("چىڭگىز ئايتماتوۋ").indexOf("چىڭغىز ئايتماتوۋ") !== -1);
     assert.ok(Ai.categoryNamesForQuery("تارىخىي رومان").indexOf("تارىخىي رومان") !== -1);
+  });
+
+  await test("exact categories come from the directory flag, not a hardcoded name", async () => {
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("ئىقتىساد"), []);
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("يېڭى ئاپتوماتىك تۈر"), []);
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("بالىلار تارىخىي رومان"), []);
+    assert.deepStrictEqual(
+      Ai.categoryNamesForQuery("بالا تەربىيىسىدە ئاتا-ئانا نېمىلەرگە دىققەت قىلىشى كېرەك"),
+      ["پەرزەنت تەربىيەسى"]
+    );
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("بالا"), []);
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("تەربىيىسىدە"), []);
+    assert.deepStrictEqual(Ai.categoryNamesForQuery("ئاتا-ئانا"), []);
+    assert.ok(Ai.categoryNamesForQuery("تارىخىي رومان").indexOf("تارىخىي رومان") !== -1);
+    const economics = catalog.filter((row) => row.category === "ئىقتىساد").map((row) => book(row, { category_matched: true }));
+    const out = await search("ئىقتىساد", {}, { catalogRows: economics });
+    assert.strictEqual(out.state.openai, 0);
+    assert.ok(out.json.results.some((row) => row.id === 701));
+    assert.ok(out.json.results.some((row) => row.id === 704));
+    assert.ok(out.json.results.every((row) => row.category === "ئىقتىساد"));
+    assert.equal("category_matched" in out.json.results[0], false);
+    const fresh = await search("يېڭى ئاپتوماتىك تۈر", {}, {
+      catalogRows: [book({ id: 91001, title: "يېڭى ماۋزۇ", author: "سىناق", category: "يېڭى ئاپتوماتىك تۈر" }, { category_matched: true })]
+    });
+    assert.strictEqual(fresh.json.results.length, 1);
+    assert.strictEqual(fresh.json.results[0].id, 91001);
+    assert.strictEqual(AiUi.publicResultHref(fresh.json.results[0]), "/book/91001");
+    const historical = await search("رومان", {}, {
+      catalogRows: [
+        book({ id: 296, title: "قۇتادغۇبىلىك (رومانلاشتۇرۇلغان نۇسخىسى)", category: "رومان" }, { category_matched: true }),
+        book({ id: 158, title: "ئىز", category: "تارىخىي رومان" }, { category_matched: false })
+      ]
+    });
+    assert.deepStrictEqual(historical.json.results.map((row) => row.id), [296]);
+  });
+
+  await test("natural-language lexical evidence survives a weak vector list", async () => {
+    const cases = [
+      { query: "پۇلنى قانداق تېجەپ، بايلىقنى توغرا باشقۇرغىلى بولىدۇ", id: 701, title: "باي دادام نامرات دادام", category: "ئىقتىساد", description: "پۇلنى تېجەش ۋە بايلىقنى باشقۇرۇش" },
+      { query: "قىرىق ياشقا بارغان ئاياللارنىڭ تۇرمۇشىدىكى ئۆزگىرىشلەر", id: 717, title: "ئاياللار 40 ياشتا", category: "پىسخىكىلىق ساغلاملىق", description: "قىرىق ياشقا بارغان ئاياللارنىڭ تۇرمۇشىدىكى ئۆزگىرىشلەر" },
+      { query: "قەدىمكى ئۇيغۇر قاغانلىرىنىڭ تاشقا ئويۇلغان تارىخى", id: 146, title: "ئورخۇن ئۇيغۇر خانلىقىنىڭ قىسقىچە تارىخى", category: "تارىخىي ماتېرىيال", description: "قاغانلىرىنىڭ تاشقا ئويۇلغان تارىخى" },
+      { query: "بالا تەربىيىسىدە ئاتا-ئانا نېمىلەرگە دىققەت قىلىشى كېرەك", id: 162, title: "ئىسلامدا ئەۋلاد تەربىيلەش ئۇسۇلى", category: "پەرزەنت تەربىيەسى", description: "بالا تەربىيىسىدە ئاتا-ئانا دىققىتى" },
+      { query: "ئەندىشە ۋە غەم-قايغۇنى يەڭگىللىتىش يوللىرى", id: 476, title: "قايغۇرماڭ باتۇرلارچە ياشاڭ", category: "پىسخىكىلىق ساغلاملىق", description: "ئەندىشە ۋە غەم-قايغۇنى يەڭگىللىتىش" },
+      { query: "ئۇيغۇر تىلىدىكى سۆز تۈرلىرى ۋە قوشۇمچىلارنى چۈشىنىش", id: 498, title: "ھازىرقى زامان ئۇيغۇرتىلى گرامماتىكىسى", category: "گرامماتىكا", description: "سۆز تۈرلىرى ۋە قوشۇمچىلار" },
+      { query: "لەغمەن، پولۇ ۋە باشقا ئۇيغۇر تائاملىرىنى تەييارلاش", id: 709, title: "ئۇيغۇر تائاملىرى قامۇسى", category: "تائاملار", description: "لەغمەن ۋە پولۇ تەييارلاش" },
+      { query: "تارىم دەرياسىنىڭ سۈيى ئازىيىشى ۋە تەبىئەتكە بولغان ئەندىشە", id: 142, title: "ئانا دەريانى ئىزدەپ", category: "پوۋېست ۋە ھېكايىلەر", description: "تارىم دەرياسىنىڭ سۈيى ئازىيىشى" }
+    ];
+    for (const item of cases) {
+      const out = await search(item.query, {}, {
+        catalogRows: [book({ id: item.id, title: item.title, category: item.category }, {
+          description: item.description,
+          description_matched: true
+        })],
+        vectorRows: [book({ id: 90001, title: "مۇناسىۋەتسىز ماتېرىيال", category: "ئۇنىۋېرسال" }, { similarity: 0.9 })]
+      });
+      assert.ok(out.json.results.some((row) => row.id === item.id), item.query);
+      assert.ok(out.json.results.every((row) => row.id !== 90001), item.query);
+      assert.equal("description" in out.json.results[0], false);
+    }
+  });
+
+  await test("simulated lexical hits are not live semantic proof", async () => {
+    const out = await search("لەغمەن، پولۇ ۋە باشقا ئۇيغۇر تائاملىرىنى تەييارلاش", {}, {
+      catalogRows: [book({ id: 709, title: "ئۇيغۇر تائاملىرى قامۇسى", category: "تائاملار" }, {
+        description_matched: true,
+        description: "لەغمەن ۋە پولۇ"
+      })],
+      vectorRows: [book({ id: 709, title: "ئۇيغۇر تائاملىرى قامۇسى", category: "تائاملار" }, { similarity: 0.4359 })]
+    });
+    assert.strictEqual(out.json.results[0].id, 709);
+    assert.ok(out.json.results[0].similarity < Ai.SEMANTIC_ACCEPT_FLOOR);
+    const weakOnly = await search("لەغمەن، پولۇ ۋە باشقا ئۇيغۇر تائاملىرىنى تەييارلاش", {}, {
+      catalogRows: [],
+      vectorRows: [book({ id: 709, title: "ئۇيغۇر تائاملىرى قامۇسى", category: "تائاملار" }, { similarity: 0.4359 })]
+    });
+    assert.deepStrictEqual(weakOnly.json.results, []);
+    assert.strictEqual(Ai.SEMANTIC_ACCEPT_FLOOR, 0.55);
+  });
+
+  await test("unrelated queries do not pass on a short token or a below-floor neighbor", async () => {
+    const noise = await search("ھاۋارايىدىكى بۇلۇتلار", {}, {
+      catalogRows: [book({ id: 42, title: "ئانا", category: "رومان" }, { description_matched: false, description: "ۋە" })],
+      vectorRows: [book({ id: 42, title: "ئانا", category: "رومان" }, { similarity: 0.5 })]
+    });
+    assert.deepStrictEqual(noise.json.results, []);
+    const closed = await search("پۇلنى تېجەپ بايلىقنى باشقۇرۇش", {}, {
+      catalogRows: [book({ id: 701, title: "باي دادام نامرات دادام", category: "ئىقتىساد" }, { description_matched: true })],
+      reserveAllowed: false,
+      vectorRows: [book({ id: 90002, title: "باشقا", category: "ئۇنىۋېرسال" }, { similarity: 0.99 })]
+    });
+    assert.strictEqual(closed.json.results[0].id, 701);
+    assert.strictEqual(closed.state.openai, 0);
+  });
+
+  await test("sb_secret keys are sent only as apikey", async () => {
+    const secret = "sb_secret_mock_not_real";
+    const legacy = "test-supabase-rpc-key";
+    const row = catalog.find((item) => item.title === "ئىز");
+    const modern = await search(row.title, { SUPABASE_SECRET_KEY: secret }, { catalogRows: [book(row)] });
+    const legacyOut = await search(row.title, { SUPABASE_SECRET_KEY: legacy }, { catalogRows: [book(row)] });
+    modern.state.calls.filter((call) => call.url.indexOf("/rest/v1/") !== -1).forEach((call) => {
+      assert.strictEqual(call.headers.apikey, secret);
+      assert.equal(Object.prototype.hasOwnProperty.call(call.headers, "Authorization"), false);
+    });
+    legacyOut.state.calls.filter((call) => call.url.indexOf("/rest/v1/") !== -1).forEach((call) => {
+      assert.strictEqual(call.headers.apikey, legacy);
+      assert.strictEqual(call.headers.Authorization, "Bearer " + legacy);
+    });
+    assert.strictEqual(modern.state.openai, 0);
+    assert.equal(JSON.stringify(modern.json).indexOf(secret), -1);
   });
 }
 

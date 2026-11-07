@@ -8,10 +8,15 @@
 -- minutes and 200 calls per UTC day. A missing row or invalid hash is refused.
 --
 -- Release order. Do not run this from the application or from CI.
--- 1. Verify this file and STAGE_AI_SEARCH_2_PUBLIC_CATALOG_LEXICAL.sql together
+-- 1. Confirm Stage 132 categories and Stage 138 public series routes are already
+--    installed. Do not reapply those files.
+-- 2. Verify this file and STAGE_AI_SEARCH_2_PUBLIC_CATALOG_LEXICAL.sql together
 --    on an isolated database.
--- 2. Apply both files only after that verification.
--- 3. Deploy the AI Search backend only after both functions answer correctly.
+-- 3. Apply this budget file first. It adds only new private ledger objects.
+-- 4. Apply the catalog file second. Its series-directory grant needs Stage 138.
+-- 5. Set the Worker server key, OpenAI key, and IP hash secret. Leave the daily
+--    embedding refresh flag unset.
+-- 6. Deploy the AI Search backend only after both functions answer correctly.
 -- Rollback: redeploy the previous backend first. Paid calls then stop using
 -- this ledger. Dropping these new objects does not change the older search RPCs.
 

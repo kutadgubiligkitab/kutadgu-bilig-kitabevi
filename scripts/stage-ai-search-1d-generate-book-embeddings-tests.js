@@ -334,10 +334,11 @@ async function run() {
       log() {}
     });
     assert.strictEqual(result.mode, "apply");
-    assert.strictEqual(result.openaiCalls, 2);
-    assert.strictEqual(state.openaiPosts, 2);
-    assert.strictEqual(state.embeddingWrites, 2);
-    assert.strictEqual(result.wrote, 26);
+    assert.strictEqual(result.openaiCalls, 1);
+    assert.strictEqual(state.openaiPosts, 1);
+    assert.strictEqual(state.embeddingWrites, 1);
+    assert.strictEqual(result.wrote, 25);
+    assert.strictEqual(result.remaining, 1);
     assert.strictEqual(state.bookWrites, 0);
     assert.ok(state.calls.some((call) => call.method === "POST" && /book_embeddings/.test(call.url)));
     assert.ok(state.calls.every((call) => call.method === "GET" || /book_embeddings|embeddings$/.test(call.url)));
@@ -448,24 +449,35 @@ async function run() {
     assert.strictEqual(Embed.isRetryableStatus(400), false);
   });
 
-  await test("resume/idempotent: completed books are skipped on rerun", async () => {
+  await test("resume/idempotent: one batch stops, and a rerun skips completed books", async () => {
     const books = [bookRow({ id: 1 }), bookRow({ id: 2, title: "ئىككىنچى" })];
-    const firstState = { books, embeddings: [], failWriteAfter: 1 };
+    const failed = { books, embeddings: [], openaiFailTimes: 1, openaiStatus: 500 };
     const first = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-        env: applyEnv(),
-      fetchImpl: makeFetchMock(firstState),
+      env: applyEnv(),
+      fetchImpl: makeFetchMock(failed),
       batchSize: 1,
       maxRetries: 0,
       sleep: async () => {},
       log() {}
     }).then(() => "ok", (err) => err);
-    assert.strictEqual(first.status, 500);
-    assert.strictEqual(firstState.embeddingWrites, 2);
-    assert.strictEqual(firstState.upserts.length, 1);
+    assert.strictEqual(first.failClosed, true);
+    assert.strictEqual(failed.embeddingWrites, 0);
 
-    const completed = firstState.upserts[0];
-    const secondState = {
+    const retry = { books, embeddings: [] };
+    const second = await Embed.runBackfill({
+      argv: ["node", "script.js", "--apply"],
+      env: applyEnv(),
+      fetchImpl: makeFetchMock(retry),
+      batchSize: 1,
+      log() {}
+    });
+    assert.strictEqual(second.wrote, 1);
+    assert.strictEqual(second.remaining, 1);
+    assert.strictEqual(retry.openaiPosts, 1);
+
+    const completed = retry.upserts[0];
+    const thirdState = {
       books,
       embeddings: [{
         book_id: completed.book_id,
@@ -473,17 +485,36 @@ async function run() {
         source_text_hash: completed.source_text_hash
       }]
     };
-    const second = await Embed.runBackfill({
+    const third = await Embed.runBackfill({
       argv: ["node", "script.js", "--apply"],
-        env: applyEnv(),
-      fetchImpl: makeFetchMock(secondState),
+      env: applyEnv(),
+      fetchImpl: makeFetchMock(thirdState),
       batchSize: 1,
       log() {}
     });
-    assert.strictEqual(second.unchanged, 1);
-    assert.strictEqual(second.toEmbed, 1);
-    assert.strictEqual(second.wrote, 1);
-    assert.strictEqual(secondState.openaiPosts, 1);
+    assert.strictEqual(third.unchanged, 1);
+    assert.strictEqual(third.toEmbed, 1);
+    assert.strictEqual(third.wrote, 1);
+    assert.strictEqual(thirdState.openaiPosts, 1);
+    const fourthState = {
+      books,
+      embeddings: thirdState.embeddings.concat(thirdState.upserts.map((row) => ({
+        book_id: row.book_id,
+        embedding_model: row.embedding_model,
+        source_text_hash: row.source_text_hash
+      })))
+    };
+    const fourth = await Embed.runBackfill({
+      argv: ["node", "script.js", "--apply"],
+      env: applyEnv(),
+      fetchImpl: makeFetchMock(fourthState),
+      log() {}
+    });
+    assert.strictEqual(fourth.mode, "apply");
+    assert.strictEqual(fourth.unchanged, 2);
+    assert.strictEqual(fourth.toEmbed, 0);
+    assert.strictEqual(fourth.wrote, 0);
+    assert.strictEqual(fourthState.openaiPosts || 0, 0);
   });
 
   await test("secrets are redacted and never printed by the logger", async () => {

@@ -5,8 +5,23 @@
 -- search_public_catalog_lexical returns at most 24 active, approved books.
 -- A description is included only for a matched row, and only its first 2500
 -- characters. description_matched says whether the full description contained
--- a submitted query variant. The worker uses that flag internally and does not
+-- a submitted query variant, or at least two meaningful query terms in the
+-- title or description. A term shorter than five characters does not count.
+-- One closed set of Uyghur endings is removed from a longer word, and a final
+-- ە/ى on that stem is treated as the same stem. Two closed families also share
+-- one key: تەربىيەسى / تەربىيىسى / تەربىيلەش, and ئاتا-ئانا / ئاتا-ئانىلار.
+-- Common function words do not
+-- count. Two short common words are not enough: one matched stem must be at
+-- least six characters. Term matches are scored by title evidence, match
+-- count, and stem length, and that score is applied before the 24-row cap.
+-- The worker uses that flag internally and does not
 -- send it, or the rest of the description, to the browser.
+-- category_matched says the query is exactly a visible category label from
+-- public.book_categories. Hidden and retired labels do not match. The worker
+-- uses that flag internally and does not send it to the browser. An exact
+-- label is ranked after an exact title, exact series title, or author, and
+-- before a partial title or a broader category phrase. This file does not
+-- grant a new table privilege and does not change the category directory.
 -- Published series come from the existing public-series function.
 -- Comparisons are literal substring tests. Percent, underscore, and backslash
 -- are ordinary characters. NFC matches the worker query normalization and
@@ -22,9 +37,14 @@
 -- Stage 138 must already be installed. This file does not reapply it.
 --
 -- Release order. Do not run this from the application or from CI.
--- 1. Verify this file and STAGE_AI_SEARCH_2_QUERY_BUDGET.sql on an isolated database.
--- 2. Apply those two files only after that verification. They add new objects.
--- 3. Deploy the AI Search backend only after both functions answer correctly.
+-- 1. Confirm Stage 132 categories and Stage 138 public series routes are already
+--    installed. Do not reapply those files.
+-- 2. Verify this file and STAGE_AI_SEARCH_2_QUERY_BUDGET.sql on an isolated database.
+-- 3. Apply STAGE_AI_SEARCH_2_QUERY_BUDGET.sql first. It does not read this function.
+-- 4. Apply this catalog file second. The series-directory grant needs Stage 138.
+-- 5. Set the Worker server key, OpenAI key, and IP hash secret. Leave the daily
+--    embedding refresh flag unset.
+-- 6. Deploy the AI Search backend only after both functions answer correctly.
 --    A missing catalog or budget function refuses paid calls.
 -- Rollback: redeploy the previous backend first. These new objects can stay.
 
@@ -47,6 +67,7 @@ RETURNS TABLE (
   stock integer,
   description text,
   description_matched boolean,
+  category_matched boolean,
   series_title text,
   series_slug text,
   series_member_count integer,
@@ -71,6 +92,109 @@ AS $lexical$
     FROM unnest(COALESCE(p_categories, ARRAY[]::text[])) AS cat
     WHERE char_length(normalize(btrim(cat), NFC)) BETWEEN 2 AND 80
     LIMIT 8
+  ),
+  active_labels AS (
+    SELECT DISTINCT normalize(btrim(c.label), NFC) AS label
+    FROM public.book_categories AS c
+    WHERE c.retired_at IS NULL
+      AND c.is_hidden IS FALSE
+      AND char_length(normalize(btrim(c.label), NFC)) BETWEEN 1 AND 80
+  ),
+  exact_labels AS (
+    SELECT v.q AS label
+    FROM variants AS v
+    JOIN active_labels AS active ON active.label = v.q
+  ),
+  raw_terms AS (
+    SELECT 'query' AS field, 0::bigint AS id, left(normalize(btrim(tok), NFC), 40) AS surface
+    FROM variants AS v
+    CROSS JOIN LATERAL regexp_split_to_table(v.q, '[[:space:]،,.;:!?()«»"/]+') AS tok
+    UNION ALL
+    SELECT 'title', b.id, left(normalize(btrim(tok), NFC), 40)
+    FROM public.books AS b
+    CROSS JOIN LATERAL regexp_split_to_table(normalize(COALESCE(b.title, ''), NFC), '[[:space:]،,.;:!?()«»"/]+') AS tok
+    WHERE b.is_active IS TRUE
+      AND b.submission_status = 'approved'
+    UNION ALL
+    SELECT 'description', b.id, left(normalize(btrim(tok), NFC), 40)
+    FROM public.books AS b
+    CROSS JOIN LATERAL regexp_split_to_table(normalize(COALESCE(b.description, ''), NFC), '[[:space:]،,.;:!?()«»"/]+') AS tok
+    WHERE b.is_active IS TRUE
+      AND b.submission_status = 'approved'
+  ),
+  stemmed_terms AS (
+    SELECT
+      field,
+      id,
+      surface,
+      CASE
+        WHEN char_length(surface) >= 9 AND right(surface, 4) = 'لىرى'
+          THEN left(surface, char_length(surface) - 4)
+        WHEN char_length(surface) >= 8 AND right(surface, 3) IN ('نىڭ', 'دىن', 'تىن', 'لار', 'لەر')
+          THEN left(surface, char_length(surface) - 3)
+        WHEN char_length(surface) >= 7 AND right(surface, 2) IN ('نى', 'دا', 'دە', 'غا', 'گە', 'قا', 'كە')
+          THEN left(surface, char_length(surface) - 2)
+        ELSE surface
+      END AS stem
+    FROM raw_terms
+    WHERE char_length(surface) BETWEEN 5 AND 40
+      AND surface NOT IN (
+        'بىلەن', 'ئۈچۈن', 'بولىدۇ', 'قىلىش', 'قىلىشى', 'كېرەك', 'باشقا',
+        'ھەققىدە', 'بويىچە', 'ئارقىلىق', 'دېگەن', 'بولغان',
+        'بولسا', 'ئىكەن', 'ئۇيغۇر', 'كىتاب', 'كىتابى', 'كىتابلىرى'
+      )
+  ),
+  keyed_terms AS (
+    SELECT
+      field,
+      id,
+      CASE
+        WHEN stem IN (
+          'تەربىيە', 'تەربىيى', 'تەربىيەسى', 'تەربىيىسى',
+          'تەربىيلەش', 'تەربىيەلەش', 'تەربىيىلەش'
+        ) THEN 'تەربىيە'
+        WHEN stem IN ('ئاتا-ئانا', 'ئاتا-ئانى', 'ئاتا-ئانىلار', 'ئاتا-ئانىلەر')
+          THEN 'ئاتا-ئانا'
+        WHEN char_length(stem) >= 6 AND right(stem, 1) = 'ە'
+          THEN left(stem, char_length(stem) - 1) || 'ى'
+        ELSE stem
+      END AS term_key
+    FROM stemmed_terms
+    WHERE char_length(stem) >= 5
+  ),
+  query_keys AS (
+    SELECT DISTINCT term_key
+    FROM keyed_terms
+    WHERE field = 'query'
+    LIMIT 12
+  ),
+  matched_keys AS (
+    SELECT book.field, book.id, book.term_key
+    FROM keyed_terms AS book
+    JOIN query_keys AS query_term ON query_term.term_key = book.term_key
+    WHERE book.field IN ('title', 'description')
+  ),
+  term_support AS (
+    SELECT
+      id,
+      (
+        sum(in_title) * 100
+        + count(*) * 10
+        + sum(key_length)
+      )::integer AS lexical_score
+    FROM (
+      SELECT
+        id,
+        term_key,
+        max(CASE WHEN field = 'title' THEN 1 ELSE 0 END) AS in_title,
+        max(char_length(term_key)) AS key_length
+      FROM matched_keys
+      GROUP BY id, term_key
+    ) AS per_key
+    GROUP BY id
+    HAVING count(*) >= 2
+      AND max(key_length) >= 6
+      AND sum(key_length) >= 11
   ),
   visible_series AS (
     SELECT
@@ -112,11 +236,29 @@ AS $lexical$
       b.image_url,
       b.stock,
       left(b.description, 2500) AS description,
-      EXISTS (
-        SELECT 1 FROM variants AS v
-        WHERE char_length(v.q) >= 8
-          AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
+      (
+        EXISTS (
+          SELECT 1 FROM variants AS v
+          WHERE char_length(v.q) >= 8
+            AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
+        )
+        OR EXISTS (
+          SELECT 1 FROM term_support AS support
+          WHERE support.id = b.id
+        )
       ) AS description_matched,
+      EXISTS (
+        SELECT 1 FROM exact_labels AS exact
+        WHERE exact.label = normalize(b.category, NFC)
+      ) AS category_matched,
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM variants AS v
+          WHERE char_length(v.q) >= 8
+            AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
+        ) THEN 1000
+        ELSE COALESCE(support.lexical_score, 0)
+      END AS lexical_score,
       m.series_title,
       m.series_slug,
       m.member_count AS series_member_count,
@@ -144,6 +286,10 @@ AS $lexical$
             )
         ) THEN 3
         WHEN EXISTS (
+          SELECT 1 FROM exact_labels AS exact
+          WHERE exact.label = normalize(b.category, NFC)
+        ) THEN 4
+        WHEN EXISTS (
           SELECT 1 FROM variants AS v
           WHERE (
               char_length(v.q) >= 3
@@ -153,7 +299,7 @@ AS $lexical$
               char_length(normalize(b.title, NFC)) >= 6
               AND strpos(v.q, normalize(b.title, NFC)) > 0
             )
-        ) THEN 4
+        ) THEN 5
         WHEN EXISTS (
           SELECT 1 FROM variants AS v
           WHERE m.series_title IS NOT NULL
@@ -167,18 +313,29 @@ AS $lexical$
                 AND strpos(v.q, normalize(m.series_title, NFC)) > 0
               )
             )
-        ) THEN 5
-        WHEN EXISTS (SELECT 1 FROM categories)
-          AND normalize(b.category, NFC) IN (SELECT cat FROM categories) THEN 6
-        WHEN EXISTS (
-          SELECT 1 FROM variants AS v
-          WHERE char_length(v.q) >= 8
-            AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
-        ) THEN 7
+        ) THEN 6
+        WHEN NOT EXISTS (SELECT 1 FROM exact_labels)
+          AND EXISTS (
+            SELECT 1 FROM categories AS requested
+            JOIN active_labels AS active ON active.label = requested.cat
+            WHERE active.label = normalize(b.category, NFC)
+          ) THEN 7
+        WHEN (
+          EXISTS (
+            SELECT 1 FROM variants AS v
+            WHERE char_length(v.q) >= 8
+              AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
+          )
+          OR EXISTS (
+            SELECT 1 FROM term_support AS support
+            WHERE support.id = b.id
+          )
+        ) THEN 8
         ELSE NULL
       END AS tier
     FROM public.books AS b
     LEFT JOIN membership AS m ON m.member_id = b.id
+    LEFT JOIN term_support AS support ON support.id = b.id
     WHERE b.is_active IS TRUE
       AND b.submission_status = 'approved'
   ),
@@ -198,6 +355,7 @@ AS $lexical$
         ELSE 'group:' || hits.series_group_id::text
       END,
       hits.tier,
+      hits.lexical_score DESC,
       (hits.id = hits.series_representative_id) DESC,
       hits.id
   )
@@ -211,6 +369,7 @@ AS $lexical$
     chosen.stock,
     chosen.description,
     chosen.description_matched,
+    chosen.category_matched,
     chosen.series_title,
     chosen.series_slug,
     chosen.series_member_count,
@@ -219,7 +378,7 @@ AS $lexical$
     chosen.series_image_url,
     chosen.series_representative_id
   FROM chosen
-  ORDER BY chosen.tier, char_length(chosen.title), chosen.id
+  ORDER BY chosen.tier, chosen.lexical_score DESC, char_length(chosen.title), chosen.id
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 24), 1), 24);
 $lexical$;
 

@@ -112,6 +112,18 @@ function serverSupabaseKey(env) {
   return String((env && env.SUPABASE_SECRET_KEY) || "").trim();
 }
 
+function supabaseRpcHeaders(rpcKey) {
+  const headers = {
+    apikey: rpcKey,
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  };
+  if (!String(rpcKey || "").startsWith("sb_" + "secret_")) {
+    headers.Authorization = "Bearer " + rpcKey;
+  }
+  return headers;
+}
+
 function secretValues(env) {
   const out = [];
   ["OPENAI_API_KEY", "SUPABASE_SECRET_KEY"].forEach((name) => {
@@ -333,6 +345,16 @@ function resolveCategoryIntent(query) {
       categories.push(rule.category);
     }
   });
+  const upbringing = q.indexOf("تەربىيە") !== -1 || q.indexOf("تەربىيى") !== -1;
+  const parents = q.indexOf("ئاتا-ئانا") !== -1 || q.indexOf("ئاتا-ئانى") !== -1;
+  if (upbringing && parents && !seenCategory["پەرزەنت تەربىيەسى"]) {
+    if (!seenFamily.child_parenting) {
+      seenFamily.child_parenting = true;
+      families.push("child_parenting");
+    }
+    seenCategory["پەرزەنت تەربىيەسى"] = true;
+    categories.push("پەرزەنت تەربىيەسى");
+  }
   let mode = "none";
   if (families.length === 1) mode = "clear";
   else if (families.length > 1) mode = "mixed";
@@ -425,12 +447,7 @@ async function mapCandidatesToCatalogUnits(fetchImpl, candidates, timeoutMs, rpc
   const url = SUPABASE_URL + "/rest/v1/rpc/" + MAP_UNITS_RPC;
   const rows = await fetchJsonThen(fetchImpl, url, {
     method: "POST",
-    headers: {
-      apikey: rpcKey,
-      Authorization: "Bearer " + rpcKey,
-      Accept: "application/json",
-      "Content-Type": "application/json"
-    },
+    headers: supabaseRpcHeaders(rpcKey),
     body: JSON.stringify({ p_book_ids: ids })
   }, timeoutMs || RPC_TIMEOUT_MS, payload => {
     const values = Array.isArray(payload) ? payload : (Array.isArray(payload && payload.items) ? payload.items : null);
@@ -459,12 +476,7 @@ async function loadPublicSeriesDirectory(fetchImpl, timeoutMs, rpcKey) {
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
-      headers: {
-        apikey: rpcKey,
-        Authorization: "Bearer " + rpcKey,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: supabaseRpcHeaders(rpcKey),
       body: "{}"
     }, timeoutMs || RPC_TIMEOUT_MS, readSeriesDirectory);
   } catch (err) {
@@ -547,6 +559,9 @@ function selectRelevantResults(query, candidates) {
 
   const authors = list.filter((row) => authorMatchesQuery(row.author, q));
   if (authors.length) return bySimilarity(authors);
+
+  const exactCategory = list.filter((row) => row.category_matched === true);
+  if (exactCategory.length) return bySimilarity(exactCategory);
 
   const partial = list.filter((row) => {
     const relation = titleRelation(row.title, q);
@@ -651,6 +666,7 @@ function readCatalogRows(rows) {
     if (!parsed) return null;
     parsed.description = String(row.description == null ? "" : row.description).slice(0, 2500);
     if (row.description_matched === true) parsed.description_matched = true;
+    if (row.category_matched === true) parsed.category_matched = true;
     parsed.series_title = String(row.series_title == null ? "" : row.series_title);
     parsed.series_slug = String(row.series_slug == null ? "" : row.series_slug);
     parsed.series_member_count = Number(row.series_member_count) || 0;
@@ -831,12 +847,7 @@ async function reservePaidCall(fetchImpl, ipHash, timeoutMs, rpcKey) {
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
-      headers: {
-        apikey: rpcKey,
-        Authorization: "Bearer " + rpcKey,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: supabaseRpcHeaders(rpcKey),
       body: JSON.stringify({ p_ip_hash: ipHash })
     }, timeoutMs || RPC_TIMEOUT_MS, readReserve);
   } catch (err) {
@@ -856,12 +867,7 @@ async function searchPublicCatalog(fetchImpl, query, timeoutMs, rpcKey) {
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
-      headers: {
-        apikey: rpcKey,
-        Authorization: "Bearer " + rpcKey,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: supabaseRpcHeaders(rpcKey),
       body: JSON.stringify({
         p_queries: queryVariants(query),
         p_categories: categoryNamesForQuery(query),
@@ -884,12 +890,7 @@ async function matchBooks(fetchImpl, vector, timeoutMs, rpcKey) {
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
-      headers: {
-        apikey: rpcKey,
-        Authorization: "Bearer " + rpcKey,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: supabaseRpcHeaders(rpcKey),
       body: JSON.stringify({
         query_embedding: vector,
         match_count: CANDIDATE_COUNT
@@ -917,12 +918,7 @@ async function listBooksByCategories(fetchImpl, categories, timeoutMs, rpcKey) {
   try {
     return await fetchJsonThen(fetchImpl, url, {
       method: "POST",
-      headers: {
-        apikey: rpcKey,
-        Authorization: "Bearer " + rpcKey,
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: supabaseRpcHeaders(rpcKey),
       body: JSON.stringify({
         categories: names,
         match_count: CANDIDATE_COUNT
@@ -957,7 +953,11 @@ async function runSearch(options) {
     return { status: 503, body: genericError(), openaiCalls: 0, supabaseCalls: 1 };
   }
   const lexical = presentSearchResults(query, catalogRows);
-  if (lexical.length) {
+  const strong = presentSearchResults(query, catalogRows.map((row) => Object.assign({}, row, {
+    description: "",
+    description_matched: false
+  })));
+  if (strong.length) {
     return {
       status: 200,
       body: { ok: true, results: lexical, count: lexical.length },
@@ -965,8 +965,18 @@ async function runSearch(options) {
       supabaseCalls: 1
     };
   }
+  const descriptiveIds = new Set(lexical.map((row) => Number(row.id)));
+  const descriptiveSources = catalogRows.filter((row) => descriptiveIds.has(Number(row.id)));
   const reserved = apiKey ? await reservePaidCall(fetchImpl, opts.clientIpHash, opts.rpcTimeoutMs, rpcKey) : false;
   if (!reserved) {
+    if (lexical.length) {
+      return {
+        status: 200,
+        body: { ok: true, results: lexical, count: lexical.length },
+        openaiCalls: 0,
+        supabaseCalls: 1
+      };
+    }
     return {
       status: 200,
       body: { ok: true, results: [], count: 0, semantic: "unavailable" },
@@ -976,16 +986,17 @@ async function runSearch(options) {
   }
   const vector = await embedQuery(fetchImpl, apiKey, query, opts.openaiTimeoutMs);
   const vectorRows = await matchBooks(fetchImpl, vector, opts.rpcTimeoutMs, rpcKey);
-  let candidates = vectorRows;
+  const supportedVectors = vectorRows.filter((row) => Number(row.similarity) >= SEMANTIC_ACCEPT_FLOOR);
+  let candidates = mergeAiCandidates(descriptiveSources, supportedVectors);
   const resolved = resolveCategoryIntent(query);
   if (resolved.mode === "clear" && resolved.categories.length) {
     try {
       const categoryRows = await listBooksByCategories(fetchImpl, resolved.categories, opts.rpcTimeoutMs, rpcKey);
       if (categoryRows && categoryRows.length) {
-        candidates = mergeAiCandidates(vectorRows, categoryRows);
+        candidates = mergeAiCandidates(candidates, categoryRows);
       }
     } catch (err) {
-      candidates = vectorRows;
+      candidates = mergeAiCandidates(descriptiveSources, supportedVectors);
     }
   }
   if (String(env.MULTI_VOLUME_BOOKS_ENABLED || "") === "true") {
