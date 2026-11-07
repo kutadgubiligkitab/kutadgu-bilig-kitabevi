@@ -24,4 +24,8 @@ package-lock.json
 playwright.config.js
 .gitignore
 .assetsignore
+.gitattributes
 test-results
+review
+scratch-catalog-cover
+artifacts
