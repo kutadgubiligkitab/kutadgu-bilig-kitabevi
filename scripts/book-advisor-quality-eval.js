@@ -640,6 +640,90 @@ async function runPaidConsistency(options) {
   if (summary.spentMicroUsd > options.cap) process.exit(3);
 }
 
+function acceptanceLiveDecision(input) {
+  const turns = Math.max(0, Math.floor(Number(input && input.turns) || 0));
+  const suiteMicroUsd = Math.max(0, Math.floor(Number(input && input.hold) || 0)) * turns;
+  const base = { suiteMicroUsd, openaiRequests: 0, quality: "NOT RUN" };
+  if (!input || input.ledgerPresent !== true) return Object.assign(base, { action: "stop", code: "ledger-missing" });
+  if (input.halted === true) return Object.assign(base, { action: "stop", code: "ledger-halted" });
+  if (!input.key || String(input.key).length < 20) return Object.assign(base, { action: "stop", code: "evaluation-key-missing" });
+  if (suiteMicroUsd > Number(input.remaining)) return Object.assign(base, { action: "stop", code: "evaluation-unbounded" });
+  return Object.assign(base, { action: "run" });
+}
+
+function readLedgerSummary(file) {
+  if (!file || !fs.existsSync(file)) return null;
+  const state = JSON.parse(fs.readFileSync(file, "utf8"));
+  const reserved = (state.openReservations || []).reduce((sum, row) => sum + (Math.floor(row && row.microUsd) || 0), 0);
+  return {
+    chargedMicroUsd: state.chargedMicroUsd,
+    capMicroUsd: state.capMicroUsd,
+    reservedMicroUsd: reserved,
+    remainingMicroUsd: state.capMicroUsd - state.chargedMicroUsd - reserved,
+    halted: state.halted === true
+  };
+}
+
+function openPersistentEvalLedger(file) {
+  const state = JSON.parse(fs.readFileSync(file, "utf8"));
+  const started = state.chargedMicroUsd;
+  if (!Number.isInteger(started) || !Number.isInteger(state.capMicroUsd) || started > state.capMicroUsd) {
+    throw new Error("ledger-unreadable");
+  }
+  function persist() {
+    if (!Number.isInteger(state.chargedMicroUsd) || state.chargedMicroUsd < started) throw new Error("ledger-decreased");
+    const tmp = file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(state));
+    fs.copyFileSync(tmp, file);
+    fs.unlinkSync(tmp);
+  }
+  const inner = Budget.createLedger({
+    dailyLimitMicroUsd: state.capMicroUsd,
+    monthlyLimitMicroUsd: state.capMicroUsd,
+    perMinute: Math.max(Budget.DEFAULT_PER_MINUTE, Acceptance.CASES.length)
+  });
+  const seedHash = crypto.createHash("sha256").update("kutadgu-preview-seed|" + state.revision).digest("hex");
+  const seedNow = new Date();
+  let ready = Promise.resolve();
+  if (started > 0) {
+    ready = inner.reserve({ clientHash: seedHash, microUsd: started, now: seedNow }).then((row) => inner.settle(row.id, started));
+  }
+  ready = (state.openReservations || []).reduce((chain, row) => chain.then(() => inner.reserve({
+    clientHash: seedHash,
+    microUsd: row.microUsd,
+    now: seedNow
+  })), ready);
+  return {
+    ready,
+    reserve(input) {
+      return ready.then(() => inner.reserve(input).then((row) => {
+        state.openReservations.push({ id: row.id, microUsd: Math.floor(input.microUsd) });
+        persist();
+        return row;
+      }));
+    },
+    settle(id, actualMicroUsd) {
+      return ready.then(() => inner.settle(id, actualMicroUsd).then((settled) => {
+        const index = state.openReservations.findIndex((row) => row.id === id);
+        if (index < 0) throw new Error("ledger-reservation-missing");
+        state.openReservations.splice(index, 1);
+        state.chargedMicroUsd += settled.actualMicroUsd;
+        persist();
+        return settled;
+      }));
+    },
+    release(id) {
+      return ready.then(() => inner.release(id).then((released) => {
+        const index = state.openReservations.findIndex((row) => row.id === id);
+        if (index < 0) throw new Error("ledger-reservation-missing");
+        state.openReservations.splice(index, 1);
+        persist();
+        return released;
+      }));
+    }
+  };
+}
+
 async function runAcceptance() {
   const hold = Advisor.worstCaseMicroUsd({ chars: 100875 });
   const turns = Acceptance.CASES.length;
@@ -662,13 +746,16 @@ async function runAcceptance() {
   ]);
   const rows = [];
   let system = "";
+  const history = new Map();
   for (const item of Acceptance.CASES) {
     const transcript = [];
+    const prior = history.get(item.thread) || [];
+    const threadTurns = Acceptance.conversationTurns(prior, item.customer);
     const result = await Advisor.advise({
       catalog,
       apiKey: "test-key",
       budget: Advisor.createBudget(hold),
-      turns: [{ role: "user", content: item.customer }],
+      turns: threadTurns,
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
         transcript.push(body.input);
@@ -691,22 +778,25 @@ async function runAcceptance() {
         no_secret_in_reply: reply.includes("sk-") || reply.includes("05368999888") ? "FAIL" : "PASS"
       },
       quality: "NOT RUN",
+      rubric: Acceptance.RUBRIC.map((item) => ({ id: item.id, result: "NOT RUN" })),
       reply,
       evidence: result.evidence || "",
+      context: threadTurns.map((turn) => ({ role: turn.role, content: turn.content })),
       toolCalls: transcript.length
     });
+    history.set(item.thread, threadTurns.concat([{ role: "assistant", content: result.message }]));
   }
   const held = Acceptance.CASES.filter((item) => item.heldOut);
   const heldOutPrompt = held.every((item) => !system.includes(item.customer)) ? "PASS" : "FAIL";
   const deterministicFailed = rows.filter((row) => Object.values(row.deterministic).includes("FAIL"));
   const report = {
-    kind: "advisor-acceptance",
+    kind: "advisor-acceptance-wiring",
     paid: false,
     cases: rows.length,
     heldOut: held.length,
     heldOutAbsentFromPrompt: heldOutPrompt,
-    retrieval: "lexical",
-    semantic: "NOT AVAILABLE without service-role match_active_books_ai and a paid embedding",
+    retrieval: "server-match-active-books-ai",
+    semantic: "Meaning search calls match_active_books_ai from the advisor worker with the worker's existing server key. A topic without that key is unavailable and is not a substring match. This wiring run does not score live replies.",
     worstCaseMicroUsd: hold,
     suiteMicroUsd,
     suiteFitsRemaining: ledger ? suiteMicroUsd <= ledger.remainingMicroUsd : null,
@@ -728,10 +818,146 @@ async function runAcceptance() {
     quality: "NOT RUN",
     report: outPath
   }));
-  if (heldOutPrompt !== "PASS" || deterministicFailed.length || rows.length !== 30 || held.length < 10) {
+  const age = rows.find((row) => row.id === "age-change");
+  const child = Acceptance.CASES.find((item) => item.id === "child");
+  const continued = age && age.context.some((turn) => turn.content === child.customer) && age.context.some((turn) => turn.role === "assistant");
+  const blocked = acceptanceLiveDecision({
+    ledgerPresent: true,
+    halted: false,
+    key: "x".repeat(24),
+    remaining: 1,
+    hold,
+    turns
+  });
+  const ledgerFile = path.join(os.tmpdir(), "kutadgu-advisor-ledger-check.json");
+  fs.writeFileSync(ledgerFile, JSON.stringify({
+    revision: "ledger-check",
+    capMicroUsd: 1000,
+    priorMicroUsd: 100,
+    chargedMicroUsd: 400,
+    openReservations: [],
+    halted: false,
+    haltReason: "",
+    hashSecret: "ab".repeat(32),
+    sessions: {}
+  }));
+  const persistent = openPersistentEvalLedger(ledgerFile);
+  await persistent.ready;
+  const reserved = await persistent.reserve({ clientHash: "cd".repeat(32), microUsd: 10, now: new Date() });
+  await persistent.settle(reserved.id, 10);
+  const persisted = readLedgerSummary(ledgerFile);
+  if (heldOutPrompt !== "PASS" || deterministicFailed.length || rows.length !== 30 || held.length < 10 || !continued) {
     throw new Error("acceptance-deterministic");
   }
+  if (blocked.action !== "stop" || blocked.openaiRequests !== 0 || blocked.code !== "evaluation-unbounded") {
+    throw new Error("acceptance-live-preflight");
+  }
+  if (!persisted || persisted.chargedMicroUsd !== 410 || persisted.chargedMicroUsd < 400) throw new Error("ledger-decreased");
   console.log("book-advisor-acceptance ok");
+}
+
+async function runAcceptanceLive() {
+  const hold = Advisor.worstCaseMicroUsd({ chars: 100875 });
+  const turns = Acceptance.CASES.length;
+  const ledgerPath = path.join(process.env.LOCALAPPDATA || "", "kutadgu-book-advisor-preview", "state.json");
+  const ledger = readLedgerSummary(ledgerPath);
+  const decision = acceptanceLiveDecision({
+    ledgerPresent: !!ledger,
+    halted: ledger ? ledger.halted : false,
+    key: process.env[KEY_NAME],
+    remaining: ledger ? ledger.remainingMicroUsd : 0,
+    hold,
+    turns
+  });
+  const summary = {
+    kind: "advisor-acceptance-live",
+    action: decision.action,
+    code: decision.code || "",
+    openaiRequests: 0,
+    quality: "NOT RUN",
+    rubric: Acceptance.RUBRIC,
+    worstCaseMicroUsd: hold,
+    suiteMicroUsd: decision.suiteMicroUsd,
+    chargedMicroUsd: ledger ? ledger.chargedMicroUsd : null,
+    remainingMicroUsd: ledger ? ledger.remainingMicroUsd : null,
+    reservedMicroUsd: ledger ? ledger.reservedMicroUsd : null,
+    halted: ledger ? ledger.halted : null
+  };
+  console.log(JSON.stringify(summary));
+  if (decision.action !== "run") {
+    console.log("book-advisor-acceptance-live not-run");
+    process.exit(decision.code === "evaluation-key-missing" ? 2 : 4);
+  }
+  const apiKey = String(process.env[KEY_NAME] || "");
+  const config = fs.readFileSync(path.join(__dirname, "..", "supabase-config.js"), "utf8");
+  const publicKey = (config.match(/sb_publishable_[A-Za-z0-9_-]+/) || [])[0] || "";
+  const fetchCalls = [];
+  const catalog = await Advisor.loadReadOnlyCatalog(global.fetch, "https://fxlojnqwyojqjskfggmh.supabase.co", publicKey);
+  const persistent = openPersistentEvalLedger(ledgerPath);
+  await persistent.ready;
+  const sessions = Budget.createSessionStore();
+  const state = JSON.parse(fs.readFileSync(ledgerPath, "utf8"));
+  const rows = [];
+  for (const thread of Acceptance.threadsOf(Acceptance.CASES)) {
+    let history = [];
+    let sessionId = "";
+    for (const item of thread.cases) {
+      const threadTurns = Acceptance.conversationTurns(history, item.customer);
+      const room = readLedgerSummary(ledgerPath);
+      if (!room || room.halted || room.remainingMicroUsd < hold) {
+        rows.push({ id: item.id, quality: "NOT RUN", stopped: "ledger-room", openaiRequests: fetchCalls.length });
+        summary.rows = rows;
+        fs.writeFileSync(path.join(os.tmpdir(), "kutadgu-advisor-acceptance-live.json"), JSON.stringify(summary, null, 2));
+        process.exit(4);
+      }
+      const started = Date.now();
+      const response = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "cf-connecting-ip": "127.0.0.1" },
+        body: JSON.stringify({ turns: threadTurns, session_id: sessionId })
+      }), {
+        BOOK_ADVISOR_ENABLED: "true",
+        BOOK_ADVISOR_CLIENT_HASH_SECRET: state.hashSecret,
+        OPENAI_API_KEY: apiKey,
+        SUPABASE_PUBLISHABLE_KEY: publicKey
+      }, {
+        ledger: persistent,
+        sessions,
+        loadCatalog: async () => catalog,
+        fetchImpl: async (url, init) => {
+          fetchCalls.push(redact(url));
+          if (String(url).includes("api.openai.com")) summary.openaiRequests += 1;
+          return global.fetch(url, init);
+        }
+      });
+      const body = await response.json();
+      history = threadTurns.concat([{ role: "assistant", content: body.message || "" }]);
+      if (body.session_id) sessionId = body.session_id;
+      rows.push({
+        id: item.id,
+        thread: thread.id,
+        customer: item.customer,
+        context: threadTurns.map((turn) => ({ role: turn.role, content: turn.content })),
+        reply: body.message || "",
+        books: body.books || [],
+        handoff: body.handoff || null,
+        evidence: body.evidence || "",
+        httpOk: response.ok === true,
+        quality: "UNSCORED",
+        rubric: Acceptance.RUBRIC.map((criterion) => ({ id: criterion.id, prompt: criterion.prompt, result: "UNSCORED" })),
+        ms: Date.now() - started
+      });
+    }
+  }
+  const after = readLedgerSummary(ledgerPath);
+  summary.rows = rows;
+  summary.quality = "UNSCORED";
+  summary.openaiRequests = summary.openaiRequests;
+  summary.chargedMicroUsd = after ? after.chargedMicroUsd : null;
+  summary.remainingMicroUsd = after ? after.remainingMicroUsd : null;
+  const outPath = path.join(os.tmpdir(), "kutadgu-advisor-acceptance-live.json");
+  fs.writeFileSync(outPath, JSON.stringify(summary, null, 2));
+  console.log(JSON.stringify({ report: outPath, quality: "UNSCORED", openaiRequests: summary.openaiRequests, chargedMicroUsd: summary.chargedMicroUsd }));
 }
 
 async function main() {
@@ -742,6 +968,10 @@ async function main() {
   }
   if (phase === "acceptance") {
     await runAcceptance();
+    return;
+  }
+  if (phase === "acceptance-live") {
+    await runAcceptanceLive();
     return;
   }
   if (phase !== "first" && phase !== "multi" && phase !== "refine" && phase !== "consistency") {
@@ -860,7 +1090,11 @@ async function main() {
   if (spent > cap) process.exit(3);
 }
 
-main().catch((error) => {
-  console.error(redact(error && error.message || "eval-failed"));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(redact(error && error.message || "eval-failed"));
+    process.exit(1);
+  });
+}
+
+module.exports = { acceptanceLiveDecision, readLedgerSummary, openPersistentEvalLedger };

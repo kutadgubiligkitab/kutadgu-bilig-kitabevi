@@ -23,6 +23,10 @@ const MAX_LOOKUP_CALLS = 1;
 const CATALOG_FRESH_MS = 60000;
 const CATALOG_PAGE_SIZE = 1000;
 const CATALOG_PAGE_CAP = 20;
+const EMBEDDING_USD_PER_TOKEN = 0.13 / 1000000;
+const MEANING_TOKEN_CAP = 256;
+const MEANING_DIMENSIONS = 1536;
+const MEANING_FLOOR = 0.55;
 const REQUEST_TIMEOUT_MS = 20000;
 const SELECTION_OUTPUT_TOKENS = 500;
 const EXPLANATION_OUTPUT_TOKENS = 400;
@@ -69,7 +73,7 @@ const EXPLANATION_SCHEMA = Object.freeze({
 const SEARCH_TOOL = Object.freeze({
   type: "function",
   name: "search_store_books",
-  description: "Read-only search of the approved public catalog. Filters by author, title, category, or topic. purpose list returns one page, the total count, and how to continue. purpose recommend returns a short candidate page, not a complete bibliography. relation written_by matches the author field. relation about matches a name in the title or store description when that person is not the author. This is not a web search and it is not the storefront semantic index.",
+  description: "Read-only search of the approved public catalog. author, title, and category are exact catalog filters. topic is a meaning query against the server embedding index, not a substring match. If that index is unavailable the result says so and does not substitute keyword matches. purpose list returns one page, the total count, and how to continue. purpose recommend returns a short candidate page, not a complete bibliography. relation written_by matches the author field. relation about matches a name in the title or store description when that person is not the author. This is not a web search.",
   strict: true,
   parameters: {
     type: "object",
@@ -247,10 +251,15 @@ function explanationInputTokens() {
   return instruction + customer + JSON.stringify(EXPLANATION_SCHEMA).length;
 }
 
+function embeddingMicroUsd(tokens) {
+  return usdToMicro(Math.max(0, Math.floor(Number(tokens) || 0)) * EMBEDDING_USD_PER_TOKEN);
+}
+
 function worstCaseMicroUsd(catalog) {
   let total = estimateRequestMicroUsd(selectionInputTokens(catalog), SELECTION_OUTPUT_TOKENS);
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     total += estimateRequestMicroUsd(toolRoundInputTokens(catalog, round), SELECTION_OUTPUT_TOKENS);
+    total += embeddingMicroUsd(MEANING_TOKEN_CAP);
   }
   return total + estimateRequestMicroUsd(explanationInputTokens(), EXPLANATION_OUTPUT_TOKENS);
 }
@@ -294,17 +303,30 @@ async function loadReadOnlyCatalog(fetchImpl, supabaseUrl, publicKey) {
   return buildCatalog(attachPublicSeries(visible, series.items, series.routes));
 }
 
-function contentRangeTotal(header) {
-  const match = String(header || "").match(/\/(\d+)$/);
-  return match ? Number(match[1]) : null;
+function catalogIncomplete() {
+  const error = new Error("advisor_catalog_incomplete");
+  error.code = "advisor_catalog_incomplete";
+  return error;
+}
+
+function contentRange(header) {
+  const match = String(header || "").match(/(\d+)-(\d+)\/(\d+|\*)/);
+  if (!match) return null;
+  return {
+    start: Number(match[1]),
+    end: Number(match[2]),
+    total: match[3] === "*" ? null : Number(match[3])
+  };
 }
 
 async function readApprovedBookPages(fetchImpl, supabaseUrl, key) {
   const books = [];
   const select = "select=id,title,author,category,price,stock,image_url,description,is_active,submission_status"
     + "&is_active=eq.true&submission_status=eq.approved&order=id.asc";
+  let from = 0;
+  let declaredTotal = null;
+  let complete = false;
   for (let page = 0; page < CATALOG_PAGE_CAP; page += 1) {
-    const from = page * CATALOG_PAGE_SIZE;
     const to = from + CATALOG_PAGE_SIZE - 1;
     const response = await fetchImpl(supabaseUrl + "/rest/v1/books?" + select, {
       headers: {
@@ -315,7 +337,10 @@ async function readApprovedBookPages(fetchImpl, supabaseUrl, key) {
         Range: from + "-" + to
       }
     });
-    if (response && response.status === 416) break;
+    if (response && response.status === 416) {
+      complete = declaredTotal == null || books.length >= declaredTotal;
+      break;
+    }
     if (!response || response.ok !== true) {
       const error = new Error("advisor_catalog_unavailable");
       error.code = "advisor_catalog_unavailable";
@@ -323,14 +348,33 @@ async function readApprovedBookPages(fetchImpl, supabaseUrl, key) {
     }
     const batch = await response.json();
     const rows = Array.isArray(batch) ? batch : [];
-    for (const row of rows) books.push(row);
     const header = response.headers && typeof response.headers.get === "function"
       ? response.headers.get("content-range")
       : "";
-    const total = contentRangeTotal(header);
-    if (!rows.length || rows.length < CATALOG_PAGE_SIZE) break;
-    if (total != null && books.length >= total) break;
+    const range = contentRange(header);
+    if (range && range.total != null) declaredTotal = range.total;
+    if (range) {
+      if (range.start !== from || range.end < range.start || rows.length !== (range.end - range.start + 1)) {
+        throw catalogIncomplete();
+      }
+      from = range.end + 1;
+    } else if (!rows.length) {
+      complete = declaredTotal == null || books.length >= declaredTotal;
+      break;
+    } else {
+      from += rows.length;
+    }
+    for (const row of rows) books.push(row);
+    if (declaredTotal != null && books.length >= declaredTotal) {
+      complete = true;
+      break;
+    }
+    if (!range && rows.length < CATALOG_PAGE_SIZE) {
+      complete = declaredTotal == null || books.length >= declaredTotal;
+      break;
+    }
   }
+  if (!complete || (declaredTotal != null && books.length < declaredTotal)) throw catalogIncomplete();
   return books;
 }
 
@@ -511,7 +555,7 @@ function buildCatalog(rows) {
   };
 }
 
-function searchStoreBooks(catalog, args) {
+function searchStoreBooks(catalog, args, meaning) {
   const query = args && typeof args === "object" ? args : {};
   const author = normalizeText(query.author);
   const title = normalizeText(query.title);
@@ -527,17 +571,20 @@ function searchStoreBooks(catalog, args) {
     has_more: false,
     next_offset: null,
     purpose,
-    retrieval: "lexical",
+    retrieval: topic ? "unavailable" : "lexical",
     matches: []
   };
-  if (!author && !title && !category && !topic) return Object.assign(header, { note: "empty_query" });
+  if (!author && !title && !category && !topic) return Object.assign(header, { note: "empty_query", retrieval: "lexical" });
+  const meaningIds = meaning && meaning.retrieval === "semantic" && Array.isArray(meaning.ids)
+    ? new Set(meaning.ids.map((id) => Number(id)))
+    : null;
+  if (topic && !meaningIds) return Object.assign(header, { note: "meaning_index_unavailable" });
   const matched = [];
   for (const book of catalog && catalog.byId ? catalog.byId.values() : []) {
+    if (topic && !meaningIds.has(book.id)) continue;
     if (title && !book.title.includes(title)) continue;
     if (category && book.category !== category && !book.category.includes(category)) continue;
-    const topicText = book.title + " " + book.author + " " + book.category + " " + book.description;
-    if (topic && !topicText.includes(topic)) continue;
-    let match = title ? "title" : (category ? "category" : "topic");
+    let match = topic ? "semantic" : (title ? "title" : "category");
     if (author) {
       const written = book.author.includes(author);
       const about = !written && (book.title + " " + book.description).includes(author);
@@ -557,7 +604,8 @@ function searchStoreBooks(catalog, args) {
     has_more: offset + MAX_IDS < matched.length,
     next_offset: offset + MAX_IDS < matched.length ? offset + MAX_IDS : null,
     purpose,
-    retrieval: "lexical",
+    retrieval: topic ? "semantic" : "lexical",
+    note: topic && !matched.length ? "no_meaning_match" : "",
     matches: page.map((row) => ({
       id: row.book.id,
       title: row.book.title,
@@ -568,6 +616,87 @@ function searchStoreBooks(catalog, args) {
       match: row.match
     }))
   };
+}
+
+function validMeaningVector(vector) {
+  return Array.isArray(vector) && vector.length === MEANING_DIMENSIONS && vector.every((value) => Number.isFinite(Number(value)));
+}
+
+async function embedTopic(fetchImpl, apiKey, topic) {
+  const response = await fetchImpl("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + apiKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-large",
+      dimensions: MEANING_DIMENSIONS,
+      encoding_format: "float",
+      input: topic
+    })
+  });
+  if (!response || response.ok !== true) {
+    const error = new Error("advisor_meaning_unavailable");
+    error.code = "advisor_meaning_unavailable";
+    throw error;
+  }
+  const payload = await response.json();
+  const row = payload && Array.isArray(payload.data) ? payload.data[0] : null;
+  const tokens = payload && payload.usage ? (payload.usage.prompt_tokens || payload.usage.total_tokens) : 0;
+  return {
+    vector: row && row.embedding,
+    tokens: Math.max(1, Math.floor(Number(tokens) || MEANING_TOKEN_CAP))
+  };
+}
+
+async function matchMeaning(options) {
+  const secret = String(options && options.secretKey || "");
+  const topic = normalizeText(options && options.topic).slice(0, 200);
+  const unavailable = (note, charge) => ({ retrieval: "unavailable", ids: [], note, charge: charge || 0 });
+  if (!secret.startsWith("sb_secret_") || !topic || typeof options.embed !== "function" || typeof options.fetchImpl !== "function") {
+    return unavailable("meaning_index_unavailable", 0);
+  }
+  const hold = embeddingMicroUsd(MEANING_TOKEN_CAP);
+  if (options.budget && !reserve(options.budget, hold)) return unavailable("meaning_budget", 0);
+  let embedded = null;
+  try {
+    embedded = await options.embed(topic);
+  } catch (_error) {
+    if (options.budget) settle(options.budget, hold, hold);
+    return unavailable("embedding_failed", hold);
+  }
+  const spent = embeddingMicroUsd(embedded && embedded.tokens);
+  const charge = Math.max(spent, 1);
+  if (options.budget) settle(options.budget, hold, charge);
+  if (!validMeaningVector(embedded && embedded.vector)) return unavailable("embedding_invalid", charge);
+  let response;
+  try {
+    response = await options.fetchImpl(String(options.supabaseUrl || "").replace(/\/$/, "") + "/rest/v1/rpc/match_active_books_ai", {
+      method: "POST",
+      headers: {
+        apikey: secret,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query_embedding: embedded.vector.map(Number),
+        match_count: 24
+      })
+    });
+  } catch (_error) {
+    return unavailable("meaning_index_unavailable", charge);
+  }
+  if (!response || response.ok !== true) return unavailable("meaning_index_unavailable", charge);
+  const rows = await response.json();
+  const ids = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = Number(row && row.id);
+    const similarity = Number(row && row.similarity);
+    if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(similarity) || similarity < MEANING_FLOOR) continue;
+    ids.push(id);
+  }
+  return { retrieval: "semantic", ids, note: ids.length ? "" : "no_meaning_match", charge };
 }
 
 function storeContactRecord() {
@@ -630,7 +759,7 @@ function systemInstructions() {
     "Choose explain to answer or to discuss reading or a catalog book. Write the message. Include a book id only for a catalog book you are actually discussing. A general question is not a reason to recommend books.",
     "Choose clarify only when one missing fact blocks a useful answer. Ask that one question and leave book_ids empty.",
     "Choose recommend when the customer wants a few books and search_store_books has already shown candidates. Usually choose one or two ids. Leave message empty. A famous title, a broad category, or a shared word is not age proof. Do not call a book easy unless the store text says so.",
-    "Choose list when the customer wants the store's matching books rather than a recommendation, including an author or title bibliography. Call search_store_books with purpose list. Leave book_ids empty. Say the total and whether another page exists. The server attaches that page.",
+    "Choose list when the customer wants the store's matching books rather than a recommendation, including an author or title bibliography. Call search_store_books with purpose list. Leave book_ids empty. Say the total and whether another page exists. The server attaches that page. A topic value asks the meaning index. If that result says the index is unavailable, say so; do not treat a shared word as a meaning match.",
     "When a reader age is listed, weigh that age and the requested experience together with the store description before choosing an id. A short excerpt is not enough when the store text is longer. Read that text with lookup_catalog_books, or use a STORE_ABOUT block if one is present. You may treat danger, fear, or harm in that text as an interpretation, not as an age rating. Do not invent an age certification, and do not treat every adventure as unsuitable. If the store text is missing or too thin to judge for this reader, leave book_ids empty and answer, ask one useful question, or explain that limit.",
     "Choose handoff when the title is not in the directory, they ask where to obtain a missing book, or they need a person for stock, delivery, an order, or to reach the staff. Leave book_ids empty and write a short Uyghur message for this request. For a missing title, say only whether the store catalog contains it, and do not claim the shop cannot obtain it. For a person, manager, or staff request, do not say a book was searched for or is missing. Do not invent a staff name, availability, a response time, an appointment, or a contact detail. Do not promise the shop can obtain the book.",
     "Do not write prices, stock, or urls. The server owns those. Store facts come from search_store_books, lookup_catalog_books, or a STORE_ABOUT block. Use store_contact for the business identity. Do not invent a catalog you have not retrieved."
@@ -1280,7 +1409,14 @@ async function selectBooks(options) {
           let output = { error: "unknown_tool" };
           if (call.name === "lookup_catalog_books") output = lookupRecords(catalog, args.book_ids);
           else if (call.name === "search_store_books") {
-            output = searchStoreBooks(catalog, args);
+            let meaning = null;
+            if (normalizeText(args.topic) && typeof options.meaningMatch === "function") {
+              meaning = await options.meaningMatch(normalizeText(args.topic), options.budget);
+              if (meaning && Math.floor(Number(meaning.charge) || 0) > 0) {
+                usage.calls.push({ kind: "embedding", micro_usd: Math.floor(Number(meaning.charge) || 0) });
+              }
+            }
+            output = searchStoreBooks(catalog, args, meaning);
             if (output.purpose === "list") listPage = output;
           } else if (call.name === "store_contact") output = storeContactRecord();
           next.push({
@@ -1565,7 +1701,8 @@ async function advise(options) {
     fetchImpl: options.fetchImpl,
     apiKey: options.apiKey,
     model: options.model,
-    budget: options.budget
+    budget: options.budget,
+    meaningMatch: options.meaningMatch
   });
   const decision = readDecision(selected);
   if (decision.mode === "explain" || decision.mode === "clarify" || decision.mode === "greet") {
@@ -1719,7 +1856,10 @@ module.exports = {
   whatsAppHandoff,
   CATALOG_FRESH_MS,
   CATALOG_PAGE_SIZE,
+  CATALOG_PAGE_CAP,
   searchStoreBooks,
+  matchMeaning,
+  embedTopic,
   createCatalogCache,
   EXCERPT_CHARS,
   ABOUT_CHARS,

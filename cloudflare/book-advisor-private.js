@@ -58,9 +58,13 @@ function actualMicroUsd(result) {
     usage.cached_tokens += Number(call.cached_tokens) || 0;
     usage.output_tokens += Number(call.output_tokens) || 0;
   }
-  if (usage.input_tokens + usage.output_tokens <= 0) return 0;
-  return Advisor.usageMicroUsd(usage);
-}
+    let extra = 0;
+    for (const call of (result && result.usage && result.usage.calls) || []) {
+      if (call && call.kind === "embedding") extra += Math.max(0, Math.floor(Number(call.micro_usd) || 0));
+    }
+    if (usage.input_tokens + usage.output_tokens <= 0 && extra <= 0) return 0;
+    return Advisor.usageMicroUsd(usage) + extra;
+  }
 
 async function handleBookAdvisor(request, env, deps) {
   if (String(request && request.method || "GET").toUpperCase() === "GET") {
@@ -103,11 +107,13 @@ async function handleBookAdvisor(request, env, deps) {
   }
   const started = Date.now();
   let reservation = null;
+  const fetchImpl = source.fetchImpl || globalThis.fetch.bind(globalThis);
+  const serverKey = String(env && env.SUPABASE_SECRET_KEY || "");
   try {
     const catalog = source.loadCatalog
       ? await source.loadCatalog(env)
       : await Advisor.loadReadOnlyCatalog(
-        source.fetchImpl || globalThis.fetch.bind(globalThis),
+        fetchImpl,
         "https://fxlojnqwyojqjskfggmh.supabase.co",
         env.SUPABASE_PUBLISHABLE_KEY
       );
@@ -134,7 +140,17 @@ async function handleBookAdvisor(request, env, deps) {
       turns,
       constraints: prior,
       trustedBookIds,
-      fetchImpl: source.fetchImpl || globalThis.fetch.bind(globalThis)
+      fetchImpl,
+      meaningMatch: serverKey.startsWith("sb_secret_")
+        ? (topic, budget) => Advisor.matchMeaning({
+          secretKey: serverKey,
+          topic,
+          supabaseUrl: "https://fxlojnqwyojqjskfggmh.supabase.co",
+          fetchImpl,
+          budget,
+          embed: (text) => Advisor.embedTopic(fetchImpl, env.OPENAI_API_KEY, text)
+        })
+        : null
     });
     await ledger.settle(reservation.id, priceOnly ? 0 : actualMicroUsd(result));
     reservation = null;

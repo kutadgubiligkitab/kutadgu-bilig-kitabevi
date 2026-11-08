@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 const Advisor = require("../kutadgu-book-advisor.js");
+const Budget = require("../kutadgu-book-advisor-budget.js");
+const Gate = require("../cloudflare/book-advisor-private.js");
 const Cases = require("./book-advisor-acceptance-cases.js");
 
 function book(id, fields) {
@@ -210,6 +212,149 @@ async function main() {
   assert.equal(paged.byId.get(pageSize + 1).description, "تەھرىرلەنگەن چۈشەندۈرۈش");
   assert.equal(paged.byId.has(pageSize + 2), false);
   assert.equal(paged.byId.has(1), true);
+
+  const narrowRanges = [];
+  const narrow = await Advisor.loadReadOnlyCatalog(async (url, init) => {
+    if (String(url).includes("list_public_book_categories")) {
+      return { ok: true, json: async () => ({ direct: [{ label: "رومان", is_hidden: false }] }) };
+    }
+    if (String(url).includes("list_public_book_series_routes")) return { ok: true, json: async () => [] };
+    if (String(url).includes("list_public_book_volume_catalog")) return { ok: true, json: async () => ({ has_more: false, items: [] }) };
+    const range = init.headers.Range;
+    narrowRanges.push(range);
+    const from = Number(String(range).split("-")[0]);
+    const rows = [];
+    const last = Math.min(from + 1, 4);
+    for (let id = from + 1; id <= last + 1; id += 1) {
+      rows.push({ id, title: "قىسقا بەت " + id, author: "نەشر", category: "رومان", price: 3, description: id === 5 ? "تەھرىرلەنگەن" : "ئەسلى", is_active: true, submission_status: "approved" });
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => from + "-" + (from + rows.length - 1) + "/5" },
+      json: async () => rows
+    };
+  }, "https://fxlojnqwyojqjskfggmh.supabase.co", "sb_publishable_catalog");
+  assert.deepEqual(narrowRanges.map((range) => Number(String(range).split("-")[0])), [0, 2, 4]);
+  assert.equal(narrow.count, 5);
+  assert.equal(narrow.byId.get(5).description, "تەھرىرلەنگەن");
+
+  await assert.rejects(() => Advisor.loadReadOnlyCatalog(async (url, init) => {
+    if (!String(url).includes("/rest/v1/books")) return { ok: true, json: async () => [] };
+    const from = Number(String(init.headers.Range).split("-")[0]);
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => from + "-" + from + "/100000" },
+      json: async () => [{ id: from + 1, title: "ئېشىپ قالغان", author: "نەشر", category: "رومان", price: 1, is_active: true, submission_status: "approved" }]
+    };
+  }, "https://fxlojnqwyojqjskfggmh.supabase.co", "sb_publishable_catalog"), (error) => error.code === "advisor_catalog_incomplete");
+
+  const meaningCatalog = Advisor.buildCatalog([
+    { id: 5, title: "يۇلتۇز", author: "نەشر", category: "رومان", price: 10, description: "يىراق", is_active: true, submission_status: "approved" },
+    { id: 7, title: "ھايۋانلار", author: "نەشر", category: "رومان", price: 11, description: "ھايۋان", is_active: true, submission_status: "approved" }
+  ]);
+  const secret = "sb_secret_fixture_value";
+  let meaningFetches = 0;
+  const meaning = await Advisor.matchMeaning({
+    secretKey: secret,
+    topic: "بالىلارغا ھايۋان ھېكايىسى",
+    supabaseUrl: "https://fxlojnqwyojqjskfggmh.supabase.co",
+    budget: Advisor.createBudget(1000),
+    embed: async () => ({ vector: Array(1536).fill(0.01), tokens: 4 }),
+    fetchImpl: async (url, init) => {
+      meaningFetches += 1;
+      assert.equal(String(url).endsWith("/rest/v1/rpc/match_active_books_ai"), true);
+      assert.equal(init.headers.Authorization, undefined);
+      assert.equal(init.headers.apikey, secret);
+      assert.equal(JSON.parse(init.body).query_embedding.length, 1536);
+      return { ok: true, json: async () => [{ id: 5, similarity: 0.91 }, { id: 6, similarity: 0.2 }, { id: 99, similarity: 0.99 }] };
+    }
+  });
+  const semantic = Advisor.searchStoreBooks(meaningCatalog, {
+    author: "", title: "", category: "", topic: "ھايۋان", relation: "any", purpose: "recommend", offset: 0
+  }, meaning);
+  assert.equal(meaningFetches, 1);
+  assert.equal(semantic.retrieval, "semantic");
+  assert.deepEqual(semantic.matches.map((row) => row.id), [5]);
+  assert.equal(JSON.stringify(semantic).includes(secret), false);
+  const unavailable = Advisor.searchStoreBooks(meaningCatalog, {
+    author: "", title: "", category: "", topic: "ھايۋان", relation: "any", purpose: "recommend", offset: 0
+  }, null);
+  assert.equal(unavailable.retrieval, "unavailable");
+  assert.equal(unavailable.matches.length, 0);
+  let blockedFetches = 0;
+  const blocked = await Advisor.matchMeaning({
+    secretKey: "sb_publishable_catalog",
+    topic: "ھايۋان",
+    embed: async () => { blockedFetches += 1; return { vector: [], tokens: 1 }; },
+    fetchImpl: async () => { blockedFetches += 1; return { ok: true, json: async () => [] }; }
+  });
+  assert.equal(blockedFetches, 0);
+  assert.equal(blocked.retrieval, "unavailable");
+
+  const child = Cases.CASES.find((item) => item.id === "child");
+  const age = Cases.CASES.find((item) => item.id === "age-change");
+  const page = Cases.CASES.find((item) => item.id === "author-page");
+  const authorAll = Cases.CASES.find((item) => item.id === "author-all");
+  assert.equal(child.thread, age.thread);
+  assert.equal(authorAll.thread, page.thread);
+  assert.notEqual(child.thread, page.thread);
+  const continued = Cases.conversationTurns(Cases.conversationTurns([], child.customer).concat([
+    { role: "assistant", content: "تۆت ياشلىق بالىغا ھايۋان ھېكايىسىنى كۆرۈپ باقايلى." }
+  ]), age.customer);
+  assert.equal(continued[0].content, child.customer);
+  assert.equal(continued[1].role, "assistant");
+  assert.equal(continued[2].content, age.customer);
+
+  const gateLedger = Budget.createLedger({ dailyLimitMicroUsd: 300000, monthlyLimitMicroUsd: 300000, perMinute: 6 });
+  const gateSecret = "sb_secret_gate_fixture";
+  const gateResponse = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.40" },
+    body: JSON.stringify({ turns: [{ role: "user", content: "ھايۋان ھېكايىسى" }] })
+  }), {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: "ab".repeat(32),
+    OPENAI_API_KEY: "test-key",
+    SUPABASE_SECRET_KEY: gateSecret
+  }, {
+    ledger: gateLedger,
+    sessions: Budget.createSessionStore(),
+    loadCatalog: async () => meaningCatalog,
+    fetchImpl: async (url, init) => {
+      if (String(url).includes("/embeddings")) {
+        return { ok: true, json: async () => ({ data: [{ embedding: Array(1536).fill(0.2) }], usage: { prompt_tokens: 3 } }) };
+      }
+      if (String(url).includes("match_active_books_ai")) {
+        assert.equal(init.headers.apikey, gateSecret);
+        assert.equal(init.headers.Authorization, undefined);
+        return { ok: true, json: async () => [{ id: 5, similarity: 0.8 }] };
+      }
+      const body = JSON.parse(init.body);
+      const called = JSON.stringify(body.input || []).includes("function_call");
+      if (!called) {
+        return jsonResponse({
+          output: [{
+            type: "function_call",
+            name: "search_store_books",
+            call_id: "call-meaning",
+            arguments: JSON.stringify({ author: "", title: "", category: "", topic: "ھايۋان", relation: "any", purpose: "recommend", offset: 0 })
+          }],
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      assert.equal(JSON.stringify(body.input).includes(gateSecret), false);
+      assert.equal(JSON.stringify(body.input).includes("يۇلتۇز"), true);
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "explain", message: "بۇ كىتابنى كۆرۈپ باقساق بولىدۇ.", book_ids: [] }),
+        usage: { input_tokens: 40, output_tokens: 10 }
+      });
+    }
+  });
+  const gateBody = await gateResponse.json();
+  assert.equal(gateBody.ok, true);
+  assert.equal(JSON.stringify(gateBody).includes(gateSecret), false);
   console.log("book-advisor-catalog-tools ok");
 }
 
