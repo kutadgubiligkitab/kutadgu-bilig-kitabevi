@@ -643,17 +643,26 @@ async function embedTopic(fetchImpl, apiKey, topic) {
   }
   const payload = await response.json();
   const row = payload && Array.isArray(payload.data) ? payload.data[0] : null;
-  const tokens = payload && payload.usage ? (payload.usage.prompt_tokens || payload.usage.total_tokens) : 0;
-  return {
-    vector: row && row.embedding,
-    tokens: Math.max(1, Math.floor(Number(tokens) || MEANING_TOKEN_CAP))
-  };
+  const reported = payload && payload.usage ? Number(payload.usage.prompt_tokens != null ? payload.usage.prompt_tokens : payload.usage.total_tokens) : NaN;
+  const tokens = Math.floor(reported);
+  if (!Number.isInteger(tokens) || tokens < 1) {
+    const error = new Error("advisor_meaning_unavailable");
+    error.code = "advisor_meaning_unavailable";
+    throw error;
+  }
+  if (tokens > MEANING_TOKEN_CAP) {
+    const error = new Error("advisor_embedding_unbounded");
+    error.code = "advisor_embedding_unbounded";
+    error.tokens = tokens;
+    throw error;
+  }
+  return { vector: row && row.embedding, tokens };
 }
 
 async function matchMeaning(options) {
   const secret = String(options && options.secretKey || "");
-  const topic = normalizeText(options && options.topic).slice(0, 200);
-  const unavailable = (note, charge) => ({ retrieval: "unavailable", ids: [], note, charge: charge || 0 });
+  const topic = normalizeText(options && options.topic).slice(0, 500);
+  const unavailable = (note, charge, halt) => ({ retrieval: "unavailable", ids: [], note, charge: charge || 0, halt: halt === true });
   if (!secret.startsWith("sb_secret_") || !topic || typeof options.embed !== "function" || typeof options.fetchImpl !== "function") {
     return unavailable("meaning_index_unavailable", 0);
   }
@@ -662,14 +671,23 @@ async function matchMeaning(options) {
   let embedded = null;
   try {
     embedded = await options.embed(topic);
-  } catch (_error) {
-    if (options.budget) settle(options.budget, hold, hold);
-    return unavailable("embedding_failed", hold);
+  } catch (error) {
+    const reported = Math.floor(Number(error && error.tokens));
+    const unbounded = !!(error && error.code === "advisor_embedding_unbounded" && reported > MEANING_TOKEN_CAP);
+    const failedCharge = unbounded ? Math.max(hold, embeddingMicroUsd(reported)) : hold;
+    if (options.budget) settle(options.budget, hold, failedCharge);
+    return unavailable(unbounded ? "embedding_unbounded" : "embedding_failed", failedCharge, true);
   }
-  const spent = embeddingMicroUsd(embedded && embedded.tokens);
-  const charge = Math.max(spent, 1);
+  const reportedTokens = Math.floor(Number(embedded && embedded.tokens));
+  if (!Number.isInteger(reportedTokens) || reportedTokens < 1 || reportedTokens > MEANING_TOKEN_CAP) {
+    const unbounded = reportedTokens > MEANING_TOKEN_CAP;
+    const failedCharge = unbounded ? Math.max(hold, embeddingMicroUsd(reportedTokens)) : hold;
+    if (options.budget) settle(options.budget, hold, failedCharge);
+    return unavailable(unbounded ? "embedding_unbounded" : "embedding_failed", failedCharge, true);
+  }
+  const charge = Math.max(embeddingMicroUsd(reportedTokens), 1);
   if (options.budget) settle(options.budget, hold, charge);
-  if (!validMeaningVector(embedded && embedded.vector)) return unavailable("embedding_invalid", charge);
+  if (!validMeaningVector(embedded && embedded.vector)) return unavailable("embedding_invalid", charge, true);
   let response;
   try {
     response = await options.fetchImpl(String(options.supabaseUrl || "").replace(/\/$/, "") + "/rest/v1/rpc/match_active_books_ai", {
@@ -685,9 +703,9 @@ async function matchMeaning(options) {
       })
     });
   } catch (_error) {
-    return unavailable("meaning_index_unavailable", charge);
+    return unavailable("meaning_index_unavailable", charge, true);
   }
-  if (!response || response.ok !== true) return unavailable("meaning_index_unavailable", charge);
+  if (!response || response.ok !== true) return unavailable("meaning_index_unavailable", charge, true);
   const rows = await response.json();
   const ids = [];
   for (const row of Array.isArray(rows) ? rows : []) {
@@ -1415,6 +1433,11 @@ async function selectBooks(options) {
               if (meaning && Math.floor(Number(meaning.charge) || 0) > 0) {
                 usage.calls.push({ kind: "embedding", micro_usd: Math.floor(Number(meaning.charge) || 0) });
               }
+              if (meaning && meaning.halt === true) {
+                const error = new Error(meaning.note === "embedding_unbounded" ? "advisor_embedding_unbounded" : "advisor_meaning_unavailable");
+                error.code = error.message;
+                throw error;
+              }
             }
             output = searchStoreBooks(catalog, args, meaning);
             if (output.purpose === "list") listPage = output;
@@ -1857,6 +1880,7 @@ module.exports = {
   CATALOG_FRESH_MS,
   CATALOG_PAGE_SIZE,
   CATALOG_PAGE_CAP,
+  MEANING_TOKEN_CAP,
   searchStoreBooks,
   matchMeaning,
   embedTopic,
@@ -1878,6 +1902,7 @@ module.exports = {
   readPublicSeriesDirectory,
   loadReadOnlyCatalog,
   worstCaseMicroUsd,
+  embeddingMicroUsd,
   usageMicroUsd,
   estimateRequestMicroUsd,
   createBudget,

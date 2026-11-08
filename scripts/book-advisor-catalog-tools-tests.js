@@ -292,6 +292,19 @@ async function main() {
   });
   assert.equal(blockedFetches, 0);
   assert.equal(blocked.retrieval, "unavailable");
+  let unboundedFetches = 0;
+  const unbounded = await Advisor.matchMeaning({
+    secretKey: secret,
+    topic: "بالىلارغا ھايۋان ھېكايىسى",
+    supabaseUrl: "https://fxlojnqwyojqjskfggmh.supabase.co",
+    budget: Advisor.createBudget(1000),
+    embed: async () => ({ vector: Array(1536).fill(0.01), tokens: Advisor.MEANING_TOKEN_CAP + 40 }),
+    fetchImpl: async () => { unboundedFetches += 1; return { ok: true, json: async () => [] }; }
+  });
+  assert.equal(unboundedFetches, 0);
+  assert.equal(unbounded.halt, true);
+  assert.equal(unbounded.note, "embedding_unbounded");
+  assert.ok(unbounded.charge > Advisor.embeddingMicroUsd(Advisor.MEANING_TOKEN_CAP));
 
   const child = Cases.CASES.find((item) => item.id === "child");
   const age = Cases.CASES.find((item) => item.id === "age-change");

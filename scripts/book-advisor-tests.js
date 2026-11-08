@@ -401,7 +401,10 @@ async function run() {
   assert.match(harness, /MULTI_CAP_MICRO_USD = 80000/);
   assert.match(harness, /REFINE_CAP_MICRO_USD = 50000/);
   assert.match(harness, /phase !== "multi"/);
-  assert.equal(harness.includes("SUPABASE_SECRET"), false);
+  assert.equal(harness.includes("SUPABASE_SECRET_KEY"), true);
+  assert.equal(/console\.(log|error)\([^)]*SUPABASE_SECRET_KEY/.test(harness), false);
+  assert.equal(harness.includes(".dev.vars"), false);
+  assert.equal(harness.includes("wrangler secret"), false);
   assert.equal(harness.includes("BOOK_ADVISOR_PRIVATE_TEST_TOKEN"), false);
   const where = await ask("بۇ كىتابنى قەيەردىن تاپىمەن؟", { mode: "handoff", book_ids: [], message: "" });
   assert.equal(where.handoff.label, "WhatsApp ئارقىلىق ئالاقىلىشىش");
