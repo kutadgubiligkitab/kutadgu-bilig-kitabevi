@@ -21,6 +21,8 @@ const MAX_MESSAGE_CHARS = 500;
 const MAX_TOOL_ROUNDS = 2;
 const MAX_LOOKUP_CALLS = 1;
 const CATALOG_FRESH_MS = 60000;
+const CATALOG_PAGE_SIZE = 1000;
+const CATALOG_PAGE_CAP = 20;
 const REQUEST_TIMEOUT_MS = 20000;
 const SELECTION_OUTPUT_TOKENS = 500;
 const EXPLANATION_OUTPUT_TOKENS = 400;
@@ -270,21 +272,7 @@ async function loadReadOnlyCatalog(fetchImpl, supabaseUrl, publicKey) {
     error.code = "advisor_catalog_unavailable";
     throw error;
   }
-  const response = await fetchImpl(
-    supabaseUrl + "/rest/v1/books?select=id,title,author,category,price,stock,image_url,description,is_active,submission_status&is_active=eq.true&submission_status=eq.approved&limit=1000",
-    {
-      headers: {
-        apikey: key,
-        Accept: "application/json"
-      }
-    }
-  );
-  if (!response.ok) {
-    const error = new Error("advisor_catalog_unavailable");
-    error.code = "advisor_catalog_unavailable";
-    throw error;
-  }
-  const books = await response.json();
+  const books = await readApprovedBookPages(fetchImpl, supabaseUrl, key);
   const categories = await fetchImpl(supabaseUrl + "/rest/v1/rpc/list_public_book_categories", {
     method: "POST",
     headers: {
@@ -304,6 +292,46 @@ async function loadReadOnlyCatalog(fetchImpl, supabaseUrl, publicKey) {
   const series = await readPublicSeriesDirectory(fetchImpl, supabaseUrl, key);
   const visible = (Array.isArray(books) ? books : []).filter((row) => labels.has(String(row.category || "")));
   return buildCatalog(attachPublicSeries(visible, series.items, series.routes));
+}
+
+function contentRangeTotal(header) {
+  const match = String(header || "").match(/\/(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+async function readApprovedBookPages(fetchImpl, supabaseUrl, key) {
+  const books = [];
+  const select = "select=id,title,author,category,price,stock,image_url,description,is_active,submission_status"
+    + "&is_active=eq.true&submission_status=eq.approved&order=id.asc";
+  for (let page = 0; page < CATALOG_PAGE_CAP; page += 1) {
+    const from = page * CATALOG_PAGE_SIZE;
+    const to = from + CATALOG_PAGE_SIZE - 1;
+    const response = await fetchImpl(supabaseUrl + "/rest/v1/books?" + select, {
+      headers: {
+        apikey: key,
+        Accept: "application/json",
+        Prefer: "count=exact",
+        "Range-Unit": "items",
+        Range: from + "-" + to
+      }
+    });
+    if (response && response.status === 416) break;
+    if (!response || response.ok !== true) {
+      const error = new Error("advisor_catalog_unavailable");
+      error.code = "advisor_catalog_unavailable";
+      throw error;
+    }
+    const batch = await response.json();
+    const rows = Array.isArray(batch) ? batch : [];
+    for (const row of rows) books.push(row);
+    const header = response.headers && typeof response.headers.get === "function"
+      ? response.headers.get("content-range")
+      : "";
+    const total = contentRangeTotal(header);
+    if (!rows.length || rows.length < CATALOG_PAGE_SIZE) break;
+    if (total != null && books.length >= total) break;
+  }
+  return books;
 }
 
 async function readPublicSeriesDirectory(fetchImpl, supabaseUrl, publicKey) {
@@ -499,6 +527,7 @@ function searchStoreBooks(catalog, args) {
     has_more: false,
     next_offset: null,
     purpose,
+    retrieval: "lexical",
     matches: []
   };
   if (!author && !title && !category && !topic) return Object.assign(header, { note: "empty_query" });
@@ -528,6 +557,7 @@ function searchStoreBooks(catalog, args) {
     has_more: offset + MAX_IDS < matched.length,
     next_offset: offset + MAX_IDS < matched.length ? offset + MAX_IDS : null,
     purpose,
+    retrieval: "lexical",
     matches: page.map((row) => ({
       id: row.book.id,
       title: row.book.title,
@@ -1688,6 +1718,7 @@ module.exports = {
   WHATSAPP_PREFILL,
   whatsAppHandoff,
   CATALOG_FRESH_MS,
+  CATALOG_PAGE_SIZE,
   searchStoreBooks,
   createCatalogCache,
   EXCERPT_CHARS,

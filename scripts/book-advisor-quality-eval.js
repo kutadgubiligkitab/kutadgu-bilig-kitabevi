@@ -28,6 +28,7 @@ const REFINE = [
 ];
 const KEY_NAME = "OPENAI_EVAL_API_KEY";
 const Compare = require("../kutadgu-book-advisor-compare.js");
+const Acceptance = require("./book-advisor-acceptance-cases.js");
 const FIRST = [
   { id: "history", q: "ئىسلام تارىخى ھەققىدە قىسقىچە چۈشەنچە بەر." },
   { id: "saving", q: "پۇلۇمنى قانداق تېجىسەم بولىدۇ؟" },
@@ -639,10 +640,108 @@ async function runPaidConsistency(options) {
   if (summary.spentMicroUsd > options.cap) process.exit(3);
 }
 
+async function runAcceptance() {
+  const hold = Advisor.worstCaseMicroUsd({ chars: 100875 });
+  const turns = Acceptance.CASES.length;
+  const suiteMicroUsd = hold * turns;
+  let ledger = null;
+  const ledgerPath = path.join(process.env.LOCALAPPDATA || "", "kutadgu-book-advisor-preview", "state.json");
+  if (ledgerPath && fs.existsSync(ledgerPath)) {
+    const state = JSON.parse(fs.readFileSync(ledgerPath, "utf8"));
+    const reserved = (state.openReservations || []).reduce((sum, row) => sum + (row.microUsd || 0), 0);
+    ledger = {
+      chargedMicroUsd: state.chargedMicroUsd,
+      capMicroUsd: state.capMicroUsd,
+      reservedMicroUsd: reserved,
+      remainingMicroUsd: state.capMicroUsd - state.chargedMicroUsd - reserved,
+      halted: state.halted === true
+    };
+  }
+  const catalog = Advisor.buildCatalog([
+    { id: 1, title: "قىسقا ھېكايە", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "قىسقا", is_active: true, submission_status: "approved" }
+  ]);
+  const rows = [];
+  let system = "";
+  for (const item of Acceptance.CASES) {
+    const transcript = [];
+    const result = await Advisor.advise({
+      catalog,
+      apiKey: "test-key",
+      budget: Advisor.createBudget(hold),
+      turns: [{ role: "user", content: item.customer }],
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        transcript.push(body.input);
+        if (!system) system = body.input[0].content;
+        return jsonResponse({
+          output_text: JSON.stringify({ mode: "explain", message: "بۇ سوئالغا قىسقا جاۋاب بېرىمەن.", book_ids: [] }),
+          usage: { input_tokens: 20, output_tokens: 8 }
+        });
+      }
+    });
+    const packed = JSON.stringify(transcript);
+    const reply = String(result.message || "");
+    rows.push({
+      id: item.id,
+      group: item.group,
+      heldOut: item.heldOut === true,
+      customer: item.customer,
+      deterministic: {
+        customer_reached_model: packed.includes(item.customer) ? "PASS" : "FAIL",
+        no_secret_in_reply: reply.includes("sk-") || reply.includes("05368999888") ? "FAIL" : "PASS"
+      },
+      quality: "NOT RUN",
+      reply,
+      evidence: result.evidence || "",
+      toolCalls: transcript.length
+    });
+  }
+  const held = Acceptance.CASES.filter((item) => item.heldOut);
+  const heldOutPrompt = held.every((item) => !system.includes(item.customer)) ? "PASS" : "FAIL";
+  const deterministicFailed = rows.filter((row) => Object.values(row.deterministic).includes("FAIL"));
+  const report = {
+    kind: "advisor-acceptance",
+    paid: false,
+    cases: rows.length,
+    heldOut: held.length,
+    heldOutAbsentFromPrompt: heldOutPrompt,
+    retrieval: "lexical",
+    semantic: "NOT AVAILABLE without service-role match_active_books_ai and a paid embedding",
+    worstCaseMicroUsd: hold,
+    suiteMicroUsd,
+    suiteFitsRemaining: ledger ? suiteMicroUsd <= ledger.remainingMicroUsd : null,
+    ledger,
+    quality: "NOT RUN",
+    deterministicFailed: deterministicFailed.map((row) => row.id),
+    rows
+  };
+  const outPath = path.join(os.tmpdir(), "kutadgu-advisor-acceptance.json");
+  fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({
+    cases: report.cases,
+    heldOut: report.heldOut,
+    heldOutAbsentFromPrompt: heldOutPrompt,
+    deterministicFailed: report.deterministicFailed,
+    worstCaseMicroUsd: hold,
+    suiteMicroUsd,
+    remainingMicroUsd: ledger ? ledger.remainingMicroUsd : null,
+    quality: "NOT RUN",
+    report: outPath
+  }));
+  if (heldOutPrompt !== "PASS" || deterministicFailed.length || rows.length !== 30 || held.length < 10) {
+    throw new Error("acceptance-deterministic");
+  }
+  console.log("book-advisor-acceptance ok");
+}
+
 async function main() {
   const phase = process.argv[2] || "";
   if (phase === "harness") {
     await runMockHarness();
+    return;
+  }
+  if (phase === "acceptance") {
+    await runAcceptance();
     return;
   }
   if (phase !== "first" && phase !== "multi" && phase !== "refine" && phase !== "consistency") {

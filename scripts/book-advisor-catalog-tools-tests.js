@@ -171,6 +171,45 @@ async function main() {
   assert.match(listed.message, /سەككىز/);
 
   assert.equal(Cases.CASES.length, 30);
+  const heldOut = Cases.CASES.filter((item) => item.heldOut);
+  assert.ok(heldOut.length >= 10);
+
+  const pageSize = Advisor.CATALOG_PAGE_SIZE;
+  const ranges = [];
+  const paged = await Advisor.loadReadOnlyCatalog(async (url, init) => {
+    if (String(url).includes("list_public_book_categories")) {
+      return { ok: true, json: async () => ({ direct: [{ label: "رومان", is_hidden: false }, { label: "يوشۇرۇن", is_hidden: true }] }) };
+    }
+    if (String(url).includes("list_public_book_series_routes")) {
+      return { ok: true, json: async () => [] };
+    }
+    if (String(url).includes("list_public_book_volume_catalog")) {
+      return { ok: true, json: async () => ({ has_more: false, items: [] }) };
+    }
+    const range = init.headers.Range;
+    ranges.push(range);
+    const from = Number(String(range).split("-")[0]);
+    const rows = [];
+    if (from === 0) {
+      for (let id = 1; id <= pageSize; id += 1) {
+        rows.push({ id, title: "بەت " + id, author: "نەشر", category: "رومان", price: 10, description: "ئەسلى", is_active: true, submission_status: "approved" });
+      }
+    } else {
+      rows.push({ id: pageSize + 1, title: "يېڭى كىتاب", author: "نەشر", category: "رومان", price: 12, description: "تەھرىرلەنگەن چۈشەندۈرۈش", is_active: true, submission_status: "approved" });
+      rows.push({ id: pageSize + 2, title: "يوشۇرۇن كىتاب", author: "نەشر", category: "يوشۇرۇن", price: 9, description: "يوشۇرۇن", is_active: true, submission_status: "approved" });
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => (from === 0 ? "0-" + (pageSize - 1) + "/" + (pageSize + 2) : "") },
+      json: async () => rows
+    };
+  }, "https://fxlojnqwyojqjskfggmh.supabase.co", "sb_publishable_catalog");
+  assert.deepEqual(ranges, ["0-" + (pageSize - 1), pageSize + "-" + (pageSize * 2 - 1)]);
+  assert.equal(paged.count, pageSize + 1);
+  assert.equal(paged.byId.get(pageSize + 1).description, "تەھرىرلەنگەن چۈشەندۈرۈش");
+  assert.equal(paged.byId.has(pageSize + 2), false);
+  assert.equal(paged.byId.has(1), true);
   console.log("book-advisor-catalog-tools ok");
 }
 
