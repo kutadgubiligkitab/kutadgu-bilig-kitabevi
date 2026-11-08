@@ -1251,6 +1251,50 @@ async function run() {
     }
   });
   assert.equal(lookupCalls, 3);
+  let continuityCalls = 0;
+  let finalSelection = "";
+  const continued = await Advisor.advise({
+    catalog: childFit,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(childFit)),
+    turns: childTurns,
+    fetchImpl: async (_url, init) => {
+      continuityCalls += 1;
+      const packed = JSON.stringify(JSON.parse(init.body).input);
+      if (continuityCalls === 1) {
+        return jsonResponse({
+          output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "call-a", arguments: "{\"book_ids\":[81]}" }],
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      if (continuityCalls === 2) {
+        assert.equal(packed.includes(predatorTail), true);
+        assert.equal(packed.includes(deathTail), false);
+        return jsonResponse({
+          output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [82] }),
+          usage: { input_tokens: 40, output_tokens: 16 }
+        });
+      }
+      if (packed.includes("VERIFIED_BOOKS")) {
+        return jsonResponse({
+          output_text: JSON.stringify({ message: "«دېڭىز ھېكايىسى» نى تونۇشتۇردۇم." }),
+          usage: { input_tokens: 20, output_tokens: 12 }
+        });
+      }
+      finalSelection = packed;
+      assert.ok(packed.length <= Advisor.toolRoundInputTokens(childFit, 1));
+      assert.equal(packed.includes("STORE_ABOUT\\n"), true);
+      assert.equal(packed.includes(predatorTail), true);
+      assert.equal(packed.includes(deathTail), true);
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81] }),
+        usage: { input_tokens: 40, output_tokens: 16 }
+      });
+    }
+  });
+  assert.equal(continuityCalls, 4);
+  assert.equal(finalSelection.includes(predatorTail), true);
+  assert.deepEqual(continued.books.map((book) => book.id), [81]);
   console.log("book-advisor-tests ok");
 }
 

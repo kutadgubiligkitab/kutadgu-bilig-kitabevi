@@ -592,6 +592,24 @@ function aboutEvidence(book) {
   return evidence;
 }
 
+function aboutIdsInRequest(items) {
+  const ids = new Set();
+  for (const item of items || []) {
+    let raw = "";
+    if (item && item.type === "function_call_output") raw = String(item.output || "");
+    else if (item && item.role === "user" && String(item.content || "").startsWith("STORE_ABOUT\n")) {
+      raw = String(item.content).slice("STORE_ABOUT\n".length);
+    } else continue;
+    const rows = parseJson(raw);
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      const id = Number(row && row.id);
+      if (Number.isInteger(id) && typeof row.about === "string" && row.about.length > 0) ids.add(id);
+    }
+  }
+  return ids;
+}
+
 function idsNeedingStoreAbout(catalog, ids, constraints, seen) {
   if (!constraints || !constraints.age) return [];
   const need = [];
@@ -1097,15 +1115,16 @@ async function selectBooks(options) {
     }, controller.signal);
     const firstUsage = readUsage(payload);
     usage.calls.push(firstUsage);
-    const seenAbout = new Set();
+    const transcript = [];
+    let shownAbout = new Set();
     let evidenceUsed = false;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       const calls = ((payload && payload.output) || []).filter((item) => item && item.type === "function_call");
       const next = input.slice();
+      for (const item of transcript) next.push(item);
       const prior = (payload && payload.output) || [];
       for (const item of prior) next.push(item);
       if (!prior.length && outputText(payload)) next.push({ role: "assistant", content: outputText(payload) });
-      let evidenceIds = [];
       if (calls.length) {
         if (!supportedLookupCalls(calls)) {
           const error = new Error("advisor_model_unavailable");
@@ -1116,7 +1135,6 @@ async function selectBooks(options) {
           const args = parseJson(call.arguments) || {};
           const name = call.name === "lookup_catalog_books" ? call.name : "";
           const records = name ? lookupRecords(catalog, args.book_ids) : [];
-          for (const record of records) seenAbout.add(record.id);
           next.push({
             type: "function_call_output",
             call_id: call.call_id,
@@ -1125,8 +1143,8 @@ async function selectBooks(options) {
         }
       } else {
         const pending = parseJson(outputText(payload));
-        evidenceIds = !evidenceUsed && pending && pending.mode === "recommend"
-          ? idsNeedingStoreAbout(catalog, pending.book_ids, options.constraints, seenAbout)
+        const evidenceIds = !evidenceUsed && pending && pending.mode === "recommend"
+          ? idsNeedingStoreAbout(catalog, pending.book_ids, options.constraints, aboutIdsInRequest(next))
           : [];
         if (!evidenceIds.length) break;
         evidenceUsed = true;
@@ -1143,7 +1161,8 @@ async function selectBooks(options) {
       }
       const toolReserve = estimateRequestMicroUsd(ceiling, SELECTION_OUTPUT_TOKENS);
       if (!reserve(options.budget, toolReserve)) break;
-      for (const id of evidenceIds) seenAbout.add(id);
+      shownAbout = aboutIdsInRequest(next);
+      transcript.splice(0, transcript.length, ...next.slice(input.length));
       openToolReserve = toolReserve;
       attempts += 1;
       payload = await postResponses(options.fetchImpl, options.apiKey, {
@@ -1162,7 +1181,7 @@ async function selectBooks(options) {
     }
     settle(options.budget, reserved, usageMicroUsd(firstUsage));
     const parsed = parseJson(outputText(payload));
-    const withheld = new Set(idsNeedingStoreAbout(catalog, parsed && parsed.book_ids, options.constraints, seenAbout));
+    const withheld = new Set(idsNeedingStoreAbout(catalog, parsed && parsed.book_ids, options.constraints, shownAbout));
     const ids = parsed && Array.isArray(parsed.book_ids)
       ? parsed.book_ids.filter((id) => !withheld.has(Number(id)))
       : parsed && parsed.book_ids;
