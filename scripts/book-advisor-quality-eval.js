@@ -7,9 +7,13 @@
  * not the production ledger. GPT responses are never mocked.
  */
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const Advisor = require("../kutadgu-book-advisor.js");
+const Budget = require("../kutadgu-book-advisor-budget.js");
+const Gate = require("../cloudflare/book-advisor-private.js");
+const Ui = require("../kutadgu-book-advisor-ui.js");
 
 const CAP_MICRO_USD = 120000;
 const MULTI_CAP_MICRO_USD = 80000;
@@ -54,8 +58,242 @@ function usageOf(result) {
   return totals;
 }
 
+function harnessCatalog() {
+  return Advisor.buildCatalog([
+    { id: 433, title: "بەش ياشقىچە پائالىيەت", author: "نەشر", category: "بالىلار كىتابلىرى", price: 30, description: "(5-6 ياشقىچە) بالىلار پائالىيىتى.", is_active: true, submission_status: "approved" },
+    { id: 501, title: "يەتتە ياش ھېكايىلىرى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 40, description: "6 ياشتىن 8 ياشقىچە بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" }
+  ]);
+}
+
+function jsonResponse(body) {
+  return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+async function postAdvisor(options) {
+  const response = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "cf-connecting-ip": options.ip
+    },
+    body: JSON.stringify({
+      turns: options.turns,
+      session_id: options.sessionId || "",
+      constraint_token: options.token || "",
+      constraints: { age: 99, strictAge: false, story: false, summary: "client summary" }
+    })
+  }), {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: options.secret,
+    OPENAI_API_KEY: options.apiKey
+  }, {
+    ledger: options.ledger,
+    sessions: options.sessions,
+    loadCatalog: async () => options.catalog,
+    fetchImpl: options.fetchImpl,
+    now: () => options.now || new Date()
+  });
+  return response.json();
+}
+
+async function runMockHarness() {
+  const secret = crypto.randomBytes(32).toString("hex");
+  const catalog = harnessCatalog();
+  const ip = "203.0.113.77";
+  const clientHash = Budget.clientHash(secret, ip);
+  const ledger = Budget.createLedger({ dailyLimitMicroUsd: 2000000, monthlyLimitMicroUsd: 20000000, perMinute: 30 });
+  const sessions = Budget.createSessionStore();
+  const now = new Date();
+  const plan = REFINE.concat([
+    { id: "child-sixth", q: "رەھمەت." },
+    { id: "child-seventh", q: "داۋام قىلىڭ." },
+    { id: "child-eighth", q: "يەنە بىر ھېكايە كۆرسىتىڭ. يېشىغا ئېنىق ماس كەلمىگىنىنى قوشماڭ." }
+  ]);
+  let turns = [];
+  let sessionId = "";
+  let token = "";
+  const seen = [];
+  for (const item of plan) {
+    const sent = Ui.cleanTurns(turns.concat([{ role: "user", content: item.q }]));
+    const calls = [];
+    const body = await postAdvisor({
+      secret,
+      catalog,
+      apiKey: "test-key",
+      ledger,
+      sessions,
+      ip,
+      now,
+      turns: sent,
+      sessionId,
+      token,
+      fetchImpl: async (_url, init) => {
+        const request = JSON.parse(init.body);
+        calls.push(request);
+        const packed = JSON.stringify(request.input);
+        const output = packed.includes("VERIFIED_BOOKS")
+          ? { mode: "recommend", message: "يەتتە ياش ھېكايىلىرى ھېكايە. بەش ياشقىچە پائالىيەت بۇ ياشقا ماس ئەمەس.", book_ids: [] }
+          : { mode: "recommend", message: "", book_ids: [433, 501] };
+        return jsonResponse({ output_text: JSON.stringify(output), usage: { input_tokens: 40, output_tokens: 20 } });
+      }
+    });
+    if (body.ok !== true) throw new Error("harness-" + item.id + "-" + (body.error || "failed"));
+    sessionId = body.session_id;
+    token = body.constraint_token;
+    const state = Budget.readConstraintState(secret, token, { clientHash, sessionId, now });
+    const cards = (body.books || []).map((book) => book.id);
+    seen.push({ id: item.id, calls, cards, state, sent });
+    turns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: body.message || "" }]));
+    if (cards.includes(433)) throw new Error("rejected-card-" + item.id);
+  }
+  if (plan.length !== 8) throw new Error("harness-plan");
+  const fifth = seen[4];
+  const packedWindow = fifth.sent.map((turn) => turn.content).join("\n");
+  if (packedWindow.includes("بالام 7 ياش")) throw new Error("fifth-window-still-has-age");
+  if (!fifth.state || fifth.state.age !== 7 || fifth.state.story !== true || fifth.state.strictAge !== true) throw new Error("fifth-signed-state");
+  if (fifth.calls.length < 2) throw new Error("fifth-model-stages-" + fifth.calls.length);
+  for (const call of fifth.calls) {
+    const packed = JSON.stringify(call.input);
+    if (!packed.includes("reader_age: 7") || !packed.includes("interest: stories") || !packed.includes("age_match: strict")) {
+      throw new Error("fifth-context-missing");
+    }
+  }
+  const eighth = seen[7];
+  if (eighth.sent.map((turn) => turn.content).join("\n").includes("بالام 7 ياش")) throw new Error("eighth-window-still-has-age");
+  if (!eighth.state || eighth.state.age !== 7 || eighth.state.story !== true || eighth.state.strictAge !== true) throw new Error("eighth-signed-state");
+  if (eighth.calls.length < 2) throw new Error("eighth-model-stages");
+  for (const call of eighth.calls) {
+    const packed = JSON.stringify(call.input);
+    if (!packed.includes("reader_age: 7") || !packed.includes("interest: stories")) throw new Error("eighth-context-missing");
+  }
+  const other = await postAdvisor({
+    secret,
+    catalog,
+    apiKey: "test-key",
+    ledger,
+    sessions,
+    ip,
+    now,
+    turns: [{ role: "user", content: "يەنە بىر ھېكايە." }],
+    sessionId: crypto.randomBytes(16).toString("hex"),
+    token,
+    fetchImpl: async () => jsonResponse({
+      output_text: JSON.stringify({ mode: "clarify", message: "بالىڭىز نەچچە ياشتا؟ ياشنى يېزىڭ.", book_ids: [] }),
+      usage: { input_tokens: 10, output_tokens: 8 }
+    })
+  });
+  const stolen = Budget.readConstraintState(secret, other.constraint_token, {
+    clientHash,
+    sessionId: other.session_id,
+    now
+  });
+  if (!stolen || stolen.age !== null) throw new Error("cross-session-inherited-age");
+  console.log("book-advisor-eval-harness ok");
+}
+
+async function runPaidConsistency(options) {
+  const secret = crypto.randomBytes(32).toString("hex");
+  const ip = "203.0.113.78";
+  const clientHash = Budget.clientHash(secret, ip);
+  const ledger = Budget.createLedger({
+    dailyLimitMicroUsd: options.cap,
+    monthlyLimitMicroUsd: options.cap,
+    perMinute: 10
+  });
+  const sessions = Budget.createSessionStore();
+  const now = new Date();
+  let turns = [];
+  let sessionId = "";
+  let token = "";
+  let spent = 0;
+  let apiCalls = 0;
+  const results = [];
+  for (const item of options.plan) {
+    if (spent + options.hold > options.cap) {
+      results.push({ id: item.id, stopped: "local-cap", spentMicroUsd: spent, openaiRequests: apiCalls });
+      break;
+    }
+    const sent = Ui.cleanTurns(turns.concat([{ role: "user", content: item.q }]));
+    const calls = [];
+    const started = Date.now();
+    let body;
+    try {
+      body = await postAdvisor({
+        secret,
+        catalog: options.catalog,
+        apiKey: options.apiKey,
+        ledger,
+        sessions,
+        ip,
+        now,
+        turns: sent,
+        sessionId,
+        token,
+        fetchImpl: async (_url, init) => {
+          const response = await global.fetch(_url, init);
+          const payload = await response.clone().json().catch(() => null);
+          calls.push({
+            input: init && init.body ? JSON.parse(init.body).input : [],
+            usage: payload && payload.usage || {},
+            output: payload && payload.output_text || ""
+          });
+          return new Response(JSON.stringify(payload), { status: response.status, headers: { "content-type": "application/json" } });
+        }
+      });
+    } catch (error) {
+      results.push({ id: item.id, error: redact(error && error.message || "failed"), ms: Date.now() - started, openaiRequests: apiCalls });
+      break;
+    }
+    apiCalls += calls.length;
+    if (!body || body.ok !== true) {
+      results.push({ id: item.id, error: redact(body && body.error || "failed"), ms: Date.now() - started, openaiRequests: apiCalls });
+      break;
+    }
+    sessionId = body.session_id;
+    token = body.constraint_token;
+    const state = Budget.readConstraintState(secret, token, { clientHash, sessionId, now });
+    const usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0 };
+    const requested = [];
+    for (const call of calls) {
+      usage.input_tokens += Number(call.usage.input_tokens) || 0;
+      usage.cached_tokens += Number((call.usage.input_tokens_details || {}).cached_tokens || call.usage.cached_tokens) || 0;
+      usage.output_tokens += Number(call.usage.output_tokens) || 0;
+      let parsed = null;
+      try { parsed = JSON.parse(call.output); } catch (_error) { parsed = null; }
+      for (const id of (parsed && parsed.book_ids) || []) requested.push(id);
+    }
+    const cards = (body.books || []).map((book) => book.id);
+    const actual = usage.input_tokens + usage.output_tokens > 0 ? Advisor.usageMicroUsd(usage) : 0;
+    spent += actual;
+    results.push({
+      id: item.id,
+      q: item.q,
+      ms: Date.now() - started,
+      message: body.message,
+      books: body.books || [],
+      rejectedIds: requested.filter((id) => !cards.includes(id)),
+      constraints: state,
+      modelRequests: calls.map((call) => JSON.stringify(call.input)),
+      apiCalls: calls.length,
+      usage,
+      actualMicroUsd: actual,
+      spentMicroUsd: spent
+    });
+    console.log(JSON.stringify({ id: item.id, ms: Date.now() - started, micro: actual, books: cards.length, apiCalls: calls.length }));
+    turns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: body.message || "" }]));
+    fs.writeFileSync(options.outPath, JSON.stringify({ customerTurns: results.length, openaiRequests: apiCalls, spentMicroUsd: spent, results }, null, 2));
+    if (spent > options.cap) break;
+  }
+  fs.writeFileSync(options.outPath, JSON.stringify({ customerTurns: results.length, openaiRequests: apiCalls, spentMicroUsd: spent, results }, null, 2));
+  if (spent > options.cap) process.exit(3);
+}
+
 async function main() {
   const phase = process.argv[2] || "";
+  if (phase === "harness") {
+    await runMockHarness();
+    return;
+  }
   if (phase !== "first" && phase !== "multi" && phase !== "refine" && phase !== "consistency") {
     console.log("no-request");
     console.log("Use phase consistency for the corrected child conversation. Earlier results are not repeated.");
@@ -81,7 +319,27 @@ async function main() {
   }
   const outDir = path.join(process.env.LOCALAPPDATA || ".", "kutadgu-book-advisor-eval");
   fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, phase === "consistency" ? "quality-consistency.json" : phase === "refine" ? "quality-refine.json" : phase === "multi" ? "quality-multi.json" : "quality-results.json");
+  let outPath = path.join(outDir, phase === "consistency" ? "quality-consistency.json" : phase === "refine" ? "quality-refine.json" : phase === "multi" ? "quality-multi.json" : "quality-results.json");
+  if (phase === "consistency" && fs.existsSync(outPath)) {
+    outPath = path.join(outDir, "quality-consistency-" + Date.now() + ".json");
+  }
+  if (phase === "consistency") {
+    const hold = Advisor.worstCaseMicroUsd(catalog);
+    const projected = hold * plan.length;
+    if (projected > cap) {
+      console.log("evaluation-unbounded");
+      console.log(JSON.stringify({
+        customerTurns: plan.length,
+        worstCaseMicroUsd: hold,
+        projectedMicroUsd: projected,
+        capMicroUsd: cap,
+        openaiRequests: 0
+      }));
+      process.exit(4);
+    }
+    await runPaidConsistency({ catalog, apiKey, cap, plan, outPath, hold });
+    return;
+  }
   const results = [];
   let spent = 0;
   const hold = Advisor.worstCaseMicroUsd(catalog);
