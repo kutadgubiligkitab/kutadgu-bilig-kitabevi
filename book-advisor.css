@@ -55,6 +55,52 @@
   pointer-events: auto;
   transition: opacity 240ms ease, transform 260ms ease, visibility 0s;
 }
+.kutadgu-advisor.is-large .kutadgu-advisor-panel {
+  width: var(--advisor-panel-width, min(640px, calc(100vw - 32px)));
+  height: var(--advisor-panel-height, min(760px, calc(100dvh - 96px)));
+}
+.kutadgu-advisor.is-full .kutadgu-advisor-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  width: auto;
+  height: auto;
+}
+.kutadgu-advisor-tools {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+.kutadgu-advisor-tools button,
+.kutadgu-advisor-confirm button {
+  min-height: 44px;
+  border: 1px solid var(--site-border, #e8dccb);
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 6px 10px;
+}
+.kutadgu-advisor-confirm { flex: 0 0 auto; margin: 8px 12px 0; }
+.kutadgu-advisor-resize { display: none; }
+@media (min-width: 721px) {
+  .kutadgu-advisor.is-open .kutadgu-advisor-resize {
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1;
+    width: 44px;
+    height: 18px;
+    border: 0;
+    background: transparent;
+    cursor: nwse-resize;
+  }
+}
 .kutadgu-advisor-head {
   display: flex;
   flex: 0 0 auto;
@@ -70,7 +116,7 @@
   font-size: 1.05rem;
   font-weight: 700;
 }
-.kutadgu-advisor-new,
+.kutadgu-advisor-size,
 .kutadgu-advisor-close {
   flex: 0 0 44px;
   width: 44px;
@@ -148,6 +194,18 @@
   background: var(--site-brown, #70503d);
   color: #fffdf9;
 }
+.kutadgu-advisor-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--site-brown, #70503d);
+  color: #fffdf9;
+  text-decoration: none;
+}
 .kutadgu-advisor-send:disabled,
 .kutadgu-advisor-launcher:disabled { opacity: 0.65; }
 .kutadgu-advisor-status {
@@ -168,6 +226,10 @@ body:has(.kutadgu-advisor) {
 @media (max-width: 720px) {
   .kutadgu-advisor.is-open { inset: 0; right: 0; bottom: 0; }
   .kutadgu-advisor.is-open .kutadgu-advisor-launcher { display: none; }
+  .kutadgu-advisor.is-full.is-open .kutadgu-advisor-panel {
+    inset: calc(env(safe-area-inset-top, 0px) + var(--advisor-viewport-top, 0px)) 0 calc(env(safe-area-inset-bottom, 0px) + var(--advisor-keyboard, 0px)) 0;
+    border-radius: 0;
+  }
   .kutadgu-advisor.is-open .kutadgu-advisor-panel {
     position: fixed;
     inset: calc(8px + env(safe-area-inset-top, 0px) + var(--advisor-viewport-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px) + var(--advisor-keyboard, 0px)) 8px;

@@ -135,6 +135,7 @@ async function handleBookAdvisor(request, env, deps) {
       ok: true,
       message: result.message,
       books: result.books,
+      handoff: result.handoff || null,
       evidence: result.evidence,
       verified: result.verified,
       comparison_status: result.comparison_status,

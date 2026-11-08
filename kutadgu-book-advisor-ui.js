@@ -28,6 +28,34 @@ var advisorUi = (function () {
     return /^https:\/\/[^\s]+$/i.test(text) ? text : "";
   }
 
+  function nextSize(current, mobile) {
+    if (mobile) return current === "full" ? "compact" : "full";
+    if (current === "large") return "full";
+    if (current === "full") return "compact";
+    return "large";
+  }
+
+  function clampPanel(width, height) {
+    var viewWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
+    var viewHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+    var maxWidth = Math.max(320, viewWidth - 24);
+    var maxHeight = Math.max(360, viewHeight - 24);
+    return {
+      width: Math.min(maxWidth, Math.max(320, Math.round(width))),
+      height: Math.min(maxHeight, Math.max(360, Math.round(height)))
+    };
+  }
+
+  function safeWhatsApp(value) {
+    var href = String(value && value.href || "");
+    if (!/^https:\/\/wa\.me\/905368999888\?text=/.test(href) || href.length > 900) return null;
+    var text = "";
+    try { text = decodeURIComponent(href.slice(href.indexOf("text=") + 5)); } catch (_error) { return null; }
+    if (text.indexOf("ئەسسالامۇ ئەلەيكۇم، مەن قۇتادغۇبىلىگ كىتابخانىسىنىڭ كىتاب مەسلىھەتچىسى ئارقىلىق كەلدىم.") !== 0) return null;
+    if (/\d{5,}|@|ئادرېس|زاكاز/.test(text)) return null;
+    return { label: "WhatsApp ئارقىلىق ئالاقىلىشىش", href: href };
+  }
+
   function cleanTurns(turns) {
     var clean = [];
     var list = Array.isArray(turns) ? turns : [];
@@ -57,7 +85,7 @@ var advisorUi = (function () {
   }
 
   function readMemory(storage) {
-    var empty = { turns: [], sessionId: "", open: false, entries: [] };
+    var empty = { turns: [], sessionId: "", open: false, entries: [], size: "compact" };
     try {
       var parsed = JSON.parse(storage.getItem(MEMORY_KEY) || "");
       if (!parsed || typeof parsed !== "object") return empty;
@@ -66,13 +94,15 @@ var advisorUi = (function () {
         turns: cleanTurns(parsed.turns),
         sessionId: SESSION.test(String(parsed.sessionId || "")) ? String(parsed.sessionId) : "",
         open: parsed.open === true,
+        size: parsed.size === "large" || parsed.size === "full" ? parsed.size : "compact",
         entries: entries.map(function (entry) {
           return {
             role: entry && entry.role === "user" ? "user" : "assistant",
             text: String(entry && entry.text || "").slice(0, 600),
-            cards: cleanCards(entry && entry.cards)
+            cards: cleanCards(entry && entry.cards),
+            handoff: safeWhatsApp(entry && entry.handoff)
           };
-        }).filter(function (entry) { return entry.text || entry.cards.length; })
+        }).filter(function (entry) { return entry.text || entry.cards.length || entry.handoff; })
       };
     } catch (_error) {
       return empty;
@@ -84,11 +114,13 @@ var advisorUi = (function () {
       turns: cleanTurns(state && state.turns),
       sessionId: SESSION.test(String(state && state.sessionId || "")) ? String(state.sessionId) : "",
       open: !!(state && state.open),
+      size: state && (state.size === "large" || state.size === "full") ? state.size : "compact",
       entries: (Array.isArray(state && state.entries) ? state.entries : []).slice(-8).map(function (entry) {
         return {
           role: entry.role === "user" ? "user" : "assistant",
           text: String(entry.text || "").slice(0, 600),
-          cards: cleanCards(entry.cards)
+          cards: cleanCards(entry.cards),
+          handoff: safeWhatsApp(entry.handoff)
         };
       })
     };
@@ -104,6 +136,9 @@ var advisorUi = (function () {
     customerState: customerState,
     safeHref: safeHref,
     safeImage: safeImage,
+    safeWhatsApp: safeWhatsApp,
+    nextSize: nextSize,
+    clampPanel: clampPanel,
     sessionPattern: SESSION,
     readMemory: readMemory,
     writeMemory: writeMemory
@@ -122,8 +157,14 @@ if (typeof document !== "undefined") (function () {
     + '<span class="kutadgu-advisor-sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">كىتاب مەسلىھەتچىسى</span></button>'
     + '<section id="kutadguAdvisorPanel" class="kutadgu-advisor-panel" role="dialog" aria-label="كىتاب مەسلىھەتچىسى" hidden>'
     + '<header class="kutadgu-advisor-head"><h2>كىتاب مەسلىھەتچىسى</h2>'
-    + '<button type="button" class="kutadgu-advisor-new">يېڭى</button>'
+    + '<button type="button" class="kutadgu-advisor-size" aria-label="چوڭايتىش">⛶</button>'
     + '<button type="button" class="kutadgu-advisor-close" aria-label="يېپىش">×</button></header>'
+    + '<div class="kutadgu-advisor-tools"><button type="button" class="kutadgu-advisor-new">يېڭى سۆھبەت</button>'
+    + '<button type="button" class="kutadgu-advisor-clear">سۆھبەت خاتىرىسىنى ئۆچۈرۈش</button></div>'
+    + '<p class="kutadgu-advisor-confirm" hidden>سۆھبەت خاتىرىسى ئۆچسۇنمۇ؟ '
+    + '<button type="button" class="kutadgu-advisor-confirm-yes">ھەئە</button>'
+    + '<button type="button" class="kutadgu-advisor-confirm-no">ياق</button></p>'
+    + '<button type="button" class="kutadgu-advisor-resize" aria-label="چوڭلۇقىنى ئۆزگەرتىش"></button>'
     + '<ol class="kutadgu-advisor-log" aria-live="polite"></ol>'
     + '<p class="kutadgu-advisor-status" role="status"></p>'
     + '<form class="kutadgu-advisor-form"><label class="kutadgu-advisor-sr" for="kutadguAdvisorInput" style="position:absolute;width:1px;height:1px;overflow:hidden">سوئالىڭىز</label>'
@@ -143,6 +184,8 @@ if (typeof document !== "undefined") (function () {
   var entries = memory.entries.slice();
   var sessionId = memory.sessionId;
   var pending = false;
+  var generation = 0;
+  var size = memory.size || "compact";
 
   function text(tag, value, className) {
     var node = document.createElement(tag);
@@ -179,6 +222,16 @@ if (typeof document !== "undefined") (function () {
       });
       item.appendChild(cards);
     }
+    var handoff = advisorUi.safeWhatsApp(entry.handoff);
+    if (handoff) {
+      var contact = document.createElement("a");
+      contact.className = "kutadgu-advisor-whatsapp";
+      contact.href = handoff.href;
+      contact.target = "_blank";
+      contact.rel = "noopener noreferrer";
+      contact.textContent = handoff.label;
+      item.appendChild(contact);
+    }
     log.appendChild(item);
   }
 
@@ -191,7 +244,7 @@ if (typeof document !== "undefined") (function () {
 
   function persist() {
     try {
-      advisorUi.writeMemory(window.sessionStorage, { turns: turns, sessionId: sessionId, open: root.classList.contains("is-open"), entries: entries });
+      advisorUi.writeMemory(window.sessionStorage, { turns: turns, sessionId: sessionId, open: root.classList.contains("is-open"), entries: entries, size: size });
     } catch (_error) { /* storage can be unavailable */ }
   }
 
@@ -220,13 +273,67 @@ if (typeof document !== "undefined") (function () {
 
   launcher.addEventListener("click", function () { setOpen(!root.classList.contains("is-open")); });
   root.querySelector(".kutadgu-advisor-close").addEventListener("click", function () { setOpen(false); });
-  root.querySelector(".kutadgu-advisor-new").addEventListener("click", function () {
+  function applySize() {
+    root.classList.toggle("is-large", size === "large");
+    root.classList.toggle("is-full", size === "full");
+    var sizeButton = root.querySelector(".kutadgu-advisor-size");
+    sizeButton.setAttribute("aria-label", size === "compact" ? "چوڭايتىش" : "ئەسلىگە قايتۇرۇش");
+  }
+  function resetConversation() {
+    generation += 1;
+    pending = false;
+    send.disabled = false;
     turns = [];
     entries = [];
     sessionId = "";
     status.textContent = "";
+    log.setAttribute("aria-busy", "false");
     paint();
     persist();
+  }
+  function mobileLayout() {
+    return window.matchMedia("(max-width: 720px)").matches;
+  }
+  applySize();
+  root.querySelector(".kutadgu-advisor-size").addEventListener("click", function () {
+    size = advisorUi.nextSize(size, mobileLayout());
+    root.style.removeProperty("--advisor-panel-width");
+    root.style.removeProperty("--advisor-panel-height");
+    applySize();
+    persist();
+  });
+  root.querySelector(".kutadgu-advisor-new").addEventListener("click", resetConversation);
+  root.querySelector(".kutadgu-advisor-clear").addEventListener("click", function () {
+    root.querySelector(".kutadgu-advisor-confirm").hidden = false;
+  });
+  root.querySelector(".kutadgu-advisor-confirm-no").addEventListener("click", function () {
+    root.querySelector(".kutadgu-advisor-confirm").hidden = true;
+  });
+  root.querySelector(".kutadgu-advisor-confirm-yes").addEventListener("click", function () {
+    root.querySelector(".kutadgu-advisor-confirm").hidden = true;
+    resetConversation();
+  });
+  var resizeHandle = root.querySelector(".kutadgu-advisor-resize");
+  resizeHandle.addEventListener("pointerdown", function (event) {
+    if (mobileLayout() || !root.classList.contains("is-open")) return;
+    event.preventDefault();
+    var startX = event.clientX;
+    var startY = event.clientY;
+    var rect = panel.getBoundingClientRect();
+    function move(next) {
+      var clamped = advisorUi.clampPanel(rect.width + (startX - next.clientX), rect.height + (startY - next.clientY));
+      root.style.setProperty("--advisor-panel-width", clamped.width + "px");
+      root.style.setProperty("--advisor-panel-height", clamped.height + "px");
+      size = "large";
+      applySize();
+    }
+    function stop() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      persist();
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
   });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", syncKeyboard);
@@ -248,6 +355,7 @@ if (typeof document !== "undefined") (function () {
     send.disabled = true;
     log.setAttribute("aria-busy", "true");
     status.textContent = "ئىزدەۋاتىدۇ…";
+    var ticket = generation;
     var payload = { turns: nextTurns };
     if (advisorUi.sessionPattern.test(sessionId)) payload.session_id = sessionId;
     fetch("/api/book-advisor", {
@@ -259,6 +367,7 @@ if (typeof document !== "undefined") (function () {
         return { status: response.status, ok: response.ok, body: body };
       }).catch(function () { return { status: response.status, ok: false, body: null }; });
     }).then(function (result) {
+      if (ticket !== generation) return;
       pending = false;
       send.disabled = false;
       log.setAttribute("aria-busy", "false");
@@ -272,10 +381,11 @@ if (typeof document !== "undefined") (function () {
       status.textContent = "";
       if (advisorUi.sessionPattern.test(String(result.body.session_id || ""))) sessionId = String(result.body.session_id);
       turns = nextTurns.concat([{ role: "assistant", content: result.body.message || "" }]).slice(-6);
-      entries.push({ role: "assistant", text: result.body.message || "", cards: result.body.books || [] });
+      entries.push({ role: "assistant", text: result.body.message || "", cards: result.body.books || [], handoff: result.body.handoff || null });
       paint();
       persist();
     }).catch(function () {
+      if (ticket !== generation) return;
       pending = false;
       send.disabled = false;
       log.setAttribute("aria-busy", "false");
