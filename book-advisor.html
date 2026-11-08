@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ug" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>كىتاب مەسلىھەتچىسى</title>
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/book-advisor.css">
+</head>
+<body>
+  <main class="advisor">
+    <h1>كىتاب مەسلىھەتچىسى</h1>
+    <p class="advisor-note">پەقەت دۇكىنىمىزدىكى كىتابلارنى تەۋسىيە قىلىدۇ.</p>
+    <ol id="advisorThread" class="advisor-thread" aria-live="polite"></ol>
+    <form id="advisorForm">
+      <label for="advisorInput">سوئالىڭىز</label>
+      <textarea id="advisorInput" name="message" rows="3" maxlength="500" required></textarea>
+      <button type="submit">يوللاش</button>
+    </form>
+    <p id="advisorStatus" class="advisor-status" role="status"></p>
+  </main>
+  <script src="/kutadgu-book-advisor-ui.js"></script>
+</body>
+</html>

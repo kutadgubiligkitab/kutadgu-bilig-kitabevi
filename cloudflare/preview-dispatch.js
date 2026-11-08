@@ -10,6 +10,7 @@ const sharedCartLinks = require("../kutadgu-shared-cart-links.js");
 const visitCountry = require("./analytics-visit-country.js");
 const verifiedVisits = require("./verified-visits.js");
 const memberVisit = require("./member-last-visit.js");
+const bookAdvisor = require("./book-advisor-private.js");
 const assetlinks = require("../.well-known/assetlinks.json");
 const appleAppSiteAssociation = require("../.well-known/apple-app-site-association.json");
 
@@ -104,6 +105,7 @@ function classifyPath(pathname, search) {
   const posthog = posthogUpstream(path, query);
   if (posthog) return { kind: "posthog", upstream: posthog };
   if (path === "/api/ai-search") return { kind: "ai-search" };
+  if (path === "/api/book-advisor") return { kind: "book-advisor" };
   if (path === "/api/r2-cover-upload") return { kind: "r2-upload" };
   if (path === "/api/r2-hero-delete") return { kind: "r2-hero-delete" };
   if (path === "/api/r2-series-cover-delete") return { kind: "r2-series-cover-delete" };
@@ -683,6 +685,7 @@ function methodAllowed(kind, method) {
   }
   if (kind === "visit-config") return method === "GET" || method === "HEAD";
   if (kind === "shared-cart-read" || kind === "shared-cart-page" || kind === "app-link") return method === "GET" || method === "HEAD";
+  if (kind === "book-advisor") return method === "POST";
   if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete" || kind === "r2-series-cover-delete") {
     return true;
   }
@@ -731,6 +734,11 @@ async function dispatch(request, env, deps) {
   if (route.kind === "legacy-redirect") return handleLegacy(request, env, source);
   if (route.kind === "posthog") return handlePosthog(request, env, source, route);
   if (route.kind === "ai-search") return handleAi(request, env, source);
+  if (route.kind === "book-advisor") {
+    return bookAdvisor.handleBookAdvisor(request, env, source.bookAdvisor || {
+      fetchImpl: source.fetchImpl
+    });
+  }
   if (route.kind === "r2-upload" || route.kind === "r2-hero-delete" || route.kind === "r2-series-cover-delete") {
     const result = route.kind === "r2-hero-delete"
       ? await upload.handleR2HeroDelete(request, env, source)

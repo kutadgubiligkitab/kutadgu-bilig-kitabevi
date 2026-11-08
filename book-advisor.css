@@ -1,0 +1,30 @@
+.advisor {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  font-family: "UKIJ Tuz", "Microsoft Uighur", sans-serif;
+}
+.advisor-note,
+.advisor-status { color: #5c5348; }
+.advisor-thread { list-style: none; padding: 0; display: grid; gap: 16px; }
+.advisor-user,
+.advisor-reply { margin: 0; white-space: pre-wrap; }
+.advisor-user { font-weight: 700; }
+.advisor-cards { display: grid; gap: 12px; }
+.advisor-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e4d8c8;
+  border-radius: 12px;
+  background: #fffaf3;
+  color: inherit;
+  text-decoration: none;
+}
+.advisor-card img { width: 72px; height: 96px; object-fit: cover; background: #f3ece3; }
+.advisor-card h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.advisor-card p { margin: 0; }
+.advisor form { display: grid; gap: 8px; margin-top: 20px; }
+.advisor textarea { width: 100%; font: inherit; }
+.advisor button { justify-self: start; font: inherit; min-height: 44px; padding: 8px 16px; }

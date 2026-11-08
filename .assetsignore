@@ -29,3 +29,9 @@ test-results
 review
 scratch-catalog-cover
 artifacts
+book-advisor.html
+book-advisor.css
+kutadgu-book-advisor.js
+kutadgu-book-advisor-ui.js
+kutadgu-book-advisor-budget.js
+kutadgu-book-advisor-compare.js
