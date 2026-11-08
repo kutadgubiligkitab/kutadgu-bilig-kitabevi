@@ -673,12 +673,40 @@ function publicEvidence(value) {
   return JSON.parse(redact(JSON.stringify(value, (key, item) => hidden.test(key) ? "[redacted]" : item)));
 }
 
+const RESPONSES_URL = "https://api.openai.com/v1/responses";
+const EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
+
+function endpointKind(url) {
+  const text = String(url || "");
+  if (text === RESPONSES_URL) return "responses";
+  if (text === EMBEDDINGS_URL) return "embedding";
+  let parsed = null;
+  try { parsed = new URL(text); } catch (_error) { parsed = null; }
+  if (!parsed || parsed.protocol !== "https:" || parsed.username || parsed.password) return "rejected";
+  if (/^[a-z0-9]+\.supabase\.co$/.test(parsed.hostname) && parsed.pathname === "/rest/v1/rpc/match_active_books_ai") {
+    return "catalog-rpc";
+  }
+  return "rejected";
+}
+
+function paidFailure(events, attempt, code, missingUsage) {
+  events.failed = true;
+  events.uncertain = true;
+  events.missingUsage = missingUsage === true;
+  attempt.error = code;
+  const failure = new Error(code);
+  failure.code = code === "embedding-unbounded" ? "advisor_embedding_unbounded" : "advisor_model_unavailable";
+  if (attempt.tokens) failure.tokens = attempt.tokens;
+  throw failure;
+}
+
 function trackPaidFetch(events, calls, fetchImpl) {
   return async function tracked(url, init) {
+    const kind = endpointKind(url);
     const attempt = {
       at: new Date().toISOString(),
       url: redact(String(url || "")),
-      kind: String(url).includes("/embeddings") ? "embedding" : (String(url).includes("/responses") ? "responses" : "other"),
+      kind,
       input: null,
       usage: null,
       output: "",
@@ -687,60 +715,65 @@ function trackPaidFetch(events, calls, fetchImpl) {
     };
     try {
       const body = JSON.parse(init && init.body || "{}");
-      attempt.input = Object.prototype.hasOwnProperty.call(body, "input") ? body.input : null;
-      if (Array.isArray(body.tools)) attempt.tools = body.tools.map((tool) => tool && tool.name).filter(Boolean);
+      if (kind === "embedding") attempt.input = typeof body.input === "string" ? body.input : null;
+      else if (kind === "responses") {
+        attempt.input = body.input || null;
+        if (Array.isArray(body.tools)) attempt.tools = body.tools.map((tool) => tool && tool.name).filter(Boolean);
+      } else if (kind === "catalog-rpc") attempt.input = { rpc: "match_active_books_ai" };
     } catch (_error) {
       attempt.error = "request-unreadable";
     }
     calls.push(attempt);
     if (typeof events.onAttempt === "function") events.onAttempt();
-    events.contacted = true;
+    if (kind === "responses" || kind === "embedding") events.contacted = true;
+    if (kind === "rejected") {
+      events.contacted = true;
+      return paidFailure(events, attempt, "endpoint-rejected", false);
+    }
     let response;
     try {
       response = await fetchImpl(url, init);
     } catch (error) {
-      events.failed = true;
-      events.uncertain = true;
+      if (kind === "catalog-rpc") {
+        attempt.error = "rpc-failed";
+        const failure = new Error("advisor_meaning_unavailable");
+        failure.code = "advisor_meaning_unavailable";
+        throw failure;
+      }
       attempt.error = error && error.name === "AbortError" ? "aborted" : "fetch-failed";
-      throw error;
+      return paidFailure(events, attempt, attempt.error, false);
     }
     attempt.status = Number(response && response.status) || 0;
     let payload = null;
     try { payload = await response.clone().json(); } catch (_error) { payload = null; }
-    const embedding = String(url).includes("/embeddings");
-    const reported = payload && payload.usage ? Number(payload.usage.prompt_tokens != null ? payload.usage.prompt_tokens : payload.usage.total_tokens) : NaN;
-    if (embedding) {
-      attempt.usage = payload && payload.usage ? { prompt_tokens: payload.usage.prompt_tokens, total_tokens: payload.usage.total_tokens } : null;
-      if (!response.ok || !Number.isInteger(Math.floor(reported)) || reported < 1) {
-        events.failed = true;
-        events.uncertain = true;
-        events.missingUsage = response.ok || !payload;
-        attempt.error = response.ok ? "usage-unavailable" : "http-" + attempt.status;
-        const failure = new Error(attempt.error);
-        failure.code = "advisor_model_unavailable";
+    if (kind === "catalog-rpc") {
+      const rows = Array.isArray(payload) ? payload : null;
+      const valid = !!rows && rows.every((row) => Number.isInteger(Number(row && row.id)) && Number.isFinite(Number(row && row.similarity)));
+      if (!response.ok || !valid) {
+        attempt.error = response.ok ? "rpc-invalid" : "rpc-http-" + attempt.status;
+        attempt.output = "";
+        const failure = new Error("advisor_meaning_unavailable");
+        failure.code = "advisor_meaning_unavailable";
         throw failure;
       }
+      attempt.output = JSON.stringify(rows.map((row) => ({ id: Number(row.id), similarity: Number(row.similarity) })));
+      return response;
+    }
+    const reported = payload && payload.usage ? Number(payload.usage.prompt_tokens != null ? payload.usage.prompt_tokens : payload.usage.total_tokens) : NaN;
+    if (kind === "embedding") {
+      attempt.usage = payload && payload.usage ? { prompt_tokens: payload.usage.prompt_tokens, total_tokens: payload.usage.total_tokens } : null;
+      if (!response.ok || !Number.isInteger(Math.floor(reported)) || reported < 1) {
+        return paidFailure(events, attempt, response.ok ? "usage-unavailable" : "http-" + attempt.status, response.ok || !payload);
+      }
       if (reported > Advisor.MEANING_TOKEN_CAP) {
-        events.failed = true;
-        events.uncertain = true;
-        attempt.error = "embedding-unbounded";
         attempt.tokens = Math.floor(reported);
-        const failure = new Error("advisor_embedding_unbounded");
-        failure.code = "advisor_embedding_unbounded";
-        failure.tokens = Math.floor(reported);
-        throw failure;
+        return paidFailure(events, attempt, "embedding-unbounded", false);
       }
       return response;
     }
     if (!response.ok || !billableUsage(payload)) {
-      events.failed = true;
-      events.uncertain = true;
-      events.missingUsage = response.ok || !payload;
-      attempt.error = response.ok ? "usage-unavailable" : "http-" + attempt.status;
       attempt.output = payload && payload.output_text || "";
-      const failure = new Error(attempt.error);
-      failure.code = "advisor_model_unavailable";
-      throw failure;
+      return paidFailure(events, attempt, response.ok ? "usage-unavailable" : "http-" + attempt.status, response.ok || !payload);
     }
     attempt.usage = payload.usage;
     attempt.output = payload.output_text || "";
@@ -1073,6 +1106,190 @@ async function verifyAcceptanceParity(hold) {
   } catch (_error) { continued = false; }
   if (continued || !failedEvents.uncertain || !failedCalls.length || failedCalls[0].input !== "ھايۋان") throw new Error("failure-accounting");
   if (JSON.stringify(failedCalls).includes("Bearer") || JSON.stringify(failedCalls).includes("test-key")) throw new Error("attempt-leaked");
+  await verifyLiveIntegration(hold);
+}
+
+async function verifyLiveIntegration(hold) {
+  const dir = path.join(os.tmpdir(), "kutadgu-live-integration-" + Date.now());
+  fs.mkdirSync(dir);
+  const ledgerPath = path.join(dir, "state.json");
+  const evidencePath = path.join(dir, "evidence.json");
+  const hashSecret = crypto.randomBytes(32).toString("hex");
+  const serverKey = "sb_secret_integration_fixture";
+  fs.writeFileSync(ledgerPath, JSON.stringify({
+    revision: "integration",
+    capMicroUsd: 300000,
+    priorMicroUsd: 100,
+    chargedMicroUsd: 1000,
+    openReservations: [],
+    halted: false,
+    haltReason: "",
+    hashSecret,
+    sessions: {}
+  }));
+  const catalog = Advisor.buildCatalog([{
+    id: 5,
+    title: "يۇلتۇز",
+    author: "نەشر",
+    category: "بالىلار كىتابلىرى",
+    price: 10,
+    description: "بۇ كىتاب بالىلار ئۈچۈن يېزىلغان ئۇزۇن چۈشەندۈرۈش. بالىلار ھېكايىسى ۋە ھايۋانلار بىلەن ئاخىرلىشىدۇ.",
+    is_active: true,
+    submission_status: "approved"
+  }]);
+  const summary = { kind: "advisor-acceptance-integration", openaiRequests: 0, quality: "NOT RUN", rows: [], inflight: null };
+  const flush = () => fs.writeFileSync(evidencePath, JSON.stringify(publicEvidence(summary)));
+  let persistedBeforeFetch = false;
+  const release = acquireLedgerLock(ledgerPath);
+  let blocked = false;
+  try { acquireLedgerLock(ledgerPath); } catch (error) { blocked = error && error.code === "ledger-locked"; }
+  if (!blocked) throw new Error("integration-lock");
+  const cases = [
+    { id: "search", thread: "integration", customer: "تۆت ياشلىق بالام ھايۋان ھېكايىسى ئىزدەيدۇ." },
+    { id: "thanks", thread: "integration", customer: "رەھمەت بىلەن قوبۇل قىلدىم." },
+    { id: "heard", thread: "integration", customer: "بولدى، ئاڭلىدىم." },
+    { id: "follow", thread: "integration", customer: "يەنە قىسقا قىلىپ داۋاملاشتۇرۇڭ." }
+  ];
+  await executeAcceptanceThreads({
+    summary,
+    flush,
+    ledgerPath,
+    hold,
+    catalog,
+    apiKey: "test-key",
+    publicKey: "sb_publishable_catalog",
+    serverKey,
+    cases,
+    fetchImpl: async (url, init) => {
+      if (url === EMBEDDINGS_URL) {
+        const disk = fs.readFileSync(evidencePath, "utf8");
+        persistedBeforeFetch = disk.includes(EMBEDDINGS_URL) && disk.includes("\"inflight\"");
+        return jsonResponse({ data: [{ embedding: Array(1536).fill(0.02) }], usage: { prompt_tokens: 4, total_tokens: 4 } });
+      }
+      if (endpointKind(url) === "catalog-rpc") {
+        return jsonResponse([{ id: 5, similarity: 0.9 }]);
+      }
+      if (url !== RESPONSES_URL) throw new Error("unexpected-endpoint");
+      const packed = JSON.stringify(JSON.parse(init.body).input || []);
+      if (packed.includes("يەنە قىسقا") || packed.includes("رەھمەت بىلەن") || packed.includes("ئاڭلىدىم")) {
+        return jsonResponse({
+          output_text: JSON.stringify({ mode: "explain", message: "خاتىرىلەنگەن ياش بويىچە داۋام قىلىمەن.", book_ids: [] }),
+          usage: { input_tokens: 22, output_tokens: 9 }
+        });
+      }
+      if (!packed.includes("function_call")) {
+        return jsonResponse({
+          output: [{
+            type: "function_call",
+            name: "search_store_books",
+            call_id: "call-search",
+            arguments: JSON.stringify({ author: "", title: "", category: "", topic: "ھايۋان ھېكايىسى", relation: "any", purpose: "recommend", offset: 0 })
+          }],
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      if (!packed.includes("about_status")) {
+        return jsonResponse({
+          output: [{
+            type: "function_call",
+            name: "lookup_catalog_books",
+            call_id: "call-detail",
+            arguments: JSON.stringify({ book_ids: [5] })
+          }],
+          usage: { input_tokens: 40, output_tokens: 10 }
+        });
+      }
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "explain", message: "يۇلتۇز كىتابىنى كۆرۈپ باقايلى.", book_ids: [5] }),
+        usage: { input_tokens: 48, output_tokens: 11 }
+      });
+    }
+  });
+  release();
+  const saved = fs.readFileSync(evidencePath, "utf8");
+  const kinds = summary.rows.flatMap((row) => (row.attempts || []).map((call) => call.kind));
+  if (!persistedBeforeFetch) throw new Error("inflight-not-persisted");
+  if (!kinds.includes("catalog-rpc") || summary.rows[0].attempts.some((call) => call.kind === "catalog-rpc" && call.error)) {
+    throw new Error("rpc-rejected");
+  }
+  if (kinds.filter((kind) => kind === "responses" || kind === "embedding").length !== summary.openaiRequests) {
+    throw new Error("openai-count");
+  }
+  if (kinds.includes("catalog-rpc") && summary.openaiRequests !== kinds.filter((kind) => kind === "responses" || kind === "embedding").length) {
+    throw new Error("rpc-counted-paid");
+  }
+  const embedding = summary.rows[0].attempts.find((call) => call.kind === "embedding");
+  const responses = summary.rows[0].attempts.filter((call) => call.kind === "responses" && call.usage);
+  if (!embedding || embedding.usage.prompt_tokens !== 4 || !responses.length) throw new Error("usage-missing");
+  if (summary.rows[0].accounting.uncertain || summary.rows[0].accounting.settled <= 0) throw new Error("accounting");
+  const follow = summary.rows[summary.rows.length - 1];
+  if (!follow || follow.id !== "follow" || follow.constraintCarried !== true) throw new Error("constraint-not-carried");
+  const followInput = JSON.stringify(follow.attempts);
+  if (!followInput.includes("reader_age: 4") || followInput.includes("تۆت ياشلىق")) throw new Error("signed-age-missing");
+  if (!saved.includes("يۇلتۇز") || !saved.includes("0.9") || !saved.includes("يۇلتۇز كىتابىنى كۆرۈپ باقايلى")) {
+    throw new Error("evidence-incomplete");
+  }
+  if (saved.includes(serverKey) || saved.includes(hashSecret) || saved.includes("Bearer")) throw new Error("integration-leaked");
+  const reopened = readLedgerSummary(ledgerPath);
+  if (!reopened || reopened.halted || reopened.chargedMicroUsd <= 1000 || reopened.reservedMicroUsd !== 0) throw new Error("restart-ledger");
+  const again = openPersistentEvalLedger(ledgerPath);
+  await again.ready;
+  const afterRestart = readLedgerSummary(ledgerPath);
+  if (afterRestart.chargedMicroUsd !== reopened.chargedMicroUsd) throw new Error("restart-changed");
+  const rejected = { contacted: false, failed: false, uncertain: false };
+  let rejectedCode = "";
+  try {
+    await trackPaidFetch(rejected, [], async () => jsonResponse([{ id: 5, similarity: 0.9 }]))("https://example.com/match");
+  } catch (error) { rejectedCode = error && error.message; }
+  if (rejectedCode !== "endpoint-rejected" || rejected.uncertain !== true) throw new Error("endpoint-boundary");
+  const rpcCalls = [];
+  const rpcEvents = { contacted: false, failed: false, uncertain: false, missingUsage: false };
+  let rpcCode = "";
+  try {
+    await trackPaidFetch(rpcEvents, rpcCalls, async () => jsonResponse({ message: "not-a-match" }))("https://fxlojnqwyojqjskfggmh.supabase.co/rest/v1/rpc/match_active_books_ai");
+  } catch (error) { rpcCode = error && error.message; }
+  if (rpcCode !== "advisor_meaning_unavailable" || rpcCalls[0].error !== "rpc-invalid" || rpcEvents.uncertain || rpcEvents.contacted) {
+    throw new Error("rpc-failure-reporting");
+  }
+  const failPath = path.join(dir, "fail-state.json");
+  const failEvidence = path.join(dir, "fail-evidence.json");
+  fs.writeFileSync(failPath, JSON.stringify({
+    revision: "integration-fail",
+    capMicroUsd: 300000,
+    priorMicroUsd: 100,
+    chargedMicroUsd: 1000,
+    openReservations: [],
+    halted: false,
+    haltReason: "",
+    hashSecret,
+    sessions: {}
+  }));
+  const failed = { kind: "advisor-acceptance-failure", openaiRequests: 0, quality: "NOT RUN", rows: [], inflight: null };
+  const failRelease = acquireLedgerLock(failPath);
+  await executeAcceptanceThreads({
+    summary: failed,
+    flush: () => fs.writeFileSync(failEvidence, JSON.stringify(publicEvidence(failed))),
+    ledgerPath: failPath,
+    hold,
+    catalog,
+    apiKey: "test-key",
+    publicKey: "sb_publishable_catalog",
+    serverKey,
+    cases,
+    fetchImpl: async (url) => {
+      if (url !== RESPONSES_URL) throw new Error("unexpected-paid-endpoint");
+      const disk = fs.readFileSync(failEvidence, "utf8");
+      if (!disk.includes(RESPONSES_URL)) throw new Error("failed-attempt-not-persisted");
+      return jsonResponse({ output_text: "not-json-usage" });
+    }
+  });
+  failRelease();
+  if (failed.rows.length !== 1 || failed.rows[0].id !== "search" || failed.halted !== true) throw new Error("halt-continued");
+  if (failed.rows[0].accounting.missingUsage !== true || failed.openaiRequests !== 1) throw new Error("missing-usage");
+  const failedLedger = readLedgerSummary(failPath);
+  if (!failedLedger || failedLedger.halted !== true || failedLedger.chargedMicroUsd < 1000 || failedLedger.reservedMicroUsd !== 0) {
+    throw new Error("halt-ledger");
+  }
 }
 
 async function runAcceptanceLive() {
@@ -1144,108 +1361,130 @@ async function runAcceptanceLive() {
     const config = fs.readFileSync(path.join(__dirname, "..", "supabase-config.js"), "utf8");
     const publicKey = (config.match(/sb_publishable_[A-Za-z0-9_-]+/) || [])[0] || "";
     const catalog = await Advisor.loadReadOnlyCatalog(global.fetch, "https://fxlojnqwyojqjskfggmh.supabase.co", publicKey);
-    const persistent = openPersistentEvalLedger(ledgerPath);
-    await persistent.ready;
-    const sessions = Budget.createSessionStore();
-    const state = JSON.parse(fs.readFileSync(ledgerPath, "utf8"));
-    let stopped = false;
-    for (const thread of Acceptance.threadsOf(Acceptance.CASES)) {
-      if (stopped) break;
-      let history = [];
-      let sessionId = "";
-      let token = "";
-      for (const item of thread.cases) {
-        const room = readLedgerSummary(ledgerPath);
-        if (!room || room.halted || room.remainingMicroUsd < hold) {
-          summary.rows.push({ id: item.id, quality: "NOT RUN", stopped: room && room.halted ? "ledger-halted" : "ledger-room" });
-          flush();
-          stopped = true;
-          break;
-        }
-        const threadTurns = Acceptance.conversationTurns(history, item.customer);
-        const events = { contacted: false, failed: false, uncertain: false, missingUsage: false, hold: 0, settled: 0 };
-        const calls = [];
-        events.onAttempt = flush;
-        const started = Date.now();
-        let body = null;
-        try {
-          const response = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "cf-connecting-ip": "127.0.0.1" },
-            body: JSON.stringify({ turns: threadTurns, session_id: sessionId, constraint_token: token })
-          }), {
-            BOOK_ADVISOR_ENABLED: "true",
-            BOOK_ADVISOR_CLIENT_HASH_SECRET: state.hashSecret,
-            OPENAI_API_KEY: apiKey,
-            SUPABASE_PUBLISHABLE_KEY: publicKey,
-            SUPABASE_SECRET_KEY: serverKey
-          }, {
-            ledger: guardedLedger(persistent, events),
-            sessions,
-            loadCatalog: async () => catalog,
-            fetchImpl: trackPaidFetch(events, calls, global.fetch)
-          });
-          body = await response.json();
-        } catch (error) {
-          body = { ok: false, error: error && error.code || "advisor_model_unavailable" };
-        }
-        summary.openaiRequests += calls.filter((call) => call.kind === "responses" || call.kind === "embedding").length;
-        const row = {
-          id: item.id,
-          thread: thread.id,
-          customer: item.customer,
-          context: threadTurns.map((turn) => ({ role: turn.role, content: turn.content })),
-          constraintCarried: token.length > 0,
-          attempts: calls.map((call) => ({
-            kind: call.kind,
-            url: call.url,
-            input: call.input,
-            toolCalls: call.toolCalls || [],
-            usage: call.usage,
-            output: call.output,
-            error: call.error,
-            status: call.status
-          })),
-          reply: body && body.message || "",
-          bookIds: ((body && body.books) || []).map((book) => book.id),
-          handoff: body && body.handoff || null,
-          evidence: body && body.evidence || "",
-          error: body && body.ok === false ? body.error || "failed" : "",
-          accounting: {
-            hold: events.hold,
-            settled: events.settled || 0,
-            uncertain: events.uncertain === true,
-            failed: events.failed === true,
-            missingUsage: events.missingUsage === true
-          },
-          quality: "UNSCORED",
-          rubric: Acceptance.RUBRIC.map((criterion) => ({ id: criterion.id, prompt: criterion.prompt, result: "UNSCORED" })),
-          ms: Date.now() - started
-        };
-        summary.rows.push(row);
-        summary.quality = "UNSCORED";
-        flush();
-        if (events.uncertain || events.failed || !body || body.ok !== true) {
-          await persistent.halt(events.missingUsage ? "missing-usage" : (events.uncertain ? "uncertain-charge" : "turn-failed"));
-          summary.halted = true;
-          flush();
-          stopped = true;
-          break;
-        }
-        history = threadTurns.concat([{ role: "assistant", content: body.message || "" }]);
-        if (body.session_id) sessionId = body.session_id;
-        if (body.constraint_token) token = body.constraint_token;
-      }
-    }
-    const after = readLedgerSummary(ledgerPath);
-    summary.chargedMicroUsd = after ? after.chargedMicroUsd : summary.chargedMicroUsd;
-    summary.reservedMicroUsd = after ? after.reservedMicroUsd : summary.reservedMicroUsd;
-    summary.halted = after ? after.halted : summary.halted;
-    flush();
+    await executeAcceptanceThreads({
+      summary,
+      flush,
+      ledgerPath,
+      hold,
+      catalog,
+      apiKey,
+      publicKey,
+      serverKey,
+      cases: Acceptance.CASES,
+      fetchImpl: global.fetch
+    });
     console.log(JSON.stringify({ report: outPath, quality: "UNSCORED", openaiRequests: summary.openaiRequests, chargedMicroUsd: summary.chargedMicroUsd }));
   } finally {
     release();
   }
+}
+
+async function executeAcceptanceThreads(options) {
+  const summary = options.summary;
+  const flush = options.flush;
+  const persistent = openPersistentEvalLedger(options.ledgerPath);
+  await persistent.ready;
+  const sessions = Budget.createSessionStore();
+  const state = JSON.parse(fs.readFileSync(options.ledgerPath, "utf8"));
+  let stopped = false;
+  for (const thread of Acceptance.threadsOf(options.cases)) {
+    if (stopped) break;
+    let history = [];
+    let sessionId = "";
+    let token = "";
+    for (const item of thread.cases) {
+      const room = readLedgerSummary(options.ledgerPath);
+      if (!room || room.halted || room.remainingMicroUsd < options.hold) {
+        summary.rows.push({ id: item.id, quality: "NOT RUN", stopped: room && room.halted ? "ledger-halted" : "ledger-room" });
+        summary.inflight = null;
+        flush();
+        stopped = true;
+        break;
+      }
+      const threadTurns = Acceptance.conversationTurns(history, item.customer);
+      const events = { contacted: false, failed: false, uncertain: false, missingUsage: false, hold: 0, settled: 0 };
+      const calls = [];
+      events.onAttempt = () => {
+        summary.inflight = calls.map((call) => ({ kind: call.kind, url: call.url, input: call.input, error: call.error }));
+        flush();
+      };
+      const started = Date.now();
+      let body = null;
+      try {
+        const response = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "cf-connecting-ip": "127.0.0.1" },
+          body: JSON.stringify({ turns: threadTurns, session_id: sessionId, constraint_token: token })
+        }), {
+          BOOK_ADVISOR_ENABLED: "true",
+          BOOK_ADVISOR_CLIENT_HASH_SECRET: state.hashSecret,
+          OPENAI_API_KEY: options.apiKey,
+          SUPABASE_PUBLISHABLE_KEY: options.publicKey,
+          SUPABASE_SECRET_KEY: options.serverKey
+        }, {
+          ledger: guardedLedger(persistent, events),
+          sessions,
+          loadCatalog: async () => options.catalog,
+          fetchImpl: trackPaidFetch(events, calls, options.fetchImpl)
+        });
+        body = await response.json();
+      } catch (error) {
+        body = { ok: false, error: error && error.code || "advisor_model_unavailable" };
+      }
+      summary.openaiRequests += calls.filter((call) => call.kind === "responses" || call.kind === "embedding").length;
+      const row = {
+        id: item.id,
+        thread: thread.id,
+        customer: item.customer,
+        context: threadTurns.map((turn) => ({ role: turn.role, content: turn.content })),
+        constraintCarried: token.length > 0,
+        attempts: calls.map((call) => ({
+          kind: call.kind,
+          url: call.url,
+          input: call.input,
+          toolCalls: call.toolCalls || [],
+          usage: call.usage,
+          output: call.output,
+          error: call.error,
+          status: call.status
+        })),
+        reply: body && body.message || "",
+        bookIds: ((body && body.books) || []).map((book) => book.id),
+        handoff: body && body.handoff || null,
+        evidence: body && body.evidence || "",
+        error: body && body.ok === false ? body.error || "failed" : "",
+        accounting: {
+          hold: events.hold,
+          settled: events.settled || 0,
+          uncertain: events.uncertain === true,
+          failed: events.failed === true,
+          missingUsage: events.missingUsage === true
+        },
+        quality: "UNSCORED",
+        rubric: Acceptance.RUBRIC.map((criterion) => ({ id: criterion.id, prompt: criterion.prompt, result: "UNSCORED" })),
+        ms: Date.now() - started
+      };
+      summary.rows.push(row);
+      summary.inflight = null;
+      summary.quality = summary.rows.some((entry) => entry.reply || entry.error) ? "UNSCORED" : summary.quality;
+      flush();
+      if (events.uncertain || events.failed || !body || body.ok !== true) {
+        await persistent.halt(events.missingUsage ? "missing-usage" : (events.uncertain ? "uncertain-charge" : "turn-failed"));
+        summary.halted = true;
+        flush();
+        stopped = true;
+        break;
+      }
+      history = threadTurns.concat([{ role: "assistant", content: body.message || "" }]);
+      if (body.session_id) sessionId = body.session_id;
+      if (body.constraint_token) token = body.constraint_token;
+    }
+  }
+  const after = readLedgerSummary(options.ledgerPath);
+  summary.chargedMicroUsd = after ? after.chargedMicroUsd : summary.chargedMicroUsd;
+  summary.reservedMicroUsd = after ? after.reservedMicroUsd : summary.reservedMicroUsd;
+  summary.halted = after ? after.halted : summary.halted;
+  flush();
 }
 
 async function main() {
