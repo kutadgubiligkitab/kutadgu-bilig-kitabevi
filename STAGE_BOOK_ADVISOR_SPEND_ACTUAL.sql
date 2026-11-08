@@ -1,6 +1,10 @@
 -- Reviewed migration. Do not apply this to production until it has been reviewed separately.
 -- Production still settles with LEAST(actual, reserved), which can hide a charge above the reservation.
 -- This replacement records the full actual charge without changing the daily or monthly caps.
+-- Settlement does not hide an overage inside the reservation. The next reserve still
+-- compares spent plus reserved with those same caps, so a later request is refused
+-- once the recorded spend has filled the cap. Concurrent reserves keep the existing
+-- row locks in reserve_book_advisor_spend. This settlement also locks the spend rows.
 
 CREATE OR REPLACE FUNCTION private.settle_book_advisor_spend(
   p_id uuid,
@@ -34,6 +38,12 @@ BEGIN
   IF v_row.state <> 'reserved' THEN
     RAISE EXCEPTION 'advisor_budget_unavailable' USING ERRCODE = 'P0001';
   END IF;
+  PERFORM 1
+  FROM private.book_advisor_spend
+  WHERE (period_kind = 'day' AND period_key = v_row.day_key)
+     OR (period_kind = 'month' AND period_key = v_row.month_key)
+  ORDER BY period_kind
+  FOR UPDATE;
   UPDATE private.book_advisor_spend
   SET reserved_micro_usd = reserved_micro_usd - v_row.reserved_micro_usd,
       spent_micro_usd = spent_micro_usd + v_actual

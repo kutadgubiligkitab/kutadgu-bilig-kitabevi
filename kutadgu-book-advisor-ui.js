@@ -69,7 +69,7 @@ var advisorUi = (function () {
 
   function cleanToken(value) {
     var token = String(value || "");
-    return /^[A-Za-z0-9_-]{8,500}\.[a-f0-9]{64}$/.test(token) ? token : "";
+    return /^[A-Za-z0-9_-]{8,800}\.[a-f0-9]{64}$/.test(token) ? token : "";
   }
 
   function cleanCards(cards) {
@@ -393,7 +393,7 @@ function mountAdvisor() {
       if (advisorUi.sessionPattern.test(String(result.body.session_id || ""))) sessionId = String(result.body.session_id);
       constraintToken = advisorUi.cleanTurns ? (function () {
         var token = String(result.body.constraint_token || "");
-        return /^[A-Za-z0-9_-]{8,500}\.[a-f0-9]{64}$/.test(token) ? token : "";
+        return /^[A-Za-z0-9_-]{8,800}\.[a-f0-9]{64}$/.test(token) ? token : "";
       }()) : "";
       turns = advisorUi.cleanTurns(nextTurns.concat([{ role: "assistant", content: result.body.message || "" }]));
       entries.push({ role: "assistant", text: result.body.message || "", cards: result.body.books || [], handoff: result.body.handoff || null });

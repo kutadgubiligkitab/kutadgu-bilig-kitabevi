@@ -747,6 +747,7 @@ async function run() {
   ];
   let windowTurns = [];
   let token = "";
+  let sessionId = "";
   const gateLedger = Budget.createLedger({ dailyLimitMicroUsd: 2000000, monthlyLimitMicroUsd: 20000000, perMinute: 20 });
   const gateSessions = Budget.createSessionStore();
   let finalBody = null;
@@ -760,6 +761,7 @@ async function run() {
       },
       body: JSON.stringify({
         turns: sent,
+        session_id: sessionId,
         constraint_token: token,
         constraints: { age: 99, strictAge: false, story: false }
       })
@@ -779,17 +781,153 @@ async function run() {
     finalBody = await response.json();
     assert.equal(finalBody.ok, true);
     token = finalBody.constraint_token;
+    sessionId = finalBody.session_id;
     windowTurns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: finalBody.message || "" }]));
   }
   assert.ok(windowTurns.length <= 6);
   assert.equal(Advisor.readerConstraints(windowTurns).age, null);
   assert.equal(Advisor.readerConstraints(windowTurns).story, false);
-  const retained = Budget.readConstraintState(secret, token);
+  const owner = {
+    clientHash: Budget.clientHash(secret, "203.0.113.8"),
+    sessionId: finalBody.session_id,
+    now: new Date()
+  };
+  const retained = Budget.readConstraintState(secret, token, owner);
   assert.equal(retained.age, 7);
   assert.equal(retained.story, true);
   assert.equal(retained.strictAge, true);
   assert.equal(finalBody.books.length, 0);
-  assert.equal(Budget.readConstraintState(secret, token.slice(0, -1) + (token.endsWith("a") ? "b" : "a")), null);
+  assert.equal(Budget.readConstraintState(secret, token.slice(0, -1) + (token.endsWith("a") ? "b" : "a"), owner), null);
+  assert.equal(Budget.readConstraintState(secret, token, {
+    clientHash: Budget.clientHash(secret, "198.51.100.9"),
+    sessionId: owner.sessionId,
+    now: owner.now
+  }), null);
+  assert.equal(Budget.readConstraintState(secret, token, {
+    clientHash: owner.clientHash,
+    sessionId: "cd".repeat(16),
+    now: owner.now
+  }), null);
+  assert.equal(Budget.readConstraintState(secret, token, {
+    clientHash: owner.clientHash,
+    sessionId: owner.sessionId,
+    now: new Date(Date.now() + (13 * 60 * 60 * 1000))
+  }), null);
+  const reset = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.8" },
+    body: JSON.stringify({ turns: [{ role: "user", content: "رەھمەت." }] })
+  }), {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: secret,
+    OPENAI_API_KEY: "test-key"
+  }, {
+    ledger: gateLedger,
+    sessions: gateSessions,
+    loadCatalog: async () => strictBooks,
+    fetchImpl: async () => jsonResponse({
+      output_text: JSON.stringify({ mode: "greet", message: "خۇش كەلدىڭىز.", book_ids: [] }),
+      usage: { input_tokens: 20, output_tokens: 10 }
+    })
+  });
+  const resetBody = await reset.json();
+  const resetState = Budget.readConstraintState(secret, resetBody.constraint_token, {
+    clientHash: owner.clientHash,
+    sessionId: resetBody.session_id,
+    now: new Date()
+  });
+  assert.equal(resetState.age, null);
+  assert.equal(resetState.story, false);
+  const restoredCatalog = Advisor.buildCatalog([
+    { id: 435, title: "كىچىك ھېكايە خەزىنىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 40, description: "6-7 ياشقىچە بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" },
+    { id: 8, title: "ئون ياشقىچە ھېكايە", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "10 ياشقىچە بالىلار ھېكايىسى.", is_active: true, submission_status: "approved" },
+    { id: 11, title: "دەل يەتتە ياش", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "(7 ياش) بالىلار ھېكايىسى.", is_active: true, submission_status: "approved" }
+  ]);
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(8), 7), "unknown");
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(8), 10), "unknown");
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(8), 11), "incompatible");
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(11), 7), "verified");
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(11), 6), "incompatible");
+  assert.equal(Advisor.ageVerdict(restoredCatalog.byId.get(435), 7), "verified");
+  const questionsForModel = [
+    "بالامغا ھېكايە كىتابى لازىم.",
+    "بالام 7 ياش، ھېكايە ئوقۇشنى ياخشى كۆرىدۇ.",
+    "رەھمەت.",
+    "ياخشى.",
+    "داۋام.",
+    "بولىدۇ.",
+    "رەھمەت سىزگە.",
+    "يەنە بىر ماس كىتاب كۆرسىتىڭ. يېشىغا ئېنىق ماس كەلمىگىنىنى قوشماڭ."
+  ];
+  let modelTurns = [];
+  let modelToken = "";
+  let modelSession = "";
+  let modelBodies = [];
+  const modelNow = new Date();
+  for (let index = 0; index < questionsForModel.length; index += 1) {
+    const sent = Ui.cleanTurns(modelTurns.concat([{ role: "user", content: questionsForModel[index] }]));
+    const prior = modelSession
+      ? Budget.readConstraintState(secret, modelToken, { clientHash: owner.clientHash, sessionId: modelSession, now: modelNow })
+      : null;
+    const result = await Advisor.advise({
+      catalog: restoredCatalog,
+      apiKey: "test-key",
+      budget: Advisor.createBudget(1000000),
+      turns: sent,
+      constraints: prior,
+      fetchImpl: async (_url, init) => {
+        if (index === questionsForModel.length - 1) modelBodies.push(JSON.parse(init.body));
+        const body = index === questionsForModel.length - 1 && modelBodies.length === 1
+          ? { mode: "recommend", message: "", book_ids: [435] }
+          : index === 0
+            ? { mode: "clarify", message: "بالىڭىز نەچچە ياشتا؟ ياشنى يېزىڭ.", book_ids: [] }
+            : { mode: "recommend", message: "بۇ كىتاب ماس كېلىدۇ.", book_ids: [435] };
+        return jsonResponse({ output_text: JSON.stringify(body), usage: { input_tokens: 30, output_tokens: 12 } });
+      }
+    });
+    if (!modelSession) modelSession = "ab".repeat(16);
+    modelToken = Budget.signConstraintState(secret, result.constraint_state, {
+      clientHash: owner.clientHash,
+      sessionId: modelSession,
+      exp: Math.floor(modelNow.getTime() / 1000) + 3600
+    });
+    modelTurns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: result.message || "" }]));
+  }
+  assert.equal(Advisor.readerConstraints(modelTurns).age, null);
+  assert.equal(modelBodies.length, 2);
+  for (const body of modelBodies) {
+    const packed = JSON.stringify(body.input);
+    assert.equal(packed.includes("reader_age: 7"), true);
+    assert.equal(packed.includes("interest: stories"), true);
+    assert.equal(packed.includes("age_match: strict"), true);
+    assert.equal(packed.includes("بالام 7 ياش"), false);
+  }
+  const knowledge = await Advisor.advise({
+    catalog: restoredCatalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(1000000),
+    turns: Ui.cleanTurns(modelTurns.concat([{ role: "user", content: "ئىسلام تارىخى ھەققىدە قىسقىچە چۈشەنچە بەر." }])),
+    constraints: Budget.readConstraintState(secret, modelToken, { clientHash: owner.clientHash, sessionId: modelSession, now: modelNow }),
+    fetchImpl: async () => jsonResponse({
+      output_text: JSON.stringify({ mode: "explain", message: "ئىسلام تارىخى ئۇزۇن بىر دەۋرنى ئۆز ئىچىگە ئالىدۇ.", book_ids: [435] }),
+      usage: { input_tokens: 20, output_tokens: 12 }
+    })
+  });
+  assert.equal(knowledge.mode, "explain");
+  assert.equal(knowledge.books.length, 0);
+  const repeated = await Advisor.advise({
+    catalog: restoredCatalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(1000000),
+    turns: Ui.cleanTurns(modelTurns.concat([{ role: "user", content: "يەنە بىر ھېكايە." }])),
+    constraints: Budget.readConstraintState(secret, modelToken, { clientHash: owner.clientHash, sessionId: modelSession, now: modelNow }),
+    fetchImpl: async () => jsonResponse({
+      output_text: JSON.stringify({ mode: "clarify", message: "بالىڭىز نەچچە ياشتا؟ ياشنى يېزىڭ.", book_ids: [] }),
+      usage: { input_tokens: 20, output_tokens: 12 }
+    })
+  });
+  assert.equal(repeated.message.includes("نەچچە ياش"), false);
+  assert.equal(repeated.message.includes("7"), true);
   const headerSource = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
   const css = fs.readFileSync(path.join(root, "book-advisor.css"), "utf8");
   assert.equal(headerSource.indexOf("body.enabled !== true") < headerSource.indexOf("kutadgu-book-advisor-ui.js?v=4"), true);

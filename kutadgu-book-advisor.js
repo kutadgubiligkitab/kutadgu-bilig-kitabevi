@@ -361,7 +361,8 @@ function systemInstructions() {
     "Choose mode greet for a greeting or light chat. Reply briefly in message and leave book_ids empty.",
     "Choose mode explain for a specific knowledge question. Write a useful answer. Leave book_ids empty unless a catalog book genuinely helps, in which case use mode recommend.",
     "If the subject is broad, such as history in general or books for an unnamed reader, do not guess a region, period, age, or level, and do not narrow it to a catalog category. Use mode clarify, give a short useful orientation, and ask one question. Leave book_ids empty.",
-    "Choose mode clarify when one missing fact blocks a good answer. Ask one short question. Do not ask again if the conversation already answered it.",
+    "Choose mode clarify when one missing fact blocks a good answer. Ask one short question. Do not ask again for a fact already listed in VERIFIED_CONTEXT.",
+    "A general-knowledge question stays in mode explain. VERIFIED_CONTEXT is not a reason to recommend books.",
     "Choose mode handoff when the title is not in the directory, the customer asks where to obtain a missing book, or the question needs staff for stock, delivery, an order, or a person. Leave book_ids empty and leave message empty. Do not promise the shop can obtain the book, and do not say the shop certainly lacks it.",
     "Choose mode recommend only when the customer wants books and the needed scope is already known. Keep a stated age, interest, and reading ability for later turns. If the customer asks for a clear age match, select only a listing whose age range includes that age. Do not fill the list with an unknown age or a different kind of book. Prefer one to three ids whose excerpt, description, or category supports the request. A famous title or a broad category is not proof of a specific age. Leave message empty. Do not call a book easy unless the excerpt says so.",
     "Do not write titles, prices, stock, or urls in a recommendation. The server owns those fields.",
@@ -369,9 +370,22 @@ function systemInstructions() {
   ].join(" ");
 }
 
-function directoryInput(catalog, turns) {
+function verifiedContext(constraints) {
+  const state = priorConstraints(constraints);
+  if (!state.age && !state.story && !state.strictAge) return "";
+  const lines = ["VERIFIED_CONTEXT"];
+  if (state.age) lines.push("reader_age: " + state.age);
+  if (state.story) lines.push("interest: stories");
+  if (state.strictAge) lines.push("age_match: strict");
+  else if (state.age) lines.push("age_match: flexible");
+  lines.push("Server-verified facts. Do not ask again for a listed fact. Do not recommend books for a general-knowledge question.");
+  return lines.join("\n");
+}
+
+function directoryInput(catalog, turns, constraints) {
   const history = boundConversation(turns);
   const customer = history.map((turn) => turn.role + ": " + turn.content).join("\n");
+  const context = verifiedContext(constraints);
   return [
     { role: "system", content: systemInstructions() },
     {
@@ -384,7 +398,7 @@ function directoryInput(catalog, turns) {
     },
     {
       role: "user",
-      content: "CUSTOMER\n" + customer
+      content: "CUSTOMER\n" + customer + (context ? "\n" + context : "")
     }
   ];
 }
@@ -630,29 +644,29 @@ function statedChildAge(turns) {
 
 function readerAgeEvidence(text) {
   const found = [];
-  const add = (low, high, index, length) => {
-    found.push({ low: Number(low), high: Number(high), index, length });
+  const add = (kind, low, high, index, length) => {
+    found.push({ kind, low: Number(low), high: Number(high), index, length });
   };
   for (const match of text.matchAll(/(\d{1,2})\s*ياشتىن\s*(\d{1,2})\s*ياش/g)) {
-    add(match[1], match[2], match.index, match[0].length);
+    add("range", match[1], match[2], match.index, match[0].length);
   }
   for (const match of text.matchAll(/\(\s*(\d{1,2})\s*[-–]\s*(\d{1,2})\s*ياش/g)) {
-    add(match[1], match[2], match.index, match[0].length);
+    add("range", match[1], match[2], match.index, match[0].length);
   }
-  for (const match of text.matchAll(/\(\s*(\d{1,2})\s*ياش/g)) {
-    add(match[1], match[1], match.index, match[0].length);
+  for (const match of text.matchAll(/\(\s*(\d{1,2})\s*ياش(?!قىچە)/g)) {
+    add("exact", match[1], match[1], match.index, match[0].length);
   }
   for (const match of text.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*ياش(?:قىچە|لىق\s*بالىلار|لىق\s*ئوقۇرمەن)/g)) {
-    add(match[1], match[2], match.index, match[0].length);
+    add("range", match[1], match[2], match.index, match[0].length);
   }
   for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياشقىچە/g)) {
-    add(match[1], match[1], match.index, match[0].length);
+    add("upper", match[1], match[1], match.index, match[0].length);
   }
   for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياشلىق\s*(?:بالىلار|ئوقۇرمەن)/g)) {
-    add(match[1], match[1], match.index, match[0].length);
+    add("exact", match[1], match[1], match.index, match[0].length);
   }
   for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياش(?:لىق)?\s*(?:ھېكاي|چۆچەك)/g)) {
-    add(match[1], match[1], match.index, match[0].length);
+    add("exact", match[1], match[1], match.index, match[0].length);
   }
   return found;
 }
@@ -662,21 +676,26 @@ function ageVerdict(book, age) {
   const evidence = readerAgeEvidence(text);
   let covers = false;
   let excludes = false;
+  let incomplete = false;
   for (const item of evidence) {
     const inside = evidence.some((other) => other !== item && item.index >= other.index && item.index < other.index + other.length);
     if (inside) continue;
+    if (item.kind === "upper") {
+      if (age > item.high) excludes = true;
+      else incomplete = true;
+      continue;
+    }
     if (!(item.low <= item.high)) {
-      covers = true;
-      excludes = true;
+      incomplete = true;
       continue;
     }
     if (item.low <= age && age <= item.high) covers = true;
     else excludes = true;
   }
-  if (covers && excludes) return "unknown";
+  if ((covers && excludes) || (covers && incomplete) || (excludes && incomplete)) return "unknown";
   if (covers) return "verified";
   if (excludes) return "incompatible";
-  if (/بالىلار كىتاب|بالىلار ئۈچۈن|بالا ئوقۇرمەن|ياش ئوقۇرمەن/.test(text)) return "unknown";
+  if (incomplete || /بالىلار كىتاب|بالىلار ئۈچۈن|بالا ئوقۇرمەن|ياش ئوقۇرمەن/.test(text)) return "unknown";
   return "none";
 }
 
@@ -800,6 +819,7 @@ async function explainSelection(options, cards, usage) {
   const conversation = history.length
     ? history.map((turn) => turn.role + ": " + turn.content).join("\n")
     : normalizeText(options.customerText).slice(0, MAX_MESSAGE_CHARS);
+  const context = verifiedContext(options.constraints);
   const reserved = estimateRequestMicroUsd(1200, EXPLANATION_OUTPUT_TOKENS);
   if (!reserve(options.budget, reserved)) return SAFE_MESSAGE;
   const controller = new AbortController();
@@ -814,12 +834,12 @@ async function explainSelection(options, cards, usage) {
         {
           role: "system",
           content: options.evidence === "inference"
-            ? "Write 2 or 3 short sentences of simple Uyghur in Arabic script. Never attach Latin letters to a Uyghur word. Use the child's age and interests from CONVERSATION. Compare the books only with their excerpts and categories. A famous or familiar title is not evidence that it is easier. A familiarity impression is not evidence. If the listings do not show which is easier, say so plainly and suggest choosing by the reader's interest. Do not invent illustrations, reading levels, or plots. Do not add a price, a stock count, a url, or any other book."
-            : "Write a short natural Uyghur reply in Arabic script. Never attach Latin letters to a Uyghur word. Use the age and interests in CONVERSATION. Mention every title in VERIFIED_BOOKS and give one reason that is present in its category or excerpt. If fit is unknown, say the listing does not state the age. Do not retell a plot or call an age certain unless the excerpt states it. Do not add a price, a stock count, a url, or any other book."
+            ? "Write 2 or 3 short sentences of simple Uyghur in Arabic script. Never attach Latin letters to a Uyghur word. Use VERIFIED_CONTEXT when it lists an age or interest, and do not ask for that fact again. Compare the books only with their excerpts and categories. A famous or familiar title is not evidence that it is easier. A familiarity impression is not evidence. If the listings do not show which is easier, say so plainly and suggest choosing by the reader's interest. Do not invent illustrations, reading levels, or plots. Do not add a price, a stock count, a url, or any other book."
+            : "Write a short natural Uyghur reply in Arabic script. Never attach Latin letters to a Uyghur word. Use VERIFIED_CONTEXT for the age and interests, and do not ask for a fact it already lists. Mention every title in VERIFIED_BOOKS and give one reason that is present in its category or excerpt. If fit is unknown, say the listing does not state the age. Do not retell a plot or call an age certain unless the excerpt states it. Do not add a price, a stock count, a url, or any other book."
         },
         {
           role: "user",
-          content: "VERIFIED_BOOKS\n" + JSON.stringify(records) + "\nCONVERSATION\n" + conversation
+          content: "VERIFIED_BOOKS\n" + JSON.stringify(records) + "\nCONVERSATION\n" + conversation + (context ? "\n" + context : "")
         }
       ],
       text: { format: responseFormat("uyghur_recommendation", EXPLANATION_SCHEMA) }
@@ -845,7 +865,7 @@ async function explainSelection(options, cards, usage) {
 
 async function selectBooks(options) {
   const catalog = options.catalog;
-  const input = directoryInput(catalog, options.turns);
+  const input = directoryInput(catalog, options.turns, options.constraints);
   const reserved = estimateRequestMicroUsd(
     Math.ceil(catalog.chars) + 800,
     SELECTION_OUTPUT_TOKENS
@@ -962,7 +982,7 @@ function cleanUyghurReply(text) {
   return normalizeText(kept.join(" "));
 }
 
-function conversationalMessage(mode, message, catalog) {
+function conversationalMessage(mode, message, catalog, constraints) {
   let text = normalizeText(message).slice(0, 600);
   if (catalog && catalog.byId) {
     for (const book of catalog.byId.values()) {
@@ -971,6 +991,10 @@ function conversationalMessage(mode, message, catalog) {
   }
   text = cleanUyghurReply(text);
   if (/\d+\s*₺|باھاسى\s*\d|ئامباردا\s*بار/.test(text)) text = "";
+  const asksAge = /نەچچە ياش|قانچە ياش|ياشنى يېزىڭ|ياشىنى ئېيت/.test(text);
+  if (constraints && constraints.age && (text.length < 12 || asksAge)) {
+    return "بالىنىڭ يېشى " + constraints.age + " دەپ خاتىرىلەندى.";
+  }
   if (text.length >= 12) return text;
   return mode === "clarify" ? CLARIFY_FALLBACK : EXPLAIN_FALLBACK;
 }
@@ -1062,6 +1086,7 @@ async function advise(options) {
       budget: options.budget,
       customerText,
       turns,
+      constraints,
       childAge: constraints.age,
       evidence: "inference"
     }, cards, usage);
@@ -1083,6 +1108,7 @@ async function advise(options) {
   const selected = await selectBooks({
     catalog: options.catalog,
     turns,
+    constraints,
     fetchImpl: options.fetchImpl,
     apiKey: options.apiKey,
     model: options.model,
@@ -1094,7 +1120,7 @@ async function advise(options) {
       ok: true,
       model: options.model || MODEL,
       catalog_version: options.catalog.version,
-      message: conversationalMessage(decision.mode, decision.message, options.catalog),
+      message: conversationalMessage(decision.mode, decision.message, options.catalog, constraints),
       books: [],
       handoff: null,
       requested_ids: [],
@@ -1102,7 +1128,7 @@ async function advise(options) {
       verified: false,
       comparison_status: "",
       mode: decision.mode,
-      constraint_state: publishedConstraints(constraints, conversationalMessage(decision.mode, decision.message, options.catalog)),
+      constraint_state: publishedConstraints(constraints, conversationalMessage(decision.mode, decision.message, options.catalog, constraints)),
       model_message: selected.message || "",
       usage: selected.usage
     };
@@ -1166,6 +1192,7 @@ async function advise(options) {
     budget: options.budget,
     customerText,
     turns,
+    constraints,
     childAge: constraints.age
   }, cards, selected.usage);
   message = softenRecommendation(message, cards, options.catalog, constraints.age);

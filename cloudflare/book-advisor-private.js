@@ -120,7 +120,13 @@ async function handleBookAdvisor(request, env, deps) {
       ? String(body.session_id)
       : "";
     const trustedBookIds = sessionKey ? await sessions.read(sessionKey, hash) : [];
-    const prior = Budget.readConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, body && body.constraint_token);
+    const prior = sessionKey
+      ? Budget.readConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, body && body.constraint_token, {
+        clientHash: hash,
+        sessionId: sessionKey,
+        now
+      })
+      : null;
     const result = await Advisor.advise({
       catalog,
       apiKey: env.OPENAI_API_KEY,
@@ -145,7 +151,11 @@ async function handleBookAdvisor(request, env, deps) {
       verified: result.verified,
       comparison_status: result.comparison_status,
       session_id: sessionId,
-      constraint_token: Budget.signConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, result.constraint_state),
+      constraint_token: Budget.signConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, result.constraint_state, {
+        clientHash: hash,
+        sessionId,
+        exp: Math.floor(now.getTime() / 1000) + (12 * 60 * 60)
+      }),
       latency_ms: Date.now() - started
     }, 200);
   } catch (error) {

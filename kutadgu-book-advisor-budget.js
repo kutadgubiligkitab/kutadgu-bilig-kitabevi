@@ -276,27 +276,38 @@ function clientHash(secret, ip) {
   return crypto.createHash("sha256").update(key + "|" + address).digest("hex");
 }
 
-function constraintPayload(state) {
+function constraintPayload(state, binding) {
   const age = Number(state && state.age);
   const offer = state && (state.offer === "age" || state.offer === "genre") ? state.offer : "";
+  const client = String(binding && binding.clientHash || "");
+  const session = String(binding && binding.sessionId || "");
+  const exp = Math.floor(Number(binding && binding.exp) || 0);
   return JSON.stringify({
-    v: 1,
+    v: 2,
     age: Number.isInteger(age) && age >= 1 && age <= 16 ? age : null,
     strictAge: !!(state && state.strictAge),
     story: !!(state && state.story),
-    offer
+    offer,
+    client,
+    session,
+    exp
   });
 }
 
-function signConstraintState(secret, state) {
+function signConstraintState(secret, state, binding) {
   const key = String(secret || "");
-  if (!/^[a-f0-9]{64}$/.test(key)) throw coded("advisor_unconfigured");
-  const body = Buffer.from(constraintPayload(state), "utf8").toString("base64url");
+  const client = String(binding && binding.clientHash || "");
+  const session = String(binding && binding.sessionId || "");
+  const exp = Math.floor(Number(binding && binding.exp) || 0);
+  if (!/^[a-f0-9]{64}$/.test(key) || !/^[a-f0-9]{64}$/.test(client)) throw coded("advisor_unconfigured");
+  if (!/^(?:[a-f0-9]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(session)) throw coded("advisor_unconfigured");
+  if (!Number.isInteger(exp) || exp <= 0) throw coded("advisor_unconfigured");
+  const body = Buffer.from(constraintPayload(state, binding), "utf8").toString("base64url");
   const mac = crypto.createHmac("sha256", key).update(body).digest("hex");
   return body + "." + mac;
 }
 
-function readConstraintState(secret, token) {
+function readConstraintState(secret, token, binding) {
   const key = String(secret || "");
   const parts = String(token || "").split(".");
   if (!/^[a-f0-9]{64}$/.test(key) || parts.length !== 2) return null;
@@ -307,7 +318,12 @@ function readConstraintState(secret, token) {
   if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
-    return JSON.parse(constraintPayload(parsed));
+    const now = Math.floor(((binding && binding.now) || new Date()).getTime() / 1000);
+    const client = String(binding && binding.clientHash || "");
+    const session = String(binding && binding.sessionId || "");
+    if (parsed.v !== 2 || parsed.client !== client || parsed.session !== session) return null;
+    if (!Number.isInteger(parsed.exp) || parsed.exp <= now) return null;
+    return JSON.parse(constraintPayload(parsed, { clientHash: client, sessionId: session, exp: parsed.exp }));
   } catch (_error) {
     return null;
   }
