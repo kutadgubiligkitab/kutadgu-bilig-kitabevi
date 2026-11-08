@@ -6,7 +6,13 @@
 -- A description is included only for a matched row, and only its first 2500
 -- characters. description_matched says whether the full description contained
 -- a submitted query variant, or at least two meaningful query terms in the
--- title or description. A term shorter than five characters does not count.
+-- title or description. A term shorter than five characters does not count
+-- toward that two-stem score. A stem of three or four characters counts only
+-- when it occurs in at most six active approved titles, and only together
+-- with a stem of at least six characters that itself occurs in at most forty
+-- active approved books. The pair has to be in the same book. That extra row
+-- scores below the existing two-stem matches. A short stem by itself, or a
+-- short stem plus only a common or five-character word, still matches nothing.
 -- One closed set of Uyghur endings is removed from a longer word, and a final
 -- ە/ى on that stem is treated as the same stem. Two closed families also share
 -- one key: تەربىيەسى / تەربىيىسى / تەربىيلەش, and ئاتا-ئانا / ئاتا-ئانىلار.
@@ -196,6 +202,92 @@ AS $lexical$
       AND max(key_length) >= 6
       AND sum(key_length) >= 11
   ),
+  short_raw AS (
+    SELECT 'query' AS field, 0::bigint AS id, left(normalize(btrim(tok), NFC), 40) AS surface
+    FROM variants AS v
+    CROSS JOIN LATERAL regexp_split_to_table(v.q, '[[:space:]،,.;:!?()«»"/]+') AS tok
+    UNION ALL
+    SELECT 'title', b.id, left(normalize(btrim(tok), NFC), 40)
+    FROM public.books AS b
+    CROSS JOIN LATERAL regexp_split_to_table(normalize(COALESCE(b.title, ''), NFC), '[[:space:]،,.;:!?()«»"/]+') AS tok
+    WHERE b.is_active IS TRUE
+      AND b.submission_status = 'approved'
+    UNION ALL
+    SELECT 'description', b.id, left(normalize(btrim(tok), NFC), 40)
+    FROM public.books AS b
+    CROSS JOIN LATERAL regexp_split_to_table(normalize(COALESCE(b.description, ''), NFC), '[[:space:]،,.;:!?()«»"/]+') AS tok
+    WHERE b.is_active IS TRUE
+      AND b.submission_status = 'approved'
+  ),
+  short_stems AS (
+    SELECT
+      field,
+      id,
+      CASE
+        WHEN char_length(surface) BETWEEN 5 AND 6
+          AND right(surface, 2) IN ('نى', 'دا', 'دە', 'غا', 'گە', 'قا', 'كە')
+          AND char_length(surface) - 2 >= 3
+          THEN left(surface, char_length(surface) - 2)
+        ELSE surface
+      END AS stem
+    FROM short_raw
+    WHERE char_length(surface) BETWEEN 3 AND 6
+  ),
+  short_keys AS (
+    SELECT field, id, stem AS term_key
+    FROM short_stems
+    WHERE char_length(stem) BETWEEN 3 AND 4
+      AND stem NOT IN (
+        'بىر', 'بۇ', 'ئۇ', 'مەن', 'سەن', 'ئۇل', 'ھەر', 'ئەڭ', 'بار', 'يوق',
+        'كۆپ', 'ئاز', 'نېمە', 'ياكى', 'شۇ', 'دەپ'
+      )
+  ),
+  rare_short_keys AS (
+    SELECT term_key
+    FROM short_keys
+    WHERE field = 'title'
+    GROUP BY term_key
+    HAVING count(DISTINCT id) <= 6
+  ),
+  short_query_keys AS (
+    SELECT DISTINCT sk.term_key
+    FROM short_keys AS sk
+    JOIN rare_short_keys AS rare ON rare.term_key = sk.term_key
+    WHERE sk.field = 'query'
+  ),
+  long_query_keys AS (
+    SELECT qk.term_key
+    FROM query_keys AS qk
+    JOIN (
+      SELECT term_key
+      FROM keyed_terms
+      WHERE field IN ('title', 'description')
+        AND char_length(term_key) >= 6
+      GROUP BY term_key
+      HAVING count(DISTINCT id) <= 40
+    ) AS uncommon ON uncommon.term_key = qk.term_key
+    WHERE char_length(qk.term_key) >= 6
+  ),
+  short_book_hits AS (
+    SELECT book.id, book.term_key, max(CASE WHEN book.field = 'title' THEN 1 ELSE 0 END) AS in_title
+    FROM short_keys AS book
+    JOIN short_query_keys AS qk ON qk.term_key = book.term_key
+    WHERE book.field IN ('title', 'description')
+    GROUP BY book.id, book.term_key
+  ),
+  long_book_hits AS (
+    SELECT book.id, book.term_key
+    FROM keyed_terms AS book
+    JOIN long_query_keys AS qk ON qk.term_key = book.term_key
+    WHERE book.field IN ('title', 'description')
+    GROUP BY book.id, book.term_key
+  ),
+  paired_support AS (
+    SELECT s.id, 9 AS lexical_score
+    FROM short_book_hits AS s
+    JOIN long_book_hits AS l ON l.id = s.id
+    GROUP BY s.id
+  ),
   visible_series AS (
     SELECT
       vis.group_id,
@@ -246,6 +338,10 @@ AS $lexical$
           SELECT 1 FROM term_support AS support
           WHERE support.id = b.id
         )
+        OR EXISTS (
+          SELECT 1 FROM paired_support AS paired
+          WHERE paired.id = b.id
+        )
       ) AS description_matched,
       EXISTS (
         SELECT 1 FROM exact_labels AS exact
@@ -257,7 +353,7 @@ AS $lexical$
           WHERE char_length(v.q) >= 8
             AND strpos(normalize(COALESCE(b.description, ''), NFC), v.q) > 0
         ) THEN 1000
-        ELSE COALESCE(support.lexical_score, 0)
+        ELSE COALESCE(support.lexical_score, paired.lexical_score, 0)
       END AS lexical_score,
       m.series_title,
       m.series_slug,
@@ -330,12 +426,17 @@ AS $lexical$
             SELECT 1 FROM term_support AS support
             WHERE support.id = b.id
           )
+          OR EXISTS (
+            SELECT 1 FROM paired_support AS paired
+            WHERE paired.id = b.id
+          )
         ) THEN 8
         ELSE NULL
       END AS tier
     FROM public.books AS b
     LEFT JOIN membership AS m ON m.member_id = b.id
     LEFT JOIN term_support AS support ON support.id = b.id
+    LEFT JOIN paired_support AS paired ON paired.id = b.id
     WHERE b.is_active IS TRUE
       AND b.submission_status = 'approved'
   ),
