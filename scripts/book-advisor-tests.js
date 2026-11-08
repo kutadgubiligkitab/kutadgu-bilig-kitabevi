@@ -276,10 +276,9 @@ async function run() {
       return selectionResponse([]);
     }
   });
-  assert.equal(prompts[0][1].content.includes("CUSTOMER"), false);
-  assert.equal(prompts[0][1].content, prompts[1][1].content);
-  assert.equal(prompts[0][2].content.includes("پۇل تېجەش"), true);
-  assert.equal(prompts[1][2].content.includes("شېئىر"), true);
+  assert.equal(prompts[0][1].content.includes("پۇل تېجەش"), true);
+  assert.equal(prompts[1][1].content.includes("شېئىر"), true);
+  assert.equal(JSON.stringify(prompts[0]).includes("Columns: id, title"), false);
   const Ui = require("../kutadgu-book-advisor-ui.js");
   assert.equal(Ui.customerState(503, "disabled"), "مەسلىھەتچى ھازىر ئىشلىمەيدۇ.");
   assert.equal(Ui.customerState(400, "advisor_budget"), "بۈگۈنكى مەسلىھەت چېكى توشتى.");
@@ -764,7 +763,9 @@ async function run() {
           usage: { input_tokens: wide.chars, output_tokens: 30 }
         });
       }
-      assert.equal(JSON.stringify(body.input).includes("CATALOG"), true);
+      const packedTool = JSON.stringify(body.input);
+      assert.equal(packedTool.includes("Columns: id, title"), false);
+      assert.equal(packedTool.includes("ھېكايە"), true);
       return jsonResponse({
         output_text: JSON.stringify({ mode: "clarify", message: "قايسى ياشتىكى بالا ئۈچۈن؟", book_ids: [] }),
         usage: { input_tokens: wide.chars, output_tokens: 30 }

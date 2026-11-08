@@ -20,6 +20,7 @@ const MAX_TURNS = 6;
 const MAX_MESSAGE_CHARS = 500;
 const MAX_TOOL_ROUNDS = 2;
 const MAX_LOOKUP_CALLS = 1;
+const CATALOG_FRESH_MS = 60000;
 const REQUEST_TIMEOUT_MS = 20000;
 const SELECTION_OUTPUT_TOKENS = 500;
 const EXPLANATION_OUTPUT_TOKENS = 400;
@@ -43,7 +44,7 @@ const SELECTION_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
   properties: {
-    mode: { type: "string", enum: ["explain", "clarify", "recommend", "handoff", "greet"] },
+    mode: { type: "string", enum: ["explain", "clarify", "recommend", "list", "handoff", "greet"] },
     message: { type: "string" },
     book_ids: {
       type: "array",
@@ -61,6 +62,40 @@ const EXPLANATION_SCHEMA = Object.freeze({
     message: { type: "string" }
   },
   required: ["message"]
+});
+
+const SEARCH_TOOL = Object.freeze({
+  type: "function",
+  name: "search_store_books",
+  description: "Read-only search of the approved public catalog. Filters by author, title, category, or topic. purpose list returns one page, the total count, and how to continue. purpose recommend returns a short candidate page, not a complete bibliography. relation written_by matches the author field. relation about matches a name in the title or store description when that person is not the author. This is not a web search and it is not the storefront semantic index.",
+  strict: true,
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      author: { type: "string" },
+      title: { type: "string" },
+      category: { type: "string" },
+      topic: { type: "string" },
+      relation: { type: "string", enum: ["any", "written_by", "about"] },
+      purpose: { type: "string", enum: ["list", "recommend"] },
+      offset: { type: "integer" }
+    },
+    required: ["author", "title", "category", "topic", "relation", "purpose", "offset"]
+  }
+});
+
+const CONTACT_TOOL = Object.freeze({
+  type: "function",
+  name: "store_contact",
+  description: "Trusted store identity. Staff contact is a server-built WhatsApp button, not a number or name to invent.",
+  strict: true,
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    properties: {},
+    required: []
+  }
 });
 
 const LOOKUP_TOOL = Object.freeze({
@@ -115,19 +150,14 @@ function conversationBoundChars() {
   return total;
 }
 
-function selectionInputTokens(catalog) {
-  const chars = Math.ceil(Number(catalog && catalog.chars) || 0);
-  const directory = [
-    "CATALOG " + CATALOG_TEXT_VERSION,
-    "Columns: id, title, author, category, price, series, excerpt.",
-    ""
-  ].join("\n").length + chars;
+function selectionInputTokens(_catalog) {
   const customer = conversationBoundChars() + 1 + verifiedContext({ age: 16, story: true, strictAge: true }).length;
   return systemInstructions().length
-    + directory
     + customer
     + JSON.stringify(SELECTION_SCHEMA).length
-    + JSON.stringify(LOOKUP_TOOL).length;
+    + JSON.stringify(SEARCH_TOOL).length
+    + JSON.stringify(LOOKUP_TOOL).length
+    + JSON.stringify(CONTACT_TOOL).length;
 }
 
 function maxLookupJson() {
@@ -158,7 +188,12 @@ function toolRoundInputTokens(catalog, round) {
     call_id: "call_0123456789abcdef",
     output: maxLookupJson()
   });
-  const perCall = call.length + output.length;
+  const searchOutput = JSON.stringify({
+    type: "function_call_output",
+    call_id: "call_0123456789abcdef",
+    output: maxLookupJson()
+  });
+  const perCall = call.length + Math.max(output.length, searchOutput.length);
   const modelOutputChars = SELECTION_OUTPUT_TOKENS * 4;
   const transcript = (round + 1) * (
     (MAX_LOOKUP_CALLS * perCall)
@@ -448,6 +483,85 @@ function buildCatalog(rows) {
   };
 }
 
+function searchStoreBooks(catalog, args) {
+  const query = args && typeof args === "object" ? args : {};
+  const author = normalizeText(query.author);
+  const title = normalizeText(query.title);
+  const category = normalizeText(query.category);
+  const topic = normalizeText(query.topic);
+  const relation = query.relation === "written_by" || query.relation === "about" ? query.relation : "any";
+  const purpose = query.purpose === "list" ? "list" : "recommend";
+  const offset = Math.max(0, Math.floor(Number(query.offset) || 0));
+  const header = {
+    total: 0,
+    offset: 0,
+    limit: MAX_IDS,
+    has_more: false,
+    next_offset: null,
+    purpose,
+    matches: []
+  };
+  if (!author && !title && !category && !topic) return Object.assign(header, { note: "empty_query" });
+  const matched = [];
+  for (const book of catalog && catalog.byId ? catalog.byId.values() : []) {
+    if (title && !book.title.includes(title)) continue;
+    if (category && book.category !== category && !book.category.includes(category)) continue;
+    const topicText = book.title + " " + book.author + " " + book.category + " " + book.description;
+    if (topic && !topicText.includes(topic)) continue;
+    let match = title ? "title" : (category ? "category" : "topic");
+    if (author) {
+      const written = book.author.includes(author);
+      const about = !written && (book.title + " " + book.description).includes(author);
+      if (relation === "written_by" && !written) continue;
+      if (relation === "about" && !about) continue;
+      if (!written && !about) continue;
+      match = written ? "written_by" : "about";
+    }
+    matched.push({ book, match });
+  }
+  matched.sort((a, b) => a.book.id - b.book.id);
+  const page = matched.slice(offset, offset + MAX_IDS);
+  return {
+    total: matched.length,
+    offset,
+    limit: MAX_IDS,
+    has_more: offset + MAX_IDS < matched.length,
+    next_offset: offset + MAX_IDS < matched.length ? offset + MAX_IDS : null,
+    purpose,
+    matches: page.map((row) => ({
+      id: row.book.id,
+      title: row.book.title,
+      author: row.book.author,
+      category: row.book.category,
+      series_title: row.book.series_title,
+      excerpt: row.book.excerpt,
+      match: row.match
+    }))
+  };
+}
+
+function storeContactRecord() {
+  return {
+    name: STORE_NAME,
+    website: STORE_SITE,
+    staff_contact: "server_whatsapp_button"
+  };
+}
+
+function createCatalogCache(load, freshMs) {
+  const limit = Number.isFinite(Number(freshMs)) ? Number(freshMs) : CATALOG_FRESH_MS;
+  let snapshot = null;
+  return {
+    async current(now) {
+      const time = now instanceof Date ? now.getTime() : Date.now();
+      if (!snapshot || time - snapshot.loadedAt >= limit) {
+        snapshot = { catalog: await load(), loadedAt: time };
+      }
+      return snapshot.catalog;
+    }
+  };
+}
+
 function boundConversation(turns) {
   const clean = [];
   for (const turn of Array.isArray(turns) ? turns : []) {
@@ -485,10 +599,11 @@ function systemInstructions() {
     "Choose greet for a greeting or light chat. Write a short message and leave book_ids empty.",
     "Choose explain to answer or to discuss reading or a catalog book. Write the message. Include a book id only for a catalog book you are actually discussing. A general question is not a reason to recommend books.",
     "Choose clarify only when one missing fact blocks a useful answer. Ask that one question and leave book_ids empty.",
-    "Choose recommend when the customer wants books and you can already help. Usually choose one or two ids. Leave message empty. If they want a clear age match, select only a listing whose age range includes that age. A famous title, a broad category, or a shared word is not age proof. Do not call a book easy unless the store text says so.",
+    "Choose recommend when the customer wants a few books and search_store_books has already shown candidates. Usually choose one or two ids. Leave message empty. A famous title, a broad category, or a shared word is not age proof. Do not call a book easy unless the store text says so.",
+    "Choose list when the customer wants the store's matching books rather than a recommendation, including an author or title bibliography. Call search_store_books with purpose list. Leave book_ids empty. Say the total and whether another page exists. The server attaches that page.",
     "When a reader age is listed, weigh that age and the requested experience together with the store description before choosing an id. A short excerpt is not enough when the store text is longer. Read that text with lookup_catalog_books, or use a STORE_ABOUT block if one is present. You may treat danger, fear, or harm in that text as an interpretation, not as an age rating. Do not invent an age certification, and do not treat every adventure as unsuitable. If the store text is missing or too thin to judge for this reader, leave book_ids empty and answer, ask one useful question, or explain that limit.",
     "Choose handoff when the title is not in the directory, they ask where to obtain a missing book, or they need a person for stock, delivery, an order, or to reach the staff. Leave book_ids empty and write a short Uyghur message for this request. For a missing title, say only whether the store catalog contains it, and do not claim the shop cannot obtain it. For a person, manager, or staff request, do not say a book was searched for or is missing. Do not invent a staff name, availability, a response time, an appointment, or a contact detail. Do not promise the shop can obtain the book.",
-    "Do not write prices, stock, or urls. The server owns those. Store facts about a book come only from the directory, lookup_catalog_books, or a STORE_ABOUT block."
+    "Do not write prices, stock, or urls. The server owns those. Store facts come from search_store_books, lookup_catalog_books, or a STORE_ABOUT block. Use store_contact for the business identity. Do not invent a catalog you have not retrieved."
   ].join(" ");
 }
 
@@ -504,20 +619,12 @@ function verifiedContext(constraints) {
   return lines.join("\n");
 }
 
-function directoryInput(catalog, turns, constraints) {
+function directoryInput(_catalog, turns, constraints) {
   const history = boundConversation(turns);
   const customer = history.map((turn) => turn.role + ": " + turn.content).join("\n");
   const context = verifiedContext(constraints);
   return [
     { role: "system", content: systemInstructions() },
-    {
-      role: "user",
-      content: [
-        "CATALOG " + catalog.version,
-        "Columns: id, title, author, category, price, series, excerpt.",
-        catalog.text
-      ].join("\n")
-    },
     {
       role: "user",
       content: "CUSTOMER\n" + customer + (context ? "\n" + context : "")
@@ -1114,8 +1221,8 @@ async function selectBooks(options) {
       store: false,
       max_output_tokens: SELECTION_OUTPUT_TOKENS,
       reasoning: { effort: "none" },
-      tools: [LOOKUP_TOOL],
-      tool_choice: "auto",
+        tools: [SEARCH_TOOL, LOOKUP_TOOL, CONTACT_TOOL],
+        tool_choice: "auto",
       input,
       text: { format: responseFormat("catalog_selection", SELECTION_SCHEMA) }
     }, controller.signal);
@@ -1124,6 +1231,7 @@ async function selectBooks(options) {
     const transcript = [];
     let shownAbout = new Set();
     let evidenceUsed = false;
+    let listPage = null;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       const calls = ((payload && payload.output) || []).filter((item) => item && item.type === "function_call");
       const next = input.slice();
@@ -1139,12 +1247,16 @@ async function selectBooks(options) {
         }
         for (const call of calls) {
           const args = parseJson(call.arguments) || {};
-          const name = call.name === "lookup_catalog_books" ? call.name : "";
-          const records = name ? lookupRecords(catalog, args.book_ids) : [];
+          let output = { error: "unknown_tool" };
+          if (call.name === "lookup_catalog_books") output = lookupRecords(catalog, args.book_ids);
+          else if (call.name === "search_store_books") {
+            output = searchStoreBooks(catalog, args);
+            if (output.purpose === "list") listPage = output;
+          } else if (call.name === "store_contact") output = storeContactRecord();
           next.push({
             type: "function_call_output",
             call_id: call.call_id,
-            output: JSON.stringify(records)
+            output: JSON.stringify(output)
           });
         }
       } else {
@@ -1176,7 +1288,7 @@ async function selectBooks(options) {
         store: false,
         max_output_tokens: SELECTION_OUTPUT_TOKENS,
         reasoning: { effort: "none" },
-        tools: [LOOKUP_TOOL],
+        tools: [SEARCH_TOOL, LOOKUP_TOOL, CONTACT_TOOL],
         input: next,
         text: { format: responseFormat("catalog_selection", SELECTION_SCHEMA) }
       }, controller.signal);
@@ -1195,6 +1307,7 @@ async function selectBooks(options) {
       ids,
       mode: parsed && parsed.mode,
       message: parsed && parsed.message,
+      listPage,
       usage
     };
   } catch (error) {
@@ -1310,6 +1423,9 @@ function readDecision(selected) {
   const ids = Array.isArray(selected && selected.ids) ? selected.ids : [];
   if (mode === "explain" || mode === "clarify" || mode === "handoff" || mode === "greet") {
     return { mode, ids: [], message: selected.message || "" };
+  }
+  if (mode === "list") {
+    return { mode, ids: [], message: selected.message || "", listPage: selected.listPage || null };
   }
   if (ids.length) return { mode: "recommend", ids, message: "" };
   return { mode: "none", ids: [], message: "" };
@@ -1444,6 +1560,34 @@ async function advise(options) {
       usage: selected.usage
     };
   }
+  if (decision.mode === "list") {
+    const page = decision.listPage && Array.isArray(decision.listPage.matches) ? decision.listPage.matches : [];
+    const cards = [];
+    for (const row of page) {
+      const book = options.catalog.byId.get(Number(row.id));
+      if (!book || cards.some((card) => card.id === book.id)) continue;
+      cards.push(bookCard(book));
+    }
+    const conversation = conversationalMessage("explain", decision.message, options.catalog, constraints, cards);
+    return {
+      ok: true,
+      model: options.model || MODEL,
+      catalog_version: options.catalog.version,
+      message: conversation,
+      books: cards,
+      handoff: null,
+      requested_ids: cards.map((card) => card.id),
+      evidence: "list",
+      verified: false,
+      comparison_status: "",
+      mode: "list",
+      list_total: decision.listPage ? decision.listPage.total : 0,
+      list_has_more: decision.listPage ? decision.listPage.has_more === true : false,
+      constraint_state: publishedConstraints(constraints, conversation),
+      model_message: selected.message || "",
+      usage: selected.usage
+    };
+  }
   if (decision.mode === "handoff") {
     const conversation = handoffReply(decision.message, options.catalog);
     return {
@@ -1543,6 +1687,9 @@ module.exports = {
   WHATSAPP_PHONE,
   WHATSAPP_PREFILL,
   whatsAppHandoff,
+  CATALOG_FRESH_MS,
+  searchStoreBooks,
+  createCatalogCache,
   EXCERPT_CHARS,
   ABOUT_CHARS,
   selectionInputTokens,
