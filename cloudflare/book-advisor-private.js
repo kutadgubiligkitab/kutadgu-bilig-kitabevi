@@ -63,6 +63,9 @@ function actualMicroUsd(result) {
 }
 
 async function handleBookAdvisor(request, env, deps) {
+  if (String(request && request.method || "GET").toUpperCase() === "GET") {
+    return json({ enabled: advisorAccess(env, request) === "public" }, 200);
+  }
   if (!advisorAccess(env, request)) return disabled();
   const source = deps || {};
   let ledger = source.ledger;
@@ -117,11 +120,13 @@ async function handleBookAdvisor(request, env, deps) {
       ? String(body.session_id)
       : "";
     const trustedBookIds = sessionKey ? await sessions.read(sessionKey, hash) : [];
+    const prior = Budget.readConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, body && body.constraint_token);
     const result = await Advisor.advise({
       catalog,
       apiKey: env.OPENAI_API_KEY,
       budget: Advisor.createBudget(hold),
       turns,
+      constraints: prior,
       trustedBookIds,
       fetchImpl: source.fetchImpl || globalThis.fetch.bind(globalThis)
     });
@@ -140,11 +145,18 @@ async function handleBookAdvisor(request, env, deps) {
       verified: result.verified,
       comparison_status: result.comparison_status,
       session_id: sessionId,
+      constraint_token: Budget.signConstraintState(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, result.constraint_state),
       latency_ms: Date.now() - started
     }, 200);
   } catch (error) {
     if (reservation) {
-      try { await ledger.release(reservation.id); } catch (_releaseError) { /* fail closed */ }
+      try {
+        if (error && error.advisorCharged === true) {
+          await ledger.settle(reservation.id, Math.max(0, Math.floor(Number(error.advisorChargeMicroUsd) || 0)));
+        } else {
+          await ledger.release(reservation.id);
+        }
+      } catch (_releaseError) { /* fail closed */ }
     }
     const code = error && error.code ? error.code : "advisor_unavailable";
     const status = code === "advisor_budget" || code === "advisor_rate_limit" || code === "advisor_query" ? 400 : 503;

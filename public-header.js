@@ -390,17 +390,24 @@
   }
 
   function ensureAdvisorWidget() {
-    if (typeof document === "undefined" || !document.body || document.getElementById("kutadguAdvisorCss")) return;
-    var link = document.createElement("link");
-    link.id = "kutadguAdvisorCss";
-    link.rel = "stylesheet";
-    link.href = "/book-advisor.css?v=4";
-    document.head.appendChild(link);
-    if (document.querySelector("script[src*='kutadgu-book-advisor-ui.js']")) return;
-    var script = document.createElement("script");
-    script.src = "/kutadgu-book-advisor-ui.js?v=4";
-    script.defer = true;
-    document.body.appendChild(script);
+    if (typeof document === "undefined" || !document.body || document.documentElement.dataset.kutadguAdvisorChecked === "1") return;
+    document.documentElement.dataset.kutadguAdvisorChecked = "1";
+    var ready = window.fetch("/api/book-advisor", { method: "GET", credentials: "same-origin", cache: "no-store" });
+    ready.then(function (response) {
+      return response && response.ok ? response.json() : null;
+    }).then(function (body) {
+      if (!body || body.enabled !== true || document.getElementById("kutadguAdvisorCss")) return;
+      var link = document.createElement("link");
+      link.id = "kutadguAdvisorCss";
+      link.rel = "stylesheet";
+      link.href = "/book-advisor.css?v=4";
+      document.head.appendChild(link);
+      if (document.querySelector("script[src*='kutadgu-book-advisor-ui.js']")) return;
+      var script = document.createElement("script");
+      script.src = "/kutadgu-book-advisor-ui.js?v=4";
+      script.defer = true;
+      document.body.appendChild(script);
+    }).catch(function () {});
   }
 
   function ensureReviewNotices() {

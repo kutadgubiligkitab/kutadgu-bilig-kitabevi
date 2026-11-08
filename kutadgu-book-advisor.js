@@ -99,10 +99,14 @@ function estimateRequestMicroUsd(inputTokens, outputTokens) {
   });
 }
 
+function toolInputTokens(catalog) {
+  return Math.ceil(Number(catalog && catalog.chars) || 0) + 800 + (MAX_IDS * 800);
+}
+
 function worstCaseMicroUsd(catalog) {
   const chars = Math.ceil(Number(catalog && catalog.chars) || 0);
   return estimateRequestMicroUsd(chars + 800, SELECTION_OUTPUT_TOKENS)
-    + estimateRequestMicroUsd(4000, SELECTION_OUTPUT_TOKENS) * MAX_TOOL_ROUNDS
+    + estimateRequestMicroUsd(toolInputTokens(catalog), SELECTION_OUTPUT_TOKENS) * MAX_TOOL_ROUNDS
     + estimateRequestMicroUsd(1200, EXPLANATION_OUTPUT_TOKENS);
 }
 
@@ -531,31 +535,73 @@ function agreesToOffer(text) {
   return /ھەئە|تاللاپ بېر|تاللاپ بەر|يېزىلمىغانلىرى|يېزىلمىغىنىمۇ/.test(text);
 }
 
-function readerConstraints(turns) {
-  const constraints = { age: null, strictAge: false, story: false };
-  let offer = "";
-  for (const turn of Array.isArray(turns) ? turns : []) {
+function priorConstraints(value) {
+  const age = Number(value && value.age);
+  const offer = value && (value.offer === "age" || value.offer === "genre") ? value.offer : "";
+  return {
+    age: Number.isInteger(age) && age >= 1 && age <= 16 ? age : null,
+    strictAge: !!(value && value.strictAge),
+    story: !!(value && value.story),
+    offer
+  };
+}
+
+function readerConstraints(turns, prior) {
+  const state = priorConstraints(prior);
+  const list = Array.isArray(turns) ? turns : [];
+  let lastUser = -1;
+  for (let index = 0; index < list.length; index += 1) {
+    if (list[index] && list[index].role === "user") lastUser = index;
+  }
+  let visibleOffer = "";
+  for (let index = 0; index < list.length; index += 1) {
+    const turn = list[index];
     if (!turn) continue;
     if (turn.role === "assistant") {
-      offer = String(turn.content || "");
+      visibleOffer = String(turn.content || "");
       continue;
     }
     if (turn.role !== "user") continue;
     const text = replaceAgeWords(turn.content);
     for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياش/g)) {
       const value = Number(match[1]);
-      if (value >= 1 && value <= 16) constraints.age = value;
+      if (value >= 1 && value <= 16) state.age = value;
     }
-    const accepted = offer && agreesToOffer(text);
-    if (/ئېنىق بولمىسىمۇ|شەرت ئەمەس|چەكلىمىنى بوش|ياش مۇھىم ئەمەس|ھەر قانداق ياش/.test(text)) constraints.strictAge = false;
-    else if (/ئېنىق ماس|ئېنىق كەل|ياشقا دەل|يېشىغا ئېنىق/.test(text)) constraints.strictAge = true;
-    else if (accepted && /يېزىلمىغان/.test(offer)) constraints.strictAge = false;
-    if (/ھېكايە بولمىسىمۇ|چۆچەك بولمىسىمۇ|تۈر مۇھىم ئەمەس/.test(text)) constraints.story = false;
-    else if (/ھېكايە|چۆچەك/.test(text)) constraints.story = true;
-    else if (accepted && /باشقا تۈر/.test(offer)) constraints.story = false;
-    offer = "";
+    const carried = index === lastUser && state.offer === "age"
+      ? "يېزىلمىغان"
+      : index === lastUser && state.offer === "genre"
+        ? "باشقا تۈر"
+        : "";
+    const offer = visibleOffer || carried;
+    const accepted = agreesToOffer(text);
+    if (/ئېنىق بولمىسىمۇ|شەرت ئەمەس|چەكلىمىنى بوش|ياش مۇھىم ئەمەس|ھەر قانداق ياش/.test(text)) {
+      state.strictAge = false;
+      state.offer = "";
+    } else if (/ئېنىق ماس|ئېنىق كەل|ياشقا دەل|يېشىغا ئېنىق/.test(text)) {
+      state.strictAge = true;
+    } else if (accepted && /يېزىلمىغان/.test(offer)) {
+      state.strictAge = false;
+      state.offer = "";
+    }
+    if (/ھېكايە بولمىسىمۇ|چۆچەك بولمىسىمۇ|تۈر مۇھىم ئەمەس/.test(text)) {
+      state.story = false;
+      state.offer = "";
+    } else if (/ھېكايە|چۆچەك/.test(text)) {
+      state.story = true;
+    } else if (accepted && /باشقا تۈر/.test(offer)) {
+      state.story = false;
+      state.offer = "";
+    }
+    visibleOffer = "";
   }
-  return constraints;
+  return state;
+}
+
+function publishedConstraints(constraints, message) {
+  const state = priorConstraints(constraints);
+  if (/يېشى ئېنىق يېزىلمىغان/.test(message || "")) state.offer = "age";
+  else if (/باشقا تۈر/.test(message || "")) state.offer = "genre";
+  return state;
 }
 
 function constraintReply(constraints) {
@@ -582,30 +628,49 @@ function statedChildAge(turns) {
   return readerConstraints(turns).age;
 }
 
+function readerAgeEvidence(text) {
+  const found = [];
+  const add = (low, high, index, length) => {
+    found.push({ low: Number(low), high: Number(high), index, length });
+  };
+  for (const match of text.matchAll(/(\d{1,2})\s*ياشتىن\s*(\d{1,2})\s*ياش/g)) {
+    add(match[1], match[2], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/\(\s*(\d{1,2})\s*[-–]\s*(\d{1,2})\s*ياش/g)) {
+    add(match[1], match[2], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/\(\s*(\d{1,2})\s*ياش/g)) {
+    add(match[1], match[1], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*ياش(?:قىچە|لىق\s*بالىلار|لىق\s*ئوقۇرمەن)/g)) {
+    add(match[1], match[2], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياشقىچە/g)) {
+    add(match[1], match[1], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياشلىق\s*(?:بالىلار|ئوقۇرمەن)/g)) {
+    add(match[1], match[1], match.index, match[0].length);
+  }
+  for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياش(?:لىق)?\s*(?:ھېكاي|چۆچەك)/g)) {
+    add(match[1], match[1], match.index, match[0].length);
+  }
+  return found;
+}
+
 function ageVerdict(book, age) {
   const text = ageScanText(book);
+  const evidence = readerAgeEvidence(text);
   let covers = false;
   let excludes = false;
-  const ranges = [
-    ...text.matchAll(/(\d{1,2})\s*ياشتىن\s*(\d{1,2})\s*ياش/g),
-    ...text.matchAll(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*ياش/g)
-  ];
-  for (const range of ranges) {
-    const low = Number(range[1]);
-    const high = Number(range[2]);
-    if (!(low <= high)) {
+  for (const item of evidence) {
+    const inside = evidence.some((other) => other !== item && item.index >= other.index && item.index < other.index + other.length);
+    if (inside) continue;
+    if (!(item.low <= item.high)) {
       covers = true;
       excludes = true;
       continue;
     }
-    if (low <= age && age <= high) covers = true;
-    else excludes = true;
-  }
-  for (const match of text.matchAll(/(?:^|[^\d])(\d{1,2})\s*ياش/g)) {
-    const digitIndex = match.index + match[0].indexOf(match[1]);
-    const insideRange = ranges.some((range) => digitIndex >= range.index && digitIndex < range.index + range[0].length);
-    if (insideRange) continue;
-    if (Number(match[1]) === age) covers = true;
+    if (item.low <= age && age <= item.high) covers = true;
     else excludes = true;
   }
   if (covers && excludes) return "unknown";
@@ -615,19 +680,34 @@ function ageVerdict(book, age) {
   return "none";
 }
 
+function listingBlob(book) {
+  return [book && book.title, book && book.description, book && book.excerpt, book && book.category].join(" ");
+}
+
+function storyListed(book) {
+  return /ھېكاي|چۆچەك|رومان|سەرگۈزەشت/.test(listingBlob(book));
+}
+
 function activityListed(book) {
   const text = [book && book.title, book && book.description, book && book.excerpt].join(" ");
-  const story = /ھېكايە|چۆچەك|رومان/.test([text, book && book.category].join(" "));
-  return /ئەقىل|كۆزىتىش|ئويلاش|ئويلىنىش|مەشىق|تاپشۇرۇق/.test(text) && !story;
+  return /ئەقىل|كۆزىتىش|ئويلاش|ئويلىنىش|مەشىق|تاپشۇرۇق/.test(text);
 }
 
 function bookDecision(book, constraints) {
   const ageFit = constraints && constraints.age ? ageVerdict(book, constraints.age) : "unspecified";
-  const genre = constraints && constraints.story ? (activityListed(book) ? "mismatch" : "ok") : "unspecified";
+  let genre = "unspecified";
+  if (constraints && constraints.story) {
+    const story = storyListed(book);
+    const activity = activityListed(book);
+    if (story && activity) genre = "unknown";
+    else if (story) genre = "ok";
+    else if (activity) genre = "mismatch";
+    else genre = "unknown";
+  }
   let keep = true;
   if (constraints && constraints.age && constraints.strictAge && ageFit !== "verified") keep = false;
   if (constraints && constraints.age && !constraints.strictAge && (ageFit === "incompatible" || ageFit === "none")) keep = false;
-  if (genre === "mismatch") keep = false;
+  if (constraints && constraints.story && genre !== "ok") keep = false;
   return { ageFit, genre, keep };
 }
 
@@ -755,6 +835,7 @@ async function explainSelection(options, cards, usage) {
     if (!message || messageMentionsOtherTitle(message, cards, options.catalog)) return SAFE_MESSAGE;
     return message;
   } catch (_error) {
+    usage.calls.push({ input_tokens: 1200, cached_tokens: 0, output_tokens: EXPLANATION_OUTPUT_TOKENS });
     settle(options.budget, reserved, reserved);
     return SAFE_MESSAGE;
   } finally {
@@ -775,9 +856,12 @@ async function selectBooks(options) {
     throw error;
   }
   const usage = { calls: [] };
+  let attempts = 0;
+  let openToolReserve = 0;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    attempts += 1;
     let payload = await postResponses(options.fetchImpl, options.apiKey, {
       model: options.model || MODEL,
       store: false,
@@ -804,8 +888,10 @@ async function selectBooks(options) {
           output: JSON.stringify(name ? lookupRecords(catalog, args.book_ids) : [])
         });
       }
-      const toolReserve = estimateRequestMicroUsd(4000, SELECTION_OUTPUT_TOKENS);
+      const toolReserve = estimateRequestMicroUsd(toolInputTokens(catalog), SELECTION_OUTPUT_TOKENS);
       if (!reserve(options.budget, toolReserve)) break;
+      openToolReserve = toolReserve;
+      attempts += 1;
       payload = await postResponses(options.fetchImpl, options.apiKey, {
         model: options.model || MODEL,
         store: false,
@@ -817,6 +903,7 @@ async function selectBooks(options) {
       }, controller.signal);
       const spent = usageMicroUsd(readUsage(payload));
       usage.calls.push(readUsage(payload));
+      openToolReserve = 0;
       settle(options.budget, toolReserve, spent);
     }
     settle(options.budget, reserved, usageMicroUsd(firstUsage));
@@ -828,8 +915,12 @@ async function selectBooks(options) {
       usage
     };
   } catch (error) {
-    settle(options.budget, reserved, reserved);
-    throw error;
+    const charged = error || new Error("advisor_model_unavailable");
+    if (attempts > 0) {
+      charged.advisorCharged = true;
+      charged.advisorChargeMicroUsd = Math.max(0, Math.floor(Number(options.budget && options.budget.spentMicroUsd) || 0));
+    }
+    throw charged;
   } finally {
     clearTimeout(timer);
   }
@@ -906,6 +997,7 @@ async function advise(options) {
     throw error;
   }
   const turns = boundConversation(options.turns);
+  const constraints = readerConstraints(turns, options.constraints);
   const customerText = turns.length ? turns[turns.length - 1].content : "";
   if (customerText.length < 2) {
     const error = new Error("advisor_query");
@@ -938,6 +1030,7 @@ async function advise(options) {
       verified: compared.verified,
       comparison_status: compared.status,
       mode: intent,
+      constraint_state: publishedConstraints(constraints, compared.message),
       usage: { calls: [] }
     };
   }
@@ -955,6 +1048,7 @@ async function advise(options) {
         verified: false,
         comparison_status: "no_prior",
         mode: "difficulty",
+        constraint_state: publishedConstraints(constraints, "سېلىشتۇرۇش ئۈچۈن ئالدىنقى تەۋسىيە يوق."),
         usage: { calls: [] }
       };
     }
@@ -968,7 +1062,7 @@ async function advise(options) {
       budget: options.budget,
       customerText,
       turns,
-      childAge: statedChildAge(turns),
+      childAge: constraints.age,
       evidence: "inference"
     }, cards, usage);
     return {
@@ -982,6 +1076,7 @@ async function advise(options) {
       verified: false,
       comparison_status: "impression",
       mode: "difficulty",
+      constraint_state: publishedConstraints(constraints, message),
       usage
     };
   }
@@ -1007,6 +1102,7 @@ async function advise(options) {
       verified: false,
       comparison_status: "",
       mode: decision.mode,
+      constraint_state: publishedConstraints(constraints, conversationalMessage(decision.mode, decision.message, options.catalog)),
       model_message: selected.message || "",
       usage: selected.usage
     };
@@ -1024,11 +1120,11 @@ async function advise(options) {
       verified: false,
       comparison_status: "",
       mode: "handoff",
+      constraint_state: publishedConstraints(constraints, HANDOFF_MESSAGE),
       model_message: selected.message || "",
       usage: selected.usage
     };
   }
-  const constraints = readerConstraints(turns);
   const fitById = new Map();
   const approved = [];
   const decisions = [];
@@ -1057,6 +1153,7 @@ async function advise(options) {
       verified: false,
       comparison_status: "",
       mode: constraints.age || constraints.story ? "clarify" : "none",
+      constraint_state: publishedConstraints(constraints, constraintReply(constraints)),
       model_message: selected.message || "",
       usage: selected.usage
     };
@@ -1086,6 +1183,7 @@ async function advise(options) {
     verified: cards.every((card) => fitById.get(Number(card.id)) === "verified"),
     comparison_status: "",
     mode: "recommend",
+    constraint_state: publishedConstraints(constraints, message),
     model_message: selected.message || "",
     decisions,
     usage: selected.usage
@@ -1108,6 +1206,8 @@ module.exports = {
   buildCatalog,
   presentSelection,
   readerConstraints,
+  toolInputTokens,
+  ageVerdict,
   bookDecision,
   attachPublicSeries,
   readPublicSeriesDirectory,

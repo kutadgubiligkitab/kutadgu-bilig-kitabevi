@@ -685,7 +685,7 @@ function methodAllowed(kind, method) {
   }
   if (kind === "visit-config") return method === "GET" || method === "HEAD";
   if (kind === "shared-cart-read" || kind === "shared-cart-page" || kind === "app-link") return method === "GET" || method === "HEAD";
-  if (kind === "book-advisor") return method === "POST";
+  if (kind === "book-advisor") return method === "POST" || method === "GET";
   if (kind === "redirect" || kind === "legacy-redirect" || kind === "ai-search" || kind === "r2-upload" || kind === "r2-hero-delete" || kind === "r2-series-cover-delete") {
     return true;
   }

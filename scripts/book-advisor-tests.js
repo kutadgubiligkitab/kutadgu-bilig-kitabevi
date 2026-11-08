@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const Advisor = require("../kutadgu-book-advisor.js");
+const Budget = require("../kutadgu-book-advisor-budget.js");
+const Gate = require("../cloudflare/book-advisor-private.js");
 const Cases = require("./book-advisor-cases.js");
 
 const root = path.join(__dirname, "..");
@@ -526,6 +528,7 @@ async function run() {
   assert.match(JSON.stringify(childBodies[0].input), /ھېكايە/);
   assert.match(JSON.stringify(childBodies[1].input), /7 ياش/);
   assert.equal(childResult.books.some((book) => book.id === 486), false);
+  assert.equal(childResult.books.some((book) => book.id === 369), false);
   assert.equal(childResult.message.includes("تام سويېر"), false);
   assert.equal(childResult.message.includes("ئۆسۈپ يېتىلىش"), false);
   assert.match(childResult.message, /يېزىلمىغان/);
@@ -554,7 +557,7 @@ async function run() {
   const strictBooks = Advisor.buildCatalog([
     { id: 433, title: "بالىلارنىڭ ئەقىل بۇلىقىنى ئېچىش (5-6 ياشقىچە)", author: "لى شيۇيىڭ", category: "بالىلار كىتابلىرى", price: 243, description: "بەش-ئالتە ياشلىق بالىلار بىر رەسىمدىكى پەرقنى تېپىشقا ۋە كۆزىتىشكە قىزىقىدۇ.", is_active: true, submission_status: "approved" },
     { id: 434, title: "بالىلارنىڭ ئەقىل بۇلىقىنى ئېچىش (6-7 ياشقىچە)", author: "لى شيۇيىڭ", category: "بالىلار كىتابلىرى", price: 243, description: "ئالتە-يەتتە ياشقا كىرگەن بالىلار كۆزىتىش ۋە ئويلىنىشقا قىزىقىدۇ. 6–7 ياش.", is_active: true, submission_status: "approved" },
-    { id: 369, title: "ياغاچ قونچاق پىنوككو", author: "كارلو كوللودى", category: "بالىلار كىتابلىرى", price: 158, description: "", is_active: true, submission_status: "approved" },
+    { id: 369, title: "ياغاچ قونچاق پىنوككو", author: "كارلو كوللودى", category: "بالىلار كىتابلىرى", price: 158, description: "بالىلار ھېكايىسى.", is_active: true, submission_status: "approved" },
     { id: 435, title: "كىچىك ھېكايە خەزىنىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 40, description: "6-7 ياشقىچە بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" },
     { id: 436, title: "بالىلار ھېكايىسى (٦–٧ ياش)", author: "نەشر", category: "بالىلار كىتابلىرى", price: 40, description: "بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" },
     { id: 701, title: "باي دادام نامرات دادام", author: "روبرت كىيوسكى", category: "ئىقتىساد", price: 30, description: "پۇل ھەققىدە.", is_active: true, submission_status: "approved" }
@@ -685,6 +688,112 @@ async function run() {
   assert.equal(aligned.message.includes("5-6"), false);
   assert.equal(aligned.message.includes("قوشمايمەن"), false);
   assert.equal(aligned.message.includes("ئۆسۈپ يېتىلىش"), false);
+  const evidenceBooks = Advisor.buildCatalog([
+    { id: 1, title: "پۇل ھېسابى", author: "نەشر", category: "ئىقتىساد", price: 20, description: "بازار ھەققىدە.", is_active: true, submission_status: "approved" },
+    { id: 2, title: "كىچىك ھېكايە", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" },
+    { id: 3, title: "كۆزىتىش ھېكايىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "ھېكايە ۋە كۆزىتىش مەشىقى.", is_active: true, submission_status: "approved" },
+    { id: 4, title: "كىچىك قەھرىمان ھېكايىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "يەتتە ياشلىق بىر بالا سەرگۈزەشت باشلىدى.", is_active: true, submission_status: "approved" },
+    { id: 5, title: "ئوقۇرمەن ھېكايىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "6 ياشتىن 8 ياشقىچە بالىلار ئۈچۈن ھېكايە. 10-12 ياشقىچە بالىلار ئۈچۈن ھېكايە.", is_active: true, submission_status: "approved" },
+    { id: 6, title: "ياشسىز ھېكايە", author: "نەشر", category: "بالىلار كىتابلىرى", price: 20, description: "ھېكايە.", is_active: true, submission_status: "approved" }
+  ]);
+  const storyNeed = { age: 7, strictAge: true, story: true };
+  assert.equal(Advisor.bookDecision(evidenceBooks.byId.get(1), storyNeed).genre, "unknown");
+  assert.equal(Advisor.bookDecision(evidenceBooks.byId.get(1), storyNeed).keep, false);
+  assert.equal(Advisor.bookDecision(evidenceBooks.byId.get(2), { age: null, strictAge: false, story: true }).genre, "ok");
+  assert.equal(Advisor.bookDecision(evidenceBooks.byId.get(3), storyNeed).genre, "unknown");
+  assert.equal(Advisor.bookDecision(evidenceBooks.byId.get(3), storyNeed).keep, false);
+  assert.equal(Advisor.ageVerdict(evidenceBooks.byId.get(4), 7), "unknown");
+  assert.equal(Advisor.ageVerdict(evidenceBooks.byId.get(5), 7), "unknown");
+  assert.equal(Advisor.ageVerdict(evidenceBooks.byId.get(6), 7), "unknown");
+  const wide = Advisor.buildCatalog([
+    { id: 9, title: "ئۇزۇن ھېكايە", author: "نەشر", category: "ھېكايە", price: 10, description: "ھېكايە " + "سۆز ".repeat(40), is_active: true, submission_status: "approved" }
+  ]);
+  assert.ok(Advisor.toolInputTokens(wide) > 4000);
+  assert.ok(Advisor.worstCaseMicroUsd(wide) > Advisor.usageMicroUsd({ input_tokens: 4000, output_tokens: 500 }) * 3);
+  const toolBudget = Advisor.createBudget(Advisor.worstCaseMicroUsd(wide));
+  let toolRounds = 0;
+  await Advisor.advise({
+    catalog: wide,
+    apiKey: "test-key",
+    budget: toolBudget,
+    turns: [{ role: "user", content: "ھېكايە كىتابى" }],
+    fetchImpl: async (_url, init) => {
+      toolRounds += 1;
+      const body = JSON.parse(init.body);
+      if (toolRounds === 1) {
+        return jsonResponse({
+          output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "call-1", arguments: "{\"book_ids\":[9]}" }],
+          usage: { input_tokens: wide.chars, output_tokens: 30 }
+        });
+      }
+      assert.equal(JSON.stringify(body.input).includes("CATALOG"), true);
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "clarify", message: "قايسى ياشتىكى بالا ئۈچۈن؟", book_ids: [] }),
+        usage: { input_tokens: wide.chars, output_tokens: 30 }
+      });
+    }
+  });
+  assert.equal(toolRounds, 2);
+  assert.ok(toolBudget.spentMicroUsd <= toolBudget.limitMicroUsd);
+  const secret = "ab".repeat(32);
+  const questions = [
+    "بالامغا ھېكايە كىتابى لازىم.",
+    "بالام 7 ياش، ھېكايە ئوقۇشنى ياخشى كۆرىدۇ.",
+    "شۇنداق بولسا ماس كىتاب تەۋسىيە قىلىڭ.",
+    "بۇلارنىڭ قايسىسى ئاسانراق؟ نېمىشقا؟",
+    "يەنە بىر ماس كىتاب بارمۇ؟ يېشىغا ئېنىق ماس كەلمىگىنىنى قوشماڭ.",
+    "رەھمەت.",
+    "يەنە بارمۇ؟"
+  ];
+  let windowTurns = [];
+  let token = "";
+  const gateLedger = Budget.createLedger({ dailyLimitMicroUsd: 2000000, monthlyLimitMicroUsd: 20000000, perMinute: 20 });
+  const gateSessions = Budget.createSessionStore();
+  let finalBody = null;
+  for (const question of questions) {
+    const sent = Ui.cleanTurns(windowTurns.concat([{ role: "user", content: question }]));
+    const response = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "cf-connecting-ip": "203.0.113.8"
+      },
+      body: JSON.stringify({
+        turns: sent,
+        constraint_token: token,
+        constraints: { age: 99, strictAge: false, story: false }
+      })
+    }), {
+      BOOK_ADVISOR_ENABLED: "true",
+      BOOK_ADVISOR_CLIENT_HASH_SECRET: secret,
+      OPENAI_API_KEY: "test-key"
+    }, {
+      ledger: gateLedger,
+      sessions: gateSessions,
+      loadCatalog: async () => strictBooks,
+      fetchImpl: async () => jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [433, 434, 701] }),
+        usage: { input_tokens: 40, output_tokens: 20 }
+      })
+    });
+    finalBody = await response.json();
+    assert.equal(finalBody.ok, true);
+    token = finalBody.constraint_token;
+    windowTurns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: finalBody.message || "" }]));
+  }
+  assert.ok(windowTurns.length <= 6);
+  assert.equal(Advisor.readerConstraints(windowTurns).age, null);
+  assert.equal(Advisor.readerConstraints(windowTurns).story, false);
+  const retained = Budget.readConstraintState(secret, token);
+  assert.equal(retained.age, 7);
+  assert.equal(retained.story, true);
+  assert.equal(retained.strictAge, true);
+  assert.equal(finalBody.books.length, 0);
+  assert.equal(Budget.readConstraintState(secret, token.slice(0, -1) + (token.endsWith("a") ? "b" : "a")), null);
+  const headerSource = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
+  const css = fs.readFileSync(path.join(root, "book-advisor.css"), "utf8");
+  assert.equal(headerSource.indexOf("body.enabled !== true") < headerSource.indexOf("kutadgu-book-advisor-ui.js?v=4"), true);
+  assert.match(css, /body:has\(\.kutadgu-advisor\)/);
   console.log("book-advisor-tests ok");
 }
 

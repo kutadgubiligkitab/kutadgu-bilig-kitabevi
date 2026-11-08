@@ -67,6 +67,11 @@ var advisorUi = (function () {
     return clean.slice(-6);
   }
 
+  function cleanToken(value) {
+    var token = String(value || "");
+    return /^[A-Za-z0-9_-]{8,500}\.[a-f0-9]{64}$/.test(token) ? token : "";
+  }
+
   function cleanCards(cards) {
     var out = [];
     var list = Array.isArray(cards) ? cards.slice(0, 6) : [];
@@ -85,7 +90,7 @@ var advisorUi = (function () {
   }
 
   function readMemory(storage) {
-    var empty = { turns: [], sessionId: "", open: false, entries: [], size: "compact" };
+    var empty = { turns: [], sessionId: "", constraintToken: "", open: false, entries: [], size: "compact" };
     try {
       var parsed = JSON.parse(storage.getItem(MEMORY_KEY) || "");
       if (!parsed || typeof parsed !== "object") return empty;
@@ -93,6 +98,7 @@ var advisorUi = (function () {
       return {
         turns: cleanTurns(parsed.turns),
         sessionId: SESSION.test(String(parsed.sessionId || "")) ? String(parsed.sessionId) : "",
+        constraintToken: cleanToken(parsed.constraintToken),
         open: parsed.open === true,
         size: parsed.size === "large" || parsed.size === "full" ? parsed.size : "compact",
         entries: entries.map(function (entry) {
@@ -113,6 +119,7 @@ var advisorUi = (function () {
     var payload = {
       turns: cleanTurns(state && state.turns),
       sessionId: SESSION.test(String(state && state.sessionId || "")) ? String(state.sessionId) : "",
+      constraintToken: cleanToken(state && state.constraintToken),
       open: !!(state && state.open),
       size: state && (state.size === "large" || state.size === "full") ? state.size : "compact",
       entries: (Array.isArray(state && state.entries) ? state.entries : []).slice(-8).map(function (entry) {
@@ -139,13 +146,14 @@ var advisorUi = (function () {
     safeWhatsApp: safeWhatsApp,
     nextSize: nextSize,
     clampPanel: clampPanel,
+    cleanTurns: cleanTurns,
     sessionPattern: SESSION,
     readMemory: readMemory,
     writeMemory: writeMemory
   };
 }());
 
-if (typeof document !== "undefined") (function () {
+function mountAdvisor() {
   if (document.getElementById("kutadguAdvisorRoot")) return;
   if (document.querySelector(".admin-shell, .admin-topbar")) return;
   var root = document.createElement("div");
@@ -183,6 +191,7 @@ if (typeof document !== "undefined") (function () {
   var turns = memory.turns.slice();
   var entries = memory.entries.slice();
   var sessionId = memory.sessionId;
+  var constraintToken = memory.constraintToken;
   var pending = false;
   var generation = 0;
   var size = memory.size || "compact";
@@ -244,7 +253,7 @@ if (typeof document !== "undefined") (function () {
 
   function persist() {
     try {
-      advisorUi.writeMemory(window.sessionStorage, { turns: turns, sessionId: sessionId, open: root.classList.contains("is-open"), entries: entries, size: size });
+      advisorUi.writeMemory(window.sessionStorage, { turns: turns, sessionId: sessionId, constraintToken: constraintToken, open: root.classList.contains("is-open"), entries: entries, size: size });
     } catch (_error) { /* storage can be unavailable */ }
   }
 
@@ -286,6 +295,7 @@ if (typeof document !== "undefined") (function () {
     turns = [];
     entries = [];
     sessionId = "";
+    constraintToken = "";
     status.textContent = "";
     log.setAttribute("aria-busy", "false");
     paint();
@@ -349,7 +359,7 @@ if (typeof document !== "undefined") (function () {
     }
     input.value = "";
     entries.push({ role: "user", text: message, cards: [] });
-    var nextTurns = turns.concat([{ role: "user", content: message }]).slice(-6);
+    var nextTurns = advisorUi.cleanTurns(turns.concat([{ role: "user", content: message }]));
     paint();
     pending = true;
     send.disabled = true;
@@ -358,6 +368,7 @@ if (typeof document !== "undefined") (function () {
     var ticket = generation;
     var payload = { turns: nextTurns };
     if (advisorUi.sessionPattern.test(sessionId)) payload.session_id = sessionId;
+    if (constraintToken) payload.constraint_token = constraintToken;
     fetch("/api/book-advisor", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -380,7 +391,11 @@ if (typeof document !== "undefined") (function () {
       }
       status.textContent = "";
       if (advisorUi.sessionPattern.test(String(result.body.session_id || ""))) sessionId = String(result.body.session_id);
-      turns = nextTurns.concat([{ role: "assistant", content: result.body.message || "" }]).slice(-6);
+      constraintToken = advisorUi.cleanTurns ? (function () {
+        var token = String(result.body.constraint_token || "");
+        return /^[A-Za-z0-9_-]{8,500}\.[a-f0-9]{64}$/.test(token) ? token : "";
+      }()) : "";
+      turns = advisorUi.cleanTurns(nextTurns.concat([{ role: "assistant", content: result.body.message || "" }]));
       entries.push({ role: "assistant", text: result.body.message || "", cards: result.body.books || [], handoff: result.body.handoff || null });
       paint();
       persist();
@@ -397,6 +412,15 @@ if (typeof document !== "undefined") (function () {
   });
   paint();
   if (memory.open || document.body.dataset.advisorOpen === "1") setOpen(true);
-}());
+}
+
+if (typeof document !== "undefined") {
+  window.fetch("/api/book-advisor", { method: "GET", credentials: "same-origin", cache: "no-store" }).then(function (response) {
+    return response && response.ok ? response.json() : null;
+  }).then(function (body) {
+    if (!body || body.enabled !== true) return;
+    mountAdvisor();
+  }).catch(function () {});
+}
 
 if (typeof module === "object" && module && module.exports) module.exports = advisorUi;

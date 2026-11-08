@@ -104,7 +104,7 @@ function createLedger(options) {
         if (!row || row.state !== "reserved") throw coded("advisor_budget_unavailable");
         const actual = Math.floor(Number(actualMicroUsd));
         if (!Number.isInteger(actual) || actual < 0) throw coded("advisor_budget_unavailable");
-        const applied = Math.min(actual, row.microUsd);
+        const applied = actual;
         state.reservedDay.set(row.day, amount(state.reservedDay, row.day) - row.microUsd);
         state.reservedMonth.set(row.month, amount(state.reservedMonth, row.month) - row.microUsd);
         state.spentDay.set(row.day, amount(state.spentDay, row.day) + applied);
@@ -276,6 +276,43 @@ function clientHash(secret, ip) {
   return crypto.createHash("sha256").update(key + "|" + address).digest("hex");
 }
 
+function constraintPayload(state) {
+  const age = Number(state && state.age);
+  const offer = state && (state.offer === "age" || state.offer === "genre") ? state.offer : "";
+  return JSON.stringify({
+    v: 1,
+    age: Number.isInteger(age) && age >= 1 && age <= 16 ? age : null,
+    strictAge: !!(state && state.strictAge),
+    story: !!(state && state.story),
+    offer
+  });
+}
+
+function signConstraintState(secret, state) {
+  const key = String(secret || "");
+  if (!/^[a-f0-9]{64}$/.test(key)) throw coded("advisor_unconfigured");
+  const body = Buffer.from(constraintPayload(state), "utf8").toString("base64url");
+  const mac = crypto.createHmac("sha256", key).update(body).digest("hex");
+  return body + "." + mac;
+}
+
+function readConstraintState(secret, token) {
+  const key = String(secret || "");
+  const parts = String(token || "").split(".");
+  if (!/^[a-f0-9]{64}$/.test(key) || parts.length !== 2) return null;
+  if (!/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[a-f0-9]{64}$/.test(parts[1])) return null;
+  const expected = crypto.createHmac("sha256", key).update(parts[0]).digest("hex");
+  const left = Buffer.from(expected, "utf8");
+  const right = Buffer.from(parts[1], "utf8");
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+    return JSON.parse(constraintPayload(parsed));
+  } catch (_error) {
+    return null;
+  }
+}
+
 module.exports = {
   DEFAULT_DAILY_MICRO_USD,
   DEFAULT_MONTHLY_MICRO_USD,
@@ -284,5 +321,7 @@ module.exports = {
   createSessionStore,
   createRpcStores,
   clientHash,
-  isTrustedClientIp
+  isTrustedClientIp,
+  signConstraintState,
+  readConstraintState
 };

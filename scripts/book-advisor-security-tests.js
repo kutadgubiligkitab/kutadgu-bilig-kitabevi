@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const Advisor = require("../kutadgu-book-advisor.js");
 const Budget = require("../kutadgu-book-advisor-budget.js");
 const Cases = require("./book-advisor-cases.js");
@@ -533,7 +535,8 @@ async function run() {
     KUTADGU_HOST_MODE: "production",
     BOOK_ADVISOR_ENABLED: "false"
   });
-  assert.equal(method.status, 405);
+  assert.equal(method.status, 200);
+  assert.deepEqual(await method.json(), { enabled: false });
   assert.equal(Budget.clientHash(SECRET, "203.0.113.8", "one"), Budget.clientHash(SECRET, "203.0.113.8", "two"));
   assert.notEqual(Budget.clientHash(SECRET, "203.0.113.8"), Budget.clientHash(SECRET, "198.51.100.9"));
   assert.equal(Budget.isTrustedClientIp("not-an-ip"), false);
@@ -592,6 +595,48 @@ async function run() {
   assert.equal(missingIp.status, 503);
   assert.equal(spoofLoads, 2);
   assert.equal(spoofCalls, 2);
+  const over = Budget.createLedger({ dailyLimitMicroUsd: 2000000, monthlyLimitMicroUsd: 20000000, perMinute: 6 });
+  const overRow = await over.reserve({ clientHash: hash, microUsd: 100, now: NOW });
+  const overSettled = await over.settle(overRow.id, 250);
+  assert.equal(overSettled.actualMicroUsd, 250);
+  const overSnap = await over.snapshot();
+  assert.equal(overSnap.spentDay[0][1], 250);
+  assert.equal(overSnap.reservedDay[0][1], 0);
+  const overCap = await over.reserve({ clientHash: hash, microUsd: 2000000, now: NOW }).then(() => "ok", (error) => error.code);
+  assert.equal(overCap, "advisor_budget");
+  const chargeLedger = Budget.createLedger({ dailyLimitMicroUsd: 2000000, monthlyLimitMicroUsd: 20000000, perMinute: 6 });
+  let chargeStep = 0;
+  const charged = await Gate.handleBookAdvisor(request({ turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }] }), env(), {
+    ledger: chargeLedger,
+    sessions: Budget.createSessionStore(),
+    loadCatalog: async () => catalog,
+    fetchImpl: async () => {
+      chargeStep += 1;
+      if (chargeStep === 1) {
+        return { ok: true, json: async () => ({ output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "c", arguments: "{\"book_ids\":[701]}" }], usage: { input_tokens: 30, output_tokens: 8 } }) };
+      }
+      throw new Error("socket");
+    }
+  });
+  assert.equal(charged.status, 503);
+  const chargedSnap = await chargeLedger.snapshot();
+  assert.ok(chargedSnap.spentDay[0][1] > 0);
+  const hidden = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", { method: "GET" }), {
+    BOOK_ADVISOR_ENABLED: "false"
+  });
+  assert.deepEqual(await hidden.json(), { enabled: false });
+  const shown = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", { method: "GET" }), {
+    BOOK_ADVISOR_ENABLED: "true",
+    OPENAI_API_KEY: "test-key"
+  });
+  const shownBody = await shown.json();
+  assert.deepEqual(shownBody, { enabled: true });
+  assert.equal(JSON.stringify(shownBody).includes("test-key"), false);
+  const applied = fs.readFileSync(path.join(__dirname, "..", "STAGE_BOOK_ADVISOR_SPEND.sql"), "utf8");
+  const reviewed = fs.readFileSync(path.join(__dirname, "..", "STAGE_BOOK_ADVISOR_SPEND_ACTUAL.sql"), "utf8");
+  assert.match(applied, /least\(p_actual_micro_usd, v_row\.reserved_micro_usd\)/);
+  assert.equal(reviewed.includes("least("), false);
+  assert.match(reviewed, /Do not apply/);
   console.log("book-advisor-security-tests ok");
 }
 
