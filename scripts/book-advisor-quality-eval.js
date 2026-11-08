@@ -193,6 +193,16 @@ async function runMockHarness() {
   console.log("book-advisor-eval-harness ok");
 }
 
+function billableUsage(payload) {
+  const usage = payload && payload.usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return false;
+  const input = usage.input_tokens;
+  const output = usage.output_tokens;
+  if (typeof input !== "number" || typeof output !== "number") return false;
+  if (!Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return false;
+  return input + output > 0;
+}
+
 function guardedLedger(inner, events) {
   return {
     reserve(input) {
@@ -200,7 +210,8 @@ function guardedLedger(inner, events) {
     },
     settle(id, actualMicroUsd) {
       const requested = Math.floor(Number(actualMicroUsd));
-      const known = Number.isInteger(requested) && requested > 0 && !events.missingUsage && !events.failed;
+      const uncertain = events.uncertain || events.failed || events.missingUsage;
+      const known = !uncertain && Number.isInteger(requested) && requested > 0;
       const charge = known ? requested : (events.contacted ? events.hold : 0);
       if (events.contacted && !known) events.conservative = true;
       return inner.settle(id, charge).then((settled) => {
@@ -211,6 +222,7 @@ function guardedLedger(inner, events) {
     release(id) {
       if (!events.contacted) return inner.release(id);
       events.conservative = true;
+      events.uncertain = true;
       events.failed = true;
       return inner.settle(id, events.hold).then((settled) => {
         events.settled = settled.actualMicroUsd;
@@ -257,22 +269,52 @@ async function runBoundedConversation(options) {
         sessionId,
         token,
         fetchImpl: async (url, init) => {
+          const record = { input: [], usage: null, output: "", status: 0, error: "" };
+          try { record.input = init && init.body ? JSON.parse(init.body).input : []; } catch (_error) { record.error = "request-unreadable"; }
+          calls.push(record);
           events.contacted = true;
-          const response = await options.fetchImpl(url, init);
-          const payload = await response.clone().json().catch(() => null);
-          const usage = payload && payload.usage || {};
-          if ((Number(usage.input_tokens) || 0) + (Number(usage.output_tokens) || 0) <= 0) events.missingUsage = true;
-          if (!response.ok) events.failed = true;
-          calls.push({
-            input: init && init.body ? JSON.parse(init.body).input : [],
-            usage,
-            output: payload && payload.output_text || ""
-          });
+          let response;
+          try {
+            response = await options.fetchImpl(url, init);
+          } catch (error) {
+            events.failed = true;
+            events.uncertain = true;
+            record.error = error && error.name === "AbortError" ? "aborted" : "fetch-failed";
+            record.detail = redact(error && error.message || "");
+            throw error;
+          }
+          record.status = Number(response.status) || 0;
+          let payload = null;
+          try { payload = await response.clone().json(); } catch (_error) { payload = null; }
+          if (!response.ok || !billableUsage(payload)) {
+            events.failed = true;
+            events.uncertain = true;
+            events.missingUsage = response.ok || !payload;
+            record.error = response.ok ? "usage-unavailable" : "http-" + record.status;
+            record.output = payload && payload.output_text || "";
+            const failure = new Error(record.error);
+            failure.code = "advisor_model_unavailable";
+            throw failure;
+          }
+          record.usage = payload.usage;
+          record.output = payload.output_text || "";
           return response;
         }
       });
     } catch (error) {
-      results.push({ id: item.id, error: redact(error && error.message || "failed"), ms: Date.now() - started, apiCalls: calls.length });
+      apiCalls += calls.length;
+      const actual = Math.floor(Number(events.settled) || (events.contacted ? events.hold : 0));
+      spent += events.settled ? actual : 0;
+      results.push({
+        id: item.id,
+        error: redact(error && error.name ? error.name + ": " + error.message : error && error.message || "failed"),
+        ms: Date.now() - started,
+        apiCalls: calls.length,
+        actualMicroUsd: events.settled ? actual : 0,
+        conservative: events.conservative === true || events.uncertain === true,
+        failure: calls.map((call) => call.error).filter(Boolean).join(",")
+      });
+      if (options.outPath) fs.writeFileSync(options.outPath, JSON.stringify({ completedCustomerTurns: results.filter((row) => row.ok).length, openaiRequests: apiCalls, spentMicroUsd: spent, results }, null, 2));
       break;
     }
     if (body && (body.error === "advisor_budget" || body.error === "advisor_rate_limit") && !events.contacted) {
@@ -288,9 +330,10 @@ async function runBoundedConversation(options) {
     const usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0 };
     const requested = [];
     for (const call of calls) {
-      usage.input_tokens += Number(call.usage.input_tokens) || 0;
-      usage.cached_tokens += Number((call.usage.input_tokens_details || {}).cached_tokens || call.usage.cached_tokens) || 0;
-      usage.output_tokens += Number(call.usage.output_tokens) || 0;
+      const callUsage = call.usage || {};
+      usage.input_tokens += Number(callUsage.input_tokens) || 0;
+      usage.cached_tokens += Number((callUsage.input_tokens_details || {}).cached_tokens || callUsage.cached_tokens) || 0;
+      usage.output_tokens += Number(callUsage.output_tokens) || 0;
       let parsed = null;
       try { parsed = JSON.parse(call.output); } catch (_error) { parsed = null; }
       for (const id of (parsed && parsed.book_ids) || []) requested.push(id);
@@ -310,6 +353,7 @@ async function runBoundedConversation(options) {
       usage,
       actualMicroUsd: actual,
       conservative: events.conservative === true,
+      failure: calls.map((call) => call.error).filter(Boolean).join(","),
       spentMicroUsd: spent
     });
     if (options.outPath) {
@@ -463,7 +507,107 @@ async function runBudgetCases() {
       });
     }
   });
-  if (missingCalls !== 1 || missing.spentMicroUsd !== hold) throw new Error("missing-usage-free");
+  if (missingCalls !== 1 || missing.spentMicroUsd !== hold || missing.results[0].conservative !== true) throw new Error("missing-usage-free");
+  let recommendCalls = 0;
+  const omitted = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "omit-usage", q: "بالام 7 ياش، ھېكايە ئوقۇشنى ياخشى كۆرىدۇ." },
+      { id: "after-omit", q: "داۋام قىلىڭ." }
+    ],
+    outPath: path.join(os.tmpdir(), "kutadgu-eval-omitted-usage.json"),
+    fetchImpl: async () => {
+      recommendCalls += 1;
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "يەتتە ياش ھېكايىلىرى ماس كېلىدۇ.", book_ids: [501] })
+      });
+    }
+  });
+  const selectionReserve = Advisor.estimateRequestMicroUsd(Math.ceil(catalog.chars) + 800, 500);
+  if (recommendCalls !== 1 || omitted.openaiRequests !== 1 || omitted.spentMicroUsd !== hold || omitted.results[0].conservative !== true) {
+    throw new Error("omitted-usage-" + recommendCalls + "-" + omitted.openaiRequests + "-" + omitted.spentMicroUsd);
+  }
+  if (!(hold > selectionReserve) || omitted.spentMicroUsd === selectionReserve) throw new Error("omitted-usage-partial-charge");
+  const omittedFile = JSON.parse(fs.readFileSync(path.join(os.tmpdir(), "kutadgu-eval-omitted-usage.json"), "utf8"));
+  if (omittedFile.openaiRequests !== 1 || omittedFile.results[0].conservative !== true) throw new Error("omitted-usage-file");
+  let toolGapCalls = 0;
+  const toolGap = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "tool-gap", q: "بالام 7 ياش، ھېكايە ئوقۇشنى ياخشى كۆرىدۇ." },
+      { id: "after-tool-gap", q: "داۋام قىلىڭ." }
+    ],
+    fetchImpl: async () => {
+      toolGapCalls += 1;
+      if (toolGapCalls === 1) {
+        return jsonResponse({
+          output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "call-gap", arguments: "{\"book_ids\":[501]}" }],
+          usage: { input_tokens: 30, output_tokens: 8 }
+        });
+      }
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "يەتتە ياش ھېكايىلىرى ماس كېلىدۇ.", book_ids: [501] })
+      });
+    }
+  });
+  if (toolGapCalls !== 2 || toolGap.spentMicroUsd !== hold || toolGap.results[0].conservative !== true) {
+    throw new Error("tool-gap-" + toolGapCalls + "-" + toolGap.spentMicroUsd);
+  }
+  let rejectedCalls = 0;
+  const rejected = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "reject", q: "بالام 7 ياش، ھېكايە كىتابى." },
+      { id: "after-reject", q: "داۋام قىلىڭ." }
+    ],
+    fetchImpl: async () => {
+      rejectedCalls += 1;
+      throw new Error("network down");
+    }
+  });
+  if (rejectedCalls !== 1 || rejected.openaiRequests !== 1 || rejected.spentMicroUsd !== hold || rejected.results[0].conservative !== true || rejected.results[0].failure !== "fetch-failed") {
+    throw new Error("fetch-reject-" + rejectedCalls + "-" + rejected.spentMicroUsd + "-" + (rejected.results[0] && rejected.results[0].failure));
+  }
+  let abortedCalls = 0;
+  const aborted = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "abort", q: "بالام 7 ياش، ھېكايە كىتابى." },
+      { id: "after-abort", q: "داۋام قىلىڭ." }
+    ],
+    fetchImpl: async () => {
+      abortedCalls += 1;
+      const error = new Error("The operation was aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+  });
+  if (abortedCalls !== 1 || aborted.openaiRequests !== 1 || aborted.spentMicroUsd !== hold || aborted.results[0].conservative !== true || aborted.results[0].failure !== "aborted") {
+    throw new Error("abort-" + abortedCalls + "-" + aborted.spentMicroUsd);
+  }
+  if (failed.results[0].conservative !== true || failed.results[0].apiCalls !== 1 || failed.results[0].failure !== "http-500") {
+    throw new Error("http-failure-record");
+  }
 }
 
 async function runPaidConsistency(options) {
