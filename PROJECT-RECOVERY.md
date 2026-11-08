@@ -6,6 +6,10 @@ The runtime baseline below is the last verified application commit. It is not au
 
 The last verified runtime baseline is `a0d90eeb2326576942b55b8bd6e38dfed6b9ce93`, the PR #344 internal-link discovery merge. Read-only inspection on 2026-11-02 confirmed Worker `kutadgu-cloudflare-production` at 100% on version `acfce033-d55c-4d36-ac3e-c3ec14ce70d0`, created 2026-11-02T16:26:34.640Z. Existing ASSETS/COVERS bindings, production variables and encrypted secret names were preserved. Stage 138 is not yet applied. This reconciles the older PR #341 baseline against current origin/main and the actual Worker; it does not claim the candidate below is deployed.
 
+## Book advisor store descriptions — draft PR #349
+
+Draft PR #349 on `integration/gpt-book-advisor-private` stays a draft. The final recommendation writer receives bounded «كىتاب ھەققىدە» text from `books.description`, the same field the book page paints, for validated selected books and up to six earlier session books. Missing text stays unavailable. Conversational replies may keep a validated catalog title; other catalog titles, unverified prices, and instruction-like sentences are dropped as whole sentences. The model is asked to answer, ask one useful question, discuss, or recommend, without a scripted reply for each wording. Reservations include instructions, a six-turn history, and those descriptions. Daily and monthly caps, the model id, flags, and SQL are unchanged. A series page can show the group description instead of a member book description; the advisor catalog still does not load group descriptions. This note does not move the runtime baseline.
+
 
 ## Readable series URLs — release candidate PR #345
 
