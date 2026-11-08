@@ -400,11 +400,11 @@
       var link = document.createElement("link");
       link.id = "kutadguAdvisorCss";
       link.rel = "stylesheet";
-      link.href = "/book-advisor.css?v=4";
+      link.href = "/book-advisor.css?v=5";
       document.head.appendChild(link);
       if (document.querySelector("script[src*='kutadgu-book-advisor-ui.js']")) return;
       var script = document.createElement("script");
-      script.src = "/kutadgu-book-advisor-ui.js?v=4";
+      script.src = "/kutadgu-book-advisor-ui.js?v=5";
       script.defer = true;
       document.body.appendChild(script);
     }).catch(function () {});

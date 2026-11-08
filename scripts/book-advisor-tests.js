@@ -524,6 +524,12 @@ async function run() {
     }
   });
   assert.equal(childCalls, 2);
+  assert.match(childBodies[0].input[0].content, /قۇتادغۇبىلىك كىتابخانىسى/);
+  assert.match(childBodies[0].input[0].content, /https:\/\/www\.kutadgubilik\.com/);
+  assert.equal(childBodies[0].input[0].content.includes("قۇتادغۇبىلىگ"), false);
+  assert.match(childBodies[1].input[0].content, /قۇتادغۇبىلىك كىتابخانىسى/);
+  assert.match(childBodies[1].input[0].content, /https:\/\/www\.kutadgubilik\.com/);
+  assert.equal(childBodies[1].input[0].content.includes("قۇتادغۇبىلىگ"), false);
   assert.match(JSON.stringify(childBodies[0].input), /7 ياش/);
   assert.match(JSON.stringify(childBodies[0].input), /ھېكايە/);
   assert.match(JSON.stringify(childBodies[1].input), /7 ياش/);
@@ -544,7 +550,11 @@ async function run() {
       { role: "user", content: "بۇلارنىڭ قايسىسى ئاسانراق؟" }
     ],
     fetchImpl: async (_url, init) => {
-      assert.match(JSON.parse(init.body).input[1].content, /7 ياش/);
+      const inferenceInput = JSON.parse(init.body).input;
+      assert.match(inferenceInput[0].content, /قۇتادغۇبىلىك كىتابخانىسى/);
+      assert.match(inferenceInput[0].content, /https:\/\/www\.kutadgubilik\.com/);
+      assert.equal(inferenceInput[0].content.includes("قۇتادغۇبىلىگ"), false);
+      assert.match(inferenceInput[1].content, /7 ياش/);
       return jsonResponse({
         output_text: JSON.stringify({ message: "ياغاچ قونچاق پىنوككو تونۇشلۇق بولغاچقا ئاسانراق دەپ تەسىرلىنىشىم مۇمكىن." }),
         usage: { input_tokens: 30, output_tokens: 20 }
@@ -999,7 +1009,8 @@ async function run() {
   assert.equal(repeated.message.includes("7"), true);
   const headerSource = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
   const css = fs.readFileSync(path.join(root, "book-advisor.css"), "utf8");
-  assert.equal(headerSource.indexOf("body.enabled !== true") < headerSource.indexOf("kutadgu-book-advisor-ui.js?v=4"), true);
+  assert.equal(headerSource.indexOf("body.enabled !== true") < headerSource.indexOf("kutadgu-book-advisor-ui.js?v=5"), true);
+  assert.match(headerSource, /book-advisor\.css\?v=5/);
   assert.match(css, /body:has\(\.kutadgu-advisor\)/);
   const shopSource = fs.readFileSync(path.join(root, "shop.js"), "utf8");
   assert.match(shopSource, /paintDetailDescription\(desc,b\.description\|\|""\)/);

@@ -129,7 +129,9 @@
 .kutadgu-advisor-log {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: auto;
   overscroll-behavior: contain;
   margin: 0;
   padding: 16px;
@@ -138,30 +140,57 @@
   flex-direction: column;
   gap: 12px;
 }
+.kutadgu-advisor-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 84%;
+  min-width: 0;
+  direction: rtl;
+  text-align: right;
+}
+.kutadgu-advisor-entry-user { margin-left: auto; margin-right: 0; }
+.kutadgu-advisor-entry-reply { margin-right: auto; margin-left: 0; }
+@media (min-width: 721px) {
+  .kutadgu-advisor-entry { max-width: min(26rem, 68%); }
+}
 .kutadgu-advisor-bubble {
-  max-width: 92%;
+  box-sizing: border-box;
+  max-width: 100%;
   margin: 0;
   padding: 10px 12px;
   border-radius: 16px;
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  direction: rtl;
+  text-align: right;
 }
-.kutadgu-advisor-user { align-self: flex-start; background: #f3e7d6; border-bottom-right-radius: 6px; }
-.kutadgu-advisor-reply { align-self: flex-end; background: #fff; border: 1px solid var(--site-border, #e8dccb); border-bottom-left-radius: 6px; }
-.kutadgu-advisor-cards { display: grid; gap: 8px; margin-top: 8px; }
+.kutadgu-advisor-user { background: #f3e7d6; border-bottom-right-radius: 6px; }
+.kutadgu-advisor-reply { background: #fff; border: 1px solid var(--site-border, #e8dccb); border-bottom-left-radius: 6px; }
+.kutadgu-advisor-cards { display: grid; gap: 8px; width: 100%; max-width: 100%; min-width: 0; margin-top: 8px; }
 .kutadgu-advisor-card {
   display: grid;
-  grid-template-columns: 52px 1fr;
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   padding: 8px;
   border-radius: 14px;
   text-decoration: none;
   color: inherit;
   background: var(--site-bg-soft, #fbf8f2);
   border: 1px solid var(--site-border, #e8dccb);
+  direction: rtl;
+  text-align: right;
 }
 .kutadgu-advisor-card img { width: 52px; height: 72px; object-fit: cover; border-radius: 8px; background: #f3ece3; }
+.kutadgu-advisor-card div { min-width: 0; }
+.kutadgu-advisor-card h3,
+.kutadgu-advisor-card p { overflow-wrap: anywhere; direction: rtl; text-align: right; }
 .kutadgu-advisor-card h3 { margin: 0 0 2px; font-size: 0.95rem; }
 .kutadgu-advisor-card p { margin: 0; color: var(--site-text-soft, #806f62); font-size: 0.85rem; }
 .kutadgu-advisor-form {

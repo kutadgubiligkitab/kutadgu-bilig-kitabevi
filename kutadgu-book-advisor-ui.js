@@ -51,7 +51,7 @@ var advisorUi = (function () {
     if (!/^https:\/\/wa\.me\/905368999888\?text=/.test(href) || href.length > 900) return null;
     var text = "";
     try { text = decodeURIComponent(href.slice(href.indexOf("text=") + 5)); } catch (_error) { return null; }
-    if (text.indexOf("ئەسسالامۇ ئەلەيكۇم، مەن قۇتادغۇبىلىگ كىتابخانىسىنىڭ كىتاب مەسلىھەتچىسى ئارقىلىق كەلدىم.") !== 0) return null;
+    if (text.indexOf("ئەسسالامۇ ئەلەيكۇم، مەن قۇتادغۇبىلىك كىتابخانىسىنىڭ كىتاب مەسلىھەتچىسى ئارقىلىق كەلدىم.") !== 0) return null;
     if (/\d{5,}|@|ئادرېس|زاكاز/.test(text)) return null;
     return { label: "WhatsApp ئارقىلىق ئالاقىلىشىش", href: href };
   }
@@ -205,6 +205,7 @@ function mountAdvisor() {
 
   function addEntry(entry) {
     var item = document.createElement("li");
+    item.className = entry.role === "user" ? "kutadgu-advisor-entry kutadgu-advisor-entry-user" : "kutadgu-advisor-entry kutadgu-advisor-entry-reply";
     item.appendChild(text("p", entry.text, entry.role === "user" ? "kutadgu-advisor-bubble kutadgu-advisor-user" : "kutadgu-advisor-bubble kutadgu-advisor-reply"));
     if (entry.cards && entry.cards.length) {
       var cards = document.createElement("div");
