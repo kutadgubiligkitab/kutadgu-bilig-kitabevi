@@ -62,7 +62,7 @@ const EXPLANATION_SCHEMA = Object.freeze({
 const LOOKUP_TOOL = Object.freeze({
   type: "function",
   name: "lookup_catalog_books",
-  description: "Read the store «كىتاب ھەققىدە» text for ids that already appear in the supplied directory. Unknown ids return nothing. This is not a web search.",
+  description: "Read the store «كىتاب ھەققىدە» text for ids that already appear in the supplied directory. Unknown ids return nothing. This is not a web search. Use it before recommending for a stated reader age when the excerpt is shorter than that store text.",
   strict: true,
   parameters: {
     type: "object",
@@ -460,7 +460,7 @@ const WRITER_SHARED = [
   "Do not force another question or another recommendation into the reply.",
   "VERIFIED_BOOKS are store records. role selected means these books may be introduced, usually one or two, with a reason tied to the customer's interest. role earlier means books already being discussed; use them as context, not as a new list to sell.",
   "about_status store_about is that book's «كىتاب ھەققىدە» text, the same books.description the book page shows. It may be truncated when about_truncated is true. about_status unavailable means that text is missing; do not invent it and do not treat the gap as a fact.",
-  "You may interpret a theme or a difference when you phrase it as an interpretation of that store text. Do not invent a plot, an illustration, an age certification, or a reading level.",
+  "You may interpret a theme, a difference, or intense content when you phrase it as an interpretation of that store text. That interpretation is not an age certification. Do not invent a plot, an illustration, an age certification, or a reading level.",
   "Do not say you have read the book, and do not guarantee the customer will like it.",
   "Do not add a price, a stock count, a url, or a book that is not in VERIFIED_BOOKS.",
   "Use VERIFIED_CONTEXT for a listed age or interest, and do not ask for that fact again."
@@ -479,9 +479,10 @@ function systemInstructions() {
     "Choose greet for a greeting or light chat. Write a short message and leave book_ids empty.",
     "Choose explain to answer or to discuss reading or a catalog book. Write the message. Include a book id only for a catalog book you are actually discussing. A general question is not a reason to recommend books.",
     "Choose clarify only when one missing fact blocks a useful answer. Ask that one question and leave book_ids empty.",
-    "Choose recommend when the customer wants books and you can already help. Usually choose one or two ids. Leave message empty. If they want a clear age match, select only a listing whose age range includes that age. A famous title or a broad category is not age proof. Do not call a book easy unless the store text says so.",
+    "Choose recommend when the customer wants books and you can already help. Usually choose one or two ids. Leave message empty. If they want a clear age match, select only a listing whose age range includes that age. A famous title, a broad category, or a shared word is not age proof. Do not call a book easy unless the store text says so.",
+    "When a reader age is listed, weigh that age and the requested experience together with the store description before choosing an id. A short excerpt is not enough when the store text is longer. Read that text with lookup_catalog_books, or use a STORE_ABOUT block if one is present. You may treat danger, fear, or harm in that text as an interpretation, not as an age rating. Do not invent an age certification, and do not treat every adventure as unsuitable. If the store text is missing or too thin to judge for this reader, leave book_ids empty and answer, ask one useful question, or explain that limit.",
     "Choose handoff when the title is not in the directory, they ask where to obtain a missing book, or they need a person for stock, delivery, or an order. Leave book_ids and message empty. Do not promise the shop can obtain the book, and do not say the shop certainly lacks it.",
-    "Do not write prices, stock, or urls. The server owns those. Use lookup_catalog_books for a directory id when the short excerpt is not enough. Store facts about a book come only from the directory or that tool."
+    "Do not write prices, stock, or urls. The server owns those. Store facts about a book come only from the directory, lookup_catalog_books, or a STORE_ABOUT block."
   ].join(" ");
 }
 
@@ -589,6 +590,21 @@ function aboutEvidence(book) {
   const evidence = { about, about_status: "store_about" };
   if (full.length > ABOUT_CHARS) evidence.about_truncated = true;
   return evidence;
+}
+
+function idsNeedingStoreAbout(catalog, ids, constraints, seen) {
+  if (!constraints || !constraints.age) return [];
+  const need = [];
+  const known = seen || new Set();
+  for (const raw of Array.isArray(ids) ? ids : []) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || known.has(id) || need.length >= MAX_IDS) continue;
+    const book = catalog && catalog.byId && catalog.byId.get(id);
+    if (!book || !bookDecision(book, constraints).keep) continue;
+    if (normalizeText(book.description).length <= EXCERPT_CHARS) continue;
+    need.push(id);
+  }
+  return need;
 }
 
 function lookupRecords(catalog, ids) {
@@ -1081,33 +1097,53 @@ async function selectBooks(options) {
     }, controller.signal);
     const firstUsage = readUsage(payload);
     usage.calls.push(firstUsage);
+    const seenAbout = new Set();
+    let evidenceUsed = false;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       const calls = ((payload && payload.output) || []).filter((item) => item && item.type === "function_call");
-      if (!calls.length) break;
-      if (!supportedLookupCalls(calls)) {
-        const error = new Error("advisor_model_unavailable");
-        error.code = "advisor_model_unavailable";
-        throw error;
-      }
       const next = input.slice();
-      for (const item of payload.output || []) next.push(item);
-      for (const call of calls) {
-        const args = parseJson(call.arguments) || {};
-        const name = call.name === "lookup_catalog_books" ? call.name : "";
-        next.push({
-          type: "function_call_output",
-          call_id: call.call_id,
-          output: JSON.stringify(name ? lookupRecords(catalog, args.book_ids) : [])
-        });
+      const prior = (payload && payload.output) || [];
+      for (const item of prior) next.push(item);
+      if (!prior.length && outputText(payload)) next.push({ role: "assistant", content: outputText(payload) });
+      let evidenceIds = [];
+      if (calls.length) {
+        if (!supportedLookupCalls(calls)) {
+          const error = new Error("advisor_model_unavailable");
+          error.code = "advisor_model_unavailable";
+          throw error;
+        }
+        for (const call of calls) {
+          const args = parseJson(call.arguments) || {};
+          const name = call.name === "lookup_catalog_books" ? call.name : "";
+          const records = name ? lookupRecords(catalog, args.book_ids) : [];
+          for (const record of records) seenAbout.add(record.id);
+          next.push({
+            type: "function_call_output",
+            call_id: call.call_id,
+            output: JSON.stringify(records)
+          });
+        }
+      } else {
+        const pending = parseJson(outputText(payload));
+        evidenceIds = !evidenceUsed && pending && pending.mode === "recommend"
+          ? idsNeedingStoreAbout(catalog, pending.book_ids, options.constraints, seenAbout)
+          : [];
+        if (!evidenceIds.length) break;
+        evidenceUsed = true;
+        next.push({ role: "user", content: "STORE_ABOUT\n" + JSON.stringify(lookupRecords(catalog, evidenceIds)) });
       }
       const ceiling = toolRoundInputTokens(catalog, round);
       if (JSON.stringify(next).length > ceiling) {
-        const error = new Error("advisor_model_unavailable");
-        error.code = "advisor_model_unavailable";
-        throw error;
+        if (calls.length) {
+          const error = new Error("advisor_model_unavailable");
+          error.code = "advisor_model_unavailable";
+          throw error;
+        }
+        break;
       }
       const toolReserve = estimateRequestMicroUsd(ceiling, SELECTION_OUTPUT_TOKENS);
       if (!reserve(options.budget, toolReserve)) break;
+      for (const id of evidenceIds) seenAbout.add(id);
       openToolReserve = toolReserve;
       attempts += 1;
       payload = await postResponses(options.fetchImpl, options.apiKey, {
@@ -1126,8 +1162,12 @@ async function selectBooks(options) {
     }
     settle(options.budget, reserved, usageMicroUsd(firstUsage));
     const parsed = parseJson(outputText(payload));
+    const withheld = new Set(idsNeedingStoreAbout(catalog, parsed && parsed.book_ids, options.constraints, seenAbout));
+    const ids = parsed && Array.isArray(parsed.book_ids)
+      ? parsed.book_ids.filter((id) => !withheld.has(Number(id)))
+      : parsed && parsed.book_ids;
     return {
-      ids: parsed && parsed.book_ids,
+      ids,
       mode: parsed && parsed.mode,
       message: parsed && parsed.message,
       usage

@@ -1112,6 +1112,145 @@ async function run() {
   assert.equal(systems[0], systems[1]);
   assert.equal(systems[1], systems[2]);
   assert.equal(systems[0].includes("پۇل تېجەش"), false);
+  assert.match(systems[0], /Do not invent an age certification/);
+  assert.match(systems[0], /do not treat every adventure as unsuitable/);
+  const lead = "ھايۋانلار ھەققىدە قىسقا ھېكايە. ";
+  const predator = "يىرتقۇچ ۋە ئوۋچىلار خەتەر سالىدۇ.";
+  const deaths = "سىرلىق ئۆلۈم ۋە ئوت ئاپىتى كۆرۈلىدۇ.";
+  const aboutPredator = (lead + predator + " ").repeat(8) + "يىرتقۇچ بەلگىسى ئاخىرىدا.";
+  const aboutDeaths = (lead + deaths + " ").repeat(8) + "ئۆلۈم بەلگىسى ئاخىرىدا.";
+  const childFit = Advisor.buildCatalog([
+    { id: 81, title: "دېڭىز ھېكايىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 30, description: aboutPredator, is_active: true, submission_status: "approved" },
+    { id: 82, title: "چۈمۈلە ھېكايىسى", author: "نەشر", category: "بالىلار كىتابلىرى", price: 28, description: aboutDeaths, is_active: true, submission_status: "approved" }
+  ]);
+  const predatorTail = "يىرتقۇچ بەلگىسى ئاخىرىدا.";
+  const deathTail = "ئۆلۈم بەلگىسى ئاخىرىدا.";
+  assert.ok(aboutPredator.length > Advisor.EXCERPT_CHARS);
+  assert.ok(aboutPredator.slice(0, Advisor.EXCERPT_CHARS).includes(predatorTail) === false);
+  assert.ok(aboutDeaths.slice(0, Advisor.EXCERPT_CHARS).includes(deathTail) === false);
+  assert.equal(Advisor.bookDecision(childFit.byId.get(81), { age: 4, strictAge: false, story: true }).keep, true);
+  assert.equal(Advisor.bookDecision(childFit.byId.get(82), { age: 4, strictAge: false, story: true }).keep, true);
+  const childTurns = [
+    { role: "user", content: "تۆت ياشلىق بالام ئۈچۈن كىتاب كېرەك." },
+    { role: "user", content: "ھايۋان ھېكايىسى ياقتۇرىدۇ." }
+  ];
+  let declinedCalls = 0;
+  let sawStoreAbout = false;
+  const declined = await Advisor.advise({
+    catalog: childFit,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(childFit)),
+    turns: childTurns,
+    fetchImpl: async (_url, init) => {
+      declinedCalls += 1;
+      const packed = JSON.stringify(JSON.parse(init.body).input);
+      if (declinedCalls === 1) {
+        assert.equal(packed.includes(predatorTail), false);
+        assert.equal(packed.includes(deathTail), false);
+        return jsonResponse({
+          output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81, 82] }),
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      assert.equal(packed.includes("STORE_ABOUT\\n"), true);
+      assert.equal(packed.includes(predatorTail), true);
+      assert.equal(packed.includes(deathTail), true);
+      assert.equal(packed.includes("VERIFIED_BOOKS"), false);
+      sawStoreAbout = true;
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "clarify", message: "بۇ تېكىستلەرنى بالىنىڭ يېشى ۋە ھايۋان ھېكايىسى بىلەن سېلىشتۇردۇم، شۇڭا بۇ قېتىم كىتاب تاللىمىدىم.", book_ids: [] }),
+        usage: { input_tokens: 40, output_tokens: 16 }
+      });
+    }
+  });
+  assert.equal(sawStoreAbout, true);
+  assert.equal(declinedCalls, 2);
+  assert.equal(declined.books.length, 0);
+  assert.match(declined.message, /تاللىمىدىم/);
+  let keptCalls = 0;
+  const kept = await Advisor.advise({
+    catalog: childFit,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(childFit)),
+    turns: childTurns,
+    fetchImpl: async (_url, init) => {
+      keptCalls += 1;
+      const packed = JSON.stringify(JSON.parse(init.body).input);
+      if (packed.includes("VERIFIED_BOOKS")) {
+        return jsonResponse({
+          output_text: JSON.stringify({ message: "«دېڭىز ھېكايىسى» ۋە «چۈمۈلە ھېكايىسى» نى دۇكان تېكىستى بويىچە تونۇشتۇردۇم." }),
+          usage: { input_tokens: 20, output_tokens: 12 }
+        });
+      }
+      if (keptCalls === 1) {
+        return jsonResponse({
+          output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81, 82] }),
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      assert.equal(packed.includes(predatorTail), true);
+      assert.equal(packed.includes(deathTail), true);
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81, 82] }),
+        usage: { input_tokens: 40, output_tokens: 16 }
+      });
+    }
+  });
+  assert.equal(keptCalls, 3);
+  assert.deepEqual(kept.books.map((book) => book.id), [81, 82]);
+  let adultCalls = 0;
+  await Advisor.advise({
+    catalog: childFit,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(childFit)),
+    turns: [{ role: "user", content: "ماڭا ھايۋان ھېكايىسى تەۋسىيە قىلىڭ" }],
+    fetchImpl: async (_url, init) => {
+      adultCalls += 1;
+      const packed = JSON.stringify(JSON.parse(init.body).input);
+      assert.equal(packed.includes("STORE_ABOUT\\n"), false);
+      if (packed.includes("VERIFIED_BOOKS")) {
+        return jsonResponse({
+          output_text: JSON.stringify({ message: "«دېڭىز ھېكايىسى» نى تونۇشتۇردۇم." }),
+          usage: { input_tokens: 20, output_tokens: 12 }
+        });
+      }
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81] }),
+        usage: { input_tokens: 30, output_tokens: 12 }
+      });
+    }
+  });
+  assert.equal(adultCalls, 2);
+  let lookupCalls = 0;
+  await Advisor.advise({
+    catalog: childFit,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(childFit)),
+    turns: childTurns,
+    fetchImpl: async (_url, init) => {
+      lookupCalls += 1;
+      const packed = JSON.stringify(JSON.parse(init.body).input);
+      assert.equal(packed.includes("STORE_ABOUT\\n"), false);
+      if (lookupCalls === 1) {
+        return jsonResponse({
+          output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "call-fit", arguments: "{\"book_ids\":[81,82]}" }],
+          usage: { input_tokens: 30, output_tokens: 12 }
+        });
+      }
+      if (packed.includes("VERIFIED_BOOKS")) {
+        return jsonResponse({
+          output_text: JSON.stringify({ message: "«دېڭىز ھېكايىسى» نى تونۇشتۇردۇم." }),
+          usage: { input_tokens: 20, output_tokens: 12 }
+        });
+      }
+      assert.equal(packed.includes(predatorTail), true);
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "", book_ids: [81] }),
+        usage: { input_tokens: 40, output_tokens: 16 }
+      });
+    }
+  });
+  assert.equal(lookupCalls, 3);
   console.log("book-advisor-tests ok");
 }
 
