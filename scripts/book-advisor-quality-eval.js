@@ -9,6 +9,7 @@
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const Advisor = require("../kutadgu-book-advisor.js");
 const Budget = require("../kutadgu-book-advisor-budget.js");
@@ -188,70 +189,102 @@ async function runMockHarness() {
     now
   });
   if (!stolen || stolen.age !== null) throw new Error("cross-session-inherited-age");
+  await runBudgetCases();
   console.log("book-advisor-eval-harness ok");
 }
 
-async function runPaidConsistency(options) {
-  const secret = crypto.randomBytes(32).toString("hex");
-  const ip = "203.0.113.78";
+function guardedLedger(inner, events) {
+  return {
+    reserve(input) {
+      return inner.reserve(input);
+    },
+    settle(id, actualMicroUsd) {
+      const requested = Math.floor(Number(actualMicroUsd));
+      const known = Number.isInteger(requested) && requested > 0 && !events.missingUsage && !events.failed;
+      const charge = known ? requested : (events.contacted ? events.hold : 0);
+      if (events.contacted && !known) events.conservative = true;
+      return inner.settle(id, charge).then((settled) => {
+        events.settled = settled.actualMicroUsd;
+        return settled;
+      });
+    },
+    release(id) {
+      if (!events.contacted) return inner.release(id);
+      events.conservative = true;
+      events.failed = true;
+      return inner.settle(id, events.hold).then((settled) => {
+        events.settled = settled.actualMicroUsd;
+        return { releasedMicroUsd: 0 };
+      });
+    }
+  };
+}
+
+async function runBoundedConversation(options) {
+  const secret = options.secret || crypto.randomBytes(32).toString("hex");
+  const ip = options.ip || "203.0.113.78";
   const clientHash = Budget.clientHash(secret, ip);
   const ledger = Budget.createLedger({
     dailyLimitMicroUsd: options.cap,
     monthlyLimitMicroUsd: options.cap,
-    perMinute: 10
+    perMinute: options.perMinute || 10
   });
   const sessions = Budget.createSessionStore();
-  const now = new Date();
+  const now = options.now || new Date();
+  const plan = options.plan.slice(0, 5);
   let turns = [];
   let sessionId = "";
   let token = "";
   let spent = 0;
   let apiCalls = 0;
   const results = [];
-  for (const item of options.plan) {
-    if (spent + options.hold > options.cap) {
-      results.push({ id: item.id, stopped: "local-cap", spentMicroUsd: spent, openaiRequests: apiCalls });
-      break;
-    }
-    const sent = Ui.cleanTurns(turns.concat([{ role: "user", content: item.q }]));
+  for (const item of plan) {
+    const events = { contacted: false, failed: false, missingUsage: false, conservative: false, settled: 0, hold: options.hold };
     const calls = [];
     const started = Date.now();
+    const sent = Ui.cleanTurns(turns.concat([{ role: "user", content: item.q }]));
     let body;
     try {
       body = await postAdvisor({
         secret,
         catalog: options.catalog,
         apiKey: options.apiKey,
-        ledger,
+        ledger: guardedLedger(ledger, events),
         sessions,
         ip,
         now,
         turns: sent,
         sessionId,
         token,
-        fetchImpl: async (_url, init) => {
-          const response = await global.fetch(_url, init);
+        fetchImpl: async (url, init) => {
+          events.contacted = true;
+          const response = await options.fetchImpl(url, init);
           const payload = await response.clone().json().catch(() => null);
+          const usage = payload && payload.usage || {};
+          if ((Number(usage.input_tokens) || 0) + (Number(usage.output_tokens) || 0) <= 0) events.missingUsage = true;
+          if (!response.ok) events.failed = true;
           calls.push({
             input: init && init.body ? JSON.parse(init.body).input : [],
-            usage: payload && payload.usage || {},
+            usage,
             output: payload && payload.output_text || ""
           });
-          return new Response(JSON.stringify(payload), { status: response.status, headers: { "content-type": "application/json" } });
+          return response;
         }
       });
     } catch (error) {
-      results.push({ id: item.id, error: redact(error && error.message || "failed"), ms: Date.now() - started, openaiRequests: apiCalls });
+      results.push({ id: item.id, error: redact(error && error.message || "failed"), ms: Date.now() - started, apiCalls: calls.length });
+      break;
+    }
+    if (body && (body.error === "advisor_budget" || body.error === "advisor_rate_limit") && !events.contacted) {
+      results.push({ id: item.id, stopped: "local-cap", spentMicroUsd: spent, openaiRequests: apiCalls });
       break;
     }
     apiCalls += calls.length;
-    if (!body || body.ok !== true) {
-      results.push({ id: item.id, error: redact(body && body.error || "failed"), ms: Date.now() - started, openaiRequests: apiCalls });
-      break;
-    }
-    sessionId = body.session_id;
-    token = body.constraint_token;
-    const state = Budget.readConstraintState(secret, token, { clientHash, sessionId, now });
+    const actual = Math.floor(Number(events.settled) || 0);
+    spent += actual;
+    sessionId = body && body.session_id || sessionId;
+    token = body && body.constraint_token || token;
+    const state = token ? Budget.readConstraintState(secret, token, { clientHash, sessionId, now }) : null;
     const usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0 };
     const requested = [];
     for (const call of calls) {
@@ -262,30 +295,204 @@ async function runPaidConsistency(options) {
       try { parsed = JSON.parse(call.output); } catch (_error) { parsed = null; }
       for (const id of (parsed && parsed.book_ids) || []) requested.push(id);
     }
-    const cards = (body.books || []).map((book) => book.id);
-    const actual = usage.input_tokens + usage.output_tokens > 0 ? Advisor.usageMicroUsd(usage) : 0;
-    spent += actual;
+    const cards = (body && body.books || []).map((book) => book.id);
     results.push({
       id: item.id,
       q: item.q,
       ms: Date.now() - started,
-      message: body.message,
-      books: body.books || [],
+      ok: !!(body && body.ok),
+      message: body && body.message || "",
+      books: body && body.books || [],
       rejectedIds: requested.filter((id) => !cards.includes(id)),
       constraints: state,
       modelRequests: calls.map((call) => JSON.stringify(call.input)),
       apiCalls: calls.length,
       usage,
       actualMicroUsd: actual,
+      conservative: events.conservative === true,
       spentMicroUsd: spent
     });
-    console.log(JSON.stringify({ id: item.id, ms: Date.now() - started, micro: actual, books: cards.length, apiCalls: calls.length }));
+    if (options.outPath) {
+      fs.writeFileSync(options.outPath, JSON.stringify({
+        completedCustomerTurns: results.filter((row) => row.ok).length,
+        openaiRequests: apiCalls,
+        spentMicroUsd: spent,
+        results
+      }, null, 2));
+    }
+    const stop = !body || body.ok !== true || events.conservative || spent > options.cap;
+    if (stop) break;
     turns = Ui.cleanTurns(sent.concat([{ role: "assistant", content: body.message || "" }]));
-    fs.writeFileSync(options.outPath, JSON.stringify({ customerTurns: results.length, openaiRequests: apiCalls, spentMicroUsd: spent, results }, null, 2));
-    if (spent > options.cap) break;
   }
-  fs.writeFileSync(options.outPath, JSON.stringify({ customerTurns: results.length, openaiRequests: apiCalls, spentMicroUsd: spent, results }, null, 2));
-  if (spent > options.cap) process.exit(3);
+  const summary = {
+    completed: results.filter((row) => row.ok).length,
+    openaiRequests: apiCalls,
+    spentMicroUsd: spent,
+    results
+  };
+  if (options.outPath) fs.writeFileSync(options.outPath, JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+async function runBudgetCases() {
+  const catalog = harnessCatalog();
+  const hold = Advisor.worstCaseMicroUsd(catalog);
+  const cap = REFINE_CAP_MICRO_USD;
+  const liveHold = Advisor.worstCaseMicroUsd({ chars: 100875 });
+  if (liveHold > cap) throw new Error("first-turn-does-not-fit");
+  if (liveHold * 5 <= cap) throw new Error("five-turn-worst-case-unexpectedly-fits");
+  const secret = crypto.randomBytes(32).toString("hex");
+  const now = new Date();
+  const cheapPath = path.join(os.tmpdir(), "kutadgu-eval-cheap.json");
+  const cheap = await runBoundedConversation({
+    secret,
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: REFINE,
+    outPath: cheapPath,
+    perMinute: 10,
+    fetchImpl: async () => jsonResponse({
+      output_text: JSON.stringify({ mode: "recommend", message: "يەتتە ياش ھېكايىلىرى ماس كېلىدۇ.", book_ids: [433, 501] }),
+      usage: { input_tokens: 20, output_tokens: 10 }
+    })
+  });
+  if (cheap.completed !== 5) throw new Error("cheap-turns-" + cheap.completed);
+  if (cheap.spentMicroUsd <= 0 || cheap.spentMicroUsd > cap) throw new Error("cheap-spend-" + cheap.spentMicroUsd);
+  const savedCheap = JSON.parse(fs.readFileSync(cheapPath, "utf8"));
+  if (savedCheap.completed !== 5 || savedCheap.openaiRequests < 5) throw new Error("cheap-file");
+  const last = cheap.results[4];
+  if (!last.constraints || last.constraints.age !== 7 || last.constraints.story !== true || last.constraints.strictAge !== true) {
+    throw new Error("budget-constraints");
+  }
+  if (last.books.some((book) => book.id === 433)) throw new Error("budget-rejected-card");
+  let expensiveCalls = 0;
+  const expensive = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: REFINE,
+    outPath: path.join(os.tmpdir(), "kutadgu-eval-expensive.json"),
+    fetchImpl: async () => {
+      expensiveCalls += 1;
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "clarify", message: "بۇ سوئال ئۈچۈن قىسقا جاۋاب بېرىمەن.", book_ids: [] }),
+        usage: { input_tokens: 490000, output_tokens: 1 }
+      });
+    }
+  });
+  if (expensive.completed !== 1) throw new Error("expensive-turns-" + expensive.completed);
+  if (expensiveCalls !== 1) throw new Error("expensive-extra-" + expensiveCalls);
+  if (!expensive.results.some((row) => row.stopped === "local-cap")) throw new Error("expensive-stop");
+  const expensiveFile = JSON.parse(fs.readFileSync(path.join(os.tmpdir(), "kutadgu-eval-expensive.json"), "utf8"));
+  if (expensiveFile.completed !== 1 || expensiveFile.openaiRequests !== 1) throw new Error("expensive-file");
+  let toolCalls = 0;
+  const toolUsages = [
+    { input_tokens: 1000, output_tokens: 20 },
+    { input_tokens: 2000, output_tokens: 30 },
+    { input_tokens: 100, output_tokens: 40 }
+  ];
+  const tool = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [{ id: "tool", q: "بالام 7 ياش، ھېكايە ئوقۇشنى ياخشى كۆرىدۇ." }],
+    fetchImpl: async () => {
+      const usage = toolUsages[Math.min(toolCalls, toolUsages.length - 1)];
+      toolCalls += 1;
+      if (toolCalls === 1) {
+        return jsonResponse({
+          output: [{ type: "function_call", name: "lookup_catalog_books", call_id: "call-1", arguments: "{\"book_ids\":[501]}" }],
+          usage
+        });
+      }
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "recommend", message: "يەتتە ياش ھېكايىلىرى ماس كېلىدۇ.", book_ids: [501] }),
+        usage
+      });
+    }
+  });
+  const expectedTool = Advisor.usageMicroUsd({ input_tokens: 3100, output_tokens: 90 });
+  if (tool.openaiRequests !== 3 || tool.spentMicroUsd !== expectedTool) {
+    throw new Error("tool-charge-" + tool.openaiRequests + "-" + tool.spentMicroUsd + "-" + expectedTool);
+  }
+  let failedCalls = 0;
+  const failed = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "fail", q: "بالام 7 ياش، ھېكايە كىتابى." },
+      { id: "after-fail", q: "داۋام قىلىڭ." }
+    ],
+    fetchImpl: async () => {
+      failedCalls += 1;
+      return new Response("no", { status: 500, headers: { "content-type": "text/plain" } });
+    }
+  });
+  if (failedCalls !== 1 || failed.spentMicroUsd !== hold || failed.completed !== 0) {
+    throw new Error("failed-cost-" + failedCalls + "-" + failed.spentMicroUsd);
+  }
+  let missingCalls = 0;
+  const missing = await runBoundedConversation({
+    secret: crypto.randomBytes(32).toString("hex"),
+    catalog,
+    apiKey: "test-key",
+    cap,
+    hold,
+    now,
+    plan: [
+      { id: "missing", q: "بالام 7 ياش، ھېكايە كىتابى." },
+      { id: "after-missing", q: "داۋام قىلىڭ." }
+    ],
+    fetchImpl: async () => {
+      missingCalls += 1;
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "clarify", message: "بۇ سوئال ئۈچۈن قىسقا جاۋاب بېرىمەن.", book_ids: [] })
+      });
+    }
+  });
+  if (missingCalls !== 1 || missing.spentMicroUsd !== hold) throw new Error("missing-usage-free");
+}
+
+async function runPaidConsistency(options) {
+  console.log(JSON.stringify({
+    worstCaseMicroUsd: options.hold,
+    capMicroUsd: options.cap,
+    firstTurnFits: options.hold <= options.cap,
+    fiveTurnWorstCaseFits: options.hold * options.plan.length <= options.cap
+  }));
+  const summary = await runBoundedConversation({
+    catalog: options.catalog,
+    apiKey: options.apiKey,
+    cap: options.cap,
+    hold: options.hold,
+    plan: options.plan,
+    outPath: options.outPath,
+    fetchImpl: async (url, init) => global.fetch(url, init)
+  });
+  for (const row of summary.results) {
+    console.log(JSON.stringify({
+      id: row.id,
+      stopped: row.stopped || "",
+      ms: row.ms,
+      micro: row.actualMicroUsd,
+      books: (row.books || []).length,
+      apiCalls: row.apiCalls || 0
+    }));
+  }
+  if (summary.spentMicroUsd > options.cap) process.exit(3);
 }
 
 async function main() {
@@ -325,16 +532,9 @@ async function main() {
   }
   if (phase === "consistency") {
     const hold = Advisor.worstCaseMicroUsd(catalog);
-    const projected = hold * plan.length;
-    if (projected > cap) {
+    if (hold > cap) {
       console.log("evaluation-unbounded");
-      console.log(JSON.stringify({
-        customerTurns: plan.length,
-        worstCaseMicroUsd: hold,
-        projectedMicroUsd: projected,
-        capMicroUsd: cap,
-        openaiRequests: 0
-      }));
+      console.log(JSON.stringify({ worstCaseMicroUsd: hold, capMicroUsd: cap, openaiRequests: 0 }));
       process.exit(4);
     }
     await runPaidConsistency({ catalog, apiKey, cap, plan, outPath, hold });

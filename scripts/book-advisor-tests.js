@@ -302,7 +302,7 @@ async function run() {
   assert.equal(saved.entries[0].cards[0].image_url, "");
   const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.equal(index.includes("book-advisor.html"), false);
-  assert.equal(index.includes("id=\"aiSearchButton\""), false);
+  assert.match(index, /<button type="button" id="aiSearchButton" class="ai-search-button" hidden /);
   assert.equal(index.includes("id=\"searchInput\""), true);
   const header = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
   assert.equal(header.includes("kutadgu-book-advisor-ui.js"), true);
