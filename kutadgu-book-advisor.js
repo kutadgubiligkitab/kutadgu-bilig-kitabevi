@@ -29,6 +29,7 @@ const LUNA_OUTPUT_USD_PER_TOKEN = 0.50 / 1000000;
 const NO_MATCH_MESSAGE = "بۇ ھەقتە دۇكىنىمىزدا ماس كىتاب يوق.";
 const SAFE_MESSAGE = "تۆۋەندىكى كىتابلار دۇكىنىمىزدا بار. ئىسمى، باھاسى ۋە ئادرېسى كارتىدا كۆرسىتىلدى.";
 const HANDOFF_MESSAGE = "بۇ كىتابنى تور بېكىتىمىزدىكى تىزىملىكتىن تاپالمىدىم. خالىسىڭىز، كىتابخانىدىن سوراپ باقسىڭىز بولىدۇ.";
+const HANDOFF_FALLBACK = "خالىسىڭىز، بۇ ھەقتە كىتابخانا خىزمەتچىسىدىن سوراپ باقسىڭىز بولىدۇ.";
 const DIFFICULTY_LIMIT = "بۇ كىتابلارنىڭ قايسىسى ئاسانراق ئىكەنلىكى تىزىملىكتە يېزىلمىغان. شۇڭا بىرنى ئاسان دەپ ئېيتالمايمەن. بالىنىڭ يېشى ۋە قىزىقىشىغا قاراپ، ھېكايىسى ياقايدىغاننى تاللىسىڭىز بولىدۇ.";
 const CLARIFY_FALLBACK = "سوئالنى ئازراق ئېنىقلىسام بولىدۇ. بالىنىڭ يېشى ياكى ئوقۇش سەۋىيەسىنى يېزىڭ.";
 const EXPLAIN_FALLBACK = "بۇ سوئالغا قىسقىچە جاۋاب بېرىمەن. كاتالوگتىكى باھا ياكى ئامبارنى بۇ جاۋابقا قوشمايمەن.";
@@ -486,7 +487,7 @@ function systemInstructions() {
     "Choose clarify only when one missing fact blocks a useful answer. Ask that one question and leave book_ids empty.",
     "Choose recommend when the customer wants books and you can already help. Usually choose one or two ids. Leave message empty. If they want a clear age match, select only a listing whose age range includes that age. A famous title, a broad category, or a shared word is not age proof. Do not call a book easy unless the store text says so.",
     "When a reader age is listed, weigh that age and the requested experience together with the store description before choosing an id. A short excerpt is not enough when the store text is longer. Read that text with lookup_catalog_books, or use a STORE_ABOUT block if one is present. You may treat danger, fear, or harm in that text as an interpretation, not as an age rating. Do not invent an age certification, and do not treat every adventure as unsuitable. If the store text is missing or too thin to judge for this reader, leave book_ids empty and answer, ask one useful question, or explain that limit.",
-    "Choose handoff when the title is not in the directory, they ask where to obtain a missing book, or they need a person for stock, delivery, or an order. Leave book_ids and message empty. Do not promise the shop can obtain the book, and do not say the shop certainly lacks it.",
+    "Choose handoff when the title is not in the directory, they ask where to obtain a missing book, or they need a person for stock, delivery, an order, or to reach the staff. Leave book_ids empty and write a short Uyghur message for this request. For a missing title, say only whether the store catalog contains it, and do not claim the shop cannot obtain it. For a person, manager, or staff request, do not say a book was searched for or is missing. Do not invent a staff name, availability, a response time, an appointment, or a contact detail. Do not promise the shop can obtain the book.",
     "Do not write prices, stock, or urls. The server owns those. Store facts about a book come only from the directory, lookup_catalog_books, or a STORE_ABOUT block."
   ].join(" ");
 }
@@ -1281,6 +1282,29 @@ function conversationalMessage(mode, message, catalog, constraints, discussedBoo
   return mode === "clarify" ? CLARIFY_FALLBACK : EXPLAIN_FALLBACK;
 }
 
+function unsupportedHandoffSentence(sentence) {
+  return /\d{3,}|@|چوقۇم|تېپىپ بېرىمىز|تېپىپ بېرەلەيمىز|ئالالمايمىز|جەزمەن يوق/.test(sentence);
+}
+
+function handoffReply(message, catalog) {
+  const kept = [];
+  for (const sentence of sentenceList(normalizeText(message).slice(0, 600))) {
+    if (instructionInjection(sentence) || unverifiedCommerce(sentence) || unsupportedHandoffSentence(sentence)) continue;
+    let blocked = false;
+    if (catalog && catalog.byId) {
+      for (const book of catalog.byId.values()) {
+        if (book.title && book.title.length >= 8 && sentence.includes(book.title)) {
+          blocked = true;
+          break;
+        }
+      }
+    }
+    if (!blocked) kept.push(sentence.trim());
+  }
+  const text = cleanUyghurReply(kept.join(" "));
+  return text.length >= 12 ? text : HANDOFF_FALLBACK;
+}
+
 function readDecision(selected) {
   const mode = selected && selected.mode;
   const ids = Array.isArray(selected && selected.ids) ? selected.ids : [];
@@ -1421,11 +1445,12 @@ async function advise(options) {
     };
   }
   if (decision.mode === "handoff") {
+    const conversation = handoffReply(decision.message, options.catalog);
     return {
       ok: true,
       model: options.model || MODEL,
       catalog_version: options.catalog.version,
-      message: HANDOFF_MESSAGE,
+      message: conversation,
       books: [],
       handoff: whatsAppHandoff(options.catalog),
       requested_ids: [],
@@ -1433,7 +1458,7 @@ async function advise(options) {
       verified: false,
       comparison_status: "",
       mode: "handoff",
-      constraint_state: publishedConstraints(constraints, HANDOFF_MESSAGE),
+      constraint_state: publishedConstraints(constraints, conversation),
       model_message: selected.message || "",
       usage: selected.usage
     };
@@ -1511,6 +1536,7 @@ module.exports = {
   NO_MATCH_MESSAGE,
   SAFE_MESSAGE,
   HANDOFF_MESSAGE,
+  HANDOFF_FALLBACK,
   CLARIFY_FALLBACK,
   DIFFICULTY_LIMIT,
   constraintReply,

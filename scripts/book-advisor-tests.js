@@ -357,8 +357,26 @@ async function run() {
   assert.equal(cheaper.books.length, 1);
   const missing = await ask("مېنىڭ ئىزدىگىنىم يوق كىتاب", { mode: "handoff", book_ids: [701], message: "چوقۇم تېپىپ بېرىمىز" });
   assert.equal(missing.books.length, 0);
-  assert.equal(missing.message, Advisor.HANDOFF_MESSAGE);
+  assert.equal(missing.paid, 1);
+  assert.equal(missing.message, Advisor.HANDOFF_FALLBACK);
+  assert.equal(missing.message.includes("تاپالمىدىم"), false);
   assert.match(missing.handoff.href, /^https:\/\/wa\.me\/905368999888\?text=/);
+  const listed = await ask("مېنىڭ ئىزدىگىنىم يوق كىتاب", { mode: "handoff", book_ids: [701], message: "بۇ نام تىزىملىكتە كۆرۈنمىدى. خالىسىڭىز خىزمەتچىدىن سورىسىڭىز بولىدۇ." });
+  assert.equal(listed.paid, 1);
+  assert.equal(listed.message, "بۇ نام تىزىملىكتە كۆرۈنمىدى. خالىسىڭىز خىزمەتچىدىن سورىسىڭىز بولىدۇ.");
+  assert.equal(listed.message.includes("ئالالمايمىز"), false);
+  const staff = await ask("مۇدىر بىلەن سۆزلەشمەكچى", { mode: "handoff", book_ids: [], message: "كىتاب سوراپ باقمىدىڭىز. خىزمەتچى ياكى مۇدىر بىلەن سۆزلىشىش ئۈچۈن يوللىسىڭىز بولىدۇ." });
+  const contact = await ask("خىزمەتچىلەر بىلەن قانداق ئالاقىلىشىمەن", { mode: "handoff", book_ids: [], message: "خىزمەتچىگە يوللاش ئۈچۈن تۆۋەندىكى ئۇلانمىنى ئېچىڭ." });
+  assert.equal(staff.paid, 1);
+  assert.equal(contact.paid, 1);
+  assert.notEqual(staff.message, contact.message);
+  assert.equal(staff.message.includes("تاپالمىدىم"), false);
+  assert.equal(contact.message.includes("تاپالمىدىم"), false);
+  assert.match(staff.message, /مۇدىر/);
+  assert.match(contact.message, /خىزمەتچىگە/);
+  for (const reply of [listed, staff, contact]) {
+    assert.equal(decodeURIComponent(reply.handoff.href.split("text=")[1]), Advisor.WHATSAPP_PREFILL);
+  }
   const missingText = decodeURIComponent(missing.handoff.href.split("text=")[1]);
   assert.equal(missingText, Advisor.WHATSAPP_PREFILL);
   assert.equal(missingText.includes("يوق كىتاب"), false);
@@ -390,8 +408,10 @@ async function run() {
   assert.equal(where.handoff.label, "WhatsApp ئارقىلىق ئالاقىلىشىش");
   const person = await ask("ئادەم بىلەن سۆزلەشمەكچى", { mode: "handoff", book_ids: [], message: "ئامباردا بار" });
   assert.equal(person.books.length, 0);
-  assert.match(person.message, /تاپالمىدىم/);
-  assert.equal(person.message.includes("ۋەدە"), false);
+  assert.equal(person.paid, 1);
+  assert.equal(person.message, Advisor.HANDOFF_FALLBACK);
+  assert.equal(person.message.includes("تاپالمىدىم"), false);
+  assert.equal(person.message.includes("ئامبار"), false);
   const repaired = await ask("بالام", {
     mode: "clarify",
     book_ids: [],
@@ -420,15 +440,19 @@ async function run() {
     open: true,
     entries: [
       { role: "assistant", text: Advisor.HANDOFF_MESSAGE, cards: [], handoff: { href: "https://wa.me/905368999888?text=" + encodeURIComponent(Advisor.WHATSAPP_PREFILL), label: "evil" } },
+      { role: "assistant", text: "خىزمەتچى بىلەن سۆزلىشىش ئۈچۈن يوللىسىڭىز بولىدۇ.", cards: [], handoff: { href: "https://wa.me/905368999888?text=" + encodeURIComponent(Advisor.WHATSAPP_PREFILL), label: "evil" } },
       { role: "assistant", text: "ياق", handoff: { href: "https://wa.me/900000000000?text=no" } },
       { role: "assistant", text: "شەخسىي", handoff: { href: "https://wa.me/905368999888?text=" + encodeURIComponent("ئەسسالامۇ ئەلەيكۇم، مەن قۇتادغۇبىلىگ كىتابخانىسىنىڭ كىتاب مەسلىھەتچىسى ئارقىلىق كەلدىم. تېلېفون 05368999888") } }
     ]
   });
   const restored = Ui.readMemory(memory);
   assert.equal(restored.sessionId.length, 32);
+  assert.equal(restored.entries[0].text, Advisor.HANDOFF_MESSAGE);
   assert.equal(restored.entries[0].handoff.label, "WhatsApp ئارقىلىق ئالاقىلىشىش");
-  assert.equal(restored.entries[1].handoff, null);
+  assert.match(restored.entries[1].text, /خىزمەتچى بىلەن سۆزلىشىش/);
+  assert.equal(restored.entries[1].handoff.label, "WhatsApp ئارقىلىق ئالاقىلىشىش");
   assert.equal(restored.entries[2].handoff, null);
+  assert.equal(restored.entries[3].handoff, null);
   assert.equal(Ui.nextSize("compact", false), "large");
   assert.equal(Ui.nextSize("large", false), "full");
   assert.equal(Ui.nextSize("full", false), "compact");
@@ -478,6 +502,10 @@ async function run() {
     assert.equal(Boolean(outcome.handoff), row[3], row[0]);
     assert.equal(JSON.stringify(outcome).includes("sk-"), false);
     if (outcome.handoff) {
+      assert.equal(outcome.paid, 1, row[0]);
+      assert.equal(outcome.message, Advisor.HANDOFF_FALLBACK, row[0]);
+      assert.equal(outcome.message.includes("تاپالمىدىم"), false, row[0]);
+      assert.equal(outcome.message.includes("ignore"), false, row[0]);
       assert.match(outcome.handoff.href, /^https:\/\/wa\.me\/905368999888\?text=/);
       assert.equal(decodeURIComponent(outcome.handoff.href.split("text=")[1]), Advisor.WHATSAPP_PREFILL, row[0]);
     }
@@ -1123,6 +1151,7 @@ async function run() {
   assert.equal(systems[0], systems[1]);
   assert.equal(systems[1], systems[2]);
   assert.equal(systems[0].includes("پۇل تېجەش"), false);
+  assert.match(systems[0], /For a person, manager, or staff request/);
   assert.match(systems[0], /Do not invent an age certification/);
   assert.match(systems[0], /do not treat every adventure as unsuitable/);
   const lead = "ھايۋانلار ھەققىدە قىسقا ھېكايە. ";
