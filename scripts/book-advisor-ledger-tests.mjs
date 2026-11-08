@@ -103,6 +103,10 @@ async function main() {
     await admin.query("CREATE ROLE anon NOLOGIN");
     await admin.query("CREATE ROLE authenticated NOLOGIN");
     await admin.query("CREATE ROLE service_role NOLOGIN");
+    await admin.query("CREATE SCHEMA private");
+    await admin.query("GRANT USAGE ON SCHEMA private TO service_role");
+    await admin.query("CREATE FUNCTION private.live_site_probe() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$");
+    await admin.query("GRANT EXECUTE ON FUNCTION private.live_site_probe() TO service_role");
     await apply(admin, "STAGE_BOOK_ADVISOR_SPEND.sql");
     const args = await admin.query(`
       SELECT pg_get_function_identity_arguments(p.oid) AS args
@@ -114,6 +118,8 @@ async function main() {
     const privileges = await admin.query(`
       SELECT
         has_schema_privilege('anon', 'private', 'USAGE') AS anon_schema,
+        has_schema_privilege('service_role', 'private', 'USAGE') AS service_schema,
+        has_function_privilege('service_role', 'private.live_site_probe()', 'EXECUTE') AS live_probe,
         has_function_privilege('anon', 'public.reserve_book_advisor_spend(text, bigint)', 'EXECUTE') AS anon_execute,
         has_function_privilege('authenticated', 'public.reserve_book_advisor_spend(text, bigint)', 'EXECUTE') AS auth_execute,
         has_function_privilege('service_role', 'public.reserve_book_advisor_spend(text, bigint)', 'EXECUTE') AS service_execute,
@@ -121,11 +127,24 @@ async function main() {
         has_table_privilege('service_role', 'private.book_advisor_spend', 'SELECT') AS service_table
     `);
     assert.equal(privileges.rows[0].anon_schema, false);
+    assert.equal(privileges.rows[0].service_schema, true);
+    assert.equal(privileges.rows[0].live_probe, true);
     assert.equal(privileges.rows[0].anon_execute, false);
     assert.equal(privileges.rows[0].auth_execute, false);
     assert.equal(privileges.rows[0].service_execute, true);
     assert.equal(privileges.rows[0].service_private, false);
     assert.equal(privileges.rows[0].service_table, false);
+    const wrappers = await admin.query(`
+      SELECT
+        has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_execute,
+        has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+        has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_execute
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname LIKE '%book_advisor%'
+    `);
+    assert.equal(wrappers.rows.length, 6);
+    assert.ok(wrappers.rows.every((row) => row.service_execute === true && row.anon_execute === false && row.auth_execute === false));
     await admin.query("BEGIN");
     await admin.query("SET LOCAL ROLE anon");
     await assert.rejects(
@@ -213,6 +232,13 @@ async function main() {
       WHERE p.proname LIKE '%book_advisor%'
     `);
     assert.equal(gone.rows[0].n, 0);
+    const preserved = await admin.query(`
+      SELECT
+        has_schema_privilege('service_role', 'private', 'USAGE') AS service_schema,
+        has_function_privilege('service_role', 'private.live_site_probe()', 'EXECUTE') AS live_probe
+    `);
+    assert.equal(preserved.rows[0].service_schema, true);
+    assert.equal(preserved.rows[0].live_probe, true);
     await apply(admin, "STAGE_BOOK_ADVISOR_SPEND.sql");
     const again = await reserve(hashA, 1);
     assert.match(again, /^[0-9a-f-]{36}$/i);

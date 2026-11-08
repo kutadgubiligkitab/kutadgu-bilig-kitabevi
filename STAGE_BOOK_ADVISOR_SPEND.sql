@@ -6,7 +6,7 @@
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS private;
-REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON SCHEMA private FROM PUBLIC, anon, authenticated;
 
 CREATE TABLE IF NOT EXISTS private.book_advisor_policy (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
