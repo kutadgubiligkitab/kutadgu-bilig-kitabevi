@@ -21,6 +21,15 @@ function disabled() {
   return json({ ok: false, error: "disabled" }, 503);
 }
 
+function advisorAccess(env, request) {
+  if (String(env && env.BOOK_ADVISOR_ENABLED || "") === "true") return "public";
+  const privateTest = String(env && env.BOOK_ADVISOR_PRIVATE_TEST_ENABLED || "") === "true";
+  if (privateTest && tokenMatches(env && env.BOOK_ADVISOR_PRIVATE_TEST_TOKEN, request.headers.get(HEADER))) {
+    return "private";
+  }
+  return "";
+}
+
 function tokenMatches(expected, provided) {
   const left = String(expected || "");
   const right = String(provided || "");
@@ -54,8 +63,7 @@ function actualMicroUsd(result) {
 }
 
 async function handleBookAdvisor(request, env, deps) {
-  if (String(env && env.BOOK_ADVISOR_ENABLED || "") !== "true") return disabled();
-  if (!tokenMatches(env && env.BOOK_ADVISOR_PRIVATE_TEST_TOKEN, request.headers.get(HEADER))) return disabled();
+  if (!advisorAccess(env, request)) return disabled();
   const source = deps || {};
   let ledger = source.ledger;
   let sessions = source.sessions;
@@ -79,14 +87,20 @@ async function handleBookAdvisor(request, env, deps) {
   }
   let body = null;
   try { body = JSON.parse(raw); } catch (_error) { body = null; }
+  const turns = Advisor.boundConversation(body && body.turns);
+  const question = turns[turns.length - 1];
+  if (!question || question.role !== "user" || question.content.length < 2) {
+    return json({ ok: false, error: "advisor_query" }, 400);
+  }
+  let hash = "";
+  try {
+    hash = Budget.clientHash(env.BOOK_ADVISOR_CLIENT_HASH_SECRET, request.headers.get("cf-connecting-ip"));
+  } catch (_error) {
+    return json({ ok: false, error: "advisor_unconfigured" }, 503);
+  }
   const started = Date.now();
   let reservation = null;
   try {
-    const hash = Budget.clientHash(
-      env.BOOK_ADVISOR_CLIENT_HASH_SECRET,
-      request.headers.get("cf-connecting-ip"),
-      request.headers.get("user-agent")
-    );
     const catalog = source.loadCatalog
       ? await source.loadCatalog(env)
       : await Advisor.loadReadOnlyCatalog(
@@ -95,9 +109,7 @@ async function handleBookAdvisor(request, env, deps) {
         env.SUPABASE_PUBLISHABLE_KEY
       );
     const now = source.now ? source.now() : new Date();
-    const turns = body && body.turns;
-    const question = Advisor.boundConversation(turns).slice(-1)[0];
-    const intent = Compare.followUpIntent(question && question.content);
+    const intent = Compare.followUpIntent(question.content);
     const priceOnly = intent === "cheapest" || intent === "dearest";
     const hold = priceOnly ? 1 : Advisor.worstCaseMicroUsd(catalog);
     reservation = await ledger.reserve({ clientHash: hash, microUsd: hold, now });

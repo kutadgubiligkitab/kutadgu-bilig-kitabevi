@@ -28,6 +28,7 @@ const mockBooks = [
     author: "لىن چىڭ",
     category: "بالىلار كىتابلىرى",
     price: 20,
+    image_url: "https://www.kutadgubilik.com/kutadgu-logo.webp",
     is_active: true,
     submission_status: "approved"
   }
@@ -77,7 +78,8 @@ function mockResult(catalog) {
     model: "mock",
     catalog_version: catalog.version,
     message: book.title + " دۇكىنىمىزدا بار.",
-    books: Advisor.presentSelection([book.id], catalog)
+    books: Advisor.presentSelection([book.id], catalog),
+    session_id: "ab".repeat(16)
   };
 }
 
@@ -128,7 +130,7 @@ const server = http.createServer(async (req, res) => {
     const storesForRequest = advisorStores();
     ledger = storesForRequest.ledger;
     const sessions = storesForRequest.sessions;
-    const client = Budget.clientHash(hashSecret, req.socket.remoteAddress || "", req.headers["user-agent"] || "");
+    const client = Budget.clientHash(hashSecret, req.socket.remoteAddress || "");
     const intent = Compare.followUpIntent(turns[turns.length - 1].content);
     const priceOnly = intent === "cheapest" || intent === "dearest";
     const hold = priceOnly ? 1 : Advisor.worstCaseMicroUsd(catalog);

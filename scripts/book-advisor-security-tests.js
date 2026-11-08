@@ -316,12 +316,130 @@ async function run() {
   assert.equal(otherBody.books.length, 0);
   const closed = await Gate.handleBookAdvisor(request({
     turns: [{ role: "user", content: "پۇل" }]
-  }), { BOOK_ADVISOR_ENABLED: "false" }, {
+  }), { BOOK_ADVISOR_ENABLED: "false", BOOK_ADVISOR_PRIVATE_TEST_ENABLED: "false" }, {
     ledger: gateLedger,
     sessions,
     loadCatalog: async () => catalog
   });
   assert.equal(closed.status, 503);
+  let publicLoads = 0;
+  let publicCalls = 0;
+  const publicLedger = Budget.createLedger({
+    dailyLimitMicroUsd: Advisor.worstCaseMicroUsd(catalog) * 3,
+    monthlyLimitMicroUsd: Advisor.worstCaseMicroUsd(catalog) * 3,
+    perMinute: 6
+  });
+  const publicRequest = new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "cf-connecting-ip": "203.0.113.20",
+      "user-agent": "customer"
+    },
+    body: JSON.stringify({
+      turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }],
+      trustedBookIds: [1],
+      price: 1,
+      client_hash: "aa".repeat(32)
+    })
+  });
+  const publicReply = await Gate.handleBookAdvisor(publicRequest, {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_PRIVATE_TEST_ENABLED: "false",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: SECRET,
+    OPENAI_API_KEY: "test-key"
+  }, {
+    ledger: publicLedger,
+    sessions,
+    now: () => new Date("2026-11-08T01:00:00.000Z"),
+    loadCatalog: async () => {
+      publicLoads += 1;
+      return catalog;
+    },
+    fetchImpl: async () => {
+      publicCalls += 1;
+      if (publicCalls === 1) {
+        return {
+          ok: true,
+          json: async () => ({
+            output_text: JSON.stringify({ book_ids: [701] }),
+            usage: { input_tokens: 80, output_tokens: 10 }
+          })
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({ message: "باي دادام نامرات دادام ماس كېلىدۇ." }),
+          usage: { input_tokens: 20, output_tokens: 8 }
+        })
+      };
+    }
+  });
+  const publicBody = await publicReply.json();
+  assert.equal(publicReply.status, 200);
+  assert.equal(publicLoads, 1);
+  assert.equal(publicBody.books[0].id, 701);
+  assert.equal(publicBody.books[0].price, 294);
+  assert.equal(JSON.stringify(publicBody).includes(TOKEN), false);
+  const short = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.21", "user-agent": "customer" },
+    body: JSON.stringify({ turns: [{ role: "user", content: "پ" }] })
+  }), {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: SECRET,
+    OPENAI_API_KEY: "test-key"
+  }, {
+    ledger: publicLedger,
+    sessions,
+    loadCatalog: async () => { publicLoads += 1; return catalog; },
+    fetchImpl: async () => { publicCalls += 1; throw new Error("paid"); }
+  });
+  assert.equal(short.status, 400);
+  assert.equal(publicLoads, 1);
+  assert.equal(publicCalls, 2);
+  let privateCalls = 0;
+  const privateReply = await Gate.handleBookAdvisor(request({
+    turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }]
+  }), {
+    BOOK_ADVISOR_ENABLED: "false",
+    BOOK_ADVISOR_PRIVATE_TEST_ENABLED: "true",
+    BOOK_ADVISOR_PRIVATE_TEST_TOKEN: TOKEN,
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: SECRET,
+    OPENAI_API_KEY: "test-key"
+  }, {
+    ledger: publicLedger,
+    sessions,
+    now: () => new Date("2026-11-08T01:02:00.000Z"),
+    loadCatalog: async () => catalog,
+    fetchImpl: async () => {
+      privateCalls += 1;
+      if (privateCalls === 1) {
+        return { ok: true, json: async () => ({ output_text: JSON.stringify({ book_ids: [700] }), usage: { input_tokens: 80, output_tokens: 10 } }) };
+      }
+      return { ok: true, json: async () => ({ output_text: JSON.stringify({ message: "باي دادام مالىيە ئەركىنلىك يولى ماس كېلىدۇ." }), usage: { input_tokens: 20, output_tokens: 8 } }) };
+    }
+  });
+  assert.equal(privateReply.status, 200);
+  const privateDenied = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.22", "user-agent": "customer" },
+    body: JSON.stringify({ turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }] })
+  }), {
+    BOOK_ADVISOR_ENABLED: "false",
+    BOOK_ADVISOR_PRIVATE_TEST_ENABLED: "true",
+    BOOK_ADVISOR_PRIVATE_TEST_TOKEN: TOKEN,
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: SECRET,
+    OPENAI_API_KEY: "test-key"
+  }, {
+    ledger: publicLedger,
+    sessions,
+    loadCatalog: async () => catalog,
+    fetchImpl: async () => { privateCalls += 1; throw new Error("paid"); }
+  });
+  assert.equal(privateDenied.status, 503);
+  assert.equal(privateCalls, 2);
 
   let blockedFetch = 0;
   const missingKey = await Gate.handleBookAdvisor(request({
@@ -416,6 +534,64 @@ async function run() {
     BOOK_ADVISOR_ENABLED: "false"
   });
   assert.equal(method.status, 405);
+  assert.equal(Budget.clientHash(SECRET, "203.0.113.8", "one"), Budget.clientHash(SECRET, "203.0.113.8", "two"));
+  assert.notEqual(Budget.clientHash(SECRET, "203.0.113.8"), Budget.clientHash(SECRET, "198.51.100.9"));
+  assert.equal(Budget.isTrustedClientIp("not-an-ip"), false);
+  let spoofLoads = 0;
+  let spoofCalls = 0;
+  const spoofLedger = Budget.createLedger({
+    dailyLimitMicroUsd: Advisor.worstCaseMicroUsd(catalog) * 4,
+    monthlyLimitMicroUsd: Advisor.worstCaseMicroUsd(catalog) * 4,
+    perMinute: 1
+  });
+  const spoofEnv = {
+    BOOK_ADVISOR_ENABLED: "true",
+    BOOK_ADVISOR_PRIVATE_TEST_ENABLED: "false",
+    BOOK_ADVISOR_CLIENT_HASH_SECRET: SECRET,
+    OPENAI_API_KEY: "test-key"
+  };
+  function spoofRequest(agent) {
+    return new Request("https://www.kutadgubilik.com/api/book-advisor", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "cf-connecting-ip": "203.0.113.40",
+        "x-forwarded-for": "198.51.100.40",
+        "user-agent": agent
+      },
+      body: JSON.stringify({ turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }] })
+    });
+  }
+  const spoofDeps = {
+    ledger: spoofLedger,
+    sessions,
+    now: () => new Date("2026-11-08T02:00:00.000Z"),
+    loadCatalog: async () => {
+      spoofLoads += 1;
+      return catalog;
+    },
+    fetchImpl: async () => {
+      spoofCalls += 1;
+      if (spoofCalls === 1) {
+        return { ok: true, json: async () => ({ output_text: JSON.stringify({ book_ids: [701] }), usage: { input_tokens: 40, output_tokens: 8 } }) };
+      }
+      return { ok: true, json: async () => ({ output_text: JSON.stringify({ message: "باي دادام نامرات دادام ماس كېلىدۇ." }), usage: { input_tokens: 12, output_tokens: 6 } }) };
+    }
+  };
+  assert.equal((await Gate.handleBookAdvisor(spoofRequest("browser-a"), spoofEnv, spoofDeps)).status, 200);
+  const rotated = await Gate.handleBookAdvisor(spoofRequest("browser-b"), spoofEnv, spoofDeps);
+  assert.equal(rotated.status, 400);
+  assert.equal((await rotated.json()).error, "advisor_rate_limit");
+  assert.equal(spoofLoads, 2);
+  assert.equal(spoofCalls, 2);
+  const missingIp = await Gate.handleBookAdvisor(new Request("https://www.kutadgubilik.com/api/book-advisor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "user-agent": "rotated", "x-forwarded-for": "203.0.113.40" },
+    body: JSON.stringify({ turns: [{ role: "user", content: "پۇل تېجەش ھەققىدە كىتاب" }] })
+  }), spoofEnv, spoofDeps);
+  assert.equal(missingIp.status, 503);
+  assert.equal(spoofLoads, 2);
+  assert.equal(spoofCalls, 2);
   console.log("book-advisor-security-tests ok");
 }
 

@@ -10,13 +10,14 @@
 </head>
 <body>
   <main class="advisor">
+    <p class="advisor-home"><a href="/">دۇكانغا قايتىش</a></p>
     <h1>كىتاب مەسلىھەتچىسى</h1>
-    <p class="advisor-note">پەقەت دۇكىنىمىزدىكى كىتابلارنى تەۋسىيە قىلىدۇ.</p>
+    <p class="advisor-note">پەقەت دۇكىنىمىزدىكى تەستىقلانغان كىتابلارنى تەۋسىيە قىلىدۇ. باھا ۋە ئادرېس كارتىدا كۆرسىتىلىدۇ.</p>
     <ol id="advisorThread" class="advisor-thread" aria-live="polite"></ol>
     <form id="advisorForm">
       <label for="advisorInput">سوئالىڭىز</label>
-      <textarea id="advisorInput" name="message" rows="3" maxlength="500" required></textarea>
-      <button type="submit">يوللاش</button>
+      <textarea id="advisorInput" name="message" rows="3" maxlength="500" required placeholder="مەسىلەن: پۇل تېجەش ھەققىدە كىتاب"></textarea>
+      <button id="advisorSend" type="submit">يوللاش</button>
     </form>
     <p id="advisorStatus" class="advisor-status" role="status"></p>
   </main>

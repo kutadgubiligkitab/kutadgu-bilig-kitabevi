@@ -360,10 +360,12 @@ function directoryInput(catalog, turns) {
       content: [
         "CATALOG " + catalog.version,
         "Columns: id, title, author, category, price, series, excerpt.",
-        catalog.text,
-        "CUSTOMER",
-        customer
+        catalog.text
       ].join("\n")
+    },
+    {
+      role: "user",
+      content: "CUSTOMER\n" + customer
     }
   ];
 }

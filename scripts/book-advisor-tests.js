@@ -248,7 +248,43 @@ async function run() {
   assert.equal(worker.includes("book_advisor"), false);
   assert.match(worker, /SEMANTIC_ACCEPT_FLOOR = 0\.55/);
   assert.equal(wrangler.includes("\"BOOK_ADVISOR_ENABLED\": \"false\""), true);
+  assert.equal(wrangler.includes("\"BOOK_ADVISOR_PRIVATE_TEST_ENABLED\": \"false\""), true);
   assert.equal(wrangler.includes("\"AI_SEARCH_ENABLED\": \"true\""), false);
+  const ignored = fs.readFileSync(path.join(root, ".assetsignore"), "utf8");
+  assert.equal(ignored.includes("book-advisor.html"), false);
+  assert.equal(ignored.includes("kutadgu-book-advisor.js"), true);
+  const prompts = [];
+  await Advisor.advise({
+    catalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(1000000),
+    turns: [{ role: "user", content: "پۇل تېجەش" }],
+    fetchImpl: async (_url, init) => {
+      prompts.push(JSON.parse(init.body).input);
+      return selectionResponse([]);
+    }
+  });
+  await Advisor.advise({
+    catalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(1000000),
+    turns: [{ role: "user", content: "شېئىر" }],
+    fetchImpl: async (_url, init) => {
+      prompts.push(JSON.parse(init.body).input);
+      return selectionResponse([]);
+    }
+  });
+  assert.equal(prompts[0][1].content.includes("CUSTOMER"), false);
+  assert.equal(prompts[0][1].content, prompts[1][1].content);
+  assert.equal(prompts[0][2].content.includes("پۇل تېجەش"), true);
+  assert.equal(prompts[1][2].content.includes("شېئىر"), true);
+  const Ui = require("../kutadgu-book-advisor-ui.js");
+  assert.equal(Ui.customerState(503, "disabled"), "مەسلىھەتچى ھازىر ئىشلىمەيدۇ.");
+  assert.equal(Ui.customerState(400, "advisor_budget"), "بۈگۈنكى مەسلىھەت چېكى توشتى.");
+  assert.equal(Ui.customerState(400, "advisor_rate_limit"), "بىر ئازدىن كېيىن قايتا سىناڭ.");
+  assert.equal(Ui.safeHref({ href: "https://evil.example", id: 12 }), "/book/12");
+  assert.equal(Ui.safeHref({ href: "/series/oyghanghan-zemin", id: 12 }), "/series/oyghanghan-zemin");
+  assert.equal(Ui.safeImage("javascript:alert(1)"), "");
   console.log("book-advisor-tests ok");
 }
 

@@ -260,10 +260,20 @@ function createRpcStores(options) {
   };
 }
 
-function clientHash(secret, ip, userAgent) {
+function isTrustedClientIp(value) {
+  const ip = String(value || "").trim();
+  const octet = "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+  if (new RegExp("^" + octet + "(?:\\." + octet + "){3}$").test(ip)) return true;
+  if (new RegExp("^::ffff:" + octet + "(?:\\." + octet + "){3}$", "i").test(ip)) return true;
+  if (!ip.includes(":") || ip.length > 45 || ip.includes("%")) return false;
+  return /^[0-9a-f:]+$/i.test(ip);
+}
+
+function clientHash(secret, ip) {
   const key = String(secret || "");
-  if (!/^[a-f0-9]{64}$/.test(key)) throw coded("advisor_unconfigured");
-  return crypto.createHash("sha256").update(key + "|" + String(ip || "") + "|" + String(userAgent || "")).digest("hex");
+  const address = String(ip || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(key) || !isTrustedClientIp(address)) throw coded("advisor_unconfigured");
+  return crypto.createHash("sha256").update(key + "|" + address).digest("hex");
 }
 
 module.exports = {
@@ -273,5 +283,6 @@ module.exports = {
   createLedger,
   createSessionStore,
   createRpcStores,
-  clientHash
+  clientHash,
+  isTrustedClientIp
 };
