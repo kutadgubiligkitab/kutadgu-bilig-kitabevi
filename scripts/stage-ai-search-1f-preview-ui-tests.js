@@ -430,7 +430,7 @@ async function run() {
     assert.match(html, /id="searchInput"/);
     assert.match(html, /id="searchButton"/);
     assert.match(html, /id="searchResults"/);
-    assert.match(html, /id="aiSearchButton"/);
+    assert.doesNotMatch(html, /id="aiSearchButton"/);
     assert.match(html, /id="aiSearchResults"/);
     assert.match(html, /kutadgu-ai-search-ui\.js/);
     assert.match(html, /ai-search-ui\.css/);

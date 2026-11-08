@@ -389,6 +389,20 @@
     document.addEventListener("kutadgu-member-state-synced", refreshHeaderCartCount);
   }
 
+  function ensureAdvisorWidget() {
+    if (typeof document === "undefined" || !document.body || document.getElementById("kutadguAdvisorCss")) return;
+    var link = document.createElement("link");
+    link.id = "kutadguAdvisorCss";
+    link.rel = "stylesheet";
+    link.href = "/book-advisor.css?v=3";
+    document.head.appendChild(link);
+    if (document.querySelector("script[src*='kutadgu-book-advisor-ui.js']")) return;
+    var script = document.createElement("script");
+    script.src = "/kutadgu-book-advisor-ui.js?v=3";
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
   function ensureReviewNotices() {
     if (typeof document === "undefined" || !document.body) return;
     if (document.querySelector("script[src*='book-reviews.js']")) return;
@@ -424,6 +438,7 @@
     bindCartCountRefresh();
     refreshHeaderCartCount();
     ensureReviewNotices();
+    ensureAdvisorWidget();
     return header;
   }
 

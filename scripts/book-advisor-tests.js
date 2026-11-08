@@ -285,6 +285,28 @@ async function run() {
   assert.equal(Ui.safeHref({ href: "https://evil.example", id: 12 }), "/book/12");
   assert.equal(Ui.safeHref({ href: "/series/oyghanghan-zemin", id: 12 }), "/series/oyghanghan-zemin");
   assert.equal(Ui.safeImage("javascript:alert(1)"), "");
+  const store = new Map();
+  const storage = { getItem: (key) => store.get(key) || "", setItem: (key, value) => store.set(key, value) };
+  Ui.writeMemory(storage, {
+    turns: [{ role: "user", content: "شېئىر" }, { role: "assistant", content: "بۇ كىتاب ماس كېلىدۇ." }],
+    sessionId: "ab".repeat(16),
+    open: true,
+    entries: [{ role: "assistant", text: "بۇ كىتاب ماس كېلىدۇ.", cards: [{ title: "دىۋان", author: "ئاپتور", price: 12, href: "https://evil.example", image_url: "javascript:alert(1)" }] }]
+  });
+  const saved = Ui.readMemory(storage);
+  assert.equal(saved.sessionId, "ab".repeat(16));
+  assert.equal(saved.turns.length, 2);
+  assert.equal(saved.entries[0].cards[0].href, "/books");
+  assert.equal(saved.entries[0].cards[0].image_url, "");
+  const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.equal(index.includes("book-advisor.html"), false);
+  assert.equal(index.includes("id=\"aiSearchButton\""), false);
+  assert.equal(index.includes("id=\"searchInput\""), true);
+  const header = fs.readFileSync(path.join(root, "public-header.js"), "utf8");
+  assert.equal(header.includes("kutadgu-book-advisor-ui.js"), true);
+  const page = fs.readFileSync(path.join(root, "book-advisor.html"), "utf8");
+  assert.equal(page.includes("advisorForm"), false);
+  assert.equal(page.includes("/api/book-advisor"), false);
   console.log("book-advisor-tests ok");
 }
 
