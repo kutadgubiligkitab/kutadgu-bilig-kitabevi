@@ -735,6 +735,75 @@ async function run() {
   });
   assert.equal(toolRounds, 2);
   assert.ok(toolBudget.spentMicroUsd <= toolBudget.limitMicroUsd);
+  assert.equal(Advisor.MAX_LOOKUP_CALLS, 1);
+  const quotedBooks = [];
+  for (let id = 1; id <= 6; id += 1) {
+    quotedBooks.push({
+      id,
+      title: "\"".repeat(40),
+      author: "\"".repeat(20),
+      category: "رومان",
+      price: 10,
+      description: "\"".repeat(800),
+      is_active: true,
+      submission_status: "approved"
+    });
+  }
+  const quotedCatalog = Advisor.buildCatalog(quotedBooks);
+  let quotedCalls = 0;
+  await assert.rejects(Advisor.advise({
+    catalog: quotedCatalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(quotedCatalog)),
+    turns: [{ role: "user", content: "ئۇزۇن چۈشەندۈرۈش" }],
+    fetchImpl: async () => {
+      quotedCalls += 1;
+      return jsonResponse({
+        output: [1, 2, 3].map((id) => ({
+          type: "function_call",
+          name: "lookup_catalog_books",
+          call_id: "call-" + id,
+          arguments: JSON.stringify({ book_ids: [1, 2, 3, 4, 5, 6] })
+        })),
+        usage: { input_tokens: 30, output_tokens: 20 }
+      });
+    }
+  }), (error) => error.code === "advisor_model_unavailable" && error.advisorCharged === true);
+  assert.equal(quotedCalls, 1);
+  let matchedFollowUp = 0;
+  await Advisor.advise({
+    catalog: quotedCatalog,
+    apiKey: "test-key",
+    budget: Advisor.createBudget(Advisor.worstCaseMicroUsd(quotedCatalog)),
+    turns: [{ role: "user", content: "ئۇزۇن چۈشەندۈرۈش" }],
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      const outputs = (body.input || []).filter((item) => item && item.type === "function_call_output");
+      const calls = (body.input || []).filter((item) => item && item.type === "function_call");
+      if (!outputs.length) {
+        return jsonResponse({
+          output: [{
+            type: "function_call",
+            name: "lookup_catalog_books",
+            call_id: "call-one",
+            arguments: JSON.stringify({ book_ids: [1, 2, 3, 4, 5, 6] })
+          }],
+          usage: { input_tokens: 30, output_tokens: 20 }
+        });
+      }
+      matchedFollowUp += 1;
+      assert.equal(calls.length, 1);
+      assert.equal(outputs.length, 1);
+      assert.equal(outputs[0].call_id, calls[0].call_id);
+      assert.equal(JSON.parse(outputs[0].output).length, 6);
+      assert.ok(JSON.stringify(body.input).length <= Advisor.toolRoundInputTokens(quotedCatalog, 0));
+      return jsonResponse({
+        output_text: JSON.stringify({ mode: "clarify", message: "قايسى ياشتىكى ئوقۇرمەن ئۈچۈن؟", book_ids: [] }),
+        usage: { input_tokens: 40, output_tokens: 12 }
+      });
+    }
+  });
+  assert.equal(matchedFollowUp, 1);
   const secret = "ab".repeat(32);
   const questions = [
     "بالامغا ھېكايە كىتابى لازىم.",

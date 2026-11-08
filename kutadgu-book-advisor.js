@@ -19,6 +19,7 @@ const MAX_IDS = 6;
 const MAX_TURNS = 6;
 const MAX_MESSAGE_CHARS = 500;
 const MAX_TOOL_ROUNDS = 2;
+const MAX_LOOKUP_CALLS = 1;
 const REQUEST_TIMEOUT_MS = 20000;
 const SELECTION_OUTPUT_TOKENS = 500;
 const EXPLANATION_OUTPUT_TOKENS = 400;
@@ -153,8 +154,25 @@ function toolRoundInputTokens(catalog, round) {
     call_id: "call_0123456789abcdef",
     output: maxLookupJson()
   });
-  const transcript = (round + 1) * (call.length + output.length + (SELECTION_OUTPUT_TOKENS * 4) + JSON.stringify(LOOKUP_TOOL).length);
+  const perCall = call.length + output.length;
+  const modelOutputChars = SELECTION_OUTPUT_TOKENS * 4;
+  const transcript = (round + 1) * (
+    (MAX_LOOKUP_CALLS * perCall)
+    + modelOutputChars
+    + JSON.stringify(LOOKUP_TOOL).length
+  );
   return selectionInputTokens(catalog) + transcript;
+}
+
+function supportedLookupCalls(calls) {
+  if (!Array.isArray(calls) || calls.length < 1 || calls.length > MAX_LOOKUP_CALLS) return false;
+  const seen = new Set();
+  for (const call of calls) {
+    const id = call && call.call_id;
+    if (typeof id !== "string" || id.length < 1 || id.length > 80 || seen.has(id)) return false;
+    seen.add(id);
+  }
+  return true;
 }
 
 function toolInputTokens(catalog) {
@@ -1066,6 +1084,11 @@ async function selectBooks(options) {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       const calls = ((payload && payload.output) || []).filter((item) => item && item.type === "function_call");
       if (!calls.length) break;
+      if (!supportedLookupCalls(calls)) {
+        const error = new Error("advisor_model_unavailable");
+        error.code = "advisor_model_unavailable";
+        throw error;
+      }
       const next = input.slice();
       for (const item of payload.output || []) next.push(item);
       for (const call of calls) {
@@ -1077,7 +1100,13 @@ async function selectBooks(options) {
           output: JSON.stringify(name ? lookupRecords(catalog, args.book_ids) : [])
         });
       }
-      const toolReserve = estimateRequestMicroUsd(toolRoundInputTokens(catalog, round), SELECTION_OUTPUT_TOKENS);
+      const ceiling = toolRoundInputTokens(catalog, round);
+      if (JSON.stringify(next).length > ceiling) {
+        const error = new Error("advisor_model_unavailable");
+        error.code = "advisor_model_unavailable";
+        throw error;
+      }
+      const toolReserve = estimateRequestMicroUsd(ceiling, SELECTION_OUTPUT_TOKENS);
       if (!reserve(options.budget, toolReserve)) break;
       openToolReserve = toolReserve;
       attempts += 1;
@@ -1432,7 +1461,9 @@ module.exports = {
   buildCatalog,
   presentSelection,
   readerConstraints,
+  MAX_LOOKUP_CALLS,
   toolInputTokens,
+  toolRoundInputTokens,
   ageVerdict,
   bookDecision,
   attachPublicSeries,
