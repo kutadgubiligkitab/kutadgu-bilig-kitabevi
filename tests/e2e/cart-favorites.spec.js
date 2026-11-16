@@ -18,6 +18,37 @@ async function addBookOnce(page) {
   return book;
 }
 
+/**
+ * Line total from the catalog book behind the first cart line.
+ * Missing, blank, and nonnumeric prices stay unresolved so they are never
+ * formatted as zero. A stored numeric zero stays zero.
+ */
+async function expectedHydratedLineTotal(page, qty) {
+  let expected = "";
+  await expect.poll(async () => {
+    expected = await page.evaluate((wantedQty) => {
+      const shop = window.kutadguShop;
+      const host = document.querySelector("#cartItems");
+      if (!shop || typeof shop.cart !== "function" || typeof shop.find !== "function") return "";
+      if (!host || host.getAttribute("data-cart-hydration") !== "ready") return "";
+      const line = shop.cart()[0];
+      if (!line || !line.id || Number(line.qty) !== wantedQty) return "";
+      const book = shop.find(line.id);
+      if (!book) return "";
+      const price = book.price;
+      if (price == null || typeof price === "boolean") return "";
+      if (typeof price === "string" && price.trim() === "") return "";
+      const numeric = typeof price === "number" ? price : Number(price);
+      if (!Number.isFinite(numeric)) return "";
+      const total = numeric * wantedQty;
+      if (!Number.isFinite(total)) return "";
+      return `${Number(total).toLocaleString("tr-TR")} ₺`;
+    }, qty);
+    return expected;
+  }).not.toBe("");
+  return expected;
+}
+
 test.describe("guest cart and favorites", () => {
   test.beforeEach(async ({ page }) => {
     await H.installReadSafeNetwork(page);
@@ -374,28 +405,17 @@ test.describe("guest cart and favorites", () => {
     await H.waitForShop(page);
     await H.waitForHydratedCartTitle(page, book.title);
 
-    const expectedOnce = await page.evaluate(() => {
-      const shop = window.kutadguShop;
-      const line = shop.cart()[0];
-      const book = shop.find(line.id);
-      const n = (Number(book && book.price) || 0) * Number(line.qty || 1);
-      return `${Number(n).toLocaleString("tr-TR")} ₺`;
-    });
+    const expectedOnce = await expectedHydratedLineTotal(page, 1);
     await expect(page.locator("#cartItems .cart-line-price strong")).toContainText(expectedOnce);
     await expect(page.locator("#cartSummaryHost .cart-total strong")).toContainText(expectedOnce);
 
+    await expect(page.locator("#cartItems [data-plus]")).toBeEnabled();
     await page.locator("#cartItems [data-plus]").click();
     await expect.poll(async () => {
       const cart = await H.readCart(page);
       return Number(cart[0] && cart[0].qty);
     }).toBe(2);
-    const expectedTwice = await page.evaluate(() => {
-      const shop = window.kutadguShop;
-      const line = shop.cart()[0];
-      const book = shop.find(line.id);
-      const n = (Number(book && book.price) || 0) * Number(line.qty || 1);
-      return `${Number(n).toLocaleString("tr-TR")} ₺`;
-    });
+    const expectedTwice = await expectedHydratedLineTotal(page, 2);
     await expect(page.locator("#cartItems .cart-line-price strong")).toContainText(expectedTwice);
     await expect(page.locator("#cartSummaryHost .cart-total strong")).toContainText(expectedTwice);
   });
