@@ -8,14 +8,27 @@ const path = require("path");
 const T = require("./ci-resolve-e2e-target.js");
 
 let failed = 0;
+const pending = [];
 function test(name, fn) {
+  let result;
   try {
-    fn();
-    console.log("PASS", name);
+    result = fn();
   } catch (err) {
     failed++;
     console.error("FAIL", name, err.message);
+    return;
   }
+  if (result && typeof result.then === "function") {
+    pending.push(result.then(
+      () => console.log("PASS", name),
+      (err) => {
+        failed++;
+        console.error("FAIL", name, err && err.message ? err.message : err);
+      }
+    ));
+    return;
+  }
+  console.log("PASS", name);
 }
 
 test("failed CI scenario: empty env on pull_request does not select production", () => {
@@ -185,6 +198,36 @@ test("workflow_dispatch keeps an explicit preview or base URL and refuses a miss
 });
 
 function runResolver(env) {
+  const preload = path.join(os.tmpdir(), "kutadgu-f05-fetch-preload.js");
+  const logFile = path.join(os.tmpdir(), "kutadgu-f05-fetch-log.json");
+  fs.writeFileSync(logFile, "[]");
+  fs.writeFileSync(preload, `
+    const fs = require("fs");
+    const logFile = ${JSON.stringify(logFile)};
+    global.fetch = async (url) => {
+      const target = String(url);
+      const calls = JSON.parse(fs.readFileSync(logFile, "utf8"));
+      calls.push(target);
+      fs.writeFileSync(logFile, JSON.stringify(calls));
+      let host = "";
+      try { host = new URL(target).hostname.toLowerCase().replace(/\\.+$/, ""); } catch (err) {}
+      if (host === "kutadgubilik.com" || host === "www.kutadgubilik.com") {
+        throw new Error("refusing to request production: " + target);
+      }
+      const mode = process.env.KUTADGU_TEST_FETCH_MODE || "ok";
+      const headers = { get(name) { return ""; } };
+      if (mode === "redirect-production") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://www.kutadgubilik.com./" : ""; } } };
+      }
+      if (mode === "redirect-chain" && host === "example.test") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://staging.example.test/next" : ""; } } };
+      }
+      if (mode === "redirect-chain") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://kutadgubilik.com./home" : ""; } } };
+      }
+      return { status: 200, headers };
+    };
+  `);
   const clean = Object.assign({}, process.env);
   delete clean.GITHUB_ENV;
   delete clean.KUTADGU_PREVIEW_URL;
@@ -194,10 +237,14 @@ function runResolver(env) {
   delete clean.GH_TOKEN;
   delete clean.GITHUB_TOKEN;
   delete clean.VERCEL_AUTOMATION_BYPASS_SECRET;
-  return spawnSync(process.execPath, [path.join(__dirname, "ci-resolve-e2e-target.js")], {
-    env: Object.assign(clean, env),
+  delete clean.NODE_OPTIONS;
+  delete clean.KUTADGU_TEST_FETCH_MODE;
+  const result = spawnSync(process.execPath, [path.join(__dirname, "ci-resolve-e2e-target.js")], {
+    env: Object.assign(clean, env, { NODE_OPTIONS: "--require " + preload }),
     encoding: "utf8"
   });
+  result.fetchLog = JSON.parse(fs.readFileSync(logFile, "utf8"));
+  return result;
 }
 
 test("a manual resolver run without a target exits before selecting production", () => {
@@ -237,6 +284,7 @@ test("a manual resolver run with an explicit test URL resolves that URL", () => 
   const written = fs.readFileSync(envFile, "utf8");
   assert.match(written, /KUTADGU_BASE_URL=https:\/\/example\.test\n/);
   assert.doesNotMatch(written, /kutadgubilik\.com/);
+  assert.deepStrictEqual(result.fetchLog, ["https://example.test"]);
   fs.unlinkSync(envFile);
 });
 
@@ -255,6 +303,43 @@ test("a manual resolver run with an explicit production URL stops", () => {
   assert.match(output, /refuses https:\/\/www\.kutadgubilik\.com and https:\/\/kutadgubilik\.com/);
   assert.doesNotMatch(output, /origin=https:\/\/www\.kutadgubilik\.com/);
   assert.doesNotMatch(output, /origin=https:\/\/example\.test/);
+  assert.strictEqual(fs.readFileSync(envFile, "utf8"), "");
+  assert.deepStrictEqual(result.fetchLog, []);
+  fs.unlinkSync(envFile);
+});
+
+test("a trailing-dot production hostname is refused before any request", () => {
+  const envFile = path.join(os.tmpdir(), "kutadgu-f05-dot-env.txt");
+  fs.writeFileSync(envFile, "");
+  const result = runResolver({
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_ENV: envFile,
+    KUTADGU_PREVIEW_URL: "",
+    KUTADGU_BASE_URL: "https://kutadgubilik.com./"
+  });
+  const output = String(result.stdout || "") + String(result.stderr || "");
+  assert.notStrictEqual(result.status, 0);
+  assert.match(output, /source=rejected-manual-production/);
+  assert.deepStrictEqual(result.fetchLog, []);
+  assert.strictEqual(fs.readFileSync(envFile, "utf8"), "");
+  fs.unlinkSync(envFile);
+});
+
+test("a manual resolver run refuses a redirect to production without requesting it", () => {
+  const envFile = path.join(os.tmpdir(), "kutadgu-f05-redirect-env.txt");
+  fs.writeFileSync(envFile, "");
+  const result = runResolver({
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_ENV: envFile,
+    KUTADGU_PREVIEW_URL: "",
+    KUTADGU_BASE_URL: "https://example.test",
+    KUTADGU_TEST_FETCH_MODE: "redirect-chain"
+  });
+  const output = String(result.stdout || "") + String(result.stderr || "");
+  assert.notStrictEqual(result.status, 0);
+  assert.match(output, /source=rejected-production-redirect/);
+  assert.match(output, /production hop was not requested/);
+  assert.deepStrictEqual(result.fetchLog, ["https://example.test", "https://staging.example.test/next"]);
   assert.strictEqual(fs.readFileSync(envFile, "utf8"), "");
   fs.unlinkSync(envFile);
 });
@@ -366,6 +451,7 @@ test("workflow no longer silently assigns production on pull_request", () => {
   assert.doesNotMatch(yml, /production default/);
   assert.doesNotMatch(yml, /KUTADGU_BASE_URL=https:\/\/kutadgu-bilig-kitab\.vercel\.app/);
   const config = require("fs").readFileSync(require("path").join(__dirname, "..", "playwright.config.js"), "utf8");
+  assert.match(config, /ci-resolve-e2e-target/);
   assert.match(config, /PREVIEW \|\| EXPLICIT \|\| LOCAL_ORIGIN/);
   assert.match(config, /refusing production target for/);
   assert.match(config, /refusing production fallback for pull_request/);
@@ -376,6 +462,36 @@ test("workflow no longer silently assigns production on pull_request", () => {
 
 function loadPlaywrightConfig(env) {
   const configPath = path.join(__dirname, "..", "playwright.config.js");
+  const logFile = env.KUTADGU_TEST_FETCH_LOG || path.join(os.tmpdir(), "kutadgu-f05-playwright-fetch-log.json");
+  fs.writeFileSync(logFile, "[]");
+  const preload = path.join(os.tmpdir(), "kutadgu-f05-playwright-fetch-preload.js");
+  fs.writeFileSync(preload, `
+    const fs = require("fs");
+    const logFile = ${JSON.stringify(logFile)};
+    global.fetch = async (url) => {
+      const target = String(url);
+      const calls = JSON.parse(fs.readFileSync(logFile, "utf8"));
+      calls.push(target);
+      fs.writeFileSync(logFile, JSON.stringify(calls));
+      let host = "";
+      try { host = new URL(target).hostname.toLowerCase().replace(/\\.+$/, ""); } catch (err) {}
+      if (host === "kutadgubilik.com" || host === "www.kutadgubilik.com") {
+        throw new Error("refusing to request production: " + target);
+      }
+      const mode = process.env.KUTADGU_TEST_FETCH_MODE || "ok";
+      const headers = { get(name) { return ""; } };
+      if (mode === "redirect-production") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://www.kutadgubilik.com./" : ""; } } };
+      }
+      if (mode === "redirect-chain" && host === "example.test") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://staging.example.test/next" : ""; } } };
+      }
+      if (mode === "redirect-chain") {
+        return { status: 302, headers: { get(name) { return String(name).toLowerCase() === "location" ? "https://kutadgubilik.com./home" : ""; } } };
+      }
+      return { status: 200, headers };
+    };
+  `);
   const code = `
     const Module = require("module");
     const orig = Module.prototype.require;
@@ -396,20 +512,27 @@ function loadPlaywrightConfig(env) {
   delete clean.PLAYWRIGHT_BASE_URL;
   delete clean.GITHUB_EVENT_NAME;
   delete clean.KUTADGU_USE_LOCAL_STATIC;
-  return spawnSync(process.execPath, ["-e", code], {
-    env: Object.assign(clean, env),
+  delete clean.NODE_OPTIONS;
+  delete clean.KUTADGU_TEST_FETCH_MODE;
+  const result = spawnSync(process.execPath, ["-e", code], {
+    env: Object.assign(clean, env, { NODE_OPTIONS: "--require " + preload }),
     encoding: "utf8"
   });
+  result.fetchLog = JSON.parse(fs.readFileSync(logFile, "utf8"));
+  return result;
 }
 
-function playwrightResult(env) {
-  const result = loadPlaywrightConfig(env);
+function playwrightResultFrom(result) {
   const output = String(result.stdout || "");
   const marker = output.split("__RESULT__").pop();
   let parsed = null;
   try { parsed = JSON.parse(marker); } catch (err) { parsed = null; }
   assert.ok(parsed, output + String(result.stderr || ""));
   return parsed;
+}
+
+function playwrightResult(env) {
+  return playwrightResultFrom(loadPlaywrightConfig(env));
 }
 
 test("local Playwright without a URL uses the local checkout", () => {
@@ -429,18 +552,46 @@ test("local Playwright refuses an explicit production URL", () => {
 });
 
 test("Playwright keeps an explicit non-production URL and refuses production on a manual run", () => {
-  const allowed = playwrightResult({
+  const allowedRun = loadPlaywrightConfig({
     GITHUB_EVENT_NAME: "workflow_dispatch",
     KUTADGU_BASE_URL: "https://example.test"
   });
+  const allowed = playwrightResultFrom(allowedRun);
   assert.strictEqual(allowed.ok, true);
   assert.strictEqual(allowed.baseURL, "https://example.test");
+  assert.deepStrictEqual(allowedRun.fetchLog, ["https://example.test"]);
   const blocked = playwrightResult({
     GITHUB_EVENT_NAME: "workflow_dispatch",
     KUTADGU_PREVIEW_URL: "https://kutadgubilik.com/"
   });
   assert.strictEqual(blocked.ok, false);
   assert.match(blocked.message, /refusing production target for workflow_dispatch/);
+});
+
+test("Playwright refuses a redirect to production before navigating", () => {
+  const logFile = path.join(os.tmpdir(), "kutadgu-f05-playwright-redirect-log.json");
+  const result = loadPlaywrightConfig({
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    KUTADGU_BASE_URL: "https://example.test",
+    KUTADGU_TEST_FETCH_MODE: "redirect-chain",
+    KUTADGU_TEST_FETCH_LOG: logFile
+  });
+  const parsed = playwrightResultFrom(result);
+  assert.strictEqual(parsed.ok, false);
+  assert.match(parsed.message, /refusing Playwright navigation because this target redirects toward production/);
+  assert.match(parsed.message, /production hop was not requested/);
+  assert.deepStrictEqual(result.fetchLog, ["https://example.test", "https://staging.example.test/next"]);
+  assert.ok(!result.fetchLog.some((url) => /kutadgubilik\.com/i.test(url)));
+});
+
+test("Playwright refuses a trailing-dot production hostname", () => {
+  const parsed = playwrightResult({
+    GITHUB_EVENT_NAME: "",
+    KUTADGU_BASE_URL: "https://www.kutadgubilik.com./"
+  });
+  assert.strictEqual(parsed.ok, false);
+  assert.match(parsed.message, /refusing production target for local/);
+  assert.match(parsed.message, /www\.kutadgubilik\.com/);
 });
 
 test("Playwright still refuses production on pull_request", () => {
@@ -452,5 +603,47 @@ test("Playwright still refuses production on pull_request", () => {
   assert.match(parsed.message, /refusing production fallback for pull_request/);
 });
 
-if (failed) process.exit(1);
-console.log("ci-resolve-e2e-target tests passed");
+test("trailing-dot production hosts and redirect chains stay fail-closed", async () => {
+  for (const url of ["https://kutadgubilik.com.", "https://www.kutadgubilik.com./", "https://KutadguBilik.com./path"]) {
+    assert.strictEqual(T.isProductionOrigin(url), true, url);
+    const decision = T.decideTarget({ eventName: "workflow_dispatch", previewUrl: "", baseUrl: url });
+    assert.strictEqual(decision.ok, false, url);
+    assert.strictEqual(decision.source, "rejected-manual-production");
+  }
+  const requested = [];
+  const fetchImpl = async (url) => {
+    requested.push(String(url));
+    if (T.isProductionOrigin(url)) throw new Error("requested production " + url);
+    if (String(url).indexOf("staging.example.test") !== -1) {
+      return { status: 302, headers: { location: "https://kutadgubilik.com./home" } };
+    }
+    return { status: 302, headers: new Map([["location", "https://staging.example.test/next"]]) };
+  };
+  const allowed = T.decideTarget({ eventName: "workflow_dispatch", previewUrl: "", baseUrl: "https://example.test/start" });
+  const guarded = await T.enforceRedirectGuard(allowed, fetchImpl);
+  assert.strictEqual(guarded.ok, false);
+  assert.strictEqual(guarded.source, "rejected-production-redirect");
+  assert.deepStrictEqual(requested, ["https://example.test/start", "https://staging.example.test/next"]);
+  const local = T.decideTarget({ eventName: "", previewUrl: "", baseUrl: "" });
+  const localGuarded = await T.enforceRedirectGuard(local, fetchImpl);
+  assert.strictEqual(localGuarded.ok, true);
+  assert.strictEqual(localGuarded.url, T.LOCAL_ORIGIN);
+  assert.deepStrictEqual(requested, ["https://example.test/start", "https://staging.example.test/next"]);
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    status: 302,
+    headers: { get: () => "https://www.kutadgubilik.com." }
+  });
+  try {
+    const probe = await T.probePreview("https://preview.example.test", "");
+    assert.strictEqual(probe.reachable, false);
+    assert.strictEqual(probe.reason, "redirect-to-production");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+Promise.all(pending).then(() => {
+  if (failed) process.exit(1);
+  console.log("ci-resolve-e2e-target tests passed");
+});

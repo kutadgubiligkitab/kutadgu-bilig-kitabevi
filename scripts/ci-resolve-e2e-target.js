@@ -6,6 +6,8 @@
  * A pull_request never silently uses production.
  * workflow_dispatch: use a non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL.
  * A manual run without one, or with either production hostname, stops.
+ * A trailing DNS dot does not make a production hostname safe.
+ * A remote target that redirects to production is refused before that hop is requested.
  * A local run with no URL uses http://127.0.0.1:4173 and also refuses production.
  */
 const fs = require("fs");
@@ -19,7 +21,7 @@ function trimUrl(value) {
 
 function hostnameOf(url) {
   try {
-    return new URL(trimUrl(url) + "/").hostname.toLowerCase();
+    return new URL(trimUrl(url) + "/").hostname.toLowerCase().replace(/\.+$/, "");
   } catch (err) {
     return "";
   }
@@ -29,6 +31,79 @@ function isProductionOrigin(url) {
   const host = hostnameOf(url);
   if (!host) return false;
   return host === "www.kutadgubilik.com" || host === "kutadgubilik.com";
+}
+
+function isLoopbackOrigin(url) {
+  const host = hostnameOf(url);
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
+function resolveRedirect(current, location) {
+  try {
+    return new URL(String(location || ""), current).href;
+  } catch (err) {
+    return "";
+  }
+}
+
+function headerValue(res, name) {
+  const headers = res && res.headers;
+  if (!headers) return "";
+  if (typeof headers.get === "function") return String(headers.get(name) || "");
+  const wanted = String(name || "").toLowerCase();
+  const key = Object.keys(headers).find((item) => item.toLowerCase() === wanted);
+  return key ? String(headers[key] || "") : "";
+}
+
+async function inspectRedirects(url, fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  let current = String(url || "");
+  const seen = [];
+  for (let hop = 0; hop <= 5; hop += 1) {
+    if (isProductionOrigin(current)) {
+      return { ok: false, reason: "production-url", url: current, requested: seen.slice() };
+    }
+    if (seen.indexOf(current) !== -1) {
+      return { ok: false, reason: "redirect-loop", url: current, requested: seen.slice() };
+    }
+    seen.push(current);
+    let res;
+    try {
+      res = await fetchFn(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: { "User-Agent": "kutadgu-stage10-e2e", "Accept": "text/html" }
+      });
+    } catch (err) {
+      return { ok: false, reason: "probe-error", url: current, requested: seen.slice() };
+    }
+    const status = Number(res && res.status || 0);
+    if (status >= 300 && status < 400) {
+      const next = resolveRedirect(current, headerValue(res, "location"));
+      if (!next) return { ok: false, reason: "missing-location", url: current, requested: seen.slice() };
+      if (isProductionOrigin(next)) {
+        return { ok: false, reason: "redirect-to-production", url: next, requested: seen.slice() };
+      }
+      current = next;
+      continue;
+    }
+    return { ok: true, reason: status ? `http-${status}` : "ok", url: current, requested: seen.slice() };
+  }
+  return { ok: false, reason: "too-many-redirects", url: current, requested: seen.slice() };
+}
+
+async function enforceRedirectGuard(decision, fetchImpl) {
+  if (!decision || !decision.ok) return decision;
+  if (decision.useLocalStatic || isLoopbackOrigin(decision.url)) return decision;
+  const check = await inspectRedirects(decision.url, fetchImpl);
+  if (check.ok) return decision;
+  return {
+    ok: false,
+    url: "",
+    source: "rejected-production-redirect",
+    useLocalStatic: false,
+    note: `refusing redirect to production (${check.reason}); the production hop was not requested`
+  };
 }
 
 function isPreviewOrigin(url) {
@@ -208,6 +283,9 @@ async function probePreview(url, bypassSecret) {
   try {
     const res = await fetch(target, { method: "GET", headers, redirect: "manual" });
     const location = String(res.headers.get("location") || "");
+    if (res.status >= 300 && res.status < 400 && isProductionOrigin(resolveRedirect(target, location))) {
+      return { reachable: false, reason: "redirect-to-production", status: res.status };
+    }
     if (/vercel\.com\/sso-api/i.test(location)) {
       return { reachable: false, reason: "sso-protection", status: res.status };
     }
@@ -281,9 +359,10 @@ async function main() {
     localOrigin: LOCAL_ORIGIN
   });
 
-  if (!decision.ok) {
-    console.error(logTarget(decision, extra));
-    console.error("[e2e-target] stopped: " + (decision.note || "no explicit test target"));
+  const guarded = await enforceRedirectGuard(decision, fetch);
+  if (!guarded.ok) {
+    console.error(logTarget(guarded, extra));
+    console.error("[e2e-target] stopped: " + (guarded.note || "no explicit test target"));
     process.exit(1);
   }
 
@@ -293,15 +372,19 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(logTarget(decision, extra));
-  writeEnv(decision);
+  console.log(logTarget(guarded, extra));
+  writeEnv(guarded);
 }
 
 module.exports = {
   PRODUCTION,
   LOCAL_ORIGIN,
+  hostnameOf,
   isProductionOrigin,
+  isLoopbackOrigin,
   isPreviewOrigin,
+  inspectRedirects,
+  enforceRedirectGuard,
   pickPreviewFromStatuses,
   decideTarget,
   logTarget,
