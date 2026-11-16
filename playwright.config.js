@@ -4,7 +4,8 @@ const { defineConfig, devices } = require("@playwright/test");
 const PREVIEW = String(process.env.KUTADGU_PREVIEW_URL || "").trim();
 const EXPLICIT = String(process.env.KUTADGU_BASE_URL || process.env.PLAYWRIGHT_BASE_URL || "").trim();
 const PRODUCTION = "https://www.kutadgubilik.com";
-const baseURL = PREVIEW || EXPLICIT || PRODUCTION;
+const LOCAL_ORIGIN = "http://127.0.0.1:4173";
+const baseURL = PREVIEW || EXPLICIT || LOCAL_ORIGIN;
 const EVENT = String(process.env.GITHUB_EVENT_NAME || "").trim();
 const BYPASS = String(process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "").trim();
 
@@ -23,6 +24,10 @@ function isProductionOrigin(url) {
 
 if (EVENT === "pull_request" && isProductionOrigin(baseURL)) {
   throw new Error(`[e2e] refusing production fallback for pull_request (host=${hostnameOf(baseURL)}). Stage 10 must test this PR, not live production.`);
+}
+
+if (EVENT !== "pull_request" && isProductionOrigin(baseURL)) {
+  throw new Error(`[e2e] refusing production target for ${EVENT || "local"} (host=${hostnameOf(baseURL)}). Refusing to use https://www.kutadgubilik.com or https://kutadgubilik.com.`);
 }
 
 console.log(`[e2e-target] event=${EVENT || "local"} origin=${baseURL} host=${hostnameOf(baseURL) || "(none)"} production=${isProductionOrigin(baseURL) ? "yes" : "no"}`);

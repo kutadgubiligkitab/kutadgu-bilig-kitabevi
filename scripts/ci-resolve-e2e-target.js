@@ -4,7 +4,9 @@
  * Resolve the Stage 10 Playwright origin.
  * pull_request: use the checked-out candidate. KUTADGU_E2E_PREVIEW=1 restores the Vercel wait.
  * A pull_request never silently uses production.
- * workflow_dispatch / local: keep the previous preview, base URL, or production default.
+ * workflow_dispatch: use a non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL.
+ * A manual run without one, or with either production hostname, stops.
+ * A local run with no URL uses http://127.0.0.1:4173 and also refuses production.
  */
 const fs = require("fs");
 
@@ -81,13 +83,51 @@ function decideTarget(input) {
     };
   }
 
-  if (explicitPreview) {
-    return { ok: true, url: explicitPreview, source: "env-preview", useLocalStatic: false };
+  const manual = eventName === "workflow_dispatch";
+  const chosen = explicitPreview
+    ? { url: explicitPreview, source: "env-preview" }
+    : explicitBase
+      ? { url: explicitBase, source: "env-base" }
+      : null;
+  if (chosen && isProductionOrigin(chosen.url)) {
+    return {
+      ok: false,
+      url: "",
+      source: manual ? "rejected-manual-production" : "rejected-production",
+      useLocalStatic: false,
+      note: manual
+        ? "workflow_dispatch refuses https://www.kutadgubilik.com and https://kutadgubilik.com, including KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL"
+        : "refusing production target; use http://127.0.0.1:4173 or another non-production URL"
+    };
   }
-  if (explicitBase) {
-    return { ok: true, url: explicitBase, source: "env-base", useLocalStatic: false };
+  if (chosen) {
+    return { ok: true, url: chosen.url, source: chosen.source, useLocalStatic: false };
   }
-  return { ok: true, url: PRODUCTION, source: "production-default", useLocalStatic: false };
+  if (manual) {
+    return {
+      ok: false,
+      url: "",
+      source: "missing-manual-target",
+      useLocalStatic: false,
+      note: "workflow_dispatch requires an explicit non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL and will not use production"
+    };
+  }
+  if (!eventName) {
+    return {
+      ok: true,
+      url: localOrigin,
+      source: "local-default",
+      useLocalStatic: true,
+      note: "no test URL was provided; using http://127.0.0.1:4173"
+    };
+  }
+  return {
+    ok: false,
+    url: "",
+    source: "missing-target",
+    useLocalStatic: false,
+    note: "refusing production fallback because no explicit non-production test URL was provided"
+  };
 }
 
 function logTarget(decision, extra) {
@@ -240,6 +280,12 @@ async function main() {
     vercelReachable,
     localOrigin: LOCAL_ORIGIN
   });
+
+  if (!decision.ok) {
+    console.error(logTarget(decision, extra));
+    console.error("[e2e-target] stopped: " + (decision.note || "no explicit test target"));
+    process.exit(1);
+  }
 
   if (pullRequestRefusesProduction(eventName, decision)) {
     console.error(logTarget(decision, extra));

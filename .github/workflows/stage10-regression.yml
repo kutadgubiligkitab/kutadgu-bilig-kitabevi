@@ -10,7 +10,9 @@ permissions:
 
 # Normal pull requests use the checked-out candidate. Set the repository variable
 # KUTADGU_E2E_PREVIEW to 1 to wait for a Vercel preview on pull_request runs.
-# workflow_dispatch keeps its preview URL, base URL, or production default.
+# workflow_dispatch requires a non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL.
+# www.kutadgubilik.com and kutadgubilik.com are refused even when those variables are set.
+# A manual run without a non-production URL stops. It does not use production.
 concurrency:
   group: stage10-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
