@@ -8,7 +8,7 @@ The last verified runtime baseline is `a0d90eeb2326576942b55b8bd6e38dfed6b9ce93`
 
 ## Admin idle lock and MFA inspection — candidate, not deployed
 
-Branch `cursor/admin-idle-mfa-fail-closed-ed5b`. This candidate is not merged and is not deployed. `origin/main` and production stay on the previous tree. The runtime baseline above does not move.
+Branch `cursor/admin-idle-mfa-fail-closed-ed5b`. Tested implementation commit `5e068235019095b9ec5ec3edbdf2371075292c4b`. This candidate is not merged and is not deployed. `origin/main` and production stay on the previous tree. The runtime baseline above does not move.
 
 Two Admin authentication defects are fixed. `noteActivity` no longer refreshes `kutadgu-admin-idle-v1` after 30 minutes unless `unlock()` runs after a successful TOTP. `onAdminActivity` checks the elapsed timeout before it records activity. `routeSession` checks that timeout before `ensurePrimarySessionReady`, holds a restore guard across the session await, and locks a confirmed Admin session whose idle record is missing, corrupt, or unreadable. Visibility return and `pageshow` run the same check. The timeout still does not call `signOut`. A successful password login calls `beginAuthenticatedActivity`, which starts a fresh timer unless a lock flag is already set. Activity before 30 minutes still extends the timer.
 
