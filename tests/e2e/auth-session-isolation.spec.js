@@ -31,6 +31,9 @@ async function installIsolatedAuth(page, opts = {}) {
     if (localStorage.getItem("__kutadguIsolatedSeeded") !== "1") {
       write("member", blob(memberUser, "member-access"));
       write("admin", blob(adminUser, "admin-access"));
+      if (adminUser) {
+        localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
+      }
       localStorage.setItem("__kutadguIsolatedSeeded", "1");
     }
     window.__kutadguAuthCalls = window.__kutadguAuthCalls || { memberSignOut: 0, adminSignOut: 0, memberSignIn: 0, adminSignIn: 0 };

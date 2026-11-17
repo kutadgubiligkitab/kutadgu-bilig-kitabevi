@@ -275,6 +275,9 @@ async function install(page, rows, mode) {
     window.__pendingAllowAdmin = true;
     window.__pendingSessionOff = false;
     window.__pendingAdmin = { id: adminA, aal: "aal2" };
+    try {
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
+    } catch (e) {}
     window.__pendingSignOuts = 0;
     window.__pendingSignOutImpl = null;
     window.__kutadguAdminReviewStaff = async (id, approve) => {
@@ -673,6 +676,7 @@ test.describe("pending submission query builder", () => {
       window.__pendingAllowAdmin = true;
       window.__pendingSignOutImpl = null;
       window.__pendingHold = false;
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
     });
     await page.evaluate(() => window.__kutadguAdminTest.routeSession());
     await expect(page.locator("#dashboardPanel")).toBeVisible();
@@ -922,6 +926,7 @@ test.describe("pending submission query builder", () => {
       window.__pendingSessionOff = false;
       window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" };
       window.__pendingSignOutImpl = () => Promise.reject(new Error("signout failed"));
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
     });
     await page.evaluate(() => window.__kutadguAdminTest.routeSession());
     await expect(page.locator("#dashboardPanel")).toBeVisible();
@@ -944,6 +949,7 @@ test.describe("pending submission query builder", () => {
       window.__pendingSessionOff = false;
       window.__pendingAdmin = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", aal: "aal2" };
       window.__pendingSignOutImpl = null;
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
     });
     await page.evaluate(() => window.__kutadguAdminTest.routeSession());
     await reloadPending(page);

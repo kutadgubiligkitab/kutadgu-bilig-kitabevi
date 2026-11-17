@@ -5,9 +5,13 @@ const VERIFIED = [{ id: "factor-v", factor_type: "totp", status: "verified" }];
 async function installGateMock(page, opts = {}) {
   const currentLevel = opts.currentLevel || "aal1";
   const factors = opts.factors || [];
-  await page.addInitScript(({ currentLevel, factors }) => {
+  const inspectionFailed = !!opts.inspectionFailed;
+  const payload = Object.prototype.hasOwnProperty.call(opts, "payload") ? opts.payload : undefined;
+  const includePayload = Object.prototype.hasOwnProperty.call(opts, "payload");
+  await page.addInitScript(({ currentLevel, factors, inspectionFailed, payload, includePayload }) => {
     window.__kutadguSkipAdminAuth = true;
-    window.__kutadguAdminAalTest = { currentLevel, factors };
+    window.__kutadguAdminAalTest = { currentLevel, factors, inspectionFailed };
+    if (includePayload) window.__kutadguAdminAalTest.payload = payload;
     window.__kutadguMfaFactors = factors.map((f) => ({ ...f }));
     window.__kutadguMfaUnenrollLog = [];
     window.__kutadguMfaApi = {
@@ -41,7 +45,7 @@ async function installGateMock(page, opts = {}) {
         return { data: { id: factorId }, error: null };
       }
     };
-  }, { currentLevel, factors });
+  }, { currentLevel, factors, inspectionFailed, payload, includePayload });
 }
 
 test.describe("stage 2C Admin AAL2 MFA gate", () => {
@@ -110,6 +114,32 @@ test.describe("stage 2C Admin AAL2 MFA gate", () => {
     expect(log).toEqual([]);
     const level = await page.evaluate(() => window.__kutadguAdminAalTest.currentLevel);
     expect(level).toBe("aal1");
+  });
+
+  test("aal1 factor inspection failure stays retryable and closed", async ({ page }) => {
+    await installGateMock(page, { currentLevel: "aal1", factors: VERIFIED, inspectionFailed: true });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#mfaGatePanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#loginPanel")).toBeHidden();
+    await expect(page.locator("#mfaGateStatus")).toContainText("قايتا سىناڭ");
+    await expect(page.locator("#mfaGateSubmit")).toHaveText("قايتا سىناش");
+    await expect(page.locator("#mfaGateOtp")).toBeHidden();
+  });
+
+  test("malformed factor payload does not open the dashboard", async ({ page }) => {
+    await installGateMock(page, { currentLevel: "aal1", payload: { unexpected: true } });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#mfaGatePanel")).toBeVisible();
+    await expect(page.locator("#mfaGateSubmit")).toHaveText("قايتا سىناش");
+  });
+
+  test("aal2 keeps the dashboard when factor inspection fails", async ({ page }) => {
+    await installGateMock(page, { currentLevel: "aal2", factors: VERIFIED, inspectionFailed: true });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await expect(page.locator("#mfaGatePanel")).toBeHidden();
   });
 
   test("AAL2 session reload goes directly to dashboard", async ({ page }) => {

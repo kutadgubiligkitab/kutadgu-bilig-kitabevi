@@ -680,7 +680,33 @@ async function uploadStaffGallery(client,uid,files){
   }
   return urls;
 }
+function showStaffMfaGate(surface){
+  const blocked=surface==="blocked";
+  const form=$("#mfaGateForm");
+  const otp=$("#mfaGateOtp");
+  const label=otp&&typeof otp.closest==="function"?otp.closest("label"):null;
+  const submit=$("#mfaGateSubmit");
+  if(form&&form.dataset){
+    if(blocked)form.dataset.inspectBlocked="1";
+    else delete form.dataset.inspectBlocked;
+  }
+  if(label)label.hidden=blocked;
+  if(otp){
+    otp.hidden=blocked;
+    otp.required=!blocked;
+  }
+  if(submit){
+    if(!submit.dataset.defaultLabel)submit.dataset.defaultLabel=submit.textContent||"جەزملەش";
+    submit.textContent=blocked?"قايتا سىناش":submit.dataset.defaultLabel;
+  }
+  localizeStaffMfaCopy();
+  if(blocked){
+    const statusEl=$("#mfaGateStatus");
+    if(statusEl)statusEl.textContent="تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.";
+  }
+}
 function staffSurface(inspect){
+  if(inspect&&inspect.decision&&inspect.decision.blocked)return "blocked";
   const level=String(inspect&&inspect.assurance&&inspect.assurance.currentLevel||"").toLowerCase();
   if(level==="aal2")return "form";
   if(inspect&&inspect.classified&&inspect.classified.configured)return "gate";
@@ -692,6 +718,7 @@ function bindMfa(client){
     mfaGateCtl=Mfa.attachGate({
       getDb:()=>client,
       onAal2:()=>routeStaffSession(),
+      onRetry:()=>routeStaffSession(),
       onLogout:()=>logoutStaff(),
       onSessionInvalid:()=>logoutStaff(),
       onNoFactor:()=>routeStaffSession()
@@ -751,17 +778,18 @@ async function routeStaffSession(){
   bindMfa(client);
   if(!isCurrentStaffRoute(token))return;
   const Mfa=mfaApi();
-  const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>client):{assurance:{currentLevel:null},classified:{configured:false}};
+  const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>client):{assurance:{currentLevel:null},classified:{configured:false},decision:{blocked:true,gate:false,surface:"blocked"}};
   if(!isCurrentStaffRoute(token))return;
   const surface=staffSurface(inspect);
   if(surface==="form"){
     fillSourceOptions();
+    showStaffMfaGate("gate");
     showPanel("staffWorkspace",token);
     return;
   }
-  if(surface==="gate"){
+  if(surface==="gate"||surface==="blocked"){
+    showStaffMfaGate(surface);
     showPanel("mfaGatePanel",token);
-    localizeStaffMfaCopy();
     return;
   }
   showPanel("mfaEnrollPanelWrap",token);

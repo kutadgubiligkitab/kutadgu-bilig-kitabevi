@@ -357,6 +357,62 @@ test.describe("stage 2C Admin idle lock", () => {
     await expect(page.locator("#dashboardPanel")).toBeHidden();
   });
 
+  test("pointerdown after 31 minutes locks before the timer tick", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    const before = await page.evaluate(() => {
+      window.__kutadguIdleClock += 80;
+      return JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")).lastActivity;
+    });
+    await page.locator("#dashboardPanel").click({ position: { x: 24, y: 24 } });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    const after = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
+    expect(after.lastActivity).toBe(before);
+    expect(after.locked).toBe(true);
+    const signOuts = await page.evaluate(() => window.__kutadguSignOutCalls || 0);
+    expect(signOuts).toBe(0);
+  });
+
+  test("visibility restore after several hours locks without a tick", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await page.evaluate(() => {
+      window.__kutadguIdleClock += 6 * 60 * 60 * 1000;
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+  });
+
+  test("reload with a stale unlocked timestamp and aal2 stays locked", async ({ page }) => {
+    await installIdleAdmin(page, { currentLevel: "aal2", locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 - 80 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#mfaGatePanel")).toBeHidden();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+  });
+
+  test("concurrent restore guard ignores a trusted click on an overdue timer", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    const before = await page.evaluate(() => {
+      window.__kutadguIdleClock += 80;
+      window.KutadguAdminIdle.setRestoreGuard(true);
+      return JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")).lastActivity;
+    });
+    await page.locator("#dashboardPanel").click({ position: { x: 24, y: 24 } });
+    const after = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
+    expect(after.lastActivity).toBe(before);
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+  });
+
   test("idle lock takes precedence over aal1 MFA gate", async ({ page }) => {
     await installIdleAdmin(page, { currentLevel: "aal1", locked: true });
     await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
@@ -418,6 +474,32 @@ test.describe("idle lock shared Admin tabs", () => {
   });
 });
 
+test.describe("restored aal2 idle storage failures", () => {
+  test("missing idle storage locks a restored aal2 session", async ({ page }) => {
+    await installLiveAal2Admin(page);
+    await page.addInitScript(() => {
+      try { localStorage.removeItem("kutadgu-admin-idle-v1"); } catch (e) {}
+    });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    const signOuts = await page.evaluate(() => window.__kutadguSignOutCalls || 0);
+    expect(signOuts).toBe(0);
+  });
+
+  test("corrupt idle storage locks a restored aal2 session", async ({ page }) => {
+    await installLiveAal2Admin(page);
+    await page.addInitScript(() => {
+      try { localStorage.setItem("kutadgu-admin-idle-v1", "{"); } catch (e) {}
+    });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    const raw = await page.evaluate(() => localStorage.getItem("kutadgu-admin-idle-v1"));
+    expect(JSON.parse(raw).locked).toBe(true);
+  });
+});
+
 test.describe("exact Preview persisted lock reproduction", () => {
   test("localStorage locked true on live aal2 boot keeps dashboard hidden", async ({ page }) => {
     await preloadExactIdleLock(page);
@@ -467,5 +549,31 @@ test.describe("exact Preview persisted lock reproduction", () => {
     const unlocked = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
     expect(unlocked.locked).toBe(false);
     expect(unlocked.lastActivity).toBeGreaterThan(1);
+  });
+
+  test("QuotaExceededError while persisting the lock still hides the dashboard", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await page.evaluate(() => {
+      const key = "kutadgu-admin-idle-v1";
+      const native = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (name, value) {
+        if (name === key) throw new DOMException("quota", "QuotaExceededError");
+        return native.call(this, name, value);
+      };
+      window.__kutadguIdleClock += 80;
+      window.__kutadguAdminTest.tickAdminIdle();
+    });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await page.mouse.click(40, 40);
+    await page.keyboard.press("a");
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
+    expect(stored.locked).toBe(false);
+    expect(stored.lastActivity).toBe(1_000_000);
+    expect(await page.evaluate(() => window.__kutadguSignOutCalls || 0)).toBe(0);
   });
 });

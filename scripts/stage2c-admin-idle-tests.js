@@ -34,6 +34,7 @@ function install(clock, idleMs) {
   mem.data = {};
   globalThis.__kutadguAdminIdleNow = () => clock.t;
   globalThis.__kutadguAdminIdleMs = idleMs || 30 * 60 * 1000;
+  Idle.clearState();
 }
 
 test("IDLE_MS is 30 minutes and storage key is Admin-only", () => {

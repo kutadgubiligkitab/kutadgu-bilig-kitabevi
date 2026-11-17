@@ -17,6 +17,9 @@ async function installSharedAuth(page, opts = {}) {
       };
     }
     window.__kutadguAuthCalls = { signOut: 0, signIn: 0 };
+    try {
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
+    } catch (e) {}
     window.__kutadguAuthCbs = [];
     window.__kutadguMockSession = session("shared-access");
     window.__kutadguAal = { currentLevel };

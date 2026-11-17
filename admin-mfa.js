@@ -28,8 +28,19 @@
     return String((factor && (factor.id || factor.factorId)) || "");
   }
 
+  function factorPayload(listData) {
+    if (!listData || typeof listData !== "object" || Array.isArray(listData)) return null;
+    if (Array.isArray(listData.all)) return listData.all;
+    if (Array.isArray(listData.factors)) return listData.factors;
+    if (Array.isArray(listData.totp) || Array.isArray(listData.phone)) {
+      return asList(listData.totp).concat(asList(listData.phone));
+    }
+    return null;
+  }
+
   function classifyFactors(listData) {
-    const all = asList(listData && (listData.all || listData.factors));
+    const rows = factorPayload(listData);
+    const all = rows || [];
     const totp = all.filter(function (f) { return factorType(f) === "totp"; });
     const verified = totp.filter(function (f) { return factorStatus(f) === "verified"; });
     const unverified = totp.filter(function (f) { return factorStatus(f) !== "verified"; });
@@ -37,7 +48,8 @@
       all: totp,
       verified: verified,
       unverified: unverified,
-      configured: verified.length > 0
+      configured: verified.length > 0,
+      recognized: rows !== null
     };
   }
 
@@ -264,16 +276,19 @@
     return primarySessionReadyInflight;
   }
 
-  function evaluateAccess(assurance, classified) {
+  function evaluateAccess(assurance, classified, meta) {
     const current = normalizeLevel(assurance && assurance.currentLevel);
     const verified = !!(classified && classified.configured);
     if (current === "aal2") {
-      return { surface: "dashboard", gate: false, warnMissingMfa: !verified };
+      return { surface: "dashboard", gate: false, blocked: false, warnMissingMfa: !verified };
+    }
+    if (meta && meta.inspectionFailed) {
+      return { surface: "blocked", gate: false, blocked: true, warnMissingMfa: false };
     }
     if (verified) {
-      return { surface: "gate", gate: true, warnMissingMfa: false };
+      return { surface: "gate", gate: true, blocked: false, warnMissingMfa: false };
     }
-    return { surface: "dashboard", gate: false, warnMissingMfa: true };
+    return { surface: "dashboard", gate: false, blocked: false, warnMissingMfa: true };
   }
 
   function chooseVerifiedTotp(verified) {
@@ -282,35 +297,84 @@
     return list[0] || null;
   }
 
+  function knownAssuranceLevel(level) {
+    const normalized = normalizeLevel(level);
+    return normalized === "aal1" || normalized === "aal2";
+  }
+
   async function inspectAccess(getDb) {
     const stub = typeof globalThis !== "undefined" ? globalThis.__kutadguAdminAalTest : null;
     if (stub) {
-      const classified = classifyFactors({ all: stub.factors || stub.all || [] });
       const assurance = {
         currentLevel: stub.currentLevel || null,
         nextLevel: stub.nextLevel || null
       };
-      return { assurance: assurance, classified: classified, decision: evaluateAccess(assurance, classified) };
+      let classified;
+      let failed = !!stub.inspectionFailed;
+      if (Object.prototype.hasOwnProperty.call(stub, "payload")) {
+        classified = classifyFactors(stub.payload);
+        failed = failed || !classified.recognized;
+      } else if (failed) {
+        classified = classifyFactors(null);
+      } else {
+        classified = classifyFactors({ all: stub.factors || stub.all || [] });
+      }
+      if (normalizeLevel(assurance.currentLevel) === "aal2") failed = false;
+      return {
+        assurance: assurance,
+        classified: classified,
+        decision: evaluateAccess(assurance, classified, failed ? { inspectionFailed: true } : null)
+      };
     }
     const api = resolveMfaApi(getDb);
-    let classified = classifyFactors({ all: [] });
+    let classified = classifyFactors(null);
     let assurance = { currentLevel: null, nextLevel: null };
-    if (api && typeof api.getAuthenticatorAssuranceLevel === "function") {
+    let assuranceKnown = false;
+    let listOk = false;
+    let inspectionFailed = !api;
+    if (!api || typeof api.getAuthenticatorAssuranceLevel !== "function") {
+      inspectionFailed = true;
+    } else {
       try {
         const res = await api.getAuthenticatorAssuranceLevel();
-        if (res && !res.error && res.data) {
+        if (res && !res.error && res.data && knownAssuranceLevel(res.data.currentLevel)) {
           assurance = {
             currentLevel: res.data.currentLevel,
             nextLevel: res.data.nextLevel
           };
+          assuranceKnown = true;
+        } else {
+          inspectionFailed = true;
         }
-      } catch (err) {}
+      } catch (err) {
+        inspectionFailed = true;
+      }
     }
-    if (api && typeof api.listFactors === "function") {
+    if (!api || typeof api.listFactors !== "function") {
+      inspectionFailed = true;
+    } else {
       try {
         const res = await api.listFactors();
-        if (res && !res.error) classified = classifyFactors(res.data);
-      } catch (err) {}
+        const recognized = !!(res && !res.error && res.data && classifyFactors(res.data).recognized);
+        if (recognized) {
+          classified = classifyFactors(res.data);
+          listOk = true;
+        } else {
+          inspectionFailed = true;
+        }
+      } catch (err) {
+        inspectionFailed = true;
+      }
+    }
+    if (normalizeLevel(assurance.currentLevel) === "aal2") {
+      return { assurance: assurance, classified: classified, decision: evaluateAccess(assurance, classified) };
+    }
+    if (inspectionFailed || !assuranceKnown || !listOk) {
+      return {
+        assurance: assurance,
+        classified: classified,
+        decision: evaluateAccess(assurance, classified, { inspectionFailed: true })
+      };
     }
     return { assurance: assurance, classified: classified, decision: evaluateAccess(assurance, classified) };
   }
@@ -332,6 +396,11 @@
 
     async function submit(e) {
       if (e && typeof e.preventDefault === "function") e.preventDefault();
+      const form = $("#mfaGateForm");
+      if (form && form.dataset && form.dataset.inspectBlocked === "1") {
+        if (typeof options.onRetry === "function") await options.onRetry();
+        return;
+      }
       if (busy) return;
       const otp = $("#mfaGateOtp");
       const code = digitsOnly(otp && otp.value);
