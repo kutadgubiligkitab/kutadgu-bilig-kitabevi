@@ -392,6 +392,7 @@ add("AAL2 unlocks form; AAL1 with TOTP gates; missing TOTP enrolls; invalid OTP 
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal2" }, classified: { configured: true } }), "form");
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal1" }, classified: { configured: true } }), "gate");
   assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal1" }, classified: { configured: false } }), "enroll");
+  assert.strictEqual(api.staffSurface({ assurance: { currentLevel: "aal1" }, classified: { configured: false }, decision: { blocked: true } }), "blocked");
   assert.match(staffJs, /level!=="aal2"/);
   assert.match(staffJs, /2-باسقۇچلۇق دەلىللەش كېرەك/);
   assert.match(staffHtml, /id="mfaGateForm"/);

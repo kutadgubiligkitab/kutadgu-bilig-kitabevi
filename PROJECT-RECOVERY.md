@@ -6,6 +6,16 @@ The runtime baseline below is the last verified application commit. It is not au
 
 The last verified runtime baseline is `a0d90eeb2326576942b55b8bd6e38dfed6b9ce93`, the PR #344 internal-link discovery merge. Read-only inspection on 2026-11-02 confirmed Worker `kutadgu-cloudflare-production` at 100% on version `acfce033-d55c-4d36-ac3e-c3ec14ce70d0`, created 2026-11-02T16:26:34.640Z. Existing ASSETS/COVERS bindings, production variables and encrypted secret names were preserved. Stage 138 is not yet applied. This reconciles the older PR #341 baseline against current origin/main and the actual Worker; it does not claim the candidate below is deployed.
 
+## Admin idle lock and MFA inspection — candidate, not deployed
+
+Branch `cursor/admin-idle-mfa-fail-closed-ed5b`. This candidate is not merged and is not deployed. `origin/main` and production stay on the previous tree. The runtime baseline above does not move.
+
+Two Admin authentication defects are fixed. `noteActivity` no longer refreshes `kutadgu-admin-idle-v1` after 30 minutes unless `unlock()` runs after a successful TOTP. `onAdminActivity` checks the elapsed timeout before it records activity. `routeSession` checks that timeout before `ensurePrimarySessionReady`, holds a restore guard across the session await, and locks a confirmed Admin session whose idle record is missing, corrupt, or unreadable. Visibility return and `pageshow` run the same check. The timeout still does not call `signOut`. A successful password login calls `beginAuthenticatedActivity`, which starts a fresh timer unless a lock flag is already set. Activity before 30 minutes still extends the timer.
+
+`inspectAccess` no longer treats a factor-list error, a thrown call, a missing MFA API, or a malformed payload as an empty factor list. Below `aal2` those results set `decision.blocked`. A current `aal2` session still skips the login gate. A successful empty factor list still opens the dashboard under the existing optional-enrollment policy. `all`, `factors`, and `totp`/`phone` payloads are recognized. The blocked Admin state reuses `#mfaGatePanel` with the existing network retry copy and a retry that calls `routeSession`. Book Staff uses the same blocked decision and stays off the enrollment panel. Enrollment, factor removal, credentials, RLS, and Cloudflare settings are unchanged.
+
+Pins are `admin-mfa.js?v=4`, `admin-idle.js?v=5`, `admin.js?v=130`, and `book-staff.js?v=15`. `node scripts/admin-auth-lock-regression-tests.js`, `node scripts/stage2c-admin-idle-tests.js`, `node scripts/stage2c-admin-mfa-tests.js`, `node scripts/admin-mfa-restored-session-tests.js`, the Stage 2C AAL2 SQL assertion scripts, and `node scripts/ci-asset-pin-preflight.js` passed. Local Chromium Playwright passed `tests/e2e/admin-idle-lock.spec.js`, `tests/e2e/admin-mfa-gate.spec.js`, and `tests/e2e/admin-mfa.spec.js` (55) against `http://127.0.0.1:4173`. No production sign-in, SQL, or deploy was run.
+
 
 ## Readable series URLs — release candidate PR #345
 

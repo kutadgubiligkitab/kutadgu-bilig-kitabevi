@@ -681,6 +681,7 @@ async function uploadStaffGallery(client,uid,files){
   return urls;
 }
 function staffSurface(inspect){
+  if(inspect&&inspect.decision&&inspect.decision.blocked)return "blocked";
   const level=String(inspect&&inspect.assurance&&inspect.assurance.currentLevel||"").toLowerCase();
   if(level==="aal2")return "form";
   if(inspect&&inspect.classified&&inspect.classified.configured)return "gate";
@@ -759,9 +760,13 @@ async function routeStaffSession(){
     showPanel("staffWorkspace",token);
     return;
   }
-  if(surface==="gate"){
+  if(surface==="gate"||surface==="blocked"){
     showPanel("mfaGatePanel",token);
     localizeStaffMfaCopy();
+    if(surface==="blocked"){
+      const statusEl=$("#mfaGateStatus");
+      if(statusEl)statusEl.textContent="تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.";
+    }
     return;
   }
   showPanel("mfaEnrollPanelWrap",token);

@@ -1228,14 +1228,22 @@ function persistedIdleLocked(){
   }
 }
 function adminShouldHoldIdleLock(){
-  if(persistedIdleLocked())return true;
   const api=idleApi();
+  const restoring=!!(typeof user!=="undefined"&&user&&!window.__kutadguSkipAdminAuth);
   if(api&&typeof api.shouldLock==="function"){
     const snap=typeof api.readState==="function"?api.readState():null;
     const at=typeof api.now==="function"?api.now():Date.now();
-    return api.shouldLock(snap,at,isIdleBusy());
+    return api.shouldLock(snap,at,isIdleBusy(),{restoringSession:restoring});
   }
-  return false;
+  return persistedIdleLocked();
+}
+function idleElapsedBeforeRestore(){
+  const api=idleApi();
+  if(!api||typeof api.shouldLock!=="function"||typeof api.readState!=="function")return false;
+  const snap=api.readState();
+  if(!snap||snap.status!=="ok")return false;
+  const at=typeof api.now==="function"?api.now():Date.now();
+  return api.shouldLock(snap,at,false);
 }
 function isIdleBusy(){
   return !!(saveInFlight||importRunning||quickSaveInFlight||bulkInFlight||bulkPriceInFlight||bulkResetInFlight||originalCorrectInFlight||originalResetInFlight||priceHistoryInFlight||priceRollbackInFlight);
@@ -1257,6 +1265,49 @@ function showIdleLock(){
   show("idleLockPanel");
   const otp=$("#idleLockOtp");
   if(otp)otp.focus();
+}
+function mfaGateOtpLabel(){
+  const otp=$("#mfaGateOtp");
+  return otp&&typeof otp.closest==="function"?otp.closest("label"):null;
+}
+function clearMfaInspectionBlock(){
+  const form=$("#mfaGateForm");
+  if(form&&form.dataset)delete form.dataset.inspectBlocked;
+  const label=mfaGateOtpLabel();
+  if(label)label.hidden=false;
+  const otp=$("#mfaGateOtp");
+  if(otp)otp.hidden=false;
+  const submit=$("#mfaGateSubmit");
+  if(submit)submit.textContent=submit.dataset.defaultLabel||submit.textContent;
+}
+function showMfaGate(){
+  clearMfaInspectionBlock();
+  clearPendingSubmissionPrivate();
+  $("#adminLogout").hidden=true;
+  show("mfaGatePanel");
+  const otp=$("#mfaGateOtp");
+  if(otp)otp.focus();
+}
+function showMfaInspectionBlock(){
+  bindMfaGate();
+  const form=$("#mfaGateForm");
+  if(form&&form.dataset)form.dataset.inspectBlocked="1";
+  const statusEl=$("#mfaGateStatus");
+  if(statusEl){
+    statusEl.textContent=(Mfa.mfaGateMessage&&Mfa.mfaGateMessage("network"))||"تور ياكى مۇلازىمېتېر ۋاقتىنچە ئىشلىمىدى. سەل تۇرۇپ قايتا سىناڭ.";
+    statusEl.className="admin-status warn";
+  }
+  const label=mfaGateOtpLabel();
+  if(label)label.hidden=true;
+  const otp=$("#mfaGateOtp");
+  if(otp)otp.hidden=true;
+  const submit=$("#mfaGateSubmit");
+  if(submit){
+    if(!submit.dataset.defaultLabel)submit.dataset.defaultLabel=submit.textContent;
+    submit.textContent="قايتا سىناش";
+  }
+  $("#adminLogout").hidden=true;
+  show("mfaGatePanel");
 }
 function enforceAdminIdleLock(){
   clearPendingSubmissionPrivate();
@@ -1289,6 +1340,10 @@ function onAdminActivity(e){
   if(login&&!login.hidden)return;
   const setup=$("#setupPanel");
   if(setup&&!setup.hidden)return;
+  if(adminShouldHoldIdleLock()){
+    enforceAdminIdleLock();
+    return;
+  }
   if(typeof api.noteActivity==="function")api.noteActivity();
 }
 function onAdminIdleStorage(e){
@@ -1301,6 +1356,10 @@ function onAdminIdleStorage(e){
     routeSession();
   }
 }
+function onAdminForeground(){
+  if(typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible")return;
+  if(persistedIdleLocked()||idleElapsedBeforeRestore()||adminShouldHoldIdleLock())enforceAdminIdleLock();
+}
 function startAdminIdleWatch(){
   const api=idleApi();
   const events=api.ACTIVITY_EVENTS||["pointerdown","keydown","touchstart"];
@@ -1308,14 +1367,22 @@ function startAdminIdleWatch(){
     document.addEventListener(type,onAdminActivity,{passive:true});
   });
   window.addEventListener("storage",onAdminIdleStorage);
+  document.addEventListener("visibilitychange",onAdminForeground);
+  window.addEventListener("pageshow",onAdminForeground);
   setInterval(tickAdminIdle,1000);
 }
 
 async function routeSession(){
   const gen=++routeGen;
+  const idle=idleApi();
+  if(idle.setRestoreGuard)idle.setRestoreGuard(true);
+  try{
   bindMfaGate();
   bindIdleLock();
-  if(persistedIdleLocked())enforceAdminIdleLock();
+  if(persistedIdleLocked()||idleElapsedBeforeRestore()){
+    enforceAdminIdleLock();
+    return;
+  }
   if(window.__kutadguSkipAdminAuth){
     if(!window.__kutadguAdminAalTest)return;
     user=user||{id:"preview-admin"};
@@ -1323,18 +1390,18 @@ async function routeSession(){
       enforceAdminIdleLock();
       return;
     }
-    const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
+    const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{blocked:true,gate:false,surface:"blocked"}};
     if(gen!==routeGen)return;
     if(adminShouldHoldIdleLock()){
       enforceAdminIdleLock();
       return;
     }
+    if(inspect.decision&&inspect.decision.blocked){
+      showMfaInspectionBlock();
+      return;
+    }
     if(inspect.decision&&inspect.decision.gate){
-      clearPendingSubmissionPrivate();
-      $("#adminLogout").hidden=true;
-      show("mfaGatePanel");
-      const otp=$("#mfaGateOtp");
-      if(otp)otp.focus();
+      showMfaGate();
       return;
     }
     if(adminShouldHoldIdleLock()){
@@ -1412,18 +1479,18 @@ async function routeSession(){
     enforceAdminIdleLock();
     return;
   }
-  const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{gate:false}};
+  const inspect=typeof Mfa.inspectAccess==="function"?await Mfa.inspectAccess(()=>db):{decision:{blocked:true,gate:false,surface:"blocked"}};
   if(gen!==routeGen)return;
   if(adminShouldHoldIdleLock()){
     enforceAdminIdleLock();
     return;
   }
+  if(inspect.decision&&inspect.decision.blocked){
+    showMfaInspectionBlock();
+    return;
+  }
   if(inspect.decision&&inspect.decision.gate){
-    clearPendingSubmissionPrivate();
-    $("#adminLogout").hidden=true;
-    show("mfaGatePanel");
-    const otp=$("#mfaGateOtp");
-    if(otp)otp.focus();
+    showMfaGate();
     return;
   }
   await detectOptionalGalleryColumn();
@@ -1438,6 +1505,9 @@ async function routeSession(){
     return;
   }
   await openAuthorizedDashboard();
+  }finally{
+    if(idle.setRestoreGuard)idle.setRestoreGuard(false);
+  }
 }
 
 async function openAuthorizedDashboard(){
@@ -7661,6 +7731,7 @@ function bindMfaGate(){
     getDb:()=>db,
     onAal2:()=>routeSession(),
     onNoFactor:()=>routeSession(),
+    onRetry:()=>routeSession(),
     onLogout:()=>logout(),
     onSessionInvalid:()=>{
       clearPendingSubmissionPrivate();
@@ -7704,7 +7775,7 @@ async function login(e){
   const {error}=await db.auth.signInWithPassword({email,password});
   if(error){status($("#loginStatus"),"كىرىش مەغلۇپ بولدى: "+error.message,"error");return}
   const api=idleApi();
-  if(api.noteActivity&&!persistedIdleLocked())api.noteActivity({force:true});
+  if(api.beginAuthenticatedActivity&&!persistedIdleLocked())api.beginAuthenticatedActivity();
   await routeSession();
 }
 async function logout(){

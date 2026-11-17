@@ -36,21 +36,29 @@
     return IDLE_MS;
   }
 
-  function emptyState() {
-    return { lastActivity: 0, locked: false };
+  let restoreDepth = 0;
+
+  function unavailableState() {
+    return { lastActivity: 0, locked: false, status: "unavailable" };
   }
 
-  function parseState(raw) {
-    if (!raw) return emptyState();
-    try {
-      const parsed = JSON.parse(raw);
-      return {
-        lastActivity: Number(parsed && parsed.lastActivity) || 0,
-        locked: !!(parsed && parsed.locked)
-      };
-    } catch (err) {
-      return emptyState();
-    }
+  function missingState() {
+    return { lastActivity: 0, locked: false, status: "missing" };
+  }
+
+  function corruptState(locked) {
+    return { lastActivity: 0, locked: !!locked, status: "corrupt" };
+  }
+
+  function stateUnusable(snap) {
+    return !snap || snap.status === "missing" || snap.status === "corrupt" || snap.status === "unavailable";
+  }
+
+  function recordOverdue(snap, at) {
+    if (!snap || snap.status !== "ok") return false;
+    const last = Number(snap.lastActivity) || 0;
+    if (!last) return false;
+    return at - last >= idleMs();
   }
 
   function getStorage() {
@@ -66,8 +74,24 @@
 
   function readState() {
     const storage = getStorage();
-    if (!storage || typeof storage.getItem !== "function") return emptyState();
-    return parseState(storage.getItem(STORAGE_KEY));
+    if (!storage || typeof storage.getItem !== "function") return unavailableState();
+    let raw;
+    try {
+      raw = storage.getItem(STORAGE_KEY);
+    } catch (err) {
+      return unavailableState();
+    }
+    if (raw == null || raw === "") return missingState();
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return corruptState(false);
+      const last = Number(parsed.lastActivity);
+      const locked = !!parsed.locked;
+      if (!Number.isFinite(last) || last <= 0) return corruptState(locked);
+      return { lastActivity: last, locked: locked, status: "ok" };
+    } catch (err) {
+      return corruptState(false);
+    }
   }
 
   function writeState(state) {
@@ -97,28 +121,54 @@
     return !!snap.locked;
   }
 
-  function shouldLock(state, at, busy) {
+  function shouldLock(state, at, busy, opts) {
     const snap = state || readState();
+    const moment = at == null ? now() : at;
     if (snap.locked) return true;
+    const restoring = !!(opts && opts.restoringSession);
+    if (stateUnusable(snap)) return restoring;
     if (busy) return false;
-    const last = Number(snap.lastActivity) || 0;
-    if (!last) return false;
-    return at - last >= idleMs();
+    return recordOverdue(snap, moment);
+  }
+
+  function activityWriteBlocked(snap, at, options) {
+    if (options.forceUnlock) return false;
+    if (snap.locked) return true;
+    if (recordOverdue(snap, at)) return true;
+    if (snap.status === "corrupt" || snap.status === "unavailable") return true;
+    if (snap.status === "missing" && restoreDepth > 0) return true;
+    return false;
   }
 
   function noteActivity(opts) {
     const options = opts || {};
     if (options.locked) return readState();
     const snap = readState();
-    if (snap.locked && !options.forceUnlock) return snap;
     const at = now();
+    if (activityWriteBlocked(snap, at, options)) return snap;
     const throttle = (typeof globalThis !== "undefined" && globalThis.__kutadguAdminIdleMs != null) ? 0 : WRITE_THROTTLE_MS;
-    if (!options.force && snap.lastActivity && throttle && at - snap.lastActivity < throttle && !snap.locked) {
+    if (!options.force && snap.status === "ok" && snap.lastActivity && throttle && at - snap.lastActivity < throttle && !snap.locked) {
       return snap;
     }
-    const next = { lastActivity: at, locked: false };
-    writeState(next);
-    return next;
+    writeState({ lastActivity: at, locked: false });
+    return readState();
+  }
+
+  function beginAuthenticatedActivity() {
+    const snap = readState();
+    if (snap.locked) return snap;
+    const at = now();
+    writeState({ lastActivity: at, locked: false });
+    return readState();
+  }
+
+  function setRestoreGuard(on) {
+    restoreDepth += on ? 1 : -1;
+    if (restoreDepth < 0) restoreDepth = 0;
+  }
+
+  function restoreGuardOn() {
+    return restoreDepth > 0;
   }
 
   function markLocked() {
@@ -284,6 +334,9 @@
     isPersistedLock: isPersistedLock,
     shouldLock: shouldLock,
     noteActivity: noteActivity,
+    beginAuthenticatedActivity: beginAuthenticatedActivity,
+    setRestoreGuard: setRestoreGuard,
+    restoreGuardOn: restoreGuardOn,
     markLocked: markLocked,
     unlock: unlock,
     activityFromEvent: activityFromEvent,
