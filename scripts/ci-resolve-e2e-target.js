@@ -4,7 +4,11 @@
  * Resolve the Stage 10 Playwright origin.
  * pull_request: use the checked-out candidate. KUTADGU_E2E_PREVIEW=1 restores the Vercel wait.
  * A pull_request never silently uses production.
- * workflow_dispatch / local: keep the previous preview, base URL, or production default.
+ * workflow_dispatch: use a non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL.
+ * A manual run without one, or with either production hostname, stops.
+ * A trailing DNS dot does not make a production hostname safe.
+ * A remote target that redirects to production is refused before that hop is requested.
+ * A local run with no URL uses http://127.0.0.1:4173 and also refuses production.
  */
 const fs = require("fs");
 
@@ -17,7 +21,7 @@ function trimUrl(value) {
 
 function hostnameOf(url) {
   try {
-    return new URL(trimUrl(url) + "/").hostname.toLowerCase();
+    return new URL(trimUrl(url) + "/").hostname.toLowerCase().replace(/\.+$/, "");
   } catch (err) {
     return "";
   }
@@ -27,6 +31,79 @@ function isProductionOrigin(url) {
   const host = hostnameOf(url);
   if (!host) return false;
   return host === "www.kutadgubilik.com" || host === "kutadgubilik.com";
+}
+
+function isLoopbackOrigin(url) {
+  const host = hostnameOf(url);
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
+function resolveRedirect(current, location) {
+  try {
+    return new URL(String(location || ""), current).href;
+  } catch (err) {
+    return "";
+  }
+}
+
+function headerValue(res, name) {
+  const headers = res && res.headers;
+  if (!headers) return "";
+  if (typeof headers.get === "function") return String(headers.get(name) || "");
+  const wanted = String(name || "").toLowerCase();
+  const key = Object.keys(headers).find((item) => item.toLowerCase() === wanted);
+  return key ? String(headers[key] || "") : "";
+}
+
+async function inspectRedirects(url, fetchImpl) {
+  const fetchFn = fetchImpl || fetch;
+  let current = String(url || "");
+  const seen = [];
+  for (let hop = 0; hop <= 5; hop += 1) {
+    if (isProductionOrigin(current)) {
+      return { ok: false, reason: "production-url", url: current, requested: seen.slice() };
+    }
+    if (seen.indexOf(current) !== -1) {
+      return { ok: false, reason: "redirect-loop", url: current, requested: seen.slice() };
+    }
+    seen.push(current);
+    let res;
+    try {
+      res = await fetchFn(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: { "User-Agent": "kutadgu-stage10-e2e", "Accept": "text/html" }
+      });
+    } catch (err) {
+      return { ok: false, reason: "probe-error", url: current, requested: seen.slice() };
+    }
+    const status = Number(res && res.status || 0);
+    if (status >= 300 && status < 400) {
+      const next = resolveRedirect(current, headerValue(res, "location"));
+      if (!next) return { ok: false, reason: "missing-location", url: current, requested: seen.slice() };
+      if (isProductionOrigin(next)) {
+        return { ok: false, reason: "redirect-to-production", url: next, requested: seen.slice() };
+      }
+      current = next;
+      continue;
+    }
+    return { ok: true, reason: status ? `http-${status}` : "ok", url: current, requested: seen.slice() };
+  }
+  return { ok: false, reason: "too-many-redirects", url: current, requested: seen.slice() };
+}
+
+async function enforceRedirectGuard(decision, fetchImpl) {
+  if (!decision || !decision.ok) return decision;
+  if (decision.useLocalStatic || isLoopbackOrigin(decision.url)) return decision;
+  const check = await inspectRedirects(decision.url, fetchImpl);
+  if (check.ok) return decision;
+  return {
+    ok: false,
+    url: "",
+    source: "rejected-production-redirect",
+    useLocalStatic: false,
+    note: `refusing redirect to production (${check.reason}); the production hop was not requested`
+  };
 }
 
 function isPreviewOrigin(url) {
@@ -81,13 +158,51 @@ function decideTarget(input) {
     };
   }
 
-  if (explicitPreview) {
-    return { ok: true, url: explicitPreview, source: "env-preview", useLocalStatic: false };
+  const manual = eventName === "workflow_dispatch";
+  const chosen = explicitPreview
+    ? { url: explicitPreview, source: "env-preview" }
+    : explicitBase
+      ? { url: explicitBase, source: "env-base" }
+      : null;
+  if (chosen && isProductionOrigin(chosen.url)) {
+    return {
+      ok: false,
+      url: "",
+      source: manual ? "rejected-manual-production" : "rejected-production",
+      useLocalStatic: false,
+      note: manual
+        ? "workflow_dispatch refuses https://www.kutadgubilik.com and https://kutadgubilik.com, including KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL"
+        : "refusing production target; use http://127.0.0.1:4173 or another non-production URL"
+    };
   }
-  if (explicitBase) {
-    return { ok: true, url: explicitBase, source: "env-base", useLocalStatic: false };
+  if (chosen) {
+    return { ok: true, url: chosen.url, source: chosen.source, useLocalStatic: false };
   }
-  return { ok: true, url: PRODUCTION, source: "production-default", useLocalStatic: false };
+  if (manual) {
+    return {
+      ok: false,
+      url: "",
+      source: "missing-manual-target",
+      useLocalStatic: false,
+      note: "workflow_dispatch requires an explicit non-production KUTADGU_PREVIEW_URL or KUTADGU_BASE_URL and will not use production"
+    };
+  }
+  if (!eventName) {
+    return {
+      ok: true,
+      url: localOrigin,
+      source: "local-default",
+      useLocalStatic: true,
+      note: "no test URL was provided; using http://127.0.0.1:4173"
+    };
+  }
+  return {
+    ok: false,
+    url: "",
+    source: "missing-target",
+    useLocalStatic: false,
+    note: "refusing production fallback because no explicit non-production test URL was provided"
+  };
 }
 
 function logTarget(decision, extra) {
@@ -168,6 +283,9 @@ async function probePreview(url, bypassSecret) {
   try {
     const res = await fetch(target, { method: "GET", headers, redirect: "manual" });
     const location = String(res.headers.get("location") || "");
+    if (res.status >= 300 && res.status < 400 && isProductionOrigin(resolveRedirect(target, location))) {
+      return { reachable: false, reason: "redirect-to-production", status: res.status };
+    }
     if (/vercel\.com\/sso-api/i.test(location)) {
       return { reachable: false, reason: "sso-protection", status: res.status };
     }
@@ -241,21 +359,32 @@ async function main() {
     localOrigin: LOCAL_ORIGIN
   });
 
+  const guarded = await enforceRedirectGuard(decision, fetch);
+  if (!guarded.ok) {
+    console.error(logTarget(guarded, extra));
+    console.error("[e2e-target] stopped: " + (guarded.note || "no explicit test target"));
+    process.exit(1);
+  }
+
   if (pullRequestRefusesProduction(eventName, decision)) {
     console.error(logTarget(decision, extra));
     console.error("[e2e-target] refusing to test production on pull_request");
     process.exit(1);
   }
 
-  console.log(logTarget(decision, extra));
-  writeEnv(decision);
+  console.log(logTarget(guarded, extra));
+  writeEnv(guarded);
 }
 
 module.exports = {
   PRODUCTION,
   LOCAL_ORIGIN,
+  hostnameOf,
   isProductionOrigin,
+  isLoopbackOrigin,
   isPreviewOrigin,
+  inspectRedirects,
+  enforceRedirectGuard,
   pickPreviewFromStatuses,
   decideTarget,
   logTarget,
