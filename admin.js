@@ -1312,7 +1312,9 @@ function showMfaInspectionBlock(){
 function enforceAdminIdleLock(){
   clearPendingSubmissionPrivate();
   const api=idleApi();
-  if(api&&typeof api.markLocked==="function")api.markLocked();
+  try{
+    if(api&&typeof api.markLocked==="function")api.markLocked();
+  }catch(err){}
   showIdleLock();
 }
 function adminIdleSurfaceActive(){

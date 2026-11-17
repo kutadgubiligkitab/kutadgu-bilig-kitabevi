@@ -550,4 +550,30 @@ test.describe("exact Preview persisted lock reproduction", () => {
     expect(unlocked.locked).toBe(false);
     expect(unlocked.lastActivity).toBeGreaterThan(1);
   });
+
+  test("QuotaExceededError while persisting the lock still hides the dashboard", async ({ page }) => {
+    await installIdleAdmin(page, { locked: false, idleMs: 50, clock: 1_000_000, lastActivity: 1_000_000 });
+    await page.goto("/admin.html", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboardPanel")).toBeVisible();
+    await page.evaluate(() => {
+      const key = "kutadgu-admin-idle-v1";
+      const native = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (name, value) {
+        if (name === key) throw new DOMException("quota", "QuotaExceededError");
+        return native.call(this, name, value);
+      };
+      window.__kutadguIdleClock += 80;
+      window.__kutadguAdminTest.tickAdminIdle();
+    });
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await page.mouse.click(40, 40);
+    await page.keyboard.press("a");
+    await expect(page.locator("#dashboardPanel")).toBeHidden();
+    await expect(page.locator("#idleLockPanel")).toBeVisible();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("kutadgu-admin-idle-v1")));
+    expect(stored.locked).toBe(false);
+    expect(stored.lastActivity).toBe(1_000_000);
+    expect(await page.evaluate(() => window.__kutadguSignOutCalls || 0)).toBe(0);
+  });
 });

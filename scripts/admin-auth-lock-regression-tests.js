@@ -20,12 +20,14 @@ let failed = 0;
 
 function install(clock) {
   mem.data = {};
+  mem.setItem = function (k, v) { this.data[k] = String(v); };
   globalThis.__kutadguAdminIdleStorage = mem;
   globalThis.__kutadguAdminIdleNow = () => clock.t;
   delete globalThis.__kutadguAdminIdleMs;
   delete globalThis.__kutadguAdminAalTest;
   delete globalThis.__kutadguMfaApi;
   delete globalThis.__kutadguSkipAdminAuth;
+  Idle.clearState();
   Idle.setRestoreGuard(false);
   Idle.setRestoreGuard(false);
 }
@@ -257,6 +259,175 @@ function mfaClient(opts) {
     assert.strictEqual(Idle.restoreGuardOn(), false);
     assert.strictEqual(Idle.readState().lastActivity, before);
     assert.doesNotMatch(adminJs.match(/function tickAdminIdle[\s\S]*?function onAdminActivity/)[0], /signOut/);
+  });
+
+  function throwOnIdleWrite(name) {
+    mem.setItem = function (k) {
+      if (k === Idle.STORAGE_KEY) {
+        const err = new Error(name);
+        err.name = name;
+        throw err;
+      }
+      this.data[k] = arguments[1];
+    };
+  }
+
+  await check("12. QuotaExceededError while marking the idle lock keeps the lock without a fresh timer", async () => {
+    const clock = { t: 9_000_000 };
+    install(clock);
+    const stale = clock.t - 31 * 60 * 1000;
+    mem.setItem(Idle.STORAGE_KEY, JSON.stringify({ lastActivity: stale, locked: false }));
+    throwOnIdleWrite("QuotaExceededError");
+    let thrown = null;
+    try { Idle.markLocked(); } catch (err) { thrown = err; }
+    assert.strictEqual(thrown, null);
+    const snap = Idle.readState();
+    assert.strictEqual(snap.locked, true);
+    assert.strictEqual(snap.persistFailed, true);
+    assert.strictEqual(JSON.parse(mem.data[Idle.STORAGE_KEY]).locked, false);
+    assert.strictEqual(JSON.parse(mem.data[Idle.STORAGE_KEY]).lastActivity, stale);
+    Idle.noteActivity({ force: true });
+    Idle.unlock();
+    assert.strictEqual(JSON.parse(mem.data[Idle.STORAGE_KEY]).lastActivity, stale);
+    assert.strictEqual(Idle.readState().locked, true);
+    assert.strictEqual(Idle.shouldLock(Idle.readState(), Idle.now(), false), true);
+    const enforce = adminJs.match(/function enforceAdminIdleLock\(\)\{[\s\S]*?\n\}/);
+    assert.ok(enforce);
+    assert.ok(enforce[0].indexOf("markLocked") < enforce[0].indexOf("showIdleLock"));
+    assert.match(enforce[0], /catch\(err\)\{\}/);
+  });
+
+  await check("13. SecurityError during a missing-storage restore cannot fall open", async () => {
+    const clock = { t: 10_000_000 };
+    install(clock);
+    throwOnIdleWrite("SecurityError");
+    Idle.setRestoreGuard(true);
+    assert.strictEqual(Idle.shouldLock(Idle.readState(), Idle.now(), false, { restoringSession: true }), true);
+    Idle.markLocked();
+    Idle.setRestoreGuard(false);
+    Idle.noteActivity({ force: true });
+    Idle.beginAuthenticatedActivity();
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(mem.data, Idle.STORAGE_KEY), false);
+    assert.strictEqual(Idle.readState().locked, true);
+    assert.strictEqual(Idle.readState().status, "missing");
+    Idle.clearState();
+    assert.strictEqual(Idle.readState().locked, false);
+    mem.setItem = function (k, v) { this.data[k] = String(v); };
+    const started = Idle.beginAuthenticatedActivity();
+    assert.strictEqual(started.locked, false);
+    assert.strictEqual(started.status, "ok");
+    assert.strictEqual(JSON.parse(mem.data[Idle.STORAGE_KEY]).locked, false);
+  });
+
+  await check("14. Book Staff blocked inspection retries and a missing inspectAccess cannot enroll", async () => {
+    const vm = require("vm");
+    const staffJs = fs.readFileSync(path.join(root, "book-staff.js"), "utf8");
+    const mfaJs = fs.readFileSync(path.join(root, "admin-mfa.js"), "utf8");
+    const listeners = {};
+    const panels = {};
+    function el(id) {
+      if (!panels[id]) {
+        panels[id] = {
+          id,
+          hidden: true,
+          textContent: id === "mfaGateSubmit" ? "جەزملەش" : "",
+          value: "",
+          innerHTML: "",
+          required: id === "mfaGateOtp",
+          dataset: {},
+          className: "",
+          files: [],
+          onclick: null,
+          addEventListener(type, fn) {
+            (listeners[id + ":" + type] = listeners[id + ":" + type] || []).push(fn);
+          },
+          reset() {},
+          replaceChildren() {},
+          querySelectorAll() { return []; },
+          closest() { return id === "mfaGateOtp" ? el("mfaGateLabel") : null; },
+          getAttribute() { return ""; },
+          setAttribute() {}
+        };
+      }
+      return panels[id];
+    }
+    const sandbox = {
+      console,
+      Date,
+      Math,
+      Number,
+      String,
+      Array,
+      Object,
+      Error,
+      URL,
+      Promise,
+      Map,
+      setTimeout,
+      clearTimeout
+    };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    sandbox.document = {
+      readyState: "complete",
+      querySelector(sel) {
+        if (sel && sel.charAt(0) === "#") return el(sel.slice(1));
+        return null;
+      },
+      addEventListener() {}
+    };
+    let inspections = 0;
+    sandbox.KutadguMember = {
+      ready: Promise.resolve(),
+      getUser() { return { id: "11111111-1111-4111-8111-111111111111", email: "staff@example.com" }; },
+      getClient() {
+        return {
+          rpc: async () => ({ data: true, error: null }),
+          auth: {
+            mfa: {
+              async getAuthenticatorAssuranceLevel() {
+                return { data: { currentLevel: "aal1", nextLevel: "aal2" }, error: null };
+              },
+              async listFactors() { throw new Error("list down"); }
+            }
+          }
+        };
+      },
+      signOut: async () => {}
+    };
+    vm.runInNewContext(mfaJs, sandbox);
+    const realInspect = sandbox.KutadguAdminMfa.inspectAccess;
+    sandbox.KutadguAdminMfa.inspectAccess = async function (getDb) {
+      inspections += 1;
+      return realInspect(getDb);
+    };
+    vm.runInNewContext(staffJs, sandbox);
+    const api = sandbox.KutadguBookStaff;
+    await api.routeStaffSession();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.strictEqual(panels.mfaGatePanel.hidden, false);
+    assert.strictEqual(panels.staffWorkspace.hidden, true);
+    assert.strictEqual(panels.mfaEnrollPanelWrap.hidden, true);
+    assert.strictEqual(panels.mfaGateOtp.hidden, true);
+    assert.strictEqual(panels.mfaGateOtp.required, false);
+    assert.strictEqual(panels.mfaGateLabel.hidden, true);
+    assert.strictEqual(panels.mfaGateForm.dataset.inspectBlocked, "1");
+    assert.strictEqual(panels.mfaGateSubmit.textContent, "قايتا سىناش");
+    assert.match(panels.mfaGateStatus.textContent, /قايتا سىناڭ/);
+    const before = inspections;
+    const submit = listeners["mfaGateForm:submit"][0];
+    await submit({ preventDefault() {} });
+    assert.strictEqual(inspections, before + 1);
+    assert.strictEqual(panels.mfaGateOtp.hidden, true);
+    assert.strictEqual(panels.staffWorkspace.hidden, true);
+    delete sandbox.KutadguAdminMfa.inspectAccess;
+    await api.routeStaffSession();
+    assert.strictEqual(panels.mfaEnrollPanelWrap.hidden, true);
+    assert.strictEqual(panels.staffWorkspace.hidden, true);
+    assert.strictEqual(panels.mfaGatePanel.hidden, false);
+    assert.strictEqual(panels.mfaGateForm.dataset.inspectBlocked, "1");
+    assert.match(staffJs, /decision:\{blocked:true,gate:false,surface:"blocked"\}/);
+    assert.match(staffJs, /onRetry:\(\)=>routeStaffSession\(\)/);
   });
 
   if (failed) {

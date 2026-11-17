@@ -37,6 +37,17 @@
   }
 
   let restoreDepth = 0;
+  let memoryLock = false;
+
+  function withMemoryLock(snap) {
+    if (!memoryLock) return snap;
+    return {
+      lastActivity: snap.lastActivity,
+      locked: true,
+      status: snap.status,
+      persistFailed: true
+    };
+  }
 
   function unavailableState() {
     return { lastActivity: 0, locked: false, status: "unavailable" };
@@ -74,40 +85,48 @@
 
   function readState() {
     const storage = getStorage();
-    if (!storage || typeof storage.getItem !== "function") return unavailableState();
+    if (!storage || typeof storage.getItem !== "function") return withMemoryLock(unavailableState());
     let raw;
     try {
       raw = storage.getItem(STORAGE_KEY);
     } catch (err) {
-      return unavailableState();
+      return withMemoryLock(unavailableState());
     }
-    if (raw == null || raw === "") return missingState();
+    if (raw == null || raw === "") return withMemoryLock(missingState());
     try {
       const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return corruptState(false);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return withMemoryLock(corruptState(false));
       const last = Number(parsed.lastActivity);
       const locked = !!parsed.locked;
-      if (!Number.isFinite(last) || last <= 0) return corruptState(locked);
-      return { lastActivity: last, locked: locked, status: "ok" };
+      if (!Number.isFinite(last) || last <= 0) return withMemoryLock(corruptState(locked));
+      return withMemoryLock({ lastActivity: last, locked: locked, status: "ok" });
     } catch (err) {
-      return corruptState(false);
+      return withMemoryLock(corruptState(false));
     }
   }
 
   function writeState(state) {
     const storage = getStorage();
-    if (!storage || typeof storage.setItem !== "function") return;
+    if (!storage || typeof storage.setItem !== "function") return false;
     const payload = JSON.stringify({
       lastActivity: Number(state.lastActivity) || 0,
       locked: !!state.locked
     });
-    storage.setItem(STORAGE_KEY, payload);
+    try {
+      storage.setItem(STORAGE_KEY, payload);
+      return true;
+    } catch (err) {
+      return false;
+    }
   }
 
   function clearState() {
+    memoryLock = false;
     const storage = getStorage();
     if (!storage || typeof storage.removeItem !== "function") return;
-    storage.removeItem(STORAGE_KEY);
+    try {
+      storage.removeItem(STORAGE_KEY);
+    } catch (err) {}
   }
 
   function isAuthStorageKey(key) {
@@ -150,7 +169,8 @@
     if (!options.force && snap.status === "ok" && snap.lastActivity && throttle && at - snap.lastActivity < throttle && !snap.locked) {
       return snap;
     }
-    writeState({ lastActivity: at, locked: false });
+    const wrote = writeState({ lastActivity: at, locked: false });
+    if (options.forceUnlock && wrote) memoryLock = false;
     return readState();
   }
 
@@ -173,8 +193,12 @@
 
   function markLocked() {
     const snap = readState();
-    writeState({ lastActivity: snap.lastActivity || now(), locked: true });
-    return readState();
+    const at = snap.lastActivity || now();
+    memoryLock = true;
+    writeState({ lastActivity: at, locked: true });
+    const next = readState();
+    if (next.locked) return next;
+    return { lastActivity: at, locked: true, status: "unavailable", persistFailed: true };
   }
 
   function unlock() {
