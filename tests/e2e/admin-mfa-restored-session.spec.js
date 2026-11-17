@@ -36,6 +36,9 @@ async function installRestoredAdmin(page, opts = {}) {
     };
     window.__kutadguAuthCbs = [];
     window.__kutadguMfaUnenrollLog = [];
+    try {
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
+    } catch (e) {}
     window.__kutadguAal = { currentLevel };
     if (mode === "none") window.__kutadguMockSession = null;
     else if (mode === "expired") {

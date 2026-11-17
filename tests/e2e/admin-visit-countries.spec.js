@@ -734,6 +734,9 @@ async function installCountryAdmin(page) {
     window.__kutadguReleaseHeld = null;
     window.__kutadguSignOutImpl = null;
     window.__kutadguMockSession = sessionFor({ id: "admin-a", email: "a@example.com" });
+    try {
+      localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
+    } catch (e) {}
     window.__kutadguCountryByUser = { "admin-a": "TR", "admin-b": "FR" };
     window.__kutadguMfaApi = {
       async listFactors() {
@@ -958,6 +961,7 @@ test("session loss, account switch, and logout drop an in-flight country read", 
       user: { id: "admin-a", email: "a@example.com" }
     };
     window.__kutadguSignOutImpl = () => Promise.reject(new Error("چېكىنىش مەغلۇپ"));
+    localStorage.setItem("kutadgu-admin-idle-v1", JSON.stringify({ lastActivity: Date.now(), locked: false }));
   });
   await page.evaluate(() => window.__kutadguAdminTest.routeSession());
   await expect(page.locator("#analyticsVisitCountryTotals")).toContainText("تۈركىيە");
